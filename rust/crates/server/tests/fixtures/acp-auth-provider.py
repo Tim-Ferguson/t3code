@@ -4,10 +4,11 @@ import json, os, socket, sys
 log, version = sys.argv[1], int(sys.argv[2])
 marker = log + ".credentials"
 scenario = os.environ.get("AUTH_SCENARIO", "normal")
+health = False
 
 def record(method):
     with open(log, "a") as file:
-        file.write(json.dumps({"pid": os.getpid(), "method": method}) + "\n")
+        file.write(json.dumps({"pid": os.getpid(), "method": method, "health": health}) + "\n")
 
 def milestone(method):
     if "AUTH_SOCKET" in os.environ:
@@ -44,12 +45,14 @@ for line in sys.stdin:
     method, params = request["method"], request.get("params",{})
     record(method)
     if method == "initialize":
+        health = params.get("clientInfo",{}).get("name") == "t3-code"
         caps = params["clientCapabilities"]
-        assert caps["auth"] == {"terminal":True}, caps
-        assert caps["terminal"] is False, caps
-        assert caps["fs"] == {"readTextFile":False,"writeTextFile":False}, caps
+        if not health:
+            assert caps["auth"] == {"terminal":True}, caps
+            assert caps["terminal"] is False, caps
+            assert caps["fs"] == {"readTextFile":False,"writeTextFile":False}, caps
+            assert params["capabilities"]["auth"] == {"terminal":{}}, params
         assert params["protocolVersion"] == 2, params
-        assert params["capabilities"]["auth"] == {"terminal":{}}, params
         milestone(method)
         if scenario == "held-initialize": continue
         methods=[{"id":"agent","name":"Browser login","description":"Fixture agent"},
@@ -69,8 +72,16 @@ for line in sys.stdin:
         login=request
         emit({"jsonrpc":"2.0","id":"auth:0","method":"elicitation/create","params":{"requestId":request["id"],"mode":"url","url":"https://example.test/login","elicitationId":"fixture-consent","message":"Fixture login"}})
     elif method=="session/new":
-        assert os.path.exists(marker) or os.environ.get("FIXTURE_TOKEN")=="configured-only", "verification without credentials"
-        reply(request,{"sessionId":"disposable-auth-session"})
+        if health and "HEALTH_SOCKET" in os.environ:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as signal:
+                signal.sendto(json.dumps({"pid":os.getpid(),"method":method}).encode(),os.environ["HEALTH_SOCKET"])
+        if health and scenario=="held-health" and os.path.exists(marker): continue
+        if not (os.path.exists(marker) or os.environ.get("FIXTURE_TOKEN")=="configured-only"):
+            emit({"jsonrpc":"2.0","id":request["id"],"error":{"code":-32000,"message":"Fixture authentication required"}})
+            continue
+        configuration={"type":"select","configId" if version==2 else "id":"model","category":"model","name":"Model","currentValue":"fixture-auth-model","options":[{"value":"fixture-auth-model","name":"Fixture authenticated model"}]}
+        reply(request,{"sessionId":"disposable-auth-session","configOptions":[configuration]})
+        emit({"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"disposable-auth-session","update":{"sessionUpdate":"available_commands_update","availableCommands":[]}}})
     elif method in ("logout","auth/logout"):
         if os.path.exists(marker): os.remove(marker)
         reply(request,{})

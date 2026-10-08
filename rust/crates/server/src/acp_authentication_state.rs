@@ -173,6 +173,10 @@ pub struct AuthenticationState {
     binding: String,
     confirmed: Arc<Mutex<bool>>,
     writer: Arc<tokio::sync::Mutex<()>>,
+    #[cfg(test)]
+    write_gate: Arc<
+        Mutex<Option<tokio::sync::mpsc::UnboundedSender<(bool, tokio::sync::oneshot::Sender<()>)>>>,
+    >,
 }
 impl AuthenticationState {
     pub async fn open(
@@ -196,11 +200,25 @@ impl AuthenticationState {
             binding,
             confirmed: Arc::new(Mutex::new(confirmed)),
             writer: Arc::new(tokio::sync::Mutex::new(())),
+            #[cfg(test)]
+            write_gate: Arc::default(),
         };
         if saved.is_some_and(|saved| saved.binding != state.binding) {
             state.set(false).await;
         }
         state
+    }
+    #[cfg(test)]
+    pub(crate) fn hold_writes(
+        &self,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<(bool, tokio::sync::oneshot::Sender<()>)> {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        *self.write_gate.lock().unwrap() = Some(sender);
+        receiver
+    }
+    #[cfg(test)]
+    pub(crate) fn release_writes(&self) {
+        self.write_gate.lock().unwrap().take();
     }
     pub fn get(&self) -> bool {
         *self.confirmed.lock().unwrap()
@@ -212,6 +230,16 @@ impl AuthenticationState {
         let state = self.clone();
         let job = tokio::spawn(async move {
             let _writer = state.writer.lock().await;
+            #[cfg(test)]
+            {
+                let gate = state.write_gate.lock().unwrap().clone();
+                if let Some(gate) = gate {
+                    let (release, released) = tokio::sync::oneshot::channel();
+                    if gate.send((authenticated, release)).is_ok() {
+                        let _ = released.await;
+                    }
+                }
+            }
             *state.confirmed.lock().unwrap() = authenticated;
             let saved = Saved {
                 binding: state.binding,

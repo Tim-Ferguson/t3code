@@ -32,11 +32,13 @@ struct MethodsJob {
     cancel: watch::Sender<bool>,
     done: watch::Receiver<bool>,
 }
+pub(crate) type Changed = Arc<dyn Fn(bool) -> BoxFuture<'static, ()> + Send + Sync>;
 #[derive(Clone)]
 pub struct AcpAuth {
     instance: AcpInstance,
     cwd: PathBuf,
     confirmation: AuthenticationState,
+    changed: Option<Changed>,
     pending: Arc<Mutex<Option<Pending>>>,
     startup: Arc<Mutex<Option<ForegroundStartup>>>,
     terminal: Arc<Mutex<Option<MethodsJob>>>,
@@ -101,12 +103,31 @@ impl AcpAuth {
             instance,
             cwd,
             confirmation,
+            changed: None,
             pending: Arc::new(Mutex::new(None)),
             startup: Arc::new(Mutex::new(None)),
             terminal: Arc::new(Mutex::new(None)),
             methods_jobs: Arc::new(Mutex::new(vec![])),
             known_methods: Arc::new(Mutex::new(None)),
         }
+    }
+    pub(crate) fn with_changed(mut self, changed: Changed) -> Self {
+        self.changed = Some(changed);
+        self
+    }
+    async fn authentication_changed(&self, authenticated: bool) {
+        if let Some(changed) = &self.changed {
+            changed(authenticated).await;
+        } else {
+            self.confirmation.set(authenticated).await;
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn confirmation(&self) -> AuthenticationState {
+        self.confirmation.clone()
+    }
+    pub(crate) async fn invalidate_confirmation(&self) {
+        self.authentication_changed(false).await;
     }
     pub fn controller(&self) -> AuthFlow {
         AuthFlow::new(
@@ -542,7 +563,7 @@ impl AcpAuth {
             .shutdown()
             .await;
         self.cleanup_pending().await;
-        self.confirmation.set(true).await;
+        self.authentication_changed(true).await;
         Ok(())
     }
 }
@@ -627,7 +648,7 @@ impl AuthBackend for AcpAuth {
         }).await.unwrap_or_else(|_|Err(failure(&backend.instance.instance_id,"logout","The ACP agent did not finish signing out in time.")));
             backend.cleanup_pending().await;
             if result.is_ok() {
-                backend.confirmation.set(false).await;
+                backend.authentication_changed(false).await;
             }
             result
         })

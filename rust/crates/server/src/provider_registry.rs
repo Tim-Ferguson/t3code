@@ -71,6 +71,7 @@ pub struct ProviderRegistry {
     coordinator: crate::acp_coordinator::Coordinator,
     observer: Option<Arc<crate::acp_coordinator::LiveObserver>>,
     auth: Arc<RwLock<Option<crate::provider_auth_service::WeakProviderAuthService>>>,
+    health: crate::acp_health_jobs::Refreshes,
 }
 impl ProviderRegistry {
     pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
@@ -299,6 +300,7 @@ impl ProviderRegistry {
             coordinator,
             observer: None,
             auth: Arc::new(RwLock::new(None)),
+            health: Default::default(),
         })
     }
     /// Existing registry clones observe a complete replacement after discovery.
@@ -314,6 +316,12 @@ impl ProviderRegistry {
             Some(auth) => Some(auth.hold_reconfiguration(settings).await),
             None => None,
         };
+        self.health
+            .stop_all_retaining(
+                false,
+                _auth_hold.as_ref().map(|hold| hold._admission.clone()),
+            )
+            .await;
         let replacement = Self::discover_with_context(
             settings,
             cwd,
@@ -348,6 +356,138 @@ impl ProviderRegistry {
             .senders
             .retain(|_, sender| sender.send(published.clone()).is_ok());
         Ok(snapshots)
+    }
+    /// Explicit sign-in invalidates only this instance's disposable health
+    /// enrichment. It never enters registry/controller reconfiguration.
+    pub(crate) async fn authentication_changed(
+        &self,
+        instance: &str,
+        expected: &ProviderInstanceConfig,
+        cwd: &Path,
+        confirmation: crate::acp_authentication_state::AuthenticationState,
+        authenticated: bool,
+    ) {
+        let Some((entry, _captured)) = self.acp_auth_entry(instance) else {
+            return;
+        };
+        if serde_json::to_value(entry).unwrap() != serde_json::to_value(expected).unwrap() {
+            return;
+        }
+        let Some(mut lease) = self.health.admit(instance).await else {
+            return;
+        };
+        let state = Arc::downgrade(&self.state);
+        let changes = Arc::downgrade(&self.changes);
+        let expected = serde_json::to_value(expected).unwrap();
+        let instance = instance.to_owned();
+        let cwd = cwd.to_owned();
+        let (published, readiness) = tokio::sync::oneshot::channel();
+        tokio::spawn(async move {
+            lease.await_previous().await;
+            if lease.stopped() {
+                return;
+            }
+            let captured = {
+                let Some(state) = state.upgrade() else { return };
+                let current = state.read().unwrap();
+                let entries = derive_instance_configs(&current.settings);
+                if !entries
+                    .get(&instance.parse().expect("validated instance"))
+                    .is_some_and(|entry| serde_json::to_value(entry).unwrap() == expected)
+                {
+                    return;
+                }
+                let Some(captured) = current.acp.get(&instance).cloned() else {
+                    return;
+                };
+                captured
+            };
+            // A superseded probe is fully disposed before the confirmation and
+            // refreshed readiness are applied to the next generation.
+            confirmation.set(authenticated).await;
+            if !authenticated {
+                captured.coordinator.clear_configuration(&instance);
+                captured.coordinator.clear_commands(&instance);
+            }
+            let mut cancelled = lease.cancellation();
+            let snapshot = tokio::select! {biased;_ = cancelled.wait_for(|stop|*stop)=>return,result=captured.readiness()=>result};
+            let Ok(snapshot) = snapshot else { return };
+            let installed = snapshot["installed"] == true;
+            let publish = |mut snapshot: Value| {
+                lease.publish(|| {
+                    let (Some(state), Some(changes)) = (state.upgrade(), changes.upgrade()) else {
+                        return;
+                    };
+                    let mut current = state.write().unwrap();
+                    let matches = derive_instance_configs(&current.settings)
+                        .get(&instance.parse().expect("validated provider instance"))
+                        .is_some_and(|entry| serde_json::to_value(entry).unwrap() == expected);
+                    if !matches {
+                        return;
+                    }
+                    if snapshot["auth"]["status"] == "unknown"
+                        && snapshot["enabled"] == true
+                        && snapshot["installed"] == true
+                        && confirmation.get()
+                    {
+                        snapshot["auth"]["status"] = json!("authenticated");
+                    }
+                    apply_coordinator_state(
+                        &mut snapshot,
+                        &captured.coordinator,
+                        &instance,
+                        &captured.config.custom_models,
+                    );
+                    if let Some(existing) = current
+                        .snapshots
+                        .iter_mut()
+                        .find(|snapshot| snapshot["instanceId"] == instance)
+                    {
+                        *existing = snapshot;
+                    }
+                    let published = Arc::new(current.snapshots.clone());
+                    changes
+                        .lock()
+                        .unwrap()
+                        .senders
+                        .retain(|_, sender| sender.send(published.clone()).is_ok());
+                });
+            };
+            publish(snapshot);
+            let _ = published.send(());
+            if !installed || lease.stopped() {
+                return;
+            }
+            let (cancel, cancellation) = tokio::sync::oneshot::channel();
+            let cancellation_bridge = tokio::spawn(async move {
+                let _ = cancelled.wait_for(|stop| *stop).await;
+                let _ = cancel.send(());
+            });
+            let enriched = captured.discover_enrichment(&cwd, cancellation).await;
+            cancellation_bridge.abort();
+            if let Ok(Some(snapshot)) = enriched {
+                if !lease.stopped() {
+                    if snapshot["auth"]["status"] == "unauthenticated" {
+                        confirmation.set(false).await;
+                    }
+                    publish(snapshot);
+                }
+            }
+        });
+        // Source onChanged awaits readiness refresh, while enrichment belongs
+        // to the provider's scope and continues independently afterward.
+        let _ = readiness.await;
+    }
+    #[cfg(test)]
+    pub(crate) fn observe_health_refreshes(&self) -> tokio::sync::mpsc::UnboundedReceiver<String> {
+        self.health.observe_admissions()
+    }
+    #[cfg(test)]
+    pub(crate) async fn wait_health_refresh(&self, instance: &str) {
+        self.health.wait(instance).await;
+    }
+    pub(crate) async fn shutdown_health(&self) {
+        self.health.stop_all(true).await;
     }
     pub fn subscribe_changes(&self) -> ProviderChanges {
         let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();

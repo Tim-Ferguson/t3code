@@ -783,6 +783,37 @@ impl AcpInstance {
             services,
         })
     }
+    pub(crate) fn health_input(&self, inspection: Value) -> Value {
+        let mut settings = serde_json::to_value(&self.config).expect("typed ACP settings");
+        settings["enabled"] = json!(self.enabled);
+        json!({"instanceId":self.instance_id,"displayName":self.display_name,"accentColor":self.accent_color,"continuationKey":format!("acpRegistry:instance:{}",self.instance_id),"settings":settings,"inspection":inspection,"checkedAt":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true)})
+    }
+    async fn inspect_health(&self) -> Value {
+        if let Some(catalog) = &self.catalog {
+            return catalog.inspection(&self.config,&self.environment).await.unwrap_or_else(|error|json!({"status":"failed","message":format!("Could not inspect ACP Registry agent: {}",error.detail)}));
+        }
+        if self.config.source == AcpRegistrySettingsSource::Local {
+            json!({"status":if self.config.command_path.as_str().is_empty(){"unconfigured"}else if crate::acp_registry_support::executable(self.config.command_path.as_str(),&self.environment).is_some(){"ready"}else{"missing_runner"},"distribution":"local","version":null})
+        } else {
+            json!({"status":"failed","message":"Could not inspect ACP Registry agent: ACP registry catalog is unavailable."})
+        }
+    }
+    pub(crate) async fn readiness(&self) -> Result<Value, AcpError> {
+        let inspection = if self.enabled {
+            self.inspect_health().await
+        } else {
+            json!({"status":"unconfigured"})
+        };
+        let input = self.health_input(inspection);
+        let mut snapshot = crate::acp_health::checked(&input);
+        if !self.enabled {
+            snapshot["message"] = json!("ACP Registry is disabled in T3 Code settings.");
+        } else if input["inspection"]["status"] == "ready" {
+            snapshot["message"] =
+                json!("Checking ACP authentication, models, and commands in the background...");
+        }
+        checked_snapshot(snapshot)
+    }
     pub async fn discover(&self, cwd: &Path) -> Result<Value, AcpError> {
         struct Cancel(Option<oneshot::Sender<()>>);
         impl Drop for Cancel {
@@ -803,63 +834,64 @@ impl AcpInstance {
         });
         result.await.map_err(|_| AcpError::Closed)?
     }
-    async fn discover_owned(
+    pub(crate) async fn discover_owned(
+        &self,
+        cwd: &Path,
+        cancellation: oneshot::Receiver<()>,
+    ) -> Result<Value, AcpError> {
+        self.discover_outcome(cwd, cancellation)
+            .await
+            .map(|(snapshot, _)| snapshot)
+    }
+    pub(crate) async fn discover_enrichment(
+        &self,
+        cwd: &Path,
+        cancellation: oneshot::Receiver<()>,
+    ) -> Result<Option<Value>, AcpError> {
+        self.discover_outcome(cwd, cancellation)
+            .await
+            .map(|(snapshot, completed)| completed.then_some(snapshot))
+    }
+    async fn discover_outcome(
         &self,
         cwd: &Path,
         mut cancellation: oneshot::Receiver<()>,
-    ) -> Result<Value, AcpError> {
-        let mut snapshot = json!({"instanceId":self.instance_id,"driver":"acpRegistry","displayName":self.display_name,"enabled":self.enabled,"installed":false,"version":null,"status":if self.enabled{"warning"}else{"disabled"},"auth":{"status":"unknown"},"checkedAt":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),"availability":"available","models":[],"slashCommands":[],"skills":[]});
-        if let Some(accent) = &self.accent_color {
-            snapshot["accentColor"] = json!(accent);
-        }
-        if !self.enabled {
-            snapshot["message"] = json!("The ACP provider instance is disabled.");
+    ) -> Result<(Value, bool), AcpError> {
+        let mut interrupted = false;
+        let inspection = if self.enabled {
+            self.inspect_health().await
         } else {
-            let inspected = if self.config.source == AcpRegistrySettingsSource::Registry {
-                match &self.catalog {
-                    Some(catalog) => catalog
-                        .inspection(&self.config, &self.environment)
-                        .await
-                        .map_err(|error| error.to_string()),
-                    None => Err("ACP registry catalog is unavailable.".into()),
-                }
-            } else {
-                Ok(json!({"status":"ready"}))
-            };
-            let probe = match inspected {
-                Ok(info) if info["status"] == "ready" => {
-                    snapshot["installed"] = json!(true);
-                    snapshot["status"] = json!("ready");
-                    snapshot["version"] = info.get("version").cloned().unwrap_or(Value::Null);
-                    true
-                }
-                Ok(info) => {
-                    snapshot["message"] = json!(format!(
-                        "ACP Registry provider is {}. Prepare the selected agent before discovery.",
-                        info["status"].as_str().unwrap_or("unavailable")
-                    ));
-                    false
-                }
-                Err(error) => {
-                    snapshot["message"] = json!(error);
-                    false
-                }
-            };
-            if probe {
+            json!({"status":"unconfigured"})
+        };
+        let mut health_input = self.health_input(inspection);
+        let mut snapshot = crate::acp_health::checked(&health_input);
+        if !self.enabled {
+            snapshot["message"] = json!("ACP Registry is disabled in T3 Code settings.");
+        } else {
+            if health_input["inspection"]["status"] == "ready" {
                 let Some(mut admission) = self.coordinator.background_probe(&self.startup_key())
                 else {
                     snapshot["message"] = json!(
                         "ACP discovery deferred while the provider starts a foreground session."
                     );
-                    return checked_snapshot(snapshot);
+                    return checked_snapshot(snapshot).map(|snapshot| (snapshot, false));
                 };
                 let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
                 let resolved = tokio::select! {
                     biased;
-                    _=&mut cancellation=>return checked_snapshot(snapshot),
-                    _=admission.interrupted()=>return checked_snapshot(snapshot),
+                    _=&mut cancellation=>return checked_snapshot(snapshot).map(|snapshot|(snapshot,false)),
+                    _=admission.interrupted()=>return checked_snapshot(snapshot).map(|snapshot|(snapshot,false)),
                     result=tokio::time::timeout_at(deadline,self.resolve_process(cwd))=>result.unwrap_or_else(|_|Err(AcpError::Transport("Timed out while resolving ACP probe process.".into()))),
                 };
+                let command = resolved
+                    .as_ref()
+                    .map(|options| options.binary.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let args = resolved
+                    .as_ref()
+                    .map(|options| options.args.clone())
+                    .unwrap_or_default();
+                let mut probe_initialize = Value::Null;
                 match resolved.and_then(ProcessPeer::spawn) {
                     Ok(peer) => {
                         let services = self.services_for(
@@ -871,8 +903,11 @@ impl AcpInstance {
                             biased;
                             _=&mut cancellation=>None,
                             _=admission.interrupted()=>None,
-                            result=tokio::time::timeout_at(deadline,
-                                self.start_peer_with_services(peer.clone(), cwd, None, true, services))=>Some(result),
+                            result=tokio::time::timeout_at(deadline,async {
+                                let initialized=self.initialize_only(peer.clone(),true,services,None,None).await?;
+                                probe_initialize=serde_json::to_value(&initialized.initialize).expect("typed initialize");
+                                self.finish_initialized(initialized,cwd,None,true,false).await
+                            })=>Some(result),
                         };
                         match result {
                             Some(Ok(Ok(mut session))) => {
@@ -885,35 +920,47 @@ impl AcpInstance {
                                     _=tokio::time::timeout(Duration::from_millis(500),session.commands.wait_for(|commands|commands.is_some()))=>true,
                                 };
                                 if !advertised {
+                                    interrupted = true;
                                     snapshot["message"] = json!(
                                         "ACP discovery interrupted by foreground work or cancellation."
                                     );
                                 }
-                                snapshot["installed"] = json!(true);
-                                snapshot["status"] = json!("ready");
-                                snapshot["auth"] = json!({"status":"unknown"});
-
-                                snapshot["models"] = json!(models_from_setup(
-                                    &serde_json::to_value(&session.setup).unwrap(),
-                                    &self.config.custom_models
+                                let configuration = crate::acp_model::live_configuration(
+                                    &serde_json::to_value(&session.setup_response).unwrap(),
+                                );
+                                let mut probe = serde_json::to_value(configuration).unwrap();
+                                probe["sessionManagement"] =
+                                    crate::acp_health::management(&probe_initialize);
+                                probe["authMethods"] = json!(crate::acp_health::auth_methods(
+                                    &probe_initialize,
+                                    &command,
+                                    &args
                                 ));
-                                if let Some(commands) = session.commands.borrow().clone() {
-                                    snapshot["slashCommands"] = json!(commands.slash_commands);
-                                    snapshot["skills"] = json!(commands.skills);
-                                }
+                                probe["icon"] = Value::Null;
+                                let commands =
+                                    session.commands.borrow().clone().unwrap_or_default();
+                                health_input["probe"] = json!({"probe":probe,"slashCommands":commands.slash_commands,"skills":commands.skills});
+                                snapshot = crate::acp_health::checked(&health_input);
                                 session.shutdown().await;
                             }
                             Some(Ok(Err(error))) => {
-                                snapshot["status"] = json!("error");
-                                snapshot["message"] =
-                                    json!(format!("ACP provider probe failed: {error}"));
+                                health_input["probeError"] = crate::acp_health::probe_failure(
+                                    &error,
+                                    crate::acp_health::auth_methods(
+                                        &probe_initialize,
+                                        &command,
+                                        &args,
+                                    ),
+                                    None,
+                                );
+                                snapshot = crate::acp_health::checked(&health_input);
                             }
                             Some(Err(_)) => {
-                                snapshot["status"] = json!("error");
-                                snapshot["message"] =
-                                    json!("Timed out while checking the ACP provider.");
+                                health_input["probeError"] = json!({"reason":"probe_failed","message":"The ACP agent did not resolve and create a test session within 60 seconds. Package installation or agent startup may be slow; this check retries on the next provider refresh."});
+                                snapshot = crate::acp_health::checked(&health_input);
                             }
                             None => {
+                                interrupted = true;
                                 snapshot["status"] = json!("warning");
                                 snapshot["message"] = json!(
                                     "ACP discovery interrupted by foreground work or cancellation."
@@ -926,13 +973,14 @@ impl AcpInstance {
                         peer.shutdown().await;
                     }
                     Err(error) => {
-                        snapshot["status"] = json!("error");
-                        snapshot["message"] = json!(format!("ACP provider probe failed: {error}"));
+                        health_input["probeError"] =
+                            crate::acp_health::probe_failure(&error, vec![], None);
+                        snapshot = crate::acp_health::checked(&health_input);
                     }
                 }
             }
         }
-        checked_snapshot(snapshot)
+        checked_snapshot(snapshot).map(|snapshot| (snapshot, !interrupted))
     }
 }
 fn checked_snapshot(snapshot: Value) -> Result<Value, AcpError> {

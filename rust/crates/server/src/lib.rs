@@ -2,6 +2,8 @@
 pub mod acp_adapter;
 pub mod acp_auth;
 pub mod acp_authentication_state;
+mod acp_health;
+mod acp_health_jobs;
 pub mod acp_client_policy;
 pub mod acp_coordinator;
 pub mod acp_mcp_tools;

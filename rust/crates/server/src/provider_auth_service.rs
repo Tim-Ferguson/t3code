@@ -20,6 +20,7 @@ struct Controller {
     fingerprint: String,
     binding: String,
     flow: AuthFlow,
+    backend: AcpAuth,
 }
 struct Inner {
     registry: ProviderRegistry,
@@ -47,6 +48,7 @@ impl Drop for Owner {
         if let Ok(runtime) = tokio::runtime::Handle::try_current() {
             runtime.spawn(async move {
                 close_controllers(&inner).await;
+                inner.registry.shutdown_health().await;
             });
         }
     }
@@ -61,7 +63,7 @@ impl WeakProviderAuthService {
     }
 }
 pub(crate) struct ReconfigurationHold {
-    _admission: tokio::sync::OwnedMutexGuard<()>,
+    pub(crate) _admission: Arc<tokio::sync::OwnedMutexGuard<()>>,
 }
 
 pub struct ProviderAuthChanges {
@@ -184,7 +186,7 @@ impl ProviderAuthService {
             controller.flow.shutdown().await;
         }
         ReconfigurationHold {
-            _admission: admission,
+            _admission: Arc::new(admission),
         }
     }
     async fn controller(&self, instance: &str, operation: &str) -> AuthResult<Controller> {
@@ -243,11 +245,35 @@ impl ProviderAuthService {
             &process_environment,
         )
         .await;
-        let backend = AcpAuth::new(captured.clone(), self.0.cwd.clone(), confirmation);
+        let registry = self.0.registry.clone();
+        let expected = entry.clone();
+        let cwd = self.0.cwd.clone();
+        let instance_id = instance.to_owned();
+        let observed_confirmation = confirmation.clone();
+        let backend = AcpAuth::new(captured.clone(), self.0.cwd.clone(), confirmation)
+            .with_changed(Arc::new(move |authenticated| {
+                let registry = registry.clone();
+                let expected = expected.clone();
+                let cwd = cwd.clone();
+                let instance = instance_id.clone();
+                let confirmation = observed_confirmation.clone();
+                Box::pin(async move {
+                    registry
+                        .authentication_changed(
+                            &instance,
+                            &expected,
+                            &cwd,
+                            confirmation,
+                            authenticated,
+                        )
+                        .await;
+                })
+            }));
         let controller = Controller {
             fingerprint,
             binding: binding(instance, &captured.config),
             flow: backend.controller(),
+            backend,
         };
         controllers.insert(instance.into(), controller.clone());
         Ok(controller)
@@ -313,10 +339,11 @@ impl ProviderAuthService {
                             && affected.contains(id)
                             && controller.binding == credential_binding
                     })
-                    .map(|(_, controller)| controller.flow.clone())
+                    .map(|(_, controller)| controller.clone())
                     .collect::<Vec<_>>();
                 for controller in other {
-                    controller.invalidate().await;
+                    controller.flow.invalidate().await;
+                    controller.backend.invalidate_confirmation().await;
                 }
                 Ok(())
             })
@@ -445,6 +472,7 @@ impl ProviderAuthService {
     pub async fn shutdown(&self) {
         self.0.stopped.send_replace(true);
         close_controllers(&self.0).await;
+        self.0.registry.shutdown_health().await;
     }
 }
 
@@ -599,6 +627,244 @@ mod tests {
             let weak = Arc::downgrade(&service.0);
             drop(owner);drop(other);drop(service);
             assert!(weak.upgrade().is_none(), "registry auth handle must not retain its owner");
+        }).await.unwrap();
+    }
+    async fn provider_health(
+        changes: &mut crate::provider_registry::ProviderChanges,
+        predicate: impl Fn(&Value) -> bool,
+    ) -> Value {
+        loop {
+            let snapshots = changes.recv().await.unwrap();
+            let snapshot = snapshots
+                .iter()
+                .find(|snapshot| snapshot["instanceId"] == "agent")
+                .unwrap();
+            if predicate(snapshot) {
+                return snapshot.clone();
+            }
+        }
+    }
+    async fn login(service: &ProviderAuthService, states: &mut ProviderAuthChanges) {
+        service
+            .start(
+                serde_json::from_value(json!({"instanceId":"agent","methodId":"agent"})).unwrap(),
+                "owner".into(),
+            )
+            .await
+            .unwrap();
+        let waiting = phase(states, ProviderAuthPhase::Waiting).await;
+        let interaction = serde_json::to_value(&waiting).unwrap()["interaction"]["id"].clone();
+        service.respond(serde_json::from_value(json!({"instanceId":"agent","flowId":waiting.flow_id,"interactionId":interaction,"response":{"type":"browser","action":"accept"}})).unwrap(),"owner").await.unwrap();
+    }
+    fn health_settings(log: &std::path::Path, environment: Value) -> ServerSettings {
+        serde_json::from_value(json!({"providerInstances":{
+            "codex":{"driver":"codex","enabled":false},
+            "agent":{"driver":"acpRegistry","enabled":true,"environment":environment,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}
+        }})).unwrap()
+    }
+    #[tokio::test]
+    async fn actual_login_and_logout_publish_readiness_then_enriched_authentication_without_rebuilding_controller()
+     {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let log = root.path().join("agent.log");
+            let settings = health_settings(&log, json!([]));
+            let registry = ProviderRegistry::discover(&settings, root.path())
+                .await
+                .unwrap();
+            let initial = registry
+                .snapshots()
+                .into_iter()
+                .find(|row| row["instanceId"] == "agent")
+                .unwrap();
+            assert_eq!(initial["status"], "warning");
+            assert_eq!(initial["auth"]["status"], "unauthenticated");
+            assert_eq!(initial["setup"]["canAuthenticate"], true);
+            let service = ProviderAuthService::new(
+                registry.clone(),
+                root.path().into(),
+                root.path().join("caches"),
+                Arc::new(|_| Box::pin(async { Ok(()) })),
+            );
+            let mut states = service.subscribe("agent", "owner".into()).await.unwrap();
+            methods(&mut states).await;
+            let controller = service.controller("agent", "get").await.unwrap();
+            let mut changes = registry.subscribe_changes();
+            login(&service, &mut states).await;
+            phase(&mut states, ProviderAuthPhase::Succeeded).await;
+            let readiness =
+                provider_health(&mut changes, |row| row["auth"]["status"] == "authenticated").await;
+            assert_eq!(readiness["status"], "ready");
+            assert_eq!(readiness["models"][0]["slug"], "default");
+            assert_eq!(
+                readiness["message"],
+                "Checking ACP authentication, models, and commands in the background..."
+            );
+            let enriched = provider_health(&mut changes, |row| {
+                row["models"][0]["slug"] == "fixture-auth-model"
+            })
+            .await;
+            assert_eq!(enriched["auth"]["status"], "authenticated");
+            assert_eq!(enriched["auth"]["canLogout"], true);
+            assert_eq!(enriched["nativeSessions"]["canLoad"], true); // Source v2 session capability normalizes loadSession to true.
+            assert_eq!(enriched["setup"]["canAuthenticate"], true);
+            assert_eq!(
+                service
+                    .controller("agent", "get")
+                    .await
+                    .unwrap()
+                    .fingerprint,
+                controller.fingerprint
+            );
+            assert!(controller.backend.confirmation().get());
+            assert!(registry.acp("agent").is_ok());
+            service.logout("agent").await.unwrap();
+            let readiness =
+                provider_health(&mut changes, |row| row["auth"]["status"] == "unknown").await;
+            assert_eq!(readiness["status"], "ready");
+            assert_eq!(readiness["models"][0]["slug"], "default");
+            let signed_out = provider_health(&mut changes, |row| {
+                row["auth"]["status"] == "unauthenticated"
+            })
+            .await;
+            assert_eq!(signed_out["status"], "warning");
+            assert_eq!(signed_out["auth"]["label"], "Browser login");
+            assert_eq!(
+                signed_out["message"],
+                "Sign in in provider settings using \"Browser login\"."
+            );
+            assert!(!controller.backend.confirmation().get());
+            assert!(!log.with_extension("log.credentials").exists());
+            service.shutdown().await;
+            reaped(&log);
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn superseded_unauthenticated_probe_finishes_pending_confirmation_write_before_successful_login_commits()
+     {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let log = root.path().join("agent.log");
+            let settings = health_settings(&log, json!([]));
+            let registry = ProviderRegistry::discover(&settings, root.path())
+                .await
+                .unwrap();
+            let service = ProviderAuthService::new(
+                registry.clone(),
+                root.path().into(),
+                root.path().join("caches"),
+                Arc::new(|_| Box::pin(async { Ok(()) })),
+            );
+            let mut states = service.subscribe("agent", "owner".into()).await.unwrap();
+            methods(&mut states).await;
+            let mut changes = registry.subscribe_changes();
+            login(&service, &mut states).await;
+            phase(&mut states, ProviderAuthPhase::Succeeded).await;
+            provider_health(&mut changes, |row| {
+                row["models"][0]["slug"] == "fixture-auth-model"
+            })
+            .await;
+            let controller = service.controller("agent", "get").await.unwrap();
+            let confirmation = controller.backend.confirmation();
+            let mut writes = confirmation.hold_writes();
+            let mut admitted = registry.observe_health_refreshes();
+            std::fs::remove_file(format!("{}.credentials", log.display())).unwrap();
+            let refreshed = registry.clone();
+            let expected = derive_instance_configs(&settings)
+                .get(&"agent".parse().unwrap())
+                .unwrap()
+                .clone();
+            let conf = confirmation.clone();
+            let cwd = root.path().to_owned();
+            let refresh = tokio::spawn(async move {
+                refreshed
+                    .authentication_changed("agent", &expected, &cwd, conf, true)
+                    .await;
+            });
+            assert_eq!(admitted.recv().await.unwrap(), "agent");
+            let (value, release) = writes.recv().await.unwrap();
+            assert!(value);
+            release.send(()).unwrap();
+            refresh.await.unwrap();
+            let (value, old_release) = writes.recv().await.unwrap();
+            assert!(
+                !value,
+                "actual enriched AuthRequired probe has begun its false write"
+            );
+            login(&service, &mut states).await;
+            assert_eq!(admitted.recv().await.unwrap(), "agent");
+            assert!(
+                writes.try_recv().is_err(),
+                "new successful confirmation waits old persistence and probe cleanup"
+            );
+            old_release.send(()).unwrap();
+            let (value, new_release) = writes.recv().await.unwrap();
+            assert!(value);
+            confirmation.release_writes();
+            new_release.send(()).unwrap();
+            phase(&mut states, ProviderAuthPhase::Succeeded).await;
+            provider_health(&mut changes, |row| {
+                row["models"][0]["slug"] == "fixture-auth-model"
+                    && row["auth"]["status"] == "authenticated"
+            })
+            .await;
+            assert!(confirmation.get());
+            for file in std::fs::read_dir(root.path().join("caches")).unwrap() {
+                let saved: Value =
+                    serde_json::from_slice(&std::fs::read(file.unwrap().path()).unwrap()).unwrap();
+                assert_eq!(saved["authenticated"], true);
+            }
+            service.shutdown().await;
+            reaped(&log);
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn controller_shutdown_awaits_owned_background_probe_reap_after_readiness_was_published()
+    {
+        tokio::time::timeout(Duration::from_secs(15),async{
+            let root=tempfile::tempdir().unwrap();let path=std::fs::canonicalize(root.path()).unwrap();let log=path.join("agent.log");let socket_path=path.join("health.sock");let socket=tokio::net::UnixDatagram::bind(&socket_path).unwrap();
+            let settings=health_settings(&log,json!([{"name":"AUTH_SCENARIO","value":"held-health"},{"name":"HEALTH_SOCKET","value":socket_path}]));let registry=ProviderRegistry::discover(&settings,&path).await.unwrap();
+            let mut bytes=[0u8;1024];socket.recv(&mut bytes).await.unwrap(); // initial unauthenticated discovery, already reaped
+            let service=ProviderAuthService::new(registry.clone(),path.clone(),path.join("caches"),Arc::new(|_|Box::pin(async{Ok(())})));let mut states=service.subscribe("agent","owner".into()).await.unwrap();methods(&mut states).await;let mut changes=registry.subscribe_changes();
+            login(&service,&mut states).await;phase(&mut states,ProviderAuthPhase::Succeeded).await;provider_health(&mut changes,|row|row["auth"]["status"]=="authenticated").await;
+            let length=socket.recv(&mut bytes).await.unwrap();let held:Value=serde_json::from_slice(&bytes[..length]).unwrap();let pid=held["pid"].as_i64().unwrap() as i32;assert_eq!(unsafe{libc::kill(pid,0)},0);
+            service.shutdown().await;assert_eq!(unsafe{libc::kill(pid,0)},-1);assert_eq!(std::io::Error::last_os_error().raw_os_error(),Some(libc::ESRCH));reaped(&log);
+        }).await.unwrap();
+    }
+    #[tokio::test]
+    async fn interrupted_and_deferred_enrichment_never_overwrite_foreground_live_configuration() {
+        tokio::time::timeout(Duration::from_secs(15),async{
+            for deferred in [false,true] {
+                let root=tempfile::tempdir().unwrap();let path=std::fs::canonicalize(root.path()).unwrap();let log=path.join("agent.log");let socket_path=path.join("health.sock");let socket=tokio::net::UnixDatagram::bind(&socket_path).unwrap();
+                let settings=health_settings(&log,json!([{"name":"AUTH_SCENARIO","value":"held-health"},{"name":"HEALTH_SOCKET","value":socket_path}]));let registry=ProviderRegistry::discover(&settings,&path).await.unwrap();
+                let mut bytes=[0u8;1024];socket.recv(&mut bytes).await.unwrap();
+                let service=ProviderAuthService::new(registry.clone(),path.clone(),path.join("caches"),Arc::new(|_|Box::pin(async{Ok(())})));let mut states=service.subscribe("agent","owner".into()).await.unwrap();methods(&mut states).await;let mut changes=registry.subscribe_changes();
+                let coordinator=registry.coordinator();
+                login(&service,&mut states).await;phase(&mut states,ProviderAuthPhase::Succeeded).await;provider_health(&mut changes,|row|row["auth"]["status"]=="authenticated").await;
+                let length=socket.recv(&mut bytes).await.unwrap();let held:Value=serde_json::from_slice(&bytes[..length]).unwrap();let pid=held["pid"].as_i64().unwrap() as i32;
+                let foreground=coordinator.foreground_startup("local:agent");
+                if deferred {
+                    // Sign-in itself must complete before foreground priority is acquired.
+                    // Reap that first interrupted enrichment, then exercise a new probe
+                    // deferred before process startup under the existing foreground scope.
+                    registry.wait_health_refresh("agent").await;
+                    assert_eq!(unsafe{libc::kill(pid,0)},-1);
+                    let controller=service.controller("agent","get").await.unwrap();
+                    let expected=derive_instance_configs(&settings).get(&"agent".parse().unwrap()).unwrap().clone();
+                    registry.authentication_changed("agent",&expected,&path,controller.backend.confirmation(),true).await;
+                }
+                coordinator.publish_configuration("agent",serde_json::from_value(json!({"models":[{"id":"foreground-model","name":"Foreground model","description":null}],"currentModelId":"foreground-model","configOptions":[]})).unwrap());
+                let foreground_snapshot=provider_health(&mut changes,|row|row["models"][0]["slug"]=="foreground-model").await;
+                registry.wait_health_refresh("agent").await;
+                assert_eq!(registry.snapshots().into_iter().find(|row|row["instanceId"]=="agent").unwrap(),foreground_snapshot,"interrupted/deferred source runBackgroundProbe returns None, without publication");
+                assert_eq!(foreground_snapshot["status"],"ready");assert_eq!(foreground_snapshot["auth"]["status"],"authenticated");assert!(foreground_snapshot.get("message").is_none());
+                assert_eq!(unsafe{libc::kill(pid,0)},-1);assert_eq!(std::io::Error::last_os_error().raw_os_error(),Some(libc::ESRCH));
+                drop(foreground);service.shutdown().await;reaped(&log);
+            }
         }).await.unwrap();
     }
 }

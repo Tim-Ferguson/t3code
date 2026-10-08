@@ -1230,7 +1230,7 @@ fn has_environment_path<'a>(keys: impl Iterator<Item = &'a str>) -> bool {
         .any(|key| key == "PATH" || (cfg!(windows) && matches!(key, "Path" | "path")))
 }
 
-fn executable(command: &str, environment: &HashMap<String, String>) -> Option<PathBuf> {
+pub(crate) fn executable(command: &str, environment: &HashMap<String, String>) -> Option<PathBuf> {
     let expanded;
     let command = if command == "~" || command.starts_with("~/") || command.starts_with("~\\") {
         let home = environment
