@@ -23,4 +23,6 @@ pub mod terminal_utf8;
 
 pub mod terminal_environment;
 pub mod terminal_io;
+pub mod terminal_manager;
 pub mod terminal_process;
+pub mod terminal_store;

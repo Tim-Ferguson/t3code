@@ -44,6 +44,21 @@ message/tool streaming, approval, user input, and interruption through the
 actual UI transport. Reconnect during an active provider turn retains its session and unsent draft.
 Live provider accounts still require integrated verification.
 
+Existing-thread model, provider options, and permissions are composer draft choices.
+They survive navigation and reload; sending first awaits a changed runtime mode,
+then dispatches the selected model with the message. Accepted sends clear text
+while retaining these choices. Tests cover provider-owned reported options,
+started-session transition restrictions, model switching through actual provider
+requests, and destination changes while settings requests are pending.
+Draft recovery reads the original version-9 composer store without changing its
+bytes; supported edits use a Rust sidecar. Unsupported saved attachments and
+context hold the draft until the full composer is implemented. The original
+shared-store writer and multiple local drafts remain unfinished.
+The desktop CloseRequested hook queues the latest serialized draft write and
+waits for its receipt before closing. Its compiled hook and writer tests pass;
+actual native-window interaction, separate OS quit, and mobile pause are still
+unverified or unimplemented.
+
 The server now has an executable with HTTP authentication and WebSocket transport.
 Configured Codex instances support text turns, streamed messages/tools, live
 approvals and input, and interruption. Other provider adapters, complete

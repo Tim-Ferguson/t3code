@@ -53,6 +53,10 @@ pub struct UiModel {
     pub client_settings_error: Option<String>,
     pub draft_storage: crate::draft_storage::DraftHandle,
     pub draft_storage_error: Option<String>,
+    pub thread_model_options: std::collections::BTreeMap<
+        (EnvironmentId, t3_contracts::ProviderInstanceId, String),
+        Vec<t3_contracts::ProviderOptionSelection>,
+    >,
     pub sticky_models: std::collections::BTreeMap<EnvironmentId, t3_contracts::ModelSelection>,
     pub grants: SessionGrantInput,
     pub destination: Option<EnvironmentId>,
@@ -62,6 +66,7 @@ pub struct UiModel {
     pub pending_messages: std::collections::BTreeMap<String, PendingMessage>,
     pub new_thread_drafts: std::collections::BTreeMap<(EnvironmentId, String), String>,
     pub new_thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
+    pub thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
     pub pending_launches: std::collections::BTreeMap<String, PendingLaunch>,
     pub view: View,
     pub dark: bool,
@@ -321,6 +326,14 @@ pub fn forget_environment(
     state.environments().write().forget(destination);
     state.sticky_models().write().remove(destination);
     state
+        .thread_model_options()
+        .write()
+        .retain(|(owner, _, _), _| owner != destination);
+    state
+        .thread_choices()
+        .write()
+        .retain(|(owner, _), _| owner != destination);
+    state
         .new_thread_drafts()
         .write()
         .retain(|(owner, _), _| owner != destination);
@@ -549,22 +562,153 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
     {
         return;
     }
+    let thread = model
+        .shell
+        .snapshot
+        .as_ref()
+        .and_then(|snapshot| {
+            snapshot
+                .threads
+                .iter()
+                .find(|thread| thread.id.as_str() == thread_id)
+        })
+        .cloned();
+    let Some(thread) = thread else {
+        return;
+    };
+    let choices = model
+        .thread_choices
+        .get(&(destination.clone(), thread_id.clone()))
+        .cloned()
+        .unwrap_or_default();
+    let selection = choices
+        .model_selection
+        .clone()
+        .unwrap_or_else(|| thread.model_selection.clone());
+    let (selection, mode) = model
+        .typed_config
+        .as_ref()
+        .and_then(|config| {
+            t3_client::new_thread::launch_selection(
+                config,
+                &model.client_settings,
+                &selection,
+                choices.runtime_mode.unwrap_or(thread.runtime_mode),
+            )
+        })
+        .unwrap_or((
+            selection,
+            choices.runtime_mode.unwrap_or(thread.runtime_mode),
+        ));
     drop(model);
-    if let Some(id) = command(
-        handle,
-        state,
-        "message.dispatch",
-        json!({"threadId":thread_id,"messageId":uuid::Uuid::new_v4().to_string(),"text":text,"attachments":[],"createdBy":"user","creationSource":creation_source(),"dispatchMode":{"type":"start_immediately"},"deliveryIntent":"auto"}),
-    ) {
-        state.pending_messages().write().insert(
-            id,
-            PendingMessage {
-                destination,
-                thread_id,
-                text,
-            },
-        );
+    if let Some(error) = model_change_error(state, &thread, &selection) {
+        fail(state, error);
+        return;
     }
+    crate::draft_storage::save_thread_choices(
+        state,
+        &(destination.clone(), thread_id.clone()),
+        &choices,
+    );
+    let pending_id = uuid::Uuid::new_v4().to_string();
+    let generation = handle.borrow().generation;
+    state.pending_messages().write().insert(
+        pending_id.clone(),
+        PendingMessage {
+            destination: destination.clone(),
+            thread_id: thread_id.clone(),
+            text: text.clone(),
+        },
+    );
+    let handle = handle.clone();
+    dioxus::dioxus_core::spawn_forever(async move {
+        if !owns_pending_send(&handle, state, generation, &destination, &pending_id) {
+            state.pending_messages().write().remove(&pending_id);
+            return;
+        }
+        if mode != thread.runtime_mode {
+            let result = request_value(handle.clone(),state,"orchestration.dispatchCommand",json!({"type":"thread.runtime-mode.set","commandId":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"runtimeMode":mode})).await;
+            if let Err(error) = result {
+                if owns_pending_send(&handle, state, generation, &destination, &pending_id) {
+                    fail(state, error);
+                }
+                state.pending_messages().write().remove(&pending_id);
+                return;
+            }
+        }
+        // A settings acknowledgement does not authorize replay into a new
+        // connection/destination. Navigation within this environment is safe.
+        if !owns_pending_send(&handle, state, generation, &destination, &pending_id) {
+            state.pending_messages().write().remove(&pending_id);
+            return;
+        }
+        let id = command(
+            &handle,
+            state,
+            "message.dispatch",
+            json!({"threadId":thread_id,"messageId":uuid::Uuid::new_v4().to_string(),"modelSelection":selection,"text":text,"attachments":[],"createdBy":"user","creationSource":creation_source(),"dispatchMode":{"type":"start_immediately"},"deliveryIntent":"auto"}),
+        );
+        let pending = state.pending_messages().write().remove(&pending_id);
+        if let Some((id, pending)) = id.zip(pending) {
+            state.pending_messages().write().insert(id, pending);
+        }
+    });
+}
+fn owns_pending_send(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    generation: u64,
+    destination: &EnvironmentId,
+    id: &str,
+) -> bool {
+    let transport = handle.borrow();
+    transport.generation == generation
+        && transport.destination.as_ref() == Some(destination)
+        && state.destination().peek().as_ref() == Some(destination)
+        && state
+            .pending_messages()
+            .peek()
+            .get(id)
+            .is_some_and(|pending| &pending.destination == destination)
+}
+pub fn model_change_error(
+    state: Store<UiModel>,
+    thread: &t3_contracts::ThreadShell,
+    selection: &t3_contracts::ModelSelection,
+) -> Option<String> {
+    let model = state.peek();
+    let projection = model
+        .thread
+        .projection
+        .as_ref()
+        .filter(|p| p["thread"]["id"] == thread.id.as_str());
+    let started = thread.active_provider_thread_id.is_some()
+        || projection.is_some_and(|p| {
+            p["runs"].as_array().is_some_and(|runs| {
+                runs.iter()
+                    .any(|run| !(run["status"] == "queued" && run["queueHeld"] == true))
+            })
+        })
+        || thread
+            .pending_background_tasks
+            .iter()
+            .any(|task| !matches!(task, t3_contracts::PendingBackgroundTask::Command { .. }));
+    let supports_handoff =
+        projection.is_some_and(t3_client::started_thread::supports_provider_handoff);
+    let providers = model
+        .typed_config
+        .as_ref()
+        .map(|config| config.providers.0.as_slice())
+        .unwrap_or_default();
+    t3_client::started_thread::model_change_block(
+        providers,
+        started,
+        supports_handoff,
+        &thread.model_selection,
+        Some(&thread.provider_instance_id),
+        selection,
+    )
+    .map(|block| format!("{}. {}", block.title, block.description))
 }
 
 pub fn client_surface() -> &'static str {
@@ -1320,11 +1464,11 @@ fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
     let unchanged_saved =
         state.peek().draft_storage.document.borrow().prompt(&target) == Some(pending.text.as_str());
     if unchanged_saved {
-        crate::draft_storage::acknowledge(state, target);
+        crate::draft_storage::acknowledge_content(state, target);
     }
     if current && *state.draft().peek() == pending.text {
         state.draft().set(String::new());
-        crate::draft_storage::acknowledge(
+        crate::draft_storage::acknowledge_content(
             state,
             t3_client::draft_storage::DraftTarget::thread(
                 pending.destination.to_string(),

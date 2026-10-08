@@ -168,6 +168,14 @@ impl DraftStorage {
         );
         self.revision += 1;
     }
+    /// Sending content leaves the composer model/runtime choices intact, as in
+    /// the source clearComposerContent operation. Promotion clears all choices.
+    pub fn acknowledge_content(&mut self, target: DraftTarget) {
+        let changes = self.changes.entry(target).or_default();
+        changes.prompt = None;
+        changes.acknowledged = true;
+        self.revision += 1;
+    }
     pub fn forget(&mut self, environment: &str) {
         self.forgotten_environments.insert(environment.into());
         self.changes

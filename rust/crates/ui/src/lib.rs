@@ -1,7 +1,9 @@
 mod client_settings;
 mod draft_storage;
+mod model_controls;
 mod new_thread;
 mod runtime;
+mod thread_controls;
 mod timeline;
 use dioxus::prelude::*;
 use runtime::{UiModel, UiModelStoreExt, View};
@@ -16,6 +18,7 @@ pub fn App() -> Element {
     let transport = use_hook(runtime::TransportHandle::default);
     let startup_transport = transport.clone();
     draft_storage::use_writer(state);
+    draft_storage::use_native_close_flush(state);
     draft_storage::use_flush_on_unload(state);
     use_future(move || {
         let transport = startup_transport.clone();
@@ -445,7 +448,7 @@ fn Composer(
             textarea { "aria-label": "Message", placeholder: "Ask anything, or describe what to build…", value: "{draft}", oninput: move |event| draft_storage::edit_thread_prompt(state,event.value()) }
             if unsupported {p {class:"error-banner",role:"alert","This draft includes saved attachments or context. They are preserved; use the original app to send this complete draft."}}
             div { class: "composer-toolbar",
-                span { class: "muted", "{thread.model_selection.instance_id} · {thread.model_selection.model}" }
+                crate::thread_controls::ThreadControls {state,thread:thread.clone()}
                 if thread.status.is_active() {
                     button { r#type: "button", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::stop_thread(&transport,state,&id); } }, "Stop" }
                 }

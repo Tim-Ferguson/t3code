@@ -941,7 +941,7 @@ fn locale_from_environment() -> icu_locale::Locale {
     }
     name.parse().unwrap_or_else(|_| "en-US".parse().unwrap())
 }
-fn collate(left: &str, right: &str) -> std::cmp::Ordering {
+pub(crate) fn collate(left: &str, right: &str) -> std::cmp::Ordering {
     static COLLATOR: OnceLock<icu_collator::CollatorBorrowed<'static>> = OnceLock::new();
     COLLATOR
         .get_or_init(|| {

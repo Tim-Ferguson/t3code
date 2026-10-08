@@ -670,7 +670,8 @@ select:focus-visible {
 .search-result p {
   margin: 4px 0;
 }
-.new-thread-controls label {
+.new-thread-controls label,
+.thread-controls label {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -685,7 +686,8 @@ select:focus-visible {
   flex-wrap: wrap;
   gap: 8px;
 }
-.new-thread-controls .trait-toggle {
+.new-thread-controls .trait-toggle,
+.thread-controls .trait-toggle {
   flex-direction: row;
   align-items: center;
   padding: 8px 0;
@@ -705,6 +707,29 @@ select:focus-visible {
 @media (max-width: 720px) {
   .new-thread-controls select,
   .new-thread-controls input:not([type="checkbox"]) {
+    font-size: 16px;
+  }
+}
+
+.thread-controls {
+  display: flex;
+  flex: 1;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.thread-controls select {
+  max-width: 230px;
+}
+@media (max-width: 720px) {
+  .composer-toolbar {
+    flex-wrap: wrap;
+  }
+  .thread-controls {
+    flex-basis: 100%;
+  }
+  .thread-controls select {
     font-size: 16px;
   }
 }

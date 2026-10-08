@@ -152,3 +152,26 @@ fn present_source_state_uses_original_recovery_even_when_not_an_object() {
         assert_eq!(storage.source_bytes.as_deref(), Some(bytes.as_str()));
     }
 }
+
+#[test]
+fn accepted_thread_content_retains_latest_choices_across_reload_and_masks_source() {
+    let target = DraftTarget::thread("a", "thread");
+    let bytes = source();
+    let mut storage = DraftStorage::default();
+    storage.hydrate(Some(bytes.clone()), None, NOW);
+    storage.edit_prompt(target.clone(), "Sent content".into());
+    let choices = json!({"modelSelection":{"instanceId":"codex","model":"fixture-model","options":[{"id":"reasoningEffort","value":"low"}]},"runtimeMode":"approval-required","environmentMode":null,"baseRef":""});
+    storage.edit_choices(target.clone(), choices.clone());
+    storage.acknowledge_content(target.clone());
+    assert!(storage.prompt(&target).is_none());
+    assert!(storage.recovered(&target).is_none());
+    let (_, sidecar) = storage.prepare_write().unwrap().unwrap();
+    let mut reload = DraftStorage::default();
+    reload.hydrate(Some(bytes.clone()), Some(sidecar), NOW);
+    assert_eq!(reload.changes(&target).unwrap().choices, Some(choices));
+    assert!(reload.prompt(&target).is_none());
+    assert_eq!(reload.source_bytes.as_deref(), Some(bytes.as_str()));
+    reload.edit_prompt(target.clone(), "Next message".into());
+    assert_eq!(reload.prompt(&target), Some("Next message"));
+    assert!(reload.recovered(&target).is_none());
+}

@@ -68,6 +68,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         providers: None,
         execution: None,
         workspace: None,
+        terminals: None,
     };
     api
 }
@@ -385,7 +386,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         .unwrap();
     let rpc_record = directory.path().join("provider-rpc.jsonl");
     let settings: t3_contracts::ServerSettings = serde_json::from_value(
-        json!({"providerInstances":{"codex":{"driver":"codex","config":{"binaryPath":binary},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record}]}}}),
+        json!({"providerInstances":{"codex":{"driver":"codex","config":{"binaryPath":binary},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
     )
     .unwrap();
     let native = t3_server::config::NativeConfig::from_settings(
@@ -523,7 +524,81 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
     click_control(&mut dom, "Load full output");
     wait_for_rendered_text(&mut dom, "fixture tool output\n").await;
 
-    state.draft().set("Native [approval]".into());
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    change_control(&mut dom, "Reasoning", "low");
+    change_control(&mut dom, "Permissions", "full-access");
+    let supported_modes = state
+        .typed_config()
+        .peek()
+        .as_ref()
+        .unwrap()
+        .providers
+        .0
+        .iter()
+        .find(|p| p.instance_id.as_str() == "codex")
+        .unwrap()
+        .supported_runtime_modes
+        .clone();
+    state
+        .typed_config()
+        .write()
+        .as_mut()
+        .unwrap()
+        .providers
+        .0
+        .iter_mut()
+        .find(|p| p.instance_id.as_str() == "codex")
+        .unwrap()
+        .supported_runtime_modes = Some(Some(t3_contracts::ForwardCompatibleArray(vec![
+        t3_contracts::RuntimeMode::ApprovalRequired,
+    ])));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(
+        control(&dom, "Permissions").unwrap().1.as_deref(),
+        Some("approval-required"),
+        "the effective visible mode must be submitted instead of raw draft Full access; configured {:?}",
+        state
+            .typed_config()
+            .peek()
+            .as_ref()
+            .unwrap()
+            .providers
+            .0
+            .iter()
+            .find(|p| p.instance_id.as_str() == "codex")
+            .unwrap()
+            .supported_runtime_modes
+    );
+    input_control(&mut dom, "Message", "Native [approval]");
+    let destination = state.peek().destination.clone().unwrap();
+    let saved_session = state.peek().environments.records[&destination]
+        .session
+        .clone();
+    state
+        .environments()
+        .write()
+        .set_session(&destination, t3_contracts::SessionGrantInput::default())
+        .unwrap();
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    drive_until(&mut dom, state, "runtime-change-permission-failure", || {
+        state.pending_messages().peek().is_empty() && state.error().peek().is_some()
+    })
+    .await;
+    assert_eq!(
+        completed_runs(state),
+        1,
+        "a rejected settings change must prevent dispatch"
+    );
+    assert_eq!(state.draft().peek().as_str(), "Native [approval]");
+    assert_eq!(
+        store.projection("thread", &thread_id).unwrap().unwrap()["thread"]["runtimeMode"],
+        "full-access"
+    );
+    state
+        .environments()
+        .write()
+        .set_session(&destination, saved_session)
+        .unwrap();
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     drive_until(&mut dom, state, "native-approval-needed", || {
         !pending_ui_requests(state).approvals.is_empty()
@@ -551,6 +626,66 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
     })
     .await;
 
+    assert_eq!(
+        store.projection("thread", &thread_id).unwrap().unwrap()["thread"]["runtimeMode"],
+        "approval-required"
+    );
+    let recorded = std::fs::read_to_string(&rpc_record).unwrap();
+    let latest: Value = recorded
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|frame| frame["method"] == "turn/start")
+        .last()
+        .unwrap();
+    assert_eq!(latest["params"]["effort"], "low");
+    assert_eq!(latest["params"]["approvalPolicy"], "untrusted");
+    state
+        .typed_config()
+        .write()
+        .as_mut()
+        .unwrap()
+        .providers
+        .0
+        .iter_mut()
+        .find(|p| p.instance_id.as_str() == "codex")
+        .unwrap()
+        .supported_runtime_modes = supported_modes;
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    change_control(&mut dom, "Permissions", "approval-required");
+    let key = (destination.clone(), thread_id.clone());
+    assert_eq!(
+        state.thread_choices().peek()[&key].runtime_mode,
+        Some(t3_contracts::RuntimeMode::ApprovalRequired)
+    );
+    let target =
+        t3_client::draft_storage::DraftTarget::thread(destination.to_string(), thread_id.clone());
+    let (_, sidecar) = state
+        .peek()
+        .draft_storage
+        .document
+        .borrow()
+        .prepare_write()
+        .unwrap()
+        .unwrap();
+    let mut restored = t3_client::draft_storage::DraftStorage::default();
+    restored.hydrate(None, Some(sidecar), "2026-10-08T12:00:00Z");
+    assert!(restored.prompt(&target).is_none());
+    assert_eq!(
+        restored.changes(&target).unwrap().choices.as_ref().unwrap()["runtimeMode"],
+        "approval-required"
+    );
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    change_control(&mut dom, "Model", "[\"codex\",\"fixture-model-alt\"]");
+    assert_eq!(
+        control(&dom, "Reasoning").unwrap().1.as_deref(),
+        Some(""),
+        "switching models starts at that model's defaults"
+    );
+    assert_eq!(
+        store.projection("thread", &thread_id).unwrap().unwrap()["thread"]["modelSelection"]["model"],
+        "fixture-model",
+        "picker edits remain drafts until the next send"
+    );
     state.draft().set("Native [question]".into());
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     drive_until(&mut dom, state, "native-user-input-needed", || {
@@ -583,6 +718,18 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
     })
     .await;
 
+    let recorded = std::fs::read_to_string(&rpc_record).unwrap();
+    let latest: Value = recorded
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|frame| frame["method"] == "turn/start")
+        .last()
+        .unwrap();
+    assert_eq!(latest["params"]["model"], "fixture-model-alt");
+    assert!(
+        latest["params"].get("effort").is_none(),
+        "previous model's explicit effort must not bleed into the alternate model"
+    );
     state.draft().set("Native [hold]".into());
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     drive_until(&mut dom, state, "native-running-held-turn", || {
@@ -763,9 +910,71 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         latest["params"].get("effort").is_none(),
         "reset must remove explicit effort from provider wire"
     );
-    let destination = state.peek().destination.clone().unwrap();
+    // First-poll ownership: a queued send must never resolve a new destination
+    // merely because root-owned tasks survive the composer being unmounted.
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    change_control(&mut dom, "Permissions", "approval-required");
+    input_control(
+        &mut dom,
+        "Message",
+        "Never dispatch after switching destination",
+    );
+    let original_destination = state.peek().destination.clone().unwrap();
+    let current_id = state.peek().active_thread.clone().unwrap();
+    let before = store.latest_sequence().unwrap();
+    state.error().set(None);
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    state.destination().set(Some(
+        t3_contracts::EnvironmentId::new("same-ids-other-environment").unwrap(),
+    ));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(state.pending_messages().peek().is_empty());
+    assert!(props.transport.borrow().unary_waiters.is_empty());
+    assert!(
+        state.error().peek().is_none(),
+        "stale task must not attempt a mutation through current destination permissions"
+    );
+    assert_eq!(
+        store.latest_sequence().unwrap(),
+        before,
+        "no settings mutation before first poll"
+    );
+    state.destination().set(Some(original_destination.clone()));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(
+        !props.transport.borrow().unary_waiters.is_empty(),
+        "settings RPC has been sent and is awaiting its receipt"
+    );
+    state.destination().set(Some(
+        t3_contracts::EnvironmentId::new("same-ids-other-environment").unwrap(),
+    ));
+    drive_until(
+        &mut dom,
+        state,
+        "destination-change-during-settings",
+        || props.transport.borrow().unary_waiters.is_empty(),
+    )
+    .await;
+    // Await the persisted old-destination setting event, then drain the send
+    // continuation: an accepted setting never dispatches content after switch.
+    assert_eq!(
+        store.projection("thread", &current_id).unwrap().unwrap()["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|message| message["role"] == "user")
+            .count(),
+        1
+    );
+    assert_eq!(
+        state.draft().peek().as_str(),
+        "Never dispatch after switching destination"
+    );
+    state.destination().set(Some(original_destination.clone()));
     dom.in_scope(ScopeId::APP, || {
-        forget_environment(&props.transport, state, &destination)
+        forget_environment(&props.transport, state, &original_destination)
     });
     drop(dom);
     server.abort();
@@ -1294,4 +1503,113 @@ async fn readonly_ui_loads_bounded_history_through_native_http_without_duplicate
         forget_environment(&props.transport, state, &destination);
     });
     server.abort();
+}
+
+#[test]
+fn existing_thread_choices_restore_and_remain_owned_by_destination_and_thread() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = api_fixture(&directory, "environment-a").config.unwrap();
+    config["providers"] = json!([{"instanceId":"codex","driver":"codex","enabled":true,"installed":true,"version":null,"status":"ready","auth":{"status":"authenticated"},"checkedAt":"now","models":[{"slug":"model","name":"Model","isCustom":false,"isDefault":true,"capabilities":{"optionDescriptors":[{"id":"reasoningEffort","label":"Reasoning","type":"select","currentValue":"low","options":[{"id":"low","label":"Low","isDefault":true},{"id":"high","label":"High"}]}]}},{"slug":"other","name":"Other model","isCustom":false,"isDefault":false,"capabilities":null}],"slashCommands":[],"skills":[]}]);
+    let mut model = crate::reactive_tests::large_model();
+    model.typed_config = Some(serde_json::from_value(config).unwrap());
+    let a = EnvironmentId::new("environment-a").unwrap();
+    let b = EnvironmentId::new("environment-b").unwrap();
+    model.destination = Some(a.clone());
+    let source_bytes=json!({"version":9,"state":{"draftsByThreadKey":{"environment-a:thread":{"prompt":"Recovered existing text","attachments":[],"activeProvider":"codex","modelSelectionByProvider":{"codex":{"instanceId":"codex","model":"model","options":[{"id":"reasoningEffort","value":"high"}]}},"runtimeMode":"full-access"}}}}).to_string();
+    model.draft_storage.document.borrow_mut().hydrate(
+        Some(source_bytes.clone()),
+        None,
+        "2026-10-08T12:00:00Z",
+    );
+    let initial = model.clone();
+    let props = ControlsHarness {
+        state: Rc::new(RefCell::new(None)),
+        initial: model,
+        transport: TransportHandle::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(controls_harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    crate::draft_storage::restore_destination(state);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(
+        control(&dom, "Reasoning").unwrap().1.as_deref(),
+        Some("high")
+    );
+    assert_eq!(
+        control(&dom, "Permissions").unwrap().1.as_deref(),
+        Some("full-access")
+    );
+    change_control(&mut dom, "Reasoning", "low");
+    change_control(&mut dom, "Permissions", "auto");
+    input_control(&mut dom, "Message", "Owned existing text");
+    // Switching away and back restores this model's own option snapshot.
+    change_control(&mut dom, "Model", "[\"codex\",\"other\"]");
+    assert!(control(&dom, "Reasoning").is_none());
+    change_control(&mut dom, "Model", "[\"codex\",\"model\"]");
+    assert_eq!(
+        control(&dom, "Reasoning").unwrap().1.as_deref(),
+        Some("low")
+    );
+    let (_, sidecar) = state
+        .peek()
+        .draft_storage
+        .document
+        .borrow()
+        .prepare_write()
+        .unwrap()
+        .unwrap();
+    state.destination().set(Some(b));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(control(&dom, "Reasoning").unwrap().1.as_deref(), Some(""));
+    assert_eq!(
+        control(&dom, "Permissions").unwrap().1.as_deref(),
+        Some("approval-required")
+    );
+    state.destination().set(Some(a));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(
+        control(&dom, "Permissions").unwrap().1.as_deref(),
+        Some("auto")
+    );
+    assert_eq!(
+        state
+            .peek()
+            .draft_storage
+            .document
+            .borrow()
+            .source_bytes
+            .as_deref(),
+        Some(source_bytes.as_str())
+    );
+    drop(dom);
+    let mut reloaded = initial;
+    reloaded.draft_storage = crate::draft_storage::DraftHandle::default();
+    reloaded.draft_storage.document.borrow_mut().hydrate(
+        Some(source_bytes),
+        Some(sidecar),
+        "2026-10-08T12:00:00Z",
+    );
+    let props = ControlsHarness {
+        state: Rc::new(RefCell::new(None)),
+        initial: reloaded,
+        transport: TransportHandle::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(controls_harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    crate::draft_storage::restore_destination(state);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(
+        control(&dom, "Reasoning").unwrap().1.as_deref(),
+        Some("low")
+    );
+    assert_eq!(
+        control(&dom, "Permissions").unwrap().1.as_deref(),
+        Some("auto")
+    );
+    assert_eq!(
+        control(&dom, "Message").unwrap().1.as_deref(),
+        Some("Owned existing text")
+    );
 }

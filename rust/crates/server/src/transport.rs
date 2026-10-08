@@ -38,6 +38,7 @@ pub struct ApiState {
     pub providers: Option<crate::provider_registry::ProviderRegistry>,
     pub execution: Option<crate::execution::ExecutionService>,
     pub workspace: Option<crate::workspace_entries::WorkspaceEntries>,
+    pub terminals: Option<crate::terminal_manager::TerminalManager>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -574,9 +575,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {stream(request,state,session,output,acknowledged).await;let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -603,6 +604,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
 }
 
 async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Value> {
+    if request.tag.starts_with("terminal.") {
+        return terminal_rpc(&state, &request).await;
+    }
     if request.tag == "filesystem.browse"
         || matches!(
             request.tag.as_str(),
@@ -727,6 +731,76 @@ async fn workspace_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, 
         }
     };
     result.map_err(|cause| cause.rpc_error(error_tag, &input))
+}
+
+fn terminal_decode<T: serde::de::DeserializeOwned>(request: &RpcRequest) -> Result<T, Value> {
+    serde_json::from_value(request.payload.clone()).map_err(
+        |error| json!({"_tag":"RpcServerError","reason":"Decode","message":error.to_string()}),
+    )
+}
+async fn terminal_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
+    let service=state.terminals.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Terminal service is not configured."}))?;
+    let result = match request.tag.as_str() {
+        "terminal.open" => {
+            return service
+                .open(terminal_decode(request)?)
+                .await
+                .map(|snapshot| serde_json::to_value(snapshot).unwrap())
+                .map_err(|error| error.wire());
+        }
+        "terminal.restart" => {
+            return service
+                .restart(terminal_decode(request)?)
+                .await
+                .map(|snapshot| serde_json::to_value(snapshot).unwrap())
+                .map_err(|error| error.wire());
+        }
+        "terminal.write" => service.write(terminal_decode(request)?).await,
+        "terminal.resize" => service.resize(terminal_decode(request)?).await,
+        "terminal.clear" => service.clear(terminal_decode(request)?).await,
+        "terminal.close" => service.close(terminal_decode(request)?).await,
+        _ => {
+            return Err(
+                json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"This method has not yet been ported."}),
+            );
+        }
+    };
+    result.map(|()| Value::Null).map_err(|error| error.wire())
+}
+async fn terminal_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let id = request.id.clone();
+    let result=async {
+        let service=state.terminals.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Terminal service is not configured."}))?;
+        let mut subscription=match request.tag.as_str() {
+            "terminal.attach"=>service.attach(terminal_decode(&request)?).await.map_err(|error|error.wire())?,
+            "terminal.observe"=>service.observe(terminal_decode(&request)?).await.map_err(|error|error.wire())?,
+            "subscribeTerminalMetadata"=>service.metadata(),
+            "subscribeTerminalEvents"=>service.events(),
+            _=>return Err(json!({"_tag":"NativeMethodUnsupportedError","method":request.tag})),
+        };
+        loop {
+            let Some(item)=subscription.recv().await.map_err(|message|json!({"_tag":"RpcServerError","reason":"TerminalStreamContinuity","message":message}))? else {return Ok(());};
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            if !chunk(&output,&mut ack,&request.id,vec![item]).await{return Ok(());}
+        }
+    }.await;
+    if let Err(error) = result {
+        let _ = output.send(failure(id, error)).await;
+    } else {
+        let _ = output
+            .send(RpcServerMessage::Exit {
+                request_id: id,
+                exit: RpcExit::Success { value: Value::Null },
+            })
+            .await;
+    }
 }
 
 async fn chunk(
@@ -925,6 +999,167 @@ mod tests {
         http::Request,
     };
     use tower::ServiceExt;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn terminal_rpc_uses_real_pty_scopes_ack_streams_and_owned_close() {
+        use std::os::unix::fs::PermissionsExt;
+        use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::Message};
+        type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+        async fn send(socket: &mut Socket, value: Value) {
+            socket
+                .send(Message::Text(value.to_string().into()))
+                .await
+                .unwrap();
+        }
+        async fn next(socket: &mut Socket) -> Value {
+            serde_json::from_str(
+                tokio::time::timeout(std::time::Duration::from_secs(3), socket.next())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap()
+                    .to_text()
+                    .unwrap(),
+            )
+            .unwrap()
+        }
+        async fn request(socket: &mut Socket, id: u64, tag: &str, payload: Value) {
+            send(
+                socket,
+                json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]}),
+            )
+            .await;
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let script = directory.path().join("pty-fixture.py");
+        std::fs::write(&script,"#!/usr/bin/env python3\nimport os,sys,tty\ntty.setraw(0)\nos.write(1,b'READY\\n')\nfor line in sys.stdin: os.write(1,('NATIVE:'+line).encode())\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut options = crate::terminal_manager::TerminalManagerOptions::host(
+            directory.path().join("logs"),
+            &t3_contracts::ServerSettings::default(),
+        );
+        options.shell = Some(script.to_string_lossy().into_owned());
+        options.kill_grace = std::time::Duration::ZERO;
+        let terminals = crate::terminal_manager::TerminalManager::new(options)
+            .await
+            .unwrap();
+        let mut api = state();
+        api.terminals = Some(terminals.clone());
+        let read = token(&api, vec![AuthEnvironmentScope::TerminalRead]);
+        let operate = token(
+            &api,
+            vec![
+                AuthEnvironmentScope::TerminalRead,
+                AuthEnvironmentScope::TerminalOperate,
+            ],
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(api))
+                .with_graceful_shutdown(async {
+                    let _ = stopped.await;
+                })
+                .await
+                .unwrap();
+        });
+        async fn connect(address: std::net::SocketAddr, token: &str) -> Socket {
+            use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+            let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
+                .into_client_request()
+                .unwrap();
+            request
+                .headers_mut()
+                .insert("Authorization", format!("Bearer {token}").parse().unwrap());
+            tokio_tungstenite::connect_async(request).await.unwrap().0
+        }
+        let mut reader = connect(address, &read).await;
+        let mut operator = connect(address, &operate).await;
+        let session = json!({"threadId":"socket-thread","terminalId":"term-1"});
+        let mut opening = session.clone();
+        opening["cwd"] = json!(directory.path());
+        request(&mut reader, 1, "terminal.open", opening.clone()).await;
+        let denied = next(&mut reader).await;
+        assert_eq!(denied["exit"]["_tag"], "Failure");
+        assert_eq!(
+            denied["exit"]["cause"][0]["error"]["requiredScope"],
+            "terminal:operate"
+        );
+        request(&mut operator, 2, "terminal.open", opening).await;
+        let opened = next(&mut operator).await;
+        assert_eq!(opened["exit"]["_tag"], "Success");
+        let pid = opened["exit"]["value"]["pid"].as_u64().unwrap();
+        let _: t3_contracts::TerminalSessionSnapshot =
+            serde_json::from_value(opened["exit"]["value"].clone()).unwrap();
+        request(&mut reader, 3, "terminal.observe", session.clone()).await;
+        let snapshot = next(&mut reader).await;
+        assert_eq!(snapshot["_tag"], "Chunk");
+        assert_eq!(snapshot["values"][0]["type"], "snapshot");
+        let _: t3_contracts::TerminalAttachStreamEvent =
+            serde_json::from_value(snapshot["values"][0].clone()).unwrap();
+        // Holding the snapshot Ack must not block heartbeat or another unary.
+        send(&mut reader, json!({"_tag":"Ping"})).await;
+        assert_eq!(next(&mut reader).await["_tag"], "Pong");
+        send(&mut reader, json!({"_tag":"Ack","requestId":3})).await;
+        let mut ready = snapshot["values"][0]["snapshot"]["history"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        while !ready.contains("READY\n") {
+            let chunk = next(&mut reader).await;
+            assert_eq!(chunk["_tag"], "Chunk");
+            ready.push_str(chunk["values"][0]["data"].as_str().unwrap());
+            send(&mut reader, json!({"_tag":"Ack","requestId":3})).await;
+        }
+        let mut write = session.clone();
+        write["data"] = json!("fixture-前😀\n");
+        request(&mut operator, 4, "terminal.write", write.clone()).await;
+        assert_eq!(next(&mut operator).await["exit"]["_tag"], "Success");
+        let mut native_output = String::new();
+        loop {
+            let chunk = next(&mut reader).await;
+            assert_eq!(chunk["_tag"], "Chunk");
+            let item = &chunk["values"][0];
+            let _: t3_contracts::TerminalAttachStreamEvent =
+                serde_json::from_value(item.clone()).unwrap();
+            if item["type"] == "output" {
+                native_output.push_str(item["data"].as_str().unwrap());
+            }
+            let done = native_output.contains("NATIVE:fixture-前😀\n");
+            send(&mut reader, json!({"_tag":"Ack","requestId":3})).await;
+            if done {
+                break;
+            }
+        }
+        request(&mut reader, 5, "terminal.write", write).await;
+        assert_eq!(next(&mut reader).await["exit"]["_tag"], "Failure");
+        send(&mut reader, json!({"_tag":"Interrupt","requestId":3})).await;
+        assert_eq!(
+            next(&mut reader).await["exit"]["cause"][0]["_tag"],
+            "Interrupt"
+        );
+        // Removing a read subscription leaves the owned terminal running.
+        assert_eq!(unsafe { libc::kill(pid as i32, 0) }, 0);
+        request(&mut operator, 6, "terminal.close", session.clone()).await;
+        assert_eq!(next(&mut operator).await["exit"]["_tag"], "Success");
+        assert_eq!(unsafe { libc::kill(pid as i32, 0) }, -1);
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+        request(&mut reader, 7, "terminal.observe", session).await;
+        let missing = next(&mut reader).await;
+        assert_eq!(
+            missing["exit"]["cause"][0]["error"]["_tag"],
+            "TerminalSessionLookupError"
+        );
+        reader.close(None).await.unwrap();
+        operator.close(None).await.unwrap();
+        terminals.shutdown().await;
+        stop.send(()).unwrap();
+        server.await.unwrap();
+    }
     fn state() -> ApiState {
         let store = Store::memory().unwrap();
         let auth = AuthService::new(
@@ -944,6 +1179,7 @@ mod tests {
             providers: None,
             execution: None,
             workspace: None,
+            terminals: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

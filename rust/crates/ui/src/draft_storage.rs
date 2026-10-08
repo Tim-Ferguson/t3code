@@ -9,11 +9,17 @@ use t3_client::{
     drafts,
 };
 
+#[derive(Debug)]
+enum WriterRequest {
+    Save,
+    #[cfg_attr(not(any(feature = "desktop", test)), allow(dead_code))]
+    Flush(futures_channel::oneshot::Sender<Result<(), String>>),
+}
 #[derive(Debug, Clone, Default)]
 pub struct DraftHandle {
     pub document: Rc<RefCell<DraftStorage>>,
     hydrated: Rc<Cell<bool>>,
-    sender: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<()>>>>,
+    sender: Rc<RefCell<Option<futures_channel::mpsc::UnboundedSender<WriterRequest>>>>,
 }
 
 pub async fn hydrate(state: Store<UiModel>) {
@@ -76,6 +82,13 @@ pub fn restore_destination(mut state: Store<UiModel>) {
     {
         match target.kind {
             DraftKind::Thread => {
+                let choices = recovered_choices(&document, &target);
+                if choices != NewThreadChoices::default() {
+                    model
+                        .thread_choices
+                        .entry((destination.clone(), target.local_id.clone()))
+                        .or_insert(choices);
+                }
                 if let Some(prompt) = document.prompt(&target) {
                     if let Some(record) = model.environments.records.get_mut(&destination) {
                         record
@@ -99,48 +112,44 @@ pub fn restore_destination(mut state: Store<UiModel>) {
                         .entry(key.clone())
                         .or_insert_with(|| prompt.into());
                 }
-                let choices = document
-                    .changes(&target)
-                    .and_then(|changes| changes.choices.as_ref())
-                    .and_then(|value| {
-                        serde_json::from_value::<NewThreadChoices>(value.clone()).ok()
-                    })
-                    .unwrap_or_else(|| {
-                        let draft = document.recovered(&target);
-                        let session = document.recovered_session(&target);
-                        NewThreadChoices {
-                            model_selection: draft.and_then(|draft| {
-                                draft["activeProvider"].as_str().and_then(|active| {
-                                    serde_json::from_value(
-                                        draft["modelSelectionByProvider"][active].clone(),
-                                    )
-                                    .ok()
-                                })
-                            }),
-                            runtime_mode: draft
-                                .and_then(|draft| {
-                                    serde_json::from_value(draft["runtimeMode"].clone()).ok()
-                                })
-                                .or_else(|| {
-                                    session.and_then(|session| {
-                                        serde_json::from_value(session["runtimeMode"].clone()).ok()
-                                    })
-                                }),
-                            environment_mode: session.and_then(|session| {
-                                serde_json::from_value(session["envMode"].clone()).ok()
-                            }),
-                            base_ref: session
-                                .and_then(|session| session["branch"].as_str())
-                                .unwrap_or_default()
-                                .into(),
-                        }
-                    });
+                let choices = recovered_choices(&document, &target);
                 if choices != NewThreadChoices::default() {
                     model.new_thread_choices.entry(key).or_insert(choices);
                 }
             }
         }
     }
+}
+fn recovered_choices(document: &DraftStorage, target: &DraftTarget) -> NewThreadChoices {
+    document
+        .changes(&target)
+        .and_then(|changes| changes.choices.as_ref())
+        .and_then(|value| serde_json::from_value::<NewThreadChoices>(value.clone()).ok())
+        .unwrap_or_else(|| {
+            let draft = document.recovered(&target);
+            let session = document.recovered_session(&target);
+            NewThreadChoices {
+                model_selection: draft.and_then(|draft| {
+                    draft["activeProvider"].as_str().and_then(|active| {
+                        serde_json::from_value(draft["modelSelectionByProvider"][active].clone())
+                            .ok()
+                    })
+                }),
+                runtime_mode: draft
+                    .and_then(|draft| serde_json::from_value(draft["runtimeMode"].clone()).ok())
+                    .or_else(|| {
+                        session.and_then(|session| {
+                            serde_json::from_value(session["runtimeMode"].clone()).ok()
+                        })
+                    }),
+                environment_mode: session
+                    .and_then(|session| serde_json::from_value(session["envMode"].clone()).ok()),
+                base_ref: session
+                    .and_then(|session| session["branch"].as_str())
+                    .unwrap_or_default()
+                    .into(),
+            }
+        })
 }
 pub fn edit_thread_prompt(state: Store<UiModel>, prompt: String) {
     let target = {
@@ -197,6 +206,31 @@ pub fn save_choices(
         );
     schedule(state);
 }
+pub fn save_thread_choices(
+    state: Store<UiModel>,
+    key: &(t3_contracts::EnvironmentId, String),
+    choices: &NewThreadChoices,
+) {
+    state
+        .peek()
+        .draft_storage
+        .document
+        .borrow_mut()
+        .edit_choices(
+            DraftTarget::thread(key.0.to_string(), key.1.clone()),
+            serde_json::to_value(choices).expect("draft choices"),
+        );
+    schedule(state);
+}
+pub fn acknowledge_content(state: Store<UiModel>, target: DraftTarget) {
+    state
+        .peek()
+        .draft_storage
+        .document
+        .borrow_mut()
+        .acknowledge_content(target);
+    schedule(state);
+}
 pub fn acknowledge(state: Store<UiModel>, target: DraftTarget) {
     state
         .peek()
@@ -226,7 +260,7 @@ pub fn has_unrendered(state: Store<UiModel>, target: &DraftTarget) -> bool {
 }
 fn schedule(state: Store<UiModel>) {
     if let Some(sender) = state.peek().draft_storage.sender.borrow().as_ref() {
-        let _ = sender.unbounded_send(());
+        let _ = sender.unbounded_send(WriterRequest::Save);
     }
 }
 pub fn use_writer(state: Store<UiModel>) {
@@ -244,19 +278,42 @@ pub fn use_writer(state: Store<UiModel>) {
     use_future(move || {
         let mut receiver = receiver.borrow_mut().take().expect("single draft writer");
         async move {
-            while receiver.next().await.is_some() {
-                loop {
-                    let timer = delay();
-                    let next = receiver.next();
-                    futures_util::pin_mut!(timer, next);
-                    match select(timer, next).await {
-                        Either::Right((Some(()), _)) => continue,
-                        Either::Right((None, _)) => return,
-                        Either::Left(_) => break,
+            while let Some(request) = receiver.next().await {
+                let mut completion = match request {
+                    WriterRequest::Save => None,
+                    WriterRequest::Flush(reply) => Some(reply),
+                };
+                if completion.is_none() {
+                    loop {
+                        let timer = delay();
+                        let next = receiver.next();
+                        futures_util::pin_mut!(timer, next);
+                        match select(timer, next).await {
+                            Either::Right((Some(WriterRequest::Save), _)) => continue,
+                            Either::Right((Some(WriterRequest::Flush(reply)), _)) => {
+                                completion = Some(reply);
+                                break;
+                            }
+                            Either::Right((None, _)) => return,
+                            Either::Left(_) => break,
+                        }
                     }
                 }
-                if state.peek().draft_storage.hydrated.get() {
-                    flush(state).await;
+                let mut result = if state.peek().draft_storage.hydrated.get() {
+                    flush(state).await
+                } else {
+                    Err(
+                        "Draft storage has not been read yet. Unsent drafts remain in memory."
+                            .into(),
+                    )
+                };
+                if let Some(completion) = completion {
+                    // A native close waits for the newest revision, including
+                    // an edit delivered while a previous write was in flight.
+                    while result.is_ok() && state.peek().draft_storage.document.borrow().dirty() {
+                        result = flush(state).await;
+                    }
+                    let _ = completion.send(result);
                 }
             }
         }
@@ -268,15 +325,15 @@ async fn delay() {
     #[cfg(not(target_arch = "wasm32"))]
     tokio::time::sleep(std::time::Duration::from_millis(drafts::DEBOUNCE_MS)).await;
 }
-async fn flush(state: Store<UiModel>) {
+async fn flush(state: Store<UiModel>) -> Result<(), String> {
     let handle = state.peek().draft_storage.clone();
     let pending = handle.document.borrow().prepare_write();
     let (revision, bytes) = match pending {
         Ok(Some(pending)) => pending,
-        Ok(None) => return,
+        Ok(None) => return Ok(()),
         Err(error) => {
-            state.draft_storage_error().set(Some(error));
-            return;
+            state.draft_storage_error().set(Some(error.clone()));
+            return Err(error);
         }
     };
     let result = write(&bytes).await;
@@ -291,8 +348,12 @@ async fn flush(state: Store<UiModel>) {
                     .or_else(|| document.sidecar_error.clone())
             };
             state.draft_storage_error().set(error);
+            Ok(())
         }
-        Err(error) => state.draft_storage_error().set(Some(error)),
+        Err(error) => {
+            state.draft_storage_error().set(Some(error.clone()));
+            Err(error)
+        }
     }
 }
 async fn write(bytes: &str) -> Result<(), String> {
@@ -302,6 +363,10 @@ async fn write(bytes: &str) -> Result<(), String> {
         let gate = probe.gates.borrow_mut().pop_front();
         if let Some(gate) = gate {
             let _ = gate.await;
+        }
+        if probe.failures.get() > 0 {
+            probe.failures.set(probe.failures.get() - 1);
+            return Err("Draft storage write failed. Unsent drafts remain in memory.".into());
         }
         probe.writes.borrow_mut().push(bytes.into());
         let _ = probe.completed.unbounded_send(bytes.into());
@@ -330,6 +395,79 @@ fn write_sync(bytes: &str) -> Result<(), String> {
         .ok_or("Draft storage unavailable.")?
         .set_item(drafts::SIDECAR_KEY, bytes)
         .map_err(|_| "Draft storage write failed. Unsent drafts remain in memory.".into())
+}
+#[cfg(any(feature = "desktop", test))]
+fn request_flush(
+    state: Store<UiModel>,
+) -> Result<futures_channel::oneshot::Receiver<Result<(), String>>, String> {
+    let (reply, receiver) = futures_channel::oneshot::channel();
+    let sender = state
+        .peek()
+        .draft_storage
+        .sender
+        .borrow()
+        .clone()
+        .ok_or("Draft writer is unavailable.")?;
+    sender
+        .unbounded_send(WriterRequest::Flush(reply))
+        .map_err(|_| "Draft writer is unavailable.")?;
+    Ok(receiver)
+}
+/// Tao delivers native CloseRequested to this handler before destroying the
+/// webview. Hide it while the serial writer commits; a failed write reopens it.
+/// OS app quit and mobile lifecycle events need their own shell integration.
+pub fn use_native_close_flush(state: Store<UiModel>) {
+    #[cfg(all(feature = "desktop", not(target_arch = "wasm32")))]
+    {
+        use dioxus::desktop::{
+            WindowCloseBehaviour,
+            tao::event::{Event, WindowEvent},
+            use_window, use_wry_event_handler,
+        };
+        let window = use_window();
+        let closing = use_hook(|| Rc::new(Cell::new(false)));
+        use_wry_event_handler(move |event, _| {
+            if !matches!(
+                event,
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    ..
+                }
+            ) || !state.peek().draft_storage.document.borrow().dirty()
+            {
+                return;
+            }
+            window.set_close_behavior(WindowCloseBehaviour::WindowHides);
+            if closing.replace(true) {
+                return;
+            }
+            let window = window.clone();
+            let closing = closing.clone();
+            spawn(async move {
+                let result = match request_flush(state) {
+                    Ok(receiver) => receiver.await.unwrap_or_else(|_| {
+                        Err(
+                            "Draft writer stopped before saving. Unsent drafts remain in memory."
+                                .into(),
+                        )
+                    }),
+                    Err(error) => Err(error),
+                };
+                window.set_close_behavior(WindowCloseBehaviour::WindowCloses);
+                if result.is_ok() {
+                    window.close();
+                } else {
+                    closing.set(false);
+                    window.set_visible(true);
+                    state.draft_storage_error().set(result.err());
+                }
+            });
+        });
+    }
+    #[cfg(not(all(feature = "desktop", not(target_arch = "wasm32"))))]
+    {
+        let _ = state;
+    }
 }
 // Source flushes the deferred writer before unload. The callback and all JSON
 // serialization are Rust; only native webview storage calls use its document bridge.
@@ -387,6 +525,7 @@ mod tests {
         pub completed: futures_channel::mpsc::UnboundedSender<String>,
         pub gates: Rc<RefCell<VecDeque<futures_channel::oneshot::Receiver<()>>>>,
         pub writes: Rc<RefCell<Vec<String>>>,
+        pub failures: Rc<Cell<usize>>,
     }
     #[derive(Clone)]
     struct Harness {
@@ -517,6 +656,7 @@ mod tests {
             completed,
             gates: Rc::new(RefCell::new(VecDeque::from([gate]))),
             writes: Rc::new(RefCell::new(vec![])),
+            failures: Rc::new(Cell::new(0)),
         };
         let props = Harness {
             state: Rc::new(RefCell::new(None)),
@@ -565,5 +705,113 @@ mod tests {
                 .unwrap()["runtimeMode"],
             json!("approval-required")
         );
+    }
+    async fn receipt(
+        dom: &mut VirtualDom,
+        receiver: &mut futures_channel::oneshot::Receiver<Result<(), String>>,
+    ) -> Result<(), String> {
+        tokio::time::timeout(std::time::Duration::from_secs(3),async {
+            loop {tokio::select! {value=&mut *receiver=>return value.unwrap(),_=dom.wait_for_work()=>dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations)}}
+        }).await.expect("close flush receipt")
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn close_receipt_waits_for_edit_arriving_during_native_write() {
+        let (started, mut starts) = futures_channel::mpsc::unbounded();
+        let (completed, mut completions) = futures_channel::mpsc::unbounded();
+        let (release_first, first_gate) = futures_channel::oneshot::channel();
+        let (release_latest, latest_gate) = futures_channel::oneshot::channel();
+        let probe = WriteProbe {
+            started,
+            completed,
+            gates: Rc::new(RefCell::new(VecDeque::from([first_gate, latest_gate]))),
+            writes: Rc::new(RefCell::new(vec![])),
+            failures: Rc::new(Cell::new(0)),
+        };
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe: probe.clone(),
+        };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let first = milestone(&mut dom, &mut starts).await;
+        let state = props.state.borrow().unwrap();
+        let mut close = dom.in_scope(ScopeId::APP, || {
+            edit_project_prompt(
+                state,
+                (
+                    t3_contracts::EnvironmentId::new("a").unwrap(),
+                    "project".into(),
+                ),
+                "Before close".into(),
+            );
+            request_flush(state).unwrap()
+        });
+        assert_eq!(close.try_recv().unwrap(), None);
+        release_first.send(()).unwrap();
+        assert_eq!(milestone(&mut dom, &mut completions).await, first);
+        let latest = milestone(&mut dom, &mut starts).await;
+        assert!(latest.contains("Before close"));
+        assert_eq!(close.try_recv().unwrap(), None);
+        dom.in_scope(ScopeId::APP, || {
+            edit_project_prompt(
+                state,
+                (
+                    t3_contracts::EnvironmentId::new("a").unwrap(),
+                    "project".into(),
+                ),
+                "During close write".into(),
+            )
+        });
+        release_latest.send(()).unwrap();
+        assert_eq!(milestone(&mut dom, &mut completions).await, latest);
+        let final_bytes = milestone(&mut dom, &mut starts).await;
+        assert!(final_bytes.contains("During close write"));
+        assert_eq!(milestone(&mut dom, &mut completions).await, final_bytes);
+        assert_eq!(receipt(&mut dom, &mut close).await, Ok(()));
+        assert!(!state.peek().draft_storage.document.borrow().dirty());
+        assert_eq!(probe.writes.borrow().last(), Some(&final_bytes));
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn failed_close_flush_keeps_dirty_draft_until_successful_retry() {
+        let (started, _) = futures_channel::mpsc::unbounded();
+        let (completed, _) = futures_channel::mpsc::unbounded();
+        let probe = WriteProbe {
+            started,
+            completed,
+            gates: Rc::new(RefCell::new(VecDeque::new())),
+            writes: Rc::new(RefCell::new(vec![])),
+            failures: Rc::new(Cell::new(1)),
+        };
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe,
+        };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        // Queue a close before the normal deferred write so it bypasses debounce.
+        dom.in_scope(ScopeId::APP, || {
+            edit_project_prompt(
+                state,
+                (
+                    t3_contracts::EnvironmentId::new("a").unwrap(),
+                    "project".into(),
+                ),
+                "Unsent close draft".into(),
+            )
+        });
+        let mut close = dom.in_scope(ScopeId::APP, || request_flush(state).unwrap());
+        assert!(
+            receipt(&mut dom, &mut close)
+                .await
+                .unwrap_err()
+                .contains("write failed")
+        );
+        assert!(state.peek().draft_storage.document.borrow().dirty());
+        assert!(state.draft_storage_error().peek().is_some());
+        let mut retry = dom.in_scope(ScopeId::APP, || request_flush(state).unwrap());
+        assert_eq!(receipt(&mut dom, &mut retry).await, Ok(()));
+        assert!(!state.peek().draft_storage.document.borrow().dirty());
+        assert!(state.draft_storage_error().peek().is_none());
     }
 }

@@ -114,6 +114,10 @@ for line in sys.stdin:
         result = {"account": None, "requiresOpenaiAuth": False}
     elif method == "model/list":
         result = {"data": [{"id": "fixture-model", "model": "fixture-model", "displayName": "Fixture Model", "description": "Deterministic native tests", "hidden": False, "isDefault": True, "defaultReasoningEffort": "low", "supportedReasoningEfforts": [{"reasoningEffort": "low", "description": "Fixture"}], "inputModalities": ["text"], "supportsPersonality": False}], "nextCursor": None}
+        if os.environ.get("FIXTURE_SECOND_MODEL") == "1":
+            alternative = dict(result["data"][0])
+            alternative.update({"id": "fixture-model-alt", "model": "fixture-model-alt", "displayName": "Fixture Alternate", "isDefault": False})
+            result["data"].append(alternative)
     elif method == "skills/list":
         result = {"data": [{"cwd": cwd, "skills": [], "errors": []} for cwd in params.get("cwds", [])]}
     elif method == "account/rateLimits/read":
