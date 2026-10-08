@@ -414,6 +414,81 @@ mod tests {
         serde_json::from_value::<t3_contracts::ThreadProjection>(done).unwrap();
         execution.shutdown().await;
     }
+    #[tokio::test]
+    async fn persisted_mcp_tools_recover_identity_brand_outputs_and_retain_titleless_updates() {
+        let (_directory, store, providers) = setup("mcp-tools").await;
+        let thread = launch(&store, &providers, false);
+        let execution = ExecutionService::start(store.clone(), providers);
+        let mut events = store.subscribe();
+        execution
+            .dispatch(&message(&thread, "prompt", "normal"), Utc::now())
+            .unwrap();
+        let pending = milestone(&store, &mut events, &thread, |view| {
+            view["runtimeRequests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|request| request["status"] == "pending")
+        })
+        .await;
+        let tool = |id: &str| {
+            pending["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["nativeItemRef"]["nativeId"] == id)
+                .unwrap()
+        };
+        let tagged = tool("mcp-tagged");
+        assert_eq!(tagged["type"], "dynamic_tool");
+        assert_eq!(tagged["toolName"], "t3-code.delegate_task");
+        assert_eq!(tagged["title"], Value::Null);
+        assert_eq!(tagged["input"], json!({"task":"fixture"}));
+        assert_eq!(tagged["output"], json!({"pending":true}));
+        assert!(tagged.get("toolSource").is_none());
+        let title = tool("mcp-title");
+        assert_eq!(title["toolName"], "t3-code.orchestrator_capabilities");
+        assert_eq!(title["title"], Value::Null);
+        let weather = tool("mcp-weather");
+        assert_eq!(weather["toolName"], "weather.get_weather");
+        assert_eq!(weather["title"], "get weather");
+        assert_eq!(weather["input"], json!({"city":"Phoenix"}));
+        assert_eq!(weather["output"], json!([{"type":"text","text":"sunny"}]));
+        assert_eq!(
+            weather["toolSource"],
+            json!({"key":"mcp:weather","name":"Weather Service","kind":"integration","icon":{"_tag":"themed-logo","logoUrl":"https://example.test/weather.png"}})
+        );
+        assert_eq!(weather["toolIcon"], weather["toolSource"]["icon"]);
+        let tagged_id = tagged["id"].clone();
+        let title_id = title["id"].clone();
+        let done = approve(&execution, &store, &mut events, &thread, "answer").await;
+        let tagged = done["turnItems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["id"] == tagged_id)
+            .unwrap();
+        assert_eq!(tagged["status"], "completed");
+        assert_eq!(tagged["toolName"], "t3-code.delegate_task");
+        assert_eq!(tagged["input"], json!({"task":"fixture"}));
+        assert_eq!(tagged["output"], json!({"completed":true}));
+        let title = done["turnItems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["id"] == title_id)
+            .unwrap();
+        assert_eq!(title["status"], "completed");
+        assert_eq!(title["toolName"], "t3-code.orchestrator_capabilities");
+        assert_eq!(title["title"], Value::Null);
+        assert_eq!(title["input"], json!({"retained":true}));
+        assert_eq!(
+            title["output"],
+            json!({"error":"Denied","result":{"attempt":1}})
+        );
+        serde_json::from_value::<t3_contracts::ThreadProjection>(done).unwrap();
+        execution.shutdown().await;
+    }
 }
 struct Callback {
     request: RequestPermissionRequest,
@@ -913,8 +988,18 @@ impl Actor {
                 })
                 .map(t3_contracts::trim_wire_string);
             for key in [
-                "output", "exitCode", "toolName", "input", "pattern", "patterns", "results",
-                "fileName", "diffStr", "changes",
+                "output",
+                "exitCode",
+                "toolName",
+                "input",
+                "pattern",
+                "patterns",
+                "results",
+                "fileName",
+                "diffStr",
+                "changes",
+                "toolIcon",
+                "toolSource",
             ] {
                 item.as_object_mut().unwrap().remove(key);
             }
@@ -925,7 +1010,39 @@ impl Actor {
                 .find(|entry| entry["type"] == "diff" && entry["patch"]["text"].is_string())
                 .and_then(|entry| entry["patch"]["text"].as_str().map(ToOwned::to_owned))
                 .or_else(|| output.and_then(crate::acp_tools::output_text));
-            if !changes.is_empty() {
+            if let Some(identity) = crate::acp_mcp_tools::identity(native, &[]) {
+                item["type"] = json!("dynamic_tool");
+                item["title"] = Value::Null;
+                let output_record = output.filter(|value| value.is_object());
+                let metadata_output = output_record
+                    .and_then(|value| value.get("result").filter(|value| value.is_object()))
+                    .or(output_record);
+                let presentation = crate::acp_mcp_tools::presentation(
+                    &json!({"serverName":identity["server"],"toolName":identity["tool"],"source":metadata_output.map(|value|value["_meta"]["source"].clone())}),
+                );
+                for (key, value) in presentation.as_object().unwrap() {
+                    item[key] = value.clone();
+                }
+                item["toolName"] = json!(format!(
+                    "{}.{}",
+                    identity["server"].as_str().unwrap(),
+                    identity["tool"].as_str().unwrap()
+                ));
+                item["input"] = identity
+                    .get("input")
+                    .cloned()
+                    .or_else(|| {
+                        input
+                            .get("arguments")
+                            .filter(|value| value.is_object())
+                            .cloned()
+                    })
+                    .or_else(|| input.as_object().map(|_| input.clone()))
+                    .unwrap_or(json!({}));
+                if let Some(output) = output {
+                    item["output"] = crate::acp_mcp_tools::output(output);
+                }
+            } else if !changes.is_empty() {
                 item["type"] = json!("file_change");
                 item["fileName"] = changes[0]["path"].clone();
                 item["changes"] = json!(changes);

@@ -39,6 +39,9 @@ for line in sys.stdin:
         assert request["result"] == {"outcome": {"outcome": "selected", "optionId": "once"}}, request
         if scenario == "tools":
             update({"sessionUpdate": "tool_call_update", "toolCallId": "command", "status": "completed", "rawInput": {}, "rawOutput": {"stdout": "z" * 9001, "exit_code": 0}})
+        if scenario == "mcp-tools":
+            update({"sessionUpdate": "tool_call_update", "toolCallId": "mcp-tagged", "status": "completed", "rawInput": {}, "rawOutput": {"result": {"structuredContent": {"completed": True}}}})
+            update({"sessionUpdate": "tool_call_update", "toolCallId": "mcp-title", "status": "completed", "rawOutput": {"error": {"message": "Denied"}, "result": {"structuredContent": {"attempt": 1}}}})
         if scenario == "plans":
             update({"sessionUpdate": "plan_update", "plan": {"type": "items", "planId": "todo plan", "entries": [{"content": " Finish ", "status": "completed", "priority": "medium"}]}})
             update({"sessionUpdate": "plan_removed", "planId": "draft"})
@@ -92,6 +95,10 @@ for line in sys.stdin:
                 update({"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": ""}})
                 update({"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": " think "}})
             update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hello "}})
+            if scenario == "mcp-tools":
+                update({"sessionUpdate": "tool_call_update", "toolCallId": "mcp-tagged", "kind": "execute", "title": "mcp.t3-code.delegate_task", "status": "in_progress", "rawInput": {"server": "t3-code", "tool": "delegate_task", "arguments": {"task": "fixture"}}, "_meta": {"is_mcp_tool_call": True}, "rawOutput": {"result": {"structuredContent": {"pending": True}}}})
+                update({"sessionUpdate": "tool_call_update", "toolCallId": "mcp-title", "kind": "other", "title": "t3-code_orchestrator_capabilities", "status": "pending", "rawInput": {"retained": True}})
+                update({"sessionUpdate": "tool_call_update", "toolCallId": "mcp-weather", "kind": "other", "title": "Checking forecast", "status": "completed", "_meta": {"serverId": "weather", "toolName": "mcp::weather::get_weather"}, "rawInput": {"arguments": {"city": "Phoenix"}}, "rawOutput": {"result": {"content": [{"type": "text", "text": "sunny"}], "_meta": {"source": {"name": "Weather Service", "logoUrl": "https://example.test/weather.png"}}}}})
             if scenario == "tools":
                 update({"sessionUpdate": "tool_call_update" if generation == 2 else "tool_call", "toolCallId": "command", "kind": "execute", "title": "Terminal", "status": "pending", "rawInput": {"command": [" pwd ", " -P "]}})
                 update({"sessionUpdate": "tool_call_update", "toolCallId": "command", "status": "in_progress", "rawOutput": {"stdout": "before", "exit_code": 0}})
