@@ -38,13 +38,7 @@ pub struct PendingLaunch {
     pub active_thread: Option<String>,
     pub choices: NewThreadChoices,
 }
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct NewThreadChoices {
-    pub model_selection: Option<t3_contracts::ModelSelection>,
-    pub runtime_mode: Option<t3_contracts::RuntimeMode>,
-    pub environment_mode: Option<t3_contracts::ThreadEnvMode>,
-    pub base_ref: String,
-}
+pub type NewThreadChoices = t3_client::draft_storage::DraftChoices;
 
 #[derive(Debug, Clone, Default, Store)]
 pub struct UiModel {
@@ -57,6 +51,8 @@ pub struct UiModel {
     pub typed_config: Option<t3_contracts::ServerConfig>,
     pub client_settings: t3_contracts::ClientSettings,
     pub client_settings_error: Option<String>,
+    pub draft_storage: crate::draft_storage::DraftHandle,
+    pub draft_storage_error: Option<String>,
     pub sticky_models: std::collections::BTreeMap<EnvironmentId, t3_contracts::ModelSelection>,
     pub grants: SessionGrantInput,
     pub destination: Option<EnvironmentId>,
@@ -321,6 +317,7 @@ pub fn forget_environment(
         model.status = ConnectionStatus::Disconnected;
         model.view = View::Connections;
     }
+    crate::draft_storage::forget(state, destination.as_str());
     state.environments().write().forget(destination);
     state.sticky_models().write().remove(destination);
     state
@@ -378,6 +375,7 @@ pub fn select_thread(handle: &TransportHandle, mut state: Store<UiModel>, thread
         model.view = View::Chat;
         model.sidebar_open = false;
     }
+    crate::draft_storage::restore_destination(state);
     let id = request(
         handle,
         state,
@@ -435,6 +433,17 @@ pub fn launch_thread(
         .values()
         .any(|pending| pending.destination == destination && pending.project_id == project)
     {
+        return None;
+    }
+    if crate::draft_storage::has_unrendered(
+        state,
+        &t3_client::draft_storage::DraftTarget::project(destination.to_string(), project),
+    ) {
+        drop(owned);
+        fail(
+            state,
+            "This saved draft contains attachments or context that the Rust composer cannot send yet. The original draft was preserved; open it in the original app to send all content.",
+        );
         return None;
     }
     let config = owned.typed_config.as_ref()?;
@@ -521,6 +530,17 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
     let Some(destination) = model.destination.clone() else {
         return;
     };
+    if crate::draft_storage::has_unrendered(
+        state,
+        &t3_client::draft_storage::DraftTarget::thread(destination.to_string(), thread_id.clone()),
+    ) {
+        drop(model);
+        fail(
+            state,
+            "This saved draft contains attachments or context that the Rust composer cannot send yet. The original draft was preserved; open it in the original app to send all content.",
+        );
+        return;
+    }
     if text.trim().is_empty()
         || model
             .pending_messages
@@ -977,6 +997,7 @@ async fn connect_once(
             .set_session(&destination, grants.clone())
             .expect("registered environment");
     }
+    crate::draft_storage::restore_destination(state);
     let (wake_sender, mut wake_receiver) = futures_channel::mpsc::unbounded::<SocketWake>();
     let heartbeat_sender = wake_sender.clone();
     let socket_url = endpoint.socket(Some(&ticket), client_surface());
@@ -1234,6 +1255,13 @@ fn finish_pending_launch(
     if unchanged_text && unchanged_choices {
         state.new_thread_drafts().write().remove(&key);
         state.new_thread_choices().write().remove(&key);
+        crate::draft_storage::acknowledge(
+            state,
+            t3_client::draft_storage::DraftTarget::project(
+                pending.destination.to_string(),
+                pending.project_id.clone(),
+            ),
+        );
     }
     let current = {
         let model = state.peek();
@@ -1285,8 +1313,24 @@ fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
         model.destination.as_ref() == Some(&pending.destination)
             && model.active_thread.as_deref() == Some(pending.thread_id.as_str())
     };
+    let target = t3_client::draft_storage::DraftTarget::thread(
+        pending.destination.to_string(),
+        pending.thread_id.clone(),
+    );
+    let unchanged_saved =
+        state.peek().draft_storage.document.borrow().prompt(&target) == Some(pending.text.as_str());
+    if unchanged_saved {
+        crate::draft_storage::acknowledge(state, target);
+    }
     if current && *state.draft().peek() == pending.text {
         state.draft().set(String::new());
+        crate::draft_storage::acknowledge(
+            state,
+            t3_client::draft_storage::DraftTarget::thread(
+                pending.destination.to_string(),
+                pending.thread_id.clone(),
+            ),
+        );
     }
     if let Some(record) = state
         .environments()

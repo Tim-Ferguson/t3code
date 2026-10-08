@@ -25,6 +25,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures-util = "0.3"
 fs2 = "0.4"
 libc = "0.2"
+fff-search = { version = "=0.9.4", default-features = false }
+regex = "1"
+icu_collator = "2"
+icu_locale = "2"
+portable-pty = "0.9"
 hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.22"

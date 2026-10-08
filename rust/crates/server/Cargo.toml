@@ -8,6 +8,7 @@ rust-version.workspace = true
 [dependencies]
 fs2.workspace = true
 libc.workspace = true
+portable-pty.workspace = true
 t3-contracts.workspace = true
 t3-acp.workspace = true
 serde.workspace = true
@@ -21,6 +22,10 @@ chrono.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 futures-util.workspace = true
+fff-search.workspace = true
+regex.workspace = true
+icu_collator.workspace = true
+icu_locale.workspace = true
 unicode-segmentation = "1.12"
 hmac.workspace = true
 sha2.workspace = true
@@ -28,6 +33,7 @@ base64.workspace = true
 rand.workspace = true
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 tempfile = "3"
 tower.workspace = true
 tokio-tungstenite.workspace = true

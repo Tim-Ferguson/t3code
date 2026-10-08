@@ -250,6 +250,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         assets: options.assets.map(fs::canonicalize).transpose()?,
         providers: Some(native_config.providers),
         execution: Some(execution.clone()),
+        workspace: Some(t3_server::workspace_entries::WorkspaceEntries::from_host()?),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");

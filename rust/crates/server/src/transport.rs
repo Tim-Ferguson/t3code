@@ -37,6 +37,7 @@ pub struct ApiState {
     pub assets: Option<std::path::PathBuf>,
     pub providers: Option<crate::provider_registry::ProviderRegistry>,
     pub execution: Option<crate::execution::ExecutionService>,
+    pub workspace: Option<crate::workspace_entries::WorkspaceEntries>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -534,7 +535,8 @@ impl SocketSender {
     }
 }
 struct Subscription {
-    ack: mpsc::Sender<()>,
+    ack: Option<mpsc::Sender<()>>,
+    generation: u64,
     task: tokio::task::JoinHandle<()>,
 }
 async fn connection(socket: WebSocket, state: ApiState, session: Session) {
@@ -549,7 +551,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
         }
     });
     let mut subscriptions: HashMap<RpcRequestId, Subscription> = HashMap::new();
-    let (finished, mut completed) = mpsc::channel::<RpcRequestId>(64);
+    let (finished, mut completed) =
+        mpsc::channel::<(RpcRequestId, u64, Option<RpcServerMessage>)>(64);
+    let mut generation = 0u64;
     loop {
         tokio::select! {
             frame=source.next()=>{
@@ -561,34 +565,73 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                     match message {
                         RpcClientMessage::Ping=>{let _=outgoing.send(RpcServerMessage::Pong).await;},
                         RpcClientMessage::Eof=>{},
-                        RpcClientMessage::Ack{request_id}=>{if let Some(stream)=subscriptions.get(&request_id){let _=stream.ack.try_send(());}},
+                        RpcClientMessage::Ack{request_id}=>{if let Some(ack)=subscriptions.get(&request_id).and_then(|task|task.ack.as_ref()){let _=ack.try_send(());}},
                         RpcClientMessage::Interrupt{request_id}=>{if let Some(stream)=subscriptions.remove(&request_id){stream.task.abort();let _=outgoing.send(RpcServerMessage::Exit{request_id,exit:RpcExit::Failure{cause:vec![RpcCause::Interrupt{fiber_id:None}]}}).await;}},
                         RpcClientMessage::Request{request}=>{
                             if let Some(previous)=subscriptions.remove(&request.id){previous.task.abort();}
                             let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))).await;continue}};
                             if let Err(error)=authorize_rpc(&session,&request.tag){let _=outgoing.send(failure(request.id,error)).await;continue}
-                            if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell") {
-                                let id=request.id.clone();let(ack,acknowledged)=mpsc::channel(1);let state=state.clone();let output=outgoing.clone();
-                                let finished=finished.clone();let completed_id=id.clone();let task=tokio::spawn(async move {stream(request,state,session,output,acknowledged).await;let _=finished.send(completed_id).await;});subscriptions.insert(id,Subscription{ack,task});
+                            generation += 1;
+                            let current_generation = generation;
+                            let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell") {
+                                let(ack,acknowledged)=mpsc::channel(1);
+                                let task=tokio::spawn(async move {stream(request,state,session,output,acknowledged).await;let _=finished.send((completed_id,current_generation,None)).await;});
+                                (Some(ack),task)
                             }else{
-                                let result=if matches!(request.tag.as_str(),"projects.readFile"|"projects.writeFile") {
-                                    let state=state.clone();let request=request.clone();
-                                    tokio::task::spawn_blocking(move||unary(&state,&request)).await.unwrap_or_else(|error|Err(json!({"_tag":"NativeServiceError","message":error.to_string()})))
-                                }else{unary(&state,&request)};
-                                if request.is_notification!=Some(true){let response=match result{Ok(value)=>RpcServerMessage::Exit{request_id:request.id,exit:RpcExit::Success{value}},Err(error)=>failure(request.id,error)};if outgoing.send(response).await.is_err(){break;}}
-                            }
+                                let task=tokio::spawn(async move {
+                                    let result=execute_unary(state,request.clone()).await;
+                                    let response=if request.is_notification==Some(true){None}else{Some(match result{Ok(value)=>RpcServerMessage::Exit{request_id:request.id,exit:RpcExit::Success{value}},Err(error)=>failure(request.id,error)})};
+                                    let _=finished.send((completed_id,current_generation,response)).await;
+                                });
+                                (None,task)
+                            };
+                            subscriptions.insert(id,Subscription{ack,generation:current_generation,task});
                         },
                     }
                 }
             },
             _=&mut writer=>break,
-            Some(id)=completed.recv()=>{if subscriptions.get(&id).is_some_and(|subscription|subscription.task.is_finished()){subscriptions.remove(&id);}}
+            Some((id,generation,response))=completed.recv()=>{if subscriptions.get(&id).is_some_and(|subscription|subscription.generation==generation){subscriptions.remove(&id);if let Some(response)=response{if outgoing.send(response).await.is_err(){break;}}}}
         }
     }
     for (_, subscription) in subscriptions {
         subscription.task.abort();
+        let _ = subscription.task.await;
     }
     writer.abort();
+}
+
+async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Value> {
+    if request.tag == "filesystem.browse"
+        || matches!(
+            request.tag.as_str(),
+            "projects.searchEntries" | "projects.searchContents" | "projects.listEntries"
+        )
+    {
+        return workspace_rpc(&state, &request).await;
+    }
+    let workspace = state.workspace.clone();
+    let cwd = request.payload["cwd"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    let write = request.tag == "projects.writeFile";
+    let result = tokio::task::spawn_blocking(move || unary(&state, &request))
+        .await
+        .unwrap_or_else(|error| {
+            Err(json!({"_tag":"NativeServiceError","message":error.to_string()}))
+        });
+    if write && result.is_ok() {
+        if let Some(workspace) = workspace {
+            tokio::task::spawn_blocking(move || workspace.refresh(&cwd))
+                .await
+                .map_err(
+                    |error| json!({"_tag":"NativeServiceError","message":error.to_string()}),
+                )?;
+        }
+    }
+    result
 }
 
 fn failure(id: RpcRequestId, error: Value) -> RpcServerMessage {
@@ -645,6 +688,45 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
         },
         _=>Err(json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"This method has not yet been ported."})),
     }
+}
+async fn workspace_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
+    let service=state.workspace.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Workspace index service is not configured."}))?.clone();
+    let input = request.payload.clone();
+    let tag = request.tag.as_str();
+    let error_tag = match tag {
+        "filesystem.browse" => "FilesystemBrowseError",
+        "projects.searchEntries" => "ProjectSearchEntriesError",
+        "projects.searchContents" => "ProjectSearchContentsError",
+        _ => "ProjectListEntriesError",
+    };
+    let invalid = |cause: serde_json::Error| json!({"_tag":error_tag,"message":cause.to_string()});
+    let result = match tag {
+        "filesystem.browse" => {
+            let decoded =
+                serde_json::from_value::<t3_contracts::FilesystemBrowseInput>(input.clone())
+                    .map_err(invalid)?;
+            crate::workspace_entries::blocking(move || service.browse(&decoded)).await
+        }
+        "projects.searchEntries" => {
+            let decoded =
+                serde_json::from_value::<t3_contracts::ProjectSearchEntriesInput>(input.clone())
+                    .map_err(invalid)?;
+            crate::workspace_entries::blocking(move || service.search(&decoded)).await
+        }
+        "projects.searchContents" => {
+            let decoded =
+                serde_json::from_value::<t3_contracts::ProjectSearchContentsInput>(input.clone())
+                    .map_err(invalid)?;
+            crate::workspace_entries::blocking(move || service.search_contents(&decoded)).await
+        }
+        _ => {
+            let decoded =
+                serde_json::from_value::<t3_contracts::ProjectListEntriesInput>(input.clone())
+                    .map_err(invalid)?;
+            service.list(&decoded).await
+        }
+    };
+    result.map_err(|cause| cause.rpc_error(error_tag, &input))
 }
 
 async fn chunk(
@@ -861,6 +943,7 @@ mod tests {
             assets: None,
             providers: None,
             execution: None,
+            workspace: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {
@@ -1257,6 +1340,192 @@ mod tests {
         );
         assert!(state.store.receipt("").unwrap().is_none());
         assert_eq!(state.store.latest_sequence().unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn workspace_rpc_reads_searches_and_refreshes_writes_over_authorized_effect_socket() {
+        use tokio_tungstenite::tungstenite::Message;
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("before.txt"), "before").unwrap();
+        let mut state = state();
+        state.workspace = Some(crate::workspace_entries::WorkspaceEntries::new(
+            root.path().to_owned(),
+            root.path().to_owned(),
+        ));
+        let workspace = state.workspace.as_ref().unwrap().clone();
+        let read_token = token(&state, vec![AuthEnvironmentScope::FilesystemRead]);
+        let write_token = token(
+            &state,
+            vec![
+                AuthEnvironmentScope::FilesystemRead,
+                AuthEnvironmentScope::FilesystemWrite,
+            ],
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, shutdown) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(state))
+                .with_graceful_shutdown(async {
+                    let _ = shutdown.await;
+                })
+                .await
+                .unwrap();
+        });
+        let mut read_request =
+            tokio_tungstenite::tungstenite::client::IntoClientRequest::into_client_request(
+                format!("ws://{address}/ws?orchestrationProtocol=2"),
+            )
+            .unwrap();
+        read_request.headers_mut().insert(
+            "Authorization",
+            format!("Bearer {read_token}").parse().unwrap(),
+        );
+        let (mut reader, _) = tokio_tungstenite::connect_async(read_request)
+            .await
+            .unwrap();
+        async fn call(
+            socket: &mut tokio_tungstenite::WebSocketStream<
+                tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+            >,
+            id: u64,
+            method: &str,
+            payload: Value,
+        ) -> Value {
+            socket
+                .send(Message::Text(
+                    json!({"_tag":"Request","id":id,"tag":method,"payload":payload,"headers":[]})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+            let response = tokio::time::timeout(std::time::Duration::from_secs(20), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            let response: Value = serde_json::from_str(response.to_text().unwrap()).unwrap();
+            assert_eq!(response["requestId"], id);
+            response["exit"].clone()
+        }
+        let cwd = root.path().to_string_lossy();
+        let result = call(&mut reader, 1, "projects.listEntries", json!({"cwd":cwd})).await;
+        assert_eq!(result["_tag"], "Success");
+        assert_eq!(result["value"]["entries"][0]["path"], "before.txt");
+        let result=call(&mut reader,2,"projects.searchContents",json!({"cwd":cwd,"query":"after","limit":10,"caseSensitive":true,"wholeWord":false,"useRegex":false})).await;
+        assert_eq!(result["value"]["matches"], json!([]));
+        let result = call(
+            &mut reader,
+            3,
+            "projects.writeFile",
+            json!({"cwd":cwd,"relativePath":"new.txt","contents":"after\n"}),
+        )
+        .await;
+        assert_eq!(result["_tag"], "Failure");
+        assert!(!root.path().join("new.txt").exists());
+        let mut write_request =
+            tokio_tungstenite::tungstenite::client::IntoClientRequest::into_client_request(
+                format!("ws://{address}/ws?orchestrationProtocol=2"),
+            )
+            .unwrap();
+        write_request.headers_mut().insert(
+            "Authorization",
+            format!("Bearer {write_token}").parse().unwrap(),
+        );
+        let (mut writer, _) = tokio_tungstenite::connect_async(write_request)
+            .await
+            .unwrap();
+        let result = call(
+            &mut writer,
+            4,
+            "projects.writeFile",
+            json!({"cwd":cwd,"relativePath":"new.txt","contents":"after\n"}),
+        )
+        .await;
+        assert_eq!(result["_tag"], "Success");
+        let result = call(
+            &mut reader,
+            5,
+            "projects.searchEntries",
+            json!({"cwd":cwd,"query":"new","limit":10}),
+        )
+        .await;
+        assert_eq!(result["value"]["entries"][0]["path"], "new.txt");
+        let result=call(&mut reader,6,"projects.searchContents",json!({"cwd":cwd,"query":"after","limit":10,"caseSensitive":true,"wholeWord":false,"useRegex":false})).await;
+        assert_eq!(result["value"]["matches"][0]["path"], "new.txt");
+        let result = call(
+            &mut reader,
+            7,
+            "projects.readFile",
+            json!({"cwd":cwd,"relativePath":"new.txt"}),
+        )
+        .await;
+        assert_eq!(result["value"]["contents"], "after\n");
+        let result = call(
+            &mut reader,
+            8,
+            "filesystem.browse",
+            json!({"partialPath":"./","cwd":cwd}),
+        )
+        .await;
+        assert_eq!(result["_tag"], "Success");
+        // A deterministic native-index barrier proves the reader keeps handling
+        // Ping, another RPC, Interrupt and ID reuse while the index job is blocked.
+        let (entered, release) = workspace.block_next_index();
+        reader.send(Message::Text(json!({"_tag":"Request","id":9,"tag":"projects.searchEntries","payload":{"cwd":cwd,"query":"new","limit":10},"headers":[]}).to_string().into())).await.unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(3), entered)
+            .await
+            .unwrap()
+            .unwrap();
+        reader
+            .send(Message::Text(json!({"_tag":"Ping"}).to_string().into()))
+            .await
+            .unwrap();
+        let pong = tokio::time::timeout(std::time::Duration::from_secs(3), reader.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(pong.to_text().unwrap()).unwrap()["_tag"],
+            "Pong"
+        );
+        let independent = call(
+            &mut reader,
+            10,
+            "filesystem.browse",
+            json!({"partialPath":"./","cwd":cwd}),
+        )
+        .await;
+        assert_eq!(independent["_tag"], "Success");
+        reader
+            .send(Message::Text(
+                json!({"_tag":"Interrupt","requestId":9}).to_string().into(),
+            ))
+            .await
+            .unwrap();
+        let interrupted = tokio::time::timeout(std::time::Duration::from_secs(3), reader.next())
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        let interrupted: Value = serde_json::from_str(interrupted.to_text().unwrap()).unwrap();
+        assert_eq!(interrupted["requestId"], 9);
+        assert_eq!(interrupted["exit"]["cause"][0]["_tag"], "Interrupt");
+        let reused = call(
+            &mut reader,
+            9,
+            "filesystem.browse",
+            json!({"partialPath":"./","cwd":cwd}),
+        )
+        .await;
+        assert_eq!(reused["_tag"], "Success");
+        release.send(()).unwrap();
+        reader.close(None).await.unwrap();
+        writer.close(None).await.unwrap();
+        let _ = stop.send(());
+        server.await.unwrap();
     }
 
     #[tokio::test]

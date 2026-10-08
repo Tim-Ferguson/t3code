@@ -14,4 +14,9 @@ pub mod provider_registry;
 pub mod thread;
 pub mod transport;
 pub mod wire_projection;
+pub mod workspace_entries;
 pub mod workspace_files;
+
+pub mod terminal_history;
+
+pub mod terminal_utf8;

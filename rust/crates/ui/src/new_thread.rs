@@ -48,13 +48,18 @@ fn update_choices(
     update: impl FnOnce(&mut runtime::NewThreadChoices),
 ) {
     if let Some(key) = key {
-        update(
-            state
-                .new_thread_choices()
-                .write()
-                .entry(key.clone())
-                .or_default(),
-        );
+        {
+            let mut field = state.new_thread_choices();
+            let mut choices = field.write();
+            update(choices.entry(key.clone()).or_default());
+        }
+        let choices = state
+            .new_thread_choices()
+            .peek()
+            .get(key)
+            .cloned()
+            .unwrap_or_default();
+        crate::draft_storage::save_choices(state, key, &choices);
     }
 }
 fn remember_selection(
@@ -172,7 +177,14 @@ fn NewThreadOptions(
             .iter()
             .any(|r| r.instance_id == s.instance_id && r.model.slug == s.model.as_str())
     });
-    let disabled = pending
+    let unsupported = draft_key.as_ref().is_some_and(|key| {
+        crate::draft_storage::has_unrendered(
+            state,
+            &t3_client::draft_storage::DraftTarget::project(key.0.to_string(), key.1.clone()),
+        )
+    });
+    let disabled = unsupported
+        || pending
         || !can_operate
         || selected.is_none()
         || (environment == ThreadEnvMode::Worktree && base_ref.trim().is_empty())
@@ -184,6 +196,7 @@ fn NewThreadOptions(
     let launch_selection = selected.clone();
     let project_id = project.id.to_string();
     rsx! {
+        if unsupported {p {class:"error-banner",role:"alert","This draft includes saved attachments or context. They are preserved; use the original app to send this complete draft."}}
         label { "Model"
             select {"aria-label":"Model",value:selected_key,onchange:{let rows=rows.clone();let draft_key=draft_key.clone();move|event| {
                 if let Some(row)=rows.iter().find(|r|key(&r.selection())==event.value()) {
@@ -241,7 +254,7 @@ fn NewThreadOptions(
         label {"Workspace",select {"aria-label":"Workspace",value:environment_value,onchange:{let draft_key=draft_key.clone();move|e|update_choices(state,draft_key.as_ref(),|choices|choices.environment_mode=Some(if e.value()=="worktree"{ThreadEnvMode::Worktree}else{ThreadEnvMode::Local}))},option {value:"local",selected:environment==ThreadEnvMode::Local,"Local"} option {value:"worktree",selected:environment==ThreadEnvMode::Worktree,"New worktree"}}}
         if environment==ThreadEnvMode::Worktree {label {"Base branch",input {"aria-label":"Base branch",value:"{base_ref}",placeholder:"Branch or revision",oninput:{let draft_key=draft_key.clone();move|e|update_choices(state,draft_key.as_ref(),|choices|choices.base_ref=e.value())}}}}
         label {class:"new-thread-prompt","First message",textarea {"aria-label":"First message",placeholder:"What would you like to work on?",value:"{prompt}",oninput:move|e|{
-            if let Some(key)=draft_key.clone() {state.new_thread_drafts().write().insert(key,e.value());}
+            if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
         }}}
         button {class:"primary","aria-label":"Create new thread",disabled,onclick:move|_|{
             if let Some(selection)=launch_selection.as_ref() {

@@ -14,6 +14,8 @@ mobile = ["dioxus/mobile"]
 t3-client.workspace = true
 t3-contracts.workspace = true
 serde_json.workspace = true
+serde.workspace = true
+chrono.workspace = true
 dioxus-stores = "0.7"
 dioxus = { workspace = true, features = ["document", "asset"] }
 ewebsock = { version = "0.8", features = ["tls"] }
@@ -22,17 +24,17 @@ futures-util.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 uuid = { workspace = true, features = ["js"] }
 pulldown-cmark = "0.13"
-web-sys = { version = "0.3", features = ["Window", "Location", "Storage"] }
+web-sys = { version = "0.3", features = ["Window", "Location", "Storage", "EventTarget", "Event"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
 gloo-timers = { version = "0.3", features = ["futures"] }
 
 [dev-dependencies]
 dioxus-html = { version = "0.7", features = ["serialize"] }
 t3-server = { path = "../server" }
 axum.workspace = true
-chrono.workspace = true
 tempfile = "3"

@@ -1,4 +1,5 @@
 mod client_settings;
+mod draft_storage;
 mod new_thread;
 mod runtime;
 mod timeline;
@@ -14,10 +15,13 @@ pub fn App() -> Element {
     let state = use_store(UiModel::default);
     let transport = use_hook(runtime::TransportHandle::default);
     let startup_transport = transport.clone();
+    draft_storage::use_writer(state);
+    draft_storage::use_flush_on_unload(state);
     use_future(move || {
         let transport = startup_transport.clone();
         async move {
             client_settings::hydrate(state).await;
+            draft_storage::hydrate(state).await;
             runtime::connect(transport, state, runtime::default_address(), String::new()).await;
         }
     });
@@ -143,6 +147,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 }
             }
             main { class: "workspace",
+                if let Some(error)=state.draft_storage_error().read().clone() {div {class:"error-banner",role:"alert","{error}",button {onclick:move|_|{spawn(draft_storage::hydrate(state));},"Retry reading drafts"}}}
                 if let Some(error)=state.client_settings_error().read().clone() {div {class:"error-banner",role:"alert","{error}",button {onclick:move|_|{spawn(client_settings::hydrate(state));},"Retry reading preferences"}}}
                 header { class: "workspace-header",
                     button { class: "icon-button", "aria-label": "Toggle main sidebar", onclick: move |_| { let open=state.peek().sidebar_open; state.sidebar_open().set(!open); }, "☰" }
@@ -396,7 +401,7 @@ fn UserQuestion(
                 label { class:"question-option",
                     input { "aria-label":"{label}",r#type:if question["multiSelect"]==true {"checkbox"} else {"radio"},name:"{id}",checked:draft.selected.contains(&value),onchange:{let question=question.clone();let id=id.clone();move |_| {
                         let displaced={let mut drafts=answers.write();t3_client::requests::toggle_option(&question,drafts.entry(id.clone()).or_default(),value.clone())};
-                        if !displaced.is_empty(){let mut prompt=state.draft();let current=prompt.peek().clone();prompt.set(if current.trim().is_empty(){displaced}else{format!("{}\n\n{}",current.trim_end(),displaced)});}
+                        if !displaced.is_empty(){let current=state.draft().peek().clone();draft_storage::edit_thread_prompt(state,if current.trim().is_empty(){displaced}else{format!("{}\n\n{}",current.trim_end(),displaced)});}
                     }} }
                     span { "{label}" small { "{description}" } }
                 }
@@ -422,15 +427,29 @@ fn Composer(
         pending.thread_id == thread.id.as_str()
             && state.destination().peek().as_ref() == Some(&pending.destination)
     });
+    let unsupported = state
+        .destination()
+        .read()
+        .as_ref()
+        .is_some_and(|destination| {
+            draft_storage::has_unrendered(
+                state,
+                &t3_client::draft_storage::DraftTarget::thread(
+                    destination.to_string(),
+                    thread.id.to_string(),
+                ),
+            )
+        });
     rsx! {
         form { class: "composer", onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); runtime::send_message(&transport,state); } },
-            textarea { "aria-label": "Message", placeholder: "Ask anything, or describe what to build…", value: "{draft}", oninput: move |event| state.draft().set(event.value()) }
+            textarea { "aria-label": "Message", placeholder: "Ask anything, or describe what to build…", value: "{draft}", oninput: move |event| draft_storage::edit_thread_prompt(state,event.value()) }
+            if unsupported {p {class:"error-banner",role:"alert","This draft includes saved attachments or context. They are preserved; use the original app to send this complete draft."}}
             div { class: "composer-toolbar",
                 span { class: "muted", "{thread.model_selection.instance_id} · {thread.model_selection.model}" }
                 if thread.status.is_active() {
                     button { r#type: "button", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::stop_thread(&transport,state,&id); } }, "Stop" }
                 }
-                button { class: "primary", r#type: "submit", disabled: !can_operate || pending || draft.trim().is_empty(), if pending { "Sending…" } else { "Send ↑" } }
+                button { class: "primary", r#type: "submit", disabled: !can_operate || unsupported || pending || draft.trim().is_empty(), if pending { "Sending…" } else { "Send ↑" } }
             }
         }
     }

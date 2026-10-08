@@ -1,5 +1,7 @@
 //! Platform-independent client state and the Effect RPC transport lifecycle.
 pub mod connection;
+pub mod drafts;
+pub mod draft_storage;
 pub mod environments;
 pub mod models;
 pub mod new_thread;
