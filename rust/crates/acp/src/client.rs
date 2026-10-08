@@ -315,7 +315,10 @@ impl Client {
     ) -> Result<Value, AcpError> {
         let mut closed = self.0.state.closed_signal.subscribe();
         self.0.state.active()?;
-        tokio::select! {biased;_=closed.changed()=>Err(closed.borrow().clone().unwrap_or(AcpError::Closed)),result=async { if core { self.0.peer.request_core(method,params,self.0.timeout).await } else { self.0.peer.request(method,params,self.0.timeout).await } }=>result}
+        // A reply removed from the source pending map remains settled even if
+        // ordered EOF arrives before its caller is scheduled again. New calls
+        // still fail the active check, and genuinely pending calls fail below.
+        tokio::select! {biased;result=async { if core { self.0.peer.request_core(method,params,self.0.timeout).await } else { self.0.peer.request(method,params,self.0.timeout).await } }=>result,_=closed.changed()=>Err(closed.borrow().clone().unwrap_or(AcpError::Closed))}
     }
     pub async fn raw_notify(&self, method: &str, params: Value) -> Result<(), AcpError> {
         let mut closed = self.0.state.closed_signal.subscribe();

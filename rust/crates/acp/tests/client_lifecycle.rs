@@ -143,6 +143,32 @@ struct Harness {
     calls: mpsc::UnboundedReceiver<Call>,
     responses: mpsc::UnboundedReceiver<Response>,
 }
+#[tokio::test]
+async fn completed_reply_wins_simultaneously_ready_ordered_eof_and_new_requests_stay_closed() {
+    let mut harness = Harness::new();
+    let mut milestones = harness.client.subscribe();
+    let mut request = Box::pin(harness.client.raw_request("x/final", json!({})));
+    assert!(futures_util::poll!(request.as_mut()).is_pending());
+    let call = harness.calls.recv().await.unwrap();
+    call.reply
+        .unwrap()
+        .send(Ok(json!({"settled":true})))
+        .unwrap();
+    harness
+        .peer
+        .events
+        .send(PeerEvent::Closed(AcpError::Closed))
+        .unwrap();
+    // Deliberately leave the caller unpolled until the reply barrier and EOF
+    // have both been processed. Source removes the settled request before EOF.
+    while !matches!(milestones.recv().await.unwrap(), ClientEvent::Terminated(_)) {}
+    assert_eq!(request.await.unwrap(), json!({"settled":true}));
+    assert!(matches!(
+        harness.client.raw_request("x/late", json!({})).await,
+        Err(AcpError::Closed)
+    ));
+    assert!(harness.calls.try_recv().is_err());
+}
 impl Harness {
     fn new() -> Self {
         Self::with_options(t3_acp::ClientOptions::default())
