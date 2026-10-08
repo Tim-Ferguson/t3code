@@ -24,13 +24,23 @@ async fn connect(address: std::net::SocketAddr, token: &str) -> Socket {
         .insert("Authorization", format!("Bearer {token}").parse().unwrap());
     tokio_tungstenite::connect_async(request).await.unwrap().0
 }
-async fn prepare(socket: &mut Socket, id: u32, payload: Value) -> Value {
-    socket.send(Message::Text(json!({"_tag":"Request","id":id,"tag":"server.prepareAcpRegistryAgent","payload":payload,"headers":[]}).to_string().into())).await.unwrap();
+async fn rpc(socket: &mut Socket, id: u32, tag: &str, payload: Value) -> Value {
+    socket
+        .send(Message::Text(
+            json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .unwrap();
     let reply = socket.next().await.unwrap().unwrap();
     let wire: Value = serde_json::from_str(reply.to_text().unwrap()).unwrap();
     serde_json::from_value::<t3_contracts::RpcServerMessage>(wire.clone()).unwrap();
     assert_eq!(wire["requestId"], id);
     wire
+}
+async fn prepare(socket: &mut Socket, id: u32, payload: Value) -> Value {
+    rpc(socket, id, "server.prepareAcpRegistryAgent", payload).await
 }
 #[tokio::test]
 async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payload_before_install()
@@ -47,7 +57,7 @@ async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payl
         let manager=token(vec![AuthEnvironmentScope::ProvidersManage]);
         let state=ApiState{
             store,auth,environment:json!({"environmentId":"registry-fixture","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
-            config:None,settings:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
+            config:None,settings:None,device_hosts:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
         };
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address=listener.local_addr().unwrap();
@@ -83,4 +93,58 @@ async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payl
         reader.close(None).await.unwrap(); manager.close(None).await.unwrap();
         stop.send(()).unwrap();tasks.join_next().await.unwrap().unwrap();
     }).await.expect("Registry Effect socket milestones stalled");
+}
+
+#[tokio::test]
+async fn registry_search_and_uninstall_effect_socket_preserve_scope_decode_reference_and_reservation_rules()
+ {
+    tokio::time::timeout(std::time::Duration::from_secs(20),async {
+        let directory=tempfile::tempdir().unwrap();
+        let (catalog,config)=fixture_catalog(directory.path(),"normal");
+        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
+        let providers=ProviderRegistry::discover_with_catalog(&settings,directory.path(),Some(catalog)).await.unwrap();
+        let secrets=crate::server_secret_store::ServerSecretStore::open(directory.path().join("secrets")).unwrap();
+        let mut options=crate::server_settings::SettingsOptions::file(directory.path().join("settings.json"),secrets);
+        options.watch=false;
+        let service=crate::server_settings::SettingsService::start(options).await.unwrap();
+        let store=Store::memory().unwrap();
+        let auth=AuthService::new(store.clone(),[52;32],"fixture_registry_control".into(),"loopback-browser".into()).unwrap();
+        let token=|scopes|auth.issue_session("fixture","bearer-access-token",scopes,json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap().1;
+        let reader_token=token(vec![AuthEnvironmentScope::OrchestrationRead]);
+        let manager_token=token(vec![AuthEnvironmentScope::OrchestrationRead,AuthEnvironmentScope::ProvidersManage]);
+        let state=ApiState{store,auth,environment:json!({"environmentId":"registry-control","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),config:None,settings:Some(service.clone()),device_hosts:None,background:None,cors_origins:None,assets:None,providers:Some(providers),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None};
+        let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();
+        let (stop,stopped)=tokio::sync::oneshot::channel();let mut tasks=tokio::task::JoinSet::new();
+        tasks.spawn(async move{axum::serve(listener,router(state)).with_graceful_shutdown(async{let _=stopped.await;}).await.unwrap();});
+        let mut reader=connect(address,&reader_token).await;
+        let denied=rpc(&mut reader,1,"server.uninstallAcpRegistryManagedBinary",json!({"agentId":"devin"})).await;
+        assert_eq!(denied["exit"]["cause"][0]["_tag"],"Fail");assert_eq!(denied["exit"]["cause"][0]["error"]["requiredPermission"],"providers:manage");
+        for (id,payload) in [(2,json!([])),(3,json!({"query":4})),(4,json!({"query":"a".repeat(121)}))] {
+            let malformed=rpc(&mut reader,id,"server.searchAcpRegistry",payload).await;
+            assert_eq!(malformed["exit"]["cause"][0]["_tag"],"Die");assert!(malformed["exit"]["cause"][0]["defect"].is_string());
+        }
+        assert!(!directory.path().join("cache/acp-registry/registry.json").exists(),"decode and denied calls must not fetch or mutate");assert!(!directory.path().join("tools").exists());
+        let searched=rpc(&mut reader,5,"server.searchAcpRegistry",json!({"query":"fixture"})).await;
+        assert_eq!(searched["exit"]["_tag"],"Success");
+        let found:t3_contracts::AcpRegistrySearchResult=serde_json::from_value(searched["exit"]["value"].clone()).unwrap();
+        assert_eq!(found.agents.0.len(),1);assert_eq!(found.agents.0[0].id.as_str(),"devin");assert_eq!(found.agents.0[0].integrity,t3_contracts::AcpRegistryIntegrity::Sha256);
+        assert!(!directory.path().join("tools").exists(),"authorized search does not prepare binaries");
+        let mut manager=connect(address,&manager_token).await;
+        for (id,payload) in [(6,json!([])),(7,json!({"agentId":"../escape"}))] {
+            let malformed=rpc(&mut manager,id,"server.uninstallAcpRegistryManagedBinary",payload).await;
+            assert_eq!(malformed["exit"]["cause"][0]["_tag"],"Die");assert!(malformed["exit"]["cause"][0]["defect"].is_string());
+        }
+        let absent=rpc(&mut manager,8,"server.uninstallAcpRegistryManagedBinary",json!({"agentId":"devin"})).await;
+        assert_eq!(absent["exit"]["value"],json!({"agentId":"devin","removed":false}));
+        let prepared=prepare(&mut manager,9,json!({"agentId":"devin"})).await;assert_eq!(prepared["exit"]["_tag"],"Success");
+        let protected=rpc(&mut manager,10,"server.uninstallAcpRegistryManagedBinary",json!({"agentId":"devin"})).await;
+        assert_eq!(protected["exit"]["value"]["removed"],false);assert!(directory.path().join("tools/devin").is_dir());
+        service.update(serde_json::from_value(json!({"providerInstances":{"ref":{"driver":"acpRegistry","enabled":false,"config":{"agentId":"devin"}}}})).unwrap()).await.unwrap();
+        let referenced=rpc(&mut manager,11,"server.uninstallAcpRegistryManagedBinary",json!({"agentId":"devin"})).await;
+        assert_eq!(referenced["exit"]["value"]["removed"],false);assert!(directory.path().join("tools/devin").is_dir());
+        service.update_provider_instance(t3_contracts::ProviderInstanceMutation::Remove{instance_id:"ref".parse().unwrap()},serde_json::from_value(json!({})).unwrap()).await.unwrap();
+        let removed=rpc(&mut manager,12,"server.uninstallAcpRegistryManagedBinary",json!({"agentId":"devin"})).await;
+        assert_eq!(removed["exit"]["_tag"],"Success");let result:t3_contracts::AcpRegistryManagedBinaryUninstallResult=serde_json::from_value(removed["exit"]["value"].clone()).unwrap();assert!(result.removed);assert!(!directory.path().join("tools/devin").exists());
+        reader.close(None).await.unwrap();manager.close(None).await.unwrap();stop.send(()).unwrap();tasks.join_next().await.unwrap().unwrap();service.shutdown().await;
+    }).await.expect("Registry search/uninstall Effect socket milestones stalled");
 }

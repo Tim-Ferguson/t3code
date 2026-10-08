@@ -77,11 +77,13 @@ pub mod server_settings;
 
 pub mod server_settings_runtime;
 
-pub mod acp_registry_support;
 mod acp_registry_archives;
 mod acp_registry_commands;
 mod acp_registry_packages;
+mod acp_registry_search;
 mod acp_registry_spawn;
+pub mod acp_registry_support;
+mod acp_registry_uninstall;
 
 #[cfg(test)]
 mod acp_registry_rpc_tests;
@@ -89,6 +91,9 @@ mod acp_registry_rpc_tests;
 pub mod server_settings_migrations;
 
 pub mod background_policy;
+pub mod device_host_resolver;
+#[cfg(test)]
+mod device_host_rpc_tests;
 
 #[cfg(test)]
 mod background_rpc_tests;

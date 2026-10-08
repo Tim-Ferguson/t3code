@@ -35,6 +35,12 @@ enum Command {
         Definition,
         futures_channel::oneshot::Sender<Result<Value, String>>,
     ),
+    ImportMany(
+        Vec<Definition>,
+        ImportMode,
+        Option<String>,
+        futures_channel::oneshot::Sender<Result<Value, String>>,
+    ),
     Library(
         LibraryAction,
         futures_channel::oneshot::Sender<Result<Value, String>>,
@@ -59,6 +65,12 @@ pub enum LibraryAction {
         themes: Vec<Value>,
         expected: Option<Vec<Value>>,
     },
+}
+#[derive(Clone, Copy)]
+pub enum ImportMode {
+    New,
+    Update,
+    Copy,
 }
 #[derive(Clone)]
 pub struct Themes {
@@ -124,6 +136,14 @@ impl Themes {
         theme: Definition,
     ) -> impl std::future::Future<Output = Result<Value, String>> + use<> {
         self.transaction(move |reply| Command::Import(theme, reply))
+    }
+    pub fn import_many(
+        &self,
+        themes: Vec<Definition>,
+        mode: ImportMode,
+        preferred: Option<String>,
+    ) -> impl std::future::Future<Output = Result<Value, String>> + use<> {
+        self.transaction(move |reply| Command::ImportMany(themes, mode, preferred, reply))
     }
     fn transaction<
         F: FnOnce(futures_channel::oneshot::Sender<Result<Value, String>>) -> Command,
@@ -381,6 +401,7 @@ pub fn use_themes(state: Store<UiModel>) {
                         | Command::Save(..)
                         | Command::Remove(..)
                         | Command::Import(..)
+                        | Command::ImportMany(..)
                 )
                 .then(|| ChangeGuard(service.pending.clone()));
                 if !matches!(command, Command::Flush { .. }) && (library.is_none() || force) {
@@ -476,6 +497,65 @@ pub fn use_themes(state: Store<UiModel>) {
                             preview = None;
                         }
                         let _ = reply.send(outcome);
+                    }
+                    Command::ImportMany(themes, mode, preferred, reply) => {
+                        let mut saved = Vec::new();
+                        let mut conflicts = Vec::new();
+                        let mut failures = Vec::new();
+                        for theme in themes {
+                            let current = service.catalog.peek().clone();
+                            if matches!(mode, ImportMode::New)
+                                && current.custom.iter().any(|t| t.id == theme.id)
+                            {
+                                conflicts.push(theme);
+                                continue;
+                            }
+                            let label = theme.label.clone();
+                            let candidate = match mode {
+                                ImportMode::Copy => themes::import::versioned_copy(
+                                    &current,
+                                    &theme,
+                                    preferred.as_deref(),
+                                ),
+                                ImportMode::Update => {
+                                    let mut next = theme;
+                                    next.collection = current
+                                        .custom
+                                        .iter()
+                                        .find(|t| t.id == next.id)
+                                        .and_then(|t| t.collection.clone())
+                                        .or(next.collection);
+                                    Ok(next)
+                                }
+                                ImportMode::New => Ok(theme),
+                            };
+                            let outcome = match candidate {
+                                Err(error) => Err(error),
+                                Ok(theme) => {
+                                    mutate_library(
+                                        &mut service,
+                                        &mut storage,
+                                        &mut library,
+                                        if matches!(mode, ImportMode::Update) {
+                                            LibraryAction::Update(theme)
+                                        } else {
+                                            LibraryAction::Install(theme)
+                                        },
+                                    )
+                                    .await
+                                }
+                            };
+                            match outcome {
+                                Ok(value) => saved.push(value),
+                                Err(error) => failures.push(format!("{label}: {error}")),
+                            };
+                        }
+                        write_failure = (!failures.is_empty()).then(|| failures.join(" — "));
+                        catalog = service.catalog.peek().clone();
+                        force = true;
+                        let _ = reply.send(Ok(
+                            json!({"saved":saved,"conflicts":conflicts,"failures":failures}),
+                        ));
                     }
                     Command::Flush { pending, reply } => {
                         let _ = reply.send(if pending {
@@ -1426,6 +1506,207 @@ mod tests {
                 .is_some_and(|v| v["paletteId"] != "__preview")
         })
         .await;
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn actual_file_selection_guards_size_and_pairs_batch_without_activation() {
+        use crate::runtime::transport_tests::{click_control, control, wait_for_rendered_text};
+        fn files(dom: &mut VirtualDom, entries: Vec<Value>) {
+            dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+            let data: dioxus_html::SerializedFormData =
+                serde_json::from_value(json!({"value":"","values":entries,"valid":true})).unwrap();
+            let element = control(dom, "Choose theme files").unwrap().0;
+            dom.runtime().handle_event(
+                "change",
+                dioxus::dioxus_core::Event::new(
+                    Rc::new(dioxus_html::PlatformEventData::new(Box::new(data)))
+                        as Rc<dyn std::any::Any>,
+                    true,
+                ),
+                element,
+            );
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || *service.ready.peek()).await;
+        let initial = service.snapshot.peek().clone();
+        click_control(&mut dom, "Add theme");
+        files(
+            &mut dom,
+            vec![
+                json!({"key":"files","text":null,"file":{"path":"/not-read/huge.json","size":262145,"last_modified":0,"content_type":"application/json","contents":null}}),
+            ],
+        );
+        // File metadata rejects this before the nonexistent native path is read.
+        wait_for_rendered_text(&mut dom, "this one was not read (limit 256 KB)").await;
+        assert!(service.catalog.peek().custom.is_empty());
+        assert_eq!(browser.borrow().library_writes, 0);
+        let entries=[("Receipt Light","light","#ffffff"),("Receipt Dark","dark","#112233")].into_iter().map(|(name,mode,canvas)|{
+            let text=json!({"name":name,"type":mode,"colors":{"editor.background":canvas,"editor.foreground":"#888888","button.background":"#2380ee"}}).to_string();
+            json!({"key":"files","text":null,"file":{"path":format!("{name}.json"),"size":text.len(),"last_modified":0,"content_type":"application/json","contents":text.as_bytes()}})
+        }).collect();
+        files(&mut dom, entries);
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 1 && !service.needs_flush()
+        })
+        .await;
+        assert_eq!(service.catalog.peek().custom[0].label, "Receipt");
+        assert_eq!(service.catalog.peek().custom[0].modes().len(), 2);
+        assert_eq!(service.snapshot.peek().theme, initial.theme);
+        assert_eq!(service.snapshot.peek().theme_halves, initial.theme_halves);
+        assert!(control(&dom, "Theme JSON").is_none());
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn accepted_import_batch_survives_unmount_and_reports_partial_write_before_close_receipt()
+    {
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || *service.ready.peek()).await;
+        let make = |name| {
+            themes::library::import(
+                &service.catalog.peek(),
+                &json!({"version":1,"name":name,"appearance":"dark","colors":{"canvas":"#123456"}}),
+            )
+            .unwrap()
+        };
+        browser.borrow_mut().hold_library = true;
+        browser.borrow_mut().fail_library_at = vec![2];
+        let save = service.import_many(
+            vec![make("First receipt"), make("Second receipt")],
+            ImportMode::New,
+            None,
+        );
+        assert!(service.needs_flush());
+        props.child.borrow().unwrap().set(false);
+        let result = Rc::new(RefCell::new(None));
+        let output = result.clone();
+        let closing = Rc::new(RefCell::new(None));
+        let receipt = closing.clone();
+        let closer = service.clone();
+        dom.in_scope(ScopeId::APP, || {
+            spawn(async move {
+                *output.borrow_mut() = Some(save.await);
+            });
+            spawn(async move {
+                *receipt.borrow_mut() = Some(closer.flush().await);
+            });
+        });
+        pump(&mut dom, || browser.borrow().held.is_some()).await;
+        assert!(closing.borrow().is_none());
+        let held = {
+            let mut browser = browser.borrow_mut();
+            browser.hold_library = false;
+            browser.held.take().unwrap()
+        };
+        browser.borrow_mut().command(held);
+        pump(&mut dom, || {
+            result.borrow().is_some() && closing.borrow().is_some()
+        })
+        .await;
+        let result = result.borrow_mut().take().unwrap().unwrap();
+        assert_eq!(result["saved"].as_array().unwrap().len(), 1);
+        assert_eq!(result["failures"].as_array().unwrap().len(), 1);
+        assert_eq!(service.catalog.peek().custom[0].id, "first-receipt");
+        assert_eq!(
+            serde_json::from_str::<Value>(&browser.borrow().saved[themes::CUSTOM_KEY]).unwrap()[0]
+                ["id"],
+            "first-receipt"
+        );
+        assert!(service.error.peek().is_some());
+        assert!(closing.borrow().as_ref().unwrap().is_err());
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn actual_vscode_import_conflict_retry_and_copy_preserve_library_and_selection() {
+        use crate::runtime::transport_tests::{click_control, control, input_control};
+        let opaque = json!({"id":"future","opaque":{"keep":true}});
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        browser
+            .borrow_mut()
+            .saved
+            .insert(themes::CUSTOM_KEY.into(), json!([opaque]).to_string());
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || *service.ready.peek()).await;
+        let source = |background: &str| {
+            json!({"name":"VS Code receipt","type":"dark","colors":{"editor.background":background,"editor.foreground":"#ddd","button.background":"#1984f0"}}).to_string()
+        };
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Theme JSON", &source("#112233"));
+        click_control(&mut dom, "Import theme");
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 1 && !service.needs_flush()
+        })
+        .await;
+        let original = service.catalog.peek().custom[0].clone();
+        assert_eq!(
+            original,
+            themes::import::parse(&service.catalog.peek(), &source("#112233")).unwrap()
+        );
+        assert_eq!(
+            serde_json::from_str::<Value>(&browser.borrow().saved[themes::CUSTOM_KEY]).unwrap()[0],
+            opaque
+        );
+        let mut collection = original.clone();
+        collection.collection = Some(json!({"id":"open-vsx:fixture","label":"Fixture"}));
+        settle(
+            &mut dom,
+            service.library_change(LibraryAction::Update(collection)),
+        )
+        .await
+        .unwrap();
+        let selection = service.snapshot.peek().clone();
+        let before = browser.borrow().saved[themes::CUSTOM_KEY].clone();
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Theme JSON", &source("#223344"));
+        click_control(&mut dom, "Import theme");
+        assert!(control(&dom, "Update theme").is_some());
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], before);
+        browser.borrow_mut().fail_library = true;
+        click_control(&mut dom, "Update theme");
+        pump(&mut dom, || {
+            !service.needs_flush() && service.error.peek().is_some()
+        })
+        .await;
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], before);
+        assert!(control(&dom, "Import theme").is_some());
+        browser.borrow_mut().fail_library = false;
+        click_control(&mut dom, "Import theme");
+        click_control(&mut dom, "Update theme");
+        pump(&mut dom, || {
+            !service.needs_flush() && service.catalog.peek().custom[0].colors != original.colors
+        })
+        .await;
+        assert!(control(&dom, "Theme JSON").is_none());
+        assert_eq!(
+            service.catalog.peek().custom[0].collection,
+            Some(json!({"id":"open-vsx:fixture","label":"Fixture"}))
+        );
+        assert_ne!(service.catalog.peek().custom[0].colors, original.colors);
+        assert_eq!(service.snapshot.peek().theme, selection.theme);
+        assert_eq!(service.snapshot.peek().theme_halves, selection.theme_halves);
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Theme JSON", &source("#334455"));
+        click_control(&mut dom, "Import theme");
+        click_control(&mut dom, "Add a copy");
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 2 && !service.needs_flush()
+        })
+        .await;
+        assert_eq!(
+            service.catalog.peek().custom[1].label,
+            "VS Code receipt (1)"
+        );
+        assert_eq!(service.catalog.peek().custom[1].collection, None);
+        assert_eq!(service.snapshot.peek().theme, selection.theme);
+        assert_eq!(service.snapshot.peek().theme_halves, selection.theme_halves);
+        let saved = browser.borrow().saved[themes::CUSTOM_KEY].clone();
+        drop(dom);
+        let (mut reloaded, props) = mounted(browser.clone());
+        let restored = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut reloaded, || restored.catalog.peek().custom.len() == 2).await;
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], saved);
     }
     #[tokio::test(flavor = "current_thread")]
     async fn real_editor_events_preview_failed_save_retry_and_reload_lossless_library() {

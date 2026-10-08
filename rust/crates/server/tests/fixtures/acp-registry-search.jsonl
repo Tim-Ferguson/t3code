@@ -1,0 +1,176 @@
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"","output":100}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":" ","output":100}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"﻿","output":100}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"fast-agent","output":0}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"Fast Agent","output":0}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":" FAST ","output":10}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"fa ag","output":20}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"as gen","output":30}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"alpha","output":40}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"coding","output":50}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"alpha coding","output":50}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"fast beta","output":50}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"missing","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":" smart cli","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":" smartcli","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"smart﻿cli","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"smart cli","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"agent tool","output":50}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"οδός","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"οδοσ","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"ΣΟΦΟΣ","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"İstanbul","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"KELVIN","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"longſ","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"😀","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"toolscli","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"cli","output":null}
+{"operation":"rank","agent":{"id":"fast-agent","name":"Fast Agent","description":"A coding assistant","authors":["Alpha Tools","Beta Team"]},"query":"engine code","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"","output":100}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":" ","output":100}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"﻿","output":100}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"fast-agent","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"Fast Agent","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":" FAST ","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"fa ag","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"as gen","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"alpha","output":50}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"coding","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"alpha coding","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"fast beta","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"missing","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":" smart cli","output":20}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":" smartcli","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"smart﻿cli","output":20}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"smart cli","output":20}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"agent tool","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"οδός","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"οδοσ","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"ΣΟΦΟΣ","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"İstanbul","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"KELVIN","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"longſ","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"😀","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"toolscli","output":null}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"cli","output":20}
+{"operation":"rank","agent":{"id":"tools-cli","name":"Smart Code CLI","description":"Flexible reasoning with Alpha engines"},"query":"engine code","output":50}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"","output":100}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":" ","output":100}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"﻿","output":100}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"fast-agent","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"Fast Agent","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":" FAST ","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"fa ag","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"as gen","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"alpha","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"coding","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"alpha coding","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"fast beta","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"missing","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":" smart cli","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":" smartcli","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"smart﻿cli","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"smart cli","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"agent tool","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"οδός","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"οδοσ","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"ΣΟΦΟΣ","output":30}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"İstanbul","output":50}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"KELVIN","output":50}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"longſ","output":50}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"😀","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"toolscli","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"cli","output":null}
+{"operation":"rank","agent":{"id":"unicode","name":"ΟΔΟΣ ΣΟΦΟΣ","description":"İstanbul Kelvin longſ"},"query":"engine code","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"","output":100}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":" ","output":100}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"﻿","output":100}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"fast-agent","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"Fast Agent","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":" FAST ","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"fa ag","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"as gen","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"alpha","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"coding","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"alpha coding","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"fast beta","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"missing","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":" smart cli","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":" smartcli","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"smart﻿cli","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"smart cli","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"agent tool","output":50}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"οδός","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"οδοσ","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"ΣΟΦΟΣ","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"İstanbul","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"KELVIN","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"longſ","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"😀","output":10}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"toolscli","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"cli","output":null}
+{"operation":"rank","agent":{"id":"emoji","name":"😀 Agent","description":"A tool﻿","authors":["Mixed Unicode"]},"query":"engine code","output":null}
+{"operation":"compare","left":"a","right":"a","output":0}
+{"operation":"compare","left":"a","right":"A","output":1}
+{"operation":"compare","left":"a","right":"α","output":-1}
+{"operation":"compare","left":"a","right":"Σ","output":-1}
+{"operation":"compare","left":"a","right":"😀","output":-1}
+{"operation":"compare","left":"a","right":"","output":-1}
+{"operation":"compare","left":"a","right":"aa","output":-1}
+{"operation":"compare","left":"a","right":"","output":1}
+{"operation":"compare","left":"A","right":"a","output":-1}
+{"operation":"compare","left":"A","right":"A","output":0}
+{"operation":"compare","left":"A","right":"α","output":-1}
+{"operation":"compare","left":"A","right":"Σ","output":-1}
+{"operation":"compare","left":"A","right":"😀","output":-1}
+{"operation":"compare","left":"A","right":"","output":-1}
+{"operation":"compare","left":"A","right":"aa","output":-1}
+{"operation":"compare","left":"A","right":"","output":1}
+{"operation":"compare","left":"α","right":"a","output":1}
+{"operation":"compare","left":"α","right":"A","output":1}
+{"operation":"compare","left":"α","right":"α","output":0}
+{"operation":"compare","left":"α","right":"Σ","output":1}
+{"operation":"compare","left":"α","right":"😀","output":-1}
+{"operation":"compare","left":"α","right":"","output":-1}
+{"operation":"compare","left":"α","right":"aa","output":1}
+{"operation":"compare","left":"α","right":"","output":1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"a","output":1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"A","output":1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"α","output":-1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"Σ","output":-1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"😀","output":-1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"","output":-1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"aa","output":1}
+{"operation":"compare","left":"ΟΔΟΣ","right":"","output":1}
+{"operation":"compare","left":"😀","right":"a","output":1}
+{"operation":"compare","left":"😀","right":"A","output":1}
+{"operation":"compare","left":"😀","right":"α","output":1}
+{"operation":"compare","left":"😀","right":"Σ","output":1}
+{"operation":"compare","left":"😀","right":"😀","output":0}
+{"operation":"compare","left":"😀","right":"","output":-1}
+{"operation":"compare","left":"😀","right":"aa","output":1}
+{"operation":"compare","left":"😀","right":"","output":1}
+{"operation":"compare","left":"","right":"a","output":1}
+{"operation":"compare","left":"","right":"A","output":1}
+{"operation":"compare","left":"","right":"α","output":1}
+{"operation":"compare","left":"","right":"Σ","output":1}
+{"operation":"compare","left":"","right":"😀","output":1}
+{"operation":"compare","left":"","right":"","output":0}
+{"operation":"compare","left":"","right":"aa","output":1}
+{"operation":"compare","left":"","right":"","output":1}
+{"operation":"compare","left":"aa","right":"a","output":1}
+{"operation":"compare","left":"aa","right":"A","output":1}
+{"operation":"compare","left":"aa","right":"α","output":-1}
+{"operation":"compare","left":"aa","right":"Σ","output":-1}
+{"operation":"compare","left":"aa","right":"😀","output":-1}
+{"operation":"compare","left":"aa","right":"","output":-1}
+{"operation":"compare","left":"aa","right":"aa","output":0}
+{"operation":"compare","left":"aa","right":"","output":1}
+{"operation":"compare","left":"","right":"a","output":-1}
+{"operation":"compare","left":"","right":"A","output":-1}
+{"operation":"compare","left":"","right":"α","output":-1}
+{"operation":"compare","left":"","right":"Σ","output":-1}
+{"operation":"compare","left":"","right":"😀","output":-1}
+{"operation":"compare","left":"","right":"","output":-1}
+{"operation":"compare","left":"","right":"aa","output":-1}
+{"operation":"compare","left":"","right":"","output":0}

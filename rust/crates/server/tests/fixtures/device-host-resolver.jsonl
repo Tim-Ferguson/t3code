@@ -1,0 +1,154 @@
+{"op":"ip","hostname":"127.0.1.1","result":true}
+{"op":"ip","hostname":"127.00.0.1","result":false}
+{"op":"ip","hostname":"127.0.0.256","result":false}
+{"op":"ip","hostname":"::1","result":true}
+{"op":"ip","hostname":"0:0:0:0:0:0:0:1","result":true}
+{"op":"ip","hostname":"::ffff:127.0.0.1","result":true}
+{"op":"ip","hostname":"::1%lo0","result":true}
+{"op":"ip","hostname":"fe80::1%en0","result":true}
+{"op":"ip","hostname":"fe80::1%a:b.c-3","result":true}
+{"op":"ip","hostname":"::1%","result":false}
+{"op":"ip","hostname":"::1%bad_","result":false}
+{"op":"ip","hostname":"[::1]","result":false}
+{"op":"ip","hostname":"192.0.2.1","result":true}
+{"op":"ip","hostname":"100.65.180.100","result":true}
+{"op":"ip","hostname":"2001:db8::1","result":true}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 127.0.1.1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1]\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname [::1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname ::1]\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 0:0:0:0:0:0:0:1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 192.0.2.1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname 100.65.180.100\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::ffff:127.0.0.1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1%lo0\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname fe80::1%en0\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nproxyjump none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nproxycommand none\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nproxyjump bastion\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nproxycommand nc remote 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nproxyjump NONE\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nproxyjump \n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nport 2222\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nport 022\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname 2001:db8::1\nport 22\nhostname 192.0.2.2\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"Hostname ::1\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ::1\nport\t22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname ﻿::1﻿\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":true}
+{"op":"resolve","stdout":"hostname \nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}
+{"op":"resolve","stdout":"hostname🚀\nport 22\n","local":["100.65.180.100","fe80::1%en0"],"result":false}

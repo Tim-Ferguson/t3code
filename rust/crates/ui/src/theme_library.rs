@@ -1,8 +1,8 @@
 //! Custom/environment library controls use the persistent App storage actor.
 use crate::themes::Themes;
+use dioxus::html::FileData;
 use dioxus::prelude::*;
-use serde_json::Value;
-use t3_client::themes::{Appearance, Colors, Definition, library, vivid};
+use t3_client::themes::{Appearance, Colors, Definition, import, library, vivid};
 #[derive(Clone, PartialEq)]
 pub struct EditorSession {
     pub editing_theme_id: Option<String>,
@@ -166,22 +166,140 @@ fn urlencoding(text: &str) -> String {
         })
         .collect()
 }
+#[derive(Clone, Copy)]
+struct ImportState {
+    text: Signal<String>,
+    file: Signal<Option<String>>,
+    error: Signal<Option<String>>,
+    pending: Signal<bool>,
+    conflicts: Signal<Option<Vec<Definition>>>,
+}
+async fn read_theme_files(
+    service: Themes,
+    files: Vec<FileData>,
+    mut state: ImportState,
+    onclose: EventHandler<()>,
+) {
+    if files.len() == 1 {
+        let file = &files[0];
+        if let Some(error) = import::oversized(file.size().min(usize::MAX as u64) as usize) {
+            state.error.set(Some(error));
+        } else {
+            match file.read_string().await {
+                Ok(text) => {
+                    state.text.set(text);
+                    state.file.set(Some(file.name()));
+                    state.error.set(None);
+                }
+                Err(_) => state.error.set(Some(
+                    "Could not read that file. Paste the JSON below instead.".into(),
+                )),
+            }
+        }
+        state.pending.set(false);
+        return;
+    }
+    let mut failures = Vec::new();
+    let mut entries = Vec::new();
+    for file in files {
+        if import::oversized(file.size().min(usize::MAX as u64) as usize).is_some() {
+            failures.push(format!("{}: too large", file.name()));
+            continue;
+        }
+        match file.read_string().await {
+            Ok(text) => match import::parse(&service.catalog.peek(), &text) {
+                Ok(theme) => entries.push(t3_client::themes::vscode::Entry {
+                    theme,
+                    source_name: Some(file.name()),
+                }),
+                Err(error) => failures.push(format!("{}: {error}", file.name())),
+            },
+            Err(error) => failures.push(format!("{}: {error}", file.name())),
+        }
+    }
+    let themes = {
+        let catalog = service.catalog.peek();
+        t3_client::themes::vscode::pair(
+            &catalog,
+            &t3_client::themes::vscode::resolve_collisions(&catalog, &entries),
+            None,
+        )
+    };
+    let result = service
+        .import_many(themes, crate::themes::ImportMode::New, None)
+        .await;
+    state.pending.set(false);
+    match result {
+        Err(error) => state.error.set(Some(error)),
+        Ok(result) => {
+            failures.extend(
+                result["failures"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_str().unwrap().to_owned()),
+            );
+            let conflicts: Vec<Definition> =
+                serde_json::from_value(result["conflicts"].clone()).unwrap();
+            if !failures.is_empty() {
+                state.error.set(Some(failures.join(" — ")));
+            } else if !conflicts.is_empty() {
+                state.error.set(None);
+                state.conflicts.set(Some(conflicts));
+            } else if !result["saved"].as_array().unwrap().is_empty() {
+                onclose.call(());
+            }
+        }
+    }
+}
 #[component]
 fn ThemeImport(onclose: EventHandler<()>) -> Element {
     let service = use_context::<Themes>();
     let mut text = use_signal(String::new);
+    let file = use_signal(|| None::<String>);
     let mut error = use_signal(|| None::<String>);
     let mut pending = use_signal(|| false);
-    rsx! {div {class:"theme-dialog",role:"dialog","aria-label":"Add theme",h3 {"Add theme"}p {"Paste a theme JSON file."}
+    let mut conflicts = use_signal(|| None::<Vec<Definition>>);
+    let state = ImportState {
+        text,
+        file,
+        error,
+        pending,
+        conflicts,
+    };
+    let read = service.clone();
+    rsx! {div {class:"theme-dialog",role:"dialog","aria-label":"Add theme",h3 {"Add theme"}p {"Choose or paste T3 Code or VS Code theme JSON files. Multiple files install together without changing your current theme."}
+        input {r#type:"file",accept:".json,application/json",multiple:true,"aria-label":"Choose theme files",disabled:*pending.read(),onchange:move|event|{
+            let files=event.files();if files.is_empty(){return;}pending.set(true);let read=read.clone();spawn(async move{read_theme_files(read,files,state,onclose).await;});
+        }}
+        if let Some(name)=file.read().as_ref(){small {"{name}"}}
         textarea {"aria-label":"Theme JSON",value:text.read().clone(),oninput:move |event|text.set(event.value())}
         if let Some(cause)=error.read().as_ref(){p {role:"alert",class:"error-banner","{cause}"}}
-        button {"aria-label":"Import theme",disabled:*pending.read(),onclick:move |_|{
-            let candidate=serde_json::from_str::<Value>(&text.peek()).map_err(|cause|cause.to_string()).and_then(|value|library::import(&service.catalog.peek(),&value));
+        if let Some(themes)=conflicts.read().clone(){
+            p {"Some themes are already installed. Update them or add separate copies."}
+            for theme in &themes {p {"{theme.label}"}}
+            for copy in [false,true]{
+                button {"aria-label":if copy{"Add a copy"}else{"Update theme"},disabled:*pending.read(),onclick:{let service=service.clone();let themes=themes.clone();move |_|{
+                    let preferred=if themes.len()==1{file.peek().as_deref().map(import::preferred_name)}else{None};
+                    let save=service.import_many(themes.clone(),if copy{crate::themes::ImportMode::Copy}else{crate::themes::ImportMode::Update},preferred);
+                    pending.set(true);
+                    spawn(async move{
+                        let result=save.await;pending.set(false);conflicts.set(None);
+                        match result{Err(cause)=>error.set(Some(cause)),Ok(result)=>{
+                            let failures=result["failures"].as_array().unwrap();
+                            if failures.is_empty(){onclose.call(())}else{error.set(Some(failures.iter().map(|v|v.as_str().unwrap()).collect::<Vec<_>>().join(" — ")))}
+                        }}
+                    });
+                }},if copy{"Add a copy"}else{"Update theme"}}
+            }
+        } else {button {"aria-label":"Import theme",disabled:*pending.read(),onclick:move |_|{
+            let candidate=import::parse(&service.catalog.peek(),&text.peek());
             match candidate {Err(cause)=>error.set(Some(cause)),Ok(theme)=>{
+                if service.catalog.peek().custom.iter().any(|t|t.id==theme.id){error.set(None);conflicts.set(Some(vec![theme]));return;}
                 let save=service.import_theme(theme);pending.set(true);
                 spawn(async move{let result=save.await;pending.set(false);match result{Err(cause)=>error.set(Some(cause)),Ok(_)=>onclose.call(())}});
             }}
-        },"Add theme"}button {disabled:*pending.read(),onclick:move |_|onclose.call(()),"Cancel"}
+        },"Add theme"}}button {disabled:*pending.read(),onclick:move |_|onclose.call(()),"Cancel"}
     }}
 }
 #[component]

@@ -74,7 +74,7 @@ async fn background_socket_trusts_session_and_connection_enforces_power_scope_an
         let (session,reader)=auth.issue_session("fixture","bearer-access-token",vec![AuthEnvironmentScope::OrchestrationRead],json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap();
         let maintainer=auth.issue_session("fixture","bearer-access-token",vec![AuthEnvironmentScope::EnvironmentMaintain],json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap().1;
         let state=ApiState{store,auth,environment:json!({"environmentId":"background-fixture","label":"Background fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
-            config:None,settings:Some(settings.clone()),cors_origins:None,assets:None,providers:None,execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,background:Some(policy.clone())};
+            config:None,settings:Some(settings.clone()),cors_origins:None,assets:None,providers:None,execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,background:Some(policy.clone()),device_hosts:None};
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();
         let(stop,stopped)=tokio::sync::oneshot::channel();let mut tasks=tokio::task::JoinSet::new();
         tasks.spawn(async move {axum::serve(listener,router(state)).with_graceful_shutdown(async {let _=stopped.await;}).await.unwrap();});

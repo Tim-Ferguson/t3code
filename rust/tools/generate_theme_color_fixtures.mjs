@@ -37,7 +37,7 @@ export const createThemeOracle = (window) =>
       .join("\n") +
       "\nconst Schema={String:null,Literals:()=>null,optional:()=>null,Defect:()=>null,TaggedError:()=>()=>class extends Error {constructor(fields){super();Object.assign(this,fields)}}};\n" +
       source +
-      ";return {toCanonicalThemeColor,themeColorToHex,parseThemeFile,serializeThemeFile,createVividThemeColors,getDefaultThemeColors,lenientThemeColorOverrides,isReservedThemeId,parseStoredTheme,parseStoredThemes,readCustomThemeLibrarySnapshot,installCustomTheme,updateCustomTheme,removeCustomThemes,replaceCustomThemeCollection,updateThemeColorFamily,themeIdFromName,getThemeModes,getCustomThemes,removeCustomTheme};",
+      ";return {toCanonicalThemeColor,themeColorToHex,parseThemeFile,serializeThemeFile,createVividThemeColors,getDefaultThemeColors,getStandardThemeColors,lenientThemeColorOverrides,isReservedThemeId,parseStoredTheme,parseStoredThemes,readCustomThemeLibrarySnapshot,installCustomTheme,updateCustomTheme,removeCustomThemes,replaceCustomThemeCollection,updateThemeColorFamily,themeIdFromName,getThemeModes,getCustomThemes,removeCustomTheme};",
   )(data, converter, parse, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) }, window);
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (process.version !== "v23.11.0" || process.versions.v8 !== "12.9.202.28-node.14") {

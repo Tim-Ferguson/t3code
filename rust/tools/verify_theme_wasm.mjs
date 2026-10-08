@@ -16,7 +16,8 @@ let exact = 0,
   thrown = 0,
   vivid = 0,
   families = 0,
-  editors = 0;
+  editors = 0,
+  vscode = 0;
 const failures = [];
 for (const [i, row] of rows("colors").entries()) {
   const actual = JSON.parse(wasm.color(JSON.stringify(row.input)));
@@ -92,6 +93,28 @@ for (const [i, row] of editorRows.entries()) {
     failures.push({ kind: "editor", i, actual, expected });
   }
 }
+const [vscodeHeader, ...vscodeRows] = readFileSync(
+  new URL("../crates/client/tests/fixtures/vscode-themes.jsonl", import.meta.url),
+  "utf8",
+)
+  .trimEnd()
+  .split("\n")
+  .map((line) => JSON.parse(line));
+for (const [i, row] of vscodeRows.entries()) {
+  const actual = JSON.parse(
+    wasm.vscode(JSON.stringify({ ...row, input: vscodeHeader.dictionary[row.input] })),
+  );
+  const expected = row.error
+    ? { error: row.error }
+    : { value: vscodeHeader.dictionary[row.expected] };
+  if (row.kind === "import") expected.isFile = row.isFile;
+  try {
+    assert.deepEqual(actual, expected);
+    vscode++;
+  } catch (error) {
+    failures.push({ kind: "vscode", i, actual, expected });
+  }
+}
 assert.equal(failures.length, 0, JSON.stringify(failures.slice(0, 10), null, 2));
 console.log(
   JSON.stringify({
@@ -100,5 +123,6 @@ console.log(
     vivid,
     families,
     editors,
+    vscode,
   }),
 );

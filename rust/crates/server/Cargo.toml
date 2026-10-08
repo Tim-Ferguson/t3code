@@ -12,6 +12,7 @@ url.workspace = true
 reqwest.workspace = true
 fs2.workspace = true
 libc.workspace = true
+if-addrs.workspace = true
 portable-pty.workspace = true
 t3-contracts.workspace = true
 t3-acp.workspace = true

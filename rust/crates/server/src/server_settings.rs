@@ -83,6 +83,7 @@ enum Command {
     Update(
         Box<ServerSettingsPatch>,
         Option<ProviderInstanceMutation>,
+        tokio::sync::OwnedMutexGuard<()>,
         Reply<ServerSettings>,
     ),
     Reload(Reply<ServerSettings>),
@@ -125,6 +126,7 @@ struct Inner {
     sender: mpsc::UnboundedSender<Command>,
     stopped: AtomicBool,
     stop: tokio::sync::watch::Sender<bool>,
+    writer_admission: Arc<Mutex<()>>,
     worker: Mutex<Option<tokio::task::JoinHandle<()>>>,
     watch_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
@@ -137,6 +139,12 @@ impl Drop for Inner {
 #[derive(Clone)]
 pub struct SettingsService {
     inner: Arc<Inner>,
+}
+/// Retain this lease inside admitted native work that can outlive its caller.
+/// Dropping the last lease admits the next settings mutation.
+#[derive(Clone)]
+pub struct SettingsSnapshotLease {
+    _guard: Arc<tokio::sync::OwnedMutexGuard<()>>,
 }
 struct StartupGuard(
     mpsc::UnboundedSender<Command>,
@@ -186,6 +194,7 @@ impl SettingsService {
                 sender,
                 stopped: AtomicBool::new(false),
                 stop: tokio::sync::watch::channel(false).0,
+                writer_admission: Arc::new(Mutex::new(())),
                 worker: Mutex::new(Some(worker)),
                 watch_task: Mutex::new(Some(watch_task)),
             }),
@@ -216,7 +225,8 @@ impl SettingsService {
         &self,
         patch: ServerSettingsPatch,
     ) -> Result<ServerSettings, SettingsError> {
-        self.request(|reply| Command::Update(Box::new(patch), None, reply))
+        let lease = self.inner.writer_admission.clone().lock_owned().await;
+        self.request(|reply| Command::Update(Box::new(patch), None, lease, reply))
             .await
     }
     pub async fn update_provider_instance(
@@ -224,8 +234,41 @@ impl SettingsService {
         mutation: ProviderInstanceMutation,
         patch: ServerSettingsPatch,
     ) -> Result<ServerSettings, SettingsError> {
-        self.request(|reply| Command::Update(Box::new(patch), Some(mutation), reply))
+        let lease = self.inner.writer_admission.clone().lock_owned().await;
+        self.request(|reply| Command::Update(Box::new(patch), Some(mutation), lease, reply))
             .await
+    }
+    /// Hold settings mutation admission across an asynchronous use of a trusted
+    /// materialized snapshot. Read-only requests remain available while held.
+    pub async fn with_settings_snapshot<T, F, Fut>(
+        &self,
+        use_snapshot: F,
+    ) -> Result<T, SettingsError>
+    where
+        F: FnOnce(ServerSettings) -> Fut,
+        Fut: std::future::Future<Output = T>,
+    {
+        self.with_settings_snapshot_lease(|snapshot, _lease| use_snapshot(snapshot))
+            .await
+    }
+    /// A blocking/native operation must retain the passed lease until its real
+    /// completion, including when its calling future is cancelled.
+    pub async fn with_settings_snapshot_lease<T, F, Fut>(
+        &self,
+        use_snapshot: F,
+    ) -> Result<T, SettingsError>
+    where
+        F: FnOnce(ServerSettings, SettingsSnapshotLease) -> Fut,
+        Fut: std::future::Future<Output = T>,
+    {
+        let lease = SettingsSnapshotLease {
+            _guard: Arc::new(self.inner.writer_admission.clone().lock_owned().await),
+        };
+        let retained = lease.clone();
+        let snapshot = self.snapshot().await?;
+        let result = use_snapshot(snapshot, lease).await;
+        drop(retained);
+        Ok(result)
     }
     pub async fn reload(&self) -> Result<ServerSettings, SettingsError> {
         self.request(Command::Reload).await
@@ -524,7 +567,9 @@ fn run(
                     let _ = reply.send(result);
                 }
             }
-            Command::Update(patch, mutation, reply) => {
+            Command::Update(patch, mutation, _lease, reply) => {
+                // The admitted command owns the writer lease through durable
+                // side effects and publication even if its caller disappears.
                 if !reply.is_closed() {
                     let result = owner.update(&patch, mutation);
                     let _ = reply.send(result);
@@ -826,6 +871,101 @@ mod tests {
         serde_json::from_value(json!({"providerInstances":{"fixture":{"driver":"codex","environment":[{"name":"KEY","value":secret,"sensitive":true}]}},"providers":{"codex":{"enabled":enabled}}})).unwrap()
     }
     #[tokio::test]
+    async fn settings_snapshot_barrier_blocks_updates_but_allows_reads_and_cancel_releases_it() {
+        let directory = tempfile::tempdir().unwrap();
+        let secrets = ServerSecretStore::open(directory.path().join("secrets")).unwrap();
+        let mut options = SettingsOptions::file(directory.path().join("settings.json"), secrets);
+        options.watch = false;
+        let service = SettingsService::start(options).await.unwrap();
+        let (entered, held) = oneshot::channel();
+        let (_release, blocked) = oneshot::channel::<()>();
+        let user = tokio::spawn({
+            let service = service.clone();
+            async move {
+                service
+                    .with_settings_snapshot(|snapshot| async move {
+                        let _ = entered.send(snapshot);
+                        let _ = blocked.await;
+                    })
+                    .await
+            }
+        });
+        let captured = held.await.unwrap();
+        let mut update = Box::pin(
+            service.update(serde_json::from_value(json!({"defaultAutoPull":true})).unwrap()),
+        );
+        assert!(futures_util::poll!(&mut update).is_pending());
+        assert_eq!(
+            service.snapshot().await.unwrap(),
+            captured,
+            "read-only snapshots remain usable during guarded registry operations"
+        );
+        user.abort();
+        assert!(user.await.unwrap_err().is_cancelled());
+        assert!(update.await.unwrap().default_auto_pull);
+        service.shutdown().await;
+    }
+    #[tokio::test]
+    async fn cancelled_snapshot_use_retains_writer_lease_until_owned_native_deletion_completes() {
+        let directory = tempfile::tempdir().unwrap();
+        let secrets = ServerSecretStore::open(directory.path().join("secrets")).unwrap();
+        let mut options = SettingsOptions::file(directory.path().join("settings.json"), secrets);
+        options.watch = false;
+        let service = SettingsService::start(options).await.unwrap();
+        let installed = directory.path().join("owned-installation");
+        std::fs::write(&installed, b"fixture binary").unwrap();
+        let (entered, held) = oneshot::channel();
+        let (removed, completion) = oneshot::channel();
+        let gate = Arc::new(GateWriter {
+            entered: StdMutex::new(None),
+            release: StdMutex::new(false),
+            wake: Condvar::new(),
+            fail: AtomicBool::new(false),
+        });
+        let release = Release(gate.clone());
+        let user = tokio::spawn({
+            let service = service.clone();
+            let installed = installed.clone();
+            async move {
+                service
+                    .with_settings_snapshot_lease(|snapshot, lease| async move {
+                        assert!(!snapshot.default_auto_pull);
+                        let work = tokio::task::spawn_blocking(move || {
+                            let _lease = lease;
+                            let _ = entered.send(());
+                            let mut released = gate.release.lock().unwrap();
+                            while !*released {
+                                released = gate.wake.wait(released).unwrap();
+                            }
+                            drop(released);
+                            std::fs::remove_file(installed).unwrap();
+                            let _ = removed.send(());
+                        });
+                        let _ = work.await;
+                    })
+                    .await
+            }
+        });
+        held.await.unwrap();
+        user.abort();
+        assert!(user.await.unwrap_err().is_cancelled());
+        assert!(installed.exists());
+        assert!(
+            service.inner.writer_admission.try_lock().is_err(),
+            "caller cancellation admitted updates while native delete remained held"
+        );
+        let mut update = Box::pin(
+            service.update(serde_json::from_value(json!({"defaultAutoPull":true})).unwrap()),
+        );
+        assert!(futures_util::poll!(&mut update).is_pending());
+        assert!(!service.snapshot().await.unwrap().default_auto_pull);
+        drop(release);
+        completion.await.unwrap();
+        assert!(update.await.unwrap().default_auto_pull);
+        assert!(!installed.exists());
+        service.shutdown().await;
+    }
+    #[tokio::test]
     async fn cancelled_caller_after_rename_cannot_rollback_secrets_or_skip_publication() {
         let directory = tempfile::tempdir().unwrap();
         let secrets = ServerSecretStore::open(directory.path().join("secrets")).unwrap();
@@ -866,7 +1006,19 @@ mod tests {
         );
         caller.abort();
         assert!(caller.await.unwrap_err().is_cancelled());
+        assert!(
+            service.inner.writer_admission.try_lock().is_err(),
+            "accepted durable update lost its writer lease after caller cancellation"
+        );
+        let mut snapshot_use =
+            Box::pin(service.with_settings_snapshot(|snapshot| async move { snapshot }));
+        assert!(futures_util::poll!(&mut snapshot_use).is_pending());
         drop(release);
+        let stable = snapshot_use.await.unwrap();
+        assert_eq!(
+            serde_json::to_value(stable).unwrap()["providers"]["codex"]["enabled"],
+            false
+        );
         let published = changes.recv().await.unwrap();
         assert_eq!(
             serde_json::to_value(&published).unwrap()["providerInstances"]["fixture"]["environment"]

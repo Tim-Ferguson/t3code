@@ -2,9 +2,11 @@
 pub mod color;
 pub mod editor;
 pub mod environment;
+pub mod import;
 pub mod library;
 pub mod storage;
 pub mod vivid;
+pub mod vscode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;

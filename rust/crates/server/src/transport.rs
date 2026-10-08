@@ -44,6 +44,7 @@ pub struct ApiState {
     pub resource_telemetry: Option<crate::resource_telemetry_service::ResourceTelemetry>,
     pub host_resources: Option<crate::host_resources::HostResources>,
     pub background: Option<crate::background_policy::BackgroundPolicy>,
+    pub device_hosts: Option<crate::device_host_resolver::DeviceHostResolver>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -702,6 +703,8 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
             | "server.updateSettings"
             | "server.getConfig"
             | "server.prepareAcpRegistryAgent"
+            | "server.searchAcpRegistry"
+            | "server.uninstallAcpRegistryManagedBinary"
     ) {
         if matches!(
             request.tag.as_str(),
@@ -716,6 +719,19 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                 json!({"_tag":"SchemaDecodeError","message":"Expected an object payload."}),
             );
         }
+        if request.tag == "server.searchAcpRegistry" {
+            let input: t3_contracts::AcpRegistrySearchInput = serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid ACP registry search request."}))?;
+            let catalog = state.providers.as_ref().and_then(|providers| providers.catalog()).ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"ACP registry catalog is not configured."}))?;
+            let result = catalog.search(&input).await.map_err(|error|json!({"_tag":"AcpRegistryOperationError","reason":error.reason,"message":error.detail}))?;
+            return serde_json::to_value(result).map_err(|_|json!({"_tag":"NativeServiceError","message":"ACP search result could not be encoded."}));
+        }
+        if request.tag == "server.uninstallAcpRegistryManagedBinary" {
+            let input: t3_contracts::AcpRegistryManagedBinaryUninstallInput = serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid ACP registry uninstall request."}))?;
+            let catalog = state.providers.as_ref().and_then(|providers| providers.catalog()).ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"ACP registry catalog is not configured."}))?;
+            let service = state.settings.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Settings service is not configured."}))?;
+            let result = catalog.uninstall_managed_binary(&input,service).await.map_err(|error|json!({"_tag":"AcpRegistryOperationError","reason":error.reason,"message":error.detail}))?;
+            return serde_json::to_value(result).map_err(|_|json!({"_tag":"NativeServiceError","message":"ACP uninstall result could not be encoded."}));
+        }
         if request.tag == "server.prepareAcpRegistryAgent" {
             let input:t3_contracts::AcpRegistryPrepareInput=serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid ACP preparation request."}))?;
             let providers=state.providers.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Provider registry is not configured."}))?;
@@ -725,16 +741,15 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
         }
         if let Some(service) = &state.settings {
             let settings = if request.tag == "server.updateSettings" {
-                let input:t3_contracts::UpdateServerSettingsInput=serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid settings update payload."}))?;
-                if input
-                    .patch
-                    .device_hosts
-                    .as_ref()
-                    .is_some_and(|hosts| !hosts.0.is_empty())
-                {
-                    return Err(
-                        json!({"_tag":"NativeMethodUnsupportedError","message":"Device-host updates require the remote SSH resolver, which has not yet been ported."}),
-                    );
+                let mut input:t3_contracts::UpdateServerSettingsInput=serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid settings update payload."}))?;
+                if let Some(hosts) = input.patch.device_hosts.take() {
+                    let hosts = if hosts.0.is_empty() {
+                        hosts.0
+                    } else {
+                        let resolver = state.device_hosts.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Device-host resolver is not configured."}))?;
+                        resolver.remote_hosts(hosts.0).await
+                    };
+                    input.patch.device_hosts = Some(t3_contracts::SshDeviceHostConfigs(hosts));
                 }
                 match input.provider_instance_mutation {
                     Some(mutation) => {
@@ -2431,6 +2446,7 @@ mod tests {
             resource_telemetry: None,
             host_resources: None,
             background: None,
+            device_hosts: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

@@ -402,6 +402,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         resource_telemetry: None,
         host_resources: None,
         background: None,
+        device_hosts: None,
     };
     api
 }
@@ -1492,7 +1493,7 @@ fn rendered_text(dom: &VirtualDom) -> String {
     collect(dom, dom.base_scope().root_node(), &mut text);
     text
 }
-async fn wait_for_rendered_text(dom: &mut VirtualDom, expected: &str) {
+pub(crate) async fn wait_for_rendered_text(dom: &mut VirtualDom, expected: &str) {
     tokio::time::timeout(Duration::from_secs(8), async {
         loop {
             if rendered_text(dom).contains(expected) {

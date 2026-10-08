@@ -51,3 +51,61 @@ pub fn editor(input: &str) -> String {
         themes::editor::merge_target(&catalog, &draft.name, existing).map(|t| t.id.clone());
     match themes::editor::save(&catalog,&draft){Err(error)=>json!({"target":target,"error":error}).to_string(),Ok(plan)=>json!({"target":target,"saved":themes::library::definition_value(&catalog,&plan.theme),"created":plan.created,"mergedAppearance":plan.merged_appearance}).to_string()}
 }
+#[wasm_bindgen]
+pub fn vscode(input: &str) -> String {
+    let row: Value = serde_json::from_str(input).unwrap();
+    let input = &row["input"];
+    let mut catalog = Catalog::default();
+    let definitions = |items: Vec<themes::Definition>| {
+        json!(
+            items
+                .iter()
+                .map(|item| themes::library::definition_value(&Catalog::default(), item))
+                .collect::<Vec<_>>()
+        )
+    };
+    let result = match row["kind"].as_str().unwrap() {
+        "import" => themes::vscode::import(&catalog, input)
+            .map(|theme| themes::library::definition_value(&catalog, &theme)),
+        "humanize" => Ok(json!(themes::vscode::humanize_name(
+            input.as_str().unwrap()
+        ))),
+        "pair" => Ok(definitions(themes::vscode::pair(
+            &catalog,
+            &serde_json::from_value::<Vec<themes::Definition>>(input.clone()).unwrap(),
+            None,
+        ))),
+        "collisions" => {
+            let entries = input
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|entry| themes::vscode::Entry {
+                    theme: serde_json::from_value(entry["theme"].clone()).unwrap(),
+                    source_name: entry["sourceName"].as_str().map(str::to_owned),
+                })
+                .collect::<Vec<_>>();
+            Ok(definitions(themes::vscode::resolve_collisions(
+                &catalog, &entries,
+            )))
+        }
+        "copy" => {
+            catalog.custom = serde_json::from_value(input["existing"].clone()).unwrap();
+            themes::import::versioned_copy(
+                &catalog,
+                &serde_json::from_value(input["theme"].clone()).unwrap(),
+                input["preferred"].as_str(),
+            )
+            .map(|theme| themes::library::definition_value(&catalog, &theme))
+        }
+        _ => unreachable!(),
+    };
+    let mut output = match result {
+        Ok(value) => json!({"value":value}),
+        Err(error) => json!({"error":error}),
+    };
+    if row["kind"] == "import" {
+        output["isFile"] = json!(themes::vscode::is_file(input));
+    }
+    output.to_string()
+}

@@ -728,6 +728,7 @@ async fn run(
     } else {
         None
     };
+    let device_hosts = t3_server::device_host_resolver::DeviceHostResolver::new(Default::default());
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -744,6 +745,7 @@ async fn run(
         resource_telemetry: Some(resources.clone()),
         host_resources: Some(host_resources.clone()),
         background: background.clone(),
+        device_hosts: Some(device_hosts.clone()),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -755,6 +757,7 @@ async fn run(
     if let Some(background) = background {
         background.shutdown().await;
     }
+    device_hosts.shutdown().await;
     host_resources.shutdown().await;
     if let Some(runtime) = settings_runtime {
         runtime.shutdown().await;

@@ -63,8 +63,10 @@ providers while preserving explicit disables, fold available project history onc
 and move inline Bitbucket/GitHub tokens into the secret store. Background policy
 now publishes live client leases and desktop power changes through scoped RPCs;
 disconnect removes only that connection's leases. Importing the original database
-layout and periodic provider, VCS, usage and Git consumers remain pending, as does
-remote device-host resolution; nonempty device-host updates fail explicitly.
+layout and periodic provider, VCS, usage and Git consumers remain pending.
+Device-host settings resolve SSH aliases without connecting, exclude only self
+targets, and preserve proxies, forwarded ports and unresolved entries. Full device
+services, hub connections, SSH bootstrap and device RPCs remain unfinished.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and
@@ -128,8 +130,10 @@ integrations, and most interface features still require implementation. Thread c
 providers; unavailable services are shown as errors rather than simulated data.
 Original TypeScript tests passing does not establish Rust feature parity.
 
-Theme controls support persisted mode and mixed palettes, custom JSON import,
+Theme controls support persisted mode and mixed palettes, T3 Code and VS Code JSON import,
 create/edit/duplicate/download, and lossless recovery of unknown library records.
+File selection bounds reads, pairs light/dark families in batches, and preserves
+the current selection for batch installs and update/copy conflict resolution.
 Color conversion and palette generation pass the same original witnesses on host
 and actual Rust WASM. The App-owned editor retains drafts across navigation; save and removal
 transactions preserve mixed selections and report failed writes. Complete library

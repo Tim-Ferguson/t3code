@@ -354,6 +354,13 @@ struct Inner {
     downloads: AtomicU64,
     #[cfg(test)]
     archive_environment: Mutex<Option<IndexMap<String, String>>>,
+    #[cfg(test)]
+    delete_gate: Mutex<
+        Option<(
+            tokio::sync::oneshot::Sender<()>,
+            std::sync::mpsc::Receiver<()>,
+        )>,
+    >,
 }
 impl Catalog {
     pub fn new(cache_dir: PathBuf, tools_dir: PathBuf) -> Result<Self, RegistryError> {
@@ -387,6 +394,8 @@ impl Catalog {
             downloads: AtomicU64::new(0),
             #[cfg(test)]
             archive_environment: Mutex::new(None),
+            #[cfg(test)]
+            delete_gate: Mutex::new(None),
         })))
     }
     async fn disk_cached(&self) -> Result<Index, RegistryError> {
@@ -697,6 +706,95 @@ impl Catalog {
         )
         .await
     }
+    /// Search performs a refresh, filters unavailable distributions/managers,
+    /// and applies the source relevance/name/id ordering before the20-row cap.
+    /// Source removal is serialized against settings reference changes and
+    /// installs. The native job retains both leases after caller cancellation.
+    pub async fn uninstall_managed_binary(
+        &self,
+        input: &t3_contracts::AcpRegistryManagedBinaryUninstallInput,
+        service: &crate::server_settings::SettingsService,
+    ) -> Result<t3_contracts::AcpRegistryManagedBinaryUninstallResult, RegistryError> {
+        let catalog = self.clone();
+        let agent_id = input.agent_id.clone();
+        service.with_settings_snapshot_lease(move |settings, lease| async move {
+            let permit = catalog.0.install.clone().lock_owned().await;
+            let id = agent_id.as_str();
+            if id.is_empty() || id.encode_utf16().count() > 128 || !id.as_bytes()[0].is_ascii_lowercase() && !id.as_bytes()[0].is_ascii_digit() || !id.bytes().all(|value| value.is_ascii_lowercase() || value.is_ascii_digit() || b"._-".contains(&value)) {
+                return Err(error("install_failed", "ACP Registry managed binary uninstall received an invalid agent ID."));
+            }
+            if crate::acp_registry_uninstall::referenced(&settings,id) {
+                catalog.0.reservations.lock().unwrap().remove(id);
+                return Ok(t3_contracts::AcpRegistryManagedBinaryUninstallResult {agent_id, removed:false});
+            }
+            {
+                let mut reservations = catalog.0.reservations.lock().unwrap();
+                if reservations.get(id).is_some_and(|expires| *expires > std::time::Instant::now()) {
+                    return Ok(t3_contracts::AcpRegistryManagedBinaryUninstallResult {agent_id, removed:false});
+                }
+                reservations.remove(id);
+            }
+            let root = catalog.0.tools_dir.join(id);
+            let removed = tokio::task::spawn_blocking(move || {
+                let _ownership = (lease, permit);
+                #[cfg(test)]
+                if let Some((entered, released)) = catalog.0.delete_gate.lock().unwrap().take() {
+                    let _ = entered.send(());
+                    let _ = released.recv();
+                }
+                crate::acp_registry_uninstall::remove_binary_directories(&root)
+            }).await.map_err(|cause| error("install_failed",cause))?.map_err(|cause| error("install_failed",cause))?;
+            Ok(t3_contracts::AcpRegistryManagedBinaryUninstallResult {agent_id, removed})
+        }).await.map_err(|_| error("install_failed", "Could not read provider settings while checking managed ACP binary references."))?
+    }
+
+    pub async fn search(
+        &self,
+        input: &t3_contracts::AcpRegistrySearchInput,
+    ) -> Result<t3_contracts::AcpRegistrySearchResult, RegistryError> {
+        let index = self.refresh().await?;
+        let environment: HashMap<String, String> = self.host_environment().into_iter().collect();
+        let mut ranked = Vec::new();
+        for agent in &index.agents {
+            let Ok(distribution) =
+                self.distribution(agent, AcpRegistryDistributionPreference::Auto)
+            else {
+                continue;
+            };
+            let Some(rank) = crate::acp_registry_search::rank(agent, input.query.as_str()) else {
+                continue;
+            };
+            let manager = match distribution {
+                SelectedDistribution::Npm(_) => Some("npm"),
+                SelectedDistribution::Uv(_) => Some("uv"),
+                SelectedDistribution::Binary(_) => None,
+            };
+            if manager.is_some_and(|manager| {
+                !has_environment_path(environment.keys().map(String::as_str))
+                    || executable(manager, &environment).is_none()
+            }) {
+                continue;
+            }
+            ranked.push((agent, distribution, rank, agent.name.to_lowercase()));
+        }
+        ranked.sort_by(|left, right| {
+            left.2
+                .cmp(&right.2)
+                .then_with(|| crate::acp_registry_search::compare(&left.3, &right.3))
+                .then_with(|| crate::acp_registry_search::compare(&left.0.id, &right.0.id))
+        });
+        let agents = ranked.into_iter().take(20).map(|(agent, distribution, _, _)| json!({
+            "id": agent.id, "name": agent.name, "version": agent.version, "description": agent.description,
+            "authors": agent.authors, "license": agent.license, "website": agent.website, "repository": agent.repository, "icon": agent.icon,
+            "distribution": distribution.tag(), "integrity": if matches!(distribution, SelectedDistribution::Binary(target) if target.sha256.is_some()) { "sha256" } else { "registry" }
+        })).collect::<Vec<_>>();
+        serde_json::from_value(json!({"agents":agents})).map_err(|_| {
+            error(
+                "registry_unavailable",
+                "Registry search result did not satisfy the source contract.",
+            )
+        })
+    }
     pub async fn prepare(
         &self,
         input: &t3_contracts::AcpRegistryPrepareInput,
@@ -717,10 +815,10 @@ impl Catalog {
         match distribution {
             SelectedDistribution::Binary(target) => {
                 self.install_binary_locked(agent, target, permit).await?;
-                self.0.reservations.lock().unwrap().insert(
-                    agent.id.clone(),
-                    std::time::Instant::now() + Duration::from_secs(30),
-                );
+                let now = std::time::Instant::now();
+                let mut reservations = self.0.reservations.lock().unwrap();
+                reservations.retain(|_, expires| *expires > now);
+                reservations.insert(agent.id.clone(), now + Duration::from_secs(30));
             }
             SelectedDistribution::Npm(target) => {
                 self.install_package_locked(
@@ -1767,5 +1865,173 @@ mod tests {
                     .to_string_lossy()
                     .contains("install-"))
         );
+    }
+    async fn uninstall_settings(
+        directory: &Path,
+        settings: Value,
+    ) -> crate::server_settings::SettingsService {
+        std::fs::create_dir_all(directory).unwrap();
+        std::fs::write(directory.join("settings.json"), settings.to_string()).unwrap();
+        let secrets =
+            crate::server_secret_store::ServerSecretStore::open(directory.join("secrets")).unwrap();
+        let mut options =
+            crate::server_settings::SettingsOptions::file(directory.join("settings.json"), secrets);
+        options.watch = false;
+        crate::server_settings::SettingsService::start(options)
+            .await
+            .unwrap()
+    }
+    #[tokio::test]
+    async fn catalog_search_refreshes_filters_unavailable_distributions_and_caps_sorted_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let (catalog, _) = fixture_catalog(directory.path(), "normal");
+        *catalog.0.archive_environment.lock().unwrap() =
+            Some(IndexMap::from([("PATH".into(), String::new())]));
+        let target = catalog.0.target.clone().unwrap();
+        let mut agents = (0..30).rev().map(|id| json!({"id":format!("item-{id:02}"),"name":format!("Name {id:02}"),"version":"1","description":"fixture","authors":["Author"],"license":"MIT","website":"https://example.invalid/","distribution":{"binary":{&target:{"archive":"https://fixture.invalid/a","cmd":"agent","sha256":"a".repeat(64)}}}})).collect::<Vec<_>>();
+        let mut tie = agents.last().unwrap().clone();
+        tie["id"] = json!("item-00-extra");
+        tie["distribution"]["binary"][&target]
+            .as_object_mut()
+            .unwrap()
+            .remove("sha256");
+        agents.push(tie);
+        agents.push(json!({"id":"npm-only","name":"Npm","version":"1","description":"fixture","distribution":{"npx":{"package":"fixture@1.0.0"}}}));
+        agents.push(json!({"id":"unsupported","name":"Unsupported","version":"1","description":"fixture","distribution":{"binary":{"other-platform":{"archive":"https://fixture.invalid/a","cmd":"agent"}}}}));
+        agents.push(json!({"id":"INVALID","name":"Invalid","version":"1","description":"discard","distribution":{}}));
+        catalog.0.assets.lock().unwrap().insert(
+            catalog.0.url.clone(),
+            serde_json::to_vec(&json!({"version":"1","agents":agents})).unwrap(),
+        );
+        let input = serde_json::from_value(json!({"query":""})).unwrap();
+        let output = serde_json::to_value(catalog.search(&input).await.unwrap()).unwrap();
+        let results = output["agents"].as_array().unwrap();
+        assert_eq!(results.len(), 20);
+        assert_eq!(results[0]["id"], "item-00");
+        assert_eq!(
+            results[1]["id"], "item-00-extra",
+            "equal lowercase names use ID order"
+        );
+        assert_eq!(results[1]["integrity"], "registry");
+        assert_eq!(results[19]["id"], "item-18");
+        assert_eq!(results[0]["integrity"], "sha256");
+        assert_eq!(results[0]["license"], "MIT");
+        assert_eq!(results[0]["repository"], Value::Null);
+        assert_eq!(results[0]["authors"], json!(["Author"]));
+        let exact = serde_json::from_value(json!({"query":"Name 29"})).unwrap();
+        assert_eq!(
+            serde_json::to_value(catalog.search(&exact).await.unwrap()).unwrap()["agents"][0]["id"],
+            "item-29"
+        );
+        assert_eq!(
+            catalog.0.downloads.load(Ordering::Acquire),
+            2,
+            "search refreshes even with a populated cache"
+        );
+        assert!(
+            !directory.path().join("tools").exists(),
+            "search cannot install anything"
+        );
+        let (mut unsupported, _) =
+            fixture_catalog(&directory.path().join("unsupported-host"), "normal");
+        Arc::get_mut(&mut unsupported.0).unwrap().target = None;
+        assert!(
+            unsupported
+                .search(&input)
+                .await
+                .unwrap()
+                .agents
+                .0
+                .is_empty()
+        );
+    }
+    #[tokio::test]
+    async fn uninstall_protects_prepared_and_disabled_referenced_agents_then_removes_only_binaries()
+    {
+        let directory = tempfile::tempdir().unwrap();
+        let (catalog, _) = fixture_catalog(directory.path(), "normal");
+        let input = serde_json::from_value(json!({"agentId":"devin"})).unwrap();
+        catalog
+            .prepare(&serde_json::from_value(json!({"agentId":"devin"})).unwrap())
+            .await
+            .unwrap();
+        let before_uninstall = catalog.0.downloads.load(Ordering::Acquire);
+        let root = directory.path().join("tools/devin/1.0.0%2Bfixture");
+        for package in ["npm", "python"] {
+            std::fs::create_dir(root.join(package)).unwrap();
+            std::fs::write(root.join(package).join("keep"), "package").unwrap();
+        }
+        let empty = uninstall_settings(&directory.path().join("empty"), json!({})).await;
+        assert!(
+            !catalog
+                .uninstall_managed_binary(&input, &empty)
+                .await
+                .unwrap()
+                .removed
+        );
+        let referenced = uninstall_settings(&directory.path().join("referenced"),json!({"providerInstances":{"ref":{"driver":"acpRegistry","enabled":false,"config":{"agentId":" devin "}}}})).await;
+        assert!(
+            !catalog
+                .uninstall_managed_binary(&input, &referenced)
+                .await
+                .unwrap()
+                .removed,
+            "disabled registry instances still hold a reference"
+        );
+        assert!(
+            !catalog.0.reservations.lock().unwrap().contains_key("devin"),
+            "a reference consumes its prepared reservation"
+        );
+        assert!(
+            catalog
+                .uninstall_managed_binary(&input, &empty)
+                .await
+                .unwrap()
+                .removed
+        );
+        assert!(root.join("npm/keep").is_file());
+        assert!(root.join("python/keep").is_file());
+        assert!(!root.join(catalog.0.target.as_ref().unwrap()).exists());
+        assert!(
+            !catalog
+                .uninstall_managed_binary(&input, &empty)
+                .await
+                .unwrap()
+                .removed
+        );
+        assert_eq!(
+            catalog.0.downloads.load(Ordering::Acquire),
+            before_uninstall,
+            "uninstall never refreshes the registry"
+        );
+        empty.shutdown().await;
+        referenced.shutdown().await;
+    }
+    #[tokio::test]
+    async fn canceled_native_uninstall_retains_settings_and_install_admission_through_real_deletion()
+     {
+        tokio::time::timeout(Duration::from_secs(10),async {
+            let directory = tempfile::tempdir().unwrap();
+            let (catalog,_) = fixture_catalog(directory.path(),"normal");
+            let root = directory.path().join("tools/devin/1/linux-x86_64");
+            std::fs::create_dir_all(&root).unwrap();std::fs::write(root.join("agent"),"owned").unwrap();
+            let service = uninstall_settings(&directory.path().join("settings"),json!({})).await;
+            let (entered,admitted)=tokio::sync::oneshot::channel();
+            let (release,released)=std::sync::mpsc::channel();
+            *catalog.0.delete_gate.lock().unwrap()=Some((entered,released));
+            let caller=tokio::spawn({let catalog=catalog.clone();let service=service.clone();async move {catalog.uninstall_managed_binary(&serde_json::from_value(json!({"agentId":"devin"})).unwrap(),&service).await}});
+            admitted.await.unwrap();caller.abort();assert!(caller.await.unwrap_err().is_cancelled());
+            assert!(catalog.0.install.try_lock().is_err(),"the actual native delete job retains install ownership after caller cancellation");
+            let patch=serde_json::from_value(json!({"providerInstances":{"new-ref":{"driver":"acpRegistry","config":{"agentId":"devin"}}}})).unwrap();
+            let mut update=Box::pin(service.update(patch));
+            assert!(futures_util::poll!(&mut update).is_pending(),"new settings reference cannot be published before deletion completes");
+            assert!(!service.snapshot().await.unwrap().provider_instances.contains_key(&"new-ref".parse().unwrap()));
+            assert!(root.join("agent").is_file());
+            release.send(()).unwrap();
+            let updated=update.await.unwrap();assert!(updated.provider_instances.contains_key(&"new-ref".parse().unwrap()));
+            let _admission=catalog.0.install.lock().await;
+            assert!(!directory.path().join("tools/devin").exists(),"the owned blocking operation really deleted the binary before either admission was released");
+            service.shutdown().await;
+        }).await.expect("Uninstall ownership milestones stalled");
     }
 }
