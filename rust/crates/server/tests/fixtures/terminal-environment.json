@@ -1,0 +1,2618 @@
+{
+  "shells": [
+    {
+      "platform": "darwin",
+      "requested": null,
+      "env": {},
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": null,
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": null,
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": null,
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": null,
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "  /bin/zsh -l  ",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": {},
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "'zsh'",
+      "env": {},
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "'zsh'",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "zsh",
+      "env": {},
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "zsh",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "zsh",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "zsh",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "zsh",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": {},
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "pwsh.exe",
+      "env": {},
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "pwsh.exe",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "\"\"",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "\"\"",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": " / ",
+      "env": {},
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": " / ",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": " / ",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": " / ",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "darwin",
+      "requested": " / ",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": null,
+      "env": {},
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": null,
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": null,
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": null,
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": null,
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "  /bin/zsh -l  ",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": {},
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "'zsh'",
+      "env": {},
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "'zsh'",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "zsh",
+      "env": {},
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "zsh",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "zsh",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "zsh",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "zsh",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": {},
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "C:\\custom" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "pwsh.exe",
+      "env": {},
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "pwsh.exe",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "\"\"",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "\"\"",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": " / ",
+      "env": {},
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": " / ",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": " / ",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": " / ",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "linux",
+      "requested": " / ",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "/bin/zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "/bin/bash" },
+        { "shell": "/bin/sh" },
+        { "shell": "zsh", "args": ["-o", "nopromptsp"] },
+        { "shell": "bash" },
+        { "shell": "sh" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": null,
+      "env": {},
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": null,
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": null,
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": null,
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": null,
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "",
+      "env": {},
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "  /bin/zsh -l  ",
+      "env": {},
+      "result": [
+        { "shell": "/bin/zsh -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/bin/zsh -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/bin/zsh -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "  /bin/zsh -l  ",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/bin/zsh -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": {},
+      "result": [
+        { "shell": "\"/bin/bash\" -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "\"/bin/bash\" -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "\"/bin/bash\" -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "\"/bin/bash\" -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "﻿\"/bin/bash\" -l﻿",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "\"/bin/bash\" -l" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "'zsh'",
+      "env": {},
+      "result": [
+        { "shell": "'zsh'" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "'zsh'",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "'zsh'" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "'zsh'" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "'zsh'" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "'zsh'",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "'zsh'" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "zsh",
+      "env": {},
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "zsh",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "zsh",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "zsh",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "zsh",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "zsh" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": {},
+      "result": [
+        { "shell": "C:\\custom shell\\pwsh.exe", "args": ["-NoLogo"] },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "C:\\custom shell\\pwsh.exe", "args": ["-NoLogo"] },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "C:\\custom shell\\pwsh.exe", "args": ["-NoLogo"] },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "C:\\custom shell\\pwsh.exe", "args": ["-NoLogo"] },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "C:\\custom shell\\pwsh.exe",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "C:\\custom shell\\pwsh.exe", "args": ["-NoLogo"] },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "pwsh.exe",
+      "env": {},
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "pwsh.exe",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "pwsh.exe",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "\"\"",
+      "env": {},
+      "result": [
+        { "shell": "\"\"" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "\"\"",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "\"\"" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "\"\"" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "\"\"" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": "\"\"",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "\"\"" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": " / ",
+      "env": {},
+      "result": [
+        { "shell": "/" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": " / ",
+      "env": { "SHELL": "/bin/zsh -l" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": " / ",
+      "env": { "SystemRoot": "C:/Windows/", "ComSpec": "C:\\Windows\\System32\\cmd.exe" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\Windows\\System32\\cmd.exe" },
+        { "shell": "C:/Windows\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": " / ",
+      "env": { "SystemRoot": "  ", "windir": " D:\\WIN ", "ComSpec": "" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "D:\\WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "D:\\WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    },
+    {
+      "platform": "win32",
+      "requested": " / ",
+      "env": { "SystemRoot": "C:/root/../WIN\\", "ComSpec": "C:\\mixed/../cmd.exe" },
+      "result": [
+        { "shell": "/" },
+        { "shell": "pwsh.exe", "args": ["-NoLogo"] },
+        {
+          "shell": "C:/root/../WIN\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+          "args": ["-NoLogo"]
+        },
+        { "shell": "powershell.exe", "args": ["-NoLogo"] },
+        { "shell": "C:\\mixed/../cmd.exe" },
+        { "shell": "C:/root/../WIN\\System32\\cmd.exe" },
+        { "shell": "cmd.exe" }
+      ]
+    }
+  ],
+  "environments": [
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": null,
+      "result": { "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {
+        "PORT": "1",
+        "T3CODE_PORT": "2",
+        "t3code_key": "x",
+        "VITE_FOO": "x",
+        "Electron_Run_As_Node": "1",
+        "KEEP": "keep"
+      },
+      "runtime": null,
+      "result": { "KEEP": "keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "COLORTERM": "24bit" },
+      "runtime": { "COLORTERM": "" },
+      "result": { "COLORTERM": "" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "COLORTERM": "" },
+      "runtime": {},
+      "result": { "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "Path": "one", "PATH": "two" },
+      "runtime": { "path": "three", "PORT": "explicit", "T3CODE_OWN": "explicit" },
+      "result": {
+        "Path": "one",
+        "PATH": "two",
+        "path": "three",
+        "PORT": "explicit",
+        "T3CODE_OWN": "explicit",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "Ä_VAR": "old", "K_VAR": "old" },
+      "runtime": { "ä_var": "new", "k_var": "new" },
+      "result": {
+        "Ä_VAR": "old",
+        "K_VAR": "old",
+        "ä_var": "new",
+        "k_var": "new",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": {
+        "CODEX_HOME": "~/.codex",
+        "CLAUDE_CONFIG_DIR": "~\\.claude",
+        "CUSTOM": "~/unchanged"
+      },
+      "result": {
+        "CODEX_HOME": "/fixture/home/.codex",
+        "CLAUDE_CONFIG_DIR": "/fixture/home/.claude",
+        "CUSTOM": "~/unchanged",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/../outside/./dir", "CLAUDE_CONFIG_DIR": "~" },
+      "result": {
+        "CODEX_HOME": "/fixture/outside/dir",
+        "CLAUDE_CONFIG_DIR": "/fixture/home",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/../../../../above", "CLAUDE_CONFIG_DIR": "~/../../.." },
+      "result": { "CODEX_HOME": "/above", "CLAUDE_CONFIG_DIR": "/", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/foo/", "CLAUDE_CONFIG_DIR": "~\\foo\\" },
+      "result": {
+        "CODEX_HOME": "/fixture/home/foo/",
+        "CLAUDE_CONFIG_DIR": "/fixture/home/foo\\",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/", "CLAUDE_CONFIG_DIR": "~//" },
+      "result": {
+        "CODEX_HOME": "/fixture/home",
+        "CLAUDE_CONFIG_DIR": "/fixture/home/",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": {
+        "APPIMAGE": "image",
+        "APPDIR": "/tmp/mount///",
+        "ARGV0": "arg",
+        "OWD": "cwd",
+        "PATH": "/tmp/mount/bin:/tmp/mount:/tmp/mount-other/bin::/bin",
+        "LD_LIBRARY_PATH": "/tmp/mount/lib",
+        "XDG_DATA_DIRS": "/user/share:/tmp/mount/share"
+      },
+      "runtime": null,
+      "result": {
+        "PATH": "/tmp/mount-other/bin:/bin",
+        "XDG_DATA_DIRS": "/user/share",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "APPDIR": "/", "PATH": "/:/bin::/usr/bin", "OWD": "remove" },
+      "runtime": null,
+      "result": { "PATH": "/:/bin::/usr/bin", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "PATH": "::one::two", "OWD": "keep" },
+      "runtime": null,
+      "result": { "PATH": "::one::two", "OWD": "keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "darwin",
+      "home": "/fixture/home",
+      "base": { "APPIMAGE": "image", "ARGV0": "arg", "OWD": "cwd", "PATH": "::keep" },
+      "runtime": null,
+      "result": { "PATH": "::keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": null,
+      "result": { "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {
+        "PORT": "1",
+        "T3CODE_PORT": "2",
+        "t3code_key": "x",
+        "VITE_FOO": "x",
+        "Electron_Run_As_Node": "1",
+        "KEEP": "keep"
+      },
+      "runtime": null,
+      "result": { "KEEP": "keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "COLORTERM": "24bit" },
+      "runtime": { "COLORTERM": "" },
+      "result": { "COLORTERM": "" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "COLORTERM": "" },
+      "runtime": {},
+      "result": { "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "Path": "one", "PATH": "two" },
+      "runtime": { "path": "three", "PORT": "explicit", "T3CODE_OWN": "explicit" },
+      "result": {
+        "Path": "one",
+        "PATH": "two",
+        "path": "three",
+        "PORT": "explicit",
+        "T3CODE_OWN": "explicit",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "Ä_VAR": "old", "K_VAR": "old" },
+      "runtime": { "ä_var": "new", "k_var": "new" },
+      "result": {
+        "Ä_VAR": "old",
+        "K_VAR": "old",
+        "ä_var": "new",
+        "k_var": "new",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": {
+        "CODEX_HOME": "~/.codex",
+        "CLAUDE_CONFIG_DIR": "~\\.claude",
+        "CUSTOM": "~/unchanged"
+      },
+      "result": {
+        "CODEX_HOME": "/fixture/home/.codex",
+        "CLAUDE_CONFIG_DIR": "/fixture/home/.claude",
+        "CUSTOM": "~/unchanged",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/../outside/./dir", "CLAUDE_CONFIG_DIR": "~" },
+      "result": {
+        "CODEX_HOME": "/fixture/outside/dir",
+        "CLAUDE_CONFIG_DIR": "/fixture/home",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/../../../../above", "CLAUDE_CONFIG_DIR": "~/../../.." },
+      "result": { "CODEX_HOME": "/above", "CLAUDE_CONFIG_DIR": "/", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/foo/", "CLAUDE_CONFIG_DIR": "~\\foo\\" },
+      "result": {
+        "CODEX_HOME": "/fixture/home/foo/",
+        "CLAUDE_CONFIG_DIR": "/fixture/home/foo\\",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/", "CLAUDE_CONFIG_DIR": "~//" },
+      "result": {
+        "CODEX_HOME": "/fixture/home",
+        "CLAUDE_CONFIG_DIR": "/fixture/home/",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": {
+        "APPIMAGE": "image",
+        "APPDIR": "/tmp/mount///",
+        "ARGV0": "arg",
+        "OWD": "cwd",
+        "PATH": "/tmp/mount/bin:/tmp/mount:/tmp/mount-other/bin::/bin",
+        "LD_LIBRARY_PATH": "/tmp/mount/lib",
+        "XDG_DATA_DIRS": "/user/share:/tmp/mount/share"
+      },
+      "runtime": null,
+      "result": {
+        "PATH": "/tmp/mount-other/bin:/bin",
+        "XDG_DATA_DIRS": "/user/share",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "APPDIR": "/", "PATH": "/:/bin::/usr/bin", "OWD": "remove" },
+      "runtime": null,
+      "result": { "PATH": "/:/bin::/usr/bin", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "PATH": "::one::two", "OWD": "keep" },
+      "runtime": null,
+      "result": { "PATH": "::one::two", "OWD": "keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "linux",
+      "home": "/fixture/home",
+      "base": { "APPIMAGE": "image", "ARGV0": "arg", "OWD": "cwd", "PATH": "::keep" },
+      "runtime": null,
+      "result": { "PATH": "::keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {},
+      "runtime": null,
+      "result": { "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {
+        "PORT": "1",
+        "T3CODE_PORT": "2",
+        "t3code_key": "x",
+        "VITE_FOO": "x",
+        "Electron_Run_As_Node": "1",
+        "KEEP": "keep"
+      },
+      "runtime": null,
+      "result": { "KEEP": "keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "COLORTERM": "24bit" },
+      "runtime": { "COLORTERM": "" },
+      "result": { "COLORTERM": "" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "COLORTERM": "" },
+      "runtime": {},
+      "result": { "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "Path": "one", "PATH": "two" },
+      "runtime": { "path": "three", "PORT": "explicit", "T3CODE_OWN": "explicit" },
+      "result": {
+        "Path": "three",
+        "PATH": "two",
+        "PORT": "explicit",
+        "T3CODE_OWN": "explicit",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "Ä_VAR": "old", "K_VAR": "old" },
+      "runtime": { "ä_var": "new", "k_var": "new" },
+      "result": { "Ä_VAR": "new", "K_VAR": "new", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {},
+      "runtime": {
+        "CODEX_HOME": "~/.codex",
+        "CLAUDE_CONFIG_DIR": "~\\.claude",
+        "CUSTOM": "~/unchanged"
+      },
+      "result": {
+        "CODEX_HOME": "C:\\Users\\Fixture\\.codex",
+        "CLAUDE_CONFIG_DIR": "C:\\Users\\Fixture\\.claude",
+        "CUSTOM": "~/unchanged",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/../outside/./dir", "CLAUDE_CONFIG_DIR": "~" },
+      "result": {
+        "CODEX_HOME": "C:\\Users\\outside\\dir",
+        "CLAUDE_CONFIG_DIR": "C:\\Users\\Fixture",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/../../../../above", "CLAUDE_CONFIG_DIR": "~/../../.." },
+      "result": { "CODEX_HOME": "C:\\above", "CLAUDE_CONFIG_DIR": "C:\\", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/foo/", "CLAUDE_CONFIG_DIR": "~\\foo\\" },
+      "result": {
+        "CODEX_HOME": "C:\\Users\\Fixture\\foo\\",
+        "CLAUDE_CONFIG_DIR": "C:\\Users\\Fixture\\foo\\",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {},
+      "runtime": { "CODEX_HOME": "~/", "CLAUDE_CONFIG_DIR": "~//" },
+      "result": {
+        "CODEX_HOME": "C:\\Users\\Fixture",
+        "CLAUDE_CONFIG_DIR": "C:\\Users\\Fixture\\",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": {
+        "APPIMAGE": "image",
+        "APPDIR": "/tmp/mount///",
+        "ARGV0": "arg",
+        "OWD": "cwd",
+        "PATH": "/tmp/mount/bin:/tmp/mount:/tmp/mount-other/bin::/bin",
+        "LD_LIBRARY_PATH": "/tmp/mount/lib",
+        "XDG_DATA_DIRS": "/user/share:/tmp/mount/share"
+      },
+      "runtime": null,
+      "result": {
+        "PATH": "/tmp/mount-other/bin:/bin",
+        "XDG_DATA_DIRS": "/user/share",
+        "COLORTERM": "truecolor"
+      }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "APPDIR": "/", "PATH": "/:/bin::/usr/bin", "OWD": "remove" },
+      "runtime": null,
+      "result": { "PATH": "/:/bin::/usr/bin", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "PATH": "::one::two", "OWD": "keep" },
+      "runtime": null,
+      "result": { "PATH": "::one::two", "OWD": "keep", "COLORTERM": "truecolor" }
+    },
+    {
+      "platform": "win32",
+      "home": "C:\\Users\\Fixture",
+      "base": { "APPIMAGE": "image", "ARGV0": "arg", "OWD": "cwd", "PATH": "::keep" },
+      "runtime": null,
+      "result": { "PATH": "::keep", "COLORTERM": "truecolor" }
+    }
+  ]
+}

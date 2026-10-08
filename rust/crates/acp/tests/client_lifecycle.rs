@@ -110,6 +110,9 @@ struct Harness {
 }
 impl Harness {
     fn new() -> Self {
+        Self::with_options(t3_acp::ClientOptions::default())
+    }
+    fn with_options(options: t3_acp::ClientOptions) -> Self {
         let (events, _) = broadcast::channel(1024);
         let (calls, call_rx) = mpsc::unbounded_channel();
         let (responses, response_rx) = mpsc::unbounded_channel();
@@ -119,7 +122,7 @@ impl Harness {
             responses,
             response_gate: Mutex::new(None),
         });
-        let client = Client::new(peer.clone(), Duration::from_secs(10));
+        let client = Client::with_options(peer.clone(), Duration::from_secs(10), options);
         Self {
             peer,
             client,
@@ -446,10 +449,12 @@ async fn malformed_known_notification_terminates_pending_and_future_calls() {
     let call = h.call().await;
     call.reply.unwrap().send(Ok(json!({}))).unwrap();
     h.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text"}}));
-    assert!(matches!(pending.await.unwrap(), Err(AcpError::Schema(_))));
+    assert!(
+        matches!(pending.await.unwrap(), Err(AcpError::Failure(ref error)) if matches!(error.as_ref(), t3_acp::errors::Failure::ProtocolParse(_)))
+    );
     assert!(matches!(
         h.client.raw_notify("x/test", json!({})).await,
-        Err(AcpError::Schema(_))
+        Err(AcpError::Failure(ref error)) if matches!(error.as_ref(), t3_acp::errors::Failure::ProtocolParse(_))
     ));
 }
 #[tokio::test]
@@ -775,7 +780,7 @@ async fn protocol_failure_and_shutdown_cancel_active_raw_waiters_without_waiting
         assert!(if shutdown {
             matches!(result, Err(AcpError::Closed))
         } else {
-            matches!(result, Err(AcpError::Schema(_)))
+            matches!(result, Err(AcpError::Failure(ref error)) if matches!(error.as_ref(), t3_acp::errors::Failure::ProtocolParse(_)))
         });
         assert!(reply.is_closed());
     }
@@ -795,4 +800,195 @@ async fn protocol_failure_and_shutdown_cancel_active_raw_waiters_without_waiting
         .unwrap();
     assert!(matches!(result, Err(AcpError::Transport(_))));
     assert!(call.reply.unwrap().is_closed());
+}
+
+#[tokio::test]
+async fn raw_stream_slides_at_32_and_consumers_share_one_queue() {
+    let h = Harness::new();
+    let (handled, mut milestones) = mpsc::unbounded_channel();
+    h.client
+        .handle_unknown_notification(Arc::new(move |params| {
+            let handled = handled.clone();
+            Box::pin(async move {
+                handled.send(params["index"].as_u64().unwrap()).unwrap();
+                Ok(())
+            })
+        }));
+    for index in 0..64 {
+        h.event(PeerEvent::Notification {
+            method: "x/performance".into(),
+            params: json!({"index":index}),
+        });
+    }
+    for index in 0..64 {
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), milestones.recv())
+                .await
+                .unwrap(),
+            Some(index)
+        );
+    }
+    let first = h.client.notifications();
+    let second = h.client.notifications();
+    for index in 32..64 {
+        let stream = if index % 2 == 0 { &first } else { &second };
+        assert_eq!(
+            stream.try_recv(),
+            Some(t3_acp::IncomingNotification::ExtNotification {
+                method: "x/performance".into(),
+                params: json!({"index":index})
+            })
+        );
+    }
+    assert_eq!(first.try_recv(), None);
+    assert_eq!(second.try_recv(), None);
+    // A cancelled waiter leaves the following offer available to another reader.
+    {
+        let pending = first.recv();
+        tokio::pin!(pending);
+        assert!(futures_util::poll!(pending.as_mut()).is_pending());
+    }
+    h.event(PeerEvent::Notification {
+        method: "x/performance".into(),
+        params: json!({"index":64}),
+    });
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), milestones.recv())
+            .await
+            .unwrap(),
+        Some(64)
+    );
+    assert_eq!(
+        second.recv().await,
+        t3_acp::IncomingNotification::ExtNotification {
+            method: "x/performance".into(),
+            params: json!({"index":64})
+        }
+    );
+}
+
+#[tokio::test]
+async fn raw_notification_is_offered_before_handler_finishes_and_retains_alias_method() {
+    let h = Harness::new();
+    let (entered, mut started) = mpsc::unbounded_channel();
+    let (release, gate) = oneshot::channel();
+    let gate = Arc::new(Mutex::new(Some(gate)));
+    h.client
+        .handle_notification(
+            "elicitation/complete",
+            Arc::new(move |value| {
+                let entered = entered.clone();
+                let gate = gate.lock().unwrap().take();
+                Box::pin(async move {
+                    entered.send(value).unwrap();
+                    if let Some(gate) = gate {
+                        gate.await.unwrap();
+                    }
+                    Ok(())
+                })
+            }),
+        )
+        .await;
+    let params = json!({"elicitationId":"e"});
+    h.event(PeerEvent::Notification {
+        method: "session/elicitation/complete".into(),
+        params: params.clone(),
+    });
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), started.recv())
+            .await
+            .unwrap(),
+        Some(params.clone())
+    );
+    assert_eq!(
+        h.client.notifications().try_recv(),
+        Some(t3_acp::IncomingNotification::ElicitationComplete {
+            method: "session/elicitation/complete".into(),
+            params
+        })
+    );
+    release.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn normalized_update_transform_replaces_large_payload_in_raw_stream_and_handlers() {
+    let called = Arc::new(AtomicUsize::new(0));
+    let calls = called.clone();
+    let replacement = json!({"sessionId":"s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Image data omitted."}}});
+    let transformed = replacement.clone();
+    let mut h = Harness::with_options(t3_acp::ClientOptions {
+        transform_session_update: Some(Arc::new(move |value| {
+            assert_eq!(
+                value["update"]["content"]["data"].as_str().unwrap().len(),
+                1_048_576
+            );
+            calls.fetch_add(1, Ordering::Relaxed);
+            transformed.clone()
+        })),
+    });
+    h.initialize(Generation::V1, 1).await;
+    let (handled, mut received) = mpsc::unbounded_channel();
+    h.client
+        .handle_notification(
+            "session/update",
+            Arc::new(move |value| {
+                let handled = handled.clone();
+                Box::pin(async move {
+                    handled.send(value).unwrap();
+                    Ok(())
+                })
+            }),
+        )
+        .await;
+    h.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"A".repeat(1_048_576),"mimeType":"image/png"}}));
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), received.recv())
+            .await
+            .unwrap(),
+        Some(replacement.clone())
+    );
+    assert_eq!(
+        h.client.notifications().recv().await,
+        t3_acp::IncomingNotification::SessionUpdate {
+            method: "session/update".into(),
+            params: replacement
+        }
+    );
+    assert_eq!(called.load(Ordering::Relaxed), 1);
+}
+
+#[tokio::test]
+async fn transform_defect_terminates_pending_and_future_calls_with_private_transport_cause() {
+    let mut h = Harness::with_options(t3_acp::ClientOptions {
+        transform_session_update: Some(Arc::new(|_| panic!("normalizer bug"))),
+    });
+    let client = h.client.clone();
+    let pending = tokio::spawn(async move { client.raw_request("x/pending", json!({})).await });
+    let _call = h.call().await;
+    h.update(json!({"sessionUpdate":"plan","entries":[]}));
+    let error = tokio::time::timeout(Duration::from_secs(2), pending)
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap_err();
+    let AcpError::Failure(failure) = &error else {
+        panic!("wrong category {error:?}");
+    };
+    let t3_acp::errors::Failure::Transport(error) = failure.as_ref() else {
+        panic!("wrong category {failure:?}");
+    };
+    assert_eq!(
+        error.operation,
+        Some(t3_acp::errors::TransportOperation::ReadInputStream)
+    );
+    assert_eq!(
+        error.to_string(),
+        "ACP transport operation read-input-stream failed."
+    );
+    let t3_acp::errors::FailureCause::Value(cause) = &error.cause else {
+        panic!("wrong private cause");
+    };
+    assert_eq!(cause["message"], "normalizer bug");
+    assert!(h.client.raw_notify("x/future", json!({})).await.is_err());
+    assert_eq!(h.client.notifications().try_recv(), None);
 }

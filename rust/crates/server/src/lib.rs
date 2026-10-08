@@ -20,3 +20,7 @@ pub mod workspace_files;
 pub mod terminal_history;
 
 pub mod terminal_utf8;
+
+pub mod terminal_environment;
+pub mod terminal_io;
+pub mod terminal_process;

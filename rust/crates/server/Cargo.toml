@@ -6,6 +6,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+indexmap.workspace = true
 fs2.workspace = true
 libc.workspace = true
 portable-pty.workspace = true

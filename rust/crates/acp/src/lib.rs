@@ -7,10 +7,14 @@ pub mod extensions;
 pub use agent::Agent;
 pub use extensions::PayloadCodec;
 mod normalize;
+pub mod notifications;
+pub use notifications::{IncomingNotification, NotificationStream};
 pub mod protocol;
 pub mod schema;
 pub mod types;
 pub mod v1;
 pub mod v2;
-pub use client::{AgentMethod, Client, ClientEvent, Generation, Notification, RequestContext};
+pub use client::{
+    AgentMethod, Client, ClientEvent, ClientOptions, Generation, Notification, RequestContext,
+};
 pub use protocol::*;

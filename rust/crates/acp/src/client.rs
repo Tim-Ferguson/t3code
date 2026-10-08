@@ -49,6 +49,13 @@ pub type RequestHandler =
     Arc<dyn Fn(Value, RequestContext) -> BoxFuture<'static, Result<Value, RpcError>> + Send + Sync>;
 pub type NotificationHandler =
     Arc<dyn Fn(Value) -> BoxFuture<'static, Result<(), AcpError>> + Send + Sync>;
+pub type SessionUpdateTransform = Arc<dyn Fn(Value) -> Value + Send + Sync>;
+#[derive(Clone, Default)]
+pub struct ClientOptions {
+    /// Receives the compatibility-normalized update; its result is retained
+    /// in the raw stream and delivered to handlers without another decode.
+    pub transform_session_update: Option<SessionUpdateTransform>,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentMethod {
     Authenticate,
@@ -89,6 +96,7 @@ enum NotificationJob {
 }
 struct State {
     role: Role,
+    options: ClientOptions,
     generation: Mutex<Option<Generation>>,
     closed: Mutex<Option<AcpError>>,
     requests: Mutex<HashMap<String, RequestHandler>>,
@@ -97,6 +105,7 @@ struct State {
     notifications: Mutex<HashMap<String, Registration>>,
     unknown_notification: Mutex<Option<NotificationHandler>>,
     recent: Mutex<VecDeque<Notification>>,
+    raw_notifications: Arc<crate::notifications::NotificationQueue>,
     completions: Mutex<HashMap<String, Completion>>,
     next_token: AtomicU64,
     events: broadcast::Sender<ClientEvent>,
@@ -163,15 +172,31 @@ impl Client {
     /// The timeout is caller policy; the ACP protocol itself specifies none.
     /// This constructor subscribes before any initialization write.
     pub fn new(peer: Arc<dyn Peer>, request_timeout: Duration) -> Self {
-        Self::with_role(peer, request_timeout, Role::Client)
+        Self::with_options(peer, request_timeout, ClientOptions::default())
+    }
+    pub fn with_options(
+        peer: Arc<dyn Peer>,
+        request_timeout: Duration,
+        options: ClientOptions,
+    ) -> Self {
+        Self::with_role_options(peer, request_timeout, Role::Client, options)
     }
     pub(crate) fn with_role(peer: Arc<dyn Peer>, request_timeout: Duration, role: Role) -> Self {
+        Self::with_role_options(peer, request_timeout, role, ClientOptions::default())
+    }
+    pub(crate) fn with_role_options(
+        peer: Arc<dyn Peer>,
+        request_timeout: Duration,
+        role: Role,
+        options: ClientOptions,
+    ) -> Self {
         let incoming = peer.subscribe();
         let (events, _) = broadcast::channel(32);
         let (closed_signal, _) = watch::channel(None);
         let (notification_jobs, jobs) = mpsc::unbounded_channel();
         let state = Arc::new(State {
             role,
+            options,
             generation: Mutex::new(None),
             closed: Mutex::new(None),
             requests: Mutex::new(HashMap::new()),
@@ -180,6 +205,7 @@ impl Client {
             notifications: Mutex::new(HashMap::new()),
             unknown_notification: Mutex::new(None),
             recent: Mutex::new(VecDeque::new()),
+            raw_notifications: Arc::new(crate::notifications::NotificationQueue::default()),
             completions: Mutex::new(HashMap::new()),
             next_token: AtomicU64::new(1),
             events,
@@ -200,6 +226,11 @@ impl Client {
     }
     pub fn subscribe(&self) -> broadcast::Receiver<ClientEvent> {
         self.0.state.events.subscribe()
+    }
+    /// Each stream consumes the same bounded queue, matching source
+    /// Stream.fromQueue rather than creating independent subscriptions.
+    pub fn notifications(&self) -> crate::NotificationStream {
+        crate::NotificationStream(self.0.state.raw_notifications.clone())
     }
     pub fn recent_notifications(&self) -> Vec<Notification> {
         self.0
@@ -763,32 +794,25 @@ fn incoming_notification(
             let value = decode_any(
                 &["v2.UpdateSessionNotification", "v1.SessionNotification"],
                 params,
-            )?;
+            )
+            .map_err(|error| {
+                crate::errors::ProtocolParseError::from_schema_error(
+                    crate::errors::ProtocolParseOperation::DecodeNotificationPayload,
+                    "session/update",
+                    error,
+                )
+            })?;
             let v1 = *state.generation.lock().unwrap() == Some(Generation::V1);
             let value = if state.role == Role::Client {
                 normalize::notification(value, v1)
             } else {
                 value
             };
-            if value
-                .pointer("/update/sessionUpdate")
-                .and_then(Value::as_str)
-                == Some("state_update")
-                && value.pointer("/update/state").and_then(Value::as_str) == Some("idle")
-            {
-                if let Some(session) = value["sessionId"].as_str() {
-                    if let Some(completion) = state.completions.lock().unwrap().remove(session) {
-                        let update = &value["update"];
-                        let mut result = json!({"stopReason":update.get("stopReason").filter(|v|!v.is_null()).cloned().unwrap_or_else(||json!("end_turn"))});
-                        for name in ["usage", "_meta"] {
-                            if let Some(v) = update.get(name) {
-                                result[name] = v.clone();
-                            }
-                        }
-                        let _ = completion.sender.send(Ok(result));
-                    }
-                }
-            }
+            let value = match &state.options.transform_session_update {
+                Some(transform) => std::panic::catch_unwind(AssertUnwindSafe(|| transform(value)))
+                    .map_err(read_input_defect)?,
+                None => value,
+            };
             (
                 "session/update".to_owned(),
                 Notification::SessionUpdate(value.clone()),
@@ -796,7 +820,14 @@ fn incoming_notification(
             )
         }
         "elicitation/complete" | "session/elicitation/complete" => {
-            let value = schema::decode("v2.CompleteElicitationNotification", params)?;
+            let value =
+                schema::decode("v2.CompleteElicitationNotification", params).map_err(|error| {
+                    crate::errors::ProtocolParseError::from_schema_error(
+                        crate::errors::ProtocolParseOperation::DecodeNotificationPayload,
+                        &method,
+                        error,
+                    )
+                })?;
             (
                 "elicitation/complete".into(),
                 Notification::ElicitationComplete(value.clone()),
@@ -840,6 +871,46 @@ fn incoming_notification(
     };
     Ok((handlers, value, notification))
 }
+fn read_input_defect(panic: Box<dyn std::any::Any + Send>) -> AcpError {
+    let message = panic
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| panic.downcast_ref::<&str>().copied())
+        .unwrap_or("Rust protocol callback panicked");
+    crate::errors::TransportError {
+        operation: Some(crate::errors::TransportOperation::ReadInputStream),
+        method: None,
+        detail: None,
+        pid: None,
+        cause: crate::errors::FailureCause::Value(json!({"name":"Error", "message": message})),
+    }
+    .into()
+}
+fn complete_prompt(state: &State, notification: &Notification) {
+    let Notification::SessionUpdate(value) = notification else {
+        return;
+    };
+    if value
+        .pointer("/update/sessionUpdate")
+        .and_then(Value::as_str)
+        != Some("state_update")
+        || value.pointer("/update/state").and_then(Value::as_str) != Some("idle")
+    {
+        return;
+    }
+    if let Some(session) = value.get("sessionId").and_then(Value::as_str) {
+        if let Some(completion) = state.completions.lock().unwrap().remove(session) {
+            let update = &value["update"];
+            let mut result = json!({"stopReason":update.get("stopReason").filter(|v|!v.is_null()).cloned().unwrap_or_else(||json!("end_turn"))});
+            for name in ["usage", "_meta"] {
+                if let Some(v) = update.get(name) {
+                    result[name] = v.clone();
+                }
+            }
+            let _ = completion.sender.send(Ok(result));
+        }
+    }
+}
 async fn dispatch(
     peer: Arc<dyn Peer>,
     state: Arc<State>,
@@ -852,8 +923,32 @@ async fn dispatch(
         while let Some(job) = jobs.recv().await {
             match job {
                 NotificationJob::Incoming { method, params } => {
+                    let original_method = method.clone();
                     match incoming_notification(&worker_state, method, params) {
                         Ok((handlers, value, notification)) => {
+                            use crate::IncomingNotification;
+                            let raw = match &notification {
+                                Notification::SessionUpdate(params) => {
+                                    IncomingNotification::SessionUpdate {
+                                        method: original_method,
+                                        params: params.clone(),
+                                    }
+                                }
+                                Notification::ElicitationComplete(params) => {
+                                    IncomingNotification::ElicitationComplete {
+                                        method: original_method,
+                                        params: params.clone(),
+                                    }
+                                }
+                                Notification::Extension { method, params } => {
+                                    IncomingNotification::ExtNotification {
+                                        method: method.clone(),
+                                        params: params.clone(),
+                                    }
+                                }
+                            };
+                            worker_state.raw_notifications.offer(raw);
+                            complete_prompt(&worker_state, &notification);
                             run_notifications(&handlers, value).await;
                             let mut recent = worker_state.recent.lock().unwrap();
                             if recent.len() == 32 {

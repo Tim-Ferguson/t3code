@@ -21,6 +21,9 @@ impl Agent {
     pub fn connection(&self) -> &Client {
         &self.connection
     }
+    pub fn notifications(&self) -> crate::NotificationStream {
+        self.connection.notifications()
+    }
     pub fn shutdown(&self) {
         self.connection.shutdown();
     }
