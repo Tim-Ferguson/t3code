@@ -1,6 +1,7 @@
 //! Native backend services. Services own behavior; transports only decode and dispatch.
 pub mod acp_adapter;
 pub mod acp_client_policy;
+pub mod acp_coordinator;
 pub mod acp_mcp_tools;
 pub mod acp_model;
 pub mod acp_peer;
@@ -80,6 +81,7 @@ pub mod server_settings_runtime;
 mod acp_registry_archives;
 mod acp_registry_commands;
 mod acp_registry_packages;
+pub mod acp_registry_path;
 mod acp_registry_search;
 mod acp_registry_spawn;
 pub mod acp_registry_support;
@@ -97,3 +99,12 @@ mod device_host_rpc_tests;
 
 #[cfg(test)]
 mod background_rpc_tests;
+
+pub mod device_toolchain;
+
+pub mod device_platform;
+
+pub mod local_device_host;
+
+pub mod device_commands;
+pub mod device_service;

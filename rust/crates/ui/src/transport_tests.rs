@@ -1455,7 +1455,7 @@ pub(crate) fn click_control(dom: &mut VirtualDom, label: &str) {
     );
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
 }
-fn rendered_text(dom: &VirtualDom) -> String {
+pub(crate) fn rendered_text(dom: &VirtualDom) -> String {
     use dioxus::dioxus_core::{DynamicNode, TemplateNode, VNode};
     fn static_text(node: &TemplateNode, text: &mut String) {
         match node {

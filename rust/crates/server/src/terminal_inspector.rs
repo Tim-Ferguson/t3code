@@ -97,6 +97,7 @@ impl Drop for Inner {
 pub struct NativeProcessTable(Arc<Inner>);
 #[derive(Clone)]
 struct CommandSpec {
+    environment: Option<crate::terminal_environment::Environment>,
     command: PathBuf,
     args: Vec<String>,
     label: &'static str,
@@ -130,6 +131,7 @@ impl NativeProcessTable {
             vec!["-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance Win32_Process -ErrorAction Stop | ForEach-Object { Write-Output \"$($_.ProcessId)|$($_.ParentProcessId)|$($_.Name)\" }"]
         } else { vec!["-eo", "pid=,ppid=,comm="] }.into_iter().map(String::from).collect();
         Self::with_spec(CommandSpec {
+            environment: None,
             command,
             args,
             label: if windows { "powershell" } else { "ps" },
@@ -160,6 +162,7 @@ impl NativeProcessTable {
         max_bytes: usize,
     ) -> Self {
         Self::with_spec(CommandSpec {
+            environment: None,
             command,
             args,
             label,
@@ -171,6 +174,20 @@ impl NativeProcessTable {
             #[cfg(test)]
             finish_gate: None,
         })
+    }
+    /// Complete host environment for commands whose SDK and tool PATH are
+    /// resolved by an owning service. Captured-child cleanup is unchanged.
+    pub fn command_with_environment(
+        command: PathBuf,
+        args: Vec<String>,
+        label: &'static str,
+        timeout: Duration,
+        max_bytes: usize,
+        environment: crate::terminal_environment::Environment,
+    ) -> Self {
+        let mut source = Self::command(command, args, label, timeout, max_bytes);
+        Arc::get_mut(&mut source.0).unwrap().spec.environment = Some(environment);
+        source
     }
     pub async fn snapshot(&self) -> Result<ProcessTable, InspectionError> {
         let output = self.output().await?;
@@ -260,8 +277,12 @@ async fn run(
             "process inspection cancelled",
         ));
     }
-    let mut child = tokio::process::Command::new(&spec.command)
-        .args(&spec.args)
+    let mut builder = crate::acp_registry_spawn::command(
+        &spec.command.to_string_lossy(),
+        &spec.args,
+        spec.environment.as_ref(),
+    );
+    let mut child = builder
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -319,6 +340,7 @@ mod tests {
         std::fs::write(&script, format!("#!/usr/bin/env python3\n{body}\n")).unwrap();
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
         NativeProcessTable::with_spec(CommandSpec {
+            environment: None,
             command: script,
             args: vec![],
             label: "ps",

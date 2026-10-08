@@ -1,7 +1,7 @@
 //! Thread-scoped PTY lifecycle, retained histories and atomic snapshot/live streams.
 use crate::{
     terminal_activity::{Inspection, ProcessId, ProcessTable, poll_delay_ms},
-    terminal_environment::{Environment, shell_candidates, spawn_environment},
+    terminal_environment::{Environment, append_managed_path, shell_candidates, spawn_environment},
     terminal_history::{BoundedTerminalHistory, TerminalHistoryFilter},
     terminal_inspector::{InspectionError, NativeProcessTable, ProcessTableProvider},
     terminal_io::{TerminalIo, TerminalProcess},
@@ -34,6 +34,8 @@ pub type ProcessRegistration = Arc<
 
 pub type TerminalUnregistration =
     Arc<dyn Fn(String, String) -> futures_util::future::BoxFuture<'static, ()> + Send + Sync>;
+pub type ManagedTerminalDirectories =
+    Arc<dyn Fn() -> futures_util::future::BoxFuture<'static, Vec<PathBuf>> + Send + Sync>;
 pub struct TerminalManagerOptions {
     pub logs_directory: PathBuf,
     pub environment: Environment,
@@ -51,6 +53,7 @@ pub struct TerminalManagerOptions {
     pub subprocess_poll_interval: Duration,
     pub register_terminal_processes: Option<ProcessRegistration>,
     pub unregister_terminal: Option<TerminalUnregistration>,
+    pub managed_directories: Option<ManagedTerminalDirectories>,
 }
 
 #[cfg(all(test, unix))]
@@ -112,6 +115,91 @@ mod tests {
         }
     }
     #[tokio::test]
+    async fn managed_path_preserves_provider_precedence_and_refreshes_only_on_actual_spawn() {
+        use std::sync::atomic::AtomicUsize;
+        let directory = tempfile::tempdir().unwrap();
+        let tool = |name: &str, command: &str, result: &str| {
+            let bin = directory.path().join(name);
+            std::fs::create_dir_all(&bin).unwrap();
+            let executable = bin.join(command);
+            std::fs::write(&executable, format!("#!/bin/sh\nprintf '{}\\n'\n", result)).unwrap();
+            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700)).unwrap();
+            bin
+        };
+        let system = tool("system", "shared-tool", "SYSTEM");
+        let provider = tool("provider", "shared-tool", "PROVIDER");
+        let first = tool("managed1", "managed-tool", "MANAGED1");
+        let second = tool("managed2", "managed-tool", "MANAGED2");
+        tool("managed1", "shared-tool", "MANAGED-OVERRIDE");
+        let choice = directory.path().join("managed-directory");
+        std::fs::write(&choice, first.to_string_lossy().as_bytes()).unwrap();
+        let script = directory.path().join("shell.py");
+        std::fs::write(&script,"#!/usr/bin/env python3\nimport os,sys,tty,subprocess\ntty.setraw(0);os.write(1,b'READY\\n')\nfor line in sys.stdin:\n line=line.strip()\n if line=='QUIT':sys.exit(0)\n command={'SHARED':'shared-tool','MANAGED':'managed-tool'}.get(line)\n if command:os.write(1,(line+'='+subprocess.check_output([command]).decode().strip()+'\\n').encode())\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut options =
+            TerminalManagerOptions::host(directory.path().join("logs"), &ServerSettings::default());
+        options.shell = Some(script.to_string_lossy().into_owned());
+        options.kill_grace = Duration::ZERO;
+        options
+            .environment
+            .insert("PATH".into(), format!("{}:/usr/bin:/bin", system.display()));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        options.managed_directories = Some(Arc::new(move || {
+            let choice = choice.clone();
+            let observed = observed.clone();
+            Box::pin(async move {
+                observed.fetch_add(1, Ordering::SeqCst);
+                vec![std::fs::read_to_string(choice).unwrap().into()]
+            })
+        }));
+        let manager = TerminalManager::new(options).await.unwrap();
+        let env =
+            json!({"PATH":format!("{}:{}:/usr/bin:/bin",provider.display(),system.display())});
+        let input=serde_json::from_value(json!({"threadId":"thread-fixture","terminalId":"term-1","cwd":directory.path(),"env":env})).unwrap();
+        manager.open(input).await.unwrap();
+        let mut output = manager.observe(observe_input()).await.unwrap();
+        ready(&mut output).await;
+        async fn command(
+            manager: &TerminalManager,
+            output: &mut TerminalSubscription,
+            name: &str,
+            expected: &str,
+        ) {
+            manager
+                .write(write_input(&format!("{name}\n")))
+                .await
+                .unwrap();
+            let mut data = String::new();
+            while !data.contains('\n') {
+                let item = next(output).await;
+                if item["type"] == "output" {
+                    data.push_str(item["data"].as_str().unwrap());
+                }
+            }
+            assert_eq!(data, format!("{name}={expected}\n"));
+        }
+        command(&manager, &mut output, "SHARED", "PROVIDER").await;
+        command(&manager, &mut output, "MANAGED", "MANAGED1").await;
+        std::fs::write(
+            directory.path().join("managed-directory"),
+            second.to_string_lossy().as_bytes(),
+        )
+        .unwrap();
+        let attached=manager.attach(serde_json::from_value(json!({"threadId":"thread-fixture","terminalId":"term-1","cwd":directory.path()})).unwrap()).await.unwrap();
+        drop(attached);
+        manager.open(serde_json::from_value(json!({"threadId":"thread-fixture","terminalId":"term-1","cwd":directory.path(),"env":env})).unwrap()).await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        command(&manager, &mut output, "MANAGED", "MANAGED1").await;
+        manager.restart(serde_json::from_value(json!({"threadId":"thread-fixture","terminalId":"term-1","cwd":directory.path(),"cols":80,"rows":24,"env":env})).unwrap()).await.unwrap();
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        let mut output = manager.observe(observe_input()).await.unwrap();
+        ready(&mut output).await;
+        command(&manager, &mut output, "SHARED", "PROVIDER").await;
+        command(&manager, &mut output, "MANAGED", "MANAGED2").await;
+        manager.shutdown().await;
+    }
+    #[tokio::test]
     async fn real_pty_live_output_history_filter_exit_order_and_reopen_are_source_compatible() {
         let (directory, manager) = fixture().await;
         let mut metadata = manager.metadata();
@@ -161,6 +249,58 @@ mod tests {
         let reopened = manager.open(open_input(directory.path())).await.unwrap();
         assert!(reopened.history.contains("FINAL"));
         manager.shutdown().await;
+    }
+    #[tokio::test]
+    async fn shutdown_cancels_held_managed_directory_lookup_before_any_pty_spawn() {
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let dropped = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        struct LookupDrop(Arc<tokio::sync::Notify>);
+        impl Drop for LookupDrop {
+            fn drop(&mut self) {
+                self.0.notify_one();
+            }
+        }
+        let callback_entered = entered.clone();
+        let callback_dropped = dropped.clone();
+        let callback_release = release.clone();
+        let (directory, manager) = fixture_with(move |options| {
+            options.managed_directories = Some(Arc::new(move || {
+                let entered = callback_entered.clone();
+                let dropped = callback_dropped.clone();
+                let release = callback_release.clone();
+                Box::pin(async move {
+                    let _owned = LookupDrop(dropped);
+                    entered.notify_one();
+                    release.notified().await;
+                    vec![]
+                })
+            }));
+        })
+        .await;
+        let gate = Arc::new(StartGate {
+            entered: tokio::sync::Notify::new(),
+            release: tokio::sync::Notify::new(),
+            pid: std::sync::atomic::AtomicU32::new(0),
+        });
+        *manager.0.next_start.lock().unwrap() = Some(gate.clone());
+        let opening = manager.clone();
+        let input = open_input(directory.path());
+        let request = tokio::spawn(async move { opening.open(input).await });
+        tokio::time::timeout(Duration::from_secs(3), entered.notified())
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(3), manager.shutdown())
+            .await
+            .unwrap();
+        dropped.notified().await;
+        let result = request.await.unwrap().unwrap();
+        assert_eq!(result.status, TerminalSessionStatus::Error);
+        assert_eq!(gate.pid.load(Ordering::SeqCst), 0);
+        assert!(manager.0.sessions.lock().unwrap().is_empty());
+        // The canceled callback has no future left to resume or create a child.
+        release.notify_one();
+        assert_eq!(gate.pid.load(Ordering::SeqCst), 0);
     }
     #[tokio::test]
     async fn snapshot_is_queued_before_output_while_receiver_is_held() {
@@ -348,6 +488,7 @@ impl TerminalManagerOptions {
             subprocess_poll_interval: Duration::from_secs(1),
             register_terminal_processes: None,
             unregister_terminal: None,
+            managed_directories: None,
         }
     }
 }
@@ -398,6 +539,7 @@ struct Inner {
     listeners: Mutex<HashMap<u64, Listener>>,
     next_listener: AtomicU64,
     closed: AtomicBool,
+    stopped: watch::Sender<bool>,
     native_table: NativeProcessTable,
     polling: Mutex<Option<Runtime>>,
     shutdown: tokio::sync::Mutex<()>,
@@ -742,6 +884,7 @@ impl TerminalManager {
             listeners: Mutex::new(HashMap::new()),
             next_listener: AtomicU64::new(1),
             closed: AtomicBool::new(false),
+            stopped: watch::channel(false).0,
             native_table,
             polling: Mutex::new(None),
             shutdown: tokio::sync::Mutex::new(()),
@@ -895,7 +1038,7 @@ impl TerminalManager {
         }
     }
     async fn start(&self, session: Arc<Session>, kind: &str) {
-        let (cwd, cols, rows, environment) = {
+        let (cwd, cols, rows, mut environment) = {
             let mut state = session.state.lock().unwrap();
             state.status = TerminalSessionStatus::Starting;
             state.exit_code = None;
@@ -914,6 +1057,34 @@ impl TerminalManager {
                 ),
             )
         };
+        if let Some(directories) = &self.0.options.managed_directories {
+            let mut stopped = self.0.stopped.subscribe();
+            let directories = tokio::select! {
+                biased;
+                _=stopped.wait_for(|value|*value)=>None,
+                directories=directories()=>Some(directories),
+            };
+            if let Some(directories) = directories {
+                append_managed_path(&mut environment, &directories, &self.0.options.platform);
+            }
+        }
+        // A canceled pre-spawn directory lookup cannot be resumed after the
+        // manager finishes shutdown. An already admitted native spawn retains
+        // the existing post-spawn close/reap guard below.
+        if self.0.closed.load(Ordering::SeqCst) {
+            {
+                let mut state = session.state.lock().unwrap();
+                state.status = TerminalSessionStatus::Error;
+                state.pid = None;
+                state.io = None;
+            }
+            self.0.publish(event(
+                &session,
+                "error",
+                json!({"message":"Terminal manager is shutting down."}),
+            ));
+            return;
+        }
         let mut failure = None;
         let mut process = None;
         let candidates = shell_candidates(
@@ -1618,6 +1789,7 @@ impl TerminalManager {
         let sessions: Vec<_> = {
             let sessions = self.0.sessions.lock().unwrap();
             self.0.closed.store(true, Ordering::SeqCst);
+            self.0.stopped.send_replace(true);
             sessions.values().cloned().collect()
         };
         #[cfg(test)]

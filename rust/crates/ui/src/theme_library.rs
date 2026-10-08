@@ -269,6 +269,7 @@ fn ThemeImport(onclose: EventHandler<()>) -> Element {
     };
     let read = service.clone();
     rsx! {div {class:"theme-dialog",role:"dialog","aria-label":"Add theme",h3 {"Add theme"}p {"Choose or paste T3 Code or VS Code theme JSON files. Multiple files install together without changing your current theme."}
+        crate::theme_search::ThemeSearch {onclose}
         input {r#type:"file",accept:".json,application/json",multiple:true,"aria-label":"Choose theme files",disabled:*pending.read(),onchange:move|event|{
             let files=event.files();if files.is_empty(){return;}pending.set(true);let read=read.clone();spawn(async move{read_theme_files(read,files,state,onclose).await;});
         }}
@@ -299,7 +300,7 @@ fn ThemeImport(onclose: EventHandler<()>) -> Element {
                 let save=service.import_theme(theme);pending.set(true);
                 spawn(async move{let result=save.await;pending.set(false);match result{Err(cause)=>error.set(Some(cause)),Ok(_)=>onclose.call(())}});
             }}
-        },"Add theme"}}button {disabled:*pending.read(),onclick:move |_|onclose.call(()),"Cancel"}
+        },"Add theme"}}button {"aria-label":"Cancel add theme",disabled:*pending.read(),onclick:move |_|onclose.call(()),"Cancel"}
     }}
 }
 #[component]

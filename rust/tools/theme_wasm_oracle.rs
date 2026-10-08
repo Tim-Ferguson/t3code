@@ -109,3 +109,56 @@ pub fn vscode(input: &str) -> String {
     }
     output.to_string()
 }
+
+#[wasm_bindgen]
+pub fn openvsx(input: &str) -> String {
+    use themes::openvsx as api;
+    let row: Value = serde_json::from_str(input).unwrap();
+    let input = &row["input"];
+    let catalog = Catalog::default();
+    let bytes = |text: &str| {
+        text.as_bytes()
+            .chunks_exact(2)
+            .map(|chunk| u8::from_str_radix(std::str::from_utf8(chunk).unwrap(), 16).unwrap())
+            .collect::<Vec<_>>()
+    };
+    let result = match row["kind"].as_str().unwrap() {
+        "detail" => api::detail(input).map(|v| json!(v)),
+        "path" => api::normalize_path(
+            input["path"].as_str().unwrap(),
+            input["relative"].as_str().unwrap(),
+        )
+        .map(|v| json!(v)),
+        "jsonc" => api::jsonc(input.as_str().unwrap(), "Witness"),
+        "sanitize" => Ok(api::sanitize(input)),
+        "collectionId" => Ok(json!(api::collection_id(input.as_str().unwrap()))),
+        "themeId" => Ok(json!(api::theme_id(
+            input["id"].as_str().unwrap(),
+            input["path"].as_str().unwrap()
+        ))),
+        "directory" => {
+            api::inspect_directory(&bytes(input.as_str().unwrap())).map(|v| json!(v + 22))
+        }
+        "package" => api::import_package(
+            &catalog,
+            &serde_json::from_value(input["extension"].clone()).unwrap(),
+            input["manifest"].as_str().unwrap(),
+            &bytes(input["bytes"].as_str().unwrap()),
+            input["checksum"].as_str().unwrap(),
+        )
+        .map(|themes| {
+            json!(
+                themes
+                    .iter()
+                    .map(|t| themes::library::definition_value(&catalog, t))
+                    .collect::<Vec<_>>()
+            )
+        }),
+        _ => unreachable!(),
+    };
+    match result {
+        Ok(value) => json!({"value":value}),
+        Err(error) => json!({"error":error}),
+    }
+    .to_string()
+}

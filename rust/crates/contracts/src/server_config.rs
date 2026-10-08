@@ -592,9 +592,7 @@ pub enum ServerProviderUpdateStatus {
     Unchanged,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AcpRegistryUrlAuthAction {
+crate::history::object_struct! { pub struct AcpRegistryUrlAuthAction {
     pub elicitation_id: BoundedTrimmedString<256>,
 
     pub url: BoundedString<2048>,
@@ -615,6 +613,7 @@ pub struct AcpRegistryUrlAuthAction {
     )]
     pub expires_at: Option<BoundedString<128>>,
 }
+ }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

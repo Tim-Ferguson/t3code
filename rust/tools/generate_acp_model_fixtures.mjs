@@ -8,7 +8,10 @@ import {
   parseSessionModeState,
   parseSessionUpdateEvent,
 } from "../../apps/server/src/provider/acp/AcpRuntimeModel.ts";
-import { normalizeAcpRegistryLiveConfiguration } from "../../apps/server/src/provider/acp/AcpRegistryProbe.ts";
+import {
+  normalizeAcpRegistryLiveConfiguration,
+  normalizeAcpRegistryCommands,
+} from "../../apps/server/src/provider/acp/AcpRegistryProbe.ts";
 import { createModelCapabilities } from "../../packages/shared/src/model.ts";
 import { providerModelsFromSettings } from "../../apps/server/src/provider/providerSnapshot.ts";
 const cases = [];
@@ -223,7 +226,37 @@ for (const setup of catalogs)
       parseSessionModeState(setup),
     );
     add("catalog", { setup, custom }, modelsFromDiscovery(discovery, custom));
+    if (custom.length === 0) add("live-configuration", setup, discovery);
   }
+for (const commands of [
+  [],
+  [
+    { name: "help", description: " Help ", input: { hint: " topic " } },
+    { name: "HELP", description: "ignored" },
+  ],
+  [
+    { name: "$space/skill", description: " Skill " },
+    { name: "$a!'()*~", description: "" },
+    { name: "$", description: "ignored" },
+    { name: "$ spaced", description: "ignored" },
+  ],
+  [
+    { name: "ΟΣ", description: "first" },
+    { name: "ος", description: "second" },
+    { name: "Σ", description: "" },
+    { name: "σ", description: "duplicate" },
+  ],
+  [
+    { name: " invalid ", description: "ignored" },
+    { name: "x".repeat(129), description: "ignored" },
+    { name: "ok", description: "x".repeat(1025) },
+  ],
+  Array.from({ length: 132 }, (_, i) => ({
+    name: i === 0 ? "$" : "command-" + i,
+    description: "",
+  })),
+])
+  add("commands", commands, normalizeAcpRegistryCommands(commands));
 for (const options of [
   [],
   [{ optionId: " once ", kind: "allow_once", name: "Once" }],

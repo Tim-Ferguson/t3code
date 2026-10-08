@@ -694,6 +694,16 @@ async fn run(
         state_dir.join("logs").join("terminals"),
         &native_config.settings,
     );
+    let managed_paths = t3_server::acp_registry_path::ManagedBinaryDirectories {
+        cache_dir: state_dir.join("caches"),
+        tools_dir: state_dir.join("tools"),
+        platform: os.into(),
+        architecture: arch.into(),
+    };
+    terminal_options.managed_directories = Some(std::sync::Arc::new(move || {
+        let managed_paths = managed_paths.clone();
+        Box::pin(async move { managed_paths.directories().await })
+    }));
     t3_server::resource_discovery::configure_terminal_tracking(
         &mut terminal_options,
         telemetry.clone(),

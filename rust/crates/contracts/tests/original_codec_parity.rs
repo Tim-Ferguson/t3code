@@ -338,11 +338,56 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "UsageLimitSourceSnapshot" => {
                 checked_roundtrip::<UsageLimitSourceSnapshot>(fixture.input.clone())
             }
+            "AcpRegistryAcceptUrlAuthInput" => {
+                checked_roundtrip::<AcpRegistryAcceptUrlAuthInput>(fixture.input.clone())
+            }
+            "AcpRegistryAcceptUrlAuthResult" => {
+                checked_roundtrip::<AcpRegistryAcceptUrlAuthResult>(fixture.input.clone())
+            }
+            "AcpRegistryConfigurableProvider" => {
+                checked_roundtrip::<AcpRegistryConfigurableProvider>(fixture.input.clone())
+            }
+            "AcpRegistryDeleteSessionInput" => {
+                checked_roundtrip::<AcpRegistryDeleteSessionInput>(fixture.input.clone())
+            }
+            "AcpRegistryDeleteSessionResult" => {
+                checked_roundtrip::<AcpRegistryDeleteSessionResult>(fixture.input.clone())
+            }
+            "AcpRegistryDisableProviderInput" => {
+                checked_roundtrip::<AcpRegistryDisableProviderInput>(fixture.input.clone())
+            }
+            "AcpRegistryDisableProviderResult" => {
+                checked_roundtrip::<AcpRegistryDisableProviderResult>(fixture.input.clone())
+            }
             "AcpRegistryDistribution" => {
                 checked_roundtrip::<AcpRegistryDistribution>(fixture.input.clone())
             }
+            "AcpRegistryImportSessionInput" => {
+                checked_roundtrip::<AcpRegistryImportSessionInput>(fixture.input.clone())
+            }
+            "AcpRegistryImportSessionResult" => {
+                checked_roundtrip::<AcpRegistryImportSessionResult>(fixture.input.clone())
+            }
             "AcpRegistryIntegrity" => {
                 checked_roundtrip::<AcpRegistryIntegrity>(fixture.input.clone())
+            }
+            "AcpRegistryListProvidersInput" => {
+                checked_roundtrip::<AcpRegistryListProvidersInput>(fixture.input.clone())
+            }
+            "AcpRegistryListProvidersResult" => {
+                checked_roundtrip::<AcpRegistryListProvidersResult>(fixture.input.clone())
+            }
+            "AcpRegistryListSessionsInput" => {
+                checked_roundtrip::<AcpRegistryListSessionsInput>(fixture.input.clone())
+            }
+            "AcpRegistryListSessionsResult" => {
+                checked_roundtrip::<AcpRegistryListSessionsResult>(fixture.input.clone())
+            }
+            "AcpRegistryLogoutInput" => {
+                checked_roundtrip::<AcpRegistryLogoutInput>(fixture.input.clone())
+            }
+            "AcpRegistryLogoutResult" => {
+                checked_roundtrip::<AcpRegistryLogoutResult>(fixture.input.clone())
             }
             "AcpRegistryManagedBinaryUninstallInput" => {
                 checked_roundtrip::<AcpRegistryManagedBinaryUninstallInput>(fixture.input.clone())
@@ -350,11 +395,26 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "AcpRegistryManagedBinaryUninstallResult" => {
                 checked_roundtrip::<AcpRegistryManagedBinaryUninstallResult>(fixture.input.clone())
             }
+            "AcpRegistryOperationError" => {
+                checked_roundtrip::<AcpRegistryOperationError>(fixture.input.clone())
+            }
+            "AcpRegistryOperationErrorReason" => {
+                checked_roundtrip::<AcpRegistryOperationErrorReason>(fixture.input.clone())
+            }
             "AcpRegistryPrepareInput" => {
                 checked_roundtrip::<AcpRegistryPrepareInput>(fixture.input.clone())
             }
             "AcpRegistryPrepareResult" => {
                 checked_roundtrip::<AcpRegistryPrepareResult>(fixture.input.clone())
+            }
+            "AcpRegistryProbeAuthMethod" => {
+                checked_roundtrip::<AcpRegistryProbeAuthMethod>(fixture.input.clone())
+            }
+            "AcpRegistryProbeModel" => {
+                checked_roundtrip::<AcpRegistryProbeModel>(fixture.input.clone())
+            }
+            "AcpRegistryProbeResult" => {
+                checked_roundtrip::<AcpRegistryProbeResult>(fixture.input.clone())
             }
             "AcpRegistrySearchAgent" => {
                 checked_roundtrip::<AcpRegistrySearchAgent>(fixture.input.clone())
@@ -364,6 +424,13 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             }
             "AcpRegistrySearchResult" => {
                 checked_roundtrip::<AcpRegistrySearchResult>(fixture.input.clone())
+            }
+            "AcpRegistrySession" => checked_roundtrip::<AcpRegistrySession>(fixture.input.clone()),
+            "AcpRegistrySetProviderInput" => {
+                checked_roundtrip::<AcpRegistrySetProviderInput>(fixture.input.clone())
+            }
+            "AcpRegistrySetProviderResult" => {
+                checked_roundtrip::<AcpRegistrySetProviderResult>(fixture.input.clone())
             }
             "AcpRegistryUrlAuthAction" => {
                 checked_roundtrip::<AcpRegistryUrlAuthAction>(fixture.input.clone())

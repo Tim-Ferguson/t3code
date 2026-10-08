@@ -705,6 +705,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
             | "server.prepareAcpRegistryAgent"
             | "server.searchAcpRegistry"
             | "server.uninstallAcpRegistryManagedBinary"
+            | "server.acceptAcpRegistryUrlAuth"
     ) {
         if matches!(
             request.tag.as_str(),
@@ -717,6 +718,14 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
         } else if !request.payload.is_object() {
             return Err(
                 json!({"_tag":"SchemaDecodeError","message":"Expected an object payload."}),
+            );
+        }
+        if request.tag == "server.acceptAcpRegistryUrlAuth" {
+            let input:t3_contracts::AcpRegistryAcceptUrlAuthInput=serde_json::from_value(request.payload)
+                .map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid ACP URL consent request."}))?;
+            let providers=state.providers.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Provider registry is not configured."}))?;
+            return Ok(
+                json!({"accepted":providers.coordinator().accept_url_authentication(&input)}),
             );
         }
         if request.tag == "server.searchAcpRegistry" {

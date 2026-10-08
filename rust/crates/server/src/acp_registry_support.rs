@@ -111,7 +111,7 @@ fn string(value: &Value, max: usize, trim: bool, nonempty: bool) -> Result<Strin
     }
     Ok(text.into())
 }
-fn version(value: &Value) -> Result<String, RegistryError> {
+pub(crate) fn version(value: &Value) -> Result<String, RegistryError> {
     let text = string(value, 128, true, true)?;
     if !text
         .as_bytes()
@@ -206,7 +206,7 @@ fn package(value: &Value, npx: bool) -> Result<PackageTarget, RegistryError> {
         environment: environment(value)?,
     })
 }
-fn decode_agent(value: &Value) -> Result<Agent, RegistryError> {
+pub(crate) fn decode_agent(value: &Value) -> Result<Agent, RegistryError> {
     if !value.is_object() {
         return Err(error("registry_unavailable", "Invalid registry agent."));
     }
@@ -1279,7 +1279,7 @@ fn local_process(
     })
 }
 
-fn encode_version(version: &str) -> String {
+pub(crate) fn encode_version(version: &str) -> String {
     version.replace('+', "%2B")
 }
 

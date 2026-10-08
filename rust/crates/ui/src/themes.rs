@@ -16,6 +16,10 @@ use t3_client::themes::{
 type Replies = Rc<RefCell<BTreeMap<u64, futures_channel::oneshot::Sender<Result<Value, String>>>>>;
 #[allow(dead_code)]
 enum Command {
+    Collection(
+        String,
+        futures_channel::oneshot::Sender<Result<Vec<Value>, String>>,
+    ),
     Refresh(Option<Option<String>>),
     Change(
         Choice,
@@ -103,6 +107,18 @@ impl Drop for Pending {
     }
 }
 impl Themes {
+    pub fn collection(
+        &self,
+        id: String,
+    ) -> impl std::future::Future<Output = Result<Vec<Value>, String>> + use<> {
+        let (tx, rx) = futures_channel::oneshot::channel();
+        let sent = self.commands.unbounded_send(Command::Collection(id, tx));
+        async move {
+            sent.map_err(|_| "Theme library controls are unavailable.".to_owned())?;
+            rx.await
+                .map_err(|_| "Theme library read was canceled.".to_owned())?
+        }
+    }
     pub fn library_change(
         &self,
         action: LibraryAction,
@@ -430,16 +446,42 @@ pub fn use_themes(state: Store<UiModel>) {
                         service.catalog.set(catalog.clone());
                         force = true;
                     }
+                    Command::Collection(id, reply) => {
+                        let raw = storage.get(themes::CUSTOM_KEY).await;
+                        let next = Library::read(
+                            &service.catalog.peek(),
+                            raw.as_ref().map(|v| v.as_deref()).map_err(|_| ()),
+                        );
+                        publish_library(&mut service, &next);
+                        catalog = service.catalog.peek().clone();
+                        let result = next
+                            .ready()
+                            .map(|(_, themes)| {
+                                themes
+                                    .iter()
+                                    .filter(|theme| {
+                                        theme
+                                            .collection
+                                            .as_ref()
+                                            .and_then(|c| c.get("id"))
+                                            .and_then(Value::as_str)
+                                            == Some(&id)
+                                    })
+                                    .map(|theme| themes::library::definition_value(&catalog, theme))
+                                    .collect()
+                            })
+                            .map_err(|_| {
+                                "The theme library could not be read. Saved records have been kept."
+                                    .to_owned()
+                            });
+                        library = Some(next);
+                        force = true;
+                        let _ = reply.send(result);
+                    }
                     Command::Library(action, reply) => {
                         let outcome =
                             mutate_library(&mut service, &mut storage, &mut library, action).await;
-                        if let Err(error) = &outcome {
-                            write_failure = Some(error.clone());
-                            service.error.set(write_failure.clone());
-                            let _ = reply.send(outcome);
-                            continue;
-                        }
-                        write_failure = None;
+                        write_failure = outcome.as_ref().err().cloned();
                         catalog = service.catalog.peek().clone();
                         force = true;
                         let _ = reply.send(outcome);
@@ -1973,5 +2015,311 @@ mod tests {
             .await
             .unwrap();
         pump(&mut dom, || service.catalog.peek().custom.is_empty()).await;
+    }
+    #[derive(Default)]
+    struct Downloads {
+        search_ready: RefCell<Option<futures_channel::oneshot::Sender<()>>>,
+        search_hold: Cell<bool>,
+        search_held: RefCell<Option<futures_channel::oneshot::Sender<Vec<u8>>>>,
+        count: Cell<usize>,
+        hold: Cell<bool>,
+        held: RefCell<Option<futures_channel::oneshot::Sender<Vec<u8>>>>,
+    }
+    struct PackageHttp {
+        package: Value,
+        downloads: Rc<Downloads>,
+    }
+    impl crate::theme_download::Fetcher for PackageHttp {
+        fn request(
+            &self,
+            request: crate::theme_download::Request,
+        ) -> crate::theme_download::FetchFuture {
+            let package = self.package.clone();
+            let downloads = self.downloads.clone();
+            Box::pin(async move {
+                let extension = &package["extension"];
+                let body: std::pin::Pin<
+                    Box<dyn std::future::Future<Output = Result<Vec<u8>, String>>>,
+                > = if request.url.contains("/-/search") {
+                    if downloads.search_hold.get() {
+                        let (tx, rx) = futures_channel::oneshot::channel();
+                        *downloads.search_held.borrow_mut() = Some(tx);
+                        if let Some(ready) = downloads.search_ready.borrow_mut().take() {
+                            let _ = ready.send(());
+                        }
+                        Box::pin(async move { rx.await.map_err(|_| "search canceled".into()) })
+                    } else {
+                        Box::pin(async {
+                            Ok(br#"{"extensions":[{"namespace":"demo","name":"theme"}]}"#.to_vec())
+                        })
+                    }
+                } else if request.url == extension["manifestUrl"].as_str().unwrap() {
+                    let mut manifest: Value =
+                        serde_json::from_str(package["manifest"].as_str().unwrap()).unwrap();
+                    manifest["license"] = package["extension"]["license"].clone();
+                    let text = serde_json::to_vec(&manifest).unwrap();
+                    Box::pin(async move { Ok(text) })
+                } else if request.url == extension["sha256Url"].as_str().unwrap() {
+                    let text = package["checksum"].as_str().unwrap().as_bytes().to_vec();
+                    Box::pin(async move { Ok(text) })
+                } else if request.url == extension["vsixUrl"].as_str().unwrap() {
+                    if request.head {
+                        Box::pin(async { Ok(vec![]) })
+                    } else {
+                        downloads.count.set(downloads.count.get() + 1);
+                        let bytes = package["bytes"]
+                            .as_str()
+                            .unwrap()
+                            .as_bytes()
+                            .chunks_exact(2)
+                            .map(|v| {
+                                u8::from_str_radix(std::str::from_utf8(v).unwrap(), 16).unwrap()
+                            })
+                            .collect::<Vec<_>>();
+                        if downloads.hold.get() {
+                            let (tx, rx) = futures_channel::oneshot::channel();
+                            *downloads.held.borrow_mut() = Some(tx);
+                            Box::pin(
+                                async move { rx.await.map_err(|_| "download canceled".into()) },
+                            )
+                        } else {
+                            Box::pin(async move { Ok(bytes) })
+                        }
+                    }
+                } else {
+                    let detail = json!({"namespace":"demo","name":"theme","displayName":extension["name"],"version":extension["version"],"license":extension["license"],"description":extension["description"],"files":{"manifest":extension["manifestUrl"],"sha256":extension["sha256Url"],"download":extension["vsixUrl"]}});
+                    Box::pin(async move { Ok(serde_json::to_vec(&detail).unwrap()) })
+                };
+                Ok(crate::theme_download::Reply {
+                    ok: true,
+                    length: None,
+                    body,
+                })
+            })
+        }
+    }
+    fn provide_package(dom: &mut VirtualDom, downloads: Rc<Downloads>) {
+        let package =
+            serde_json::from_str(include_str!("../tests/fixtures/openvsx-package.json")).unwrap();
+        dom.provide_root_context(crate::theme_download::Source(Rc::new(PackageHttp {
+            package,
+            downloads,
+        })));
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_openvsx_install_update_confirmation_failed_write_retry_and_reload() {
+        use crate::runtime::transport_tests::{
+            click_control, control, input_control, wait_for_rendered_text,
+        };
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let opaque = json!({"id":"future","unknown":{"keep":true}});
+        browser
+            .borrow_mut()
+            .saved
+            .insert(themes::CUSTOM_KEY.into(), json!([opaque]).to_string());
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        let downloads = Rc::new(Downloads::default());
+        provide_package(&mut dom, downloads.clone());
+        pump(&mut dom, || service.library.peek().is_some()).await;
+        let initial = service.snapshot.peek().clone();
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Search Open VSX themes", "demo");
+        wait_for_rendered_text(&mut dom, "Install").await;
+        click_control(&mut dom, "Install Demo Theme");
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 2 && !service.needs_flush()
+        })
+        .await;
+        assert!(control(&dom, "Search Open VSX themes").is_none());
+        assert_eq!(downloads.count.get(), 1);
+        assert_eq!(service.snapshot.peek().theme, initial.theme);
+        assert_eq!(service.snapshot.peek().theme_halves, initial.theme_halves);
+        let mut retired = service.catalog.peek().custom[0].clone();
+        retired.id = "retired-package-member".into();
+        settle(
+            &mut dom,
+            service.library_change(LibraryAction::Install(retired)),
+        )
+        .await
+        .unwrap();
+        let before = browser.borrow().saved[themes::CUSTOM_KEY].clone();
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Search Open VSX themes", "demo");
+        wait_for_rendered_text(&mut dom, "Demo Theme").await;
+        click_control(&mut dom, "Update Demo Theme");
+        wait_for_rendered_text(&mut dom, "Update installed collection?").await;
+        assert_eq!(downloads.count.get(), 1);
+        click_control(&mut dom, "Cancel update");
+        assert!(control(&dom, "Update collection").is_none());
+        assert_eq!(downloads.count.get(), 1);
+        click_control(&mut dom, "Update Demo Theme");
+        wait_for_rendered_text(&mut dom, "Update installed collection?").await;
+        browser.borrow_mut().fail_library = true;
+        click_control(&mut dom, "Update collection");
+        pump(&mut dom, || {
+            service.error.peek().is_some() && !service.needs_flush()
+        })
+        .await;
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], before);
+        assert_eq!(service.catalog.peek().custom.len(), 3);
+        browser.borrow_mut().fail_library = false;
+        click_control(&mut dom, "Update collection");
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 2 && !service.needs_flush()
+        })
+        .await;
+        assert!(control(&dom, "Search Open VSX themes").is_none());
+        assert_eq!(downloads.count.get(), 3);
+        assert_eq!(
+            serde_json::from_str::<Value>(&browser.borrow().saved[themes::CUSTOM_KEY]).unwrap()[0],
+            opaque
+        );
+        let saved = browser.borrow().saved[themes::CUSTOM_KEY].clone();
+        drop(dom);
+        let (mut dom, props) = mounted(browser.clone());
+        let restored = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || restored.catalog.peek().custom.len() == 2).await;
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], saved);
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_openvsx_close_cancels_body_without_writing_or_leaking_into_reopened_dialog() {
+        use crate::runtime::transport_tests::{
+            click_control, control, input_control, wait_for_rendered_text,
+        };
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        let downloads = Rc::new(Downloads::default());
+        downloads.hold.set(true);
+        provide_package(&mut dom, downloads.clone());
+        pump(&mut dom, || service.library.peek().is_some()).await;
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Search Open VSX themes", "demo");
+        wait_for_rendered_text(&mut dom, "Install").await;
+        click_control(&mut dom, "Install Demo Theme");
+        pump(&mut dom, || downloads.held.borrow().is_some()).await;
+        click_control(&mut dom, "Cancel add theme");
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(downloads.held.borrow().as_ref().unwrap().is_canceled());
+        assert_eq!(browser.borrow().library_writes, 0);
+        assert!(service.catalog.peek().custom.is_empty());
+        assert!(!service.needs_flush());
+        click_control(&mut dom, "Add theme");
+        assert!(control(&dom, "Search Open VSX themes").is_some());
+        assert!(
+            downloads
+                .held
+                .borrow_mut()
+                .take()
+                .unwrap()
+                .send(vec![])
+                .is_err()
+        );
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!(browser.borrow().library_writes, 0);
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_openvsx_download_rejects_fresh_collection_change_then_retry_succeeds() {
+        use crate::runtime::transport_tests::{
+            click_control, input_control, wait_for_rendered_text,
+        };
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        let downloads = Rc::new(Downloads::default());
+        provide_package(&mut dom, downloads.clone());
+        pump(&mut dom, || service.library.peek().is_some()).await;
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Search Open VSX themes", "demo");
+        wait_for_rendered_text(&mut dom, "Install").await;
+        click_control(&mut dom, "Install Demo Theme");
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 2 && !service.needs_flush()
+        })
+        .await;
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Search Open VSX themes", "demo");
+        wait_for_rendered_text(&mut dom, "Demo Theme").await;
+        click_control(&mut dom, "Update Demo Theme");
+        wait_for_rendered_text(&mut dom, "Update installed collection?").await;
+        downloads.hold.set(true);
+        click_control(&mut dom, "Update collection");
+        pump(&mut dom, || downloads.held.borrow().is_some()).await;
+        let mut changed: Value =
+            serde_json::from_str(&browser.borrow().saved[themes::CUSTOM_KEY]).unwrap();
+        changed[0]["label"] = json!("Changed elsewhere");
+        let changed = changed.to_string();
+        browser
+            .borrow_mut()
+            .saved
+            .insert(themes::CUSTOM_KEY.into(), changed.clone());
+        let package: Value =
+            serde_json::from_str(include_str!("../tests/fixtures/openvsx-package.json")).unwrap();
+        let bytes = package["bytes"]
+            .as_str()
+            .unwrap()
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|v| u8::from_str_radix(std::str::from_utf8(v).unwrap(), 16).unwrap())
+            .collect();
+        downloads
+            .held
+            .borrow_mut()
+            .take()
+            .unwrap()
+            .send(bytes)
+            .unwrap();
+        wait_for_rendered_text(
+            &mut dom,
+            "Your installed themes changed while this package was downloading. Try again.",
+        )
+        .await;
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], changed);
+        assert_eq!(browser.borrow().library_writes, 1);
+        assert_eq!(service.catalog.peek().custom[0].label, "Changed elsewhere");
+        downloads.hold.set(false);
+        click_control(&mut dom, "Update collection");
+        pump(&mut dom, || {
+            browser.borrow().library_writes == 2 && !service.needs_flush()
+        })
+        .await;
+        assert_eq!(service.catalog.peek().custom[0].label, "Demo");
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_openvsx_changed_query_cancels_pending_search_without_stale_settlement() {
+        use crate::runtime::transport_tests::{
+            click_control, input_control, rendered_text, wait_for_rendered_text,
+        };
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        let downloads = Rc::new(Downloads::default());
+        downloads.search_hold.set(true);
+        let (ready_tx, mut ready_rx) = futures_channel::oneshot::channel();
+        *downloads.search_ready.borrow_mut() = Some(ready_tx);
+        provide_package(&mut dom, downloads.clone());
+        pump(&mut dom, || service.library.peek().is_some()).await;
+        click_control(&mut dom, "Add theme");
+        input_control(&mut dom, "Search Open VSX themes", "first");
+        tokio::time::timeout(std::time::Duration::from_secs(3),async {
+            loop {
+                dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+                tokio::select!{result=&mut ready_rx=>{result.unwrap();break;},_=dom.wait_for_work()=>{}}
+            }
+        }).await.expect("search reached actual pending body");
+        let old = downloads.search_held.borrow_mut().take().unwrap();
+        downloads.search_hold.set(false);
+        input_control(&mut dom, "Search Open VSX themes", "second");
+        wait_for_rendered_text(&mut dom, "Demo Theme").await;
+        assert!(old.is_canceled());
+        assert!(old.send(b"malformed stale reply".to_vec()).is_err());
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        let text = rendered_text(&dom);
+        assert!(!text.contains("Searching Open VSX"));
+        assert!(!text.contains("search canceled"));
+        assert!(text.contains("Demo Theme"));
+        assert_eq!(downloads.count.get(), 0);
+        assert_eq!(browser.borrow().library_writes, 0);
     }
 }

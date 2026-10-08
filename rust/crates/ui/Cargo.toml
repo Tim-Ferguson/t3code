@@ -21,16 +21,35 @@ dioxus = { workspace = true, features = ["document", "asset", "mounted"] }
 ewebsock = { version = "0.8", features = ["tls"] }
 futures-channel = "0.3"
 futures-util.workspace = true
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = [
+  "json",
+  "rustls-tls",
+  "stream",
+] }
 uuid = { workspace = true, features = ["js"] }
 pulldown-cmark = "0.13"
-web-sys = { version = "0.3", features = ["Window", "Location", "Storage", "EventTarget", "Event"] }
+web-sys = { version = "0.3", features = [
+  "Window",
+  "Location",
+  "Storage",
+  "EventTarget",
+  "Event",
+  "AbortController",
+  "AbortSignal",
+  "RequestInit",
+  "Response",
+  "Headers",
+  "ReadableStream",
+  "ReadableStreamDefaultReader",
+] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
 gloo-timers = { version = "0.3", features = ["futures"] }
 
 [dev-dependencies]

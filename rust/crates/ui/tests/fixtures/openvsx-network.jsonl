@@ -1,0 +1,48 @@
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":null,"body":"valid"},"expected":{"value":[{"id":"demo.theme","collectionId":"open-vsx:demo.theme","name":"Demo Theme","publisher":"demo","description":"A nice theme","downloadCount":123456,"iconUrl":"https://open-vsx.org/api/demo/theme/1.0.0/file/icon.png","sourceUrl":"https://github.com/demo/theme","manifestUrl":"https://open-vsx.org/api/demo/theme/1.0.0/file/package.json","sha256Url":"https://open-vsx.org/api/demo/theme/1.0.0/file/theme.sha256","vsixUrl":"https://open-vsx.org/api/demo/theme/1.0.0/file/theme.vsix","version":"1.0.0","license":"MIT"}],"error":null,"bodyReads":1}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":null,"body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":null,"body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":1}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"20971521","body":"valid"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"20971521","body":"oversized"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"20971521","body":"failure"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"Infinity","body":"valid"},"expected":{"value":[{"id":"demo.theme","collectionId":"open-vsx:demo.theme","name":"Demo Theme","publisher":"demo","description":"A nice theme","downloadCount":123456,"iconUrl":"https://open-vsx.org/api/demo/theme/1.0.0/file/icon.png","sourceUrl":"https://github.com/demo/theme","manifestUrl":"https://open-vsx.org/api/demo/theme/1.0.0/file/package.json","sha256Url":"https://open-vsx.org/api/demo/theme/1.0.0/file/theme.sha256","vsixUrl":"https://open-vsx.org/api/demo/theme/1.0.0/file/theme.vsix","version":"1.0.0","license":"MIT"}],"error":null,"bodyReads":1}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"Infinity","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"Infinity","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":1}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"1٢","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"1٢","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":true,"packageLength":"1٢","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":null,"body":"valid"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":null,"body":"oversized"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":null,"body":"failure"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"20971521","body":"valid"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"20971521","body":"oversized"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"20971521","body":"failure"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"Infinity","body":"valid"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"Infinity","body":"oversized"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"Infinity","body":"failure"},"expected":{"value":[],"error":null,"bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"1٢","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"1٢","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":true,"packageOk":false,"packageLength":"1٢","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":null,"body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":null,"body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":null,"body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"20971521","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"20971521","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"20971521","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"Infinity","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"Infinity","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"Infinity","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"1٢","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"1٢","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":true,"packageLength":"1٢","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":null,"body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":null,"body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":null,"body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"20971521","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"20971521","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"20971521","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"Infinity","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"Infinity","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"Infinity","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"1٢","body":"valid"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"1٢","body":"oversized"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}
+{"input":{"manifestOk":false,"packageOk":false,"packageLength":"1٢","body":"failure"},"expected":{"value":null,"error":"Open VSX theme details are unavailable right now.","bodyReads":0}}

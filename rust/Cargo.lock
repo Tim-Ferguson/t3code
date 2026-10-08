@@ -5822,10 +5822,12 @@ name = "t3-client"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "flate2",
  "libm",
  "regex",
  "serde",
  "serde_json",
+ "sha2",
  "t3-contracts",
  "thiserror 2.0.21",
  "url",
@@ -5908,6 +5910,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "gloo-timers",
+ "js-sys",
  "pulldown-cmark",
  "reqwest",
  "serde",
@@ -5919,6 +5922,7 @@ dependencies = [
  "tokio",
  "uuid",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "web-sys",
 ]
 

@@ -68,6 +68,8 @@ pub struct ProviderRegistry {
     catalog: Option<crate::acp_registry_support::Catalog>,
     refresh: Arc<tokio::sync::Mutex<()>>,
     changes: Arc<Mutex<ProviderListeners>>,
+    coordinator: crate::acp_coordinator::Coordinator,
+    observer: Option<Arc<crate::acp_coordinator::LiveObserver>>,
 }
 impl ProviderRegistry {
     pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
@@ -78,11 +80,55 @@ impl ProviderRegistry {
         cwd: &Path,
         catalog: Option<crate::acp_registry_support::Catalog>,
     ) -> Result<Self, ProcessError> {
+        let mut registry = Self::discover_with_context(
+            settings,
+            cwd,
+            catalog,
+            crate::acp_coordinator::Coordinator::default(),
+        )
+        .await?;
+        let state = Arc::downgrade(&registry.state);
+        let changes = Arc::downgrade(&registry.changes);
+        registry.observer = Some(Arc::new(registry.coordinator.observe_live_state(Arc::new(
+            move |instance, update| {
+                let (Some(state), Some(changes)) = (state.upgrade(), changes.upgrade()) else {
+                    return;
+                };
+                let mut state = state.write().unwrap();
+                let custom = state
+                    .acp
+                    .get(instance)
+                    .map(|instance| instance.config.custom_models.clone())
+                    .unwrap_or_default();
+                if let Some(snapshot) = state
+                    .snapshots
+                    .iter_mut()
+                    .find(|snapshot| snapshot["instanceId"] == instance)
+                {
+                    apply_live_update(snapshot, update, &custom);
+                    let published = Arc::new(state.snapshots.clone());
+                    changes
+                        .lock()
+                        .unwrap()
+                        .senders
+                        .retain(|_, sender| sender.send(published.clone()).is_ok());
+                }
+            },
+        ))));
+        Ok(registry)
+    }
+    async fn discover_with_context(
+        settings: &ServerSettings,
+        cwd: &Path,
+        catalog: Option<crate::acp_registry_support::Catalog>,
+        coordinator: crate::acp_coordinator::Coordinator,
+    ) -> Result<Self, ProcessError> {
         let entries = derive_instance_configs(settings);
         let mut results =
             futures_util::stream::iter(entries)
                 .map(|(id, entry)| {
                     let catalog = catalog.clone();
+                    let coordinator = coordinator.clone();
                     async move {
                         let id = id.to_string();
                         if entry.driver.as_str() == "acpRegistry" {
@@ -119,6 +165,7 @@ impl ProviderRegistry {
                                 enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
                                 config,
                                 catalog,
+                                coordinator,
                                 environment: entry
                                     .environment
                                     .as_ref()
@@ -226,6 +273,16 @@ impl ProviderRegistry {
                     }
                 }
             }
+            let mut snapshot = snapshot;
+            let id = snapshot["instanceId"].as_str().unwrap_or("").to_owned();
+            if let Some(instance) = acp.get(&id) {
+                apply_coordinator_state(
+                    &mut snapshot,
+                    &coordinator,
+                    &id,
+                    &instance.config.custom_models,
+                );
+            }
             snapshots.push(snapshot);
         }
         Ok(Self {
@@ -238,6 +295,8 @@ impl ProviderRegistry {
             catalog,
             refresh: Arc::new(tokio::sync::Mutex::new(())),
             changes: Arc::new(Mutex::new(ProviderListeners::default())),
+            coordinator,
+            observer: None,
         })
     }
     /// Existing registry clones observe a complete replacement after discovery.
@@ -248,15 +307,32 @@ impl ProviderRegistry {
         cwd: &Path,
     ) -> Result<Vec<Value>, ProcessError> {
         let _permit = self.refresh.lock().await;
-        let replacement = Self::discover_with_catalog(settings, cwd, self.catalog.clone()).await?;
-        let state = Arc::try_unwrap(replacement.state)
+        let replacement = Self::discover_with_context(
+            settings,
+            cwd,
+            self.catalog.clone(),
+            self.coordinator.clone(),
+        )
+        .await?;
+        let mut state = Arc::try_unwrap(replacement.state)
             .map_err(|_| {
                 ProcessError::Protocol("Provider discovery state unexpectedly shared.".into())
             })?
             .into_inner()
             .unwrap();
-        let snapshots = state.snapshots.clone();
         let mut current = self.state.write().unwrap();
+        for snapshot in &mut state.snapshots {
+            let id = snapshot["instanceId"].as_str().unwrap_or("").to_owned();
+            if let Some(instance) = state.acp.get(&id) {
+                apply_coordinator_state(
+                    snapshot,
+                    &self.coordinator,
+                    &id,
+                    &instance.config.custom_models,
+                );
+            }
+        }
+        let snapshots = state.snapshots.clone();
         *current = state;
         let published = Arc::new(snapshots.clone());
         self.changes
@@ -284,6 +360,9 @@ impl ProviderRegistry {
         let state = self.state.read().unwrap();
         let changes = self.subscribe_changes();
         (state.snapshots.clone(), changes)
+    }
+    pub fn coordinator(&self) -> crate::acp_coordinator::Coordinator {
+        self.coordinator.clone()
     }
     pub fn catalog(&self) -> Option<crate::acp_registry_support::Catalog> {
         self.catalog.clone()
@@ -323,6 +402,62 @@ impl ProviderRegistry {
             .cloned()
             .ok_or_else(|| ProcessError::Protocol("Codex provider instance is unavailable.".into()))
     }
+}
+fn apply_live_update(
+    snapshot: &mut Value,
+    update: &crate::acp_coordinator::LiveUpdate,
+    custom: &[String],
+) {
+    use crate::acp_coordinator::LiveUpdate;
+    match update {
+        LiveUpdate::Commands(commands) => {
+            snapshot["slashCommands"] = json!(commands.slash_commands);
+            snapshot["skills"] = json!(commands.skills);
+        }
+        LiveUpdate::Configuration(configuration) => {
+            if snapshot["enabled"] == true {
+                snapshot["status"] = json!("ready");
+            }
+            snapshot.as_object_mut().unwrap().remove("message");
+            snapshot["models"] = json!(crate::acp_model::models_from_live_configuration(
+                configuration,
+                custom
+            ));
+        }
+        LiveUpdate::UrlAction(action) => {
+            if let Some(action) = action {
+                snapshot["auth"]["action"] = json!(action);
+            } else {
+                snapshot["auth"].as_object_mut().unwrap().remove("action");
+            }
+        }
+    }
+}
+fn apply_coordinator_state(
+    snapshot: &mut Value,
+    coordinator: &crate::acp_coordinator::Coordinator,
+    instance: &str,
+    custom: &[String],
+) {
+    if let Some(commands) = coordinator.commands(instance) {
+        apply_live_update(
+            snapshot,
+            &crate::acp_coordinator::LiveUpdate::Commands(commands),
+            custom,
+        );
+    }
+    if let Some(configuration) = coordinator.configuration(instance) {
+        apply_live_update(
+            snapshot,
+            &crate::acp_coordinator::LiveUpdate::Configuration(configuration),
+            custom,
+        );
+    }
+    apply_live_update(
+        snapshot,
+        &crate::acp_coordinator::LiveUpdate::UrlAction(coordinator.url_action(instance)),
+        custom,
+    );
 }
 fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str, ProcessError> {
     let snapshot = state

@@ -1,0 +1,126 @@
+{"platform":"darwin","env":{},"directories":[],"result":{}}
+{"platform":"darwin","env":{"PATH":"/provider:/system"},"directories":[],"result":{"PATH":"/provider:/system"}}
+{"platform":"darwin","env":{"PATH":" /provider ::/managed :/provider"},"directories":[],"result":{"PATH":" /provider ::/managed :/provider"}}
+{"platform":"darwin","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[],"result":{"Path":"/first","PATH":"/second","path":"/third"}}
+{"platform":"darwin","env":{"path":"﻿/a "},"directories":[],"result":{"path":"﻿/a "}}
+{"platform":"darwin","env":{"PATH":" "},"directories":[],"result":{"PATH":" "}}
+{"platform":"darwin","env":{"PATH":"A:a"},"directories":[],"result":{"PATH":"A:a"}}
+{"platform":"darwin","env":{},"directories":["/managed"],"result":{"PATH":"/managed"}}
+{"platform":"darwin","env":{"PATH":"/provider:/system"},"directories":["/managed"],"result":{"PATH":"/provider:/system:/managed"}}
+{"platform":"darwin","env":{"PATH":" /provider ::/managed :/provider"},"directories":["/managed"],"result":{"PATH":"/provider:/managed"}}
+{"platform":"darwin","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["/managed"],"result":{"Path":"/first","PATH":"/second:/managed","path":"/third"}}
+{"platform":"darwin","env":{"path":"﻿/a "},"directories":["/managed"],"result":{"path":"﻿/a ","PATH":"/managed"}}
+{"platform":"darwin","env":{"PATH":" "},"directories":["/managed"],"result":{"PATH":"/managed"}}
+{"platform":"darwin","env":{"PATH":"A:a"},"directories":["/managed"],"result":{"PATH":"A:a:/managed"}}
+{"platform":"darwin","env":{},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/managed:/second"}}
+{"platform":"darwin","env":{"PATH":"/provider:/system"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/provider:/system:/managed:/second"}}
+{"platform":"darwin","env":{"PATH":" /provider ::/managed :/provider"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/provider:/managed:/second"}}
+{"platform":"darwin","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[" /managed ","/managed","/second"],"result":{"Path":"/first","PATH":"/second:/managed","path":"/third"}}
+{"platform":"darwin","env":{"path":"﻿/a "},"directories":[" /managed ","/managed","/second"],"result":{"path":"﻿/a ","PATH":"/managed:/second"}}
+{"platform":"darwin","env":{"PATH":" "},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/managed:/second"}}
+{"platform":"darwin","env":{"PATH":"A:a"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"A:a:/managed:/second"}}
+{"platform":"darwin","env":{},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/managed:/literal"}}
+{"platform":"darwin","env":{"PATH":"/provider:/system"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/provider:/system:/managed:/literal"}}
+{"platform":"darwin","env":{"PATH":" /provider ::/managed :/provider"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/provider:/managed:/literal"}}
+{"platform":"darwin","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["﻿/managed ","/literal"],"result":{"Path":"/first","PATH":"/second:/managed:/literal","path":"/third"}}
+{"platform":"darwin","env":{"path":"﻿/a "},"directories":["﻿/managed ","/literal"],"result":{"path":"﻿/a ","PATH":"/managed:/literal"}}
+{"platform":"darwin","env":{"PATH":" "},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/managed:/literal"}}
+{"platform":"darwin","env":{"PATH":"A:a"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"A:a:/managed:/literal"}}
+{"platform":"darwin","env":{},"directories":[""," "],"result":{}}
+{"platform":"darwin","env":{"PATH":"/provider:/system"},"directories":[""," "],"result":{"PATH":"/provider:/system"}}
+{"platform":"darwin","env":{"PATH":" /provider ::/managed :/provider"},"directories":[""," "],"result":{"PATH":"/provider:/managed"}}
+{"platform":"darwin","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[""," "],"result":{"Path":"/first","PATH":"/second","path":"/third"}}
+{"platform":"darwin","env":{"path":"﻿/a "},"directories":[""," "],"result":{"path":"﻿/a "}}
+{"platform":"darwin","env":{"PATH":" "},"directories":[""," "],"result":{"PATH":" "}}
+{"platform":"darwin","env":{"PATH":"A:a"},"directories":[""," "],"result":{"PATH":"A:a"}}
+{"platform":"darwin","env":{},"directories":["A","a"],"result":{"PATH":"A:a"}}
+{"platform":"darwin","env":{"PATH":"/provider:/system"},"directories":["A","a"],"result":{"PATH":"/provider:/system:A:a"}}
+{"platform":"darwin","env":{"PATH":" /provider ::/managed :/provider"},"directories":["A","a"],"result":{"PATH":"/provider:/managed:A:a"}}
+{"platform":"darwin","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["A","a"],"result":{"Path":"/first","PATH":"/second:A:a","path":"/third"}}
+{"platform":"darwin","env":{"path":"﻿/a "},"directories":["A","a"],"result":{"path":"﻿/a ","PATH":"A:a"}}
+{"platform":"darwin","env":{"PATH":" "},"directories":["A","a"],"result":{"PATH":"A:a"}}
+{"platform":"darwin","env":{"PATH":"A:a"},"directories":["A","a"],"result":{"PATH":"A:a"}}
+{"platform":"linux","env":{},"directories":[],"result":{}}
+{"platform":"linux","env":{"PATH":"/provider:/system"},"directories":[],"result":{"PATH":"/provider:/system"}}
+{"platform":"linux","env":{"PATH":" /provider ::/managed :/provider"},"directories":[],"result":{"PATH":" /provider ::/managed :/provider"}}
+{"platform":"linux","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[],"result":{"Path":"/first","PATH":"/second","path":"/third"}}
+{"platform":"linux","env":{"path":"﻿/a "},"directories":[],"result":{"path":"﻿/a "}}
+{"platform":"linux","env":{"PATH":" "},"directories":[],"result":{"PATH":" "}}
+{"platform":"linux","env":{"PATH":"A:a"},"directories":[],"result":{"PATH":"A:a"}}
+{"platform":"linux","env":{},"directories":["/managed"],"result":{"PATH":"/managed"}}
+{"platform":"linux","env":{"PATH":"/provider:/system"},"directories":["/managed"],"result":{"PATH":"/provider:/system:/managed"}}
+{"platform":"linux","env":{"PATH":" /provider ::/managed :/provider"},"directories":["/managed"],"result":{"PATH":"/provider:/managed"}}
+{"platform":"linux","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["/managed"],"result":{"Path":"/first","PATH":"/second:/managed","path":"/third"}}
+{"platform":"linux","env":{"path":"﻿/a "},"directories":["/managed"],"result":{"path":"﻿/a ","PATH":"/managed"}}
+{"platform":"linux","env":{"PATH":" "},"directories":["/managed"],"result":{"PATH":"/managed"}}
+{"platform":"linux","env":{"PATH":"A:a"},"directories":["/managed"],"result":{"PATH":"A:a:/managed"}}
+{"platform":"linux","env":{},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/managed:/second"}}
+{"platform":"linux","env":{"PATH":"/provider:/system"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/provider:/system:/managed:/second"}}
+{"platform":"linux","env":{"PATH":" /provider ::/managed :/provider"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/provider:/managed:/second"}}
+{"platform":"linux","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[" /managed ","/managed","/second"],"result":{"Path":"/first","PATH":"/second:/managed","path":"/third"}}
+{"platform":"linux","env":{"path":"﻿/a "},"directories":[" /managed ","/managed","/second"],"result":{"path":"﻿/a ","PATH":"/managed:/second"}}
+{"platform":"linux","env":{"PATH":" "},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/managed:/second"}}
+{"platform":"linux","env":{"PATH":"A:a"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"A:a:/managed:/second"}}
+{"platform":"linux","env":{},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/managed:/literal"}}
+{"platform":"linux","env":{"PATH":"/provider:/system"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/provider:/system:/managed:/literal"}}
+{"platform":"linux","env":{"PATH":" /provider ::/managed :/provider"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/provider:/managed:/literal"}}
+{"platform":"linux","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["﻿/managed ","/literal"],"result":{"Path":"/first","PATH":"/second:/managed:/literal","path":"/third"}}
+{"platform":"linux","env":{"path":"﻿/a "},"directories":["﻿/managed ","/literal"],"result":{"path":"﻿/a ","PATH":"/managed:/literal"}}
+{"platform":"linux","env":{"PATH":" "},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/managed:/literal"}}
+{"platform":"linux","env":{"PATH":"A:a"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"A:a:/managed:/literal"}}
+{"platform":"linux","env":{},"directories":[""," "],"result":{}}
+{"platform":"linux","env":{"PATH":"/provider:/system"},"directories":[""," "],"result":{"PATH":"/provider:/system"}}
+{"platform":"linux","env":{"PATH":" /provider ::/managed :/provider"},"directories":[""," "],"result":{"PATH":"/provider:/managed"}}
+{"platform":"linux","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[""," "],"result":{"Path":"/first","PATH":"/second","path":"/third"}}
+{"platform":"linux","env":{"path":"﻿/a "},"directories":[""," "],"result":{"path":"﻿/a "}}
+{"platform":"linux","env":{"PATH":" "},"directories":[""," "],"result":{"PATH":" "}}
+{"platform":"linux","env":{"PATH":"A:a"},"directories":[""," "],"result":{"PATH":"A:a"}}
+{"platform":"linux","env":{},"directories":["A","a"],"result":{"PATH":"A:a"}}
+{"platform":"linux","env":{"PATH":"/provider:/system"},"directories":["A","a"],"result":{"PATH":"/provider:/system:A:a"}}
+{"platform":"linux","env":{"PATH":" /provider ::/managed :/provider"},"directories":["A","a"],"result":{"PATH":"/provider:/managed:A:a"}}
+{"platform":"linux","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["A","a"],"result":{"Path":"/first","PATH":"/second:A:a","path":"/third"}}
+{"platform":"linux","env":{"path":"﻿/a "},"directories":["A","a"],"result":{"path":"﻿/a ","PATH":"A:a"}}
+{"platform":"linux","env":{"PATH":" "},"directories":["A","a"],"result":{"PATH":"A:a"}}
+{"platform":"linux","env":{"PATH":"A:a"},"directories":["A","a"],"result":{"PATH":"A:a"}}
+{"platform":"win32","env":{},"directories":[],"result":{}}
+{"platform":"win32","env":{"PATH":"/provider;/system"},"directories":[],"result":{"PATH":"/provider;/system"}}
+{"platform":"win32","env":{"PATH":" /provider ;;/managed ;/provider"},"directories":[],"result":{"PATH":" /provider ;;/managed ;/provider"}}
+{"platform":"win32","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[],"result":{"Path":"/first","PATH":"/second","path":"/third"}}
+{"platform":"win32","env":{"path":"﻿/a "},"directories":[],"result":{"path":"﻿/a "}}
+{"platform":"win32","env":{"PATH":" "},"directories":[],"result":{"PATH":" "}}
+{"platform":"win32","env":{"PATH":"A;a"},"directories":[],"result":{"PATH":"A;a"}}
+{"platform":"win32","env":{},"directories":["/managed"],"result":{"PATH":"/managed"}}
+{"platform":"win32","env":{"PATH":"/provider;/system"},"directories":["/managed"],"result":{"PATH":"/provider;/system;/managed"}}
+{"platform":"win32","env":{"PATH":" /provider ;;/managed ;/provider"},"directories":["/managed"],"result":{"PATH":"/provider;/managed"}}
+{"platform":"win32","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["/managed"],"result":{"Path":"/first;/managed","PATH":"/second","path":"/third"}}
+{"platform":"win32","env":{"path":"﻿/a "},"directories":["/managed"],"result":{"path":"/a;/managed"}}
+{"platform":"win32","env":{"PATH":" "},"directories":["/managed"],"result":{"PATH":"/managed"}}
+{"platform":"win32","env":{"PATH":"A;a"},"directories":["/managed"],"result":{"PATH":"A;a;/managed"}}
+{"platform":"win32","env":{},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/managed;/second"}}
+{"platform":"win32","env":{"PATH":"/provider;/system"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/provider;/system;/managed;/second"}}
+{"platform":"win32","env":{"PATH":" /provider ;;/managed ;/provider"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/provider;/managed;/second"}}
+{"platform":"win32","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[" /managed ","/managed","/second"],"result":{"Path":"/first;/managed;/second","PATH":"/second","path":"/third"}}
+{"platform":"win32","env":{"path":"﻿/a "},"directories":[" /managed ","/managed","/second"],"result":{"path":"/a;/managed;/second"}}
+{"platform":"win32","env":{"PATH":" "},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"/managed;/second"}}
+{"platform":"win32","env":{"PATH":"A;a"},"directories":[" /managed ","/managed","/second"],"result":{"PATH":"A;a;/managed;/second"}}
+{"platform":"win32","env":{},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/managed;/literal"}}
+{"platform":"win32","env":{"PATH":"/provider;/system"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/provider;/system;/managed;/literal"}}
+{"platform":"win32","env":{"PATH":" /provider ;;/managed ;/provider"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/provider;/managed;/literal"}}
+{"platform":"win32","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["﻿/managed ","/literal"],"result":{"Path":"/first;/managed;/literal","PATH":"/second","path":"/third"}}
+{"platform":"win32","env":{"path":"﻿/a "},"directories":["﻿/managed ","/literal"],"result":{"path":"/a;/managed;/literal"}}
+{"platform":"win32","env":{"PATH":" "},"directories":["﻿/managed ","/literal"],"result":{"PATH":"/managed;/literal"}}
+{"platform":"win32","env":{"PATH":"A;a"},"directories":["﻿/managed ","/literal"],"result":{"PATH":"A;a;/managed;/literal"}}
+{"platform":"win32","env":{},"directories":[""," "],"result":{}}
+{"platform":"win32","env":{"PATH":"/provider;/system"},"directories":[""," "],"result":{"PATH":"/provider;/system"}}
+{"platform":"win32","env":{"PATH":" /provider ;;/managed ;/provider"},"directories":[""," "],"result":{"PATH":"/provider;/managed"}}
+{"platform":"win32","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":[""," "],"result":{"Path":"/first","PATH":"/second","path":"/third"}}
+{"platform":"win32","env":{"path":"﻿/a "},"directories":[""," "],"result":{"path":"/a"}}
+{"platform":"win32","env":{"PATH":" "},"directories":[""," "],"result":{"PATH":" "}}
+{"platform":"win32","env":{"PATH":"A;a"},"directories":[""," "],"result":{"PATH":"A;a"}}
+{"platform":"win32","env":{},"directories":["A","a"],"result":{"PATH":"A;a"}}
+{"platform":"win32","env":{"PATH":"/provider;/system"},"directories":["A","a"],"result":{"PATH":"/provider;/system;A;a"}}
+{"platform":"win32","env":{"PATH":" /provider ;;/managed ;/provider"},"directories":["A","a"],"result":{"PATH":"/provider;/managed;A;a"}}
+{"platform":"win32","env":{"Path":"/first","PATH":"/second","path":"/third"},"directories":["A","a"],"result":{"Path":"/first;A;a","PATH":"/second","path":"/third"}}
+{"platform":"win32","env":{"path":"﻿/a "},"directories":["A","a"],"result":{"path":"/a;A;a"}}
+{"platform":"win32","env":{"PATH":" "},"directories":["A","a"],"result":{"PATH":"A;a"}}
+{"platform":"win32","env":{"PATH":"A;a"},"directories":["A","a"],"result":{"PATH":"A;a"}}

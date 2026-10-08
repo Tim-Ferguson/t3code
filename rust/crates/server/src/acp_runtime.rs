@@ -9,7 +9,7 @@ use std::{
 };
 use t3_acp::{AcpError, Client, ClientOptions, RequestContext, types::*};
 use t3_contracts::{AcpRegistrySettings, AcpRegistrySettingsSource};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 
 #[derive(Clone, Debug)]
 pub struct AcpInstance {
@@ -20,6 +20,7 @@ pub struct AcpInstance {
     pub config: AcpRegistrySettings,
     pub environment: HashMap<String, String>,
     pub catalog: Option<crate::acp_registry_support::Catalog>,
+    pub coordinator: crate::acp_coordinator::Coordinator,
 }
 pub enum SessionEvent {
     Update(SessionNotification),
@@ -34,10 +35,71 @@ pub enum SessionEvent {
 pub struct AcpSession {
     pub client: Client,
     pub initialize: InitializeResponse,
+    /// Latest setup state, including buffered root metadata and acknowledged mutations.
     pub setup: NewSessionResponse,
+    /// Immutable session/new or session/load reply, matching source start().sessionSetupResult.
+    pub setup_response: NewSessionResponse,
     pub events: mpsc::UnboundedReceiver<SessionEvent>,
     peer: ProcessPeer,
+    coordinator: crate::acp_coordinator::Coordinator,
+    instance_id: String,
+    live_setup: Arc<Mutex<Value>>,
+    commands: watch::Receiver<Option<crate::acp_coordinator::AvailableCommands>>,
     pub(crate) services: crate::acp_client_callbacks::Services,
+}
+#[derive(Default)]
+struct StartupMetadata {
+    root: Option<String>,
+    pending: Vec<SessionNotification>,
+}
+fn apply_live_notification(
+    notification: &SessionNotification,
+    setup: &Arc<Mutex<Value>>,
+    commands: &watch::Sender<Option<crate::acp_coordinator::AvailableCommands>>,
+    coordinator: &crate::acp_coordinator::Coordinator,
+    instance: &str,
+    discovery: bool,
+) {
+    let raw = serde_json::to_value(notification).unwrap();
+    let update = &raw["update"];
+    match update["sessionUpdate"].as_str() {
+        Some("available_commands_update") => {
+            let advertised = crate::acp_model::available_commands(&update["availableCommands"]);
+            commands.send_replace(Some(advertised.clone()));
+            if !discovery {
+                coordinator.publish_commands(instance, advertised);
+            }
+        }
+        Some("config_option_update") => {
+            let mut setup = setup.lock().unwrap();
+            setup["configOptions"] = update["configOptions"].clone();
+            // Config mode options are authoritative; legacy modes otherwise remain.
+            if let Some(modes) = crate::acp_model::session_mode_state(
+                &json!({"configOptions":update["configOptions"]}),
+            ) {
+                setup["modes"] = modes;
+            }
+            if !discovery {
+                coordinator
+                    .publish_configuration(instance, crate::acp_model::live_configuration(&setup));
+            }
+        }
+        Some("current_mode_update") => {
+            let mut setup = setup.lock().unwrap();
+            let mode =
+                t3_contracts::trim_wire_string(update["currentModeId"].as_str().unwrap_or(""));
+            if !mode.is_empty() && setup["modes"].is_object() {
+                setup["modes"]["currentModeId"] = json!(mode);
+                if !discovery {
+                    coordinator.publish_configuration(
+                        instance,
+                        crate::acp_model::live_configuration(&setup),
+                    );
+                }
+            }
+        }
+        _ => {}
+    }
 }
 impl Drop for AcpSession {
     fn drop(&mut self) {
@@ -51,7 +113,7 @@ impl AcpSession {
         self.peer.shutdown().await;
     }
     pub async fn set_model(&mut self, model: &str) -> Result<(), AcpError> {
-        let setup = serde_json::to_value(&self.setup).unwrap();
+        let setup = self.live_setup.lock().unwrap().clone();
         if let Some(option) = setup["configOptions"].as_array().and_then(|options| {
             options
                 .iter()
@@ -67,7 +129,8 @@ impl AcpSession {
                         meta: Optional::Missing,
                     })
                     .await?;
-                self.setup.config_options = Optional::Value(result.config_options);
+                self.live_setup.lock().unwrap()["configOptions"] =
+                    serde_json::to_value(result.config_options).unwrap();
             }
         } else if setup["models"].is_object() {
             if setup["models"]["currentModelId"] != model {
@@ -78,12 +141,15 @@ impl AcpSession {
                         meta: Optional::Missing,
                     })
                     .await?;
+                self.live_setup.lock().unwrap()["models"]["currentModelId"] = json!(model);
             }
         } else if !model.is_empty() && model != "default" {
             return Err(AcpError::Transport(
                 "This ACP agent exposes no model selection API.".into(),
             ));
         }
+        self.refresh_live_setup()?;
+
         Ok(())
     }
     pub async fn set_options(
@@ -100,9 +166,14 @@ impl AcpSession {
                 )
                 .map_err(|error| AcpError::Transport(error.to_string()))?;
                 self.client.set_session_mode_typed(request).await?;
+                let mut setup = self.live_setup.lock().unwrap();
+                if !setup["modes"].is_object() {
+                    setup["modes"] = json!({});
+                }
+                setup["modes"]["currentModeId"] = json!(mode);
                 continue;
             }
-            let setup = serde_json::to_value(&self.setup).unwrap();
+            let setup = self.live_setup.lock().unwrap().clone();
             let option = setup["configOptions"]
                 .as_array()
                 .and_then(|options| options.iter().find(|option| option["id"] == *id))
@@ -127,12 +198,31 @@ impl AcpSession {
                     meta: Optional::Missing,
                 })
                 .await?;
-            self.setup.config_options = Optional::Value(result.config_options);
+            self.live_setup.lock().unwrap()["configOptions"] =
+                serde_json::to_value(result.config_options).unwrap();
         }
+        self.refresh_live_setup()?;
+        Ok(())
+    }
+    fn refresh_live_setup(&mut self) -> Result<(), AcpError> {
+        let setup = self.live_setup.lock().unwrap().clone();
+        self.setup = serde_json::from_value(setup.clone())
+            .map_err(|error| AcpError::Transport(error.to_string()))?;
+        self.coordinator.publish_configuration(
+            &self.instance_id,
+            crate::acp_model::live_configuration(&setup),
+        );
         Ok(())
     }
 }
 impl AcpInstance {
+    pub fn startup_key(&self) -> String {
+        if self.config.source == AcpRegistrySettingsSource::Local {
+            format!("local:{}", self.instance_id)
+        } else {
+            self.config.agent_id.to_string()
+        }
+    }
     pub fn process_options(&self, cwd: &Path) -> Result<ProcessOptions, AcpError> {
         if self.config.source != AcpRegistrySettingsSource::Local {
             return Err(AcpError::Transport(
@@ -186,6 +276,8 @@ impl AcpInstance {
                 "The ACP provider instance is disabled.".into(),
             ));
         }
+        let _startup =
+            (!discovery).then(|| self.coordinator.foreground_startup(&self.startup_key()));
         let peer = ProcessPeer::spawn(self.resolve_process(cwd).await?)?;
         self.start_peer(peer, cwd, saved_session, discovery).await
     }
@@ -335,12 +427,26 @@ impl AcpInstance {
         services.register(&client);
         let update_services = services.clone();
         let updates = events.clone();
+        let startup_events = events.clone();
+        let coordinator = self.coordinator.clone();
+        let instance_id = self.instance_id.clone();
+        let live_setup = Arc::new(Mutex::new(json!({})));
+        let update_setup = live_setup.clone();
+        let startup = Arc::new(Mutex::new(StartupMetadata::default()));
+        let update_startup = startup.clone();
+        let (command_sender, command_receiver) = watch::channel(None);
+        let update_commands = command_sender.clone();
         client
             .handle_session_update(Arc::new(move |update| {
                 let updates = updates.clone();
                 let services = update_services.clone();
+                let coordinator = coordinator.clone();
+                let instance_id = instance_id.clone();
+                let setup = update_setup.clone();
+                let command_sender = update_commands.clone();
+                let startup=update_startup.clone();
                 Box::pin(async move {
-                    let update = serde_json::from_value(
+                    let update:SessionNotification = serde_json::from_value(
                         services.resolve_update(serde_json::to_value(update).unwrap()),
                     )
                     .map_err(|error| {
@@ -348,6 +454,22 @@ impl AcpInstance {
                             "Invalid embedded ACP terminal update: {error}"
                         ))
                     })?;
+                    let mut startup=startup.lock().unwrap();
+                    let Some(root)=startup.root.as_deref() else {
+                        let raw=serde_json::to_value(&update).unwrap();
+                        let tag=raw["update"]["sessionUpdate"].as_str().unwrap_or("");
+                        if matches!(tag,"config_option_update"|"current_mode_update"|"available_commands_update"){
+                            startup.pending.retain(|previous|{
+                                previous.session_id!=update.session_id ||
+                                serde_json::to_value(previous).unwrap()["update"]["sessionUpdate"]!=tag
+                            });
+                            startup.pending.push(update);
+                            if startup.pending.len()>32 {startup.pending.remove(0);}
+                        }
+                        return Ok(());
+                    };
+                    if update.session_id!=root{return Ok(());}
+                    apply_live_notification(&update,&setup,&command_sender,&coordinator,&instance_id,discovery);
                     updates
                         .send(SessionEvent::Update(update))
                         .map_err(|_| AcpError::Closed)
@@ -378,6 +500,52 @@ impl AcpInstance {
                 result.await.map_err(|_| AcpError::Closed)?
             })
         }));
+        let coordinator = self.coordinator.clone();
+        let instance_id = self.instance_id.clone();
+        client.handle_elicitation(Arc::new(move |request, _context| {
+            let coordinator = coordinator.clone();
+            let instance_id = instance_id.clone();
+            Box::pin(async move {
+                let request = request.as_value();
+                let action = (|| {
+                    if request["mode"] != "url" {
+                        return None;
+                    }
+                    let url = request["url"].as_str()?;
+                    let id = request["elicitationId"].as_str()?;
+                    if url.encode_utf16().count() > 2048
+                        || id.is_empty()
+                        || id != t3_contracts::trim_wire_string(id)
+                        || id.encode_utf16().count() > 128
+                    {
+                        return None;
+                    }
+                    let url = url::Url::parse(url).ok()?;
+                    if !matches!(url.scheme(), "http" | "https") {
+                        return None;
+                    }
+                    let message =
+                        t3_contracts::trim_wire_string(request["message"].as_str().unwrap_or(""));
+                    let message = String::from_utf16_lossy(
+                        &message.encode_utf16().take(1024).collect::<Vec<_>>(),
+                    );
+                    serde_json::from_value(
+                        json!({"elicitationId":id,"url":url.as_str(),"message":message}),
+                    )
+                    .ok()
+                })();
+                let accepted = match action {
+                    Some(action) => {
+                        coordinator
+                            .request_url_authentication(&instance_id, action)
+                            .await
+                    }
+                    None => false,
+                };
+                serde_json::from_value(json!({"action":if accepted{"accept"}else{"decline"}}))
+                    .map_err(|error| AcpError::Transport(error.to_string()))
+            })
+        }));
         // Capabilities describe only handlers implemented by this bridge. File,
         // terminal, elicitation and MCP callback support are added with services.
         let initialize = client
@@ -390,6 +558,9 @@ impl AcpInstance {
                 }),
                 client_capabilities: Some(ClientCapabilities {
                     terminal: services.has_terminals().then_some(true),
+                    elicitation: Optional::Value(
+                        serde_json::from_value(json!({"url":{}})).unwrap(),
+                    ),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -440,16 +611,78 @@ impl AcpInstance {
                 "ACP returned an empty session ID.".into(),
             ));
         }
+        {
+            let mut startup = startup.lock().unwrap();
+            let mut seeded = serde_json::to_value(&setup).unwrap();
+            if let Some(modes) = crate::acp_model::session_mode_state(&seeded) {
+                seeded["modes"] = modes;
+            }
+            *live_setup.lock().unwrap() = seeded;
+            startup.root = Some(setup.session_id.clone());
+            // Source runtime seeds the response, then replays the latest startup
+            // metadata per root-session/tag under notification admission.
+            for update in std::mem::take(&mut startup.pending) {
+                if update.session_id == setup.session_id {
+                    apply_live_notification(
+                        &update,
+                        &live_setup,
+                        &command_sender,
+                        &self.coordinator,
+                        &self.instance_id,
+                        discovery,
+                    );
+                    let _ = startup_events.send(SessionEvent::Update(update));
+                }
+            }
+        }
+        let setup_response = setup;
+        let setup = serde_json::from_value(live_setup.lock().unwrap().clone())
+            .map_err(|error| AcpError::Transport(error.to_string()))?;
+        if !discovery {
+            self.coordinator.publish_configuration(
+                &self.instance_id,
+                crate::acp_model::live_configuration(&live_setup.lock().unwrap()),
+            );
+        }
         Ok(AcpSession {
+            coordinator: self.coordinator.clone(),
+            instance_id: self.instance_id.clone(),
+            live_setup,
+            commands: command_receiver,
             client,
             initialize,
             setup,
+            setup_response,
             events: receiver,
             peer: peer.as_ref().clone(),
             services,
         })
     }
     pub async fn discover(&self, cwd: &Path) -> Result<Value, AcpError> {
+        struct Cancel(Option<oneshot::Sender<()>>);
+        impl Drop for Cancel {
+            fn drop(&mut self) {
+                if let Some(cancel) = self.0.take() {
+                    let _ = cancel.send(());
+                }
+            }
+        }
+        let (cancel, cancellation) = oneshot::channel();
+        let _cancel = Cancel(Some(cancel));
+        let (sender, result) = oneshot::channel();
+        let instance = self.clone();
+        let cwd = cwd.to_owned();
+        tokio::spawn(async move {
+            let result = instance.discover_owned(&cwd, cancellation).await;
+            let _ = sender.send(result);
+        });
+        result.await.map_err(|_| AcpError::Closed)?
+    }
+    async fn discover_owned(
+        &self,
+        cwd: &Path,
+        mut cancellation: oneshot::Receiver<()>,
+    ) -> Result<Value, AcpError> {
         let mut snapshot = json!({"instanceId":self.instance_id,"driver":"acpRegistry","displayName":self.display_name,"enabled":self.enabled,"installed":false,"version":null,"status":if self.enabled{"warning"}else{"disabled"},"auth":{"status":"unknown"},"checkedAt":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),"availability":"available","models":[],"slashCommands":[],"skills":[]});
         if let Some(accent) = &self.accent_color {
             snapshot["accentColor"] = json!(accent);
@@ -469,7 +702,12 @@ impl AcpInstance {
                 Ok(json!({"status":"ready"}))
             };
             let probe = match inspected {
-                Ok(info) if info["status"] == "ready" => true,
+                Ok(info) if info["status"] == "ready" => {
+                    snapshot["installed"] = json!(true);
+                    snapshot["status"] = json!("ready");
+                    snapshot["version"] = info.get("version").cloned().unwrap_or(Value::Null);
+                    true
+                }
                 Ok(info) => {
                     snapshot["message"] = json!(format!(
                         "ACP Registry provider is {}. Prepare the selected agent before discovery.",
@@ -483,41 +721,78 @@ impl AcpInstance {
                 }
             };
             if probe {
-                match self.resolve_process(cwd).await.and_then(ProcessPeer::spawn) {
+                let Some(mut admission) = self.coordinator.background_probe(&self.startup_key())
+                else {
+                    snapshot["message"] = json!(
+                        "ACP discovery deferred while the provider starts a foreground session."
+                    );
+                    return checked_snapshot(snapshot);
+                };
+                let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+                let resolved = tokio::select! {
+                    biased;
+                    _=&mut cancellation=>return checked_snapshot(snapshot),
+                    _=admission.interrupted()=>return checked_snapshot(snapshot),
+                    result=tokio::time::timeout_at(deadline,self.resolve_process(cwd))=>result.unwrap_or_else(|_|Err(AcpError::Transport("Timed out while resolving ACP probe process.".into()))),
+                };
+                match resolved.and_then(ProcessPeer::spawn) {
                     Ok(peer) => {
                         let services = self.services_for(
                             cwd,
                             crate::acp_client_callbacks::policy(&json!("approval-required"), cwd),
                         );
                         let retained = services.clone();
-                        let result = tokio::time::timeout(
-                            Duration::from_secs(30),
-                            self.start_peer_with_services(peer.clone(), cwd, None, true, services),
-                        )
-                        .await;
+                        let result = tokio::select! {
+                            biased;
+                            _=&mut cancellation=>None,
+                            _=admission.interrupted()=>None,
+                            result=tokio::time::timeout_at(deadline,
+                                self.start_peer_with_services(peer.clone(), cwd, None, true, services))=>Some(result),
+                        };
                         match result {
-                            Ok(Ok(session)) => {
+                            Some(Ok(Ok(mut session))) => {
+                                // The source allows a brief advertisement grace after
+                                // setup; foreground interruption still disposes the probe.
+                                let advertised = tokio::select! {
+                                    biased;
+                                    _=&mut cancellation=>false,
+                                    _=admission.interrupted()=>false,
+                                    _=tokio::time::timeout(Duration::from_millis(500),session.commands.wait_for(|commands|commands.is_some()))=>true,
+                                };
+                                if !advertised {
+                                    snapshot["message"] = json!(
+                                        "ACP discovery interrupted by foreground work or cancellation."
+                                    );
+                                }
                                 snapshot["installed"] = json!(true);
                                 snapshot["status"] = json!("ready");
-                                snapshot["auth"] = json!({"status":"authenticated"});
-                                let initialized =
-                                    serde_json::to_value(&session.initialize).unwrap();
-                                snapshot["version"] = initialized["agentInfo"]["version"].clone();
+                                snapshot["auth"] = json!({"status":"unknown"});
+
                                 snapshot["models"] = json!(models_from_setup(
                                     &serde_json::to_value(&session.setup).unwrap(),
                                     &self.config.custom_models
                                 ));
+                                if let Some(commands) = session.commands.borrow().clone() {
+                                    snapshot["slashCommands"] = json!(commands.slash_commands);
+                                    snapshot["skills"] = json!(commands.skills);
+                                }
                                 session.shutdown().await;
                             }
-                            Ok(Err(error)) => {
+                            Some(Ok(Err(error))) => {
                                 snapshot["status"] = json!("error");
                                 snapshot["message"] =
                                     json!(format!("ACP provider probe failed: {error}"));
                             }
-                            Err(_) => {
+                            Some(Err(_)) => {
                                 snapshot["status"] = json!("error");
                                 snapshot["message"] =
                                     json!("Timed out while checking the ACP provider.");
+                            }
+                            None => {
+                                snapshot["status"] = json!("warning");
+                                snapshot["message"] = json!(
+                                    "ACP discovery interrupted by foreground work or cancellation."
+                                );
                             }
                         }
                         // Retain callbacks and process outside the cancellable handshake. A
@@ -532,10 +807,13 @@ impl AcpInstance {
                 }
             }
         }
-        let typed: t3_contracts::ServerProvider = serde_json::from_value(snapshot)
-            .map_err(|error| AcpError::Transport(error.to_string()))?;
-        serde_json::to_value(typed).map_err(|error| AcpError::Transport(error.to_string()))
+        checked_snapshot(snapshot)
     }
+}
+fn checked_snapshot(snapshot: Value) -> Result<Value, AcpError> {
+    let typed: t3_contracts::ServerProvider =
+        serde_json::from_value(snapshot).map_err(|error| AcpError::Transport(error.to_string()))?;
+    serde_json::to_value(typed).map_err(|error| AcpError::Transport(error.to_string()))
 }
 pub fn permission_response(
     request: &RequestPermissionRequest,
@@ -571,7 +849,177 @@ mod tests {
     use super::*;
     fn instance(generation: u8) -> AcpInstance {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-provider.py");
-        AcpInstance{instance_id:"local-agent".into(),display_name:"Local agent".into(),accent_color:None,enabled:true,config:serde_json::from_value(json!({"source":"local","commandPath":"python3","commandArgs":[fixture,generation.to_string()]})).unwrap(),environment:HashMap::new(),catalog:None}
+        AcpInstance{instance_id:"local-agent".into(),display_name:"Local agent".into(),accent_color:None,enabled:true,config:serde_json::from_value(json!({"source":"local","commandPath":"python3","commandArgs":[fixture,generation.to_string()]})).unwrap(),environment:HashMap::new(),catalog:None,coordinator:Default::default()}
+    }
+    fn coordinator_instance(root: &Path, scenario: &str) -> AcpInstance {
+        let mut provider = instance(2);
+        provider.config.command_args = vec![
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/acp-coordinator-provider.py")
+                .to_string_lossy()
+                .into_owned(),
+            scenario.into(),
+            root.join("starts").to_string_lossy().into_owned(),
+        ];
+        provider
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn foreground_connect_interrupts_matching_real_discovery_and_waits_owned_probe_reap() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let signal_path = root.path().join("signal.sock");
+            let signal = tokio::net::UnixDatagram::bind(&signal_path).unwrap();
+            let mut provider = coordinator_instance(root.path(), "priority");
+            provider.environment.insert(
+                "T3_SIGNAL_SOCKET".into(),
+                signal_path.to_string_lossy().into_owned(),
+            );
+            let probe_instance = provider.clone();
+            let cwd = root.path().to_owned();
+            let probe = tokio::spawn(async move { probe_instance.discover(&cwd).await });
+            let mut message = [0; 512];
+            let length = signal.recv(&mut message).await.unwrap();
+            let started: Value = serde_json::from_slice(&message[..length]).unwrap();
+            let pid = started["pid"].as_i64().unwrap() as libc::pid_t;
+            // Foreground starts immediately after publishing priority; it does
+            // not await the disposable probe, matching the source coordinator.
+            let session = provider.connect(root.path(), None, false).await.unwrap();
+            let snapshot = probe.await.unwrap().unwrap();
+            assert_eq!(snapshot["status"], "warning");
+            assert!(
+                snapshot["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("interrupted")
+            );
+            assert_eq!(
+                unsafe { libc::kill(pid, 0) },
+                -1,
+                "probe completion includes owned child reap"
+            );
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::ESRCH)
+            );
+            assert!(
+                provider
+                    .coordinator
+                    .background_probe(&provider.startup_key())
+                    .is_some(),
+                "startup guard releases after foreground setup"
+            );
+            session.shutdown().await;
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn real_url_consent_and_live_configuration_survive_registry_replacement_and_interleaved_mutations()
+     {
+        tokio::time::timeout(Duration::from_secs(20),async {
+            let root=tempfile::tempdir().unwrap();
+            let configured=coordinator_instance(root.path(),"state");
+            let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({
+                "providerInstances":{"codex":{"driver":"codex","enabled":false},
+                    "local-agent":{"driver":"acpRegistry","enabled":true,"config":configured.config}}
+            })).unwrap();
+            let registry=crate::provider_registry::ProviderRegistry::discover(&settings,root.path()).await.unwrap();
+            let active=registry.acp("local-agent").unwrap();
+            let coordinator=registry.coordinator();
+            let mut url_updates=coordinator.subscribe_url_action("local-agent");
+            let mut commands=coordinator.subscribe_commands("local-agent");
+            if coordinator.commands("local-agent").is_some(){commands.recv().await.unwrap();}
+            assert!(coordinator.configuration("local-agent").is_none(),"disposable probe must not publish foreground live state");
+            let mut provider_changes=registry.subscribe_changes();
+            let root_path=root.path().to_owned();
+            let mut connect=tokio::task::JoinSet::new();
+            connect.spawn(async move{active.connect(&root_path,None,false).await});
+            let action=url_updates.recv().await.unwrap().unwrap();
+            assert_eq!(action.url.0,"https://accounts.example.com/login");
+            assert_eq!(action.message.0,"Sign in");
+            let changes=provider_changes.recv().await.unwrap();
+            assert_eq!(changes.iter().find(|row|row["instanceId"]=="local-agent").unwrap()["auth"]["action"]["elicitationId"],"login-0");
+            let mut next=serde_json::to_value(&settings).unwrap();
+            next["providerInstances"]["local-agent"]["displayName"]=json!("Renamed");
+            let next=serde_json::from_value(next).unwrap();
+            let replaced=registry.clone();
+            replaced.reconfigure(&next,root.path()).await.unwrap();
+            let current=replaced.snapshots().into_iter().find(|row|row["instanceId"]=="local-agent").unwrap();
+            assert_eq!(current["auth"]["action"]["elicitationId"],"login-0");
+            assert_eq!(current["displayName"],"Renamed");
+            assert_eq!(std::fs::read_to_string(root.path().join("starts.log")).unwrap().lines().count(),2,
+                "registry refresh shares startup admission and does not launch a competing probe");
+            assert!(!replaced.coordinator().accept_url_authentication(
+                &serde_json::from_value(json!({"instanceId":"local-agent","elicitationId":"wrong"})).unwrap()));
+            assert!(replaced.coordinator().accept_url_authentication(
+                &serde_json::from_value(json!({"instanceId":"local-agent","elicitationId":"login-0"})).unwrap()));
+            assert!(!coordinator.accept_url_authentication(
+                &serde_json::from_value(json!({"instanceId":"local-agent","elicitationId":"login-0"})).unwrap()));
+            let mut session=connect.join_next().await.unwrap().unwrap().unwrap();
+            assert!(url_updates.recv().await.unwrap().is_none());
+            let oracle:Value=serde_json::from_str(include_str!("../tests/fixtures/acp-startup.json")).unwrap();
+            assert_eq!(serde_json::to_value(&session.setup_response).unwrap(),oracle["setup"]);
+            assert_eq!(serde_json::to_value(&session.setup).unwrap()["configOptions"],oracle["configOptions"]);
+            assert_eq!(serde_json::to_value(&session.setup).unwrap()["modes"],oracle["modeState"]);
+            assert_eq!(serde_json::to_value(&session.setup_response).unwrap()["configOptions"][0]["currentValue"],"a",
+                "unchanged source start result retains original setup response");
+            assert_eq!(serde_json::to_value(&session.setup_response).unwrap()["modes"]["currentModeId"],"normal");
+            assert_eq!(serde_json::to_value(&session.setup).unwrap()["configOptions"][0]["currentValue"],"early",
+                "pre-response config update survives setup seed");
+            assert_eq!(serde_json::to_value(&session.setup).unwrap()["modes"]["currentModeId"],"alt");
+            let advertised=commands.recv().await.unwrap();
+            assert_eq!(advertised.slash_commands.len(),1);
+            assert_eq!(advertised.skills[0].path.as_str(),"acp://skill/space%2Fskill");
+            session.set_model("b").await.unwrap();
+            session.client.raw_request("x/mode",json!({"mode":"normal"})).await.unwrap();
+            let current=coordinator.configuration("local-agent").unwrap();
+            assert_eq!(current.current_model_id.as_deref(),Some("b"),"mode notification retains acknowledged model change");
+            session.set_options(&serde_json::from_value(json!({"enabled":true})).unwrap()).await.unwrap();
+            session.client.raw_request("x/mode",json!({"mode":"alt"})).await.unwrap();
+            let current=serde_json::to_value(coordinator.configuration("local-agent").unwrap()).unwrap();
+            assert_eq!(current["configOptions"].as_array().unwrap().iter().find(|option|option["id"]=="enabled").unwrap()["currentValue"],true,
+                "mode notification retains acknowledged config option change");
+            let visible=replaced.snapshots().into_iter().find(|row|row["instanceId"]=="local-agent").unwrap();
+            assert!(visible["models"].as_array().unwrap().iter().any(|model|model["slug"]=="b" && model["isDefault"]==true));
+            assert_eq!(visible["slashCommands"].as_array().unwrap().len(),1);
+            assert!(visible["auth"].get("action").is_none());
+            session.shutdown().await;
+        }).await.unwrap();
+    }
+    #[tokio::test]
+    async fn config_only_initial_mode_catalog_seeds_latest_mode_state_before_legacy_notification() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let directory = tempfile::tempdir().unwrap();
+            let provider = coordinator_instance(directory.path(), "config-only");
+            let mut session = provider
+                .connect(directory.path(), None, false)
+                .await
+                .unwrap();
+            let oracle: Value =
+                serde_json::from_str(include_str!("../tests/fixtures/acp-startup.json")).unwrap();
+            assert_eq!(
+                serde_json::to_value(&session.setup_response).unwrap(),
+                oracle["configOnlyMode"]["setup"]
+            );
+            assert_eq!(
+                serde_json::to_value(&session.setup).unwrap()["modes"],
+                oracle["configOnlyMode"]["initialModeState"]
+            );
+            session
+                .client
+                .raw_request("x/mode", json!({"mode":"alt"}))
+                .await
+                .unwrap();
+            session.refresh_live_setup().unwrap();
+            assert_eq!(
+                serde_json::to_value(&session.setup).unwrap()["modes"],
+                oracle["configOnlyMode"]["latestModeState"]
+            );
+            session.shutdown().await;
+        })
+        .await
+        .unwrap();
     }
     fn prompt(session: &AcpSession, text: &str) -> PromptRequest {
         PromptRequest {
@@ -640,19 +1088,15 @@ mod tests {
         }
     }
     #[tokio::test]
-    async fn saved_session_load_replay_precedes_prompt_and_cancel_settles_owned_prompt() {
+    async fn saved_session_load_quarantines_history_and_cancel_settles_owned_prompt() {
         let cwd = tempfile::tempdir().unwrap();
         let mut session = instance(2)
             .connect(cwd.path(), Some("native-session"), false)
             .await
             .unwrap();
-        let replay = match session.events.recv().await.unwrap() {
-            SessionEvent::Update(value) => value,
-            _ => panic!("expected replay"),
-        };
-        assert_eq!(
-            serde_json::to_value(replay).unwrap()["update"]["content"]["text"],
-            "replayed"
+        assert!(
+            session.events.try_recv().is_err(),
+            "load history is quarantined from live root updates"
         );
         let input = prompt(&session, "hold");
         let client = session.client.clone();

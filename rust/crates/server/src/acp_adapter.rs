@@ -616,6 +616,7 @@ impl Actor {
         thread_id: &str,
         pending_peer: &mut Option<crate::acp_peer::ProcessPeer>,
         pending_services: &mut Option<crate::acp_client_callbacks::Services>,
+        pending_startup: &mut Option<crate::acp_coordinator::ForegroundStartup>,
     ) -> Result<Self, StoreError> {
         let view = projection(&store, thread_id)?;
         let instance_id = view["thread"]["modelSelection"]["instanceId"]
@@ -623,6 +624,11 @@ impl Actor {
             .unwrap()
             .to_owned();
         let instance = providers.acp(&instance_id).map_err(error)?;
+        *pending_startup = Some(
+            instance
+                .coordinator
+                .foreground_startup(&instance.startup_key()),
+        );
         let project = store
             .projection("project", view["thread"]["projectId"].as_str().unwrap())?
             .ok_or_else(|| error("Project not found."))?;
@@ -1550,6 +1556,7 @@ pub(crate) async fn actor(
     let mut runtime: Option<Actor> = None;
     let mut pending_peer = None;
     let mut pending_services = None;
+    let mut pending_startup = None;
     let mut interrupted = false;
     loop {
         if *stopped.borrow() {
@@ -1560,7 +1567,7 @@ pub(crate) async fn actor(
             incoming=work.recv()=>{
                 let Some(incoming)=incoming else{break};let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
-                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services).await?);pending_services.take();pending_peer.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
+                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };
@@ -1586,6 +1593,9 @@ pub(crate) async fn actor(
     if let Some(peer) = pending_peer {
         peer.shutdown().await;
     }
+    // Startup admission outlives canceled setup until callback terminals and
+    // the provider process have finished cleanup.
+    drop(pending_startup);
     if let Some(mut actor) = runtime {
         let status = if *stopped.borrow() || interrupted {
             "interrupted"

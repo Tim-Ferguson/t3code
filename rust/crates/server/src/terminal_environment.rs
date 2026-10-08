@@ -3,6 +3,46 @@
 use t3_contracts::trim_wire_string;
 
 pub type Environment = indexmap::IndexMap<String, String>;
+/// Source mergePathEntries: preserve user/provider precedence and compare
+/// trimmed entries literally, including on Windows.
+pub fn append_managed_path(
+    env: &mut Environment,
+    directories: &[std::path::PathBuf],
+    platform: &str,
+) {
+    if directories.is_empty() {
+        return;
+    }
+    let delimiter = if platform == "win32" { ';' } else { ':' };
+    let key = if platform == "win32" {
+        env.keys()
+            .find(|key| key.to_lowercase() == "path")
+            .cloned()
+            .unwrap_or_else(|| "PATH".into())
+    } else {
+        "PATH".into()
+    };
+    let added = directories
+        .iter()
+        .map(|path| path.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join(&delimiter.to_string());
+    let mut seen = std::collections::HashSet::new();
+    let mut merged = Vec::new();
+    for value in [env.get(&key).map(String::as_str), Some(added.as_str())]
+        .into_iter()
+        .flatten()
+    {
+        for entry in value.split(delimiter).map(trim_wire_string) {
+            if !entry.is_empty() && seen.insert(entry.to_owned()) {
+                merged.push(entry);
+            }
+        }
+    }
+    if !merged.is_empty() {
+        env.insert(key, merged.join(&delimiter.to_string()));
+    }
+}
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ShellCandidate {
     pub shell: String,
@@ -274,6 +314,25 @@ pub fn spawn_environment(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn original_managed_path_append_oracle() {
+        for line in include_str!("../tests/fixtures/managed-terminal-path.jsonl").lines() {
+            let fixture: serde_json::Value = serde_json::from_str(line).unwrap();
+            let mut env: Environment = serde_json::from_value(fixture["env"].clone()).unwrap();
+            let directories: Vec<std::path::PathBuf> =
+                serde_json::from_value(fixture["directories"].clone()).unwrap();
+            append_managed_path(
+                &mut env,
+                &directories,
+                fixture["platform"].as_str().unwrap(),
+            );
+            assert_eq!(
+                serde_json::to_value(env).unwrap(),
+                fixture["result"],
+                "{fixture}"
+            );
+        }
+    }
     #[test]
     fn original_shell_and_environment_policy_oracle() {
         let fixtures: serde_json::Value =

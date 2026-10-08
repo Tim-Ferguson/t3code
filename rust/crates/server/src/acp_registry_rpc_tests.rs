@@ -148,3 +148,66 @@ async fn registry_search_and_uninstall_effect_socket_preserve_scope_decode_refer
         reader.close(None).await.unwrap();manager.close(None).await.unwrap();stop.send(()).unwrap();tasks.join_next().await.unwrap().unwrap();service.shutdown().await;
     }).await.expect("Registry search/uninstall Effect socket milestones stalled");
 }
+
+#[tokio::test]
+async fn registry_url_consent_socket_gates_and_validates_before_settling_real_provider_callback() {
+    tokio::time::timeout(std::time::Duration::from_secs(20),async{
+        let directory=tempfile::tempdir().unwrap();
+        let fixture=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-coordinator-provider.py");
+        let settings=serde_json::from_value(json!({"providerInstances":{
+            "codex":{"driver":"codex","enabled":false},
+            "local-agent":{"driver":"acpRegistry","enabled":true,"config":{"source":"local","commandPath":"python3",
+                "commandArgs":[fixture,"state",directory.path().join("starts")]}}
+        }})).unwrap();
+        let providers=ProviderRegistry::discover(&settings,directory.path()).await.unwrap();
+        let mut pending=providers.coordinator().subscribe_url_action("local-agent");
+        let provider=providers.acp("local-agent").unwrap();
+        let cwd=directory.path().to_owned();
+        let mut sessions=tokio::task::JoinSet::new();
+        sessions.spawn(async move{provider.connect(&cwd,None,false).await});
+        let action=pending.recv().await.unwrap().unwrap();
+        assert_eq!(action.elicitation_id.0.as_str(),"login-0");
+        let store=Store::memory().unwrap();
+        let auth=AuthService::new(store.clone(),[42;32],"fixture_registry_session".into(),"loopback-browser".into()).unwrap();
+        let token=|scopes|auth.issue_session("fixture","bearer-access-token",scopes,json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap().1;
+        let reader=token(vec![AuthEnvironmentScope::OrchestrationRead]);
+        let manager=token(vec![AuthEnvironmentScope::ProvidersManage]);
+        let state=ApiState{
+            store,auth,environment:json!({"environmentId":"registry-fixture","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
+            config:None,settings:None,device_hosts:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
+        };
+        let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address=listener.local_addr().unwrap();
+        let (stop,stopped)=tokio::sync::oneshot::channel();
+        let mut tasks=tokio::task::JoinSet::new();
+        tasks.spawn(async move{axum::serve(listener,router(state)).with_graceful_shutdown(async{let _=stopped.await;}).await.unwrap();});
+        let mut reader=connect(address,&reader).await;
+        let input=json!({"instanceId":"local-agent","elicitationId":"login-0"});
+        let denied=rpc(&mut reader,1,"server.acceptAcpRegistryUrlAuth",input.clone()).await;
+        assert_eq!(denied["exit"]["cause"][0]["_tag"],"Fail");
+        assert_eq!(denied["exit"]["cause"][0]["error"]["requiredPermission"],"providers:manage");
+        assert!(providers.coordinator().url_action("local-agent").is_some());
+        let mut manager=connect(address,&manager).await;
+        for (id,payload) in [(2,json!([])),(3,json!({"instanceId":"local-agent","elicitationId":""}))]{
+            let invalid=rpc(&mut manager,id,"server.acceptAcpRegistryUrlAuth",payload).await;
+            assert_eq!(invalid["exit"]["cause"][0]["_tag"],"Die");
+            assert!(invalid["exit"]["cause"][0]["defect"].as_str().is_some_and(|value|!value.is_empty()));
+            assert!(providers.coordinator().url_action("local-agent").is_some());
+        }
+        let wrong=rpc(&mut manager,4,"server.acceptAcpRegistryUrlAuth",json!({"instanceId":"local-agent","elicitationId":"wrong"})).await;
+        assert_eq!(wrong["exit"]["value"],json!({"accepted":false}));
+        let accepted=rpc(&mut manager,5,"server.acceptAcpRegistryUrlAuth",input.clone()).await;
+        let accepted:t3_contracts::AcpRegistryAcceptUrlAuthResult=serde_json::from_value(accepted["exit"]["value"].clone()).unwrap();
+        assert!(accepted.accepted);
+        let session=sessions.join_next().await.unwrap().unwrap().unwrap();
+        assert!(pending.recv().await.unwrap().is_none());
+        assert_eq!(session.setup.session_id,"coordinator-session");
+        let repeated=rpc(&mut manager,6,"server.acceptAcpRegistryUrlAuth",input).await;
+        assert_eq!(repeated["exit"]["value"],json!({"accepted":false}));
+        session.shutdown().await;
+        reader.close(None).await.unwrap();
+        manager.close(None).await.unwrap();
+        let _=stop.send(());
+        tasks.join_next().await.unwrap().unwrap();
+    }).await.unwrap();
+}

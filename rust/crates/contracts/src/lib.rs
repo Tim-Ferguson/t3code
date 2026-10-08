@@ -70,3 +70,6 @@ pub use settings_rpc::*;
 
 pub mod background;
 pub use background::*;
+
+pub mod device;
+pub use device::*;

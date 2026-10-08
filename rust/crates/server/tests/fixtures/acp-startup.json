@@ -1,0 +1,166 @@
+{
+  "setup": {
+    "sessionId": "coordinator-session",
+    "modes": {
+      "currentModeId": "normal",
+      "availableModes": [
+        {
+          "id": "normal",
+          "name": "Normal"
+        },
+        {
+          "id": "alt",
+          "name": "Alternate"
+        }
+      ]
+    },
+    "configOptions": [
+      {
+        "id": "model",
+        "name": "Model",
+        "category": "model",
+        "type": "select",
+        "currentValue": "a",
+        "options": [
+          {
+            "value": "a",
+            "name": "A"
+          },
+          {
+            "value": "b",
+            "name": "B"
+          },
+          {
+            "value": "early",
+            "name": "EARLY"
+          }
+        ]
+      },
+      {
+        "id": "enabled",
+        "name": "Enabled",
+        "type": "boolean",
+        "currentValue": false
+      }
+    ]
+  },
+  "configOptions": [
+    {
+      "id": "model",
+      "name": "Model",
+      "category": "model",
+      "type": "select",
+      "currentValue": "early",
+      "options": [
+        {
+          "value": "a",
+          "name": "A"
+        },
+        {
+          "value": "b",
+          "name": "B"
+        },
+        {
+          "value": "early",
+          "name": "EARLY"
+        }
+      ]
+    },
+    {
+      "id": "enabled",
+      "name": "Enabled",
+      "type": "boolean",
+      "currentValue": false
+    }
+  ],
+  "modeState": {
+    "currentModeId": "alt",
+    "availableModes": [
+      {
+        "id": "normal",
+        "name": "Normal"
+      },
+      {
+        "id": "alt",
+        "name": "Alternate"
+      }
+    ]
+  },
+  "configOnlyMode": {
+    "setup": {
+      "sessionId": "coordinator-session",
+      "configOptions": [
+        {
+          "id": "model",
+          "name": "Model",
+          "category": "model",
+          "type": "select",
+          "currentValue": "a",
+          "options": [
+            {
+              "value": "a",
+              "name": "A"
+            },
+            {
+              "value": "b",
+              "name": "B"
+            },
+            {
+              "value": "early",
+              "name": "EARLY"
+            }
+          ]
+        },
+        {
+          "id": "enabled",
+          "name": "Enabled",
+          "type": "boolean",
+          "currentValue": false
+        },
+        {
+          "id": "mode",
+          "name": "Mode",
+          "category": "mode",
+          "type": "select",
+          "currentValue": "normal",
+          "options": [
+            {
+              "value": "normal",
+              "name": "Normal"
+            },
+            {
+              "value": "alt",
+              "name": "Alternate"
+            }
+          ]
+        }
+      ]
+    },
+    "initialModeState": {
+      "currentModeId": "normal",
+      "availableModes": [
+        {
+          "id": "normal",
+          "name": "Normal"
+        },
+        {
+          "id": "alt",
+          "name": "Alternate"
+        }
+      ]
+    },
+    "latestModeState": {
+      "currentModeId": "alt",
+      "availableModes": [
+        {
+          "id": "normal",
+          "name": "Normal"
+        },
+        {
+          "id": "alt",
+          "name": "Alternate"
+        }
+      ]
+    }
+  }
+}

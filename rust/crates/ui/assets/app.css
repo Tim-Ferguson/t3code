@@ -1193,3 +1193,29 @@ select:focus-visible {
   overflow: auto;
   padding-right: 4px;
 }
+.theme-search {
+  margin-block: 20px;
+  border-block: 1px solid var(--border);
+  padding-block: 16px;
+}
+.theme-search input {
+  width: 100%;
+}
+.theme-search-result {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-block: 12px;
+  overflow-wrap: anywhere;
+  background: var(--card);
+}
+.theme-search-result img {
+  float: left;
+  margin-right: 10px;
+}
+.theme-search-result h5 {
+  margin: 0 0 8px;
+}
+.theme-search-result small {
+  color: var(--muted-foreground);
+}

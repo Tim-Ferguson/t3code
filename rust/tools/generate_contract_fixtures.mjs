@@ -64,14 +64,16 @@ const rustNames = new Set(
   ),
 );
 const strictObjectTypes = new Set(
-  ["history", "filesystem", "terminal", "provider_runtime", "preview"].flatMap((file) =>
-    [
-      ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
-        /pub (?:struct|enum|type) (\w+)/g,
-      ),
-    ].map((m) => m[1]),
+  ["history", "filesystem", "terminal", "provider_runtime", "preview", "acp_registry"].flatMap(
+    (file) =>
+      [
+        ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
+          /pub (?:struct|enum|type) (\w+)/g,
+        ),
+      ].map((m) => m[1]),
   ),
 );
+strictObjectTypes.add("AcpRegistryUrlAuthAction");
 function seed(s, defs, key = "", depth = 0) {
   if (!s) return {};
   if (depth > 20) return null;
@@ -337,6 +339,27 @@ function codecCases(name, schema, schemaDoc, initial) {
       { version: 1, records: Array(201).fill({ future: true }) },
       "raw composer count checked before filtering",
     );
+  }
+  if (name === "AcpRegistrySetProviderInput") {
+    for (const headers of [
+      { "": "x" },
+      { "   ": "x" },
+      { ["x".repeat(129)]: "x" },
+      { " Authorization ": "x" },
+      { "": 42 },
+      { "   ": 42 },
+      { valid: 42 },
+      { " a ": "first", a: "second" },
+      { a: "first", " a ": "second" },
+      { "X-Boundary": "x".repeat(8192) },
+      { "X-Boundary": "x".repeat(8193) },
+      { "X-Unicode": "😀".repeat(4096) },
+      { "X-Unicode": "😀".repeat(4097) },
+    ])
+      test(
+        { ...clone(initial), headers },
+        "transformed/bounded header record " + JSON.stringify(headers).slice(0, 100),
+      );
   }
   return true;
 }

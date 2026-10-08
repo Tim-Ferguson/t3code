@@ -136,10 +136,14 @@ File selection bounds reads, pairs light/dark families in batches, and preserves
 the current selection for batch installs and update/copy conflict resolution.
 Color conversion and palette generation pass the same original witnesses on host
 and actual Rust WASM. The App-owned editor retains drafts across navigation; save and removal
-transactions preserve mixed selections and report failed writes. Complete library
-grouping, the advanced inspector and package imports remain unfinished; live environment
-theme publication depends on the unfinished backend theme store. Native/mobile
-interaction and full visual fidelity remain unverified.
+transactions preserve mixed selections and report failed writes. Open VSX search and
+package import validate licenses, checksums, archive bounds and theme includes;
+collection updates require confirmation and compare fresh saved state after the
+download. Closing a download cancels its body without changing the library.
+Complete library grouping and the advanced inspector remain unfinished, as do
+unpaired UTF-16 string boundaries and JSONC nesting beyond the current safe parser
+bound. Live environment theme publication depends on the unfinished backend theme
+store. Native/mobile interaction and full visual fidelity remain unverified.
 
 The intended UI targets are Dioxus WebAssembly web plus native desktop/mobile
 builds sharing the Rust component and client layers. The WASM target check,

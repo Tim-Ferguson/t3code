@@ -336,24 +336,25 @@ pub fn option_descriptors(setup: &Value) -> Vec<Value> {
     descriptors.truncate(16);
     descriptors
 }
-pub fn discovered_models(setup: &Value, custom: &[String]) -> Vec<Value> {
-    let options = setup["configOptions"].as_array();
+/// Source registry normalization, distinct from the presentation catalog's
+/// synthetic Default model and user custom models.
+pub fn live_configuration(setup: &Value) -> crate::acp_coordinator::LiveConfiguration {
+    let options = &setup["configOptions"];
     let current = options
-        .and_then(|options| {
-            options
-                .iter()
-                .find(|option| option["category"] == "model" && option["type"] == "select")
-        })
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|option| option["category"] == "model" && option["type"] == "select")
         .and_then(|option| opaque(&option["currentValue"], 128));
-    let candidates = options
+    let mut seen = std::collections::HashSet::new();
+    let mut models = vec![];
+    for candidate in options
+        .as_array()
         .into_iter()
         .flatten()
         .filter(|option| option["category"] == "model" && option["type"] == "select")
-        .flat_map(|option| flat_choices(&option["options"]));
-    let capabilities = json!({"optionDescriptors":option_descriptors(setup)});
-    let mut seen = std::collections::HashSet::new();
-    let mut result = vec![];
-    for candidate in candidates {
+        .flat_map(|option| flat_choices(&option["options"]))
+    {
         let Some(id) = opaque(&candidate["value"], 128) else {
             continue;
         };
@@ -361,28 +362,104 @@ pub fn discovered_models(setup: &Value, custom: &[String]) -> Vec<Value> {
             continue;
         }
         let name = bounded(&candidate["name"], 160, true);
-        let mut model = json!({"slug":id,"name":if name.is_empty(){id}else{&name},"isCustom":false,"capabilities":capabilities});
-        if current == Some(id) {
-            model["isDefault"] = json!(true);
-        }
-        result.push(model);
-        if result.len() == 256 {
+        let description = bounded(&candidate["description"], 1024, true);
+        models.push(json!({"id":id,"name":if name.is_empty(){id}else{&name},"description":if description.is_empty(){Value::Null}else{json!(description)}}));
+        if models.len() == 256 {
             break;
         }
     }
-    if result.is_empty() {
-        seen.insert("default".into());
-        result.push(json!({"slug":"default","name":"Default","isCustom":false,"isDefault":true,"capabilities":capabilities}));
+    let current = current.filter(|id| models.iter().any(|model| model["id"] == *id));
+    serde_json::from_value(
+        json!({"models":models,"currentModelId":current,"configOptions":option_descriptors(setup)}),
+    )
+    .expect("source-bounded ACP live configuration")
+}
+pub fn available_commands(commands: &Value) -> crate::acp_coordinator::AvailableCommands {
+    let mut seen = std::collections::HashSet::new();
+    let mut slash_commands = vec![];
+    let mut skills = vec![];
+    let mut accepted = 0;
+    for command in commands.as_array().into_iter().flatten() {
+        let Some(name) = opaque(&command["name"], 128) else {
+            continue;
+        };
+        if !seen.insert(name.to_lowercase()) {
+            continue;
+        }
+        let description = bounded(&command["description"], 1024, true);
+        let hint = bounded(&command["input"]["hint"], 1024, true);
+        if let Some(name) = name.strip_prefix('$') {
+            if name.is_empty() || name != t3_contracts::trim_wire_string(name) {
+                continue;
+            }
+            // encodeURIComponent's exact safe bytes, rather than URL form encoding.
+            let encoded = name
+                .bytes()
+                .map(|byte| {
+                    if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
+                        (byte as char).to_string()
+                    } else {
+                        format!("%{byte:02X}")
+                    }
+                })
+                .collect::<String>();
+            let mut skill = json!({"name":name,"path":format!("acp://skill/{encoded}"),"scope":"agent","enabled":true});
+            if !description.is_empty() {
+                skill["description"] = json!(description);
+            }
+            skills.push(skill);
+        } else {
+            let mut slash = json!({"name":name});
+            if !description.is_empty() {
+                slash["description"] = json!(description);
+            }
+            if !hint.is_empty() {
+                slash["input"] = json!({"hint":hint});
+            }
+            slash_commands.push(slash);
+        }
+        accepted += 1;
+        if accepted == 128 {
+            break;
+        }
     }
-    // Original providerModelsFromSettings trims and deduplicates custom slugs;
-    // their count is not capped by the discovery catalog's 256-model budget.
+    serde_json::from_value(json!({"slashCommands":slash_commands,"skills":skills}))
+        .expect("source-bounded ACP command advertisement")
+}
+pub fn models_from_live_configuration(
+    configuration: &crate::acp_coordinator::LiveConfiguration,
+    custom: &[String],
+) -> Vec<Value> {
+    let capabilities = json!({"optionDescriptors":configuration.config_options});
+    let mut seen = std::collections::HashSet::new();
+    let mut models = configuration
+        .models
+        .iter()
+        .map(|model| {
+            let id = model.id.0.to_string();
+            seen.insert(id.clone());
+            let mut output =
+                json!({"slug":id,"name":model.name,"isCustom":false,"capabilities":capabilities});
+            if configuration.current_model_id.as_deref() == Some(id.as_str()) {
+                output["isDefault"] = json!(true);
+            }
+            output
+        })
+        .collect::<Vec<_>>();
+    if models.is_empty() {
+        seen.insert("default".into());
+        models.push(json!({"slug":"default","name":"Default","isCustom":false,"isDefault":true,"capabilities":capabilities}));
+    }
     for id in custom {
         let id = t3_contracts::trim_wire_string(id);
         if !id.is_empty() && seen.insert(id.to_owned()) {
-            result.push(json!({"slug":id,"name":id,"isCustom":true,"capabilities":capabilities}));
+            models.push(json!({"slug":id,"name":id,"isCustom":true,"capabilities":capabilities}));
         }
     }
-    result
+    models
+}
+pub fn discovered_models(setup: &Value, custom: &[String]) -> Vec<Value> {
+    models_from_live_configuration(&live_configuration(setup), custom)
 }
 /// The same canonical events consumed by every provider adapter.
 pub fn core_event(
@@ -495,6 +572,8 @@ mod tests {
                 "content" => json!(content_display_text(&fixture["input"])),
                 "plan" => json!(plan_update(&fixture["input"])),
                 "thought" => json!(thought_delta(&fixture["input"])),
+                "live-configuration" => json!(live_configuration(&fixture["input"])),
+                "commands" => json!(available_commands(&fixture["input"])),
                 "catalog" => json!(discovered_models(
                     &fixture["input"]["setup"],
                     &serde_json::from_value::<Vec<String>>(fixture["input"]["custom"].clone())

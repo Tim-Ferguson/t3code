@@ -929,7 +929,7 @@ fn host_platform() -> &'static str {
     }
 }
 // POSIX ICU locale precedence, with Node's en-US fallback for C/POSIX.
-fn locale_from_environment() -> icu_locale::Locale {
+pub(crate) fn locale_from_environment() -> icu_locale::Locale {
     let name = ["LC_ALL", "LC_MESSAGES", "LANG"]
         .into_iter()
         .filter_map(|key| std::env::var(key).ok())

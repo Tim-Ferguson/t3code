@@ -1,6 +1,7 @@
 // Actual Rust WASM target math compared with unchanged original theme/Culori witnesses.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { gunzipSync } from "node:zlib";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const wasm = require("../target/theme-oracle-node/t3_theme_wasm_oracle.js");
@@ -115,6 +116,28 @@ for (const [i, row] of vscodeRows.entries()) {
     failures.push({ kind: "vscode", i, actual, expected });
   }
 }
+const [packageHeader, ...packageRows] = gunzipSync(
+  readFileSync(new URL("../crates/client/tests/fixtures/openvsx-themes.jsonl.gz", import.meta.url)),
+)
+  .toString()
+  .trimEnd()
+  .split("\n")
+  .map((line) => JSON.parse(line));
+let packages = 0;
+for (const [i, row] of packageRows.entries()) {
+  const actual = JSON.parse(
+    wasm.openvsx(JSON.stringify({ ...row, input: packageHeader.dictionary[row.input] })),
+  );
+  const expected = row.error
+    ? { error: row.error }
+    : { value: packageHeader.dictionary[row.expected] };
+  try {
+    assert.deepEqual(actual, expected);
+    packages++;
+  } catch (error) {
+    failures.push({ kind: "openvsx", i, actual, expected });
+  }
+}
 assert.equal(failures.length, 0, JSON.stringify(failures.slice(0, 10), null, 2));
 console.log(
   JSON.stringify({
@@ -124,5 +147,6 @@ console.log(
     families,
     editors,
     vscode,
+    packages,
   }),
 );
