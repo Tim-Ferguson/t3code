@@ -188,6 +188,30 @@ impl LocalDeviceHost {
     pub fn state_dir(&self) -> &Path {
         &self.0.options.state_dir
     }
+    pub async fn agent_cli(&self) -> Result<(PathBuf, PathBuf), DeviceError> {
+        let node = self.0.options.node_override.clone().or_else(|| {
+            crate::acp_registry_spawn::resolve_executable(
+                if self.0.options.platform == "win32" { "node.exe" } else { "node" },
+                &self.0.options.environment,
+            )
+        }).ok_or_else(|| DeviceError::DeviceHostUnavailableError(failure(
+            "Device automation requires Node.js. Install Node.js and make sure node is on PATH, then retry.", None)))?;
+        let paths = self
+            .0
+            .toolchain
+            .ensure(DeviceToolKind::Agent)
+            .await
+            .map_err(|error| {
+                DeviceError::DeviceOperationError(DeviceOperationError {
+                    tag: DeviceOperationErrorTag::DeviceOperationError,
+                    operation: "install agent CLI".into(),
+                    reason: DeviceOperationFailureReason::CommandFailed,
+                    exit_code: None,
+                    cause: serde_json::to_value(error).unwrap(),
+                })
+            })?;
+        Ok((node, paths.entry_path))
+    }
     pub fn current_agent(&self) -> Option<crate::device_agent_daemon::AgentDeviceEndpoint> {
         self.0.agent.current()
     }

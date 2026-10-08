@@ -67,6 +67,11 @@ impl CodexInstance {
     }
     pub async fn connect(&self, cwd: &Path) -> Result<CodexConnection, ProcessError> {
         let process = ProviderProcess::spawn(self.process_options(cwd)?)?;
+        Self::initialize_process(process).await
+    }
+    pub(crate) async fn initialize_process(
+        process: ProviderProcess,
+    ) -> Result<CodexConnection, ProcessError> {
         let events = process.subscribe();
         let initialize = process
             .request("initialize", initialize_params(), Duration::from_secs(10))

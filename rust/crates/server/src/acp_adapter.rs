@@ -751,6 +751,7 @@ impl Actor {
         pending_startup: &mut Option<crate::acp_coordinator::ForegroundStartup>,
         pending_access: &mut Option<crate::provider_auth_flow::SessionAccess>,
         lifetime: &crate::codex_runtime::ActorLifetime,
+        mcp: Option<&crate::provider_mcp::CredentialLease>,
     ) -> Result<Self, StoreError> {
         let view = projection(&store, thread_id)?;
         let instance_id = lifetime
@@ -815,10 +816,19 @@ impl Actor {
         // Keep callbacks outside the cancellable initialize/load future. Their
         // owned terminals must be reaped before runtime ownership is released.
         *pending_services = Some(services.clone());
-        let session = instance
-            .start_peer_with_services(peer, &cwd, saved, false, services)
-            .await
-            .map_err(error)?;
+        let session = match mcp {
+            Some(mcp) => {
+                instance
+                    .start_peer_with_mcp(peer, &cwd, saved, services, mcp)
+                    .await
+            }
+            None => {
+                instance
+                    .start_peer_with_services(peer, &cwd, saved, false, services)
+                    .await
+            }
+        }
+        .map_err(error)?;
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = at(Utc::now());
         let mut capabilities: Value =
@@ -870,8 +880,7 @@ impl Actor {
                 .as_array()
                 .is_some_and(|options| options.iter().any(|option| option["category"] == "model"))
         );
-        // This bridge does not yet advertise the application MCP toolkit.
-        capabilities["tools"]["supportsMcpTools"] = json!(false);
+        capabilities["tools"]["supportsMcpTools"] = json!(mcp.is_some());
         commit(&store, thread_id, |_| {
             Ok(vec![(
                 "provider-session.attached",
@@ -1702,6 +1711,7 @@ pub(crate) async fn actor(
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
     lifetime: crate::codex_runtime::ActorLifetime,
+    mcp: Option<&crate::provider_mcp::CredentialLease>,
 ) {
     let mut runtime: Option<Actor> = None;
     let mut pending_peer = None;
@@ -1720,7 +1730,7 @@ pub(crate) async fn actor(
             incoming=work.recv()=>{
                 let Some(incoming)=incoming else{break};let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
-                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
+                    result=async{if starting {if let Some(mcp)=mcp {mcp.touch();}}if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime,mcp).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };

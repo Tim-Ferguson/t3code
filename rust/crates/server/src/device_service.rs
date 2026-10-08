@@ -159,6 +159,9 @@ impl DeviceService {
     pub fn snapshot(&self) -> DeviceServiceState {
         self.0.state.lock().unwrap().snapshot.clone()
     }
+    pub async fn agent_cli(&self) -> Result<(std::path::PathBuf, std::path::PathBuf), DeviceError> {
+        self.0.host.agent_cli().await
+    }
     pub fn subscribe(&self) -> DeviceSubscription {
         let (receiver, id, snapshot) = {
             let mut state = self.0.state.lock().unwrap();

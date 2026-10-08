@@ -40,8 +40,11 @@ impl ActorLifetime {
         self.instance.lock().unwrap().clone()
     }
     pub(crate) async fn stop_and_wait(&self) {
-        let mut done = self.done.subscribe();
         self.stop.send_replace(true);
+        self.wait_finished().await;
+    }
+    async fn wait_finished(&self) {
+        let mut done = self.done.subscribe();
         while !*done.borrow_and_update() {
             if done.changed().await.is_err() {
                 break;
@@ -71,6 +74,22 @@ impl Drop for RuntimeOwner {
     }
 }
 impl RuntimeOwner {
+    pub(crate) async fn wait_instances(&self, instances: &[String]) {
+        let actors = self
+            .actors
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|actor| {
+                actor
+                    .captured_instance()
+                    .as_ref()
+                    .is_some_and(|instance| instances.contains(instance))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        futures_util::future::join_all(actors.iter().map(ActorLifetime::wait_finished)).await;
+    }
     #[cfg(test)]
     pub(crate) fn cancellation_target(&self, thread_id: &str) -> Option<String> {
         self.cancellations
@@ -273,29 +292,60 @@ struct Actor {
     native_thread_id: Option<String>,
     native_turn_id: Option<String>,
     callbacks: HashMap<String, Value>,
+    mcp: Option<crate::mcp_sessions::ProviderSessionConfig>,
 }
 async fn actor(
     store: Store,
     providers: ProviderRegistry,
     thread_id: String,
-    work: mpsc::Receiver<Work>,
+    mut work: mpsc::Receiver<Work>,
     lifetime: ActorLifetime,
     canceled: watch::Receiver<Option<String>>,
 ) {
     let instance_id = lifetime.captured_instance();
     let _finished = ActorFinished(lifetime.clone());
-    let stopped = lifetime.stop.subscribe();
+    let mut stopped = lifetime.stop.subscribe();
+    if *stopped.borrow() {
+        return;
+    }
+    let mcp = match instance_id
+        .as_deref()
+        .map(|instance| providers.reserve_mcp(&store, &thread_id, instance))
+        .transpose()
+    {
+        Ok(credential) => credential.flatten(),
+        Err(error) => {
+            tokio::select! {biased; _=stopped.wait_for(|stop|*stop)=>{}, incoming=work.recv()=>{if let Some(work)=incoming {let _=work.complete.send(Err(error));}}}
+            return;
+        }
+    };
     if instance_id
         .as_deref()
         .and_then(|id| providers.driver(id).ok())
         == Some("acpRegistry")
     {
         crate::acp_adapter::actor(
-            store, providers, thread_id, work, stopped, canceled, lifetime,
+            store,
+            providers,
+            thread_id,
+            work,
+            stopped,
+            canceled,
+            lifetime,
+            mcp.as_ref(),
         )
         .await;
     } else {
-        codex_actor(store, providers, thread_id, work, stopped, canceled).await;
+        codex_actor(
+            store,
+            providers,
+            thread_id,
+            work,
+            stopped,
+            canceled,
+            mcp.as_ref(),
+        )
+        .await;
     }
 }
 async fn codex_actor(
@@ -305,8 +355,10 @@ async fn codex_actor(
     mut work: mpsc::Receiver<Work>,
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
+    mcp: Option<&crate::provider_mcp::CredentialLease>,
 ) {
     let mut runtime: Option<Actor> = None;
+    let mut pending_process = None;
     let mut user_cancelled = false;
     loop {
         if *stopped.borrow() {
@@ -319,7 +371,8 @@ async fn codex_actor(
                 let starting=incoming.effect.request["type"]=="provider-turn.start";
                 let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {result=async {
-                    if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id).await?);}
+                    if starting {if let Some(mcp)=mcp {mcp.touch();}}
+                    if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_process,mcp).await?);pending_process.take();}
                     runtime.as_mut().unwrap().effect(&incoming.effect).await
                 }=>result,_=stopped.changed()=>{break;},_=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{user_cancelled=true;Err("The run was interrupted during provider startup.".into())}};
                 let close=starting && result.is_err();
@@ -343,6 +396,9 @@ async fn codex_actor(
     // closed. A new run must create a fresh actor instead of entering a mailbox
     // that the old actor will never drain while its subprocess is being reaped.
     work.close();
+    if let Some(process) = pending_process {
+        process.shutdown().await;
+    }
     if let Some(runtime) = runtime {
         report(
             terminal(
@@ -375,17 +431,7 @@ async fn codex_actor(
             }),
             "session cleanup",
         );
-        let mut events = runtime.connection.events;
-        drop(runtime.connection.process);
-        // The subprocess actor emits Closed only after killing and reaping its child.
-        let _ = tokio::time::timeout(Duration::from_secs(5), async {
-            while let Ok(event) = events.recv().await {
-                if matches!(event, ProcessEvent::Closed(_)) {
-                    break;
-                }
-            }
-        })
-        .await;
+        runtime.connection.process.shutdown().await;
     }
 }
 pub(crate) fn projection(store: &Store, id: &str) -> Result<Value, StoreError> {
@@ -458,6 +504,8 @@ impl Actor {
         store: Store,
         providers: &ProviderRegistry,
         thread_id: &str,
+        pending_process: &mut Option<crate::provider_process::ProviderProcess>,
+        mcp: Option<&crate::provider_mcp::CredentialLease>,
     ) -> Result<Self, String> {
         let projection = projection(&store, thread_id).map_err(|error| error.to_string())?;
         let instance_id = projection["thread"]["modelSelection"]["instanceId"]
@@ -481,8 +529,14 @@ impl Actor {
         if !cwd.is_dir() {
             return Err("Workspace root is not a directory.".into());
         }
-        let connection = instance
-            .connect(&cwd)
+        let process = crate::provider_process::ProviderProcess::spawn(
+            instance
+                .process_options(&cwd)
+                .map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+        *pending_process = Some(process.clone());
+        let connection = CodexInstance::initialize_process(process)
             .await
             .map_err(|error| error.to_string())?;
         let session_id = uuid::Uuid::new_v4().to_string();
@@ -500,6 +554,7 @@ impl Actor {
             native_thread_id: None,
             native_turn_id: None,
             callbacks: HashMap::new(),
+            mcp: mcp.map(|lease| lease.config.clone()),
         })
     }
     async fn effect(&mut self, effect: &Effect) -> Result<(), String> {
@@ -574,6 +629,9 @@ impl Actor {
         if self.native_thread_id.is_none() {
             let saved = provider_thread["nativeThreadRef"]["nativeId"].as_str();
             let mut params = json!({"cwd":cwd,"model":model["model"],"config":{"tools.update_plan.enabled":true}});
+            if let Some(mcp) = &self.mcp {
+                params["config"]["mcp_servers"] = json!({"t3-code":{"url":mcp.endpoint,"http_headers":{"Authorization":mcp.authorization_header}}});
+            }
             if let Some(id) = saved {
                 params["threadId"] = json!(id);
             }
@@ -1209,6 +1267,63 @@ pub(crate) fn recover(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn failed_mcp_reservation_and_shutdown_before_first_poll_finish_without_waiting_for_work()
+    {
+        let store = Store::memory().unwrap();
+        let settings = serde_json::from_value(
+            json!({"providerInstances":{"codex":{"driver":"codex","enabled":false}}}),
+        )
+        .unwrap();
+        let providers = ProviderRegistry::discover(&settings, std::path::Path::new("/tmp"))
+            .await
+            .unwrap();
+        let registry = crate::mcp_sessions::McpSessionRegistry::new(
+            "environment".parse().unwrap(),
+            None,
+            Arc::new(|| 0),
+            100,
+        );
+        providers.set_mcp_sessions(crate::provider_mcp::ProviderMcpSessions::new(
+            registry,
+            std::path::PathBuf::from("/t3-server"),
+        ));
+        for already_stopped in [false, true] {
+            let (_work, receive) = mpsc::channel(1);
+            let (_cancel, canceled) = watch::channel(None);
+            let lifetime = ActorLifetime::new(Some("codex".into()));
+            let mut done = lifetime.done.subscribe();
+            if already_stopped {
+                lifetime.stop.send_replace(true);
+            }
+            let future = actor(
+                store.clone(),
+                providers.clone(),
+                "missing-thread".into(),
+                receive,
+                lifetime.clone(),
+                canceled,
+            );
+            tokio::pin!(future);
+            if !already_stopped {
+                assert!(
+                    matches!(
+                        futures_util::poll!(future.as_mut()),
+                        std::task::Poll::Pending
+                    ),
+                    "failed reservation reached stop-aware work delivery"
+                );
+                lifetime.stop.send_replace(true);
+            }
+            tokio::time::timeout(Duration::from_secs(2), future)
+                .await
+                .unwrap();
+            assert!(
+                *done.borrow_and_update(),
+                "actor ownership has finished despite open work mailbox"
+            );
+        }
+    }
     #[test]
     fn source_runtime_policies_and_canonical_model_options_reach_codex() {
         for (mode, approval, reviewer, sandbox) in [

@@ -87,6 +87,12 @@ impl ExecutionService {
     pub async fn shutdown(&self) {
         self.runtime.shutdown().await;
     }
+    /// Await cleanup of the currently admitted actors for these instances.
+    /// This sends no stop signal; callers first cause their sessions to close.
+    /// Removed actors have already completed their process and credential cleanup.
+    pub async fn wait_provider_cleanup(&self, instances: &[String]) {
+        self.runtime.wait_instances(instances).await;
+    }
     pub fn dispatch(&self, input: &Value, now: DateTime<Utc>) -> Result<Receipt, StoreError> {
         let mut input = input.clone();
         if input["type"] == "message.dispatch" {

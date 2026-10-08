@@ -537,6 +537,24 @@ fn adopt_desktop_descriptors(
     }
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(result) = t3_server::agent_device_launcher::dispatch(std::env::args_os().skip(1)) {
+        match result {
+            Ok(code) => std::process::exit(code),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
+    if let Some(result) = t3_server::acp_mcp_bridge::dispatch(std::env::args_os().skip(1)) {
+        match result {
+            Ok(code) => std::process::exit(code),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        }
+    }
     let mut options = options()?;
     let bootstrap_owner = acquire_bootstrap(&mut options)?;
     let descriptors = adopt_desktop_descriptors(&options, bootstrap_owner)?;
@@ -642,6 +660,20 @@ async fn run(
     if config.is_none() {
         config = Some(native_config.snapshot.clone());
     }
+    let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
+    let mcp_registry = t3_server::mcp_sessions::McpSessionRegistry::new(
+        environment_id.parse()?,
+        Some(listener.local_addr()?),
+        std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
+        t3_server::mcp_sessions::DEFAULT_LIVENESS_WINDOW_MS,
+    );
+    let native_executable = std::env::current_exe()?;
+    native_config
+        .providers
+        .set_mcp_sessions(t3_server::provider_mcp::ProviderMcpSessions::new(
+            mcp_registry.clone(),
+            native_executable.clone(),
+        ));
     let execution = t3_server::execution::ExecutionService::try_start_with_lease(
         store.clone(),
         native_config.providers.clone(),
@@ -763,6 +795,17 @@ async fn run(
     } else {
         None
     };
+    let mcp = t3_server::mcp_http::McpHttpService::new(
+        mcp_registry.clone(),
+        devices
+            .as_ref()
+            .map(|devices| t3_server::mcp_device::McpDeviceTools {
+                devices: devices.clone(),
+                store: store.clone(),
+                state_dir: state_dir.clone(),
+                executable: native_executable.clone(),
+            }),
+    );
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -783,13 +826,15 @@ async fn run(
         devices: devices.clone(),
         provider_auth: Some(provider_auth.clone()),
     };
-    let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
-    axum::serve(listener, router(state))
-        .with_graceful_shutdown(async {
+    let stopping_mcp = mcp.clone();
+    axum::serve(listener, router(state).merge(mcp.router()))
+        .with_graceful_shutdown(async move {
             let _ = tokio::signal::ctrl_c().await;
+            stopping_mcp.shutdown().await;
         })
         .await?;
+    mcp.shutdown().await;
     if let Some(background) = background {
         background.shutdown().await;
     }

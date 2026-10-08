@@ -1,0 +1,440 @@
+[
+  {
+    "name": "device_list",
+    "description": "List iOS Simulators and Android Emulators on this environment's device hosts, which platforms each host can run, and which devices are already open in this thread's Device panel. Call this before device_open when you do not know a device id.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "hostId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "Limit to one device host. Defaults to all hosts."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "hostStatuses": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": ["disabled", "idle", "installing", "starting", "ready", "failed"]
+              },
+              "detail": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["status"],
+            "additionalProperties": true
+          }
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["local", "ssh"]
+              },
+              "label": {
+                "type": "string"
+              },
+              "platforms": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "platform": {
+                      "type": "string",
+                      "enum": ["ios", "android"]
+                    },
+                    "available": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": ["platform", "available"],
+                  "additionalProperties": true
+                }
+              },
+              "tools": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "hub": {
+                        "type": "object",
+                        "properties": {
+                          "requiredVersion": {
+                            "type": "string"
+                          },
+                          "installedVersions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "runningVersion": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["requiredVersion", "installedVersions", "runningVersion"],
+                        "additionalProperties": true
+                      },
+                      "agent": {
+                        "type": "object",
+                        "properties": {
+                          "requiredVersion": {
+                            "type": "string"
+                          },
+                          "installedVersions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "runningVersion": {
+                            "anyOf": [
+                              {
+                                "type": "string"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": ["requiredVersion", "installedVersions", "runningVersion"],
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": ["hub", "agent"],
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "toolInspectionError": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "hubInstalled": {
+                "type": "boolean"
+              },
+              "agentDeviceInstalled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "label",
+              "platforms",
+              "hubInstalled",
+              "agentDeviceInstalled"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hostId": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "platform": {
+                "type": "string",
+                "enum": ["ios", "android"]
+              },
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "booted": {
+                "type": "boolean"
+              },
+              "physical": {
+                "type": "boolean"
+              }
+            },
+            "required": ["hostId", "id", "platform", "name", "version", "booted", "physical"],
+            "additionalProperties": true
+          }
+        },
+        "open": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "hostId": {
+                "type": "string"
+              },
+              "deviceId": {
+                "type": "string"
+              }
+            },
+            "required": ["hostId", "deviceId"],
+            "additionalProperties": true
+          }
+        }
+      },
+      "required": ["hostStatuses", "hosts", "devices", "open"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "List devices",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false
+    }
+  },
+  {
+    "name": "device_open",
+    "description": "Open a simulator or emulator for this thread: boots it if needed, starts its live stream, and shows it in the user's Device panel so they can watch. Returns the agent-device CLI invocation pinned to the device; drive the device with that CLI afterwards.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["ios", "android"],
+              "description": "Required when deviceId is omitted and both platforms are available."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hostId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true,
+      "description": "Boots the device if needed, starts its live stream, and opens the Device panel so the user can watch. Returns how to drive it with the agent-device CLI."
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "object",
+          "properties": {
+            "hostId": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "platform": {
+              "type": "string",
+              "enum": ["ios", "android"]
+            },
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "booted": {
+              "type": "boolean"
+            },
+            "physical": {
+              "type": "boolean"
+            }
+          },
+          "required": ["hostId", "id", "platform", "name", "version", "booted", "physical"],
+          "additionalProperties": true
+        },
+        "agentDevice": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "targetArgs": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": ["command", "targetArgs"],
+          "additionalProperties": true
+        },
+        "quickStart": {
+          "type": "string"
+        }
+      },
+      "required": ["device", "agentDevice", "quickStart"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Open device",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "device_close",
+    "description": "Remove a device from this thread's Device panel. Pass shutdown=true to also power the simulator or emulator off.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hostId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shutdown": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "Also power the simulator or emulator off. Defaults to false."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The device was closed."
+    },
+    "annotations": {
+      "title": "Close device",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "device_screenshot",
+    "description": "Capture the current screen of an open device as a PNG image. Use it to see what the user sees; for taps and text use the agent-device CLI.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "deviceId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hostId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Screenshot device",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  }
+]

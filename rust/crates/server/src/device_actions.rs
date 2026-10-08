@@ -112,7 +112,7 @@ fn text_size(value: &str, ios: bool) -> &'static str {
 }
 // JSON.stringify visits canonical array-index keys first and formats numbers
 // using ECMAScript semantics, including nested negative zero and exponent bounds.
-fn stringify(value: &Value) -> String {
+pub(crate) fn stringify(value: &Value) -> String {
     match value {
         Value::Number(number) => t3_acp::js_number(number),
         Value::Array(values) => format!(

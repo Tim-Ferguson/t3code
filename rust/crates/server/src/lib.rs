@@ -18,6 +18,11 @@ pub mod config;
 pub mod execution;
 pub mod history;
 pub mod launch;
+pub mod mcp_invocation;
+pub mod mcp_sessions;
+pub mod mcp_device;
+pub mod mcp_http;
+pub mod agent_device_launcher;
 pub mod persistence;
 pub mod project;
 pub mod provider_auth_flow;
@@ -25,6 +30,7 @@ pub mod provider_auth_rpc;
 pub mod provider_auth_service;
 pub mod provider_process;
 pub mod provider_registry;
+pub mod provider_mcp;
 pub mod thread;
 pub mod transport;
 pub mod wire_projection;
@@ -129,3 +135,5 @@ pub mod device_agent_target;
 
 #[cfg(all(test, unix))]
 mod provider_auth_rpc_tests;
+
+pub mod acp_mcp_bridge;

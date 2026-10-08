@@ -58,6 +58,7 @@ pub(crate) type AuthElicitation = Arc<
         + Sync,
 >;
 pub(crate) struct InitializedPeer {
+    mcp_servers: Vec<t3_acp::types::McpServer>,
     pub(crate) client: Client,
     pub(crate) initialize: InitializeResponse,
     receiver: mpsc::UnboundedReceiver<SessionEvent>,
@@ -381,6 +382,29 @@ impl AcpInstance {
         }
         result
     }
+    pub(crate) async fn start_peer_with_mcp(
+        &self,
+        peer: ProcessPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        services: crate::acp_client_callbacks::Services,
+        mcp: &crate::provider_mcp::CredentialLease,
+    ) -> Result<AcpSession, AcpError> {
+        let retained = services.clone();
+        let result = async {
+            let mut initialized = self
+                .initialize_only(peer, false, services, None, None)
+                .await?;
+            initialized.mcp_servers = vec![mcp.stdio_server()];
+            self.finish_initialized(initialized, cwd, saved_session, false, true)
+                .await
+        }
+        .await;
+        if result.is_err() {
+            retained.shutdown().await;
+        }
+        result
+    }
     pub(crate) async fn start_resolved_peer(
         &self,
         peer: ProcessPeer,
@@ -623,6 +647,7 @@ impl AcpInstance {
             command_sender,
             command_receiver,
             startup_events,
+            mcp_servers: vec![],
         })
     }
     pub(crate) async fn finish_initialized(
@@ -644,6 +669,7 @@ impl AcpInstance {
             command_sender,
             command_receiver,
             startup_events,
+            mcp_servers,
         } = initialized;
         let setup_session = || async {
             let setup = if let Some(session_id) = saved_session {
@@ -658,7 +684,7 @@ impl AcpInstance {
                         session_id: session_id.into(),
                         cwd: cwd.to_string_lossy().into(),
                         additional_directories: None,
-                        mcp_servers: Some(vec![]),
+                        mcp_servers: Some(mcp_servers.clone()),
                         meta: Optional::Missing,
                     })
                     .await?;
@@ -674,7 +700,7 @@ impl AcpInstance {
                     .create_session_typed(NewSessionRequest {
                         cwd: cwd.to_string_lossy().into(),
                         additional_directories: None,
-                        mcp_servers: vec![],
+                        mcp_servers: mcp_servers.clone(),
                         meta: Optional::Missing,
                     })
                     .await?

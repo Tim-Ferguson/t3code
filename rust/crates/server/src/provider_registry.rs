@@ -72,8 +72,73 @@ pub struct ProviderRegistry {
     observer: Option<Arc<crate::acp_coordinator::LiveObserver>>,
     auth: Arc<RwLock<Option<crate::provider_auth_service::WeakProviderAuthService>>>,
     health: crate::acp_health_jobs::Refreshes,
+    mcp: Arc<RwLock<Option<crate::provider_mcp::ProviderMcpSessions>>>,
 }
 impl ProviderRegistry {
+    pub fn set_mcp_sessions(&self, sessions: crate::provider_mcp::ProviderMcpSessions) {
+        *self.mcp.write().unwrap() = Some(sessions);
+    }
+    pub(crate) fn reserve_mcp(
+        &self,
+        store: &crate::persistence::Store,
+        thread: &str,
+        instance: &str,
+    ) -> Result<Option<crate::provider_mcp::CredentialLease>, String> {
+        let Some(sessions) = self.mcp.read().unwrap().clone() else {
+            return Ok(None);
+        };
+        let view = store
+            .projection("thread", thread)
+            .map_err(|error| error.to_string())?
+            .ok_or("Thread not found.")?;
+        let project_id: t3_contracts::ProjectId = view["thread"]["projectId"]
+            .as_str()
+            .ok_or("Thread project missing.")?
+            .parse()
+            .map_err(|error: t3_contracts::ValidationError| error.to_string())?;
+        let project_exists = store
+            .projection("project", project_id.as_str())
+            .map_err(|error| error.to_string())?
+            .is_some();
+        let settings = self.settings();
+        let overrides = settings.project_settings_overrides.get(&project_id);
+        let browser = if !project_exists
+            && settings
+                .project_settings_overrides
+                .values()
+                .any(|entry| entry.enable_agent_browser_access.is_some())
+        {
+            false
+        } else {
+            overrides
+                .and_then(|entry| entry.enable_agent_browser_access)
+                .unwrap_or(settings.enable_agent_browser_access)
+        };
+        let device = if !project_exists
+            && settings
+                .project_settings_overrides
+                .values()
+                .any(|entry| entry.enable_agent_device_access.is_some())
+        {
+            false
+        } else {
+            overrides
+                .and_then(|entry| entry.enable_agent_device_access)
+                .unwrap_or(settings.enable_agent_device_access)
+        };
+        sessions
+            .reserve(
+                thread
+                    .parse()
+                    .map_err(|error: t3_contracts::ValidationError| error.to_string())?,
+                instance
+                    .parse()
+                    .map_err(|error: t3_contracts::ValidationError| error.to_string())?,
+                browser,
+                device,
+            )
+            .map(Some)
+    }
     pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
         Self::discover_with_catalog(settings, cwd, None).await
     }
@@ -301,6 +366,7 @@ impl ProviderRegistry {
             observer: None,
             auth: Arc::new(RwLock::new(None)),
             health: Default::default(),
+            mcp: Default::default(),
         })
     }
     /// Existing registry clones observe a complete replacement after discovery.
