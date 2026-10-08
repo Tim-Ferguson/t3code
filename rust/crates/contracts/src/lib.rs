@@ -55,3 +55,6 @@ pub use resource_telemetry::*;
 
 pub mod resource_discovery;
 pub use resource_discovery::*;
+
+pub mod diagnostics;
+pub use diagnostics::*;

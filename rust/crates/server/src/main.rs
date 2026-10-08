@@ -394,6 +394,11 @@ async fn run(
         std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
     )
     .await;
+    let host_resources = t3_server::host_resources::HostResources::new(
+        t3_server::host_resources::HostResourcesOptions::host(std::sync::Arc::new(|| {
+            chrono::Utc::now().timestamp_millis()
+        })),
+    );
     let registry = t3_server::resource_ports::TerminalRegistry::default();
     let discovery = t3_server::resource_discovery::PortDiscovery::new(
         t3_server::resource_discovery::PortDiscoveryOptions::host(os, registry.clone())?,
@@ -421,6 +426,7 @@ async fn run(
         terminals: Some(terminals.clone()),
         discovery: Some(discovery.clone()),
         resource_telemetry: Some(resources.clone()),
+        host_resources: Some(host_resources.clone()),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -429,6 +435,7 @@ async fn run(
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
+    host_resources.shutdown().await;
     execution.shutdown().await;
     terminals.shutdown().await;
     discovery.shutdown().await;

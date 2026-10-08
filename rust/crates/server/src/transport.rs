@@ -41,6 +41,7 @@ pub struct ApiState {
     pub terminals: Option<crate::terminal_manager::TerminalManager>,
     pub discovery: Option<crate::resource_discovery::PortDiscovery>,
     pub resource_telemetry: Option<crate::resource_telemetry_service::ResourceTelemetry>,
+    pub host_resources: Option<crate::host_resources::HostResources>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -606,6 +607,68 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
 }
 
 async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Value> {
+    if matches!(
+        request.tag.as_str(),
+        "server.getHostResources"
+            | "server.getProcessDiagnostics"
+            | "server.getProcessResourceHistory"
+            | "server.signalProcess"
+    ) {
+        let failure = |error: String| json!({"_tag":"NativeServiceError","message":error});
+        if matches!(
+            request.tag.as_str(),
+            "server.getHostResources" | "server.getProcessDiagnostics"
+        ) && request.payload.is_null()
+        {
+            return Err(json!({"_tag":"SchemaDecodeError","message":"Expected a non-null value."}));
+        }
+        if request.tag == "server.getHostResources" {
+            let host=state.host_resources.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Host resources is not configured."}))?;
+            return Ok(serde_json::to_value(
+                host.read()
+                    .await
+                    .map_err(|error| failure(error.to_string()))?,
+            )
+            .unwrap());
+        }
+        let telemetry=state.resource_telemetry.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Resource telemetry is not configured."}))?;
+        return match request.tag.as_str() {
+            "server.getProcessResourceHistory" => {
+                let input: t3_contracts::ServerProcessResourceHistoryInput =
+                    terminal_decode(&request)?;
+                Ok(serde_json::to_value(
+                    crate::process_diagnostics::ProcessResourceMonitor(telemetry.clone())
+                        .read_history(&input)
+                        .await
+                        .map_err(|error| failure(error.to_string()))?,
+                )
+                .unwrap())
+            }
+            "server.getProcessDiagnostics" => Ok(serde_json::to_value(
+                crate::process_diagnostics::ProcessDiagnostics::new(
+                    telemetry.clone(),
+                    u64::from(std::process::id()),
+                )
+                .read()
+                .await
+                .map_err(|error| failure(error.to_string()))?,
+            )
+            .unwrap()),
+            _ => {
+                let input: t3_contracts::ServerSignalProcessInput = terminal_decode(&request)?;
+                Ok(serde_json::to_value(
+                    crate::process_diagnostics::ProcessDiagnostics::new(
+                        telemetry.clone(),
+                        u64::from(std::process::id()),
+                    )
+                    .signal(&input)
+                    .await,
+                )
+                .unwrap())
+            }
+        };
+    }
+
     if matches!(
         request.tag.as_str(),
         "server.getResourceTelemetryHistory" | "server.retryResourceTelemetry"
@@ -1322,7 +1385,17 @@ mod tests {
         .await;
         let mut api = state();
         api.resource_telemetry = Some(telemetry.clone());
-        let diagnostic = token(&api, vec![AuthEnvironmentScope::DiagnosticsRead]);
+        let host = crate::host_resources::HostResources::new(
+            crate::host_resources::HostResourcesOptions::host(Arc::new(|| 5000)),
+        );
+        api.host_resources = Some(host.clone());
+        let diagnostic = token(
+            &api,
+            vec![
+                AuthEnvironmentScope::DiagnosticsRead,
+                AuthEnvironmentScope::EnvironmentMaintain,
+            ],
+        );
         let readonly = token(&api, vec![AuthEnvironmentScope::OrchestrationRead]);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -1368,6 +1441,17 @@ mod tests {
                 json!({"windowMs":5000,"bucketMs":1000}),
             ),
             (3, "server.retryResourceTelemetry", json!({})),
+            (5, "server.getProcessDiagnostics", json!({})),
+            (
+                6,
+                "server.getProcessResourceHistory",
+                json!({"windowMs":5000,"bucketMs":1000}),
+            ),
+            (
+                7,
+                "server.signalProcess",
+                json!({"pid":std::process::id(),"startTimeMs":0,"signal":"SIGKILL"}),
+            ),
         ] {
             socket
                 .send(Message::Text(
@@ -1383,9 +1467,19 @@ mod tests {
             if id == 2 {
                 let _: t3_contracts::ResourceTelemetryHistory =
                     serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
-            } else {
+            } else if id == 3 {
                 let _: t3_contracts::ResourceTelemetryRetryResult =
                     serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
+            } else if id == 5 {
+                let _: t3_contracts::ServerProcessDiagnosticsResult =
+                    serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
+            } else if id == 6 {
+                let _: t3_contracts::ServerProcessResourceHistoryResult =
+                    serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
+            } else {
+                let value: t3_contracts::ServerSignalProcessResult =
+                    serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
+                assert!(!value.signaled);
             }
         }
         let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
@@ -1400,7 +1494,28 @@ mod tests {
         let refused = next(&mut reader).await;
         assert_eq!(refused["exit"]["_tag"], "Failure");
         assert!(refused.to_string().contains("diagnostics:read"));
-        tokio::join!(telemetry.shutdown(), desktop.shutdown());
+        for (id, tag, payload) in [
+            (8, "server.getHostResources", json!({})),
+            (9, "server.getHostResources", json!(1)),
+        ] {
+            reader
+                .send(Message::Text(
+                    json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+            let response = next(&mut reader).await;
+            assert_eq!(response["exit"]["_tag"], "Success");
+            let _: t3_contracts::HostResourcesSnapshot =
+                serde_json::from_value(response["exit"]["value"].clone()).unwrap();
+        }
+        reader.send(Message::Text(json!({"_tag":"Request","id":10,"tag":"server.signalProcess","payload":{"pid":std::process::id(),"startTimeMs":0,"signal":"SIGKILL"},"headers":[]}).to_string().into())).await.unwrap();
+        let denied = next(&mut reader).await;
+        assert_eq!(denied["exit"]["_tag"], "Failure");
+        assert!(denied.to_string().contains("environment:maintain"));
+        tokio::join!(telemetry.shutdown(), desktop.shutdown(), host.shutdown());
         let exit = next(&mut socket).await;
         assert_eq!(exit["requestId"], 1);
         assert_eq!(exit["_tag"], "Exit");
@@ -1562,6 +1677,7 @@ mod tests {
             terminals: None,
             discovery: None,
             resource_telemetry: None,
+            host_resources: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

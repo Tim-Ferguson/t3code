@@ -399,6 +399,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         terminals: None,
         discovery: None,
         resource_telemetry: None,
+        host_resources: None,
     };
     api
 }

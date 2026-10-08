@@ -49,4 +49,10 @@ pub mod desktop_telemetry;
 
 pub mod resource_attribution;
 pub mod resource_telemetry_service;
+
 pub mod desktop_telemetry_bootstrap;
+
+pub mod host_resources;
+mod host_system;
+
+pub mod process_diagnostics;

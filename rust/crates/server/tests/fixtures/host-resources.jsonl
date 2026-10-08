@@ -1,0 +1,30 @@
+{"op":"cache","result":{"sharedCalls":1,"value":1,"before":1,"calls":2,"cancels":1,"retained":false,"after":false,"now":5200,"expires":[5200]}}
+{"op":"vm_stat_nonzero","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10.\nPages inactive: 20.\nPages speculative: 30.\n","exitCode":7,"result":983040}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10.\nPages inactive: 20.\nPages speculative: 30.\n","result":983040}
+{"op":"darwin","input":"","result":null}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 0 bytes)\nPages free: 10.\nPages inactive: 20.\nPages speculative: 30.\n","result":null}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10.\nPages inactive: -20.\nPages speculative: 30.\n","result":null}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10\nPages inactive: 20.\nPages speculative: 30.\n","result":null}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10.\nPages inactive: 20.\nPages speculative: 9007199254740991.\n","result":null}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 1 bytes)\nPages free: 10.\nPages inactive: 20.\nPages speculative: 30.\n","result":60}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:﻿10.\nPages inactive: 20.\nPages speculative: 30.\n","result":983040}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:10.\nPages inactive: 20.\nPages speculative: 30.\n","result":null}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\r\nPages free: 10.\r\nPages inactive: 20.\r\nPages speculative: 30.\r\n","result":983040}
+{"op":"darwin","input":"Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 10.\nPages inactive: 20.\nPages speculative: 30.\nPages purgeable: 1000.","result":983040}
+{"op":"linux","input":"","result":null}
+{"op":"linux","input":"MemAvailable: 123 kB","result":125952}
+{"op":"linux","input":"MemAvailable: 0 kB","result":0}
+{"op":"linux","input":"MemAvailable: 123 kB\n","result":125952}
+{"op":"linux","input":"MemAvailable: 123 kB\r\n","result":125952}
+{"op":"linux","input":"MemAvailable: 123 kB ","result":null}
+{"op":"linux","input":"MemAvailable:﻿123 kB","result":125952}
+{"op":"linux","input":"MemAvailable:123 kB","result":null}
+{"op":"linux","input":"MemAvailable: 123 MB","result":null}
+{"op":"linux","input":" MemAvailable: 123 kB","result":null}
+{"op":"cpu","before":{"idle":100,"total":200,"count":2},"after":{"idle":120,"total":280,"count":2},"result":0.75}
+{"op":"cpu","before":{"idle":100,"total":200,"count":2},"after":{"idle":120,"total":280,"count":4},"result":null}
+{"op":"cpu","before":{"idle":100,"total":200,"count":2},"after":{"idle":0,"total":0,"count":2},"result":null}
+{"op":"cpu","before":{"idle":100,"total":200,"count":2},"after":{"idle":200,"total":201,"count":2},"result":0}
+{"op":"cpu","before":{"idle":100,"total":200,"count":2},"after":{"idle":100,"total":200,"count":2},"result":null}
+{"op":"cpu","before":{"idle":100,"total":200,"count":2},"after":{"idle":99,"total":250,"count":2},"result":null}
+{"op":"cpu","before":{"idle":0,"total":0,"count":0},"after":{"idle":0,"total":0,"count":0},"result":null}

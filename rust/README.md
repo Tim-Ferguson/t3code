@@ -37,8 +37,12 @@ cargo run --locked --manifest-path rust/Cargo.toml -p t3-server -- serve --state
 Those descriptors must already be inherited from the supervising desktop; they
 are adopted before runtime/database startup. Ordinary web startup omits them.
 The original bootstrap-envelope handshake, Windows descriptor adapter, live
-settings updates, host-resource/process-diagnostics RPCs and the desktop producer
-remain pending. Resource values retain source arithmetic and fail typed wire
+settings updates and the desktop producer remain pending. Host resources are
+sampled on demand with a shared five-second cache. The legacy process diagnostics,
+process history and scoped SIGINT/SIGKILL methods now project the resource service;
+signaling requires a fresh process identity and a permitted backend category.
+MacOS host sampling and owned-child signaling are tested; Linux and Windows
+host/signaling implementations still require platform execution tests. Resource values retain source arithmetic and fail typed wire
 validation when the original public schema cannot represent them.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
