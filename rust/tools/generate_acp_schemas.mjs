@@ -112,6 +112,21 @@ for (const [version, schemas] of [
     if (s?.ast) roots[`${version}.${name}`] = add(s.ast);
 const table = { roots, nodes };
 fs.writeFileSync(new URL("src/schema_table.json", out), JSON.stringify(table) + "\n");
+// Match the repository's commit formatter exactly without changing its config.
+// This is a development-time tool dependency only, like the source TS oracle.
+execFileSync(
+  process.execPath,
+  [
+    new URL("../../node_modules/vite-plus/bin/vp", import.meta.url).pathname,
+    "fmt",
+    new URL("src/schema_table.json", out).pathname,
+    "--threads=1",
+  ],
+  {
+    cwd: new URL("../../", import.meta.url).pathname,
+    stdio: "pipe",
+  },
+);
 function minimal(id, stack = new Set()) {
   if (stack.has(id)) return null;
   stack = new Set(stack).add(id);
