@@ -105,6 +105,9 @@ pub struct Transport {
     rpc: RpcSession,
     thread_subscription: Option<String>,
     generation: u64,
+    // Request ids restart on each socket, including automatic reconnects within
+    // the same user connection generation. Cancellation belongs to this epoch.
+    socket_generation: u64,
     opened: bool,
     thread_generation: u64,
     destination: Option<EnvironmentId>,
@@ -112,11 +115,19 @@ pub struct Transport {
     bearer_token: String,
     unary_waiters:
         std::collections::BTreeMap<String, futures_channel::oneshot::Sender<Result<Value, String>>>,
+    stream_waiters: std::collections::BTreeMap<String, StreamWaiter>,
+}
+struct StreamWaiter {
+    sender: futures_channel::mpsc::Sender<Vec<Value>>,
+    failure: Rc<RefCell<Option<String>>>,
 }
 impl Transport {
     fn fail_waiters(&mut self) {
         for (_, waiter) in std::mem::take(&mut self.unary_waiters) {
             let _ = waiter.send(Err("Connection closed before the server replied.".into()));
+        }
+        for (_, waiter) in std::mem::take(&mut self.stream_waiters) {
+            *waiter.failure.borrow_mut() = Some("Connection interrupted. Reconnecting…".into());
         }
     }
 }
@@ -239,7 +250,7 @@ pub async fn request_value(
             .unwrap_or_else(|| "Request unavailable.".into())
     })?;
     let (sender, receiver) = futures_channel::oneshot::channel();
-    let generation = handle.borrow().generation;
+    let generation = handle.borrow().socket_generation;
     handle.borrow_mut().unary_waiters.insert(id.clone(), sender);
     let _guard = UnaryRequestGuard {
         handle: handle.clone(),
@@ -259,10 +270,11 @@ struct UnaryRequestGuard {
 impl Drop for UnaryRequestGuard {
     fn drop(&mut self) {
         let mut transport = self.handle.borrow_mut();
-        if transport.generation != self.generation {
+        if transport.socket_generation != self.generation {
             return;
         }
         transport.unary_waiters.remove(&self.id);
+        transport.stream_waiters.remove(&self.id);
         if let Some(frame) = transport.rpc.cancel(&self.id) {
             if let Some(sender) = transport.sender.as_mut() {
                 sender.send(ewebsock::WsMessage::Text(frame.to_string()));
@@ -271,9 +283,124 @@ impl Drop for UnaryRequestGuard {
     }
 }
 
+/// A channel owns one Effect stream. Dropping the consumer interrupts the
+/// server stream and releases its waiter without retaining an unmounted view.
+pub struct StreamRequest {
+    receiver: futures_util::stream::Peekable<futures_channel::mpsc::Receiver<Vec<Value>>>,
+    failure: Rc<RefCell<Option<String>>>,
+    state: Store<UiModel>,
+    destination: EnvironmentId,
+    ended: bool,
+    _guard: UnaryRequestGuard,
+}
+impl StreamRequest {
+    #[cfg(test)]
+    pub(crate) async fn wait_ready(&mut self) -> bool {
+        std::pin::Pin::new(&mut self.receiver)
+            .peek()
+            .await
+            .is_some()
+    }
+    fn current(&self) -> bool {
+        let transport = self._guard.handle.borrow();
+        transport.socket_generation == self._guard.generation
+            && transport.destination.as_ref() == Some(&self.destination)
+            && self.state.peek().destination.as_ref() == Some(&self.destination)
+    }
+    fn interruption(&mut self) -> Option<String> {
+        if self.ended {
+            return None;
+        }
+        let error = if !self.current() {
+            Some("Stream destination or connection changed.".into())
+        } else {
+            self.failure.borrow_mut().take()
+        };
+        if error.is_some() {
+            self.ended = true;
+        }
+        error
+    }
+    pub async fn next(&mut self) -> Option<Result<Vec<Value>, String>> {
+        if self.ended {
+            return None;
+        }
+        if let Some(error) = self.interruption() {
+            return Some(Err(error));
+        }
+        let next = self.receiver.next().await;
+        if let Some(error) = self.interruption() {
+            return Some(Err(error));
+        }
+        match next {
+            Some(values) => {
+                let mut transport = self._guard.handle.borrow_mut();
+                if transport.socket_generation == self._guard.generation
+                    && transport.stream_waiters.contains_key(&self._guard.id)
+                {
+                    if let Some(sender) = transport.sender.as_mut() {
+                        sender.send(ewebsock::WsMessage::Text(
+                            json!({"_tag":"Ack","requestId":self._guard.id}).to_string(),
+                        ));
+                    }
+                }
+                Some(Ok(values))
+            }
+            None => {
+                self.ended = true;
+                None
+            }
+        }
+    }
+}
+pub fn request_stream(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+) -> Result<StreamRequest, String> {
+    let id = request(handle, state, method, payload, RequestKind::Stream).ok_or_else(|| {
+        state
+            .peek()
+            .error
+            .clone()
+            .unwrap_or_else(|| "Stream unavailable.".into())
+    })?;
+    // futures mpsc reserves one slot per sender: zero extra capacity means one
+    // admitted chunk. Its ACK is sent on consumption, never in the socket loop.
+    let (sender, receiver) = futures_channel::mpsc::channel(0);
+    let failure = Rc::new(RefCell::new(None));
+    let generation = handle.borrow().socket_generation;
+    let destination = handle
+        .borrow()
+        .destination
+        .clone()
+        .expect("request validated connection destination");
+    handle.borrow_mut().stream_waiters.insert(
+        id.clone(),
+        StreamWaiter {
+            sender,
+            failure: failure.clone(),
+        },
+    );
+    Ok(StreamRequest {
+        receiver: receiver.peekable(),
+        failure,
+        state,
+        destination,
+        ended: false,
+        _guard: UnaryRequestGuard {
+            handle: handle.clone(),
+            id,
+            generation,
+        },
+    })
+}
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct ResponseOwner {
     generation: u64,
+    socket_generation: u64,
     thread_generation: u64,
     destination: EnvironmentId,
     active_thread: Option<String>,
@@ -284,6 +411,7 @@ pub fn response_owner(handle: &TransportHandle, state: Store<UiModel>) -> Option
     let destination = model.destination.clone()?;
     (transport.destination.as_ref() == Some(&destination)).then(|| ResponseOwner {
         generation: transport.generation,
+        socket_generation: transport.socket_generation,
         thread_generation: transport.thread_generation,
         destination,
         active_thread: model.active_thread.clone(),
@@ -1012,6 +1140,7 @@ fn reset_for_connect(handle: &TransportHandle, mut state: Store<UiModel>) {
         }
         transport.rpc.disconnect();
         transport.fail_waiters();
+        transport.socket_generation += 1;
         transport.opened = false;
         transport.rpc = RpcSession::default();
         transport.thread_subscription = None;
@@ -1228,11 +1357,22 @@ async fn connect_once(
                     let result = handle.borrow_mut().rpc.receive(&text);
                     match result {
                         Ok((events, frames)) => {
-                            if let Some(sender) = handle.borrow_mut().sender.as_mut() {
+                            let mut transport = handle.borrow_mut();
+                            let frames: Vec<_> = frames
+                                .into_iter()
+                                .filter(|frame| {
+                                    frame["_tag"] != "Ack"
+                                        || frame["requestId"].as_str().is_none_or(|id| {
+                                            !transport.stream_waiters.contains_key(id)
+                                        })
+                                })
+                                .collect();
+                            if let Some(sender) = transport.sender.as_mut() {
                                 for frame in frames {
                                     sender.send(ewebsock::WsMessage::Text(frame.to_string()));
                                 }
                             }
+                            drop(transport);
                             for event in events {
                                 if matches!(&event, RpcEvent::Pong) {
                                     heartbeat.pong();
@@ -1282,7 +1422,23 @@ async fn connect_once(
 
 fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEvent) {
     match event {
-        RpcEvent::Values { method, values, .. } => {
+        RpcEvent::Values { id, method, values } => {
+            let mut transport = handle.borrow_mut();
+            if let Some(waiter) = transport.stream_waiters.get_mut(&id) {
+                if waiter.sender.try_send(values).is_err() {
+                    if let Some(waiter) = transport.stream_waiters.remove(&id) {
+                        *waiter.failure.borrow_mut() =
+                            Some("Terminal stream exceeded its acknowledged chunk window.".into());
+                    }
+                    if let Some(frame) = transport.rpc.cancel(&id) {
+                        if let Some(sender) = transport.sender.as_mut() {
+                            sender.send(ewebsock::WsMessage::Text(frame.to_string()));
+                        }
+                    }
+                }
+                return;
+            }
+            drop(transport);
             // The source RPC codec decodes the complete chunk before exposing it
             // to subscribers. Avoid committing a prefix of a malformed chunk.
             if method == "orchestration.subscribeShell" {
@@ -1317,6 +1473,7 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             }
         }
         RpcEvent::Complete { id, method, value } => {
+            handle.borrow_mut().stream_waiters.remove(&id);
             if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
                 let _ = waiter.send(Ok(value.clone()));
             }
@@ -1361,6 +1518,9 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             finish_pending_message(state, &id, true);
         }
         RpcEvent::Failed { id, cause, .. } => {
+            if let Some(waiter) = handle.borrow_mut().stream_waiters.remove(&id) {
+                *waiter.failure.borrow_mut() = Some(rpc_error_message(&cause));
+            }
             if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
                 let _ = waiter.send(Err(rpc_error_message(&cause)));
             }
@@ -1892,6 +2052,7 @@ mod tests {
         {
             let mut transport = handle.borrow_mut();
             transport.generation = 1;
+            transport.socket_generation = 1;
             transport.rpc = RpcSession::default();
         }
         let (id, _) = handle.borrow_mut().rpc.request(
@@ -1906,6 +2067,46 @@ mod tests {
         assert!(handle.borrow().unary_waiters.contains_key(&id));
         let (events,_)=handle.borrow_mut().rpc.receive(&json!({"_tag":"Exit","requestId":id,"exit":{"_tag":"Success","value":{"item":null}}}).to_string()).unwrap();
         assert!(matches!(&events[0], RpcEvent::Complete { .. }));
+    }
+    #[test]
+    fn auto_reconnect_socket_epoch_protects_reused_ids_without_user_generation_change() {
+        let handle = TransportHandle::default();
+        let (old_id, _) =
+            handle
+                .borrow_mut()
+                .rpc
+                .request("terminal.observe", json!({}), RequestKind::Stream);
+        let guard = UnaryRequestGuard {
+            handle: handle.clone(),
+            id: old_id.clone(),
+            generation: 0,
+        };
+        {
+            let mut transport = handle.borrow_mut();
+            transport.socket_generation += 1;
+            transport.rpc = RpcSession::default();
+        }
+        let (new_id, _) =
+            handle
+                .borrow_mut()
+                .rpc
+                .request("terminal.observe", json!({}), RequestKind::Stream);
+        assert_eq!(old_id, new_id);
+        let (sender, _receiver) = futures_channel::mpsc::channel(0);
+        handle.borrow_mut().stream_waiters.insert(
+            new_id.clone(),
+            StreamWaiter {
+                sender,
+                failure: Rc::default(),
+            },
+        );
+        drop(guard);
+        assert!(handle.borrow().stream_waiters.contains_key(&new_id));
+        assert_eq!(
+            handle.borrow().generation,
+            0,
+            "automatic socket replacement stays in same user connection generation"
+        );
     }
     #[test]
     fn bearer_requests_omit_cookies_for_hosted_remote_browser_compatibility() {

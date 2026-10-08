@@ -5784,6 +5784,7 @@ dependencies = [
 name = "t3-client"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "regex",
  "serde",
  "serde_json",

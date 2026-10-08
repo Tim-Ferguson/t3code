@@ -4,6 +4,7 @@ mod model_controls;
 mod new_thread;
 mod runtime;
 mod scroll_state;
+mod terminal_stream;
 mod thread_controls;
 mod timeline;
 mod timeline_scroll;

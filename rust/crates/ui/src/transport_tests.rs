@@ -1,12 +1,340 @@
 //! In-process integration through the real native HTTP/Effect WebSocket server.
 //! No browser, provider account, live T3 state, or persistent server is used.
 use super::*;
+use futures_util::Stream;
 use std::{cell::RefCell, rc::Rc, time::Duration};
 use t3_server::{
     auth::AuthService,
     persistence::Store as EventStore,
     transport::{ApiState, router},
 };
+
+async fn drive_future<F: std::future::Future>(
+    dom: &mut VirtualDom,
+    label: &str,
+    future: F,
+) -> F::Output {
+    let mut future = std::pin::pin!(future);
+    tokio::time::timeout(Duration::from_secs(8),async {
+        loop {
+            tokio::select! {
+                result=&mut future=>return result,
+                _=dom.wait_for_work()=>dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations),
+            }
+        }
+    }).await.unwrap_or_else(|_|panic!("UI/native terminal milestone {label} timed out"))
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn held_terminal_consumer_defers_ack_without_blocking_unary_metadata_or_other_sessions() {
+    terminal_stream_flow(16000, false).await;
+}
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn held_terminal_continuity_loss_reattaches_snapshot_and_resets_renderer_cursor() {
+    terminal_stream_flow(200000, true).await;
+}
+#[cfg(unix)]
+async fn terminal_stream_flow(burst_bytes: usize, recover: bool) {
+    use std::os::unix::fs::PermissionsExt;
+    use t3_client::terminal_session::BufferState;
+    use t3_server::terminal_manager::{TerminalManager, TerminalManagerOptions};
+    let directory = tempfile::tempdir().unwrap();
+    let script = directory.path().join("isolated-terminal.py");
+    let fixture = r#"#!/usr/bin/env python3
+import os,sys,tty
+tty.setraw(0)
+os.write(1,b'READY\r\n')
+for line in sys.stdin:
+ line=line.rstrip('\n')
+ if line=='BURST': os.write(1,b'x'*BURST_BYTES+b'BURST_END\r\n')
+ elif line.startswith('PART '):
+  _,index,count=line.split(' ')
+  tail=b'BURST_END\r\n' if index=='69' else b''
+  os.write(1,b'x'*int(count)+('PART_END_'+index+'\r\n').encode()+tail)
+ else: os.write(1,('ECHO:'+line+'\r\n').encode())
+"#;
+    std::fs::write(
+        &script,
+        fixture.replace("BURST_BYTES", &burst_bytes.to_string()),
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let mut options = TerminalManagerOptions::host(
+        directory.path().join("logs"),
+        &t3_contracts::ServerSettings::default(),
+    );
+    options.shell = Some(script.to_string_lossy().into_owned());
+    options.kill_grace = Duration::ZERO;
+    let terminals = TerminalManager::new(options).await.unwrap();
+    let mut api = api_fixture(&directory, "terminal-native-ui-test");
+    api.terminals = Some(terminals.clone());
+    let credential = api
+        .auth
+        .create_pairing_credential(
+            &[
+                AuthEnvironmentScope::OrchestrationRead,
+                AuthEnvironmentScope::TerminalRead,
+                AuthEnvironmentScope::TerminalOperate,
+            ],
+            chrono::Utc::now(),
+            chrono::Duration::minutes(1),
+        )
+        .unwrap();
+    let (address, server) = start_fixture(api).await;
+    let props = Harness {
+        state: Rc::new(RefCell::new(None)),
+        transport: TransportHandle::default(),
+        address,
+        credential,
+        initial: UiModel::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    drive_until(&mut dom, state, "terminal-connect", || {
+        state.peek().shell.synchronized
+    })
+    .await;
+    let input = json!({"threadId":"terminal-thread","terminalId":"term-1","cwd":directory.path()});
+    let mut held = dom
+        .in_scope(ScopeId::APP, || {
+            request_stream(&props.transport, state, "terminal.attach", input)
+        })
+        .unwrap();
+    let id = held._guard.id.clone();
+    assert!(
+        drive_future(
+            &mut dom,
+            "held-first-snapshot",
+            std::pin::Pin::new(&mut held.receiver).peek()
+        )
+        .await
+        .is_some()
+    );
+    // No next() call means no ACK. Even with a finished actual PTY burst the
+    // stream remains at one admitted snapshot, while unrelated RPCs progress.
+    let mut witness = terminals
+        .observe(
+            serde_json::from_value(json!({"threadId":"terminal-thread","terminalId":"term-1"}))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    // Attach's atomic snapshot can precede shell initialization. tty.setraw
+    // uses TCSAFLUSH, so prove READY before sending bytes into the owned PTY.
+    // This independent witness does not acknowledge the held UI stream.
+    drive_future(&mut dom, "PTY-ready-before-input", async {
+        let mut output = String::new();
+        while let Some(event) = witness.recv().await.unwrap() {
+            if let Some(history) = event["snapshot"]["history"].as_str() {
+                output.push_str(history)
+            }
+            if let Some(data) = event["data"].as_str() {
+                output.push_str(data)
+            }
+            if output.contains("READY") {
+                return;
+            }
+        }
+        panic!("PTY ended before READY")
+    })
+    .await;
+    let mut distinct_output_events = 0;
+    let parts = if recover { 70 } else { 1 };
+    for index in 0..parts {
+        let (data, marker) = if recover {
+            let count = burst_bytes / parts + usize::from(index < burst_bytes % parts);
+            (
+                format!("PART {index} {count}\n"),
+                format!("PART_END_{index}\r\n"),
+            )
+        } else {
+            ("BURST\n".to_owned(), "BURST_END\r\n".to_owned())
+        };
+        let (write_sender, write) = futures_channel::oneshot::channel();
+        let write_transport = props.transport.clone();
+        dom.in_scope(ScopeId::APP, || {
+            dioxus::dioxus_core::spawn_forever(async move {
+                let result = request_value(
+                    write_transport,
+                    state,
+                    "terminal.write",
+                    json!({"threadId":"terminal-thread","terminalId":"term-1","data":data}),
+                )
+                .await;
+                let _ = write_sender.send(result);
+            });
+        });
+        drive_future(&mut dom, "PTY-observed-part", async {
+            let mut output = String::new();
+            while let Some(event) = witness.recv().await.unwrap() {
+                if let Some(data) = event["data"].as_str() {
+                    output.push_str(data);
+                    distinct_output_events += 1;
+                }
+                if output.contains(&marker) {
+                    return;
+                }
+            }
+            panic!("PTY ended before observed part marker")
+        })
+        .await;
+        drive_future(&mut dom, "write-receipt-with-held-PTY", write)
+            .await
+            .unwrap()
+            .unwrap();
+    }
+    if recover {
+        assert!(
+            distinct_output_events > 64,
+            "seventy distinct observed PTY writes overflow64-event server listener independently of OS read chunking"
+        );
+    }
+    drive_future(
+        &mut dom,
+        "unrelated-config-with-held-PTY",
+        request_value(
+            props.transport.clone(),
+            state,
+            "server.getConfig",
+            json!({}),
+        ),
+    )
+    .await
+    .unwrap();
+    assert!(
+        props.transport.borrow().stream_waiters.contains_key(&id),
+        "no overflow/failure while held"
+    );
+    assert_eq!(
+        held.receiver.size_hint().0,
+        1,
+        "one unacknowledged admitted chunk"
+    );
+    let mut metadata = dom
+        .in_scope(ScopeId::APP, || {
+            crate::terminal_stream::MetadataStream::subscribe(&props.transport, state)
+        })
+        .unwrap();
+    let summaries = drive_future(&mut dom, "metadata-independent-progress", metadata.next())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        summaries
+            .iter()
+            .any(|summary| summary.terminal_id.as_str() == "term-1")
+    );
+    let mut other = dom
+        .in_scope(ScopeId::APP, || {
+            crate::terminal_stream::SessionStream::subscribe(
+                &props.transport,
+                state,
+                serde_json::from_value(
+                    json!({"threadId":"other-thread","terminalId":"term-1","cwd":directory.path()}),
+                )
+                .unwrap(),
+            )
+        })
+        .unwrap();
+    drive_future(&mut dom, "second-session-progress", other.next())
+        .await
+        .unwrap()
+        .unwrap();
+    let mut buffer = BufferState::next_attach_seed();
+    for event in drive_future(&mut dom, "consume-and-ack-held-snapshot", held.next())
+        .await
+        .unwrap()
+        .unwrap()
+    {
+        buffer.apply(&serde_json::from_value(event).unwrap())
+    }
+    let continuity_error = drive_future(&mut dom, "deferred-output-released-by-ACK", async {
+        loop {
+            let events = match held
+                .next()
+                .await
+                .expect("server stream ends with explicit continuity failure")
+            {
+                Ok(events) => events,
+                Err(error) => return Some(error),
+            };
+            for event in events {
+                buffer.apply(&serde_json::from_value(event).unwrap())
+            }
+            if t3_client::terminal_output::text(&buffer.output).contains("BURST_END") {
+                return None;
+            }
+        }
+    })
+    .await;
+    if recover {
+        assert!(
+            continuity_error
+                .as_deref()
+                .is_some_and(|error| error.contains("continuity")),
+            "a held200KB burst must report the native bounded stream gap, never silently drop data"
+        );
+        let old_cursor = t3_client::terminal_output::read(
+            &buffer.output,
+            t3_client::terminal_output::INITIAL_CURSOR,
+        )
+        .cursor();
+        let mut restored=dom.in_scope(ScopeId::APP,||crate::terminal_stream::SessionStream::subscribe(&props.transport,state,serde_json::from_value(json!({"threadId":"terminal-thread","terminalId":"term-1","cwd":directory.path()})).unwrap())).unwrap();
+        let snapshot = drive_future(&mut dom, "continuity-recovery-snapshot", restored.next())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_ne!(snapshot.output.generation, buffer.output.generation);
+        let update = t3_client::terminal_output::read(&snapshot.output, old_cursor);
+        let t3_client::terminal_output::OutputUpdate::Reset { data, .. } = update else {
+            panic!("new attach must reset an old renderer cursor")
+        };
+        assert_eq!(
+            data.matches("BURST_END").count(),
+            1,
+            "retained snapshot replay contains final output exactly once"
+        );
+        assert!(data.contains("READY"));
+        buffer = snapshot;
+        drop(restored);
+    } else {
+        assert!(continuity_error.is_none());
+    }
+    assert!(buffer.output.retained_bytes <= 512 * 1024);
+    let mut abandoned=dom.in_scope(ScopeId::APP,||crate::terminal_stream::SessionStream::subscribe(&props.transport,state,serde_json::from_value(json!({"threadId":"terminal-thread","terminalId":"term-1","cwd":directory.path()})).unwrap())).unwrap();
+    assert!(
+        drive_future(
+            &mut dom,
+            "abandoned-queued-snapshot",
+            abandoned.wait_ready()
+        )
+        .await
+    );
+    let original = state.peek().destination.clone();
+    state.destination().set(Some(
+        EnvironmentId::new("other-environment-same-terminal-ids").unwrap(),
+    ));
+    assert!(
+        abandoned.next().await.unwrap().is_err(),
+        "old destination delivery is rejected before a queued snapshot can alter the new pane"
+    );
+    assert_eq!(abandoned.buffer().version, 0);
+    assert_eq!(abandoned.buffer().output.retained_bytes, 0);
+    state.destination().set(original);
+    drop(abandoned);
+    drop(held);
+    assert!(!props.transport.borrow().stream_waiters.contains_key(&id));
+    drop(other);
+    drop(metadata);
+    drop(witness);
+    drop(dom);
+    terminals.shutdown().await;
+    server.abort();
+    let _ = server.await;
+}
 
 #[derive(Clone)]
 struct Harness {
