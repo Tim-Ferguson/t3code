@@ -4,6 +4,7 @@ mod draft_storage;
 mod font_service;
 mod model_controls;
 mod new_thread;
+mod provider_auth;
 mod provider_settings;
 mod runtime;
 mod scroll_state;

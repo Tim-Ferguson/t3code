@@ -67,8 +67,9 @@ layout and periodic provider, VCS, usage and Git consumers remain pending.
 Device-host settings resolve SSH aliases without connecting, exclude only self
 targets, and preserve proxies, forwarded ports and unresolved entries. Local device
 state and session lifecycle, consent configuration and agent-daemon bootstrap,
-reuse and shutdown are implemented. Authenticated provider/toolkit injection,
-the Rust agent CLI launcher and remote SSH hosts remain unfinished.
+reuse and shutdown are implemented. Other toolkit injection pipelines and remote
+SSH hosts remain unfinished; the guarded launcher uses an externally installed
+agent-device CLI.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and
@@ -86,8 +87,11 @@ enabled controls and per-instance removal/reset through atomic server mutations.
 Provider-only edits require the destination's `providers:manage` permission; mixed
 patches retain their additional settings permissions. Tests cover opaque config
 and sibling preservation, grant revocation and replacement connections while
-edits are pending. Instance creation, provider authentication controls, command
-argument editing and complete provider/model preferences remain unfinished.
+edits are pending. Account controls consume the advertised sign-in methods and
+live authentication stream, with browser consent, configured-environment guidance,
+ephemeral credential fields, an owned terminal, cancellation and sign out.
+Instance creation, command argument editing, automatic callback coordination and
+complete provider/model preferences remain unfinished.
 Pairing credentials exchange into bearer sessions;
 saved connections can be forgotten. The desktop UI defaults to the Rust server's
 port 3774, with `T3_SERVER_URL` available for another existing server. Mobile
@@ -133,10 +137,16 @@ and MCP presentation, live approvals, client filesystem and owned terminal
 callbacks, model/config changes, interruption and durable recovery. Registry raw,
 archive, npm and uv distributions can be installed. Scoped ACP authentication RPCs
 support browser, environment-credential and owned-terminal interactions, with
-owner privacy, cancellation and logout cleanup. UI authentication controls,
-provider-health confirmation refresh, complete registry management/profile
-transfer, other provider authentication, coordinator policy, MCP injection,
-handoff and checkpoint parity remain incomplete.
+owner privacy, cancellation, logout cleanup and provider-health refresh. Mounted
+Rust Account controls test these flows through native RPCs, including permission
+revocation and connection replacement. Exact source policy tests cover scalar
+Unicode strings; seven isolated UTF-16 slice witnesses remain a compatibility gap.
+Complete registry management/profile transfer, other provider authentication,
+coordinator policy, handoff and checkpoint parity remain incomplete. Provider
+sessions receive thread-scoped MCP credentials before startup, with native
+stdio/HTTP transport and authenticated device tools. External MCP authentication
+and OAuth challenges, other toolkits, negotiated ACP callback transport and Windows
+runtime verification remain incomplete.
 Other provider adapters, complete orchestration and filesystem/terminal services,
 desktop/mobile native
 integrations, and most interface features still require implementation. Thread creation requires a compatible server with configured

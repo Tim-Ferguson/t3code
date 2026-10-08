@@ -1419,3 +1419,35 @@ html[data-theme-token-probe] *::after {
     gap: 8px;
   }
 }
+.provider-account {
+  border-top: 1px solid var(--border);
+  margin-top: 18px;
+  padding-top: 14px;
+  min-width: 0;
+}
+.provider-account form {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.provider-account form label {
+  display: grid;
+  gap: 6px;
+}
+.provider-account .redacted-account {
+  font-family: var(--font-mono);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.provider-account .redacted-account.obscured {
+  filter: blur(3px);
+  user-select: none;
+}
+.provider-auth-terminal {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 12px;
+}

@@ -324,6 +324,10 @@ pub struct StreamRequest {
 }
 impl StreamRequest {
     #[cfg(test)]
+    pub(crate) fn request_id(&self) -> String {
+        self._guard.id.clone()
+    }
+    #[cfg(test)]
     pub(crate) async fn wait_ready(&mut self) -> bool {
         std::pin::Pin::new(&mut self.receiver)
             .peek()
@@ -2377,3 +2381,7 @@ mod tests {
 #[cfg(test)]
 #[path = "transport_tests.rs"]
 pub(crate) mod transport_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "provider_auth_tests.rs"]
+mod provider_auth_tests;

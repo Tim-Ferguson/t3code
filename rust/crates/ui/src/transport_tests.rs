@@ -9,7 +9,7 @@ use t3_server::{
     transport::{ApiState, router},
 };
 
-async fn drive_future<F: std::future::Future>(
+pub(crate) async fn drive_future<F: std::future::Future>(
     dom: &mut VirtualDom,
     label: &str,
     future: F,
@@ -375,7 +375,7 @@ async fn drive_until(
     }).await.unwrap_or_else(|_|panic!("UI/native stage {label} timed out: status={:?},error={:?},shell_synced={},thread_synced={}",state.peek().status,state.peek().error,state.peek().shell.synchronized,state.peek().thread.synchronized));
 }
 
-fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState {
+pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState {
     let store = EventStore::open(directory.path().join("isolated.sqlite")).unwrap();
     let auth = AuthService::new(
         store.clone(),
@@ -410,7 +410,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
     api
 }
 
-async fn start_fixture(api: ApiState) -> (String, tokio::task::JoinHandle<()>) {
+pub(crate) async fn start_fixture(api: ApiState) -> (String, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = format!("http://{}", listener.local_addr().unwrap());
     let server = tokio::spawn(async move {
@@ -1969,7 +1969,7 @@ fn existing_thread_choices_restore_and_remain_owned_by_destination_and_thread() 
     );
 }
 
-async fn provider_settings_fixture(
+pub(crate) async fn provider_settings_fixture(
     directory: &tempfile::TempDir,
 ) -> (ApiState, t3_server::server_settings::SettingsService) {
     use t3_server::{

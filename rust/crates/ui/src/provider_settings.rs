@@ -161,7 +161,7 @@ fn EnvironmentProviders(
                 }}
             }
             if let Some(row)=row {
-                ProviderEditor {key:"{row.instance_id}",state,row,live,pending:*pending.read(),allowed,onupdate:update}
+                ProviderEditor {key:"{row.instance_id}",state,transport:transport.clone(),environment:destination.clone(),row,live,pending:*pending.read(),allowed,onupdate:update}
             }else{p {"No configured provider instances."}}
         }
     }
@@ -170,6 +170,8 @@ fn EnvironmentProviders(
 #[component]
 fn ProviderEditor(
     state: Store<UiModel>,
+    transport: TransportHandle,
+    environment: String,
     row: policy::InstanceRow,
     live: Vec<Value>,
     pending: bool,
@@ -229,6 +231,7 @@ fn ProviderEditor(
             ProviderField {key:"{field.key}",field:field.clone(),config:row.instance["config"].clone(),disabled,onchange:modify}
         }
         if row.driver=="acpRegistry"&&row.instance["config"]["source"]=="local" {p {class:"muted","The executable runs on this environment."}}
+        if let Some(provider)=runtime {crate::provider_auth::Authentication {state,transport:transport.clone(),provider:provider.clone(),environment:state.environments().read().records.values().find(|record|record.id.as_str()==environment).map(|record|record.label.clone()).unwrap_or(environment.clone()),allowed}}
         div {class:"provider-editor-actions",
             if !row.is_default {button {"aria-label":"Delete instance",disabled,onclick:{let id=row.instance_id.clone();move |_|onupdate.call(json!({"patch":{},"providerInstanceMutation":{"operation":"remove","instanceId":id}}))},"Delete instance"}}
             else if row.is_dirty==Some(true) {button {"aria-label":"Reset provider settings",disabled,onclick:{let id=row.instance_id.clone();let driver=row.driver.clone();move |_|{
