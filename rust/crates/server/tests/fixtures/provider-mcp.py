@@ -14,6 +14,7 @@ if negotiated:
 connection_id = None
 callback_id = 0
 turn_ordinal = 0
+resumed = False
 authorization = None
 endpoint = None
 http_session = None
@@ -25,11 +26,11 @@ def emit(value):
 def reply(request, result):
     emit({"jsonrpc": "2.0", "id": request["id"], "result": result})
 
-def signal(method):
+def signal(method, **details):
     with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as channel:
         channel.sendto(json.dumps({"pid": os.getpid(), "method": method,
             "authorization": authorization,
-            "hash": hashlib.sha256((authorization or "").encode()).hexdigest()}).encode(), os.environ["MCP_SIGNAL"])
+            "hash": hashlib.sha256((authorization or "").encode()).hexdigest(), **details}).encode(), os.environ["MCP_SIGNAL"])
 
 def call(method, params, identifier):
     global http_session
@@ -55,8 +56,9 @@ def callback(method, params):
     assert response["id"] == identifier and "error" not in response, response
     return response["result"]
 
-def configure(params):
-    global authorization, endpoint, connection_id
+def configure(params, method):
+    global authorization, endpoint, connection_id, http_session
+    http_session = None
     if negotiated:
         servers = params["mcpServers"]
         if not servers:
@@ -67,9 +69,9 @@ def configure(params):
         assert initialized["protocolVersion"] == version
         emit({"jsonrpc": "2.0", "method": "mcp/message", "params": {"connectionId": connection_id, "method": "notifications/initialized"}})
         if scenario == "hold-http":
-            signal("configured")
+            signal("configured", cwd=params.get("cwd"), nativeMethod=method)
         assert "tools" in callback("mcp/message", {"connectionId": connection_id, "method": "tools/list"})
-        signal("configured")
+        signal("configured", cwd=params.get("cwd"), nativeMethod=method)
         return True
     if os.environ.get("MCP_EXPECT_DEVICE") is not None and not negotiated:
         configured = bool(params["mcpServers"]) if driver == "acp" else True
@@ -121,7 +123,7 @@ def configure(params):
     assert result["result"]["protocolVersion"] == version
     call("notifications/initialized", {}, None)
     assert "tools" in call("tools/list", {}, 2)["result"]
-    signal("configured")
+    signal("configured", cwd=params.get("cwd"), nativeMethod=method)
     return True
 
 for line in sys.stdin:
@@ -142,8 +144,11 @@ for line in sys.stdin:
             "displayName": "Fixture", "isDefault": True, "supportedReasoningEfforts": []}], "nextCursor": None})
     elif method == "skills/list":
         reply(request, {"data": []})
-    elif method in ("session/new", "session/load", "thread/start", "thread/resume"):
-        configured = configure(params)
+    elif method in ("session/new", "session/resume", "thread/start", "thread/resume"):
+        if method == "session/resume":
+            assert params["sessionId"] == "native-session"
+        resumed = method == "thread/resume"
+        configured = configure(params, method)
         if configured and scenario == "hold-startup":
             continue
         if configured and scenario == "fail-startup":
@@ -157,6 +162,17 @@ for line in sys.stdin:
                 "update": {"sessionUpdate": "available_commands_update", "availableCommands": []}}})
         else:
             reply(request, {"thread": {"id": "native-thread"}})
+    elif method == "thread/unsubscribe":
+        assert params["threadId"] == "native-thread"
+        signal("unloaded")
+        reply(request, {"status": "unsubscribed"})
+    elif method == "turn/interrupt":
+        assert params["turnId"] == "native-turn-2"
+        signal("interrupted")
+        if scenario == "workspace-interrupt-error":
+            emit({"id": request["id"], "error": {"code": -32603, "message": "Fixture interrupt failed"}})
+        else:
+            reply(request, {})
     elif method in ("session/set_config_option", "session/set_model"):
         reply(request, {})
     elif method in ("session/prompt", "turn/start"):
@@ -175,10 +191,12 @@ for line in sys.stdin:
             assert params["collaborationMode"]["mode"] == "default"
             assert "<collaboration_mode>" in params["collaborationMode"]["settings"]["developer_instructions"]
             granted = os.environ.get("MCP_EXPECT_DEVICE") == "true"
-            assert ("t3_code_tools" in context) == granted
+            browser = scenario == "workspace-rotate" and turn_ordinal == 4
+            assert ("t3_code_tools" in context) == (granted or browser)
             if granted:
                 assert "## T3 Code devices" in context["t3_code_tools"]["value"]
-                assert "collaborative browser" not in context["t3_code_tools"]["value"]
+            if granted or browser:
+                assert ("collaborative browser" in context["t3_code_tools"]["value"]) == browser
         if negotiated:
             assert "tools" in callback("mcp/message", {"connectionId": connection_id, "method": "tools/list"})
         else:
@@ -188,14 +206,25 @@ for line in sys.stdin:
             emit({"jsonrpc":"2.0","id":request["id"],"error":{"code":-32603,"message":"Fixture transient prompt rejection"}})
             continue
         if driver == "acp":
+            if scenario == "workspace-busy" and turn_ordinal == 2:
+                continue  # Prompt stays pending until detach kills this owned peer.
             emit({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "native-session",
                 "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "MCP OK"}}}})
             reply(request, {"stopReason": "end_turn"})
             emit({"jsonrpc": "2.0", "method": "session/update", "params": {"sessionId": "native-session",
                 "update": {"sessionUpdate": "state_update", "state": "idle", "stopReason": "end_turn"}}})
         else:
-            reply(request, {"turn": {"id": "native-turn"}})
+            native_turn = "native-turn-" + str(turn_ordinal)
+            reply(request, {"turn": {"id": native_turn}})
+            if scenario in ("workspace-busy", "workspace-interrupt-error") and turn_ordinal == 2:
+                continue
+            if resumed and scenario.startswith("workspace-"):
+                # Real Codex IDs distinguish old notifications from the resumed turn.
+                emit({"method": "item/agentMessage/delta", "params": {"threadId": "native-thread",
+                    "turnId": "native-turn-1", "itemId": "stale-item", "delta": "STALE DETACHED OUTPUT"}})
+                emit({"method": "turn/completed", "params": {"threadId": "native-thread",
+                    "turn": {"id": "native-turn-1", "status": "failed", "error": {"message": "Stale detached turn"}}}})
             emit({"method": "turn/completed", "params": {"threadId": "native-thread",
-                "turn": {"id": "native-turn", "status": "completed", "error": None}}})
+                "turn": {"id": native_turn, "status": "completed", "error": None}}})
     else:
         raise AssertionError("Unexpected fixture method: " + str(method))

@@ -1739,7 +1739,7 @@ pub(crate) async fn actor(
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
     lifetime: crate::codex_runtime::ActorLifetime,
-    mcp: Option<&crate::provider_mcp::CredentialLease>,
+    mcp: Option<crate::provider_mcp::CredentialLease>,
 ) {
     let mut runtime: Option<Actor> = None;
     let mut pending_peer = None;
@@ -1749,6 +1749,7 @@ pub(crate) async fn actor(
     // and successful sessions, until its callback/provider processes are reaped.
     let mut access = None;
     let mut interrupted = false;
+    let mut detached = None;
     loop {
         if *stopped.borrow() {
             break;
@@ -1756,9 +1757,21 @@ pub(crate) async fn actor(
         tokio::select! {
             _=stopped.changed()=>break,
             incoming=work.recv()=>{
-                let Some(incoming)=incoming else{break};let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
+                let Some(incoming)=incoming else{break};
+                if incoming.effect.request["type"] == "provider-session.detach" {
+                    if runtime.as_ref().is_some_and(|actor| incoming.effect.request["providerSessionId"] == actor.session_id) {
+                        // Exclusive ACP detach closes this process. Acknowledge
+                        // only after callbacks, peer, access and grant cleanup.
+                        detached = Some(incoming.complete);
+                        interrupted = true;
+                        break;
+                    }
+                    let _ = incoming.complete.send(Ok(()));
+                    continue;
+                }
+                let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
-                    result=async{if starting {if let Some(mcp)=mcp {mcp.touch();}}if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime,mcp).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
+                    result=async{if starting {if let Some(mcp)=mcp.as_ref() {mcp.touch();}}if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime,mcp.as_ref()).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };
@@ -1816,5 +1829,10 @@ pub(crate) async fn actor(
         }
         actor.callbacks.clear();
         actor.session.shutdown().await;
+    }
+    drop(access);
+    drop(mcp);
+    if let Some(detached) = detached {
+        let _ = detached.send(Ok(()));
     }
 }

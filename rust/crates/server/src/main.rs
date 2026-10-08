@@ -805,7 +805,12 @@ async fn run(
                 state_dir: state_dir.clone(),
                 executable: native_executable.clone(),
             }),
-    );
+    )
+    .with_controls(t3_server::mcp_control::McpControlTools {
+        store: store.clone(),
+        execution: Some(execution.clone()),
+        clock: std::sync::Arc::new(chrono::Utc::now),
+    });
     let state = ApiState {
         settings: settings_service.clone(),
         store,

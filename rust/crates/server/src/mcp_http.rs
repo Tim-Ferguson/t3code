@@ -1,5 +1,6 @@
 //! Authenticated MCP HTTP profile used by the original patched runtime.
 use crate::{
+    mcp_control::McpControlTools,
     mcp_device::McpDeviceTools,
     mcp_invocation::{InvocationScope, McpFailure},
     mcp_sessions::McpSessionRegistry,
@@ -23,6 +24,7 @@ const VERSION: &str = "2025-06-18";
 pub struct McpHttpService {
     registry: McpSessionRegistry,
     devices: Option<McpDeviceTools>,
+    controls: Option<McpControlTools>,
     state: Arc<Mutex<HttpState>>,
     stopped: tokio::sync::watch::Sender<bool>,
     idle: Arc<tokio::sync::Notify>,
@@ -94,10 +96,15 @@ impl McpHttpService {
         Self {
             registry,
             devices,
+            controls: None,
             state: Default::default(),
             stopped,
             idle: Default::default(),
         }
+    }
+    pub fn with_controls(mut self, controls: McpControlTools) -> Self {
+        self.controls = Some(controls);
+        self
     }
     pub fn router(&self) -> Router {
         Router::new()
@@ -302,7 +309,7 @@ impl McpHttpService {
                         state.sessions.insert(session.clone());
                     }
                     let mut capabilities = json!({"logging":{},"completions":{}});
-                    if self.devices.is_some() {
+                    if self.devices.is_some() || self.controls.is_some() {
                         capabilities["tools"] = json!({"listChanged":true});
                     }
                     let mut response = json_response(
@@ -316,11 +323,14 @@ impl McpHttpService {
                 }
                 "ping" => json_response(200, json!({"jsonrpc":"2.0","id":id,"result":{}})),
                 "tools/list" => {
-                    let tools: Value = if self.devices.is_some() {
+                    let mut tools: Vec<Value> = if self.devices.is_some() {
                         serde_json::from_str(include_str!("mcp_device_catalog.json")).unwrap()
                     } else {
-                        json!([])
+                        vec![]
                     };
+                    if self.controls.is_some() {
+                        tools.extend(McpControlTools::catalog());
+                    }
                     json_response(
                         200,
                         json!({"jsonrpc":"2.0","id":id,"result":{"tools":tools}}),
@@ -334,6 +344,22 @@ impl McpHttpService {
                         .get("arguments")
                         .cloned()
                         .unwrap_or_else(|| json!({}));
+                    if let Some(tools) = self
+                        .controls
+                        .as_ref()
+                        .filter(|_| McpControlTools::registered(name))
+                    {
+                        let mut response = match tools.call(scope, name, arguments).await {
+                            Ok(result) => {
+                                json_response(200, json!({"jsonrpc":"2.0","id":id,"result":result}))
+                            }
+                            Err(message) => error(200, id, -32602, "InvalidParams", message),
+                        };
+                        response
+                            .headers_mut()
+                            .insert("mcp-protocol-version", VERSION.parse().unwrap());
+                        return response;
+                    }
                     let Some(tools) = self.devices.as_ref().filter(|_| {
                         [
                             "device_list",
@@ -777,3 +803,7 @@ mod tests {
         }).await.expect("authenticated MCP fixture timed out");
     }
 }
+
+#[cfg(test)]
+#[path = "mcp_control_http_tests.rs"]
+mod cooperative_tests;

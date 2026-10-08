@@ -14,6 +14,10 @@ async fn signal(socket: &tokio::net::UnixDatagram, method: &str) -> Value {
     loop {
         let size = socket.recv(&mut bytes).await.unwrap();
         let value: Value = serde_json::from_slice(&bytes[..size]).unwrap();
+        eprintln!(
+            "provider fixture signal: {} (waiting for {method})",
+            value["method"]
+        );
         if value["method"] == method {
             return value;
         }
@@ -43,6 +47,7 @@ async fn exercise(driver: &str, scenario: &str) {
     exercise_with_device(driver, scenario, None).await;
 }
 async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>) {
+    eprintln!("provider fixture {driver}/{scenario}: discovery");
     let root = tempfile::tempdir().unwrap();
     let cwd = std::fs::canonicalize(root.path()).unwrap();
     let socket_path = cwd.join("mcp.sock");
@@ -160,6 +165,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
         execution.dispatch(&json!({"type":"message.dispatch","commandId":id,"threadId":thread,"messageId":id,"text":"Use MCP","attachments":[],"dispatchMode":{"type":"start_immediately"}}),Utc::now()).unwrap()
     };
     dispatch("first");
+    eprintln!("provider fixture {driver}/{scenario}: first startup");
     let configured = signal(&socket, "configured").await;
     let pid = configured["pid"].as_i64().unwrap() as i32;
     let authorization = configured["authorization"]
@@ -177,7 +183,18 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
                 })
                 .unwrap()
         });
-    if matches!(scenario, "normal" | "prompt-retry") {
+    let mut owned_pids = vec![pid];
+    let mut issued_authorizations = vec![authorization.clone()];
+    eprintln!("provider fixture {driver}/{scenario}: configured");
+    if matches!(
+        scenario,
+        "normal"
+            | "prompt-retry"
+            | "workspace-same"
+            | "workspace-rotate"
+            | "workspace-busy"
+            | "workspace-interrupt-error"
+    ) {
         let first = signal(&socket, "prompt").await;
         assert_eq!(
             settled(&store, &mut events, &thread, 1).await["status"],
@@ -194,12 +211,15 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
         // Reconfiguration replaces snapshots, while the admitted process and its
         // original MCP client remain alive between independently persisted turns.
         providers.reconfigure(&settings, &cwd).await.unwrap();
+        eprintln!("provider fixture {driver}/{scenario}: second turn");
         dispatch("second");
         let second = signal(&socket, "prompt").await;
-        assert_eq!(
-            settled(&store, &mut events, &thread, 2).await["status"],
-            "completed"
-        );
+        if !matches!(scenario, "workspace-busy" | "workspace-interrupt-error") {
+            assert_eq!(
+                settled(&store, &mut events, &thread, 2).await["status"],
+                "completed"
+            );
+        }
         if scenario == "prompt-retry" {
             dispatch("third");
             let third = signal(&socket, "prompt").await;
@@ -218,6 +238,123 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
                 .request_namespace,
             original
         );
+        if scenario.starts_with("workspace-") {
+            let workspace = cwd.join("reattached-workspace");
+            std::fs::create_dir(&workspace).unwrap();
+            let mut next_settings = settings.clone();
+            if scenario == "workspace-rotate" {
+                next_settings.enable_agent_browser_access = true;
+                providers.reconfigure(&next_settings, &cwd).await.unwrap();
+                // Source prepareMcpSession is skipped while already attached:
+                // a settings edit must not revoke the live provider's token.
+                dispatch("still-attached");
+                eprintln!("provider fixture {driver}/{scenario}: settings changed while attached");
+                let unchanged = signal(&socket, "prompt").await;
+                assert_eq!(
+                    settled(&store, &mut events, &thread, 3).await["status"],
+                    "completed"
+                );
+                assert_eq!(unchanged["hash"], first["hash"]);
+                assert!(
+                    !registry
+                        .resolve(authorization.strip_prefix("Bearer ").unwrap())
+                        .unwrap()
+                        .capabilities
+                        .contains(&t3_server::mcp_invocation::McpCapability::Preview)
+                );
+            }
+            let receipt = t3_server::thread::ThreadService::new(store.clone()).dispatch(&json!({"type":"thread.metadata.update","commandId":"workspace-change","threadId":thread,"worktreePath":workspace}), Utc::now()).unwrap();
+            assert_eq!(receipt.status, "accepted");
+            eprintln!("provider fixture {driver}/{scenario}: detach admitted");
+            assert!(
+                store.projection("thread", &thread).unwrap().unwrap()["providerSessions"]
+                    .as_array()
+                    .unwrap()
+                    .is_empty()
+            );
+            if driver == "codex" {
+                let unloaded = signal(&socket, "unloaded").await;
+                assert_eq!(unloaded["pid"], first["pid"]);
+                assert!(
+                    registry
+                        .resolve(authorization.strip_prefix("Bearer ").unwrap())
+                        .is_some(),
+                    "plain shared detach preserves its live process credential"
+                );
+            } else {
+                execution.wait_provider_cleanup(&[instance.into()]).await;
+                eprintln!("provider fixture {driver}/{scenario}: detached process reaped");
+                assert!(
+                    registry
+                        .resolve(authorization.strip_prefix("Bearer ").unwrap())
+                        .is_none(),
+                    "exclusive detach reaps before revoking its credential"
+                );
+                assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+                assert_eq!(
+                    std::io::Error::last_os_error().raw_os_error(),
+                    Some(libc::ESRCH)
+                );
+            }
+            if matches!(scenario, "workspace-busy" | "workspace-interrupt-error") {
+                assert_eq!(
+                    settled(&store, &mut events, &thread, 2).await["status"],
+                    "interrupted"
+                );
+            }
+            dispatch("reattached");
+            eprintln!("provider fixture {driver}/{scenario}: reattach admitted");
+            let configured = signal(&socket, "configured").await;
+            assert_eq!(configured["cwd"], json!(workspace));
+            assert_eq!(
+                configured["nativeMethod"],
+                if driver == "codex" {
+                    "thread/resume"
+                } else {
+                    "session/resume"
+                }
+            );
+            let reattached = signal(&socket, "prompt").await;
+            owned_pids.push(reattached["pid"].as_i64().unwrap() as i32);
+            issued_authorizations.push(reattached["authorization"].as_str().unwrap().to_owned());
+            let ordinal = if scenario == "workspace-rotate" { 4 } else { 3 };
+            assert_eq!(
+                settled(&store, &mut events, &thread, ordinal).await["status"],
+                "completed"
+            );
+            let view = store.projection("thread", &thread).unwrap().unwrap();
+            assert!(!view.to_string().contains("STALE DETACHED OUTPUT"));
+            assert!(!view.to_string().contains("Stale detached turn"));
+            if driver == "codex" {
+                assert_eq!(reattached["pid"], first["pid"]);
+                assert_eq!(
+                    reattached["hash"] == first["hash"],
+                    scenario != "workspace-rotate"
+                );
+            } else {
+                assert_ne!(reattached["pid"], first["pid"]);
+            }
+            let token = reattached["authorization"]
+                .as_str()
+                .unwrap()
+                .strip_prefix("Bearer ")
+                .unwrap();
+            assert_eq!(
+                registry
+                    .resolve(token)
+                    .unwrap()
+                    .capabilities
+                    .contains(&t3_server::mcp_invocation::McpCapability::Preview),
+                scenario == "workspace-rotate"
+            );
+            if scenario == "workspace-rotate" {
+                assert!(
+                    registry
+                        .resolve(authorization.strip_prefix("Bearer ").unwrap())
+                        .is_none()
+                );
+            }
+        }
     } else if scenario == "fail-startup" {
         assert_eq!(
             settled(&store, &mut events, &thread, 1).await["status"],
@@ -235,7 +372,15 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
             "interrupted"
         );
     }
-    if matches!(scenario, "normal" | "prompt-retry") {
+    if matches!(
+        scenario,
+        "normal"
+            | "prompt-retry"
+            | "workspace-same"
+            | "workspace-rotate"
+            | "workspace-busy"
+            | "workspace-interrupt-error"
+    ) {
         execution.shutdown().await;
     } else {
         // Failed/interrupted startup itself closes the actor. Observe its
@@ -247,6 +392,13 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
             .resolve(authorization.strip_prefix("Bearer ").unwrap())
             .is_none()
     );
+    for authorization in &issued_authorizations {
+        assert!(
+            registry
+                .resolve(authorization.strip_prefix("Bearer ").unwrap())
+                .is_none()
+        );
+    }
     let response = reqwest::Client::new()
         .post(format!("http://{address}/mcp"))
         .header("Authorization", authorization)
@@ -272,11 +424,13 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
                     && headers.get("mcp-session-id").is_some())
         );
     }
-    assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
-    assert_eq!(
-        std::io::Error::last_os_error().raw_os_error(),
-        Some(libc::ESRCH)
-    );
+    for pid in owned_pids {
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+        assert_eq!(
+            std::io::Error::last_os_error().raw_os_error(),
+            Some(libc::ESRCH)
+        );
+    }
     release_http.notify_one();
     execution.shutdown().await;
     http.shutdown().await;
@@ -337,6 +491,32 @@ async fn acp_failed_prompt_retries_instructions_then_success_reuses_instruction_
         Duration::from_secs(20),
         exercise("acp-negotiated", "prompt-retry"),
     )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn actual_workspace_detach_reattach_preserves_shared_credentials_and_rotates_only_on_reattach()
+ {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        for driver in ["codex", "acp"] {
+            for scenario in ["workspace-same", "workspace-rotate"] {
+                exercise(driver, scenario).await;
+            }
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn busy_workspace_detach_interrupts_and_reaps_or_unloads_before_reattach() {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        for driver in ["codex", "acp"] {
+            exercise(driver, "workspace-busy").await;
+        }
+        exercise("codex", "workspace-interrupt-error").await;
+    })
     .await
     .unwrap();
 }

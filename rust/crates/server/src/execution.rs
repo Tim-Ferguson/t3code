@@ -94,6 +94,15 @@ impl ExecutionService {
         self.runtime.wait_instances(instances).await;
     }
     pub fn dispatch(&self, input: &Value, now: DateTime<Utc>) -> Result<Receipt, StoreError> {
+        self.dispatch_guarded(input, now, |_, _| Ok(()))
+    }
+    /// Final trusted admission runs against the exact command planning state.
+    pub fn dispatch_guarded(
+        &self,
+        input: &Value,
+        now: DateTime<Utc>,
+        authorize: impl Fn(&rusqlite::Transaction<'_>, &Value) -> Result<(), StoreError>,
+    ) -> Result<Receipt, StoreError> {
         let mut input = input.clone();
         if input["type"] == "message.dispatch" {
             if input.get("createdBy").is_none() {
@@ -124,6 +133,7 @@ impl ExecutionService {
                         "Thread is deleted or archived.".into(),
                     ));
                 }
+                authorize(transaction, &projection)?;
                 match kind {
                     "message.dispatch" => {
                         let model = command

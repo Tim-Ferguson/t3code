@@ -239,6 +239,11 @@ impl Store {
         self.committed.subscribe()
     }
 
+    #[cfg(test)]
+    pub(crate) fn subscriber_count(&self) -> usize {
+        self.committed.receiver_count()
+    }
+
     pub fn latest_sequence(&self) -> Result<u64, StoreError> {
         let connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         latest(&connection)

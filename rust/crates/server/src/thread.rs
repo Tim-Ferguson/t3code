@@ -1,5 +1,5 @@
 use crate::persistence::{
-    Decision, Event, Store, StoreError, StoredEvent, read_projection, read_projections,
+    Decision, Event, NewEffect, Store, StoreError, StoredEvent, read_projection, read_projections,
     write_projection,
 };
 use chrono::{DateTime, SecondsFormat, Utc};
@@ -21,6 +21,14 @@ impl ThreadService {
         command: &Value,
         now: DateTime<Utc>,
     ) -> Result<crate::persistence::Receipt, StoreError> {
+        self.dispatch_guarded(command, now, |_, _| Ok(()))
+    }
+    pub fn dispatch_guarded(
+        &self,
+        command: &Value,
+        now: DateTime<Utc>,
+        authorize: impl Fn(&Transaction<'_>, Option<&Value>) -> Result<(), StoreError>,
+    ) -> Result<crate::persistence::Receipt, StoreError> {
         let command = normalize_command(command).map_err(StoreError::InvalidCommand)?;
         let command = &command;
         let command_id = string(command, "commandId").unwrap_or("");
@@ -34,15 +42,22 @@ impl ThreadService {
             now,
             |transaction| {
                 let current = read_projection(transaction, "thread", thread_id)?;
+                authorize(transaction, current.as_ref())?;
                 let project = string(command, "projectId")
                     .map(|id| read_projection(transaction, "project", id))
                     .transpose()?
                     .flatten();
                 Ok(
                     match plan(command, current.as_ref(), project.as_ref(), now) {
-                        Ok(events) => Decision::Accepted {
-                            events,
-                            effects: Vec::new(),
+                        Ok(events) => {
+                            let effects = events.iter().filter(|event| event.event_type == "provider-session.detached").map(|event| NewEffect {
+                                id: format!("effect:{command_id}:provider-session.detach:{}", event.payload["providerSessionId"].as_str().unwrap()),
+                                command_id: command_id.into(),
+                                thread_id: thread_id.into(),
+                                request: json!({"type":"provider-session.detach","providerSessionId":event.payload["providerSessionId"],"detail":event.payload["reason"]}),
+                                available_at: iso(now),
+                            }).collect();
+                            Decision::Accepted { events, effects }
                         },
                         Err(error) => Decision::Rejected(error),
                     },
@@ -448,13 +463,6 @@ pub fn plan(
                 if command["regenerateTitle"] == true {
                     return Err(unsupported("title regeneration"));
                 }
-                if command
-                    .get("worktreePath")
-                    .is_some_and(|path| *path != thread["worktreePath"])
-                    && !array(projection, "providerSessions").is_empty()
-                {
-                    return Err(unsupported("provider detach for workspace change"));
-                }
                 for field in ["title", "branch", "worktreePath"] {
                     if let Some(value) = command.get(field) {
                         thread[field] = value.clone();
@@ -513,7 +521,7 @@ pub fn plan(
     let decoded = serde_json::from_value::<t3_contracts::AppThread>(thread.clone())
         .map_err(|error| reject(error.to_string()))?;
     thread = serde_json::to_value(decoded).map_err(|error| reject(error.to_string()))?;
-    Ok(vec![Event {
+    let mut events = vec![Event {
         event_id: uuid::Uuid::new_v4().to_string(),
         aggregate_kind: "thread".into(),
         aggregate_id: id.into(),
@@ -524,7 +532,29 @@ pub fn plan(
         event_type: event_type.into(),
         payload: thread.take(),
         metadata: json!({}),
-    }])
+    }];
+    // Match the source lifecycle: workspace changes detach bindings in the
+    // command transaction; the persisted effect unloads/reaps the runtime.
+    if kind == "thread.metadata.update"
+        && command
+            .get("worktreePath")
+            .is_some_and(|path| *path != projection.unwrap()["thread"]["worktreePath"])
+    {
+        for session in array(projection.unwrap(), "providerSessions")
+            .iter()
+            .filter(|session| !matches!(session["status"].as_str(), Some("stopped" | "error")))
+        {
+            events.push(Event {
+                event_id: uuid::Uuid::new_v4().to_string(),
+                aggregate_kind: "thread".into(), aggregate_id: id.into(), occurred_at: iso(now),
+                command_id: Some(command_id.into()), causation_event_id: None,
+                correlation_id: Some(command_id.into()), event_type: "provider-session.detached".into(),
+                payload: json!({"providerSessionId":session["id"],"detachedAt":iso(now),"reason":"Workspace changed."}),
+                metadata: json!({}),
+            });
+        }
+    }
+    Ok(events)
 }
 
 pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
@@ -590,7 +620,14 @@ pub(crate) fn projection_after(
         "turn-item.updated" => Some("turnItems"),
         _ => None,
     };
-    if let Some(field) = field {
+    if event.event_type == "provider-session.detached" {
+        projection["providerSessions"]
+            .as_array_mut()
+            .ok_or_else(|| {
+                StoreError::InvalidCommand("Provider sessions are not an array.".into())
+            })?
+            .retain(|session| session["id"] != event.payload["providerSessionId"]);
+    } else if let Some(field) = field {
         let rows =
             projection[field]
                 .as_array_mut()

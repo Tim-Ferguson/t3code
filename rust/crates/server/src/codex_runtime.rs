@@ -181,6 +181,19 @@ pub fn start(
             };
             match claimed {
                 Ok(Some(effect)) => {
+                    // A replayed detach must not create a process or credential.
+                    if effect.request["type"] == "provider-session.detach"
+                        && !actors
+                            .get(&effect.thread_id)
+                            .is_some_and(|actor| !actor.is_closed())
+                    {
+                        if let Err(error) =
+                            store.finish_effect(&effect.id, &owner, Utc::now(), Ok(()), None)
+                        {
+                            tracing::error!(%error, "Failed to settle inactive provider detach");
+                        }
+                        continue;
+                    }
                     let (complete, result) = oneshot::channel();
                     if !actors
                         .get(&effect.thread_id)
@@ -293,6 +306,8 @@ struct Actor {
     native_turn_id: Option<String>,
     callbacks: HashMap<String, Value>,
     mcp: Option<crate::mcp_sessions::ProviderSessionConfig>,
+    session: Value,
+    detached: bool,
 }
 async fn actor(
     store: Store,
@@ -325,27 +340,11 @@ async fn actor(
         == Some("acpRegistry")
     {
         crate::acp_adapter::actor(
-            store,
-            providers,
-            thread_id,
-            work,
-            stopped,
-            canceled,
-            lifetime,
-            mcp.as_ref(),
+            store, providers, thread_id, work, stopped, canceled, lifetime, mcp,
         )
         .await;
     } else {
-        codex_actor(
-            store,
-            providers,
-            thread_id,
-            work,
-            stopped,
-            canceled,
-            mcp.as_ref(),
-        )
-        .await;
+        codex_actor(store, providers, thread_id, work, stopped, canceled, mcp).await;
     }
 }
 async fn codex_actor(
@@ -355,7 +354,7 @@ async fn codex_actor(
     mut work: mpsc::Receiver<Work>,
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
-    mcp: Option<&crate::provider_mcp::CredentialLease>,
+    mut mcp: Option<crate::provider_mcp::CredentialLease>,
 ) {
     let mut runtime: Option<Actor> = None;
     let mut pending_process = None;
@@ -371,8 +370,18 @@ async fn codex_actor(
                 let starting=incoming.effect.request["type"]=="provider-turn.start";
                 let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {result=async {
-                    if starting {if let Some(mcp)=mcp {mcp.touch();}}
-                    if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_process,mcp).await?);pending_process.take();}
+                    if starting {
+                        if let Some(actor) = runtime.as_mut().filter(|actor| actor.detached) {
+                            // Only actual reattachment prepares a new capability
+                            // grant; ordinary turns keep the current MCP client.
+                            let cwd = actor.reattach_workspace()?;
+                            let next = providers.reserve_mcp(&store, &thread_id, &actor.instance_id)?;
+                            actor.reattach(cwd, next.as_ref())?;
+                            mcp = next;
+                        }
+                        if let Some(mcp)=mcp.as_ref() {mcp.touch();}
+                    }
+                    if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_process,mcp.as_ref()).await?);pending_process.take();}
                     runtime.as_mut().unwrap().effect(&incoming.effect).await
                 }=>result,_=stopped.changed()=>{break;},_=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{user_cancelled=true;Err("The run was interrupted during provider startup.".into())}};
                 let close=starting && result.is_err();
@@ -416,8 +425,17 @@ async fn codex_actor(
         );
         report(
             commit(&runtime.store, &runtime.thread_id, |projection| {
-                let mut session =
-                    find(projection, "providerSessions", &json!(runtime.session_id))?.clone();
+                // A workspace detach already removed this thread's binding.
+                // Cleanup still owns/reaps the process, without restoring it.
+                let Some(session) = projection["providerSessions"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|session| session["id"] == runtime.session_id)
+                else {
+                    return Ok(vec![]);
+                };
+                let mut session = session.clone();
                 session["status"] = json!(if *stopped.borrow() || user_cancelled {
                     "stopped"
                 } else {
@@ -545,7 +563,11 @@ impl Actor {
         let now = at(Utc::now());
         let capabilities: Value =
             serde_json::from_str(include_str!("codex-capabilities.json")).unwrap();
-        commit(&store,thread_id,|_|Ok(vec![("provider-session.attached",json!({"id":session_id,"driver":"codex","providerInstanceId":instance_id,"status":"ready","cwd":cwd,"model":projection["thread"]["modelSelection"]["model"],"capabilities":capabilities,"createdAt":now,"updatedAt":now,"lastError":null}))])).map_err(|error|error.to_string())?;
+        let session = json!({"id":session_id,"driver":"codex","providerInstanceId":instance_id,"status":"ready","cwd":cwd,"model":projection["thread"]["modelSelection"]["model"],"capabilities":capabilities,"createdAt":now,"updatedAt":now,"lastError":null});
+        commit(&store, thread_id, |_| {
+            Ok(vec![("provider-session.attached", session.clone())])
+        })
+        .map_err(|error| error.to_string())?;
         Ok(Self {
             store,
             thread_id: thread_id.into(),
@@ -557,10 +579,13 @@ impl Actor {
             native_turn_id: None,
             callbacks: HashMap::new(),
             mcp: mcp.map(|lease| lease.config.clone()),
+            session,
+            detached: false,
         })
     }
     async fn effect(&mut self, effect: &Effect) -> Result<(), String> {
         match effect.request["type"].as_str() {
+            Some("provider-session.detach") => self.detach(effect).await,
             Some("provider-turn.start") => {
                 self.start_turn(effect.request["runId"].as_str().unwrap())
                     .await
@@ -612,6 +637,88 @@ impl Actor {
             _ => Err("Unsupported native provider effect.".into()),
         }
     }
+    async fn detach(&mut self, effect: &Effect) -> Result<(), String> {
+        // Ignore another session ID and retries before reattach. The outbox
+        // keeps later starts behind this detach until settlement succeeds.
+        if effect.request["providerSessionId"] != self.session_id || self.detached {
+            return Ok(());
+        }
+        if self.active_run.is_some() {
+            if let Err(error) = self
+                .connection
+                .process
+                .request(
+                    "turn/interrupt",
+                    json!({"threadId":self.native_thread_id,"turnId":self.native_turn_id}),
+                    Duration::from_secs(10),
+                )
+                .await
+            {
+                // Source detach logs interruption failure and still unloads.
+                tracing::warn!(%error, "Could not interrupt detached Codex turn");
+            }
+            self.terminal("interrupted", &json!({}))
+                .map_err(|error| error.to_string())?;
+        }
+        if let Some(thread_id) = &self.native_thread_id {
+            // Source shared Codex detach unsubscribes the native thread but
+            // retains the app-server and its credential until reattach/release.
+            if let Err(error) = self
+                .connection
+                .process
+                .request(
+                    "thread/unsubscribe",
+                    json!({"threadId":thread_id}),
+                    Duration::from_secs(10),
+                )
+                .await
+            {
+                tracing::warn!(%error, "Could not unload detached Codex thread");
+            }
+        }
+        self.active_run = None;
+        self.native_turn_id = None;
+        self.native_thread_id = None;
+        self.callbacks.clear();
+        self.detached = true;
+        Ok(())
+    }
+    fn reattach_workspace(&self) -> Result<std::path::PathBuf, String> {
+        let view = projection(&self.store, &self.thread_id).map_err(|error| error.to_string())?;
+        let project = self
+            .store
+            .projection("project", view["thread"]["projectId"].as_str().unwrap())
+            .map_err(|error| error.to_string())?
+            .ok_or("Project not found.")?;
+        let cwd = view["thread"]["worktreePath"]
+            .as_str()
+            .or_else(|| project["workspaceRoot"].as_str())
+            .ok_or("Workspace root missing.")?;
+        let cwd = std::fs::canonicalize(cwd).map_err(|error| error.to_string())?;
+        if !cwd.is_dir() {
+            return Err("Workspace root is not a directory.".into());
+        }
+        Ok(cwd)
+    }
+    fn reattach(
+        &mut self,
+        cwd: std::path::PathBuf,
+        mcp: Option<&crate::provider_mcp::CredentialLease>,
+    ) -> Result<(), String> {
+        let view = projection(&self.store, &self.thread_id).map_err(|error| error.to_string())?;
+        let mut session = self.session.clone();
+        session["cwd"] = json!(cwd);
+        session["model"] = view["thread"]["modelSelection"]["model"].clone();
+        session["updatedAt"] = json!(at(Utc::now()));
+        commit(&self.store, &self.thread_id, |_| {
+            Ok(vec![("provider-session.attached", session.clone())])
+        })
+        .map_err(|error| error.to_string())?;
+        self.session = session;
+        self.mcp = mcp.map(|lease| lease.config.clone());
+        self.detached = false;
+        Ok(())
+    }
     async fn start_turn(&mut self, run_id: &str) -> Result<(), String> {
         let projection =
             projection(&self.store, &self.thread_id).map_err(|error| error.to_string())?;
@@ -636,6 +743,7 @@ impl Actor {
             }
             if let Some(id) = saved {
                 params["threadId"] = json!(id);
+                params["excludeTurns"] = json!(true);
             }
             let response = self
                 .connection

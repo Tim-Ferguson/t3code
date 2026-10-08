@@ -1,0 +1,1317 @@
+[
+  {
+    "name": "t3_thread_list",
+    "description": "List T3 threads in a project, newest first. Omit projectId for the calling thread's project. Filter by durable run status, title, or settled state (settled=true lists threads the user or auto-settlement moved out of the active list), or snoozed state, and paginate with the returned cursor. A snoozed thread wakes early when it asks for something, fails, or completes. Each thread has a link: paste it when you mention the thread so the user can open it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "statuses": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "preparing",
+                  "queued",
+                  "starting",
+                  "running",
+                  "waiting",
+                  "completed",
+                  "interrupted",
+                  "failed",
+                  "cancelled",
+                  "rolled_back"
+                ]
+              },
+              "maxItems": 10
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "titleContains": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "settled": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "snoozed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "includeSubagents": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cursor": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "type": "string"
+        },
+        "currentThreadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "threads": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "threadId": {
+                "type": "string"
+              },
+              "link": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "createdBy": {
+                "type": "string",
+                "enum": ["user", "agent", "system"]
+              },
+              "creationSource": {
+                "type": "string",
+                "enum": ["web", "mobile", "mcp", "provider", "server"]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "preparing",
+                  "queued",
+                  "starting",
+                  "running",
+                  "waiting",
+                  "completed",
+                  "interrupted",
+                  "failed",
+                  "cancelled",
+                  "rolled_back"
+                ]
+              },
+              "latestRunId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "providerInstanceId": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "runtimeMode": {
+                "type": "string",
+                "enum": ["approval-required", "auto-accept-edits", "auto", "full-access"]
+              },
+              "interactionMode": {
+                "type": "string",
+                "enum": ["default", "plan"]
+              },
+              "linkedPullRequest": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "projectId": {
+                        "type": "string"
+                      },
+                      "repository": {
+                        "type": "string"
+                      },
+                      "number": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "url": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["projectId", "repository", "number", "url"],
+                    "additionalProperties": true
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "settled": {
+                "type": "boolean"
+              },
+              "settledAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "snoozed": {
+                "type": "boolean"
+              },
+              "snoozedUntil": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "parentThreadId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "relationshipToParent": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["fork", "subagent"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "itemCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "threadId",
+              "link",
+              "title",
+              "createdBy",
+              "creationSource",
+              "status",
+              "latestRunId",
+              "providerInstanceId",
+              "model",
+              "runtimeMode",
+              "interactionMode",
+              "linkedPullRequest",
+              "settled",
+              "settledAt",
+              "snoozed",
+              "snoozedUntil",
+              "parentThreadId",
+              "relationshipToParent",
+              "itemCount",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["projectId", "currentThreadId", "threads", "nextCursor", "total"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "List T3 threads",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "t3_thread_read",
+    "description": "Read durable state and a paginated timeline from any T3 thread in this environment. The default messages view returns user messages, assistant messages, and proposed plans; activity returns all summarized timeline items. Reading an untruncated terminal assistant result from this parent thread's direct app-owned child acknowledges that child's automatic completion delivery. Continue with afterPosition=nextPosition. Recover long item text with itemId and textOffset=nextTextOffset until nextTextOffset is null; offsets count UTF-16 code units. The thread has a link and snooze state: paste the link when you mention the thread so the user can open it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "itemId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textOffset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "view": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["messages", "activity"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "afterPosition": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "runLimit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxCharsPerItem": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["threadId"],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "thread": {
+          "type": "object",
+          "properties": {
+            "threadId": {
+              "type": "string"
+            },
+            "link": {
+              "type": "string"
+            },
+            "projectId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "createdBy": {
+              "type": "string",
+              "enum": ["user", "agent", "system"]
+            },
+            "creationSource": {
+              "type": "string",
+              "enum": ["web", "mobile", "mcp", "provider", "server"]
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "preparing",
+                "queued",
+                "starting",
+                "running",
+                "waiting",
+                "completed",
+                "interrupted",
+                "failed",
+                "cancelled",
+                "rolled_back"
+              ]
+            },
+            "latestRunId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "activeRunId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "providerInstanceId": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "runtimeMode": {
+              "type": "string",
+              "enum": ["approval-required", "auto-accept-edits", "auto", "full-access"]
+            },
+            "interactionMode": {
+              "type": "string",
+              "enum": ["default", "plan"]
+            },
+            "linkedPullRequest": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "projectId": {
+                      "type": "string"
+                    },
+                    "repository": {
+                      "type": "string"
+                    },
+                    "number": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "url": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["projectId", "repository", "number", "url"],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "titleRegeneration": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "requestId": {
+                      "type": "string"
+                    },
+                    "startedAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["requestId", "startedAt"],
+                  "additionalProperties": true
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "branch": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "worktreePath": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "parentThreadId": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "relationshipToParent": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": ["fork", "subagent"]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "runCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "itemCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "pendingRequestCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "archived": {
+              "type": "boolean"
+            },
+            "settled": {
+              "type": "boolean"
+            },
+            "settledAt": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "snoozed": {
+              "type": "boolean"
+            },
+            "snoozedUntil": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "createdAt": {
+              "type": "string"
+            },
+            "updatedAt": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "threadId",
+            "link",
+            "projectId",
+            "title",
+            "createdBy",
+            "creationSource",
+            "status",
+            "latestRunId",
+            "activeRunId",
+            "providerInstanceId",
+            "model",
+            "runtimeMode",
+            "interactionMode",
+            "linkedPullRequest",
+            "titleRegeneration",
+            "branch",
+            "worktreePath",
+            "parentThreadId",
+            "relationshipToParent",
+            "runCount",
+            "itemCount",
+            "pendingRequestCount",
+            "archived",
+            "settled",
+            "settledAt",
+            "snoozed",
+            "snoozedUntil",
+            "createdAt",
+            "updatedAt"
+          ],
+          "additionalProperties": true
+        },
+        "recentRuns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string"
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "preparing",
+                  "queued",
+                  "starting",
+                  "running",
+                  "waiting",
+                  "completed",
+                  "interrupted",
+                  "failed",
+                  "cancelled",
+                  "rolled_back"
+                ]
+              },
+              "providerInstanceId": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "requestedAt": {
+                "type": "string"
+              },
+              "startedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "completedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "runId",
+              "ordinal",
+              "status",
+              "providerInstanceId",
+              "model",
+              "requestedAt",
+              "startedAt",
+              "completedAt"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "position": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "visibility": {
+                "type": "string",
+                "enum": ["local", "inherited", "synthetic"]
+              },
+              "sourceThreadId": {
+                "type": "string"
+              },
+              "itemId": {
+                "type": "string"
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "messageId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "createdBy": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["user", "agent", "system"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "creationSource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": ["web", "mobile", "mcp", "provider", "server"]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "idle",
+                  "pending",
+                  "running",
+                  "waiting",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "interrupted"
+                ]
+              },
+              "title": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "text": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "textTruncated": {
+                "type": "boolean"
+              },
+              "nextTextOffset": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "updatedAt": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "position",
+              "visibility",
+              "sourceThreadId",
+              "itemId",
+              "runId",
+              "messageId",
+              "createdBy",
+              "creationSource",
+              "type",
+              "status",
+              "title",
+              "text",
+              "textTruncated",
+              "updatedAt"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "nextPosition": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": ["thread", "recentRuns", "items", "nextPosition", "hasMore"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Read a T3 thread",
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "t3_thread_update",
+    "description": "Update metadata for a thread. Omit threadId to update this thread. Use action='rename' with title, action='regenerate_title' with no extra field, action='link_pull_request' with pullRequest, or action='unlink_pull_request'. Workspace and branch changes are intentionally not supported. clientRequestId makes retries idempotent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Thread to update. Omit to update the calling thread."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["rename", "regenerate_title", "link_pull_request", "unlink_pull_request"],
+          "description": "Metadata mutation: rename, regenerate_title, link_pull_request, or unlink_pull_request."
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pullRequest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "repository": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Pull request number."
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": ["repository", "number", "url"],
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Pull request to link. Required only when action is link_pull_request."
+        },
+        "clientRequestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["action"],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["rename", "regenerate_title", "link_pull_request", "unlink_pull_request"],
+          "description": "Metadata mutation: rename, regenerate_title, link_pull_request, or unlink_pull_request."
+        },
+        "commandId": {
+          "type": "string"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "title": {
+          "type": "string"
+        },
+        "titleRegeneration": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "requestId": {
+                  "type": "string"
+                },
+                "startedAt": {
+                  "type": "string"
+                }
+              },
+              "required": ["requestId", "startedAt"],
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "linkedPullRequest": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "projectId": {
+                  "type": "string"
+                },
+                "repository": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": ["projectId", "repository", "number", "url"],
+              "additionalProperties": true
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId",
+        "action",
+        "commandId",
+        "sequence",
+        "title",
+        "titleRegeneration",
+        "linkedPullRequest",
+        "updatedAt"
+      ],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Update T3 thread metadata",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "t3_thread_send",
+    "description": "Send a message to any T3 thread in this environment. The target cannot have broader permission modes than the caller. Do not use a delegated task's childThreadId to start another review round here; use delegate_task with the full review context and a new clientRequestId for that round. Thread messages do not create a new delegated task or reopen a completed task. mode='auto' starts an idle thread, steers a fully active turn, or queues behind a turn that is not yet steerable. Use queue for a separate follow-up turn, steer for an in-flight update, or restart to interrupt-and-restart the active turn. clientRequestId makes retries idempotent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": ["auto", "queue", "steer", "restart"]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientRequestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["threadId", "message"],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string"
+        },
+        "runId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "preparing",
+            "queued",
+            "starting",
+            "running",
+            "waiting",
+            "completed",
+            "interrupted",
+            "failed",
+            "cancelled",
+            "rolled_back"
+          ]
+        },
+        "delivery": {
+          "type": "string",
+          "enum": ["started", "queued", "steered", "restarted"]
+        }
+      },
+      "required": ["threadId", "messageId", "runId", "status", "delivery"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Send to a T3 thread",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "t3_thread_wait",
+    "description": "Wait for a T3 thread run to reach a terminal durable state. Without runId, the latest run at call time is selected; an idle thread returns immediately. Timeout does not interrupt work, so call again or use t3_thread_read/list after timedOut=true. Waiting reports status only and does not acknowledge a delegated result.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timeoutMs": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string",
+                  "enum": ["Infinity", "-Infinity", "NaN"]
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["threadId"],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "preparing",
+            "queued",
+            "starting",
+            "running",
+            "waiting",
+            "completed",
+            "interrupted",
+            "failed",
+            "cancelled",
+            "rolled_back"
+          ]
+        },
+        "timedOut": {
+          "type": "boolean"
+        }
+      },
+      "required": ["threadId", "runId", "status", "timedOut"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Wait for a T3 thread",
+      "readOnlyHint": true,
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": true
+    }
+  },
+  {
+    "name": "t3_thread_interrupt",
+    "description": "Request interruption of a running turn in any T3 thread in this environment. Without runId, the newest interruptible run is selected. Terminal runs and threads without an active turn return without another side effect. clientRequestId makes retries idempotent.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientRequestId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["threadId"],
+      "additionalProperties": true
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "threadId": {
+          "type": "string"
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "interrupt_requested",
+            "no_active_run",
+            "completed",
+            "failed",
+            "cancelled",
+            "interrupted",
+            "rolled_back"
+          ]
+        }
+      },
+      "required": ["threadId", "runId", "status"],
+      "additionalProperties": true
+    },
+    "annotations": {
+      "title": "Interrupt a T3 thread",
+      "readOnlyHint": false,
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": true
+    }
+  }
+]

@@ -139,3 +139,7 @@ pub mod device_agent_target;
 mod provider_auth_rpc_tests;
 
 pub mod acp_mcp_bridge;
+
+pub mod mcp_access;
+
+pub mod mcp_control;
