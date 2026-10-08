@@ -1,0 +1,12 @@
+[package]
+name = "t3-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+t3-contracts.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+url = "2"

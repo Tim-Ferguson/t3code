@@ -1,0 +1,224 @@
+[
+  {
+    "schema": "ThreadId",
+    "input": " thread-1 ",
+    "valid": true,
+    "output": "thread-1"
+  },
+  {
+    "schema": "ThreadId",
+    "input": "﻿thread-1 ",
+    "valid": true,
+    "output": "thread-1"
+  },
+  {
+    "schema": "ThreadId",
+    "input": "thread-1",
+    "valid": true,
+    "output": "thread-1"
+  },
+  {
+    "schema": "ThreadId",
+    "input": "",
+    "valid": false
+  },
+  {
+    "schema": "ThreadId",
+    "input": " \n",
+    "valid": false
+  },
+  {
+    "schema": "ThreadId",
+    "input": null,
+    "valid": false
+  },
+  {
+    "schema": "ThreadId",
+    "input": 42,
+    "valid": false
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "codex",
+    "valid": true,
+    "output": "codex"
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "claudeAgent",
+    "valid": true,
+    "output": "claudeAgent"
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "ollama",
+    "valid": true,
+    "output": "ollama"
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": " codex-work ",
+    "valid": true,
+    "output": "codex-work"
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "1bad",
+    "valid": false
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "_bad",
+    "valid": false
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "é",
+    "valid": false
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": true,
+    "output": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+    "schema": "ProviderDriverKind",
+    "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "valid": false
+  },
+  {
+    "schema": "ProviderInstanceId",
+    "input": "codex_personal",
+    "valid": true,
+    "output": "codex_personal"
+  },
+  {
+    "schema": "ProviderInstanceId",
+    "input": "fork-provider",
+    "valid": true,
+    "output": "fork-provider"
+  },
+  {
+    "schema": "ProviderInstanceId",
+    "input": "1bad",
+    "valid": false
+  },
+  {
+    "schema": "ProviderInstanceId",
+    "input": "codex.personal",
+    "valid": false
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "provider": "ollama",
+      "model": " llama3 "
+    },
+    "valid": true,
+    "output": {
+      "instanceId": "ollama",
+      "model": "llama3"
+    }
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "provider": "codex",
+      "instanceId": "work",
+      "model": "x"
+    },
+    "valid": true,
+    "output": {
+      "instanceId": "work",
+      "model": "x"
+    }
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "provider": "codex",
+      "instanceId": null,
+      "model": "x"
+    },
+    "valid": false
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "instanceId": "codex",
+      "model": "x",
+      "options": {
+        "effort": " max ",
+        "fastMode": false,
+        "blank": " ",
+        "nested": {
+          "a": 1
+        },
+        "empty": null
+      }
+    },
+    "valid": true,
+    "output": {
+      "instanceId": "codex",
+      "model": "x",
+      "options": [
+        {
+          "id": "effort",
+          "value": "max"
+        },
+        {
+          "id": "fastMode",
+          "value": false
+        }
+      ]
+    }
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "instanceId": "codex",
+      "model": "x",
+      "options": [
+        {
+          "id": " effort ",
+          "value": "high"
+        }
+      ]
+    },
+    "valid": true,
+    "output": {
+      "instanceId": "codex",
+      "model": "x",
+      "options": [
+        {
+          "id": "effort",
+          "value": "high"
+        }
+      ]
+    }
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "instanceId": "codex",
+      "model": "x",
+      "options": [
+        {
+          "id": "effort",
+          "value": 7
+        }
+      ]
+    },
+    "valid": false
+  },
+  {
+    "schema": "ModelSelection",
+    "input": {
+      "instanceId": "codex",
+      "model": "x",
+      "options": null
+    },
+    "valid": false
+  }
+]

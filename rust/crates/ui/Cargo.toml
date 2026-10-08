@@ -1,0 +1,24 @@
+[package]
+name = "t3-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+
+[dependencies]
+t3-client.workspace = true
+t3-contracts.workspace = true
+serde_json.workspace = true
+dioxus = { workspace = true, features = ["document", "asset"] }
+ewebsock = { version = "0.8", features = ["tls"] }
+futures-channel = "0.3"
+futures-util.workspace = true
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+uuid = { workspace = true, features = ["js"] }
+pulldown-cmark = "0.13"
+web-sys = { version = "0.3", features = ["Window", "Location"] }

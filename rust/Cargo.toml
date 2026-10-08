@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = ["crates/contracts", "crates/server", "crates/client", "crates/ui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+t3-contracts = { path = "crates/contracts" }
+t3-client = { path = "crates/client" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.8", features = ["ws"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures-util = "0.3"
+dioxus = { version = "0.7", default-features = false, features = [
+  "macro",
+  "html",
+  "signals",
+  "hooks",
+  "launch",
+] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

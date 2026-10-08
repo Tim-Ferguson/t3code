@@ -1,0 +1,24 @@
+[package]
+name = "t3-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+t3-contracts.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+axum.workspace = true
+rusqlite.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+futures-util.workspace = true
+unicode-segmentation = "1.12"
+
+[dev-dependencies]
+tempfile = "3"
