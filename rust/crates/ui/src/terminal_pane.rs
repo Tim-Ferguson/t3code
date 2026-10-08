@@ -15,7 +15,7 @@ use t3_client::{
 use t3_contracts::{AuthEnvironmentScope, TerminalAttachInput};
 // Generate this directory with tools/build_terminal_surface.sh before UI builds.
 // All WebViews use the same Rust surface; the JS file is wasm-bindgen ABI glue.
-const SURFACE: Asset = asset!("/assets/terminal-surface");
+pub(crate) const SURFACE: Asset = asset!("/assets/terminal-surface");
 #[derive(Clone)]
 pub struct Catalog {
     pub panes: Signal<ScopedPanes>,

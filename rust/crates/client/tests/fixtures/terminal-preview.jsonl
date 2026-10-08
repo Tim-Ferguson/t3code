@@ -1,0 +1,324 @@
+{"input":["a","a","\b"],"output":["a","a","\b \b"]}
+{"input":["a","abc","\b"],"output":["a","abc","\b \b"]}
+{"input":["a","hello world","\b"],"output":["a","hello world","\b \b"]}
+{"input":["a","\r","\b"],"output":["a","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["a","\b","\b"],"output":["a","\b \b"]}
+{"input":["a","","\b"],"output":["a","\b \b"]}
+{"input":["a","\u001b[A","\b"],"output":["a","\b \b"]}
+{"input":["a","\u001b","\b"],"output":["a","\b \b"]}
+{"input":["a","\t","\b"],"output":["a","\b \b"]}
+{"input":["a","\n","\b"],"output":["a","\b \b"]}
+{"input":["a","\u0001","\b"],"output":["a","\b \b"]}
+{"input":["a","😀","\b"],"output":["a","😀","\b \b"]}
+{"input":["a","é","\b"],"output":["a","é","\b \b"]}
+{"input":["a","é","\b"],"output":["a","é","\b \b"]}
+{"input":["a"," a\n\t😀b","\b"],"output":["a"," a😀b","\b \b"]}
+{"input":["a","中","\b"],"output":["a","中","\b \b"]}
+{"input":["a","﻿","\b"],"output":["a","﻿","\b \b"]}
+{"input":["a","","\b"],"output":["a","","\b \b"]}
+{"input":["abc","a","\b"],"output":["abc","a","\b \b"]}
+{"input":["abc","abc","\b"],"output":["abc","abc","\b \b"]}
+{"input":["abc","hello world","\b"],"output":["abc","hello world","\b \b"]}
+{"input":["abc","\r","\b"],"output":["abc","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["abc","\b","\b"],"output":["abc","\b \b","\b \b"]}
+{"input":["abc","","\b"],"output":["abc","\b \b","\b \b"]}
+{"input":["abc","\u001b[A","\b"],"output":["abc","\b \b"]}
+{"input":["abc","\u001b","\b"],"output":["abc","\b \b"]}
+{"input":["abc","\t","\b"],"output":["abc","\b \b"]}
+{"input":["abc","\n","\b"],"output":["abc","\b \b"]}
+{"input":["abc","\u0001","\b"],"output":["abc","\b \b"]}
+{"input":["abc","😀","\b"],"output":["abc","😀","\b \b"]}
+{"input":["abc","é","\b"],"output":["abc","é","\b \b"]}
+{"input":["abc","é","\b"],"output":["abc","é","\b \b"]}
+{"input":["abc"," a\n\t😀b","\b"],"output":["abc"," a😀b","\b \b"]}
+{"input":["abc","中","\b"],"output":["abc","中","\b \b"]}
+{"input":["abc","﻿","\b"],"output":["abc","﻿","\b \b"]}
+{"input":["abc","","\b"],"output":["abc","","\b \b"]}
+{"input":["hello world","a","\b"],"output":["hello world","a","\b \b"]}
+{"input":["hello world","abc","\b"],"output":["hello world","abc","\b \b"]}
+{"input":["hello world","hello world","\b"],"output":["hello world","hello world","\b \b"]}
+{"input":["hello world","\r","\b"],"output":["hello world","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["hello world","\b","\b"],"output":["hello world","\b \b","\b \b"]}
+{"input":["hello world","","\b"],"output":["hello world","\b \b","\b \b"]}
+{"input":["hello world","\u001b[A","\b"],"output":["hello world","\b \b"]}
+{"input":["hello world","\u001b","\b"],"output":["hello world","\b \b"]}
+{"input":["hello world","\t","\b"],"output":["hello world","\b \b"]}
+{"input":["hello world","\n","\b"],"output":["hello world","\b \b"]}
+{"input":["hello world","\u0001","\b"],"output":["hello world","\b \b"]}
+{"input":["hello world","😀","\b"],"output":["hello world","😀","\b \b"]}
+{"input":["hello world","é","\b"],"output":["hello world","é","\b \b"]}
+{"input":["hello world","é","\b"],"output":["hello world","é","\b \b"]}
+{"input":["hello world"," a\n\t😀b","\b"],"output":["hello world"," a😀b","\b \b"]}
+{"input":["hello world","中","\b"],"output":["hello world","中","\b \b"]}
+{"input":["hello world","﻿","\b"],"output":["hello world","﻿","\b \b"]}
+{"input":["hello world","","\b"],"output":["hello world","","\b \b"]}
+{"input":["\r","a","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","a","\b \b"]}
+{"input":["\r","abc","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","abc","\b \b"]}
+{"input":["\r","hello world","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","hello world","\b \b"]}
+{"input":["\r","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","\b","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","\u001b[A","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","\u001b","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","\t","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","\n","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","\u0001","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\r","😀","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","😀","\b \b"]}
+{"input":["\r","é","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","é","\b \b"]}
+{"input":["\r","é","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","é","\b \b"]}
+{"input":["\r"," a\n\t😀b","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "," a😀b","\b \b"]}
+{"input":["\r","中","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","中","\b \b"]}
+{"input":["\r","﻿","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","﻿","\b \b"]}
+{"input":["\r","","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m ","","\b \b"]}
+{"input":["\b","a","\b"],"output":["a","\b \b"]}
+{"input":["\b","abc","\b"],"output":["abc","\b \b"]}
+{"input":["\b","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["\b","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\b","\b","\b"],"output":[]}
+{"input":["\b","","\b"],"output":[]}
+{"input":["\b","\u001b[A","\b"],"output":[]}
+{"input":["\b","\u001b","\b"],"output":[]}
+{"input":["\b","\t","\b"],"output":[]}
+{"input":["\b","\n","\b"],"output":[]}
+{"input":["\b","\u0001","\b"],"output":[]}
+{"input":["\b","😀","\b"],"output":["😀","\b \b"]}
+{"input":["\b","é","\b"],"output":["é","\b \b"]}
+{"input":["\b","é","\b"],"output":["é","\b \b"]}
+{"input":["\b"," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["\b","中","\b"],"output":["中","\b \b"]}
+{"input":["\b","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["\b","","\b"],"output":["","\b \b"]}
+{"input":["","a","\b"],"output":["a","\b \b"]}
+{"input":["","abc","\b"],"output":["abc","\b \b"]}
+{"input":["","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["","\b","\b"],"output":[]}
+{"input":["","","\b"],"output":[]}
+{"input":["","\u001b[A","\b"],"output":[]}
+{"input":["","\u001b","\b"],"output":[]}
+{"input":["","\t","\b"],"output":[]}
+{"input":["","\n","\b"],"output":[]}
+{"input":["","\u0001","\b"],"output":[]}
+{"input":["","😀","\b"],"output":["😀","\b \b"]}
+{"input":["","é","\b"],"output":["é","\b \b"]}
+{"input":["","é","\b"],"output":["é","\b \b"]}
+{"input":[""," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["","中","\b"],"output":["中","\b \b"]}
+{"input":["","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["","","\b"],"output":["","\b \b"]}
+{"input":["\u001b[A","a","\b"],"output":["a","\b \b"]}
+{"input":["\u001b[A","abc","\b"],"output":["abc","\b \b"]}
+{"input":["\u001b[A","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["\u001b[A","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\u001b[A","\b","\b"],"output":[]}
+{"input":["\u001b[A","","\b"],"output":[]}
+{"input":["\u001b[A","\u001b[A","\b"],"output":[]}
+{"input":["\u001b[A","\u001b","\b"],"output":[]}
+{"input":["\u001b[A","\t","\b"],"output":[]}
+{"input":["\u001b[A","\n","\b"],"output":[]}
+{"input":["\u001b[A","\u0001","\b"],"output":[]}
+{"input":["\u001b[A","😀","\b"],"output":["😀","\b \b"]}
+{"input":["\u001b[A","é","\b"],"output":["é","\b \b"]}
+{"input":["\u001b[A","é","\b"],"output":["é","\b \b"]}
+{"input":["\u001b[A"," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["\u001b[A","中","\b"],"output":["中","\b \b"]}
+{"input":["\u001b[A","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["\u001b[A","","\b"],"output":["","\b \b"]}
+{"input":["\u001b","a","\b"],"output":["a","\b \b"]}
+{"input":["\u001b","abc","\b"],"output":["abc","\b \b"]}
+{"input":["\u001b","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["\u001b","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\u001b","\b","\b"],"output":[]}
+{"input":["\u001b","","\b"],"output":[]}
+{"input":["\u001b","\u001b[A","\b"],"output":[]}
+{"input":["\u001b","\u001b","\b"],"output":[]}
+{"input":["\u001b","\t","\b"],"output":[]}
+{"input":["\u001b","\n","\b"],"output":[]}
+{"input":["\u001b","\u0001","\b"],"output":[]}
+{"input":["\u001b","😀","\b"],"output":["😀","\b \b"]}
+{"input":["\u001b","é","\b"],"output":["é","\b \b"]}
+{"input":["\u001b","é","\b"],"output":["é","\b \b"]}
+{"input":["\u001b"," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["\u001b","中","\b"],"output":["中","\b \b"]}
+{"input":["\u001b","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["\u001b","","\b"],"output":["","\b \b"]}
+{"input":["\t","a","\b"],"output":["a","\b \b"]}
+{"input":["\t","abc","\b"],"output":["abc","\b \b"]}
+{"input":["\t","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["\t","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\t","\b","\b"],"output":[]}
+{"input":["\t","","\b"],"output":[]}
+{"input":["\t","\u001b[A","\b"],"output":[]}
+{"input":["\t","\u001b","\b"],"output":[]}
+{"input":["\t","\t","\b"],"output":[]}
+{"input":["\t","\n","\b"],"output":[]}
+{"input":["\t","\u0001","\b"],"output":[]}
+{"input":["\t","😀","\b"],"output":["😀","\b \b"]}
+{"input":["\t","é","\b"],"output":["é","\b \b"]}
+{"input":["\t","é","\b"],"output":["é","\b \b"]}
+{"input":["\t"," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["\t","中","\b"],"output":["中","\b \b"]}
+{"input":["\t","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["\t","","\b"],"output":["","\b \b"]}
+{"input":["\n","a","\b"],"output":["a","\b \b"]}
+{"input":["\n","abc","\b"],"output":["abc","\b \b"]}
+{"input":["\n","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["\n","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\n","\b","\b"],"output":[]}
+{"input":["\n","","\b"],"output":[]}
+{"input":["\n","\u001b[A","\b"],"output":[]}
+{"input":["\n","\u001b","\b"],"output":[]}
+{"input":["\n","\t","\b"],"output":[]}
+{"input":["\n","\n","\b"],"output":[]}
+{"input":["\n","\u0001","\b"],"output":[]}
+{"input":["\n","😀","\b"],"output":["😀","\b \b"]}
+{"input":["\n","é","\b"],"output":["é","\b \b"]}
+{"input":["\n","é","\b"],"output":["é","\b \b"]}
+{"input":["\n"," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["\n","中","\b"],"output":["中","\b \b"]}
+{"input":["\n","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["\n","","\b"],"output":["","\b \b"]}
+{"input":["\u0001","a","\b"],"output":["a","\b \b"]}
+{"input":["\u0001","abc","\b"],"output":["abc","\b \b"]}
+{"input":["\u0001","hello world","\b"],"output":["hello world","\b \b"]}
+{"input":["\u0001","\r","\b"],"output":["\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["\u0001","\b","\b"],"output":[]}
+{"input":["\u0001","","\b"],"output":[]}
+{"input":["\u0001","\u001b[A","\b"],"output":[]}
+{"input":["\u0001","\u001b","\b"],"output":[]}
+{"input":["\u0001","\t","\b"],"output":[]}
+{"input":["\u0001","\n","\b"],"output":[]}
+{"input":["\u0001","\u0001","\b"],"output":[]}
+{"input":["\u0001","😀","\b"],"output":["😀","\b \b"]}
+{"input":["\u0001","é","\b"],"output":["é","\b \b"]}
+{"input":["\u0001","é","\b"],"output":["é","\b \b"]}
+{"input":["\u0001"," a\n\t😀b","\b"],"output":[" a😀b","\b \b"]}
+{"input":["\u0001","中","\b"],"output":["中","\b \b"]}
+{"input":["\u0001","﻿","\b"],"output":["﻿","\b \b"]}
+{"input":["\u0001","","\b"],"output":["","\b \b"]}
+{"input":["😀","a","\b"],"output":["😀","a","\b \b"]}
+{"input":["😀","abc","\b"],"output":["😀","abc","\b \b"]}
+{"input":["😀","hello world","\b"],"output":["😀","hello world","\b \b"]}
+{"input":["😀","\r","\b"],"output":["😀","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["😀","\b","\b"],"output":["😀","\b \b","\b \b"]}
+{"input":["😀","","\b"],"output":["😀","\b \b","\b \b"]}
+{"input":["😀","\u001b[A","\b"],"output":["😀","\b \b"]}
+{"input":["😀","\u001b","\b"],"output":["😀","\b \b"]}
+{"input":["😀","\t","\b"],"output":["😀","\b \b"]}
+{"input":["😀","\n","\b"],"output":["😀","\b \b"]}
+{"input":["😀","\u0001","\b"],"output":["😀","\b \b"]}
+{"input":["😀","😀","\b"],"output":["😀","😀","\b \b"]}
+{"input":["😀","é","\b"],"output":["😀","é","\b \b"]}
+{"input":["😀","é","\b"],"output":["😀","é","\b \b"]}
+{"input":["😀"," a\n\t😀b","\b"],"output":["😀"," a😀b","\b \b"]}
+{"input":["😀","中","\b"],"output":["😀","中","\b \b"]}
+{"input":["😀","﻿","\b"],"output":["😀","﻿","\b \b"]}
+{"input":["😀","","\b"],"output":["😀","","\b \b"]}
+{"input":["é","a","\b"],"output":["é","a","\b \b"]}
+{"input":["é","abc","\b"],"output":["é","abc","\b \b"]}
+{"input":["é","hello world","\b"],"output":["é","hello world","\b \b"]}
+{"input":["é","\r","\b"],"output":["é","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["é","\b","\b"],"output":["é","\b \b"]}
+{"input":["é","","\b"],"output":["é","\b \b"]}
+{"input":["é","\u001b[A","\b"],"output":["é","\b \b"]}
+{"input":["é","\u001b","\b"],"output":["é","\b \b"]}
+{"input":["é","\t","\b"],"output":["é","\b \b"]}
+{"input":["é","\n","\b"],"output":["é","\b \b"]}
+{"input":["é","\u0001","\b"],"output":["é","\b \b"]}
+{"input":["é","😀","\b"],"output":["é","😀","\b \b"]}
+{"input":["é","é","\b"],"output":["é","é","\b \b"]}
+{"input":["é","é","\b"],"output":["é","é","\b \b"]}
+{"input":["é"," a\n\t😀b","\b"],"output":["é"," a😀b","\b \b"]}
+{"input":["é","中","\b"],"output":["é","中","\b \b"]}
+{"input":["é","﻿","\b"],"output":["é","﻿","\b \b"]}
+{"input":["é","","\b"],"output":["é","","\b \b"]}
+{"input":["é","a","\b"],"output":["é","a","\b \b"]}
+{"input":["é","abc","\b"],"output":["é","abc","\b \b"]}
+{"input":["é","hello world","\b"],"output":["é","hello world","\b \b"]}
+{"input":["é","\r","\b"],"output":["é","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["é","\b","\b"],"output":["é","\b \b","\b \b"]}
+{"input":["é","","\b"],"output":["é","\b \b","\b \b"]}
+{"input":["é","\u001b[A","\b"],"output":["é","\b \b"]}
+{"input":["é","\u001b","\b"],"output":["é","\b \b"]}
+{"input":["é","\t","\b"],"output":["é","\b \b"]}
+{"input":["é","\n","\b"],"output":["é","\b \b"]}
+{"input":["é","\u0001","\b"],"output":["é","\b \b"]}
+{"input":["é","😀","\b"],"output":["é","😀","\b \b"]}
+{"input":["é","é","\b"],"output":["é","é","\b \b"]}
+{"input":["é","é","\b"],"output":["é","é","\b \b"]}
+{"input":["é"," a\n\t😀b","\b"],"output":["é"," a😀b","\b \b"]}
+{"input":["é","中","\b"],"output":["é","中","\b \b"]}
+{"input":["é","﻿","\b"],"output":["é","﻿","\b \b"]}
+{"input":["é","","\b"],"output":["é","","\b \b"]}
+{"input":[" a\n\t😀b","a","\b"],"output":[" a😀b","a","\b \b"]}
+{"input":[" a\n\t😀b","abc","\b"],"output":[" a😀b","abc","\b \b"]}
+{"input":[" a\n\t😀b","hello world","\b"],"output":[" a😀b","hello world","\b \b"]}
+{"input":[" a\n\t😀b","\r","\b"],"output":[" a😀b","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":[" a\n\t😀b","\b","\b"],"output":[" a😀b","\b \b","\b \b"]}
+{"input":[" a\n\t😀b","","\b"],"output":[" a😀b","\b \b","\b \b"]}
+{"input":[" a\n\t😀b","\u001b[A","\b"],"output":[" a😀b","\b \b"]}
+{"input":[" a\n\t😀b","\u001b","\b"],"output":[" a😀b","\b \b"]}
+{"input":[" a\n\t😀b","\t","\b"],"output":[" a😀b","\b \b"]}
+{"input":[" a\n\t😀b","\n","\b"],"output":[" a😀b","\b \b"]}
+{"input":[" a\n\t😀b","\u0001","\b"],"output":[" a😀b","\b \b"]}
+{"input":[" a\n\t😀b","😀","\b"],"output":[" a😀b","😀","\b \b"]}
+{"input":[" a\n\t😀b","é","\b"],"output":[" a😀b","é","\b \b"]}
+{"input":[" a\n\t😀b","é","\b"],"output":[" a😀b","é","\b \b"]}
+{"input":[" a\n\t😀b"," a\n\t😀b","\b"],"output":[" a😀b"," a😀b","\b \b"]}
+{"input":[" a\n\t😀b","中","\b"],"output":[" a😀b","中","\b \b"]}
+{"input":[" a\n\t😀b","﻿","\b"],"output":[" a😀b","﻿","\b \b"]}
+{"input":[" a\n\t😀b","","\b"],"output":[" a😀b","","\b \b"]}
+{"input":["中","a","\b"],"output":["中","a","\b \b"]}
+{"input":["中","abc","\b"],"output":["中","abc","\b \b"]}
+{"input":["中","hello world","\b"],"output":["中","hello world","\b \b"]}
+{"input":["中","\r","\b"],"output":["中","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["中","\b","\b"],"output":["中","\b \b"]}
+{"input":["中","","\b"],"output":["中","\b \b"]}
+{"input":["中","\u001b[A","\b"],"output":["中","\b \b"]}
+{"input":["中","\u001b","\b"],"output":["中","\b \b"]}
+{"input":["中","\t","\b"],"output":["中","\b \b"]}
+{"input":["中","\n","\b"],"output":["中","\b \b"]}
+{"input":["中","\u0001","\b"],"output":["中","\b \b"]}
+{"input":["中","😀","\b"],"output":["中","😀","\b \b"]}
+{"input":["中","é","\b"],"output":["中","é","\b \b"]}
+{"input":["中","é","\b"],"output":["中","é","\b \b"]}
+{"input":["中"," a\n\t😀b","\b"],"output":["中"," a😀b","\b \b"]}
+{"input":["中","中","\b"],"output":["中","中","\b \b"]}
+{"input":["中","﻿","\b"],"output":["中","﻿","\b \b"]}
+{"input":["中","","\b"],"output":["中","","\b \b"]}
+{"input":["﻿","a","\b"],"output":["﻿","a","\b \b"]}
+{"input":["﻿","abc","\b"],"output":["﻿","abc","\b \b"]}
+{"input":["﻿","hello world","\b"],"output":["﻿","hello world","\b \b"]}
+{"input":["﻿","\r","\b"],"output":["﻿","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["﻿","\b","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","\u001b[A","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","\u001b","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","\t","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","\n","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","\u0001","\b"],"output":["﻿","\b \b"]}
+{"input":["﻿","😀","\b"],"output":["﻿","😀","\b \b"]}
+{"input":["﻿","é","\b"],"output":["﻿","é","\b \b"]}
+{"input":["﻿","é","\b"],"output":["﻿","é","\b \b"]}
+{"input":["﻿"," a\n\t😀b","\b"],"output":["﻿"," a😀b","\b \b"]}
+{"input":["﻿","中","\b"],"output":["﻿","中","\b \b"]}
+{"input":["﻿","﻿","\b"],"output":["﻿","﻿","\b \b"]}
+{"input":["﻿","","\b"],"output":["﻿","","\b \b"]}
+{"input":["","a","\b"],"output":["","a","\b \b"]}
+{"input":["","abc","\b"],"output":["","abc","\b \b"]}
+{"input":["","hello world","\b"],"output":["","hello world","\b \b"]}
+{"input":["","\r","\b"],"output":["","\r\n\u001b[1;32m→\u001b[0m \u001b[1;36mt3code\u001b[0m \u001b[1;34mgit:(\u001b[1;31mmain\u001b[1;34m)\u001b[0m \u001b[1;33m✗\u001b[0m "]}
+{"input":["","\b","\b"],"output":["","\b \b"]}
+{"input":["","","\b"],"output":["","\b \b"]}
+{"input":["","\u001b[A","\b"],"output":["","\b \b"]}
+{"input":["","\u001b","\b"],"output":["","\b \b"]}
+{"input":["","\t","\b"],"output":["","\b \b"]}
+{"input":["","\n","\b"],"output":["","\b \b"]}
+{"input":["","\u0001","\b"],"output":["","\b \b"]}
+{"input":["","😀","\b"],"output":["","😀","\b \b"]}
+{"input":["","é","\b"],"output":["","é","\b \b"]}
+{"input":["","é","\b"],"output":["","é","\b \b"]}
+{"input":[""," a\n\t😀b","\b"],"output":[""," a😀b","\b \b"]}
+{"input":["","中","\b"],"output":["","中","\b \b"]}
+{"input":["","﻿","\b"],"output":["","﻿","\b \b"]}
+{"input":["","","\b"],"output":["","","\b \b"]}

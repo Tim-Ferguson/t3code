@@ -1,5 +1,7 @@
+mod appearance;
 mod client_settings;
 mod draft_storage;
+mod font_service;
 mod model_controls;
 mod new_thread;
 mod runtime;
@@ -24,6 +26,8 @@ pub fn App() -> Element {
     let transport = use_hook(runtime::TransportHandle::default);
     let startup_transport = transport.clone();
     let terminal_catalog = terminal_pane::use_catalog();
+    client_settings::use_writer(state);
+    font_service::use_fonts(state);
     draft_storage::use_writer(state);
     draft_storage::use_native_close_flush(state);
     draft_storage::use_flush_on_unload(state);
@@ -129,7 +133,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         serde_json::to_string(&(&environment_key, &active_id)).expect("string identity");
     rsx! {
         style { "{STYLES}" }
-        div { class: "{layout_class}", "data-theme": theme,
+        div { class: "{layout_class}", "data-theme": theme,"data-word-wrap":state.client_settings().read().word_wrap,
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
                 nav { class: "sidebar-actions",
@@ -160,7 +164,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             }
             main { class: "workspace",
                 if let Some(error)=state.draft_storage_error().read().clone() {div {class:"error-banner",role:"alert","{error}",button {onclick:move|_|{spawn(draft_storage::hydrate(state));},"Retry reading drafts"}}}
-                if let Some(error)=state.client_settings_error().read().clone() {div {class:"error-banner",role:"alert","{error}",button {onclick:move|_|{spawn(client_settings::hydrate(state));},"Retry reading preferences"}}}
+                if let Some(error)=state.client_settings_error().read().clone() {div {class:"error-banner",role:"alert","{error}",button {onclick:move|_|{spawn(client_settings::hydrate(state));},{if try_consume_context::<client_settings::Writer>().is_some_and(|writer|writer.document.peek().read_error.is_none()){"Retry saving preferences"}else{"Retry reading preferences"}}}}}
                 header { class: "workspace-header",
                     button { class: "icon-button", "aria-label": "Toggle main sidebar", onclick: move |_| { let open=state.peek().sidebar_open; state.sidebar_open().set(!open); }, "☰" }
                     span { class: "workspace-title", "{title}" }
@@ -214,7 +218,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::Appearance => rsx! {
                         section { class: "settings-page", div { class: "settings-tabs", button { onclick: move |_| state.view().set(View::Providers), "Providers" } button { class: "selected", "Appearance" } button { onclick: move |_| state.view().set(View::Connections), "Connections" } }
                             h1 { "Appearance" } label { "Theme" }
-                            select { value: theme, onchange: move |event| state.dark().set(event.value()=="dark"), option { value: "light",selected:theme=="light", "Light" } option { value: "dark",selected:theme=="dark", "Dark" } }
+                            select { "aria-label":"Theme",value: theme, onchange: move |event| state.dark().set(event.value()=="dark"), option { value: "light",selected:theme=="light", "Light" } option { value: "dark",selected:theme=="dark", "Dark" } }
+                            appearance::Typography {state}
                         }
                     },
                     View::Chat => rsx! {

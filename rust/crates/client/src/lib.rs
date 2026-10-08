@@ -1,4 +1,5 @@
 //! Platform-independent client state and the Effect RPC transport lifecycle.
+pub mod client_preferences;
 pub mod connection;
 pub mod draft_storage;
 pub mod drafts;
@@ -12,6 +13,7 @@ pub mod started_thread;
 pub mod terminal_drawer;
 pub mod terminal_labels;
 pub mod terminal_output;
+pub mod terminal_preview;
 pub mod terminal_session;
 pub mod terminal_ui;
 pub mod thread;

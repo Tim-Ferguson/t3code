@@ -1,8 +1,17 @@
 /* Source palette, typography and shell geometry from apps/web/src/index.css.
    This stylesheet is independent of Tailwind so Rust builds need no TS runtime. */
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  font-size: 14px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: var(
+    --font-sans,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    system-ui,
+    sans-serif
+  );
+  font-size: 16px;
+  --font-mono: "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
 * {
   box-sizing: border-box;
@@ -48,6 +57,8 @@ select:focus-visible {
 .app {
   --background: oklch(99.2% 0 0);
   --foreground: oklch(37% 0.013 285.8);
+  --terminal-background: var(--background);
+  --terminal-foreground: var(--foreground);
   --card: #fff;
   --sidebar: #fafafa;
   --accent: #f4f4f5;
@@ -84,7 +95,7 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   padding: 0 16px;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: -0.4px;
 }
@@ -130,7 +141,7 @@ select:focus-visible {
   gap: 8px;
   padding: 8px 10px 8px 19px;
   text-align: left;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .thread-row.selected {
   background: var(--card);
@@ -183,7 +194,7 @@ select:focus-visible {
 }
 .workspace-title {
   flex: 1;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
@@ -192,11 +203,11 @@ select:focus-visible {
 .icon-button {
   border: 0;
   background: transparent;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .branch-label {
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .empty-state {
   flex: 1;
@@ -208,7 +219,7 @@ select:focus-visible {
   padding: 24px;
 }
 .empty-state h1 {
-  font-size: 24px;
+  font-size: 1.5rem;
   letter-spacing: -0.6px;
   margin: 0 0 8px;
   font-weight: 600;
@@ -245,7 +256,7 @@ select:focus-visible {
   color: #dc2626;
   border-bottom: 1px solid var(--border);
   padding: 8px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .error-banner button {
   border: 0;
@@ -284,7 +295,7 @@ select:focus-visible {
   border-radius: 8px;
 }
 .markdown code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 .markdown img {
@@ -295,7 +306,7 @@ select:focus-visible {
   color: var(--primary);
 }
 .tool-activity {
-  font-size: 12px;
+  font-size: 0.75rem;
   margin: 8px 0;
   color: var(--muted-foreground);
 }
@@ -317,7 +328,7 @@ select:focus-visible {
   border: 0;
   outline: none;
   background: transparent;
-  font-size: 14px;
+  font-size: 0.875rem;
   padding: 4px;
 }
 .composer-toolbar {
@@ -327,7 +338,7 @@ select:focus-visible {
 }
 .composer-toolbar > span {
   flex: 1;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .muted {
   color: var(--muted-foreground);
@@ -340,7 +351,7 @@ select:focus-visible {
 }
 .approval-card h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .approval-card button {
   margin-right: 8px;
@@ -352,7 +363,7 @@ select:focus-visible {
   overflow: auto;
 }
 .settings-page h1 {
-  font-size: 24px;
+  font-size: 1.5rem;
   letter-spacing: -0.5px;
 }
 .settings-page form {
@@ -364,7 +375,7 @@ select:focus-visible {
 .settings-page label {
   margin-top: 8px;
   font-weight: 500;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .settings-page input,
 .settings-page select {
@@ -395,12 +406,12 @@ select:focus-visible {
   gap: 16px;
 }
 .provider-row h2 {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   flex: 1;
 }
 .provider-row span {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .modal-backdrop {
   position: fixed;
@@ -420,7 +431,7 @@ select:focus-visible {
   box-shadow: 0 15px 45px #0002;
 }
 .dialog h2 {
-  font-size: 18px;
+  font-size: 1.125rem;
   margin: 0 0 20px;
 }
 .dialog form {
@@ -428,7 +439,7 @@ select:focus-visible {
   gap: 8px;
 }
 .dialog label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   margin-top: 5px;
 }
 .dialog input {
@@ -464,7 +475,7 @@ select:focus-visible {
     margin: 8px 12px max(12px, env(safe-area-inset-bottom));
   }
   .composer textarea {
-    font-size: 16px;
+    font-size: 1rem;
   }
   .branch-label {
     display: none;
@@ -484,7 +495,7 @@ select:focus-visible {
     flex-wrap: wrap;
   }
   .empty-state h1 {
-    font-size: 22px;
+    font-size: 1.375rem;
   }
 }
 .approval-card pre {
@@ -498,7 +509,7 @@ select:focus-visible {
   margin: 8px 0;
 }
 .approval-warning {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #b45309;
 }
 .user-input fieldset {
@@ -507,7 +518,7 @@ select:focus-visible {
   padding: 0;
 }
 .user-input legend {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted-foreground);
 }
@@ -521,7 +532,7 @@ select:focus-visible {
 .question-option small {
   display: block;
   color: var(--muted-foreground);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .user-input textarea {
   width: 100%;
@@ -544,7 +555,7 @@ select:focus-visible {
   min-width: 0;
 }
 .connection-row p {
-  font-size: 12px;
+  font-size: 0.75rem;
   overflow-wrap: anywhere;
   margin: 4px 0;
 }
@@ -555,7 +566,7 @@ select:focus-visible {
 .history-error {
   color: #dc2626;
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .tool-activity {
   border: 1px solid var(--border);
@@ -582,10 +593,10 @@ select:focus-visible {
   white-space: nowrap;
   flex: 1;
   color: var(--foreground);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .activity-status {
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .activity-body {
   border-top: 1px solid var(--border);
@@ -598,7 +609,7 @@ select:focus-visible {
   max-height: 400px;
   white-space: pre-wrap;
   margin: 6px 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 .command-input,
 .tool-input {
@@ -610,7 +621,7 @@ select:focus-visible {
   padding: 8px 0;
 }
 .diff-count {
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 .additions {
   color: #16a34a;
@@ -620,12 +631,12 @@ select:focus-visible {
   color: #dc2626;
 }
 .unified-diff {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .activity-notice {
   padding: 12px 0;
   margin: 6px 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
 }
 .activity-notice.failure {
@@ -639,7 +650,7 @@ select:focus-visible {
   margin: 16px 0;
 }
 .plan-card h3 {
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 0 0 12px;
 }
 .todo-card ol {
@@ -652,7 +663,7 @@ select:focus-visible {
   align-items: baseline;
   gap: 9px;
   padding: 5px 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .todo-card li > span:nth-child(2) {
   flex: 1;
@@ -678,7 +689,7 @@ select:focus-visible {
   flex-direction: column;
   align-items: stretch;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   text-align: left;
 }
@@ -704,12 +715,12 @@ select:focus-visible {
 .new-thread-prompt textarea {
   min-height: 64px;
   resize: vertical;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 @media (max-width: 720px) {
   .new-thread-controls select,
   .new-thread-controls input:not([type="checkbox"]) {
-    font-size: 16px;
+    font-size: 1rem;
   }
 }
 
@@ -732,7 +743,7 @@ select:focus-visible {
     flex-basis: 100%;
   }
   .thread-controls select {
-    font-size: 16px;
+    font-size: 1rem;
   }
 }
 
@@ -761,7 +772,7 @@ select:focus-visible {
 }
 .terminal-toolbar button {
   padding: 3px 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .terminal-toolbar .selected {
   background: var(--muted);
@@ -786,7 +797,7 @@ select:focus-visible {
   overflow: hidden;
 }
 .terminal-error {
-  font-size: 12px;
+  font-size: 0.75rem;
   margin: 4px 12px;
   color: var(--destructive);
 }
@@ -804,7 +815,7 @@ select:focus-visible {
   padding-right: 8px;
 }
 .terminal-toggle button {
-  font-size: 11px;
+  font-size: 0.6875rem;
   padding: 0 6px;
 }
 .terminal-resize {
@@ -850,7 +861,7 @@ select:focus-visible {
   height: 22px;
   padding: 0;
   border-radius: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
 }
 .terminal-floating-actions {
   position: absolute;
@@ -867,7 +878,7 @@ select:focus-visible {
   padding: 4px;
 }
 .terminal-group-label {
-  font-size: 10px;
+  font-size: 0.625rem;
   color: var(--muted-foreground);
   padding: 4px;
 }
@@ -885,7 +896,7 @@ select:focus-visible {
 .terminal-session button {
   padding: 0 4px;
   height: 24px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   border-radius: 0;
 }
 .terminal-session-label {
@@ -906,7 +917,7 @@ select:focus-visible {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
 }
 .terminal-confirm-backdrop {
@@ -928,10 +939,10 @@ select:focus-visible {
 }
 .terminal-confirm h3 {
   margin: 0 0 12px;
-  font-size: 16px;
+  font-size: 1rem;
 }
 .terminal-confirm p {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted-foreground);
 }
 .terminal-confirm > div {
@@ -943,4 +954,141 @@ select:focus-visible {
 .terminal-confirm .terminal-destructive {
   background: var(--destructive);
   color: white;
+}
+
+.composer textarea,
+.new-thread-prompt textarea {
+  font-family: var(--font-composer, var(--font-sans));
+  font-size: var(--font-size-prompt, 14px);
+}
+.markdown pre,
+.markdown pre code,
+.tool-output {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-code, 13px);
+}
+.typography {
+  margin-top: 28px;
+}
+.typography h2 {
+  display: inline-block;
+  margin: 0 0 16px;
+  font-size: 1.125rem;
+}
+.typography-advanced {
+  float: right;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+.font-setting {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.font-description {
+  flex: 1;
+  min-width: 200px;
+}
+.font-description strong {
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+.font-description p {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+}
+.font-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 100%;
+}
+.font-controls input,
+.font-picker > button {
+  width: 176px;
+}
+.font-controls select {
+  width: 86px;
+}
+.font-controls input[aria-invalid="true"] {
+  border-color: var(--destructive, #dc2626);
+}
+.font-invalid {
+  width: 100%;
+  margin: 0;
+  color: var(--destructive, #dc2626);
+  font-size: 0.75rem;
+}
+.font-picker {
+  position: relative;
+}
+.font-popup {
+  position: absolute;
+  right: 0;
+  z-index: 30;
+  width: 288px;
+  padding: 8px;
+  background: var(--popover, var(--background));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px #0003;
+}
+.font-popup input {
+  width: 100%;
+}
+.font-list {
+  max-height: 288px;
+  overflow-y: auto;
+}
+.font-choice {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.font-choice.highlighted,
+.font-choice:hover {
+  background: var(--muted);
+}
+@media (max-width: 720px) {
+  .font-controls {
+    width: 100%;
+  }
+  .font-controls input,
+  .font-picker,
+  .font-picker > button {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+  }
+}
+.font-terminal-preview {
+  position: relative;
+  margin: 4px 0 12px;
+  height: 208px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.app[data-word-wrap="false"] .markdown pre,
+.app[data-word-wrap="false"] .tool-output {
+  white-space: pre;
+  overflow-x: auto;
+  overflow-wrap: normal;
+}
+.app[data-word-wrap="true"] .markdown pre,
+.app[data-word-wrap="true"] .tool-output {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

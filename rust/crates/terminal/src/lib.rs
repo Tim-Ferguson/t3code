@@ -20,3 +20,6 @@ pub mod keyboard;
 pub mod surface;
 
 pub mod surface_policy;
+
+#[cfg(target_arch = "wasm32")]
+pub mod appearance;

@@ -32,6 +32,8 @@ struct Options {
     theme: Option<Theme>,
     #[serde(default)]
     read_only: bool,
+    #[serde(default)]
+    tab_navigates: bool,
     #[serde(default = "font_size")]
     font_size: f64,
     #[serde(default)]
@@ -72,6 +74,7 @@ struct State {
     font_epoch: u64,
     visible: bool,
     read_only: bool,
+    tab_navigates: bool,
     writable: Rc<Cell<bool>>,
     disposed: bool,
     focused: bool,
@@ -656,6 +659,7 @@ pub async fn mount_terminal(
         font_epoch: 0,
         visible: true,
         read_only: options.read_only,
+        tab_navigates: options.tab_navigates,
         writable: writable.clone(),
         disposed: false,
         focused: false,
@@ -781,6 +785,9 @@ pub async fn mount_terminal(
             if release { "keyup" } else { "keydown" },
             move |s, event| {
                 let event: KeyboardEvent = event.dyn_into()?;
+                if s.tab_navigates && event.key() == "Tab" {
+                    return Ok(());
+                }
                 if release && s.suppressed.remove(&event.code()) {
                     return Ok(());
                 }
@@ -1512,29 +1519,8 @@ async fn load_font(family: &str, size: f64) -> String {
             .load_with_text(&format!("{variant} {size}px {candidate}"), "iMW0@# .");
         let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
     }
-    let families = crate::fonts::quote_families(family);
-    if families.is_empty() {
+    if !crate::appearance::monospace(family) {
         return DEFAULT_FONT.into();
-    }
-    let context = document
-        .create_element("canvas")
-        .ok()
-        .and_then(|element| element.dyn_into::<HtmlCanvasElement>().ok())
-        .and_then(|canvas| canvas.get_context("2d").ok().flatten())
-        .and_then(|context| context.dyn_into::<CanvasRenderingContext2d>().ok());
-    if let Some(context) = context {
-        for variant in ["normal 400", "normal 700", "italic 400", "italic 700"] {
-            context.set_font(&format!("{variant} 32px {families}, monospace"));
-            let advances = ["i", "M", "W", "0", "@", "#", ".", " "]
-                .iter()
-                .map(|glyph| context.measure_text(glyph).map(|metrics| metrics.width()))
-                .collect::<std::result::Result<Vec<_>, _>>();
-            if let Ok(advances) = advances {
-                if !crate::fonts::monospace_advances(&advances) {
-                    return DEFAULT_FONT.into();
-                }
-            }
-        }
     }
     candidate
 }

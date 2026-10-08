@@ -425,6 +425,8 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
             use_window, use_wry_event_handler,
         };
         let window = use_window();
+        let preferences = try_consume_context::<crate::client_settings::Writer>();
+        let fonts = try_consume_context::<crate::font_service::Fonts>();
         let closing = use_hook(|| Rc::new(Cell::new(false)));
         use_wry_event_handler(move |event, _| {
             if !matches!(
@@ -433,7 +435,11 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
                     event: WindowEvent::CloseRequested,
                     ..
                 }
-            ) || !state.peek().draft_storage.document.borrow().dirty()
+            ) || (!state.peek().draft_storage.document.borrow().dirty()
+                && !preferences
+                    .as_ref()
+                    .is_some_and(|writer| writer.needs_flush())
+                && !fonts.as_ref().is_some_and(|fonts| fonts.commits.pending()))
             {
                 return;
             }
@@ -443,23 +449,38 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
             }
             let window = window.clone();
             let closing = closing.clone();
+            let preferences = preferences.clone();
+            let fonts = fonts.clone();
             spawn(async move {
-                let result = match request_flush(state) {
-                    Ok(receiver) => receiver.await.unwrap_or_else(|_| {
-                        Err(
-                            "Draft writer stopped before saving. Unsent drafts remain in memory."
-                                .into(),
-                        )
-                    }),
-                    Err(error) => Err(error),
-                };
+                let mut result = Ok(());
+                loop {
+                    if let Some(writer) = &preferences {
+                        result = if let Some(fonts) = &fonts {
+                            writer.flush_after(&fonts.commits).await
+                        } else {
+                            writer.flush().await
+                        };
+                    }
+                    if result.is_ok() && state.peek().draft_storage.document.borrow().dirty() {
+                        result=match request_flush(state){Ok(receiver)=>receiver.await.unwrap_or_else(|_|Err("Draft writer stopped before saving. Unsent drafts remain in memory.".into())),Err(error)=>Err(error)};
+                    }
+                    if result.is_err()
+                        || (!state.peek().draft_storage.document.borrow().dirty()
+                            && !preferences
+                                .as_ref()
+                                .is_some_and(|writer| writer.needs_flush())
+                            && !fonts.as_ref().is_some_and(|fonts| fonts.commits.pending()))
+                    {
+                        break;
+                    }
+                }
                 window.set_close_behavior(WindowCloseBehaviour::WindowCloses);
                 if result.is_ok() {
                     window.close();
                 } else {
                     closing.set(false);
                     window.set_visible(true);
-                    state.draft_storage_error().set(result.err());
+                    state.error().set(result.err());
                 }
             });
         });
