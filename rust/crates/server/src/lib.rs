@@ -28,3 +28,7 @@ pub mod terminal_io;
 pub mod terminal_manager;
 pub mod terminal_process;
 pub mod terminal_store;
+
+pub mod resource_policy;
+pub mod resource_binary;
+pub mod native_telemetry;

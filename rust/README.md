@@ -11,6 +11,22 @@ cargo test --locked --workspace --manifest-path rust/Cargo.toml
 cargo check --locked --manifest-path rust/Cargo.toml -p t3-ui
 ```
 
+The preserved native resource monitor is an independent package under
+`rust/native/resource-monitor`. Its unchanged `sysinfo` implementation requires
+Rust 1.95 or newer; it is excluded from the main Rust 1.89 workspace. Build it
+before running the explicit native-owner integration test:
+
+```sh
+cargo build --locked --manifest-path rust/native/resource-monitor/Cargo.toml --target-dir rust/target/resource-monitor -j 2
+cargo test --locked --manifest-path rust/native/resource-monitor/Cargo.toml --target-dir rust/target/resource-monitor -j 2
+cargo test --locked --manifest-path rust/Cargo.toml -p t3-server native_telemetry::tests::preserved_native_monitor_real_process_table_sampling_and_history -j 2 -- --ignored
+```
+
+The regular workspace suite uses deterministic subprocess fixtures and does not
+require a prebuilt monitor. The owner can discover the artifact above, or use
+`T3CODE_RESOURCE_MONITOR_PATH` to select an explicit executable. Higher-level
+resource aggregation and port discovery are still being implemented.
+
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and
 project commands and HTTP/WebSocket transport (`t3-server`), and a Dioxus UI (`t3-ui`). Contracts
