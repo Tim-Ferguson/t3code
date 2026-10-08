@@ -410,6 +410,16 @@ impl Terminals {
             .filter(|record| record.session == session)
             .map(snapshot)
     }
+    #[cfg(test)]
+    pub(crate) fn owned_terminal(&self, id: &str) -> Option<(u32, watch::Receiver<bool>)> {
+        self.0
+            .state
+            .lock()
+            .unwrap()
+            .records
+            .get(id)
+            .map(|record| (record.pid, record.disposed.clone()))
+    }
     pub(crate) fn command_line(&self, id: &str) -> Option<String> {
         self.0
             .state

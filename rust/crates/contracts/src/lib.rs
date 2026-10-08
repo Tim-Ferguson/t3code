@@ -61,3 +61,9 @@ pub use diagnostics::*;
 
 pub mod desktop_bootstrap;
 pub use desktop_bootstrap::*;
+
+pub mod acp_registry;
+pub use acp_registry::*;
+
+pub mod settings_rpc;
+pub use settings_rpc::*;

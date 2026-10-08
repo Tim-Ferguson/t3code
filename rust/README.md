@@ -46,13 +46,21 @@ supplies telemetry channels and an explicit resource-monitor executable.
 Browser IPC, Tailscale Serve and OTLP requests currently fail explicitly.
 Automatic browser launching remains unimplemented, so `noBrowser` has no
 launcher to control. Windows inherited descriptors, original database/layout
-migration, live settings updates and the desktop producer remain pending. Host resources are
+migration and the desktop producer remain pending. Host resources are
 sampled on demand with a shared five-second cache. The legacy process diagnostics,
 process history and scoped SIGINT/SIGKILL methods now project the resource service;
 signaling requires a fresh process identity and a permitted backend category.
 MacOS host sampling and owned-child signaling are tested; Linux and Windows
 host/signaling implementations still require platform execution tests. Resource values retain source arithmetic and fail typed wire
 validation when the original public schema cannot represent them.
+
+Server settings load through a serialized Rust owner, watch file and symlink
+target changes, and publish live configuration events. Updates move sensitive
+provider variables and tokens into the isolated secret store, with rollback on
+failed persistence. Provider catalogs, new terminal environments and desktop
+power intervals follow settings changes. Load-time legacy project/provider
+history migration, full background policy updates and remote device-host
+resolution remain unfinished; nonempty device-host updates fail explicitly.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and

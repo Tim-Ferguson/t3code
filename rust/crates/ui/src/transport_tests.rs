@@ -391,6 +391,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         auth: auth.clone(),
         environment,
         config: Some(config),
+        settings: None,
         cors_origins: None,
         assets: None,
         providers: None,

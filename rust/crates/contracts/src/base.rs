@@ -488,3 +488,15 @@ pub fn deserialize_optional_nonnegative_u64<'de, D: serde::Deserializer<'de>>(
 ) -> Result<Option<Option<u64>>, D::Error> {
     Option::<NonNegativeInt>::deserialize(d).map(|value| Some(value.map(|n| n.0)))
 }
+
+/// A flattened field makes serde require an object rather than accepting a
+/// positional sequence for a struct. Unknown properties are discarded as in
+/// Effect Struct decoding.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct DiscardUnknownFields;
+impl<'de> Deserialize<'de> for DiscardUnknownFields {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        std::collections::BTreeMap::<String, serde::de::IgnoredAny>::deserialize(d)?;
+        Ok(Self)
+    }
+}

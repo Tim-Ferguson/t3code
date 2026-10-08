@@ -6,7 +6,11 @@ use crate::{
 };
 use futures_util::StreamExt;
 use serde_json::{Value, json};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::{Arc, Mutex, RwLock, Weak},
+};
 use t3_contracts::{
     ProviderInstanceConfig, ProviderInstanceConfigMap, ProviderInstanceId, ServerSettings,
 };
@@ -28,48 +32,143 @@ enum RegisteredInstance {
     Codex(CodexInstance),
     Acp(AcpInstance),
 }
+struct RegistryState {
+    codex: HashMap<String, CodexInstance>,
+    acp: HashMap<String, AcpInstance>,
+    snapshots: Vec<Value>,
+    settings: ServerSettings,
+}
+#[derive(Default)]
+struct ProviderListeners {
+    next: u64,
+    senders: HashMap<u64, tokio::sync::mpsc::UnboundedSender<Arc<Vec<Value>>>>,
+}
+/// Changes only, as in the source registry's PubSub.unbounded stream. Dropping
+/// the subscription removes its queue rather than retaining a stale client.
+pub struct ProviderChanges {
+    receiver: tokio::sync::mpsc::UnboundedReceiver<Arc<Vec<Value>>>,
+    listeners: Weak<Mutex<ProviderListeners>>,
+    id: u64,
+}
+impl ProviderChanges {
+    pub async fn recv(&mut self) -> Option<Arc<Vec<Value>>> {
+        self.receiver.recv().await
+    }
+}
+impl Drop for ProviderChanges {
+    fn drop(&mut self) {
+        if let Some(listeners) = self.listeners.upgrade() {
+            listeners.lock().unwrap().senders.remove(&self.id);
+        }
+    }
+}
 #[derive(Clone)]
 pub struct ProviderRegistry {
-    codex: Arc<HashMap<String, CodexInstance>>,
-    acp: Arc<HashMap<String, AcpInstance>>,
-    snapshots: Arc<Vec<Value>>,
-    settings: Arc<ServerSettings>,
+    state: Arc<RwLock<RegistryState>>,
+    catalog: Option<crate::acp_registry_support::Catalog>,
+    refresh: Arc<tokio::sync::Mutex<()>>,
+    changes: Arc<Mutex<ProviderListeners>>,
 }
 impl ProviderRegistry {
     pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
+        Self::discover_with_catalog(settings, cwd, None).await
+    }
+    pub async fn discover_with_catalog(
+        settings: &ServerSettings,
+        cwd: &Path,
+        catalog: Option<crate::acp_registry_support::Catalog>,
+    ) -> Result<Self, ProcessError> {
         let entries = derive_instance_configs(settings);
-        let mut results = futures_util::stream::iter(entries)
-            .map(|(id, entry)| async move {
-                let id = id.to_string();
-                if entry.driver.as_str() == "acpRegistry" {
-                    let config = match serde_json::from_value::<t3_contracts::AcpRegistrySettings>(
-                        entry.config.clone().unwrap_or(json!({})),
-                    ) {
-                        Ok(config) => config,
-                        Err(error) => {
+        let mut results =
+            futures_util::stream::iter(entries)
+                .map(|(id, entry)| {
+                    let catalog = catalog.clone();
+                    async move {
+                        let id = id.to_string();
+                        if entry.driver.as_str() == "acpRegistry" {
+                            let config =
+                                match serde_json::from_value::<t3_contracts::AcpRegistrySettings>(
+                                    entry.config.clone().unwrap_or(json!({})),
+                                ) {
+                                    Ok(config) => config,
+                                    Err(error) => {
+                                        return Ok((
+                                            id.clone(),
+                                            None,
+                                            unavailable(
+                                                &id,
+                                                &entry,
+                                                format!("Invalid ACP config: {error}"),
+                                            )?,
+                                        ));
+                                    }
+                                };
+                            let instance = AcpInstance {
+                                instance_id: id.clone(),
+                                display_name: entry
+                                    .display_name
+                                    .as_ref()
+                                    .and_then(Option::as_ref)
+                                    .map(ToString::to_string)
+                                    .unwrap_or_else(|| "ACP Registry".into()),
+                                accent_color: entry
+                                    .accent_color
+                                    .as_ref()
+                                    .and_then(Option::as_ref)
+                                    .map(ToString::to_string),
+                                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                                config,
+                                catalog,
+                                environment: entry
+                                    .environment
+                                    .as_ref()
+                                    .map(|variables| {
+                                        variables
+                                            .iter()
+                                            .map(|variable| {
+                                                (variable.name.to_string(), variable.value.clone())
+                                            })
+                                            .collect()
+                                    })
+                                    .unwrap_or_default(),
+                            };
+                            let snapshot = instance
+                                .discover(cwd)
+                                .await
+                                .map_err(|error| ProcessError::Protocol(error.to_string()))?;
+                            return Ok((id, Some(RegisteredInstance::Acp(instance)), snapshot));
+                        }
+                        if entry.driver.as_str() != "codex" {
                             return Ok((
                                 id.clone(),
                                 None,
-                                unavailable(&id, &entry, format!("Invalid ACP config: {error}"))?,
+                                unavailable(
+                                    &id,
+                                    &entry,
+                                    format!(
+                                        "Driver '{}' is not registered in this native build.",
+                                        entry.driver
+                                    ),
+                                )?,
                             ));
                         }
-                    };
-                    let instance = AcpInstance {
-                        instance_id: id.clone(),
-                        display_name: entry
-                            .display_name
-                            .as_ref()
-                            .and_then(Option::as_ref)
-                            .map(ToString::to_string)
-                            .unwrap_or_else(|| "ACP Registry".into()),
-                        accent_color: entry
-                            .accent_color
-                            .as_ref()
-                            .and_then(Option::as_ref)
-                            .map(ToString::to_string),
-                        enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
-                        config,
-                        environment: entry
+                        let config = match serde_json::from_value::<CodexConfig>(
+                            entry.config.clone().unwrap_or(json!({})),
+                        ) {
+                            Ok(config) => config,
+                            Err(error) => {
+                                return Ok((
+                                    id.clone(),
+                                    None,
+                                    unavailable(
+                                        &id,
+                                        &entry,
+                                        format!("Invalid config for instance '{id}': {error}"),
+                                    )?,
+                                ));
+                            }
+                        };
+                        let environment = entry
                             .environment
                             .as_ref()
                             .map(|variables| {
@@ -80,79 +179,37 @@ impl ProviderRegistry {
                                     })
                                     .collect()
                             })
-                            .unwrap_or_default(),
-                    };
-                    let snapshot = instance
-                        .discover(cwd)
-                        .await
-                        .map_err(|error| ProcessError::Protocol(error.to_string()))?;
-                    return Ok((id, Some(RegisteredInstance::Acp(instance)), snapshot));
-                }
-                if entry.driver.as_str() != "codex" {
-                    return Ok((
-                        id.clone(),
-                        None,
-                        unavailable(
-                            &id,
-                            &entry,
-                            format!(
-                                "Driver '{}' is not registered in this native build.",
-                                entry.driver
-                            ),
-                        )?,
-                    ));
-                }
-                let config = match serde_json::from_value::<CodexConfig>(
-                    entry.config.clone().unwrap_or(json!({})),
-                ) {
-                    Ok(config) => config,
-                    Err(error) => {
-                        return Ok((
-                            id.clone(),
-                            None,
-                            unavailable(
-                                &id,
-                                &entry,
-                                format!("Invalid config for instance '{id}': {error}"),
-                            )?,
-                        ));
+                            .unwrap_or_default();
+                        let instance = CodexInstance {
+                            instance_id: id.clone(),
+                            display_name: entry
+                                .display_name
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(ToString::to_string)
+                                .unwrap_or_else(|| "Codex".into()),
+                            accent_color: entry
+                                .accent_color
+                                .as_ref()
+                                .and_then(Option::as_ref)
+                                .map(ToString::to_string),
+                            enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                            config,
+                            environment,
+                        };
+                        let snapshot = instance.discover(cwd).await?;
+                        Ok::<_, ProcessError>((
+                            id,
+                            Some(RegisteredInstance::Codex(instance)),
+                            snapshot,
+                        ))
                     }
-                };
-                let environment = entry
-                    .environment
-                    .as_ref()
-                    .map(|variables| {
-                        variables
-                            .iter()
-                            .map(|variable| (variable.name.to_string(), variable.value.clone()))
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                let instance = CodexInstance {
-                    instance_id: id.clone(),
-                    display_name: entry
-                        .display_name
-                        .as_ref()
-                        .and_then(Option::as_ref)
-                        .map(ToString::to_string)
-                        .unwrap_or_else(|| "Codex".into()),
-                    accent_color: entry
-                        .accent_color
-                        .as_ref()
-                        .and_then(Option::as_ref)
-                        .map(ToString::to_string),
-                    enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
-                    config,
-                    environment,
-                };
-                let snapshot = instance.discover(cwd).await?;
-                Ok::<_, ProcessError>((id, Some(RegisteredInstance::Codex(instance)), snapshot))
-            })
-            .buffer_unordered(4)
-            .collect::<Vec<_>>()
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
+                })
+                .buffer_unordered(4)
+                .collect::<Vec<_>>()
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()?;
         // Keep deterministic instance ordering even when probes complete out of order.
         results.sort_by(|left, right| left.0.cmp(&right.0));
         let mut codex = HashMap::new();
@@ -172,71 +229,123 @@ impl ProviderRegistry {
             snapshots.push(snapshot);
         }
         Ok(Self {
-            codex: Arc::new(codex),
-            acp: Arc::new(acp),
-            snapshots: Arc::new(snapshots),
-            settings: Arc::new(settings.clone()),
+            state: Arc::new(RwLock::new(RegistryState {
+                codex,
+                acp,
+                snapshots,
+                settings: settings.clone(),
+            })),
+            catalog,
+            refresh: Arc::new(tokio::sync::Mutex::new(())),
+            changes: Arc::new(Mutex::new(ProviderListeners::default())),
         })
     }
-    pub fn snapshots(&self) -> &[Value] {
-        &self.snapshots
+    /// Existing registry clones observe a complete replacement after discovery.
+    /// Actors already executing keep their captured provider and runtime policy.
+    pub async fn reconfigure(
+        &self,
+        settings: &ServerSettings,
+        cwd: &Path,
+    ) -> Result<Vec<Value>, ProcessError> {
+        let _permit = self.refresh.lock().await;
+        let replacement = Self::discover_with_catalog(settings, cwd, self.catalog.clone()).await?;
+        let state = Arc::try_unwrap(replacement.state)
+            .map_err(|_| {
+                ProcessError::Protocol("Provider discovery state unexpectedly shared.".into())
+            })?
+            .into_inner()
+            .unwrap();
+        let snapshots = state.snapshots.clone();
+        let mut current = self.state.write().unwrap();
+        *current = state;
+        let published = Arc::new(snapshots.clone());
+        self.changes
+            .lock()
+            .unwrap()
+            .senders
+            .retain(|_, sender| sender.send(published.clone()).is_ok());
+        Ok(snapshots)
     }
-    pub(crate) fn settings(&self) -> &ServerSettings {
-        &self.settings
-    }
-    pub fn driver(&self, instance_id: &str) -> Result<&str, ProcessError> {
-        let snapshot = self
-            .snapshots
-            .iter()
-            .find(|snapshot| snapshot["instanceId"] == instance_id)
-            .ok_or_else(|| {
-                ProcessError::Protocol(format!("Provider instance '{instance_id}' is unavailable."))
-            })?;
-        if snapshot["enabled"] != true || snapshot["status"] != "ready" {
-            return Err(ProcessError::Protocol(
-                snapshot["message"]
-                    .as_str()
-                    .unwrap_or("Provider instance is not ready.")
-                    .into(),
-            ));
+    pub fn subscribe_changes(&self) -> ProviderChanges {
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let mut listeners = self.changes.lock().unwrap();
+        let id = listeners.next;
+        listeners.next += 1;
+        listeners.senders.insert(id, sender);
+        ProviderChanges {
+            receiver,
+            listeners: Arc::downgrade(&self.changes),
+            id,
         }
-        Ok(snapshot["driver"].as_str().unwrap())
+    }
+    /// Registration and initial snapshot share the state lock with publication,
+    /// closing the gap between a config snapshot and its provider-change stream.
+    pub fn snapshot_and_subscribe(&self) -> (Vec<Value>, ProviderChanges) {
+        let state = self.state.read().unwrap();
+        let changes = self.subscribe_changes();
+        (state.snapshots.clone(), changes)
+    }
+    pub fn catalog(&self) -> Option<crate::acp_registry_support::Catalog> {
+        self.catalog.clone()
+    }
+    pub fn snapshots(&self) -> Vec<Value> {
+        self.state.read().unwrap().snapshots.clone()
+    }
+    pub(crate) fn settings(&self) -> ServerSettings {
+        self.state.read().unwrap().settings.clone()
+    }
+    pub fn driver(&self, instance_id: &str) -> Result<&'static str, ProcessError> {
+        state_driver(&self.state.read().unwrap(), instance_id)
     }
     pub fn acp(&self, instance_id: &str) -> Result<AcpInstance, ProcessError> {
-        if self.driver(instance_id)? != "acpRegistry" {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "acpRegistry" {
             return Err(ProcessError::Protocol(
                 "Provider instance is not ACP Registry.".into(),
             ));
         }
-        self.acp
+        state
+            .acp
             .get(instance_id)
             .cloned()
             .ok_or_else(|| ProcessError::Protocol("ACP provider instance is unavailable.".into()))
     }
     pub fn codex(&self, instance_id: &str) -> Result<CodexInstance, ProcessError> {
-        let instance = self
-            .codex
-            .get(instance_id)
-            .filter(|instance| instance.enabled)
-            .ok_or_else(|| {
-                ProcessError::Protocol(format!(
-                    "Provider instance '{instance_id}' is unavailable or disabled."
-                ))
-            })?;
-        let snapshot = self
-            .snapshots
-            .iter()
-            .find(|snapshot| snapshot["instanceId"] == instance_id)
-            .unwrap();
-        if snapshot["status"] != "ready" {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "codex" {
             return Err(ProcessError::Protocol(
-                snapshot["message"]
-                    .as_str()
-                    .unwrap_or("Provider is not ready.")
-                    .into(),
+                "Provider instance is not Codex.".into(),
             ));
         }
-        Ok(instance.clone())
+        state
+            .codex
+            .get(instance_id)
+            .cloned()
+            .ok_or_else(|| ProcessError::Protocol("Codex provider instance is unavailable.".into()))
+    }
+}
+fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str, ProcessError> {
+    let snapshot = state
+        .snapshots
+        .iter()
+        .find(|snapshot| snapshot["instanceId"] == instance_id)
+        .ok_or_else(|| {
+            ProcessError::Protocol(format!("Provider instance '{instance_id}' is unavailable."))
+        })?;
+    if snapshot["enabled"] != true || snapshot["status"] != "ready" {
+        return Err(ProcessError::Protocol(
+            snapshot["message"]
+                .as_str()
+                .unwrap_or("Provider instance is not ready.")
+                .into(),
+        ));
+    }
+    match snapshot["driver"].as_str() {
+        Some("codex") => Ok("codex"),
+        Some("acpRegistry") => Ok("acpRegistry"),
+        _ => Err(ProcessError::Protocol(
+            "Provider driver is not registered.".into(),
+        )),
     }
 }
 fn unavailable(
@@ -378,6 +487,55 @@ mod tests {
             assert!(registry.codex(id).is_err());
         }
         assert!(!marker.exists());
+    }
+    #[tokio::test]
+    async fn provider_changes_are_changes_only_buffered_and_follow_complete_shared_state_swap() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut input = serde_json::to_value(ServerSettings::default()).unwrap();
+        for config in input["providers"].as_object_mut().unwrap().values_mut() {
+            config["enabled"] = json!(false);
+        }
+        input["providerInstances"] =
+            json!({"codex":{"driver":"codex","enabled":false,"displayName":"Old"}});
+        let old: ServerSettings = serde_json::from_value(input.clone()).unwrap();
+        let registry = ProviderRegistry::discover(&old, directory.path())
+            .await
+            .unwrap();
+        let shared = registry.clone();
+        let (initial, mut changes) = registry.snapshot_and_subscribe();
+        assert_eq!(
+            initial
+                .iter()
+                .find(|row| row["instanceId"] == "codex")
+                .unwrap()["displayName"],
+            "Old"
+        );
+        assert!(
+            matches!(
+                changes.receiver.try_recv(),
+                Err(tokio::sync::mpsc::error::TryRecvError::Empty)
+            ),
+            "source changes stream does not replay a seed"
+        );
+        input["providerInstances"]["codex"]["displayName"] = json!("New");
+        let new = serde_json::from_value(input).unwrap();
+        registry.reconfigure(&new, directory.path()).await.unwrap();
+        let event = changes.recv().await.unwrap();
+        assert_eq!(
+            event
+                .iter()
+                .find(|row| row["instanceId"] == "codex")
+                .unwrap()["displayName"],
+            "New"
+        );
+        assert_eq!(shared.snapshots(), *event);
+        assert_eq!(shared.settings(), new);
+        assert!(shared.codex("codex").is_err());
+        drop(changes);
+        assert!(
+            registry.changes.lock().unwrap().senders.is_empty(),
+            "dropping a client releases its source queue"
+        );
     }
     #[test]
     fn settings_redact_sensitive_environment_without_mutating_runtime_values() {

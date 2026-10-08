@@ -64,3 +64,20 @@ pub mod bootstrap;
 mod acp_client_terminals;
 
 mod acp_client_callbacks;
+
+pub mod server_secret_store;
+
+pub mod background_settings;
+
+pub mod server_settings_model;
+
+pub mod server_settings_secrets;
+
+pub mod server_settings;
+
+pub mod server_settings_runtime;
+
+pub mod acp_registry_support;
+
+#[cfg(test)]
+mod acp_registry_rpc_tests;

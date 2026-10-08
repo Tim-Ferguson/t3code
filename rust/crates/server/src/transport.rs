@@ -31,6 +31,7 @@ pub struct ApiState {
     pub environment: Value,
     /// Supplied by the configuration service, never invented by RPC handlers.
     pub config: Option<Value>,
+    pub settings: Option<crate::server_settings::SettingsService>,
     /// None uses the packaged wildcard policy; development names explicit origins.
     pub cors_origins: Option<Vec<String>>,
     /// Built Rust web assets, served with the API for cookie authentication.
@@ -574,13 +575,13 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                         RpcClientMessage::Request{request}=>{
                             if let Some(previous)=subscriptions.remove(&request.id){previous.task.abort();}
                             let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))).await;continue}};
-                            if let Err(error)=authorize_rpc(&session,&request.tag){let _=outgoing.send(failure(request.id,error)).await;continue}
+                            if let Err(error)=authorize_request(&session,&request){let _=outgoing.send(failure(request.id,error)).await;continue}
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeResourceTelemetry") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -607,6 +608,75 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
 }
 
 async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Value> {
+    if matches!(
+        request.tag.as_str(),
+        "server.getSettings"
+            | "server.updateSettings"
+            | "server.getConfig"
+            | "server.prepareAcpRegistryAgent"
+    ) {
+        if matches!(
+            request.tag.as_str(),
+            "server.getSettings" | "server.getConfig"
+        ) {
+            let _: t3_contracts::GetServerSettingsInput =
+                serde_json::from_value(request.payload.clone()).map_err(
+                    |_| json!({"_tag":"SchemaDecodeError","message":"Expected a non-null value."}),
+                )?;
+        } else if !request.payload.is_object() {
+            return Err(
+                json!({"_tag":"SchemaDecodeError","message":"Expected an object payload."}),
+            );
+        }
+        if request.tag == "server.prepareAcpRegistryAgent" {
+            let input:t3_contracts::AcpRegistryPrepareInput=serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid ACP preparation request."}))?;
+            let providers=state.providers.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Provider registry is not configured."}))?;
+            let catalog=providers.catalog().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"ACP registry catalog is not configured."}))?;
+            let result=catalog.prepare(&input).await.map_err(|error|json!({"_tag":"AcpRegistryOperationError","reason":error.reason,"message":error.detail}))?;
+            return serde_json::to_value(result).map_err(|_|json!({"_tag":"NativeServiceError","message":"ACP preparation result could not be encoded."}));
+        }
+        if let Some(service) = &state.settings {
+            let settings = if request.tag == "server.updateSettings" {
+                let input:t3_contracts::UpdateServerSettingsInput=serde_json::from_value(request.payload).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid settings update payload."}))?;
+                if input
+                    .patch
+                    .device_hosts
+                    .as_ref()
+                    .is_some_and(|hosts| !hosts.0.is_empty())
+                {
+                    return Err(
+                        json!({"_tag":"NativeMethodUnsupportedError","message":"Device-host updates require the remote SSH resolver, which has not yet been ported."}),
+                    );
+                }
+                match input.provider_instance_mutation {
+                    Some(mutation) => {
+                        service
+                            .update_provider_instance(mutation, input.patch)
+                            .await
+                    }
+                    None => service.update(input.patch).await,
+                }
+                .map_err(|error| error.wire())?
+            } else {
+                service.snapshot().await.map_err(|error| error.wire())?
+            };
+            let settings = crate::provider_registry::redact_settings(&settings);
+            if request.tag == "server.getConfig" {
+                let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
+                config["settings"] = settings;
+                if let Some(providers) = state.providers {
+                    config["providers"] = json!(providers.snapshots());
+                }
+                return Ok(config);
+            }
+            return Ok(settings);
+        }
+        if request.tag != "server.getConfig" {
+            return Err(
+                json!({"_tag":"NativeServiceUnavailableError","message":"Settings service is not configured."}),
+            );
+        }
+    }
     if matches!(
         request.tag.as_str(),
         "server.getHostResources"
@@ -735,12 +805,25 @@ fn failure(id: RpcRequestId, error: Value) -> RpcServerMessage {
     RpcServerMessage::Exit {
         request_id: id,
         exit: RpcExit::Failure {
-            cause: vec![RpcCause::Fail { error }],
+            cause: vec![if error["_tag"] == "SchemaDecodeError" {
+                RpcCause::Die {
+                    defect: error["message"].clone(),
+                }
+            } else {
+                RpcCause::Fail { error }
+            }],
         },
     }
 }
 fn authorize_rpc(session: &Session, method: &str) -> Result<(), Value> {
     let scope=t3_contracts::rpc_required_scope(method).map_err(|_|json!({"_tag":"NativeMethodUnsupportedError","method":method,"message":"Unknown RPC method."}))?;
+    require_scope(session, method, scope)
+}
+fn require_scope(
+    session: &Session,
+    method: &str,
+    scope: AuthEnvironmentScope,
+) -> Result<(), Value> {
     if session.scopes.contains(&scope) {
         Ok(())
     } else {
@@ -749,6 +832,35 @@ fn authorize_rpc(session: &Session, method: &str) -> Result<(), Value> {
             json!({"_tag":"EnvironmentAuthorizationError","operation":method,"requiredScope":required.required_scope,"requiredPermission":required.required_permission,"message":"The client does not have permission for this operation."}),
         )
     }
+}
+fn authorize_request(session: &Session, request: &RpcRequest) -> Result<(), Value> {
+    if request.tag != "server.updateSettings" {
+        return authorize_rpc(session, &request.tag);
+    }
+    let input: t3_contracts::UpdateServerSettingsInput =
+        serde_json::from_value(request.payload.clone()).map_err(
+            |_| json!({"_tag":"SchemaDecodeError","message":"Invalid settings update payload."}),
+        )?;
+    let mut scopes = input.patch.required_scopes();
+    if input.provider_instance_mutation.is_some() {
+        // Source grants provider-only mutations independently of settings; an
+        // actual patch retains all of its own required grants.
+        if serde_json::to_value(&input.patch)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .is_empty()
+        {
+            scopes.clear();
+        }
+        if !scopes.contains(&AuthEnvironmentScope::ProvidersManage) {
+            scopes.push(AuthEnvironmentScope::ProvidersManage);
+        }
+    }
+    for scope in scopes {
+        require_scope(session, &request.tag, scope)?;
+    }
+    Ok(())
 }
 
 fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
@@ -1011,6 +1123,92 @@ async fn stream(
     }
 }
 
+async fn pump_provider_statuses(
+    source: impl futures_util::Stream<Item = std::sync::Arc<Vec<Value>>>,
+    mut previous: String,
+    output: mpsc::UnboundedSender<std::sync::Arc<Vec<Value>>>,
+) {
+    futures_util::pin_mut!(source);
+    let mut pending: Option<(std::sync::Arc<Vec<Value>>, tokio::time::Instant)> = None;
+    loop {
+        tokio::select! {
+            next=source.next()=>{
+                let Some(next)=next else {break};
+                let encoded=serde_json::to_string(next.as_ref()).unwrap();
+                if encoded!=previous {
+                    previous=encoded;
+                    pending=Some((next,tokio::time::Instant::now()+std::time::Duration::from_millis(200)));
+                }
+            },
+            _=async {match &pending {Some((_,deadline))=>tokio::time::sleep_until(*deadline).await,None=>std::future::pending().await}}=>{
+                let (providers,_)=pending.take().unwrap();
+                if output.send(providers).is_err() {break;}
+            },
+        }
+    }
+}
+
+async fn config_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result=async {
+        let flags:t3_contracts::SubscribeServerConfigInput=serde_json::from_value(request.payload.clone()).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid config subscription payload."}))?;
+        // Optional sources are merged once their native services are available.
+        let _=(flags.environment_themes,flags.usage_limit_sources,flags.usage_limits_command);
+        let service=state.settings.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Settings service is not configured."}))?;
+        let mut settings=service.subscribe().await.map_err(|error|error.wire())?;
+        let (providers,provider_changes)=match &state.providers {
+            Some(registry)=>{let (snapshot,changes)=registry.snapshot_and_subscribe();(Some(snapshot),Some(changes))},
+            None=>(None,None),
+        };
+        let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
+        config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);
+        if let Some(providers)=providers {config["providers"]=json!(providers);}
+        let (changes,mut provider_events)=mpsc::unbounded_channel();
+        struct Abort(tokio::task::JoinHandle<()>);
+        impl Drop for Abort {fn drop(&mut self) {self.0.abort();}}
+        let initial=serde_json::to_string(&config["providers"]).unwrap();
+        let _provider_task=provider_changes.map(|provider_changes|Abort(tokio::spawn(async move {
+            let source=futures_util::stream::unfold(provider_changes,|mut changes|async move {
+                changes.recv().await.map(|next|(next,changes))
+            });
+            pump_provider_statuses(source,initial,changes).await;
+        })));
+        let mut provider_active = _provider_task.is_some();
+        let mut item=json!({"version":1,"type":"snapshot","config":config});
+        loop {
+            let typed:t3_contracts::ServerConfigStreamEvent=serde_json::from_value(item).map_err(|_|json!({"_tag":"NativeServiceError","message":"Native config event did not match its contract."}))?;
+            item=serde_json::to_value(typed).unwrap();
+            state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let sent=tokio::select! {biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![item])=>sent};
+            if !sent {return Ok(());}
+            item=loop {
+                tokio::select! {
+                    biased;
+                    _=service.closed()=>return Ok(()),
+                    next=settings.recv()=>break match next {Some(settings)=>json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}}),None=>return Ok(())},
+                    next=provider_events.recv(),if provider_active=>match next {
+                        Some(providers)=>break json!({"version":1,"type":"providerStatuses","payload":{"providers":providers.as_ref()}}),
+                        None=>provider_active=false,
+                    },
+                }
+            };
+        }
+    }.await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
 async fn stream_inner(
     request: &RpcRequest,
     state: &ApiState,
@@ -1177,6 +1375,442 @@ mod tests {
         http::Request,
     };
     use tower::ServiceExt;
+    #[tokio::test(start_paused = true)]
+    async fn config_provider_pump_deduplicates_before_two_hundred_millisecond_debounce() {
+        use std::sync::Arc;
+        let initial = Arc::new(vec![
+            json!({"instanceId":"fixture","displayName":"Initial"}),
+        ]);
+        let changed = Arc::new(vec![
+            json!({"instanceId":"fixture","displayName":"Changed"}),
+        ]);
+        let last = Arc::new(vec![json!({"instanceId":"fixture","displayName":"Final"})]);
+        let (input, mut inbox) =
+            mpsc::unbounded_channel::<(Arc<Vec<Value>>, tokio::sync::oneshot::Sender<()>)>();
+        let source = futures_util::stream::poll_fn(move |cx| {
+            inbox.poll_recv(cx).map(|next| {
+                next.map(|(value, admitted)| {
+                    let _ = admitted.send(());
+                    value
+                })
+            })
+        });
+        let (output, mut events) = mpsc::unbounded_channel();
+        let task = tokio::spawn(pump_provider_statuses(
+            source,
+            serde_json::to_string(initial.as_ref()).unwrap(),
+            output,
+        ));
+        struct Abort(tokio::task::AbortHandle);
+        impl Drop for Abort {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _owned = Abort(task.abort_handle());
+        async fn admit(
+            input: &mpsc::UnboundedSender<(Arc<Vec<Value>>, tokio::sync::oneshot::Sender<()>)>,
+            value: Arc<Vec<Value>>,
+        ) {
+            let (sent, read) = tokio::sync::oneshot::channel();
+            input.send((value, sent)).unwrap();
+            read.await.unwrap();
+        }
+        admit(&input, initial).await;
+        assert!(matches!(
+            events.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+        admit(&input, changed.clone()).await;
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        admit(&input, last.clone()).await;
+        // Equal snapshots do not reset a pending debounce timer.
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        admit(&input, last.clone()).await;
+        assert!(matches!(
+            events.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+        tokio::time::advance(std::time::Duration::from_millis(99)).await;
+        assert!(matches!(
+            events.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+        tokio::time::advance(std::time::Duration::from_millis(1)).await;
+        assert_eq!(events.recv().await.unwrap().as_ref(), last.as_ref());
+        admit(&input, last).await;
+        tokio::time::advance(std::time::Duration::from_secs(1)).await;
+        assert!(matches!(
+            events.try_recv(),
+            Err(mpsc::error::TryRecvError::Empty)
+        ));
+        drop(input);
+        task.await.unwrap();
+        assert!(events.recv().await.is_none());
+    }
+    #[tokio::test]
+    async fn config_socket_merges_typed_debounced_provider_statuses_with_settings_behind_ack() {
+        use crate::{
+            server_secret_store::ServerSecretStore,
+            server_settings::{SettingsOptions, SettingsService},
+        };
+        use tokio_tungstenite::{
+            MaybeTlsStream, WebSocketStream,
+            tungstenite::{Message, client::IntoClientRequest},
+        };
+        type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+        async fn send(socket: &mut Socket, value: Value) {
+            socket
+                .send(Message::Text(value.to_string().into()))
+                .await
+                .unwrap();
+        }
+        async fn next(socket: &mut Socket) -> Value {
+            let frame = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            serde_json::from_str(frame.to_text().unwrap()).unwrap()
+        }
+        fn event(frame: Value) -> Value {
+            assert_eq!(frame["_tag"], "Chunk");
+            let value = frame["values"][0].clone();
+            serde_json::from_value::<t3_contracts::ServerConfigStreamEvent>(value.clone()).unwrap();
+            value
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let mut initial = json!({"providers":{"codex":{"enabled":false},"claudeAgent":{"enabled":false},"cursor":{"enabled":false},"grok":{"enabled":false},"pi":{"enabled":false},"opencode":{"enabled":false},"antigravity":{"enabled":false}},"providerInstances":{"codex":{"driver":"codex","enabled":false,"displayName":"Initial"}}});
+        let initial_settings = serde_json::from_value(initial.clone()).unwrap();
+        let path = directory.path().join("settings.json");
+        std::fs::write(&path, initial.to_string()).unwrap();
+        let mut options = SettingsOptions::file(
+            path,
+            ServerSecretStore::open(directory.path().join("secrets")).unwrap(),
+        );
+        options.watch = false;
+        let settings = SettingsService::start(options).await.unwrap();
+        let mut api = state();
+        let config = crate::config::NativeConfig::from_settings(
+            initial_settings,
+            directory.path(),
+            directory.path(),
+            &api.environment,
+            &api.auth.descriptor(),
+        )
+        .await
+        .unwrap();
+        let registry = config.providers.clone();
+        api.providers = Some(config.providers);
+        api.config = Some(config.snapshot);
+        api.settings = Some(settings.clone());
+        let bearer = token(&api, vec![AuthEnvironmentScope::OrchestrationRead]);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(api))
+                .with_graceful_shutdown(async {
+                    let _ = stopped.await;
+                })
+                .await
+                .unwrap();
+        });
+        struct Abort(tokio::task::AbortHandle);
+        impl Drop for Abort {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _owned = Abort(server.abort_handle());
+        let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
+            .into_client_request()
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("Authorization", format!("Bearer {bearer}").parse().unwrap());
+        let mut socket = tokio_tungstenite::connect_async(request).await.unwrap().0;
+        send(&mut socket,json!({"_tag":"Request","id":1,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
+        assert_eq!(event(next(&mut socket).await)["type"], "snapshot");
+        // Both sources change while the client holds the snapshot Ack. Provider
+        // refreshes use the real shared registry; no external executable runs.
+        initial["providerInstances"]["codex"]["displayName"] = json!("Intermediate");
+        registry
+            .reconfigure(
+                &serde_json::from_value(initial.clone()).unwrap(),
+                directory.path(),
+            )
+            .await
+            .unwrap();
+        initial["providerInstances"]["codex"]["displayName"] = json!("Final");
+        registry
+            .reconfigure(&serde_json::from_value(initial).unwrap(), directory.path())
+            .await
+            .unwrap();
+        settings
+            .update(serde_json::from_value(json!({"responseStreamingMode":"paragraph"})).unwrap())
+            .await
+            .unwrap();
+        send(&mut socket, json!({"_tag":"Ack","requestId":1})).await;
+        let mut saw_settings = false;
+        let mut saw_providers = false;
+        while !saw_settings || !saw_providers {
+            let item = event(next(&mut socket).await);
+            match item["type"].as_str().unwrap() {
+                "settingsUpdated" => {
+                    assert!(!saw_settings);
+                    saw_settings = true;
+                    assert_eq!(
+                        item["payload"]["settings"]["responseStreamingMode"],
+                        "paragraph"
+                    );
+                }
+                "providerStatuses" => {
+                    assert!(!saw_providers);
+                    saw_providers = true;
+                    let codex = item["payload"]["providers"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .find(|p| p["instanceId"] == "codex")
+                        .unwrap();
+                    assert_eq!(codex["displayName"], "Final");
+                }
+                tag => panic!("unexpected config event {tag}"),
+            }
+            send(&mut socket, json!({"_tag":"Ack","requestId":1})).await;
+        }
+        settings.shutdown().await;
+        assert_eq!(next(&mut socket).await["exit"]["_tag"], "Success");
+        socket.close(None).await.unwrap();
+        stop.send(()).unwrap();
+        server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn settings_socket_redacts_secrets_rejects_malformed_updates_and_survives_no_provider_stream()
+     {
+        use crate::server_secret_store::ServerSecretStore;
+        use crate::server_settings::{SettingsOptions, SettingsService};
+        use tokio_tungstenite::{
+            MaybeTlsStream, WebSocketStream,
+            tungstenite::{Message, client::IntoClientRequest},
+        };
+        type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
+        async fn send(socket: &mut Socket, value: Value) {
+            socket
+                .send(Message::Text(value.to_string().into()))
+                .await
+                .unwrap();
+        }
+        async fn request(socket: &mut Socket, id: u64, tag: &str, payload: Value) {
+            send(
+                socket,
+                json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]}),
+            )
+            .await;
+        }
+        async fn next(socket: &mut Socket) -> Value {
+            let frame = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            serde_json::from_str(frame.to_text().unwrap()).unwrap()
+        }
+        async fn connect(address: std::net::SocketAddr, bearer: &str) -> Socket {
+            let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
+                .into_client_request()
+                .unwrap();
+            request
+                .headers_mut()
+                .insert("Authorization", format!("Bearer {bearer}").parse().unwrap());
+            tokio_tungstenite::connect_async(request).await.unwrap().0
+        }
+        fn config_event(frame: &Value) -> Value {
+            assert_eq!(frame["_tag"], "Chunk");
+            let value = frame["values"][0].clone();
+            serde_json::from_value::<t3_contracts::ServerConfigStreamEvent>(value.clone()).unwrap();
+            assert!(!value.to_string().contains("private-settings-token"));
+            value
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let disabled:t3_contracts::ServerSettings=serde_json::from_value(json!({"providers":{"codex":{"enabled":false},"claudeAgent":{"enabled":false},"cursor":{"enabled":false},"grok":{"enabled":false},"pi":{"enabled":false},"opencode":{"enabled":false},"antigravity":{"enabled":false}}})).unwrap();
+        let path = directory.path().join("settings.json");
+        std::fs::write(&path, serde_json::to_vec(&disabled).unwrap()).unwrap();
+        let mut options = SettingsOptions::file(
+            path.clone(),
+            ServerSecretStore::open(directory.path().join("secrets")).unwrap(),
+        );
+        options.watch = false;
+        let settings = SettingsService::start(options).await.unwrap();
+        let mut api = state();
+        let config = crate::config::NativeConfig::from_settings(
+            disabled,
+            directory.path(),
+            directory.path(),
+            &api.environment,
+            &api.auth.descriptor(),
+        )
+        .await
+        .unwrap();
+        api.config = Some(config.snapshot);
+        api.settings = Some(settings.clone());
+        assert!(api.providers.is_none()); // A closed merge source must not block settings.
+        let readonly = token(&api, vec![AuthEnvironmentScope::OrchestrationRead]);
+        let writable = token(
+            &api,
+            vec![
+                AuthEnvironmentScope::OrchestrationRead,
+                AuthEnvironmentScope::SettingsWrite,
+            ],
+        );
+        let provider_grant = token(&api, vec![AuthEnvironmentScope::ProvidersManage]);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(api))
+                .with_graceful_shutdown(async {
+                    let _ = stopped.await;
+                })
+                .await
+                .unwrap();
+        });
+        struct AbortServer(tokio::task::AbortHandle);
+        impl Drop for AbortServer {
+            fn drop(&mut self) {
+                self.0.abort();
+            }
+        }
+        let _owned_server = AbortServer(server.abort_handle());
+        let mut reader = connect(address, &readonly).await;
+        let mut operator = connect(address, &writable).await;
+        request(
+            &mut reader,
+            1,
+            "server.updateSettings",
+            json!({"patch":{"github":{"tokens":{"github.com":"private-settings-token"}}}}),
+        )
+        .await;
+        let denied = next(&mut reader).await;
+        assert_eq!(
+            denied["exit"]["cause"][0]["error"]["requiredScope"],
+            "orchestration:operate"
+        );
+        assert_eq!(
+            denied["exit"]["cause"][0]["error"]["requiredPermission"],
+            "settings:write"
+        );
+        let mut provider_operator = connect(address, &provider_grant).await;
+        let mutation = json!({"operation":"remove","instanceId":"does-not-exist"});
+        request(
+            &mut operator,
+            90,
+            "server.updateSettings",
+            json!({"patch":{},"providerInstanceMutation":mutation}),
+        )
+        .await;
+        let denied = next(&mut operator).await;
+        assert_eq!(
+            denied["exit"]["cause"][0]["error"]["requiredPermission"],
+            "providers:manage"
+        );
+        request(&mut provider_operator,91,"server.updateSettings",json!({"patch":{"responseStreamingMode":"paragraph"},"providerInstanceMutation":mutation})).await;
+        let denied = next(&mut provider_operator).await;
+        assert_eq!(
+            denied["exit"]["cause"][0]["error"]["requiredPermission"],
+            "settings:write"
+        );
+        request(
+            &mut provider_operator,
+            92,
+            "server.updateSettings",
+            json!({"patch":{},"providerInstanceMutation":mutation}),
+        )
+        .await;
+        assert_eq!(
+            next(&mut provider_operator).await["exit"]["_tag"],
+            "Success"
+        );
+        provider_operator.close(None).await.unwrap();
+        for (id, payload) in [
+            (93, json!([])),
+            (94, json!(false)),
+            (95, json!(0)),
+            (96, json!("")),
+            (97, json!({"extra":"ignored"})),
+        ] {
+            request(&mut operator, id, "server.getSettings", payload).await;
+            assert_eq!(next(&mut operator).await["exit"]["_tag"], "Success");
+        }
+        let before = std::fs::read(&path).unwrap();
+        for (id, tag, payload) in [
+            (2, "server.updateSettings", json!({"patch":[]})),
+            (3, "server.getSettings", Value::Null),
+            (4, "server.getConfig", Value::Null),
+            (5, "subscribeServerConfig", json!([])),
+        ] {
+            request(&mut operator, id, tag, payload).await;
+            let rejected = next(&mut operator).await;
+            assert_eq!(rejected["requestId"], id);
+            assert_eq!(rejected["exit"]["cause"][0]["_tag"], "Die");
+            assert!(
+                rejected["exit"]["cause"][0]["defect"]
+                    .as_str()
+                    .is_some_and(|s| !s.is_empty())
+            );
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+        }
+        request(
+            &mut reader,
+            6,
+            "subscribeServerConfig",
+            json!({"environmentThemes":null,"usageLimitSources":false}),
+        )
+        .await;
+        let snapshot = config_event(&next(&mut reader).await);
+        assert_eq!(snapshot["type"], "snapshot");
+        send(&mut reader, json!({"_tag":"Ack","requestId":6})).await;
+        request(&mut operator,7,"server.updateSettings",json!({"patch":{"github":{"tokens":{"github.com":"private-settings-token"}},"responseStreamingMode":"paragraph"}})).await;
+        let changed = next(&mut operator).await;
+        assert_eq!(changed["exit"]["_tag"], "Success");
+        assert!(!changed.to_string().contains("private-settings-token"));
+        let update = config_event(&next(&mut reader).await);
+        assert_eq!(update["type"], "settingsUpdated");
+        assert_eq!(
+            update["payload"]["settings"]["responseStreamingMode"],
+            "paragraph"
+        );
+        // A second update queues behind the held Ack; heartbeat/unary remain live.
+        request(
+            &mut operator,
+            8,
+            "server.updateSettings",
+            json!({"patch":{"responseStreamingMode":"turn"}}),
+        )
+        .await;
+        assert_eq!(next(&mut operator).await["exit"]["_tag"], "Success");
+        send(&mut reader, json!({"_tag":"Ping"})).await;
+        assert_eq!(next(&mut reader).await["_tag"], "Pong");
+        send(&mut reader, json!({"_tag":"Ack","requestId":6})).await;
+        let update = config_event(&next(&mut reader).await);
+        assert_eq!(
+            update["payload"]["settings"]["responseStreamingMode"],
+            "turn"
+        );
+        send(&mut reader, json!({"_tag":"Ack","requestId":6})).await;
+        // No more input or provider events: service shutdown must end the stream.
+        settings.shutdown().await;
+        let exit = next(&mut reader).await;
+        assert_eq!(exit["requestId"], 6);
+        assert_eq!(exit["exit"]["_tag"], "Success");
+        send(&mut reader, json!({"_tag":"Ping"})).await;
+        assert_eq!(next(&mut reader).await["_tag"], "Pong");
+        reader.close(None).await.unwrap();
+        operator.close(None).await.unwrap();
+        stop.send(()).unwrap();
+        server.await.unwrap();
+    }
     #[cfg(unix)]
     #[tokio::test]
     async fn terminal_rpc_uses_real_pty_scopes_ack_streams_and_owned_close() {
@@ -1669,6 +2303,7 @@ mod tests {
             auth,
             environment: json!({"environmentId":"test-environment","label":"Tests","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
             config: None,
+            settings: None,
             cors_origins: None,
             assets: None,
             providers: None,

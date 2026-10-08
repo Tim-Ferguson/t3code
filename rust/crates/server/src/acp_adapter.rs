@@ -127,6 +127,85 @@ mod tests {
         .await
     }
     #[tokio::test]
+    async fn managed_registry_binary_installs_and_runs_real_persisted_prompt_approval() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(directory.path().join("state.db")).unwrap();
+        ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":directory.path()}),Utc::now()).unwrap();
+        let (catalog, config) =
+            crate::acp_registry_support::fixture_catalog(directory.path(), "normal");
+        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"local-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
+        let providers = ProviderRegistry::discover_with_catalog(
+            &settings,
+            directory.path(),
+            Some(catalog.clone()),
+        )
+        .await
+        .unwrap();
+        let cold = providers
+            .snapshots()
+            .iter()
+            .find(|row| row["instanceId"] == "local-agent")
+            .cloned()
+            .unwrap();
+        assert_eq!(
+            cold["installed"], false,
+            "cold discovery does not implicitly prepare a binary"
+        );
+        assert!(!directory.path().join("tools").exists());
+        let existing_registry_clone = providers.clone();
+        let execution = ExecutionService::start(store.clone(), providers.clone());
+        assert!(
+            providers.driver("local-agent").is_err(),
+            "unprepared provider must remain unavailable for turn dispatch"
+        );
+        let prepared = catalog
+            .prepare(&serde_json::from_value(json!({"agentId":"devin"})).unwrap())
+            .await
+            .unwrap();
+        assert!(prepared.prepared);
+        providers
+            .reconfigure(&settings, directory.path())
+            .await
+            .unwrap();
+        assert_eq!(providers.driver("local-agent").unwrap(), "acpRegistry");
+        assert_eq!(
+            existing_registry_clone.driver("local-agent").unwrap(),
+            "acpRegistry",
+            "existing runtime clones observe complete reconfiguration"
+        );
+        let thread = launch(&store, &providers, false);
+        let mut events = store.subscribe();
+        execution
+            .dispatch(&message(&thread, "managed-prompt", "normal"), Utc::now())
+            .unwrap();
+        let completed = approve(&execution, &store, &mut events, &thread, "managed-approval").await;
+        assert_eq!(
+            assistant_text(&completed, &completed["runs"][0]["id"]),
+            "Hello approved"
+        );
+        assert_eq!(completed["providerThreads"][0]["driver"], "acpRegistry");
+        serde_json::from_value::<t3_contracts::ThreadProjection>(completed).unwrap();
+        execution.shutdown().await;
+        let refreshed =
+            ProviderRegistry::discover_with_catalog(&settings, directory.path(), Some(catalog))
+                .await
+                .unwrap();
+        let ready = refreshed
+            .snapshots()
+            .iter()
+            .find(|row| row["instanceId"] == "local-agent")
+            .cloned()
+            .unwrap();
+        assert_eq!(ready["status"], "ready");
+        assert!(
+            ready["models"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|model| model["slug"] == "fixture-model")
+        );
+    }
+    #[tokio::test]
     async fn persisted_acp_initial_prompt_permission_replay_resume_and_interrupt() {
         let (_directory, store, providers) = setup("normal").await;
         let mut events = store.subscribe();
@@ -536,6 +615,7 @@ impl Actor {
         providers: &ProviderRegistry,
         thread_id: &str,
         pending_peer: &mut Option<crate::acp_peer::ProcessPeer>,
+        pending_services: &mut Option<crate::acp_client_callbacks::Services>,
     ) -> Result<Self, StoreError> {
         let view = projection(&store, thread_id)?;
         let instance_id = view["thread"]["modelSelection"]["instanceId"]
@@ -566,20 +646,22 @@ impl Actor {
         let item_identity_v2 = saved.is_none()
             || saved_thread
                 .is_some_and(|thread| thread["nativeMetadata"]["itemIdentityVersion"] == 2);
-        let peer =
-            crate::acp_peer::ProcessPeer::spawn(instance.process_options(&cwd).map_err(error)?)
-                .map_err(error)?;
+        let peer = crate::acp_peer::ProcessPeer::spawn(
+            instance.resolve_process(&cwd).await.map_err(error)?,
+        )
+        .map_err(error)?;
         // Retain the process outside this cancellable setup future. The actor
         // shutdown path waits for its reap before releasing the runtime lease.
         *pending_peer = Some(peer.clone());
+        let services = instance.services_for(
+            &cwd,
+            crate::acp_client_callbacks::policy(&view["thread"]["runtimeMode"], &cwd),
+        );
+        // Keep callbacks outside the cancellable initialize/load future. Their
+        // owned terminals must be reaped before runtime ownership is released.
+        *pending_services = Some(services.clone());
         let session = instance
-            .start_peer_with_policy(
-                peer,
-                &cwd,
-                saved,
-                false,
-                crate::acp_client_callbacks::policy(&view["thread"]["runtimeMode"], &cwd),
-            )
+            .start_peer_with_services(peer, &cwd, saved, false, services)
             .await
             .map_err(error)?;
         let session_id = uuid::Uuid::new_v4().to_string();
@@ -1467,6 +1549,7 @@ pub(crate) async fn actor(
 ) {
     let mut runtime: Option<Actor> = None;
     let mut pending_peer = None;
+    let mut pending_services = None;
     let mut interrupted = false;
     loop {
         if *stopped.borrow() {
@@ -1477,7 +1560,7 @@ pub(crate) async fn actor(
             incoming=work.recv()=>{
                 let Some(incoming)=incoming else{break};let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
-                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer).await?);pending_peer.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
+                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services).await?);pending_services.take();pending_peer.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };
@@ -1497,6 +1580,9 @@ pub(crate) async fn actor(
         }
     }
     work.close();
+    if let Some(services) = pending_services {
+        services.shutdown().await;
+    }
     if let Some(peer) = pending_peer {
         peer.shutdown().await;
     }

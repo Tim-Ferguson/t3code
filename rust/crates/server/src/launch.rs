@@ -71,7 +71,7 @@ impl ThreadLaunchService {
             .providers
             .as_ref()
             .map(ProviderRegistry::settings)
-            .unwrap_or(&defaults);
+            .unwrap_or(defaults);
         let supplied_id = input.get("threadId").and_then(Value::as_str);
         let reuse = input["reuseExistingThread"] == true;
         if reuse && supplied_id.is_none() {
@@ -131,7 +131,7 @@ impl ThreadLaunchService {
                 let projection = read_projection(transaction,"thread",id)?;
                 let project = read_projection(transaction,"project",project_id)?;
                 let mut events = thread::plan(&command,projection.as_ref(),project.as_ref(),now).map_err(|error|StoreError::InvalidCommand(error.to_string()))?;
-                if resolved_scripts(settings,&project_key,project.as_ref().unwrap())?.iter().any(|script|script["runOnWorktreeCreate"]==true) {return Err(StoreError::InvalidCommand("Native launch setup-script execution is not yet available.".into()));}
+                if resolved_scripts(&settings,&project_key,project.as_ref().unwrap())?.iter().any(|script|script["runOnWorktreeCreate"]==true) {return Err(StoreError::InvalidCommand("Native launch setup-script execution is not yet available.".into()));}
                 let Some(initial)=input.get("initialMessage") else {return Ok(Decision::Accepted { events, effects: vec![] });};
                 let providers=self.providers.as_ref().ok_or_else(||StoreError::InvalidCommand("Native provider execution is not configured.".into()))?;
                 let driver=providers.driver(input["modelSelection"]["instanceId"].as_str().unwrap()).map_err(|error|StoreError::InvalidCommand(error.to_string()))?;

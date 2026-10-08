@@ -391,6 +391,7 @@ struct Listener {
 }
 struct Inner {
     options: TerminalManagerOptions,
+    provider_instances: Mutex<Option<ProviderInstanceConfigMap>>,
     history: TerminalHistoryStore,
     sessions: Mutex<HashMap<Key, Arc<Session>>>,
     locks: Mutex<HashMap<String, Weak<tokio::sync::Mutex<()>>>>,
@@ -718,6 +719,12 @@ impl Inner {
     }
 }
 impl TerminalManager {
+    /// Running attaches keep the captured environment. New opens and restarts
+    /// resolve against the latest materialized settings, as the source manager.
+    pub fn update_settings(&self, settings: &ServerSettings) {
+        *self.0.provider_instances.lock().unwrap() =
+            Some(crate::provider_registry::derive_instance_configs(settings));
+    }
     pub async fn new(options: TerminalManagerOptions) -> io::Result<Self> {
         let history = TerminalHistoryStore::new(
             options.logs_directory.clone(),
@@ -727,6 +734,7 @@ impl TerminalManager {
         .await?;
         let native_table = NativeProcessTable::new(&options.platform);
         let manager = Self(Arc::new(Inner {
+            provider_instances: Mutex::new(options.provider_instances.clone()),
             options,
             history,
             sessions: Mutex::new(HashMap::new()),
@@ -822,7 +830,7 @@ impl TerminalManager {
             })
             .unwrap_or_default();
         if let Some(id) = provider {
-            let instance=self.0.options.provider_instances.as_ref().and_then(|instances|instances.get(id)).ok_or_else(||TerminalFailure::from_value(json!({"_tag":"TerminalProviderInstanceNotFoundError","providerInstanceId":id})))?;
+            let instance=self.0.provider_instances.lock().unwrap().as_ref().and_then(|instances|instances.get(id)).cloned().ok_or_else(||TerminalFailure::from_value(json!({"_tag":"TerminalProviderInstanceNotFoundError","providerInstanceId":id})))?;
             if let Some(variables) = &instance.environment {
                 for variable in variables {
                     env.insert(variable.name.to_string(), variable.value.clone());

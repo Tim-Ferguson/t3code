@@ -20,6 +20,13 @@ for line in sys.stdin:
     method = request["method"]
     params = request.get("params", {})
     if method == "initialize":
+        if len(sys.argv)>1:
+            created=call("startup-cat","terminal/create",{"sessionId":session,"command":"/bin/cat","args":[]})
+            terminal=created["result"]["terminalId"]
+            emit({"jsonrpc":"2.0","method":"x/startup-terminal","params":{"terminalId":terminal}})
+            if sys.argv[1]=="fail-initialize":
+                emit({"jsonrpc":"2.0","id":request["id"],"error":{"code":-32000,"message":"setup failed"}})
+            continue
         assert params["clientCapabilities"]["terminal"] is True, params
         reply(request, {"protocolVersion": 2, "info": {"name": "fixture-devin", "version": "1"}, "capabilities": {"session": {"prompt": {}}}, "authMethods": []})
     elif method == "session/new":

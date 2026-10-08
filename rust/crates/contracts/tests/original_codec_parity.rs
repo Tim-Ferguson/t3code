@@ -338,6 +338,33 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "UsageLimitSourceSnapshot" => {
                 checked_roundtrip::<UsageLimitSourceSnapshot>(fixture.input.clone())
             }
+            "AcpRegistryDistribution" => {
+                checked_roundtrip::<AcpRegistryDistribution>(fixture.input.clone())
+            }
+            "AcpRegistryIntegrity" => {
+                checked_roundtrip::<AcpRegistryIntegrity>(fixture.input.clone())
+            }
+            "AcpRegistryManagedBinaryUninstallInput" => {
+                checked_roundtrip::<AcpRegistryManagedBinaryUninstallInput>(fixture.input.clone())
+            }
+            "AcpRegistryManagedBinaryUninstallResult" => {
+                checked_roundtrip::<AcpRegistryManagedBinaryUninstallResult>(fixture.input.clone())
+            }
+            "AcpRegistryPrepareInput" => {
+                checked_roundtrip::<AcpRegistryPrepareInput>(fixture.input.clone())
+            }
+            "AcpRegistryPrepareResult" => {
+                checked_roundtrip::<AcpRegistryPrepareResult>(fixture.input.clone())
+            }
+            "AcpRegistrySearchAgent" => {
+                checked_roundtrip::<AcpRegistrySearchAgent>(fixture.input.clone())
+            }
+            "AcpRegistrySearchInput" => {
+                checked_roundtrip::<AcpRegistrySearchInput>(fixture.input.clone())
+            }
+            "AcpRegistrySearchResult" => {
+                checked_roundtrip::<AcpRegistrySearchResult>(fixture.input.clone())
+            }
             "AcpRegistryUrlAuthAction" => {
                 checked_roundtrip::<AcpRegistryUrlAuthAction>(fixture.input.clone())
             }

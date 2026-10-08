@@ -1,7 +1,10 @@
 //! Native startup configuration, using shared source-backed defaults.
 use crate::{
+    acp_registry_support::{Catalog, RegistryError},
     provider_process::ProcessError,
     provider_registry::{ProviderRegistry, redact_settings},
+    server_secret_store::ServerSecretStore,
+    server_settings::{SettingsOptions, SettingsService},
 };
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
@@ -15,12 +18,19 @@ pub enum ConfigError {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Provider(#[from] ProcessError),
+    #[error(transparent)]
+    Registry(#[from] RegistryError),
+    #[error(transparent)]
+    Settings(#[from] crate::server_settings::SettingsError),
+    #[error(transparent)]
+    Secret(#[from] crate::server_secret_store::SecretStoreError),
 }
 #[derive(Clone)]
 pub struct NativeConfig {
     pub settings: ServerSettings,
     pub providers: ProviderRegistry,
     pub snapshot: Value,
+    pub settings_service: Option<SettingsService>,
 }
 impl NativeConfig {
     pub async fn load(
@@ -33,16 +43,15 @@ impl NativeConfig {
         let path = settings_path
             .map(PathBuf::from)
             .unwrap_or_else(|| state_dir.join("settings.json"));
-        let settings = match tokio::fs::read(path).await {
-            Ok(bytes) => serde_json::from_slice::<ServerSettings>(&bytes)?,
-            Err(error)
-                if error.kind() == std::io::ErrorKind::NotFound && settings_path.is_none() =>
-            {
-                ServerSettings::default()
-            }
-            Err(error) => return Err(error.into()),
-        };
-        Self::from_settings(settings, state_dir, cwd, environment, auth).await
+        let directory = state_dir.join("secrets");
+        let secrets = tokio::task::spawn_blocking(move || ServerSecretStore::open(directory))
+            .await
+            .map_err(std::io::Error::other)??;
+        let service = SettingsService::start(SettingsOptions::file(path, secrets)).await?;
+        let settings = service.snapshot().await?;
+        let mut config = Self::from_settings(settings, state_dir, cwd, environment, auth).await?;
+        config.settings_service = Some(service);
+        Ok(config)
     }
     pub async fn from_settings(
         settings: ServerSettings,
@@ -51,7 +60,9 @@ impl NativeConfig {
         environment: &Value,
         auth: &Value,
     ) -> Result<Self, ConfigError> {
-        let providers = ProviderRegistry::discover(&settings, cwd).await?;
+        let catalog = Catalog::new(state_dir.join("caches"), state_dir.join("tools"))?;
+        let providers =
+            ProviderRegistry::discover_with_catalog(&settings, cwd, Some(catalog)).await?;
         let logs = state_dir.join("logs");
         tokio::fs::create_dir_all(&logs).await?;
         // Advertise only installed native services. The editor, OTLP, workspace
@@ -62,6 +73,7 @@ impl NativeConfig {
             settings,
             providers,
             snapshot: serde_json::to_value(typed)?,
+            settings_service: None,
         })
     }
 }

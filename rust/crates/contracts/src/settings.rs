@@ -2320,6 +2320,8 @@ impl Default for LegacyProviderSettings {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerSettings {
+    #[serde(flatten, skip_serializing)]
+    _object_fields: crate::base::DiscardUnknownFields,
     #[serde(
         default = "default_server_settings_worktree_cleanup",
         deserialize_with = "decode_server_settings_worktree_cleanup"
@@ -4077,6 +4079,8 @@ pub struct GitHubSettingsPatch {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerSettingsPatch {
+    #[serde(flatten, skip_serializing)]
+    _object_fields: crate::base::DiscardUnknownFields,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",

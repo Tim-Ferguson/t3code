@@ -46,6 +46,13 @@ impl Services {
             embedded: Arc::new(Mutex::new(IndexMap::new())),
         }
     }
+    #[cfg(test)]
+    pub(crate) fn owned_terminal(
+        &self,
+        id: &str,
+    ) -> Option<(u32, tokio::sync::watch::Receiver<bool>)> {
+        self.terminals.as_ref()?.owned_terminal(id)
+    }
     pub(crate) fn has_terminals(&self) -> bool {
         self.terminals.is_some()
     }

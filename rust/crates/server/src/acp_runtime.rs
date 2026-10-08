@@ -19,6 +19,7 @@ pub struct AcpInstance {
     pub enabled: bool,
     pub config: AcpRegistrySettings,
     pub environment: HashMap<String, String>,
+    pub catalog: Option<crate::acp_registry_support::Catalog>,
 }
 pub enum SessionEvent {
     Update(SessionNotification),
@@ -164,6 +165,16 @@ impl AcpInstance {
             environment: self.environment.clone(),
         })
     }
+    pub async fn resolve_process(&self, cwd: &Path) -> Result<ProcessOptions, AcpError> {
+        if let Some(catalog) = &self.catalog {
+            catalog
+                .resolve(&self.config, cwd, &self.environment)
+                .await
+                .map_err(|error| AcpError::Transport(error.to_string()))
+        } else {
+            self.process_options(cwd)
+        }
+    }
     pub async fn connect(
         &self,
         cwd: &Path,
@@ -175,7 +186,7 @@ impl AcpInstance {
                 "The ACP provider instance is disabled.".into(),
             ));
         }
-        let peer = ProcessPeer::spawn(self.process_options(cwd)?)?;
+        let peer = ProcessPeer::spawn(self.resolve_process(cwd).await?)?;
         self.start_peer(peer, cwd, saved_session, discovery).await
     }
     pub(crate) async fn start_peer(
@@ -202,14 +213,52 @@ impl AcpInstance {
         discovery: bool,
         policy: Value,
     ) -> Result<AcpSession, AcpError> {
-        // A local agentId never selects registry-only exceptions.
+        self.start_peer_with_services(
+            peer,
+            cwd,
+            saved_session,
+            discovery,
+            self.services_for(cwd, policy),
+        )
+        .await
+    }
+    pub(crate) fn services_for(
+        &self,
+        cwd: &Path,
+        policy: Value,
+    ) -> crate::acp_client_callbacks::Services {
+        // Local agentId never selects registry-only exceptions.
         let agent_id = if self.config.source == AcpRegistrySettingsSource::Registry {
             self.config.agent_id.as_str()
         } else {
             ""
         };
-        self.start_resolved_peer(peer, cwd, saved_session, discovery, agent_id, policy)
-            .await
+        crate::acp_client_callbacks::Services::new(
+            agent_id,
+            cwd,
+            self.environment
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+            policy,
+        )
+    }
+    pub(crate) async fn start_peer_with_services(
+        &self,
+        peer: ProcessPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        discovery: bool,
+        services: crate::acp_client_callbacks::Services,
+    ) -> Result<AcpSession, AcpError> {
+        let retained = services.clone();
+        let result = self
+            .initialize_peer(peer, cwd, saved_session, discovery, services)
+            .await;
+        if result.is_err() {
+            retained.shutdown().await;
+        }
+        result
     }
     pub(crate) async fn start_resolved_peer(
         &self,
@@ -229,6 +278,17 @@ impl AcpInstance {
                 .collect(),
             policy,
         );
+        self.start_peer_with_services(peer, cwd, saved_session, discovery, services)
+            .await
+    }
+    async fn initialize_peer(
+        &self,
+        peer: ProcessPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        discovery: bool,
+        services: crate::acp_client_callbacks::Services,
+    ) -> Result<AcpSession, AcpError> {
         let peer = Arc::new(peer);
         // Source AcpSessionRuntime uses an unbounded event queue, including load
         // replay received before setup finishes. Do not deadlock setup on a cap.
@@ -397,27 +457,78 @@ impl AcpInstance {
         if !self.enabled {
             snapshot["message"] = json!("The ACP provider instance is disabled.");
         } else {
-            match tokio::time::timeout(Duration::from_secs(30), self.connect(cwd, None, true)).await
-            {
-                Ok(Ok(session)) => {
-                    snapshot["installed"] = json!(true);
-                    snapshot["status"] = json!("ready");
-                    snapshot["auth"] = json!({"status":"authenticated"});
-                    let initialized = serde_json::to_value(&session.initialize).unwrap();
-                    snapshot["version"] = initialized["agentInfo"]["version"].clone();
-                    snapshot["models"] = json!(models_from_setup(
-                        &serde_json::to_value(&session.setup).unwrap(),
-                        &self.config.custom_models
+            let inspected = if self.config.source == AcpRegistrySettingsSource::Registry {
+                match &self.catalog {
+                    Some(catalog) => catalog
+                        .inspection(&self.config, &self.environment)
+                        .await
+                        .map_err(|error| error.to_string()),
+                    None => Err("ACP registry catalog is unavailable.".into()),
+                }
+            } else {
+                Ok(json!({"status":"ready"}))
+            };
+            let probe = match inspected {
+                Ok(info) if info["status"] == "ready" => true,
+                Ok(info) => {
+                    snapshot["message"] = json!(format!(
+                        "ACP Registry provider is {}. Prepare the selected agent before discovery.",
+                        info["status"].as_str().unwrap_or("unavailable")
                     ));
-                    session.shutdown().await;
+                    false
                 }
-                Ok(Err(error)) => {
-                    snapshot["status"] = json!("error");
-                    snapshot["message"] = json!(format!("ACP provider probe failed: {error}"));
+                Err(error) => {
+                    snapshot["message"] = json!(error);
+                    false
                 }
-                Err(_) => {
-                    snapshot["status"] = json!("error");
-                    snapshot["message"] = json!("Timed out while checking the ACP provider.");
+            };
+            if probe {
+                match self.resolve_process(cwd).await.and_then(ProcessPeer::spawn) {
+                    Ok(peer) => {
+                        let services = self.services_for(
+                            cwd,
+                            crate::acp_client_callbacks::policy(&json!("approval-required"), cwd),
+                        );
+                        let retained = services.clone();
+                        let result = tokio::time::timeout(
+                            Duration::from_secs(30),
+                            self.start_peer_with_services(peer.clone(), cwd, None, true, services),
+                        )
+                        .await;
+                        match result {
+                            Ok(Ok(session)) => {
+                                snapshot["installed"] = json!(true);
+                                snapshot["status"] = json!("ready");
+                                snapshot["auth"] = json!({"status":"authenticated"});
+                                let initialized =
+                                    serde_json::to_value(&session.initialize).unwrap();
+                                snapshot["version"] = initialized["agentInfo"]["version"].clone();
+                                snapshot["models"] = json!(models_from_setup(
+                                    &serde_json::to_value(&session.setup).unwrap(),
+                                    &self.config.custom_models
+                                ));
+                                session.shutdown().await;
+                            }
+                            Ok(Err(error)) => {
+                                snapshot["status"] = json!("error");
+                                snapshot["message"] =
+                                    json!(format!("ACP provider probe failed: {error}"));
+                            }
+                            Err(_) => {
+                                snapshot["status"] = json!("error");
+                                snapshot["message"] =
+                                    json!("Timed out while checking the ACP provider.");
+                            }
+                        }
+                        // Retain callbacks and process outside the cancellable handshake. A
+                        // timeout must finish terminal disposal and reap before publishing failure.
+                        retained.shutdown().await;
+                        peer.shutdown().await;
+                    }
+                    Err(error) => {
+                        snapshot["status"] = json!("error");
+                        snapshot["message"] = json!(format!("ACP provider probe failed: {error}"));
+                    }
                 }
             }
         }
@@ -460,7 +571,7 @@ mod tests {
     use super::*;
     fn instance(generation: u8) -> AcpInstance {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-provider.py");
-        AcpInstance{instance_id:"local-agent".into(),display_name:"Local agent".into(),accent_color:None,enabled:true,config:serde_json::from_value(json!({"source":"local","commandPath":"python3","commandArgs":[fixture,generation.to_string()]})).unwrap(),environment:HashMap::new()}
+        AcpInstance{instance_id:"local-agent".into(),display_name:"Local agent".into(),accent_color:None,enabled:true,config:serde_json::from_value(json!({"source":"local","commandPath":"python3","commandArgs":[fixture,generation.to_string()]})).unwrap(),environment:HashMap::new(),catalog:None}
     }
     fn prompt(session: &AcpSession, text: &str) -> PromptRequest {
         PromptRequest {
@@ -724,5 +835,70 @@ mod tests {
         })
         .await
         .expect("bidirectional callback milestones");
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn setup_failure_and_cancellation_await_client_terminal_cleanup_before_owner_release() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            for scenario in ["fail-initialize", "hold-initialize"] {
+                let cwd = tempfile::tempdir().unwrap();
+                let instance = instance(2);
+                let services = crate::acp_client_callbacks::Services::new(
+                    "devin",
+                    cwd.path(),
+                    Default::default(),
+                    crate::acp_client_callbacks::policy(&json!("full-access"), cwd.path()),
+                );
+                let mut options = instance.process_options(cwd.path()).unwrap();
+                options.args = vec![
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("tests/fixtures/acp-client-terminals-provider.py")
+                        .to_string_lossy()
+                        .into(),
+                    scenario.into(),
+                ];
+                let peer = ProcessPeer::spawn(options).unwrap();
+                let mut milestones = peer.process_events();
+                let retained_peer = peer.clone();
+                let retained_services = services.clone();
+                let root = cwd.path().to_owned();
+                let task = tokio::spawn(async move {
+                    instance
+                        .start_peer_with_services(peer, &root, None, false, services)
+                        .await
+                });
+                let id = loop {
+                    match milestones.recv().await.unwrap() {
+                        crate::provider_process::ProcessEvent::Notification { method, params }
+                            if method == "x/startup-terminal" =>
+                        {
+                            break params["terminalId"].as_str().unwrap().to_owned();
+                        }
+                        crate::provider_process::ProcessEvent::Closed(error) => {
+                            panic!("startup ended before milestone: {error}")
+                        }
+                        _ => {}
+                    }
+                };
+                let (pid, disposed) = retained_services.owned_terminal(&id).unwrap();
+                if scenario == "fail-initialize" {
+                    assert!(task.await.unwrap().is_err());
+                    assert!(*disposed.borrow());
+                } else {
+                    task.abort();
+                    assert!(matches!(task.await,Err(error) if error.is_cancelled()));
+                    retained_services.shutdown().await;
+                    assert!(*disposed.borrow());
+                }
+                retained_peer.shutdown().await;
+                assert_eq!(unsafe { libc::kill(pid as i32, 0) }, -1);
+                assert_eq!(
+                    std::io::Error::last_os_error().raw_os_error(),
+                    Some(libc::ESRCH)
+                );
+            }
+        })
+        .await
+        .expect("startup terminal ownership milestones");
     }
 }

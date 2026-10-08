@@ -54,6 +54,7 @@ const rustNames = new Set(
     "terminal",
     "provider_runtime",
     "preview",
+    "acp_registry",
   ].flatMap((f) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + f + ".rs", "utf8").matchAll(

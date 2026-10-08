@@ -699,7 +699,24 @@ async fn run(
         registry,
     );
     let terminals = t3_server::terminal_manager::TerminalManager::new(terminal_options).await?;
+    let settings_service = native_config.settings_service.clone();
+    let settings_runtime = if let Some(service) = &settings_service {
+        Some(
+            t3_server::server_settings_runtime::SettingsRuntime::start(
+                service,
+                native_config.providers.clone(),
+                std::env::current_dir()?,
+                terminals.clone(),
+                desktop.clone(),
+                options.mode.clone(),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let state = ApiState {
+        settings: settings_service.clone(),
         store,
         auth,
         environment,
@@ -722,10 +739,16 @@ async fn run(
         })
         .await?;
     host_resources.shutdown().await;
+    if let Some(runtime) = settings_runtime {
+        runtime.shutdown().await;
+    }
     execution.shutdown().await;
     terminals.shutdown().await;
     discovery.shutdown().await;
     tokio::join!(resources.shutdown(), desktop.shutdown());
     telemetry.shutdown().await;
+    if let Some(settings) = settings_service {
+        settings.shutdown().await;
+    }
     Ok(())
 }
