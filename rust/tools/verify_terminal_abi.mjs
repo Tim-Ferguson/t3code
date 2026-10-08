@@ -3,18 +3,14 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 const code = readFileSync(new URL("../crates/ui/assets/terminal_abi.js", import.meta.url), "utf8");
+let replacements = 0;
+const routed = code.replace(/import\(\s*args\.base\s*\+\s*(["'])\/t3_terminal\.js\1\s*\)/g, () => {
+  replacements++;
+  return 'loadModule(args.base + "/t3_terminal.js")';
+});
+assert.equal(replacements, 1, "The committed terminal ABI module import changed.");
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-const run = new AsyncFunction(
-  "args",
-  "dioxus",
-  "window",
-  "document",
-  "loadModule",
-  code.replace(
-    "import(args.base + '/t3_terminal.js')",
-    "loadModule(args.base + '/t3_terminal.js')",
-  ),
-);
+const run = new AsyncFunction("args", "dioxus", "window", "document", "loadModule", routed);
 const deferred = () => {
   let resolve;
   const promise = new Promise((r) => (resolve = r));
