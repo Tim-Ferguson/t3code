@@ -1,5 +1,6 @@
 //! The DOM owns events and geometry only; terminal/input/canvas policy stays
 //! in Rust and is shared by browser builds and native client WebViews.
+use crate::fonts::DEFAULT_FONT;
 use crate::{
     core::{
         TerminalCore,
@@ -24,16 +25,17 @@ use web_sys::{
     HtmlCanvasElement, HtmlElement, HtmlTextAreaElement, InputEvent, KeyboardEvent, PointerEvent,
     ResizeObserver, WheelEvent,
 };
-const DEFAULT_FONT: &str = "\"SF Mono\", \"SFMono-Regular\", Menlo, Consolas, \"Liberation Mono\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace";
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Options {
     #[serde(default)]
-    theme: Theme,
+    theme: Option<Theme>,
     #[serde(default)]
     read_only: bool,
     #[serde(default = "font_size")]
     font_size: f64,
+    #[serde(default)]
+    font_family: String,
 }
 fn font_size() -> f64 {
     12.0
@@ -66,6 +68,8 @@ struct State {
     theme: Theme,
     metrics: Metrics,
     font_size: f64,
+    font_family: String,
+    font_epoch: u64,
     visible: bool,
     read_only: bool,
     writable: Rc<Cell<bool>>,
@@ -222,7 +226,7 @@ impl State {
             Paint {
                 metrics: self.metrics,
                 font_size: self.font_size,
-                font_family: DEFAULT_FONT,
+                font_family: &self.font_family,
                 padding: 4.0,
                 force_full: self.full,
                 cursor_on: self.cursor_on,
@@ -519,6 +523,8 @@ pub struct TerminalSurface {
     state: Rc<RefCell<State>>,
     listeners: Vec<Listener>,
     observer: ResizeObserver,
+    theme_observer: web_sys::MutationObserver,
+    _theme_callback: Closure<dyn Fn(js_sys::Array, web_sys::MutationObserver)>,
     _resize: Closure<dyn Fn()>,
     _writer: Closure<dyn Fn(String)>,
 }
@@ -605,14 +611,10 @@ pub async fn mount_terminal(
         .get_context("2d")?
         .ok_or_else(|| error("Terminal Canvas2D unavailable"))?
         .dyn_into()?;
-    context.set_fill_style_str(&options.theme.background.css());
+    let theme = options.theme.unwrap_or_else(|| app_theme(&host));
+    context.set_fill_style_str(&theme.background.css());
     context.fill_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
-    let font_size = if options.font_size.is_finite() {
-        options.font_size.round().clamp(6.0, 32.0)
-    } else {
-        12.0
-    };
-    context.set_font(&format!("normal 400 {font_size}px {DEFAULT_FONT}"));
+    let font_size = crate::fonts::size(options.font_size);
     // Symbols-only font composes with installed text/Nerd fonts without
     // changing their advance widths. The bytes are the original bundled face.
     if let Ok(face) = web_sys::FontFace::new_with_u8_array(
@@ -625,27 +627,13 @@ pub async fn mount_terminal(
             }
         }
     }
-    // Wait for actual text faces before fitting, as in the original surface.
-    for variant in ["normal 400", "normal 700", "italic 400", "italic 700"] {
-        let promise = document.fonts().load_with_text(
-            &format!("{variant} {font_size}px {DEFAULT_FONT}"),
-            "iMW0@# .",
-        );
-        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
-    }
-    let width = context.measure_text("M")?.width();
-    let vertical = context.measure_text("Mg")?;
-    let metrics = renderer::measured_metrics(
-        font_size,
-        width,
-        vertical.actual_bounding_box_ascent(),
-        vertical.actual_bounding_box_descent(),
-    );
+    let font_family = load_font(&options.font_family, font_size).await;
+    let metrics = font_metrics(&context, &font_family, font_size)?;
     let platform = web_sys::window()
         .and_then(|w| w.navigator().platform().ok())
         .unwrap_or_default();
     let layout_map = load_layout().await;
-    let core = TerminalCore::create(1, 1, &options.theme).await?;
+    let core = TerminalCore::create(1, 1, &theme).await?;
     let outbox = Rc::new(RefCell::new(vec![]));
     let writable = Rc::new(Cell::new(!options.read_only));
     let state = Rc::new(RefCell::new(State {
@@ -661,9 +649,11 @@ pub async fn mount_terminal(
         last_origin: 4.0,
         callback,
         outbox: outbox.clone(),
-        theme: options.theme,
+        theme,
         metrics,
         font_size,
+        font_family,
+        font_epoch: 0,
         visible: true,
         read_only: options.read_only,
         writable: writable.clone(),
@@ -1295,14 +1285,61 @@ pub async fn mount_terminal(
         }
     }) as Box<dyn Fn()>);
     let observer = ResizeObserver::new(resize.as_ref().unchecked_ref())?;
-    observer.observe(&host);
+
+    let theme_weak = Rc::downgrade(&state);
+    let theme_callback = Closure::wrap(Box::new(
+        move |_: js_sys::Array, _: web_sys::MutationObserver| {
+            if let Some(state) = theme_weak.upgrade() {
+                {
+                    let mut s = state.borrow_mut();
+                    if s.disposed {
+                        return;
+                    }
+                    let theme = app_theme(&s.host);
+                    if theme == s.theme {
+                        return;
+                    }
+                    match s.core.apply_theme(&theme) {
+                        Ok(()) => {
+                            s.theme = theme;
+                            s.full = true;
+                            s.request_frame();
+                        }
+                        Err(cause) => s.fail(cause),
+                    }
+                }
+                dispatch(&state);
+            }
+        },
+    )
+        as Box<dyn Fn(js_sys::Array, web_sys::MutationObserver)>);
+    let theme_observer = web_sys::MutationObserver::new(theme_callback.as_ref().unchecked_ref())?;
     let surface = TerminalSurface {
         state,
         listeners,
         observer,
+        theme_observer,
+        _theme_callback: theme_callback,
         _resize: resize,
         _writer: writer,
     };
+    surface.observer.observe(&host);
+    if let Some(root) = document.document_element() {
+        let config = web_sys::MutationObserverInit::new();
+        config.set_attributes(true);
+        config.set_attribute_filter(&js_sys::Array::of2(&"class".into(), &"style".into()));
+        surface
+            .theme_observer
+            .observe_with_options(&root, &config)?;
+    }
+    // The Rust shell owns its theme on the app container rather than the
+    // document root; observe that same source theme transition here as well.
+    if let Some(app) = host.closest("[data-theme]")? {
+        let config = web_sys::MutationObserverInit::new();
+        config.set_attributes(true);
+        config.set_attribute_filter(&js_sys::Array::of1(&"data-theme".into()));
+        surface.theme_observer.observe_with_options(&app, &config)?;
+    }
     // Own observers/listeners/timers before the last fallible initialization:
     // Drop disconnects everything if fitting or first paint fails.
     surface.state.borrow_mut().fit()?;
@@ -1358,6 +1395,40 @@ impl TerminalSurface {
         let input = self.state.borrow().input.clone();
         input.focus()
     }
+    pub fn set_font(&self, family: String, size: f64) {
+        let epoch = {
+            let mut s = self.state.borrow_mut();
+            s.font_epoch += 1;
+            s.font_epoch
+        };
+        let weak = Rc::downgrade(&self.state);
+        let size = crate::fonts::size(size);
+        wasm_bindgen_futures::spawn_local(async move {
+            let family = load_font(&family, size).await;
+            let Some(state) = weak.upgrade() else {
+                return;
+            };
+            {
+                let mut s = state.borrow_mut();
+                if s.disposed || s.font_epoch != epoch {
+                    return;
+                }
+                match font_metrics(&s.context, &family, size) {
+                    Ok(metrics) => {
+                        s.metrics = metrics;
+                        s.font_size = size;
+                        s.font_family = family;
+                        s.full = true;
+                        if let Err(cause) = s.fit() {
+                            s.fail(cause)
+                        }
+                    }
+                    Err(cause) => s.fail(cause),
+                };
+            }
+            dispatch(&state);
+        });
+    }
     pub fn fit(&self) -> Result<()> {
         {
             self.state.borrow_mut().fit()?;
@@ -1389,6 +1460,7 @@ impl TerminalSurface {
 impl TerminalSurface {
     fn cleanup(&mut self) {
         self.observer.disconnect();
+        self.theme_observer.disconnect();
         self.listeners.clear();
         {
             let mut s = self.state.borrow_mut();
@@ -1427,4 +1499,212 @@ async fn load_layout() -> Option<JsValue> {
         .ok()?;
     let promise: js_sys::Promise = function.call0(&keyboard).ok()?.dyn_into().ok()?;
     wasm_bindgen_futures::JsFuture::from(promise).await.ok()
+}
+
+async fn load_font(family: &str, size: f64) -> String {
+    let candidate = crate::fonts::unchecked_family(family);
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return candidate;
+    };
+    for variant in ["normal 400", "normal 700", "italic 400", "italic 700"] {
+        let promise = document
+            .fonts()
+            .load_with_text(&format!("{variant} {size}px {candidate}"), "iMW0@# .");
+        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+    }
+    let families = crate::fonts::quote_families(family);
+    if families.is_empty() {
+        return DEFAULT_FONT.into();
+    }
+    let context = document
+        .create_element("canvas")
+        .ok()
+        .and_then(|element| element.dyn_into::<HtmlCanvasElement>().ok())
+        .and_then(|canvas| canvas.get_context("2d").ok().flatten())
+        .and_then(|context| context.dyn_into::<CanvasRenderingContext2d>().ok());
+    if let Some(context) = context {
+        for variant in ["normal 400", "normal 700", "italic 400", "italic 700"] {
+            context.set_font(&format!("{variant} 32px {families}, monospace"));
+            let advances = ["i", "M", "W", "0", "@", "#", ".", " "]
+                .iter()
+                .map(|glyph| context.measure_text(glyph).map(|metrics| metrics.width()))
+                .collect::<std::result::Result<Vec<_>, _>>();
+            if let Ok(advances) = advances {
+                if !crate::fonts::monospace_advances(&advances) {
+                    return DEFAULT_FONT.into();
+                }
+            }
+        }
+    }
+    candidate
+}
+fn font_metrics(context: &CanvasRenderingContext2d, family: &str, size: f64) -> Result<Metrics> {
+    context.set_font(&format!("normal 400 {size}px {family}"));
+    let width = context.measure_text("M")?.width();
+    let vertical = context.measure_text("Mg")?;
+    Ok(renderer::measured_metrics(
+        size,
+        width,
+        vertical.actual_bounding_box_ascent(),
+        vertical.actual_bounding_box_descent(),
+    ))
+}
+fn computed_color(value: String, fallback: &str) -> String {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "" | "transparent" | "rgba(0, 0, 0, 0)" | "rgba(0 0 0 / 0)" => fallback.into(),
+        _ => value,
+    }
+}
+fn app_theme(host: &HtmlElement) -> Theme {
+    use crate::model::Color;
+    let Some(window) = web_sys::window() else {
+        return Theme::default();
+    };
+    let Some(document) = window.document() else {
+        return Theme::default();
+    };
+    let Some(root) = document.document_element() else {
+        return Theme::default();
+    };
+    let Some(body) = document.body() else {
+        return Theme::default();
+    };
+    let drawer = host
+        .closest("[data-thread-terminal-drawer]")
+        .ok()
+        .flatten()
+        .or_else(|| {
+            document
+                .query_selector("[data-thread-terminal-drawer]")
+                .ok()
+                .flatten()
+        })
+        .unwrap_or_else(|| body.clone().into());
+    let Some(styles) = window.get_computed_style(host).ok().flatten() else {
+        return Theme::default();
+    };
+    let Some(drawer_styles) = window.get_computed_style(&drawer).ok().flatten() else {
+        return Theme::default();
+    };
+    let Some(body_styles) = window.get_computed_style(&body).ok().flatten() else {
+        return Theme::default();
+    };
+    let Some(root_styles) = window.get_computed_style(&root).ok().flatten() else {
+        return Theme::default();
+    };
+    let property = |styles: &web_sys::CssStyleDeclaration, name: &str| {
+        styles.get_property_value(name).unwrap_or_default()
+    };
+    let dark = match property(&styles, "color-scheme").as_str() {
+        "dark" => true,
+        "light" => false,
+        _ => root.class_list().contains("dark"),
+    };
+    let background = if dark {
+        Color {
+            r: 14,
+            g: 18,
+            b: 24,
+        }
+    } else {
+        Color {
+            r: 255,
+            g: 255,
+            b: 255,
+        }
+    };
+    let foreground = if dark {
+        Color {
+            r: 237,
+            g: 241,
+            b: 247,
+        }
+    } else {
+        Color {
+            r: 28,
+            g: 33,
+            b: 41,
+        }
+    };
+    let cursor = if dark {
+        Color {
+            r: 180,
+            g: 203,
+            b: 255,
+        }
+    } else {
+        Color {
+            r: 38,
+            g: 56,
+            b: 78,
+        }
+    };
+    let inherited = |variable: &str, base: &str| {
+        computed_color(
+            property(&styles, variable),
+            &computed_color(property(&root_styles, variable), base),
+        )
+    };
+    let base = |name: &str, color: Color| {
+        computed_color(
+            property(&drawer_styles, name),
+            &computed_color(property(&body_styles, name), &color.css()),
+        )
+    };
+    let parse = |value: String, fallback: Color| -> Color {
+        let Ok(element) = document.create_element("canvas") else {
+            return fallback;
+        };
+        let Ok(canvas) = element.dyn_into::<HtmlCanvasElement>() else {
+            return fallback;
+        };
+        canvas.set_width(1);
+        canvas.set_height(1);
+        let Ok(Some(context)) = canvas.get_context("2d") else {
+            return fallback;
+        };
+        let Ok(context) = context.dyn_into::<CanvasRenderingContext2d>() else {
+            return fallback;
+        };
+        context.clear_rect(0., 0., 1., 1.);
+        context.set_fill_style_str(&value);
+        context.fill_rect(0., 0., 1., 1.);
+        let Ok(image) = context.get_image_data(0., 0., 1., 1.) else {
+            return fallback;
+        };
+        let data = image.data();
+        if data[3] == 0 {
+            return fallback;
+        };
+        Color {
+            r: data[0],
+            g: data[1],
+            b: data[2],
+        }
+    };
+    Theme {
+        background: parse(
+            inherited(
+                "--terminal-background",
+                &base("background-color", background),
+            ),
+            background,
+        ),
+        foreground: parse(
+            inherited("--terminal-foreground", &base("color", foreground)),
+            foreground,
+        ),
+        cursor: parse(
+            computed_color(property(&styles, "--terminal-cursor"), &cursor.css()),
+            cursor,
+        ),
+        selection_background: Some(computed_color(
+            property(&styles, "--terminal-selection-background"),
+            if dark {
+                "rgba(180, 203, 255, 0.25)"
+            } else {
+                "rgba(37, 63, 99, 0.2)"
+            },
+        )),
+    }
 }

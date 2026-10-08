@@ -1,0 +1,57 @@
+{"kind":"family","family":"","expected":""}
+{"kind":"stack","family":"","expected":"\"SF Mono\", \"SFMono-Regular\", Menlo, Consolas, \"Liberation Mono\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":",","expected":""}
+{"kind":"stack","family":",","expected":"\"SF Mono\", \"SFMono-Regular\", Menlo, Consolas, \"Liberation Mono\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"Menlo","expected":"Menlo"}
+{"kind":"stack","family":"Menlo","expected":"Menlo, \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"SF Mono","expected":"\"SF Mono\""}
+{"kind":"stack","family":"SF Mono","expected":"\"SF Mono\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"3270 Nerd Font","expected":"\"3270 Nerd Font\""}
+{"kind":"stack","family":"3270 Nerd Font","expected":"\"3270 Nerd Font\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"M+ 1m","expected":"\"M+ 1m\""}
+{"kind":"stack","family":"M+ 1m","expected":"\"M+ 1m\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"\"already quoted\"","expected":"\"already quoted\""}
+{"kind":"stack","family":"\"already quoted\"","expected":"\"already quoted\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"'Single Quoted'","expected":"'Single Quoted'"}
+{"kind":"stack","family":"'Single Quoted'","expected":"'Single Quoted', \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":" a,b ,, ","expected":"a, b"}
+{"kind":"stack","family":" a,b ,, ","expected":"a, b, \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"﻿Mono﻿","expected":"Mono"}
+{"kind":"stack","family":"﻿Mono﻿","expected":"Mono, \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"Mono","expected":"\"Mono\""}
+{"kind":"stack","family":"Mono","expected":"\"Mono\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"\"bad\nquote\"","expected":"\"bad\nquote\""}
+{"kind":"stack","family":"\"bad\nquote\"","expected":"\"bad\nquote\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"two\"quotes","expected":"\"twoquotes\""}
+{"kind":"stack","family":"two\"quotes","expected":"\"twoquotes\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"中文","expected":"\"中文\""}
+{"kind":"stack","family":"中文","expected":"\"中文\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"Font_Name","expected":"\"Font_Name\""}
+{"kind":"stack","family":"Font_Name","expected":"\"Font_Name\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"-start","expected":"\"-start\""}
+{"kind":"stack","family":"-start","expected":"\"-start\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"family","family":"0first","expected":"\"0first\""}
+{"kind":"stack","family":"0first","expected":"\"0first\", \"Symbols Nerd Font Mono\", \"Symbols Nerd Font\", \"JetBrainsMono Nerd Font\", \"JetBrainsMono NF\", \"FiraCode Nerd Font\", \"Hack Nerd Font\", \"MesloLGS NF\", \"CaskaydiaCove Nerd Font\", \"PowerlineSymbols\", monospace"}
+{"kind":"size","size":-100,"expected":6}
+{"kind":"size","size":0,"expected":6}
+{"kind":"size","size":5.49,"expected":6}
+{"kind":"size","size":5.5,"expected":6}
+{"kind":"size","size":6,"expected":6}
+{"kind":"size","size":11.49,"expected":11}
+{"kind":"size","size":11.5,"expected":12}
+{"kind":"size","size":12,"expected":12}
+{"kind":"size","size":20,"expected":20}
+{"kind":"size","size":31.49,"expected":31}
+{"kind":"size","size":31.5,"expected":32}
+{"kind":"size","size":32,"expected":32}
+{"kind":"size","size":999,"expected":32}
+{"kind":"advances","advances":[],"expected":true}
+{"kind":"advances","advances":[0],"expected":true}
+{"kind":"advances","advances":[-1],"expected":true}
+{"kind":"advances","advances":[1,1,1],"expected":true}
+{"kind":"advances","advances":[1,1.009],"expected":true}
+{"kind":"advances","advances":[1,1.01],"expected":false}
+{"kind":"advances","advances":[1,1.011],"expected":false}
+{"kind":"advances","advances":[20,20,20],"expected":true}
+{"kind":"advances","advances":[20,19.999],"expected":true}
+{"kind":"advances","advances":[30,40],"expected":false}

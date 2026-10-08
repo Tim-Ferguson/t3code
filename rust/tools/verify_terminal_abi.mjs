@@ -28,6 +28,7 @@ function harness(overrides = {}) {
     set_visible: (value) => calls.push(["visible", value]),
     set_read_only: (value) => calls.push(["readonly", value]),
     resend_size: () => calls.push(["size"]),
+    set_font: (family, size) => calls.push(["font", family, size]),
     focus: () => calls.push(["focus"]),
     fit: () => calls.push(["fit"]),
     dispose: () => calls.push(["dispose"]),
@@ -90,6 +91,7 @@ for (const command of [
   { type: "reset", data: "汉🙂", receipt: 1 },
   { type: "append", data: "\x1b[31mred", receipt: 2 },
   { type: "size" },
+  { type: "font", family: "Menlo", size: 16 },
   { type: "readonly", readOnly: false },
   { type: "dispose" },
 ])
@@ -104,6 +106,7 @@ assert.deepEqual(normal.calls.slice(2), [
   ["reset", "汉🙂"],
   ["write", "\x1b[31mred"],
   ["size"],
+  ["font", "Menlo", 16],
   ["readonly", false],
   ["dispose"],
   ["free"],

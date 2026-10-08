@@ -36,6 +36,9 @@ try {
       case "fit":
         surface.fit();
         break;
+      case "font":
+        surface.set_font(command.family, command.size);
+        break;
       case "size":
         surface.resend_size();
         break;

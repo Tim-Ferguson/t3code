@@ -271,3 +271,88 @@ mod ordering_tests {
         assert_eq!(*log.borrow(), vec!["a", "b", "c"]);
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloseAttempt {
+    Close,
+    Exit,
+}
+/// Close and its compatibility fallback belong to the captured destination,
+/// including error settlement after the fallback finishes.
+pub async fn close_with_fallback<F, Fut>(
+    mut current: impl FnMut() -> bool,
+    mut request: F,
+) -> Option<String>
+where
+    F: FnMut(CloseAttempt) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    if !current() {
+        return None;
+    }
+    match request(CloseAttempt::Close).await {
+        Ok(()) => None,
+        Err(cause) if cause.to_ascii_lowercase().contains("interrupt") || !current() => None,
+        Err(_) => match request(CloseAttempt::Exit).await {
+            Err(cause) if current() => Some(cause),
+            _ => None,
+        },
+    }
+}
+#[cfg(test)]
+mod close_tests {
+    use super::*;
+    use futures_util::{FutureExt, pin_mut};
+    use std::{
+        cell::{Cell, RefCell},
+        rc::Rc,
+    };
+    #[test]
+    fn canceled_before_poll_never_closes_the_new_destination() {
+        let called = Cell::new(false);
+        let future = close_with_fallback(
+            || false,
+            |_| {
+                called.set(true);
+                std::future::ready(Ok(()))
+            },
+        );
+        assert_eq!(future.now_or_never(), Some(None));
+        assert!(!called.get());
+    }
+    #[test]
+    fn pending_fallback_error_cannot_escape_to_the_new_destination() {
+        let owned = Rc::new(Cell::new(true));
+        let check = owned.clone();
+        let (tx, rx) = futures_channel::oneshot::channel();
+        let receiver = RefCell::new(Some(rx));
+        let attempts = RefCell::new(Vec::new());
+        let future = close_with_fallback(
+            move || check.get(),
+            |attempt| {
+                attempts.borrow_mut().push(attempt);
+                let rx = if attempt == CloseAttempt::Exit {
+                    receiver.borrow_mut().take()
+                } else {
+                    None
+                };
+                async move {
+                    if let Some(rx) = rx {
+                        rx.await.unwrap()
+                    } else {
+                        Err("old-server close failed".into())
+                    }
+                }
+            },
+        );
+        pin_mut!(future);
+        assert!(future.as_mut().now_or_never().is_none());
+        assert_eq!(
+            *attempts.borrow(),
+            [CloseAttempt::Close, CloseAttempt::Exit]
+        );
+        owned.set(false);
+        tx.send(Err("old-server fallback failed".into())).unwrap();
+        assert_eq!(future.now_or_never(), Some(None));
+    }
+}

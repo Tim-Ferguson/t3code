@@ -298,31 +298,197 @@ pub fn Drawer(
         }
     }
     let open = panes.terminal_open;
+    let groups = t3_client::terminal_drawer::displayed_groups(&panes);
     let active_group = panes.active_terminal_group_id.clone();
-    rsx! {
-     section{class:"terminal-drawer", "data-open":open,
-      div{class:"terminal-toolbar",
-       button{disabled:!can_read,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|catalog.change(&key,|panes,key|panes.set_open(key,!open))},if open{"Hide terminal"}else{"Terminal"}}
-       if open{
-        for group in &panes.terminal_groups {
-         button{class:if group.id==active_group{"selected"}else{""},onclick:{let catalog=catalog.clone();let key=key.clone();let id=group.terminal_ids[0].clone();move |_|catalog.change(&key,|panes,key|{let state=panes.get(key).activate(&id);panes.set(key,state)})},"{t3_client::terminal_labels::label(&group.terminal_ids[0], summaries.read().as_ref().and_then(|rows| rows.iter().find(|row|row.terminal_id.as_str()==group.terminal_ids[0])).map(|row|row.label.0.as_str()))}"}
+    let sidebar = panes.terminal_ids.len() > 1;
+    let split_limit = groups
+        .iter()
+        .find(|group| group.id == active_group)
+        .is_some_and(|group| group.terminal_ids.len() >= t3_client::terminal_ui::MAX_PER_GROUP);
+    let mut confirm = use_signal(|| None::<String>);
+    let mut height = use_signal(|| panes.terminal_height);
+    let mut viewport = use_signal(|| None::<f64>);
+    let mut drag = use_signal(|| None::<(i32, f64, f64)>);
+    let mut geometry = use_signal(|| None::<document::Eval>);
+    let resize_id = use_hook(|| format!("terminal-resize-{}", uuid::Uuid::new_v4()));
+    let window_catalog = catalog.clone();
+    let window_key = key.clone();
+    use_future(move || {
+        let catalog = window_catalog.clone();
+        let key = window_key.clone();
+        async move {
+            let mut eval = document::eval(
+                "const resized=()=>dioxus.send(window.innerHeight); window.addEventListener('resize',resized); resized(); try{await dioxus.recv();}finally{window.removeEventListener('resize',resized);}",
+            );
+            geometry.set(Some(eval));
+            while let Ok(window_height) = eval.recv::<f64>().await {
+                viewport.set(Some(window_height));
+                let next =
+                    t3_client::terminal_drawer::clamp_height(*height.peek(), Some(window_height));
+                if *height.peek() != next {
+                    height.set(next);
+                }
+                if drag.peek().is_none() && catalog.panes.peek().get(&key).terminal_open {
+                    catalog.change(&key, |panes, key| {
+                        let next = panes.get(key).set_height(next);
+                        panes.set(key, next);
+                    });
+                }
+            }
         }
-        button{disabled:!can_operate,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,false,Direction::Horizontal));}},"＋"}
-        button{disabled:!can_operate||panes.terminal_groups.iter().find(|group|group.id==active_group).is_some_and(|group|group.terminal_ids.len()>=4),onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,true,Direction::Horizontal));}},"Split"}
-        button{disabled:!can_operate,onclick:{let catalog=catalog.clone();let key=key.clone();let id=panes.active_terminal_id.clone();let thread=thread_id.clone();let transport=transport.clone();move |_|{if runtime::request(&transport,state,"terminal.close",json!({"threadId":thread,"terminalId":id,"deleteHistory":true}),t3_client::rpc::RequestKind::Unary).is_some(){catalog.change(&key,|panes,key|panes.close(key,&id));}}},"Close"}
+    });
+    let drop_catalog = catalog.clone();
+    let drop_key = key.clone();
+    use_drop(move || {
+        if let Some(eval) = *geometry.peek() {
+            let _ = eval.send(true);
+        }
+        drop_catalog.change(&drop_key, |panes, key| {
+            let next = panes.get(key).set_height(*height.peek());
+            panes.set(key, next);
+        });
+    });
+    let close = {
+        let catalog = catalog.clone();
+        let key = key.clone();
+        let thread = thread_id.clone();
+        let environment = environment.clone();
+        let transport = transport.clone();
+        move |id: String| {
+            close_terminal(
+                catalog.clone(),
+                state,
+                transport.clone(),
+                environment.clone(),
+                thread.clone(),
+                key.clone(),
+                id,
+            )
+        }
+    };
+    let labels = |id: &str| {
+        t3_client::terminal_labels::label(
+            id,
+            summaries
+                .read()
+                .as_ref()
+                .and_then(|rows| rows.iter().find(|row| row.terminal_id.as_str() == id))
+                .map(|row| row.label.0.as_str()),
+        )
+    };
+    rsx! {
+     section{class:"terminal-drawer", "data-open":open, "data-thread-terminal-drawer":"", style:if open{format!("height:{}px",*height.read())}else{"height:22px".to_owned()},
+      div{class:"terminal-toggle",button{disabled:!can_read,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|catalog.change(&key,|panes,key|panes.set_open(key,!open))},if open{"Hide terminal"}else{"Terminal"}}}
+      if open {
+       div{id:"{resize_id}",class:"terminal-resize",role:"separator","aria-label":"Resize terminal drawer","aria-orientation":"horizontal",
+        onpointerdown:{let resize_id=resize_id.clone();move |event:Event<PointerData>|{if event.trigger_button()!=Some(dioxus::html::input_data::MouseButton::Primary){return;}event.prevent_default();let pointer=event.pointer_id();drag.set(Some((pointer,event.client_coordinates().y,*height.peek())));let args=json!({"id":resize_id,"pointer":pointer});let _=document::eval(&format!("document.getElementById({args}.id)?.setPointerCapture({args}.pointer);"));}},
+        onpointermove:move |event:Event<PointerData>|{if let Some((pointer,y,start))=*drag.peek(){if pointer==event.pointer_id(){event.prevent_default();height.set(t3_client::terminal_drawer::clamp_height(start+y-event.client_coordinates().y,*viewport.peek()));}}},
+        onpointerup:{let catalog=catalog.clone();let key=key.clone();move |event:Event<PointerData>|{if drag.peek().is_some_and(|(pointer,_,_)|pointer==event.pointer_id()){drag.set(None);catalog.change(&key,|panes,key|{let next=panes.get(key).set_height(*height.peek());panes.set(key,next);});}}},
+        onpointercancel:{let catalog=catalog.clone();let key=key.clone();move |_|{drag.set(None);catalog.change(&key,|panes,key|{let next=panes.get(key).set_height(*height.peek());panes.set(key,next);});}}
        }
       }
       if let Some(error)=&*catalog.error.read(){p{class:"terminal-error",role:"alert","{error}"}}
-      for group in panes.terminal_groups.iter().filter(|group|group.id==active_group) {
-       div{class:"terminal-group",style:format!("height:{}px;display:{};flex-direction:{}",panes.terminal_height,if open&&group.id==active_group{"flex"}else{"none"},if group.split_direction==Some(Direction::Vertical){"column"}else{"row"}),
-        for id in &group.terminal_ids {
-         CanvasPane{environment:environment.clone(),key:"{environment}:{thread_id}:{id}",state,transport:transport.clone(),thread_id:thread_id.clone(),terminal_id:id.clone(),cwd:cwd.clone(),worktree:worktree.clone(),visible:open&&group.id==active_group,can_operate,active:panes.active_terminal_id==*id}
+      div{class:"terminal-body",style:if open{"display:flex"}else{"display:none"},
+       if groups.is_empty(){div{class:"terminal-empty",p{"No terminal sessions for this thread yet."}button{disabled:!can_operate,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,false,Direction::Horizontal));}},"New terminal"}}}
+       for group in groups.iter().filter(|group|group.id==active_group) {
+        div{class:"terminal-group",style:format!("flex-direction:{}",if group.split_direction==Some(Direction::Vertical){"column"}else{"row"}),
+         for id in &group.terminal_ids {
+          CanvasPane{environment:environment.clone(),key:"{environment}:{thread_id}:{id}",state,transport:transport.clone(),thread_id:thread_id.clone(),terminal_id:id.clone(),cwd:cwd.clone(),worktree:worktree.clone(),visible:open,can_operate,active:panes.active_terminal_id==*id}
+         }
+        }
+       }
+       if !groups.is_empty(){
+        aside{class:if sidebar{"terminal-sidebar"}else{"terminal-floating-actions"},
+         div{class:"terminal-toolbar",
+          for (direction, label, icon) in [(Direction::Horizontal,"Split horizontally","horizontal"),(Direction::Vertical,"Split vertically","vertical")] {
+           button{disabled:!can_operate||split_limit,"aria-label":label,title:if split_limit{"A split group can contain up to 4 terminals"}else{label},onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,true,direction));}},TerminalIcon{kind:icon}}
+          }
+          button{disabled:!can_operate,"aria-label":"New terminal",title:"New terminal",onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,false,Direction::Horizontal));}},TerminalIcon{kind:"plus"}}
+          button{disabled:!can_operate,"aria-label":"Close terminal",title:"Close terminal",onclick:{let id=panes.active_terminal_id.clone();move |_|confirm.set(Some(id.clone()))},TerminalIcon{kind:"trash"}}
+         }
+         if sidebar{div{class:"terminal-session-list",
+          for group in &groups {
+           div{class:"terminal-session-group",
+            div{class:"terminal-group-label","{t3_client::terminal_drawer::group_label(group)}"," ",span{"{group.terminal_ids.len()}"}}
+            for id in &group.terminal_ids{
+             div{class:if panes.active_terminal_id==*id{"terminal-session selected"}else{"terminal-session"},
+              button{class:"terminal-session-close",disabled:!can_operate,"aria-label":format!("Close {}",labels(id)),title:format!("Close {}",labels(id)),onclick:{let id=id.clone();move |_|confirm.set(Some(id.clone()))},TerminalIcon{kind:"trash"}}
+              button{class:"terminal-session-label",title:labels(id),onclick:{let catalog=catalog.clone();let key=key.clone();let id=id.clone();move |_|catalog.change(&key,|panes,key|{let next=panes.get(key).activate(&id);panes.set(key,next);})},"{labels(id)}"}
+             }
+            }
+           }
+         }}}
+        }
+       }
+      }
+      if let Some(id)=&*confirm.read(){
+       div{class:"terminal-confirm-backdrop",onclick:move |_|confirm.set(None),
+        div{class:"terminal-confirm",onkeydown:move |event|{if event.key()==Key::Escape{confirm.set(None);}},role:"alertdialog","aria-modal":"true","aria-labelledby":"terminal-close-title",onclick:move |event|event.stop_propagation(),
+         h3{id:"terminal-close-title","Close terminal \"{labels(id)}\"?"}
+         p{"This stops the running process and clears its history."}
+         div{button{autofocus:true,onclick:move |_|confirm.set(None),"Cancel"}button{class:"terminal-destructive",disabled:!can_operate,onclick:{let id=id.clone();let close=close.clone();move |_|{confirm.set(None);close(id.clone());}},"Close terminal"}}
         }
        }
       }
      }
     }
 }
+
+fn close_terminal(
+    catalog: Catalog,
+    state: Store<UiModel>,
+    transport: TransportHandle,
+    environment: String,
+    thread: String,
+    key: String,
+    id: String,
+) {
+    if !owns_pane(state, &environment, &thread) || !operates(state) {
+        return;
+    }
+    let Some(owner) = runtime::response_owner(&transport, state) else {
+        return;
+    };
+    catalog.change(&key, |panes, key| panes.close(key, &id));
+    dioxus::dioxus_core::spawn_forever(async move {
+        let check = transport.clone();
+        let check_environment = environment.clone();
+        let check_thread = thread.clone();
+        let result = crate::terminal_bridge::close_with_fallback(
+            move || {
+                runtime::response_owner(&check, state).as_ref() == Some(&owner)
+                    && owns_pane(state, &check_environment, &check_thread)
+                    && operates(state)
+            },
+            move |attempt| {
+                let transport = transport.clone();
+                let thread = thread.clone();
+                let id = id.clone();
+                async move {
+                    let (method, payload) = match attempt {
+                        crate::terminal_bridge::CloseAttempt::Close => (
+                            "terminal.close",
+                            json!({"threadId":thread,"terminalId":id,"deleteHistory":true}),
+                        ),
+                        crate::terminal_bridge::CloseAttempt::Exit => (
+                            "terminal.write",
+                            json!({"threadId":thread,"terminalId":id,"data":"exit\n"}),
+                        ),
+                    };
+                    runtime::request_value(transport, state, method, payload)
+                        .await
+                        .map(|_| ())
+                }
+            },
+        )
+        .await;
+        if let Some(cause) = result {
+            let mut errors = catalog.error;
+            errors.set(Some(cause));
+        }
+    });
+}
+
 #[component]
 fn CanvasPane(
     environment: String,
@@ -350,6 +516,41 @@ fn CanvasPane(
     let mut ready = use_signal(|| false);
     let mut error = use_signal(|| None::<String>);
     let mut running = use_signal(|| false);
+    let mut advanced = use_signal(|| false);
+    let mut font_preferences = use_signal(|| None::<document::Eval>);
+    use_future(move || async move {
+        let mut eval = document::eval(
+            "const key='t3code:typography-advanced';const read=()=>{try{dioxus.send(window.localStorage.getItem(key));}catch{dioxus.send(null);}};const storage=e=>{if(e.key===key)read();};const local=e=>{if(e.detail?.key===key)read();};window.addEventListener('storage',storage);window.addEventListener('t3code:local_storage_change',local);read();try{await dioxus.recv();}finally{window.removeEventListener('storage',storage);window.removeEventListener('t3code:local_storage_change',local);}",
+        );
+        font_preferences.set(Some(eval));
+        while let Ok(raw) = eval.recv::<Option<String>>().await {
+            advanced.set(
+                raw.as_deref()
+                    .and_then(|raw| serde_json::from_str::<bool>(raw).ok())
+                    .unwrap_or(false),
+            );
+        }
+    });
+    use_effect(move || {
+        let settings = state.client_settings();
+        let preferences = settings.read();
+        let advanced = *advanced.read();
+        let family = if advanced {
+            preferences.font_family_terminal.0.clone()
+        } else {
+            preferences.font_family_code.0.clone()
+        };
+        let size = if advanced {
+            preferences.font_size_terminal.0
+        } else {
+            preferences.font_size_code.0
+        };
+        if *ready.read() {
+            if let Some(eval) = *renderer.read() {
+                let _ = eval.send(json!({"type":"font","family":family,"size":size}));
+            }
+        }
+    });
     let receipt = use_hook(crate::terminal_bridge::Receipts::default);
     let base = SURFACE.to_string();
     let launch_id = id.clone();
@@ -498,6 +699,7 @@ fn CanvasPane(
     let stream_thread = thread_id.clone();
     let stream_terminal = terminal_id.clone();
     let stream_ack = receipt.clone();
+    let exit_catalog = catalog.clone();
     use_future(move || {
         let handle = stream_transport.clone();
         let thread = stream_thread.clone();
@@ -506,7 +708,9 @@ fn CanvasPane(
         let worktree = worktree.clone();
         let ack = stream_ack.clone();
         let environment = environment.clone();
+        let catalog = exit_catalog.clone();
         async move {
+            let mut exit = t3_client::terminal_drawer::ExitState::default();
             loop {
                 if ack.is_closed() {
                     return;
@@ -559,12 +763,19 @@ fn CanvasPane(
                             let _ = eval.send(json!({"type":"size"}));
                         }
                     }
+                    let exit_message = exit.observe(buffer.status, buffer.version);
                     let update = terminal_output::read(&buffer.output, cursor);
                     cursor = update.cursor();
                     let (kind, data) = match update {
-                        OutputUpdate::None { .. } => continue,
+                        OutputUpdate::None { .. } if exit_message.is_none() => continue,
+                        OutputUpdate::None { .. } => ("append", String::new()),
                         OutputUpdate::Reset { data, .. } => ("reset", data),
                         OutputUpdate::Append { data, .. } => ("append", data),
+                    };
+                    let data = if let Some(message) = exit_message {
+                        format!("{data}\r\n[terminal] {message}\r\n")
+                    } else {
+                        data
                     };
                     let Some(eval) = *renderer.peek() else { break };
                     let Some((receipt_id, receiver)) = ack.begin() else {
@@ -583,6 +794,21 @@ fn CanvasPane(
                         return;
                     }
                     error.set(None);
+                    if exit_message.is_some()
+                        && owns_pane(state, &environment, &thread)
+                        && operates(state)
+                    {
+                        close_terminal(
+                            catalog.clone(),
+                            state,
+                            handle.clone(),
+                            environment.clone(),
+                            thread.clone(),
+                            ScopedPanes::key(&environment, &thread),
+                            terminal.clone(),
+                        );
+                        return;
+                    }
                 }
                 running.set(false);
                 delay(250).await;
@@ -592,6 +818,9 @@ fn CanvasPane(
     let cleanup_id = id.clone();
     let cleanup_receipts = receipt.clone();
     use_drop(move || {
+        if let Some(eval) = *font_preferences.peek() {
+            let _ = eval.send(true);
+        }
         cleanup_receipts.close();
         if let Some(eval) = *renderer.peek() {
             let _ = eval.send(json!({"type":"dispose"}));
@@ -643,4 +872,30 @@ fn allocate_terminal(
     }
     let suffix = saved.is_none().then(|| uuid::Uuid::new_v4().to_string());
     t3_client::terminal_labels::next_id(&ids, suffix.as_deref())
+}
+
+// Lucide v0.564.0 ISC icon paths, matching the original drawer controls.
+#[component]
+fn TerminalIcon(kind: &'static str) -> Element {
+    let paths: &[&str] = match kind {
+        "horizontal" => &[
+            "M8 19H5c-1 0-2-1-2-2V7c0-1 1-2 2-2h3",
+            "M16 5h3c1 0 2 1 2 2v10c0 1-1 2-2 2h-3",
+            "M12 4v16",
+        ],
+        "vertical" => &[
+            "M5 8V5c0-1 1-2 2-2h10c1 0 2 1 2 2v3",
+            "M19 16v3c0 1-1 2-2 2H7c-1 0-2-1-2-2v-3",
+            "M4 12h16",
+        ],
+        "plus" => &["M12 5v14", "M5 12h14"],
+        _ => &[
+            "M10 11v6",
+            "M14 11v6",
+            "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",
+            "M3 6h18",
+            "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+        ],
+    };
+    rsx! {svg{width:"13",height:"13",view_box:"0 0 24 24",fill:"none",stroke:"currentColor",stroke_width:"2",stroke_linecap:"round",stroke_linejoin:"round","aria-hidden":"true",for d in paths{path{d:*d}}}}
 }

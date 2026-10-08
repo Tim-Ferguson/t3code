@@ -9,6 +9,7 @@ pub mod requests;
 pub mod rpc;
 pub mod shell;
 pub mod started_thread;
+pub mod terminal_drawer;
 pub mod terminal_labels;
 pub mod terminal_output;
 pub mod terminal_session;
