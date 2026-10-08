@@ -8,6 +8,8 @@ generation = int(sys.argv[1]) if len(sys.argv) > 1 else 2
 scenario = sys.argv[2] if len(sys.argv) > 2 else "normal"
 session_id = "native-session"
 pending = None
+authenticated = False
+setup_attempts = 0
 
 def emit(value):
     print(json.dumps(value), flush=True)
@@ -49,6 +51,15 @@ for line in sys.stdin:
         complete("end_turn")
         continue
     method = request["method"]
+    if "FIXTURE_REQUEST_LOG" in os.environ:
+        with open(os.environ["FIXTURE_REQUEST_LOG"], "a") as log:
+            log.write(method + "\n")
+    if "FIXTURE_ALL_REQUEST_SIGNAL" in os.environ:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as signal:
+            signal.sendto(json.dumps({"pid": os.getpid(), "method": method}).encode(), os.environ["FIXTURE_ALL_REQUEST_SIGNAL"])
+    if scenario.startswith("auth-"):
+        with open(sys.argv[3], "a") as log:
+            log.write(method + "\n")
     params = request.get("params", {})
     if method == "initialize":
         assert params["protocolVersion"] == 2, params
@@ -66,12 +77,31 @@ for line in sys.stdin:
         if scenario == "fail-initialize":
             emit({"jsonrpc": "2.0", "id": request["id"], "error": {"code": -32000, "message": "fixture initialization failure"}})
             continue
+        if scenario.startswith("auth-"):
+            kind = "terminal" if scenario == "auth-terminal" else "agent"
+            methods = [] if scenario == "auth-none" else [{"methodId" if generation == 2 else "id": "agent", "name": "Agent", "type": kind}]
+            if kind == "terminal" and methods:
+                methods[0].update({"args": [], "env": [] if generation == 2 else {}})
+            if generation == 2:
+                reply(request, {"protocolVersion": 2, "info": {"name": "fixture", "version": "1"}, "capabilities": {"session": {"prompt": {}, "mcp": {}}}, "authMethods": methods})
+            else:
+                reply(request, {"protocolVersion": 1, "agentCapabilities": {"loadSession": True}, "authMethods": methods})
+            continue
         if generation == 2:
             reply(request, {"protocolVersion": 2, "info": {"name": "fixture", "version": "1"}, "capabilities": {"session": {"prompt": {}, "mcp": {}}}, "authMethods": []})
         else:
             reply(request, {"protocolVersion": 1, "agentCapabilities": {"loadSession": True}, "agentInfo": {"name": "fixture", "version": "1"}, "authMethods": []})
+    elif method in ("authenticate", "auth/login"):
+        assert scenario.startswith("auth-") and params["methodId"] == "agent", request
+        assert setup_attempts == 1, "Normal sessions must attempt setup before authentication"
+        authenticated = True
+        reply(request, {})
     elif method == "session/new":
         assert params["cwd"] and params["mcpServers"] == [], params
+        setup_attempts += 1
+        if scenario.startswith("auth-") and scenario != "auth-ready" and (not authenticated or scenario == "auth-twice"):
+            emit({"jsonrpc": "2.0", "id": request["id"], "error": {"code": -32602 if scenario == "auth-other-error" else -32000, "message": "Authentication required"}})
+            continue
         reply(request, {"sessionId": session_id, "configOptions": configuration()})
     elif method in ("session/load", "session/resume"):
         assert params["sessionId"] == session_id and params["mcpServers"] == [], params

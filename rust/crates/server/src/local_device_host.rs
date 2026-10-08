@@ -33,6 +33,11 @@ pub struct DeviceHostReady {
     pub serve_sim_ax_settings: Option<PathBuf>,
     pub serve_sim_cli: Option<PathBuf>,
 }
+#[derive(Clone, Debug)]
+pub struct DeviceHostAgentReady {
+    pub host: DeviceHostReady,
+    pub agent_device: crate::device_agent_daemon::AgentDeviceEndpoint,
+}
 impl DeviceHostReady {
     pub async fn run_command(
         &self,
@@ -101,6 +106,7 @@ struct State {
     ready: Option<DeviceHostReady>,
 }
 struct Job {
+    agent: bool,
     stop: watch::Sender<bool>,
     handle: JoinHandle<()>,
 }
@@ -112,10 +118,12 @@ impl Drop for Job {
 struct Inner {
     options: LocalDeviceHostOptions,
     toolchain: DeviceToolchain,
+    agent: crate::device_agent_daemon::AgentDeviceDaemon,
     state: Arc<Mutex<State>>,
     start: Arc<tokio::sync::Mutex<()>>,
     jobs: Mutex<Vec<Job>>,
     cleanup: tokio::sync::Mutex<Vec<Job>>,
+    stop_owner: Arc<tokio::sync::Mutex<()>>,
     closed: AtomicBool,
     stopping: AtomicBool,
 }
@@ -149,9 +157,16 @@ fn failure(
 }
 impl LocalDeviceHost {
     pub fn new(options: LocalDeviceHostOptions, toolchain: DeviceToolchain) -> Self {
+        let agent = crate::device_agent_daemon::AgentDeviceDaemon::new(
+            crate::device_agent_daemon::AgentDaemonOptions::host(
+                options.state_dir.clone(),
+                options.environment.clone(),
+            ),
+        );
         Self(Arc::new(Inner {
             options,
             toolchain,
+            agent,
             state: Arc::new(Mutex::new(State {
                 generation: 0,
                 ready: None,
@@ -159,6 +174,7 @@ impl LocalDeviceHost {
             start: Arc::new(tokio::sync::Mutex::new(())),
             jobs: Mutex::new(Vec::new()),
             cleanup: tokio::sync::Mutex::new(Vec::new()),
+            stop_owner: Arc::new(tokio::sync::Mutex::new(())),
             closed: AtomicBool::new(false),
             stopping: AtomicBool::new(false),
         }))
@@ -168,6 +184,12 @@ impl LocalDeviceHost {
     }
     pub fn toolchain(&self) -> DeviceToolchain {
         self.0.toolchain.clone()
+    }
+    pub fn state_dir(&self) -> &Path {
+        &self.0.options.state_dir
+    }
+    pub fn current_agent(&self) -> Option<crate::device_agent_daemon::AgentDeviceEndpoint> {
+        self.0.agent.current()
     }
     pub fn current(&self) -> Option<DeviceHostReady> {
         self.0.state.lock().unwrap().ready.clone()
@@ -182,10 +204,25 @@ impl LocalDeviceHost {
     }
     pub async fn summary(&self) -> DeviceHostSummary {
         let current = self.current();
+        let agent = self.0.agent.current();
+        let agent_version = if let Some(agent) = agent.as_ref() {
+            if agent.pid.is_some_and(|pid| {
+                pid > 0 && pid <= i32::MAX as i64 && daemon_process_alive(pid as u32)
+            }) {
+                agent.version.clone()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         let tools = self
             .0
             .toolchain
-            .versions(current.as_ref().map(|_| DEVICE_HUB_VERSION.into()), None)
+            .versions(
+                current.as_ref().map(|_| DEVICE_HUB_VERSION.into()),
+                agent_version,
+            )
             .await;
         DeviceHostSummary {
             id: DeviceHostId::new("local").unwrap(),
@@ -237,6 +274,7 @@ impl LocalDeviceHost {
             let state = self.0.state.clone();
             let start = self.0.start.clone();
             jobs.push(Job {
+                agent: false,
                 stop,
                 handle: tokio::spawn(async move {
                     supervise(
@@ -258,7 +296,105 @@ impl LocalDeviceHost {
         }
         result
     }
+    pub async fn ensure_agent_ready(
+        &self,
+        on_phase: DevicePhase,
+    ) -> Result<DeviceHostAgentReady, DeviceHostUnavailableError> {
+        let host = self.ensure_ready(on_phase.clone()).await?;
+        let admission = self.0.start.clone().lock_owned().await;
+        if self.0.closed.load(Ordering::Acquire)
+            || self.0.stopping.load(Ordering::Acquire)
+            || self.generation() != host.generation
+        {
+            return Err(failure("Device host is shutting down.", None));
+        }
+        if let Some(agent_device) = self.0.agent.current() {
+            return Ok(DeviceHostAgentReady { host, agent_device });
+        }
+        let (stop, mut stopped) = watch::channel(false);
+        let mut cancel = Cancel(Some(stop.clone()));
+        let (reply, receive) = oneshot::channel();
+        {
+            let mut jobs = self.0.jobs.lock().unwrap();
+            if self.0.closed.load(Ordering::Acquire) || self.0.stopping.load(Ordering::Acquire) {
+                return Err(failure("Device host is shutting down.", None));
+            }
+            let toolchain = self.0.toolchain.clone();
+            let agent = self.0.agent.clone();
+            let state = self.0.state.clone();
+            jobs.push(Job {agent:true,stop,handle:tokio::spawn(async move {
+                let startup=async {
+                    if !toolchain.installed(DeviceToolKind::Agent).await {phase(&on_phase,DeviceHostStatus::Installing,&mut stopped).await?;}
+                    let tool=toolchain.ensure_with_stop(DeviceToolKind::Agent,stopped.clone()).await.map_err(|error|failure("Device support failed during installing agent tools.",serde_json::to_value(error).ok()))?;
+                    phase(&on_phase,DeviceHostStatus::Starting,&mut stopped).await?;
+                    let endpoint=tokio::select! {biased;_=stopped.wait_for(|value|*value)=>return Err(failure("Device host startup stopped.",None)),endpoint=agent.ensure(host.node_path.clone(),tool.entry_path)=>endpoint};
+                    endpoint.map_err(|error|match error {
+                        crate::device_agent_daemon::AgentDaemonError::Timeout=>failure("Agent tools did not start within 30000 ms.",Some(json!({"_tag":"DeviceHostTimeoutError","hostId":"local","timeoutMs":30000}))),
+                        crate::device_agent_daemon::AgentDaemonError::Stopped=>failure("Device host startup stopped.",None),
+                    })
+                }.await;
+                let mut admission=Some(admission);
+                match startup {
+                    Ok(agent_device) if !*stopped.borrow() && state.lock().unwrap().generation==host.generation=> {
+                        if reply.send(Ok(DeviceHostAgentReady {host,agent_device})).is_ok() {
+                            drop(admission.take());let _=stopped.wait_for(|value|*value).await;
+                        }
+                    }
+                    result=> {let _=reply.send(Err(result.err().unwrap_or_else(||failure("Host configuration changed. Retry the operation.",None))));}
+                }
+                agent.stop().await;
+                drop(admission);
+            })});
+        }
+        let result = receive
+            .await
+            .unwrap_or_else(|_| Err(failure("Device host startup stopped.", None)));
+        if result.is_ok() {
+            cancel.0 = None;
+        }
+        result
+    }
+    pub async fn stop_agent(&self) {
+        let admission = self.0.start.clone().lock_owned().await;
+        let owner = self.clone();
+        let (reply, receive) = oneshot::channel();
+        tokio::spawn(async move {
+            let mut agent_jobs = Vec::new();
+            {
+                let mut jobs = owner.0.jobs.lock().unwrap();
+                let mut index = 0;
+                while index < jobs.len() {
+                    if jobs[index].agent {
+                        agent_jobs.push(jobs.remove(index));
+                    } else {
+                        index += 1;
+                    }
+                }
+            }
+            for job in &agent_jobs {
+                job.stop.send_replace(true);
+            }
+            for job in &mut agent_jobs {
+                let _ = (&mut job.handle).await;
+            }
+            owner.0.agent.stop().await;
+            drop(admission);
+            let _ = reply.send(());
+        });
+        let _ = receive.await;
+    }
     pub async fn stop(&self) {
+        let admission = self.0.stop_owner.clone().lock_owned().await;
+        let owner = self.clone();
+        let (reply, receive) = oneshot::channel();
+        tokio::spawn(async move {
+            owner.stop_owned().await;
+            drop(admission);
+            let _ = reply.send(());
+        });
+        let _ = receive.await;
+    }
+    async fn stop_owned(&self) {
         let mut cleanup = self.0.cleanup.lock().await;
         {
             let mut jobs = self.0.jobs.lock().unwrap();
@@ -272,6 +408,7 @@ impl LocalDeviceHost {
             let _ = (&mut job.handle).await;
             cleanup.pop();
         }
+        self.0.agent.stop().await;
         {
             let mut state = self.0.state.lock().unwrap();
             state.generation += 1;
@@ -289,6 +426,7 @@ impl LocalDeviceHost {
     pub async fn shutdown(&self) {
         self.0.closed.store(true, Ordering::Release);
         self.stop().await;
+        self.0.agent.shutdown().await;
     }
 }
 async fn drain(mut read: impl AsyncRead + Unpin) {
@@ -730,4 +868,32 @@ server.serve_forever()
         assert!(host.current().is_none());
         tools.shutdown().await;
     }
+}
+
+#[cfg(unix)]
+fn daemon_process_alive(pid: u32) -> bool {
+    unsafe { libc::kill(pid as i32, 0) == 0 }
+}
+#[cfg(windows)]
+fn daemon_process_alive(pid: u32) -> bool {
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn OpenProcess(access: u32, inherit: i32, pid: u32) -> *mut std::ffi::c_void;
+        fn GetExitCodeProcess(process: *mut std::ffi::c_void, exit_code: *mut u32) -> i32;
+        fn CloseHandle(handle: *mut std::ffi::c_void) -> i32;
+    }
+    unsafe {
+        let process = OpenProcess(0x1000, 0, pid);
+        if process.is_null() {
+            return false;
+        }
+        let mut code = 0;
+        let alive = GetExitCodeProcess(process, &mut code) != 0 && code == 259;
+        CloseHandle(process);
+        alive
+    }
+}
+#[cfg(not(any(unix, windows)))]
+fn daemon_process_alive(_pid: u32) -> bool {
+    false
 }

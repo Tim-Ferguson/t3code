@@ -8,7 +8,7 @@ use crate::{
 };
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 use t3_acp::{
     AcpError,
     types::{Optional, PromptRequest, PromptResponse, RequestPermissionRequest},
@@ -125,6 +125,138 @@ mod tests {
             view["runs"][ordinal]["status"] == "completed"
         })
         .await
+    }
+    #[tokio::test]
+    async fn credential_stop_captures_admitted_actor_before_its_first_poll_and_prevents_spawn() {
+        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+            let (root, store, providers) = setup("normal").await;
+            let log = root.path().join("requests");
+            let mut settings = serde_json::to_value(providers.settings()).unwrap();
+            settings["providerInstances"]["local-agent"]["environment"] =
+                json!([{"name":"FIXTURE_REQUEST_LOG","value":log}]);
+            providers
+                .reconfigure(&serde_json::from_value(settings).unwrap(), root.path())
+                .await
+                .unwrap();
+            let execution = ExecutionService::start(store.clone(), providers.clone());
+            let auth = crate::provider_auth_service::ProviderAuthService::new(
+                providers.clone(),
+                root.path().into(),
+                root.path().join("caches"),
+                execution.authentication_stop(),
+            );
+            let thread = launch(&store, &providers, false);
+            let mut admitted = execution.pause_next_actor();
+            let baseline = std::fs::read_to_string(&log)
+                .unwrap()
+                .lines()
+                .filter(|method| *method == "session/new")
+                .count();
+            execution
+                .dispatch(&message(&thread, "pending-auth-stop", "hold"), Utc::now())
+                .unwrap();
+            let (lifetime, release) = admitted.recv().await.unwrap();
+            assert_eq!(lifetime.captured_instance().as_deref(), Some("local-agent"));
+            let stopping = auth.clone();
+            let logout = tokio::spawn(async move { stopping.logout("local-agent").await });
+            lifetime.wait_stopped().await;
+            assert!(
+                !logout.is_finished(),
+                "credential mutation waits actor's owning scope completion"
+            );
+            release.send(()).unwrap();
+            assert!(
+                logout.await.unwrap().is_err(),
+                "fixture has no logout support"
+            );
+            let requests = std::fs::read_to_string(&log).unwrap();
+            assert_eq!(
+                requests
+                    .lines()
+                    .filter(|method| *method == "session/new")
+                    .count(),
+                baseline,
+                "admitted stopped actor must not create a session"
+            );
+            assert!(!requests.lines().any(|method| method == "session/prompt"));
+            auth.shutdown().await;
+            execution.shutdown().await;
+        })
+        .await
+        .unwrap();
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn registry_auth_logout_reaps_captured_active_actor_after_controller_rebuild() {
+        tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            let (root, store, providers) = setup("normal").await;
+            let signal_path = root.path().join("requests.sock");
+            let signal = tokio::net::UnixDatagram::bind(&signal_path).unwrap();
+            let mut settings = serde_json::to_value(providers.settings()).unwrap();
+            settings["providerInstances"]["local-agent"]["environment"] =
+                json!([{"name":"FIXTURE_ALL_REQUEST_SIGNAL","value":signal_path}]);
+            let settings: t3_contracts::ServerSettings = serde_json::from_value(settings).unwrap();
+            providers.reconfigure(&settings, root.path()).await.unwrap();
+            let execution = ExecutionService::start(store.clone(), providers.clone());
+            let auth = crate::provider_auth_service::ProviderAuthService::new(
+                providers.clone(),
+                root.path().into(),
+                root.path().join("caches"),
+                execution.authentication_stop(),
+            );
+            let thread = launch(&store, &providers, false);
+            let mut events = store.subscribe();
+            execution
+                .dispatch(&message(&thread, "held-run", "hold"), Utc::now())
+                .unwrap();
+            milestone(&store, &mut events, &thread, |view| {
+                assistant_text(view, &view["runs"][0]["id"]) == "waiting"
+            })
+            .await;
+            let mut buffer = [0; 512];
+            let pid = loop {
+                let size = signal.recv(&mut buffer).await.unwrap();
+                let value: Value = serde_json::from_slice(&buffer[..size]).unwrap();
+                if value["method"] == "session/prompt" {
+                    break value["pid"].as_i64().unwrap() as i32;
+                }
+            };
+            // Source rebuild closes only controller setup scopes. Existing
+            // admitted actors remain owned by their parent and retain the old
+            // process instance until an explicit credential operation stops it.
+            let mut renamed = serde_json::to_value(&settings).unwrap();
+            renamed["providerInstances"]["local-agent"]["displayName"] = json!("Renamed");
+            providers
+                .reconfigure(&serde_json::from_value(renamed).unwrap(), root.path())
+                .await
+                .unwrap();
+            assert_eq!(
+                unsafe { libc::kill(pid, 0) },
+                0,
+                "controller rebuild must not end parent-owned session"
+            );
+            // Fixture advertises no logout method. The service must still stop
+            // and reap the captured session before reporting that safe error.
+            assert!(auth.logout("local-agent").await.is_err());
+            let stopped = projection(&store, &thread).unwrap();
+            assert_eq!(stopped["runs"][0]["status"], "interrupted");
+            assert!(
+                stopped["providerSessions"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .all(|session| session["status"] == "stopped")
+            );
+            assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+            assert_eq!(
+                std::io::Error::last_os_error().raw_os_error(),
+                Some(libc::ESRCH)
+            );
+            auth.shutdown().await;
+            execution.shutdown().await;
+        })
+        .await
+        .unwrap();
     }
     #[tokio::test]
     async fn managed_registry_binary_installs_and_runs_real_persisted_prompt_approval() {
@@ -617,12 +749,29 @@ impl Actor {
         pending_peer: &mut Option<crate::acp_peer::ProcessPeer>,
         pending_services: &mut Option<crate::acp_client_callbacks::Services>,
         pending_startup: &mut Option<crate::acp_coordinator::ForegroundStartup>,
+        pending_access: &mut Option<crate::provider_auth_flow::SessionAccess>,
+        lifetime: &crate::codex_runtime::ActorLifetime,
     ) -> Result<Self, StoreError> {
         let view = projection(&store, thread_id)?;
-        let instance_id = view["thread"]["modelSelection"]["instanceId"]
-            .as_str()
-            .unwrap()
-            .to_owned();
+        let instance_id = lifetime
+            .captured_instance()
+            .ok_or_else(|| error("Provider instance is unavailable."))?;
+        if pending_access.is_none() {
+            if let Some(auth) = providers.authentication_service() {
+                let lifetime = lifetime.clone();
+                *pending_access = Some(
+                    auth.admit_session(
+                        &instance_id,
+                        Arc::new(move || {
+                            let lifetime = lifetime.clone();
+                            Box::pin(async move { lifetime.stop_and_wait().await })
+                        }),
+                    )
+                    .await
+                    .map_err(error)?,
+                );
+            }
+        }
         let instance = providers.acp(&instance_id).map_err(error)?;
         *pending_startup = Some(
             instance
@@ -1552,11 +1701,15 @@ pub(crate) async fn actor(
     mut work: mpsc::Receiver<Work>,
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
+    lifetime: crate::codex_runtime::ActorLifetime,
 ) {
     let mut runtime: Option<Actor> = None;
     let mut pending_peer = None;
     let mut pending_services = None;
     let mut pending_startup = None;
+    // This access remains owned by the actor through initialization cancellation
+    // and successful sessions, until its callback/provider processes are reaped.
+    let mut access = None;
     let mut interrupted = false;
     loop {
         if *stopped.borrow() {
@@ -1567,7 +1720,7 @@ pub(crate) async fn actor(
             incoming=work.recv()=>{
                 let Some(incoming)=incoming else{break};let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
-                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
+                    result=async{if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };

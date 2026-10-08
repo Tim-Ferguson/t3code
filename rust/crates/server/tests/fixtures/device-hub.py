@@ -46,7 +46,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             key = self.headers["Sec-WebSocket-Key"]
             accept = base64.b64encode(hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode()).digest()).decode()
             self.wfile.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + accept + "\r\n\r\n").encode())
-            self.wfile.write(b"\x82\x09\x00fixture\xff")
+            if "large=1" in self.path:
+                length = 65 * 1024 * 1024
+                self.wfile.write(b"\x82\x7f" + length.to_bytes(8, "big"))
+                self.wfile.write(b"{" * length)
+            else:
+                self.wfile.write(b"\x82\x09\x00fixture\xff")
             self.wfile.flush()
             try:
                 while True:

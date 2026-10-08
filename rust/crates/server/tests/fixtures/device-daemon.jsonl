@@ -1,0 +1,27 @@
+{"input":null,"accepted":false}
+{"input":[],"accepted":false}
+{"input":{},"accepted":false}
+{"input":{"httpPort":12345,"token":""},"accepted":true,"output":{"httpPort":12345,"token":""}}
+{"input":{"httpPort":12345,"token":""},"accepted":true,"output":{"httpPort":12345,"token":""}}
+{"input":{"httpPort":-1,"token":""},"accepted":true,"output":{"httpPort":-1,"token":""}}
+{"input":{"httpPort":0,"token":""},"accepted":true,"output":{"httpPort":0,"token":""}}
+{"input":{"httpPort":1.5,"token":""},"accepted":false}
+{"input":{"httpPort":9007199254740991,"token":""},"accepted":true,"output":{"httpPort":9007199254740991,"token":""}}
+{"input":{"httpPort":9007199254740992,"token":""},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":null},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":true},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":""},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":"0.21.12"},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":1},"accepted":true,"output":{"httpPort":12345,"token":"isolated token","pid":1}}
+{"input":{"httpPort":12345,"token":"isolated token","pid":1},"accepted":true,"output":{"httpPort":12345,"token":"isolated token","pid":1}}
+{"input":{"httpPort":12345,"token":"isolated token","pid":1.5},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":9007199254740992},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","version":null},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","version":true},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","version":""},"accepted":true,"output":{"httpPort":12345,"token":"isolated token","version":""}}
+{"input":{"httpPort":12345,"token":"isolated token","version":"0.21.12"},"accepted":true,"output":{"httpPort":12345,"token":"isolated token","version":"0.21.12"}}
+{"input":{"httpPort":12345,"token":"isolated token","version":1},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","version":1},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","version":1.5},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","version":9007199254740992},"accepted":false}
+{"input":{"httpPort":12345,"token":"isolated token","pid":1,"version":"0.21.12"},"accepted":true,"output":{"httpPort":12345,"token":"isolated token","pid":1,"version":"0.21.12"}}

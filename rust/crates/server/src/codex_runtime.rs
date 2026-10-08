@@ -17,11 +17,53 @@ use std::{
 };
 use tokio::sync::{mpsc, oneshot, watch};
 
+#[derive(Clone)]
+pub(crate) struct ActorLifetime {
+    instance: Arc<Mutex<Option<String>>>,
+    stop: watch::Sender<bool>,
+    done: watch::Sender<bool>,
+}
+impl ActorLifetime {
+    fn new(instance: Option<String>) -> Self {
+        Self {
+            instance: Arc::new(Mutex::new(instance)),
+            stop: watch::channel(false).0,
+            done: watch::channel(false).0,
+        }
+    }
+    #[cfg(test)]
+    pub(crate) async fn wait_stopped(&self) {
+        let mut stopped = self.stop.subscribe();
+        let _ = stopped.wait_for(|stopped| *stopped).await;
+    }
+    pub(crate) fn captured_instance(&self) -> Option<String> {
+        self.instance.lock().unwrap().clone()
+    }
+    pub(crate) async fn stop_and_wait(&self) {
+        let mut done = self.done.subscribe();
+        self.stop.send_replace(true);
+        while !*done.borrow_and_update() {
+            if done.changed().await.is_err() {
+                break;
+            }
+        }
+    }
+}
+struct ActorFinished(ActorLifetime);
+impl Drop for ActorFinished {
+    fn drop(&mut self) {
+        self.0.done.send_replace(true);
+    }
+}
+
 pub struct RuntimeOwner {
     stop: watch::Sender<bool>,
     wake: Arc<tokio::sync::Notify>,
     task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     cancellations: Arc<Mutex<HashMap<String, watch::Sender<Option<String>>>>>,
+    actors: Arc<Mutex<HashMap<String, ActorLifetime>>>,
+    #[cfg(test)]
+    pause_actor: Arc<Mutex<Option<mpsc::UnboundedSender<(ActorLifetime, oneshot::Sender<()>)>>>>,
 }
 impl Drop for RuntimeOwner {
     fn drop(&mut self) {
@@ -41,6 +83,32 @@ impl RuntimeOwner {
         if let Some(sender) = self.cancellations.lock().unwrap().get(thread_id) {
             let _ = sender.send(Some(run_id.into()));
         }
+    }
+    #[cfg(test)]
+    pub(crate) fn pause_next_actor(
+        &self,
+    ) -> mpsc::UnboundedReceiver<(ActorLifetime, oneshot::Sender<()>)> {
+        let (sender, receiver) = mpsc::unbounded_channel();
+        *self.pause_actor.lock().unwrap() = Some(sender);
+        receiver
+    }
+    pub async fn stop_instances(&self, instances: &[String]) {
+        let actors = self
+            .actors
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|actor| {
+                actor
+                    .instance
+                    .lock()
+                    .unwrap()
+                    .as_ref()
+                    .is_some_and(|instance| instances.contains(instance))
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        futures_util::future::join_all(actors.iter().map(ActorLifetime::stop_and_wait)).await;
     }
     pub fn wake(&self) {
         self.wake.notify_one();
@@ -68,6 +136,14 @@ pub fn start(
     let mut committed = store.subscribe();
     let cancellations = Arc::new(Mutex::new(HashMap::new()));
     let actor_cancellations = cancellations.clone();
+    let controls = Arc::new(Mutex::new(HashMap::<String, ActorLifetime>::new()));
+    let actor_controls = controls.clone();
+    #[cfg(test)]
+    let pause_actor = Arc::new(Mutex::new(
+        None::<mpsc::UnboundedSender<(ActorLifetime, oneshot::Sender<()>)>>,
+    ));
+    #[cfg(test)]
+    let paused = pause_actor.clone();
     let task = tokio::spawn(async move {
         let _lease = lease;
         let owner = uuid::Uuid::new_v4().to_string();
@@ -98,14 +174,43 @@ pub fn start(
                             .unwrap()
                             .insert(effect.thread_id.clone(), cancel);
                         actors.insert(effect.thread_id.clone(), send);
-                        tasks.spawn(actor(
-                            store.clone(),
-                            providers.clone(),
-                            effect.thread_id.clone(),
-                            receive,
-                            stopped.clone(),
-                            canceled,
-                        ));
+                        let instance =
+                            projection(&store, &effect.thread_id).ok().and_then(|view| {
+                                view["thread"]["modelSelection"]["instanceId"]
+                                    .as_str()
+                                    .map(ToOwned::to_owned)
+                            });
+                        let lifetime = ActorLifetime::new(instance);
+                        let actor_id = uuid::Uuid::new_v4().to_string();
+                        actor_controls
+                            .lock()
+                            .unwrap()
+                            .insert(actor_id.clone(), lifetime.clone());
+                        let captured_controls = actor_controls.clone();
+                        let captured_store = store.clone();
+                        let captured_providers = providers.clone();
+                        let captured_thread = effect.thread_id.clone();
+                        #[cfg(test)]
+                        let pause = paused.lock().unwrap().take();
+                        tasks.spawn(async move {
+                            #[cfg(test)]
+                            if let Some(pause) = pause {
+                                let (release, released) = oneshot::channel();
+                                if pause.send((lifetime.clone(), release)).is_ok() {
+                                    let _ = released.await;
+                                }
+                            }
+                            actor(
+                                captured_store,
+                                captured_providers,
+                                captured_thread,
+                                receive,
+                                lifetime,
+                                canceled,
+                            )
+                            .await;
+                            captured_controls.lock().unwrap().remove(&actor_id);
+                        });
                     }
                     let work = Work {
                         effect: effect.clone(),
@@ -140,6 +245,9 @@ pub fn start(
             }
             tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, _=committed.recv()=>{}, _=scan.tick()=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
         }
+        for actor in actor_controls.lock().unwrap().values() {
+            actor.stop.send_replace(true);
+        }
         drop(actors);
         while effects.join_next().await.is_some() {}
         while tasks.join_next().await.is_some() {}
@@ -149,6 +257,9 @@ pub fn start(
         wake,
         task: Mutex::new(Some(task)),
         cancellations,
+        actors: controls,
+        #[cfg(test)]
+        pause_actor,
     })
 }
 
@@ -168,20 +279,21 @@ async fn actor(
     providers: ProviderRegistry,
     thread_id: String,
     work: mpsc::Receiver<Work>,
-    stopped: watch::Receiver<bool>,
+    lifetime: ActorLifetime,
     canceled: watch::Receiver<Option<String>>,
 ) {
-    let instance_id = projection(&store, &thread_id).ok().and_then(|projection| {
-        projection["thread"]["modelSelection"]["instanceId"]
-            .as_str()
-            .map(ToOwned::to_owned)
-    });
+    let instance_id = lifetime.captured_instance();
+    let _finished = ActorFinished(lifetime.clone());
+    let stopped = lifetime.stop.subscribe();
     if instance_id
         .as_deref()
         .and_then(|id| providers.driver(id).ok())
         == Some("acpRegistry")
     {
-        crate::acp_adapter::actor(store, providers, thread_id, work, stopped, canceled).await;
+        crate::acp_adapter::actor(
+            store, providers, thread_id, work, stopped, canceled, lifetime,
+        )
+        .await;
     } else {
         codex_actor(store, providers, thread_id, work, stopped, canceled).await;
     }

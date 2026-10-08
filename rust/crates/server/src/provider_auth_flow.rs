@@ -131,6 +131,19 @@ impl Job {
         }
     }
 }
+struct Completed(watch::Sender<bool>);
+impl Drop for Completed {
+    fn drop(&mut self) {
+        self.0.send_replace(true);
+    }
+}
+fn register_operation(inner: &Inner) -> Completed {
+    let (done, receiver) = watch::channel(false);
+    let mut operations = inner.operations.lock().unwrap();
+    operations.retain(|done| !*done.borrow());
+    operations.push(receiver);
+    Completed(done)
+}
 struct Flow {
     id: String,
     owner: String,
@@ -189,6 +202,7 @@ struct Inner {
     refresh_after_auth: bool,
     admission: Arc<tokio::sync::Mutex<()>>,
     startup: Mutex<Option<Job>>,
+    operations: Mutex<Vec<watch::Receiver<bool>>>,
 }
 struct Owner(Arc<Inner>);
 impl Drop for Owner {
@@ -331,6 +345,7 @@ impl AuthFlow {
             refresh_after_auth,
             admission: Arc::new(tokio::sync::Mutex::new(())),
             startup: Mutex::new(None),
+            operations: Mutex::new(Vec::new()),
         });
         let (cancel, mut cancellation) = watch::channel(false);
         let (done, receiver) = watch::channel(false);
@@ -501,7 +516,7 @@ impl AuthFlow {
     pub async fn cancel(&self, owner: &str, id: &str) -> AuthResult<ProviderAuthState> {
         let inner = self.inner().clone();
         let admission = inner.admission.clone().lock_owned().await;
-        let flow = {
+        let (flow, completed) = {
             let mut state = inner.state.lock().unwrap();
             require_flow(&inner, &state, owner, id)?;
             state.snapshot.phase = ProviderAuthPhase::Cancelled;
@@ -512,11 +527,12 @@ impl AuthFlow {
             let flow = state.active.take().unwrap();
             state.operation = Operation::Stopping;
             state.publish();
-            flow
+            (flow, register_operation(&inner))
         };
         drop(admission);
         // The operation is uninterruptible once admitted; idle follows cleanup.
         tokio::spawn(async move {
+            let _completed = completed;
             stop_flow(flow).await;
             let mut state = inner.state.lock().unwrap();
             if state.operation != Operation::Closed {
@@ -652,7 +668,7 @@ impl AuthFlow {
         let stop_routed = stop_routed.into();
         let inner = self.inner().clone();
         let admission = inner.admission.clone().lock_owned().await;
-        let flow = {
+        let (flow, completed) = {
             let mut state = inner.state.lock().unwrap();
             if !matches!(state.operation, Operation::Idle | Operation::Auth) {
                 return Err(safe_error(
@@ -662,10 +678,11 @@ impl AuthFlow {
                 ));
             }
             state.operation = Operation::Stopping;
-            state.active.take()
+            (state.active.take(), register_operation(&inner))
         };
         drop(admission);
         tokio::spawn(async move {
+            let _completed = completed;
             if let Some(flow) = flow {
                 stop_flow(flow).await;
             }
@@ -724,6 +741,14 @@ impl AuthFlow {
         }
         if let Some(startup) = startup {
             startup.stop().await;
+        }
+        // Admitted cancel/logout operations retain their cleanup after the RPC
+        // caller disappears. Closing a controller waits for those owned jobs.
+        let operations = self.inner().operations.lock().unwrap().clone();
+        for mut done in operations {
+            if !*done.borrow() {
+                let _ = done.wait_for(|done| *done).await;
+            }
         }
         // Admitted sessions belong to their parent, even after a settings rebuild.
     }

@@ -739,6 +739,12 @@ async fn run(
         None
     };
     let device_hosts = t3_server::device_host_resolver::DeviceHostResolver::new(Default::default());
+    let provider_auth = t3_server::provider_auth_service::ProviderAuthService::new(
+        native_config.providers.clone(),
+        std::env::current_dir()?,
+        state_dir.join("caches"),
+        execution.authentication_stop(),
+    );
     let devices = if let Some(settings) = &settings_service {
         let tools = t3_server::device_toolchain::DeviceToolchain::new(
             t3_server::device_toolchain::ToolchainOptions::new(state_dir.clone()),
@@ -775,6 +781,7 @@ async fn run(
         background: background.clone(),
         device_hosts: Some(device_hosts.clone()),
         devices: devices.clone(),
+        provider_auth: Some(provider_auth.clone()),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -790,6 +797,7 @@ async fn run(
     if let Some(devices) = devices {
         devices.shutdown().await;
     }
+    provider_auth.shutdown().await;
     host_resources.shutdown().await;
     if let Some(runtime) = settings_runtime {
         runtime.shutdown().await;

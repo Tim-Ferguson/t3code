@@ -70,6 +70,7 @@ pub struct ProviderRegistry {
     changes: Arc<Mutex<ProviderListeners>>,
     coordinator: crate::acp_coordinator::Coordinator,
     observer: Option<Arc<crate::acp_coordinator::LiveObserver>>,
+    auth: Arc<RwLock<Option<crate::provider_auth_service::WeakProviderAuthService>>>,
 }
 impl ProviderRegistry {
     pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
@@ -297,6 +298,7 @@ impl ProviderRegistry {
             changes: Arc::new(Mutex::new(ProviderListeners::default())),
             coordinator,
             observer: None,
+            auth: Arc::new(RwLock::new(None)),
         })
     }
     /// Existing registry clones observe a complete replacement after discovery.
@@ -307,6 +309,11 @@ impl ProviderRegistry {
         cwd: &Path,
     ) -> Result<Vec<Value>, ProcessError> {
         let _permit = self.refresh.lock().await;
+        let auth = self.authentication_service();
+        let _auth_hold = match auth {
+            Some(auth) => Some(auth.hold_reconfiguration(settings).await),
+            None => None,
+        };
         let replacement = Self::discover_with_context(
             settings,
             cwd,
@@ -375,6 +382,35 @@ impl ProviderRegistry {
     }
     pub fn driver(&self, instance_id: &str) -> Result<&'static str, ProcessError> {
         state_driver(&self.state.read().unwrap(), instance_id)
+    }
+    /// Credential setup is available before readiness and while disabled. Capture
+    /// configuration and its factory instance under the same registry read lock.
+    pub(crate) fn acp_auth_entry(
+        &self,
+        instance_id: &str,
+    ) -> Option<(ProviderInstanceConfig, AcpInstance)> {
+        let state = self.state.read().unwrap();
+        let entry = derive_instance_configs(&state.settings)
+            .into_iter()
+            .find(|(id, _)| id.as_str() == instance_id)?
+            .1;
+        let instance = state.acp.get(instance_id)?.clone();
+        Some((entry, instance))
+    }
+    pub(crate) fn attach_auth(
+        &self,
+        service: crate::provider_auth_service::WeakProviderAuthService,
+    ) {
+        *self.auth.write().unwrap() = Some(service);
+    }
+    pub(crate) fn authentication_service(
+        &self,
+    ) -> Option<crate::provider_auth_service::ProviderAuthService> {
+        self.auth
+            .read()
+            .unwrap()
+            .as_ref()
+            .and_then(|service| service.upgrade())
     }
     pub fn acp(&self, instance_id: &str) -> Result<AcpInstance, ProcessError> {
         let state = self.state.read().unwrap();

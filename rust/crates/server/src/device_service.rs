@@ -23,7 +23,13 @@ struct Inner {
     host: LocalDeviceHost,
     settings: SettingsService,
     state: Mutex<State>,
-    lifecycle: tokio::sync::Mutex<()>,
+    lifecycle: Arc<tokio::sync::Mutex<()>>,
+    writes: Mutex<Vec<tokio::task::JoinHandle<()>>>,
+    write_cleanup: tokio::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>,
+    #[cfg(test)]
+    write_hook: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    #[cfg(test)]
+    target_ready_hook: Mutex<Option<Arc<dyn Fn() -> BoxFuture<'static, ()> + Send + Sync>>>,
     stopped: watch::Sender<bool>,
     client: reqwest::Client,
 }
@@ -136,7 +142,13 @@ impl DeviceService {
                 listeners: BTreeMap::new(),
                 next_listener: 0,
             }),
-            lifecycle: tokio::sync::Mutex::new(()),
+            lifecycle: Arc::new(tokio::sync::Mutex::new(())),
+            writes: Mutex::new(Vec::new()),
+            write_cleanup: tokio::sync::Mutex::new(Vec::new()),
+            #[cfg(test)]
+            write_hook: Mutex::new(None),
+            #[cfg(test)]
+            target_ready_hook: Mutex::new(None),
             stopped,
             client: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
@@ -301,7 +313,72 @@ impl DeviceService {
     }
     pub async fn retry_host(&self, id: DeviceHostId) -> Result<DeviceServiceState, DeviceError> {
         self.resolve_host(Some(&id))?;
+        if self
+            .0
+            .settings
+            .snapshot()
+            .await
+            .map_err(|error| {
+                operation_error(
+                    "settings",
+                    DeviceOperationFailureReason::SettingsFailed,
+                    json!(error.to_string()),
+                )
+            })?
+            .enable_agent_device_access
+        {
+            self.agent_readiness_if_supported(Some(&id)).await?;
+        }
         self.list().await
+    }
+    pub async fn agent_readiness_if_supported(
+        &self,
+        id: Option<&DeviceHostId>,
+    ) -> Result<Option<crate::local_device_host::DeviceHostAgentReady>, DeviceError> {
+        let _lifecycle = self.0.lifecycle.lock().await;
+        self.resolve_host(id)?;
+        let settings = self.0.settings.snapshot().await.map_err(|error| {
+            operation_error(
+                "settings",
+                DeviceOperationFailureReason::SettingsFailed,
+                json!(error.to_string()),
+            )
+        })?;
+        if !settings.enable_device_support || !settings.enable_agent_device_access {
+            return Ok(None);
+        }
+        let summary = self.0.host.summary().await;
+        if !summary.platforms.iter().any(|platform| platform.available) {
+            return Ok(None);
+        }
+        let owner = Arc::downgrade(&self.0);
+        let callback: DevicePhase = Arc::new(move |status, detail| {
+            let owner = owner.clone();
+            Box::pin(async move {
+                if let Some(owner) = owner.upgrade() {
+                    DeviceService(owner).status(status, detail);
+                }
+            })
+        });
+        match self.0.host.ensure_agent_ready(callback).await {
+            Ok(ready) => {
+                self.resolve_host(id)?;
+                if self.0.host.generation() != ready.host.generation {
+                    return Err(host_error(
+                        local(),
+                        "Host configuration changed. Retry the operation.",
+                    ));
+                }
+                let summary = self.0.host.summary().await;
+                self.publish(|state| state.hosts = vec![summary]);
+                self.status(DeviceHostStatus::Ready, None);
+                Ok(Some(ready))
+            }
+            Err(error) => {
+                self.status(DeviceHostStatus::Failed, Some(error.reason.clone()));
+                Err(DeviceError::DeviceHostUnavailableError(error))
+            }
+        }
     }
     pub async fn configure(
         &self,
@@ -337,6 +414,8 @@ impl DeviceService {
                 })?;
             if !settings.enable_device_support {
                 self.0.host.stop().await;
+            } else if agent == Some(false) {
+                self.0.host.stop_agent().await;
             }
             self.publish(|state| {
                 state.host_status = if settings.enable_device_support {
@@ -356,12 +435,90 @@ impl DeviceService {
             });
         }
         if agent == Some(true) && self.enabled().await? {
-            return Err(host_error(
-                local(),
-                "Agent-device daemon ownership is not available yet.",
-            ));
+            self.agent_readiness_if_supported(None).await?;
         }
         self.list().await
+    }
+    pub async fn agent_target(
+        &self,
+        thread: &ThreadId,
+        host: &DeviceHostId,
+        device: &DeviceId,
+    ) -> Result<Vec<String>, DeviceError> {
+        let ready=self.agent_readiness_if_supported(Some(host)).await?.ok_or_else(||host_error(host.clone(),"Agent device access requires enabled device support, agent access, and an available simulator platform on this host."))?;
+        #[cfg(test)]
+        {
+            let hook = { self.0.target_ready_hook.lock().unwrap().clone() };
+            if let Some(hook) = hook {
+                hook().await;
+            }
+        }
+        let admission = self.0.lifecycle.clone().lock_owned().await;
+        self.resolve_host(Some(host))?;
+        let settings = self.0.settings.snapshot().await.map_err(|error| {
+            operation_error(
+                "configure agent",
+                DeviceOperationFailureReason::SettingsFailed,
+                json!(error.to_string()),
+            )
+        })?;
+        if !settings.enable_device_support
+            || !settings.enable_agent_device_access
+            || self.0.host.current_agent().as_ref() != Some(&ready.agent_device)
+        {
+            return Err(host_error(
+                host.clone(),
+                "Agent device access requires enabled device support, agent access, and an available simulator platform on this host.",
+            ));
+        }
+        if self.0.host.generation() != ready.host.generation {
+            return Err(host_error(
+                host.clone(),
+                "Host configuration changed. Retry the operation.",
+            ));
+        }
+        let file = crate::device_agent_target::config_path(self.0.host.state_dir(), host.as_str());
+        let session =
+            crate::device_agent_target::session(thread.as_str(), host.as_str(), device.as_str());
+        let (reply, receive) = tokio::sync::oneshot::channel();
+        {
+            let mut jobs = self.0.writes.lock().unwrap();
+            self.resolve_host(Some(host))?;
+            jobs.retain(|job| !job.is_finished());
+            #[cfg(test)]
+            let hook = self.0.write_hook.lock().unwrap().clone();
+            jobs.push(tokio::task::spawn_blocking(move || {
+                #[cfg(test)]
+                if let Some(hook) = hook {
+                    hook();
+                }
+                let result = crate::device_agent_target::write_config(&file, &ready.agent_device)
+                    .map(|_| {
+                        vec![
+                            "--config".into(),
+                            file.to_string_lossy().into_owned(),
+                            "--session".into(),
+                            session,
+                        ]
+                    })
+                    .map_err(|error| {
+                        operation_error(
+                            "configure agent",
+                            DeviceOperationFailureReason::SettingsFailed,
+                            json!(error.to_string()),
+                        )
+                    });
+                drop(admission);
+                let _ = reply.send(result);
+            }));
+        }
+        receive.await.unwrap_or_else(|error| {
+            Err(operation_error(
+                "configure agent",
+                DeviceOperationFailureReason::SettingsFailed,
+                json!(error.to_string()),
+            ))
+        })
     }
     async fn hub_json<T: serde::de::DeserializeOwned>(
         &self,
@@ -962,6 +1119,12 @@ impl DeviceService {
         self.0.stopped.send_replace(true);
         self.0.host.shutdown().await;
         self.0.host.toolchain().shutdown().await;
+        let mut writes = self.0.write_cleanup.lock().await;
+        writes.extend(self.0.writes.lock().unwrap().drain(..));
+        while let Some(job) = writes.last_mut() {
+            let _ = (&mut *job).await;
+            writes.pop();
+        }
         self.0.state.lock().unwrap().listeners.clear();
     }
 }
@@ -996,6 +1159,9 @@ pub(crate) mod tests {
         profile: std::path::PathBuf,
     }
     pub(crate) async fn fixture(root: &Path) -> Fixture {
+        fixture_with_agent_stop_gate(root, false).await
+    }
+    async fn fixture_with_agent_stop_gate(root: &Path, held: bool) -> Fixture {
         let tools = DeviceToolchain::new(ToolchainOptions::new(root.into()));
         let paths = tools.paths(DeviceToolKind::Hub);
         tokio::fs::create_dir_all(paths.entry_path.parent().unwrap())
@@ -1010,6 +1176,22 @@ pub(crate) mod tests {
         tokio::fs::write(paths.sentinel_path, format!("{DEVICE_HUB_VERSION}\n"))
             .await
             .unwrap();
+        let agent_paths = tools.paths(DeviceToolKind::Agent);
+        tokio::fs::create_dir_all(agent_paths.entry_path.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(
+            &agent_paths.entry_path,
+            include_str!("../tests/fixtures/device-agent.py"),
+        )
+        .await
+        .unwrap();
+        tokio::fs::write(
+            agent_paths.sentinel_path,
+            format!("{}\n", crate::device_toolchain::AGENT_DEVICE_VERSION),
+        )
+        .await
+        .unwrap();
         let ax = paths
             .install_dir
             .join("node_modules/expo-device-hub/vendor/serve-sim/dist/simax/serve-sim-ax-settings");
@@ -1049,10 +1231,18 @@ pub(crate) mod tests {
             ("FIXTURE_COMMAND_DATA", command_data),
             ("FIXTURE_COMPRESSED_DATA", compressed_data),
             ("FIXTURE_MILESTONES", socket_path),
+            ("FIXTURE_LOG", root.join("agent-calls.jsonl")),
+            ("FIXTURE_HOLD_START", root.join("agent-hold")),
         ]
         .into_iter()
         .map(|(key, value)| (key.into(), value.to_string_lossy().into_owned()))
         .collect();
+        if held {
+            options.environment.insert(
+                "FIXTURE_STOP_GATE".into(),
+                root.join("agent-stop.sock").to_string_lossy().into_owned(),
+            );
+        }
         let host = LocalDeviceHost::new(options, tools);
         let secrets = ServerSecretStore::open(root.join("secrets")).unwrap();
         let mut options = SettingsOptions::file(root.join("settings.json"), secrets);
@@ -1086,6 +1276,274 @@ pub(crate) mod tests {
             std::io::Error::last_os_error().raw_os_error(),
             Some(libc::ESRCH)
         );
+    }
+    async fn agent_event(socket: &tokio::net::UnixDatagram, event: &str) {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let mut bytes = [0; 4096];
+                let size = socket.recv(&mut bytes).await.unwrap();
+                let value: Value = serde_json::from_slice(&bytes[..size]).unwrap();
+                if value["event"] == event {
+                    return;
+                }
+            }
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn canceled_agent_stop_preserves_cleanup_admission_before_restarting_agent() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let fixture = fixture_with_agent_stop_gate(root.path(), true).await;
+            fixture
+                .service
+                .configure(
+                    serde_json::from_value(json!({"enabled":true,"agentAccessEnabled":true}))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let hub_pid = fixture.service.current_readiness(None).unwrap().pid;
+            let stop = tokio::spawn({
+                let host = fixture.service.0.host.clone();
+                async move { host.stop_agent().await }
+            });
+            agent_event(&fixture.socket, "stop").await;
+            stop.abort();
+            assert!(stop.await.unwrap_err().is_cancelled());
+            let restart = tokio::spawn({
+                let service = fixture.service.clone();
+                async move { service.agent_readiness_if_supported(None).await }
+            });
+            drop(
+                tokio::net::UnixStream::connect(root.path().join("agent-stop.sock"))
+                    .await
+                    .unwrap(),
+            );
+            let ready = restart.await.unwrap().unwrap().unwrap();
+            assert_eq!(ready.host.pid, hub_pid);
+            let calls: Vec<Value> = std::fs::read_to_string(root.path().join("agent-calls.jsonl"))
+                .unwrap()
+                .lines()
+                .map(|line| serde_json::from_str(line).unwrap())
+                .collect();
+            assert_eq!(
+                calls
+                    .iter()
+                    .map(|call| call["args"][0].as_str().unwrap())
+                    .collect::<Vec<_>>(),
+                vec!["devices", "daemon", "devices"]
+            );
+            let shutdown = tokio::spawn({
+                let service = fixture.service.clone();
+                async move { service.shutdown().await }
+            });
+            agent_event(&fixture.socket, "stop").await;
+            drop(
+                tokio::net::UnixStream::connect(root.path().join("agent-stop.sock"))
+                    .await
+                    .unwrap(),
+            );
+            shutdown.await.unwrap();
+            fixture.settings.shutdown().await;
+            reaped(hub_pid);
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn canceled_host_stop_completes_owned_cleanup_before_reusable_startup() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let fixture = fixture_with_agent_stop_gate(root.path(), true).await;
+            fixture
+                .service
+                .configure(
+                    serde_json::from_value(json!({"enabled":true,"agentAccessEnabled":true}))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let old_pid = fixture.service.current_readiness(None).unwrap().pid;
+            let stop = tokio::spawn({
+                let host = fixture.service.0.host.clone();
+                async move { host.stop().await }
+            });
+            agent_event(&fixture.socket, "stop").await;
+            stop.abort();
+            assert!(stop.await.unwrap_err().is_cancelled());
+            let retry = tokio::spawn({
+                let host = fixture.service.0.host.clone();
+                async move { host.stop().await }
+            });
+            drop(
+                tokio::net::UnixStream::connect(root.path().join("agent-stop.sock"))
+                    .await
+                    .unwrap(),
+            );
+            retry.await.unwrap();
+            reaped(old_pid);
+            let new_pid = fixture.service.readiness(None).await.unwrap().pid;
+            assert_ne!(old_pid, new_pid);
+            fixture.service.shutdown().await;
+            fixture.settings.shutdown().await;
+            reaped(new_pid);
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn agent_consent_starts_owned_daemon_and_disabling_agent_preserves_viewing_hub() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let fixture = fixture(root.path()).await;
+            assert!(
+                fixture
+                    .service
+                    .agent_readiness_if_supported(None)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(!root.path().join("agent-calls.jsonl").exists());
+            let thread = ThreadId::new("agent-thread").unwrap();
+            let device = DeviceId::new("fixture-ios").unwrap();
+            assert!(matches!(
+                fixture
+                    .service
+                    .agent_target(&thread, &local(), &device)
+                    .await,
+                Err(DeviceError::DeviceHostUnavailableError(_))
+            ));
+            let state = fixture
+                .service
+                .configure(
+                    serde_json::from_value(json!({"enabled":true,"agentAccessEnabled":true}))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert!(state.agent_access_enabled);
+            let ready = fixture
+                .service
+                .agent_readiness_if_supported(None)
+                .await
+                .unwrap()
+                .unwrap();
+            let pid = ready.host.pid;
+            assert_eq!(ready.agent_device.base_url, "http://127.0.0.1:12345");
+            assert_eq!(ready.agent_device.token, "isolated token");
+            let target = fixture
+                .service
+                .agent_target(&thread, &local(), &device)
+                .await
+                .unwrap();
+            assert_eq!(target[0], "--config");
+            assert_eq!(target[2], "--session");
+            let configuration: Value =
+                serde_json::from_slice(&std::fs::read(&target[1]).unwrap()).unwrap();
+            assert_eq!(
+                configuration,
+                json!({"daemonBaseUrl":"http://127.0.0.1:12345","daemonAuthToken":"isolated token"})
+            );
+            let other = fixture
+                .service
+                .agent_target(
+                    &ThreadId::new("other-agent-thread").unwrap(),
+                    &local(),
+                    &device,
+                )
+                .await
+                .unwrap();
+            assert_eq!(target[1], other[1]);
+            assert_ne!(target[3], other[3]);
+            let state = fixture
+                .service
+                .configure(serde_json::from_value(json!({"agentAccessEnabled":false})).unwrap())
+                .await
+                .unwrap();
+            assert!(!state.agent_access_enabled);
+            assert_eq!(fixture.service.current_readiness(None).unwrap().pid, pid);
+            assert!(
+                fixture
+                    .service
+                    .agent_readiness_if_supported(None)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            let rows: Vec<Value> = std::fs::read_to_string(root.path().join("agent-calls.jsonl"))
+                .unwrap()
+                .lines()
+                .map(|row| serde_json::from_str(row).unwrap())
+                .collect();
+            assert_eq!(rows.len(), 2);
+            assert_eq!(rows[0]["args"], json!(["devices", "--json"]));
+            assert_eq!(rows[1]["args"][0], "daemon");
+            fixture.service.shutdown().await;
+            fixture.settings.shutdown().await;
+            reaped(pid);
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn canceled_target_write_retains_lifecycle_and_shutdown_awaits_atomic_publication() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let fixture = fixture(root.path()).await;
+            fixture
+                .service
+                .configure(
+                    serde_json::from_value(json!({"enabled":true,"agentAccessEnabled":true}))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let (entered, started) = tokio::sync::oneshot::channel();
+            let entered = Mutex::new(Some(entered));
+            let (release, released) = std::sync::mpsc::channel();
+            let released = Mutex::new(released);
+            *fixture.service.0.write_hook.lock().unwrap() = Some(Arc::new(move || {
+                entered.lock().unwrap().take().unwrap().send(()).unwrap();
+                released.lock().unwrap().recv().unwrap();
+            }));
+            let request = tokio::spawn({
+                let service = fixture.service.clone();
+                async move {
+                    service
+                        .agent_target(
+                            &ThreadId::new("cancelled-target").unwrap(),
+                            &local(),
+                            &DeviceId::new("fixture-ios").unwrap(),
+                        )
+                        .await
+                }
+            });
+            started.await.unwrap();
+            request.abort();
+            assert!(request.await.unwrap_err().is_cancelled());
+            assert!(fixture.service.0.lifecycle.try_lock().is_err());
+            let shutdown = tokio::spawn({
+                let service = fixture.service.clone();
+                async move { service.shutdown().await }
+            });
+            release.send(()).unwrap();
+            shutdown.await.unwrap();
+            let file = crate::device_agent_target::config_path(
+                fixture.service.0.host.state_dir(),
+                "local",
+            );
+            let configuration: Value =
+                serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
+            assert_eq!(configuration["daemonAuthToken"], "isolated token");
+            assert!(fixture.service.0.lifecycle.try_lock().is_ok());
+            assert!(fixture.service.0.write_cleanup.lock().await.is_empty());
+            fixture.settings.shutdown().await;
+        })
+        .await
+        .unwrap();
     }
     fn open(thread: &str) -> DeviceOpenInput {
         serde_json::from_value(json!({"threadId":thread,"deviceId":"fixture-ios","platform":"ios"}))
@@ -1310,5 +1768,73 @@ pub(crate) mod tests {
         );
         fixture.service.shutdown().await;
         fixture.settings.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn revoked_agent_consent_between_readiness_and_target_admission_cannot_publish_endpoint()
+    {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let fixture = fixture(root.path()).await;
+            fixture
+                .service
+                .configure(
+                    serde_json::from_value(json!({"enabled":true,"agentAccessEnabled":true}))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            let hub_pid = fixture.service.current_readiness(None).unwrap().pid;
+            let (entered, started) = tokio::sync::oneshot::channel();
+            let entered = Arc::new(Mutex::new(Some(entered)));
+            let (release, released) = watch::channel(false);
+            *fixture.service.0.target_ready_hook.lock().unwrap() = Some(Arc::new(move || {
+                let entered = entered.clone();
+                let mut released = released.clone();
+                Box::pin(async move {
+                    entered.lock().unwrap().take().unwrap().send(()).unwrap();
+                    let _ = released.wait_for(|value| *value).await;
+                })
+            }));
+            let target = tokio::spawn({
+                let service = fixture.service.clone();
+                async move {
+                    service
+                        .agent_target(
+                            &ThreadId::new("revoked-thread").unwrap(),
+                            &local(),
+                            &DeviceId::new("fixture-ios").unwrap(),
+                        )
+                        .await
+                }
+            });
+            started.await.unwrap();
+            fixture
+                .service
+                .configure(serde_json::from_value(json!({"agentAccessEnabled":false})).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                fixture.service.current_readiness(None).unwrap().pid,
+                hub_pid
+            );
+            release.send_replace(true);
+            assert!(matches!(
+                target.await.unwrap(),
+                Err(DeviceError::DeviceHostUnavailableError(_))
+            ));
+            assert!(
+                !crate::device_agent_target::config_path(
+                    fixture.service.0.host.state_dir(),
+                    "local"
+                )
+                .exists()
+            );
+            fixture.service.shutdown().await;
+            fixture.settings.shutdown().await;
+            reaped(hub_pid);
+        })
+        .await
+        .unwrap();
     }
 }

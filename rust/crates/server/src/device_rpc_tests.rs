@@ -47,7 +47,7 @@ async fn local_device_rpc_preserves_consent_dynamic_scopes_typed_sessions_and_st
         let grant=|scopes|auth.issue_session("fixture","bearer-access-token",scopes,json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap().1;
         let reader=grant(vec![AuthEnvironmentScope::OrchestrationRead]);
         let writer=grant(vec![AuthEnvironmentScope::OrchestrationRead,AuthEnvironmentScope::OrchestrationOperate,AuthEnvironmentScope::SettingsWrite]);
-        let state=ApiState{store,auth,environment:json!({"environmentId":"device-owner-fixture","label":"Device service fixture","platform":{"os":"darwin","arch":"arm64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),config:None,settings:Some(fixture.settings.clone()),device_hosts:None,devices:Some(fixture.service.clone()),background:None,cors_origins:None,assets:None,providers:None,execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None};
+        let state=ApiState{store,auth,environment:json!({"environmentId":"device-owner-fixture","label":"Device service fixture","platform":{"os":"darwin","arch":"arm64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),config:None,settings:Some(fixture.settings.clone()),device_hosts:None,devices:Some(fixture.service.clone()),provider_auth:None,background:None,cors_origins:None,assets:None,providers:None,execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None};
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();
         let (stop,stopped)=tokio::sync::oneshot::channel();let mut server=tokio::task::JoinSet::new();
         server.spawn(async move{axum::serve(listener,router(state)).with_graceful_shutdown(async{let _=stopped.await;}).await.unwrap();});
@@ -70,6 +70,11 @@ async fn local_device_rpc_preserves_consent_dynamic_scopes_typed_sessions_and_st
         send(&mut read,6,"subscribeDeviceState",json!({})).await;
         let initial=next(&mut read).await;assert_eq!(initial["_tag"],"Chunk");let _:DeviceServiceState=serde_json::from_value(initial["values"][0].clone()).unwrap();
         send(&mut write,2,"device.configure",json!({"enabled":true})).await;let value=next(&mut write).await;let _:DeviceServiceState=serde_json::from_value(value["exit"]["value"].clone()).unwrap();
+        let hub_pid=fixture.service.current_readiness(None).unwrap().pid;
+        send(&mut read,35,"device.configure",json!({"agentAccessEnabled":true})).await;assert_eq!(next(&mut read).await["exit"]["cause"][0]["error"]["requiredPermission"],"settings:write");assert!(!root.path().join("agent-calls.jsonl").exists());
+        send(&mut write,35,"device.configure",json!({"agentAccessEnabled":true})).await;let value=next(&mut write).await;let state:DeviceServiceState=serde_json::from_value(value["exit"]["value"].clone()).unwrap();assert!(state.agent_access_enabled);assert_eq!(fixture.service.agent_readiness_if_supported(None).await.unwrap().unwrap().agent_device.base_url,"http://127.0.0.1:12345");
+        send(&mut write,36,"device.configure",json!({"agentAccessEnabled":false})).await;let value=next(&mut write).await;assert_eq!(value["exit"]["value"]["agentAccessEnabled"],false);assert_eq!(fixture.service.current_readiness(None).unwrap().pid,hub_pid);
+
         read.send(Message::Text(json!({"_tag":"Ping"}).to_string().into())).await.unwrap();assert_eq!(next(&mut read).await["_tag"],"Pong");
         send(&mut write,3,"device.open",json!({"threadId":"thread-a","deviceId":"fixture-ios","platform":"ios"})).await;
         let value=next(&mut write).await;let session:DeviceSession=serde_json::from_value(value["exit"]["value"].clone()).unwrap();assert_eq!(session.thread_id.as_str(),"thread-a");

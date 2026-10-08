@@ -413,7 +413,7 @@ impl AcpInstance {
         let initialized = self
             .initialize_only(peer, discovery, services, None, None)
             .await?;
-        self.finish_initialized(initialized, cwd, saved_session, discovery, true)
+        self.finish_initialized(initialized, cwd, saved_session, discovery, !discovery)
             .await
     }
     pub(crate) async fn initialize_only(
@@ -645,45 +645,91 @@ impl AcpInstance {
             command_receiver,
             startup_events,
         } = initialized;
-        if authenticate_configured && !self.config.auth_method_id.as_str().is_empty() {
-            let request = serde_json::from_value(json!({"methodId":self.config.auth_method_id}))
-                .map_err(|error| {
-                    AcpError::Transport(format!("Invalid authentication request: {error}"))
-                })?;
-            client.authenticate_typed(request).await?;
-        }
-        let setup = if let Some(session_id) = saved_session {
-            let initialized = serde_json::to_value(&initialize).unwrap();
-            if initialized["agentCapabilities"]["loadSession"] != true {
-                return Err(AcpError::Transport(
-                    "This ACP agent cannot load the saved session.".into(),
-                ));
-            }
-            let result = client
-                .load_session_typed(LoadSessionRequest {
+        let setup_session = || async {
+            let setup = if let Some(session_id) = saved_session {
+                let initialized = serde_json::to_value(&initialize).unwrap();
+                if initialized["agentCapabilities"]["loadSession"] != true {
+                    return Err(AcpError::Transport(
+                        "This ACP agent cannot load the saved session.".into(),
+                    ));
+                }
+                let result = client
+                    .load_session_typed(LoadSessionRequest {
+                        session_id: session_id.into(),
+                        cwd: cwd.to_string_lossy().into(),
+                        additional_directories: None,
+                        mcp_servers: Some(vec![]),
+                        meta: Optional::Missing,
+                    })
+                    .await?;
+                NewSessionResponse {
                     session_id: session_id.into(),
-                    cwd: cwd.to_string_lossy().into(),
-                    additional_directories: None,
-                    mcp_servers: Some(vec![]),
-                    meta: Optional::Missing,
-                })
-                .await?;
-            NewSessionResponse {
-                session_id: session_id.into(),
-                models: result.models,
-                modes: result.modes,
-                config_options: result.config_options,
-                meta: result.meta,
+                    models: result.models,
+                    modes: result.modes,
+                    config_options: result.config_options,
+                    meta: result.meta,
+                }
+            } else {
+                client
+                    .create_session_typed(NewSessionRequest {
+                        cwd: cwd.to_string_lossy().into(),
+                        additional_directories: None,
+                        mcp_servers: vec![],
+                        meta: Optional::Missing,
+                    })
+                    .await?
+            };
+            Ok::<_, AcpError>(setup)
+        };
+        let setup = match setup_session().await {
+            Err(required) if authenticate_configured && authentication_required(&required) => {
+                let configured =
+                    t3_contracts::trim_wire_string(self.config.auth_method_id.as_str());
+                let methods = initialize.auth_methods.as_ref();
+                let selected = methods.and_then(|methods| {
+                    methods.iter().find(|method| {
+                        let value =
+                            serde_json::to_value(method).expect("typed authentication method");
+                        if !configured.is_empty() {
+                            value["id"] == configured
+                        } else {
+                            value.get("type").is_none() || value["type"] == "agent"
+                        }
+                    })
+                });
+                if !configured.is_empty() && methods.is_some() && selected.is_none() {
+                    return Err(AcpError::Transport(format!(
+                        "ACP agent did not advertise configured authentication method \"{configured}\""
+                    )));
+                }
+                let selected = selected.map(|method| serde_json::to_value(method).unwrap());
+                if let Some(method) = &selected {
+                    if let Some(kind) = method.get("type").and_then(Value::as_str) {
+                        if kind != "agent" {
+                            return Err(AcpError::Transport(format!(
+                                "ACP authentication method \"{}\" requires {kind} authentication, which cannot run inside a headless provider session",
+                                method["id"].as_str().unwrap()
+                            )));
+                        }
+                    }
+                }
+                let method = selected
+                    .as_ref()
+                    .and_then(|method| method["id"].as_str())
+                    .unwrap_or(configured);
+                if method.is_empty() {
+                    return Err(required);
+                }
+                client
+                    .authenticate_typed(
+                        serde_json::from_value(json!({"methodId":method}))
+                            .expect("selected ACP method"),
+                    )
+                    .await?;
+                // Retry exactly once. A second AuthRequired is returned to the caller.
+                setup_session().await?
             }
-        } else {
-            client
-                .create_session_typed(NewSessionRequest {
-                    cwd: cwd.to_string_lossy().into(),
-                    additional_directories: None,
-                    mcp_servers: vec![],
-                    meta: Optional::Missing,
-                })
-                .await?
+            result => result?,
         };
         if setup.session_id.is_empty() {
             return Err(AcpError::Transport(
@@ -923,12 +969,123 @@ pub fn models_from_setup(setup: &Value, custom: &[String]) -> Vec<Value> {
     crate::acp_model::discovered_models(setup, custom)
 }
 
+fn authentication_required(error: &AcpError) -> bool {
+    matches!(error, AcpError::Failure(failure) if matches!(failure.as_ref(), t3_acp::errors::Failure::Request(error) if error.code == -32000))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     fn instance(generation: u8) -> AcpInstance {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-provider.py");
         AcpInstance{instance_id:"local-agent".into(),display_name:"Local agent".into(),accent_color:None,enabled:true,config:serde_json::from_value(json!({"source":"local","commandPath":"python3","commandArgs":[fixture,generation.to_string()]})).unwrap(),environment:HashMap::new(),catalog:None,coordinator:Default::default()}
+    }
+    #[tokio::test]
+    async fn normal_session_authenticates_only_after_required_and_retries_exactly_once() {
+        tokio::time::timeout(Duration::from_secs(20), async {
+            for generation in [1, 2] {
+                for (scenario, configured, expected_auth, expected_setups, successful) in [
+                    ("auth-ready", "agent", 0, 1, true),
+                    ("auth-required", "", 1, 2, true),
+                    ("auth-required", "\u{feff}agent\u{feff}", 1, 2, true),
+                    ("auth-required", "\u{0085}agent", 0, 1, false),
+                    ("auth-required", "missing", 0, 1, false),
+                    ("auth-terminal", "agent", 0, 1, false),
+                    ("auth-none", "", 0, 1, false),
+                    ("auth-other-error", "agent", 0, 1, false),
+                    ("auth-twice", "agent", 1, 2, false),
+                ] {
+                    let root = tempfile::tempdir().unwrap();
+                    let log = root.path().join("requests");
+                    let mut provider = instance(generation);
+                    provider
+                        .config
+                        .command_args
+                        .extend([scenario.into(), log.to_string_lossy().into_owned()]);
+                    // Admission uses the same JavaScript whitespace definition as
+                    // the source contract and runtime method selector.
+                    provider.config.auth_method_id = configured.parse().unwrap();
+                    let peer =
+                        ProcessPeer::spawn(provider.resolve_process(root.path()).await.unwrap())
+                            .unwrap();
+                    let retained = peer.clone();
+                    let result = provider.start_peer(peer, root.path(), None, false).await;
+                    assert_eq!(
+                        result.is_ok(),
+                        successful,
+                        "generation {generation}, {scenario}, {configured:?}: {}",
+                        result
+                            .as_ref()
+                            .err()
+                            .map(ToString::to_string)
+                            .unwrap_or_default()
+                    );
+                    if let Ok(session) = result {
+                        session.shutdown().await;
+                    }
+                    retained.shutdown().await;
+                    let requests = std::fs::read_to_string(log).unwrap();
+                    assert_eq!(
+                        requests
+                            .lines()
+                            .filter(|method| matches!(*method, "authenticate" | "auth/login"))
+                            .count(),
+                        expected_auth,
+                        "{scenario} {requests}"
+                    );
+                    assert_eq!(
+                        requests
+                            .lines()
+                            .filter(|method| *method == "session/new")
+                            .count(),
+                        expected_setups,
+                        "{scenario} {requests}"
+                    );
+                }
+            }
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn discovery_surfaces_auth_required_without_attempting_headless_authentication() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for generation in [1, 2] {
+                for configured in ["", "agent"] {
+                    let root = tempfile::tempdir().unwrap();
+                    let log = root.path().join("requests");
+                    let mut provider = instance(generation);
+                    provider.config.auth_method_id = configured.parse().unwrap();
+                    provider
+                        .config
+                        .command_args
+                        .extend(["auth-required".into(), log.to_string_lossy().into_owned()]);
+                    let peer =
+                        ProcessPeer::spawn(provider.resolve_process(root.path()).await.unwrap())
+                            .unwrap();
+                    let retained = peer.clone();
+                    let result = provider.start_peer(peer, root.path(), None, true).await;
+                    match result {
+                        Err(error) => assert!(authentication_required(&error), "{error}"),
+                        Ok(session) => {
+                            session.shutdown().await;
+                            panic!("discovery must surface authentication requirement");
+                        }
+                    }
+                    retained.shutdown().await;
+                    assert_eq!(
+                        std::fs::read_to_string(log)
+                            .unwrap()
+                            .lines()
+                            .collect::<Vec<_>>(),
+                        ["initialize", "session/new"],
+                        "no login or retry during discovery"
+                    );
+                }
+            }
+        })
+        .await
+        .unwrap();
     }
     fn coordinator_instance(root: &Path, scenario: &str) -> AcpInstance {
         let mut provider = instance(2);

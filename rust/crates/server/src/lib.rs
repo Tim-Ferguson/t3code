@@ -19,6 +19,8 @@ pub mod launch;
 pub mod persistence;
 pub mod project;
 pub mod provider_auth_flow;
+pub mod provider_auth_rpc;
+pub mod provider_auth_service;
 pub mod provider_process;
 pub mod provider_registry;
 pub mod thread;
@@ -118,3 +120,10 @@ pub mod device_service;
 mod device_rpc_tests;
 
 pub mod device_actions;
+
+pub mod device_agent_daemon;
+
+pub mod device_agent_target;
+
+#[cfg(all(test, unix))]
+mod provider_auth_rpc_tests;

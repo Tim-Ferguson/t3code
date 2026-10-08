@@ -46,6 +46,7 @@ pub struct ApiState {
     pub background: Option<crate::background_policy::BackgroundPolicy>,
     pub device_hosts: Option<crate::device_host_resolver::DeviceHostResolver>,
     pub devices: Option<crate::device_service::DeviceService>,
+    pub provider_auth: Option<crate::provider_auth_service::ProviderAuthService>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -637,9 +638,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeDeviceState") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeDeviceState"|"provider.auth.subscribe") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -684,6 +685,16 @@ async fn execute_session_unary(
     rpc_client: t3_contracts::RpcClientId,
     reported: &std::sync::atomic::AtomicBool,
 ) -> Result<Value, Value> {
+    if request.tag.starts_with("provider.auth.") {
+        return crate::provider_auth_rpc::command(
+            state.provider_auth.as_ref(),
+            &request.tag,
+            request.payload,
+            &session.session_id,
+        )
+        .await;
+    }
+
     if matches!(
         request.tag.as_str(),
         "server.reportClientActivity"
@@ -1142,6 +1153,33 @@ fn discovery_value(
         .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
     serde_json::to_value(typed)
         .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))
+}
+
+async fn provider_auth_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut states = crate::provider_auth_rpc::subscribe(state.provider_auth.as_ref(),request.payload.clone(),&session.session_id).await?;
+        while let Some(state_value) = states.recv().await {
+            let active = state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            let value = state_value.map_err(|error|serde_json::to_value(error).unwrap())?;
+            if !chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(value).unwrap()]).await { return Ok(()); }
+        }
+        Ok::<_,Value>(())
+    }.await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
 }
 
 async fn resource_telemetry_stream(
@@ -2583,6 +2621,7 @@ mod tests {
             background: None,
             device_hosts: None,
             devices: None,
+            provider_auth: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

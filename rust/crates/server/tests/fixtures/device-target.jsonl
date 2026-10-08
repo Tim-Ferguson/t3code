@@ -1,0 +1,10 @@
+{"host":"local","config":"/fixture/state/device/hosts/25bf8e1a2393f1108d37029b.json","session":"t3-f001277aa61cd75775372b34"}
+{"host":"remote","config":"/fixture/state/device/hosts/b71199ebd070b36beab73179.json","session":"t3-84701dda1c3d5e756f5f5991"}
+{"host":"mini","config":"/fixture/state/device/hosts/43385991f0be5fed6db7fb64.json","session":"t3-e928a064657c31a1122de7f2"}
+{"host":"android","config":"/fixture/state/device/hosts/f60ed56a9c8275894022fe5a.json","session":"t3-cd6d44c31d8eb7fc8fdca838"}
+{"host":"quotes '\" $HOME `literal`","config":"/fixture/state/device/hosts/b4410f9820b0eedda17dd792.json","session":"t3-08964bdfc107b1c8871c0dba"}
+{"host":"👋","config":"/fixture/state/device/hosts/1d0452e3d194cc7950909b57.json","session":"t3-0c6d705b372d6502459cf0a6"}
+{"host":"é","config":"/fixture/state/device/hosts/bf12767b0f2a56b2190075ba.json","session":"t3-ad6dbb926038986057613667"}
+{"host":"é","config":"/fixture/state/device/hosts/4a99557e4033c3539de2eb65.json","session":"t3-e410100afabf65c6b004de98"}
+{"host":"﻿host","config":"/fixture/state/device/hosts/7a1b14785e988d7613b762a5.json","session":"t3-215d4bdf8c1d90b8cf60fda6"}
+{"host":"","config":"/fixture/state/device/hosts/e3b0c44298fc1c149afbf4c8.json","session":"t3-0e5e80b8e665aadfa53a033f"}

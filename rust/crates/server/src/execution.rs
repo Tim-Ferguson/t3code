@@ -63,6 +63,27 @@ impl ExecutionService {
             runtime,
         })
     }
+    #[cfg(test)]
+    pub(crate) fn pause_next_actor(
+        &self,
+    ) -> tokio::sync::mpsc::UnboundedReceiver<(
+        crate::codex_runtime::ActorLifetime,
+        tokio::sync::oneshot::Sender<()>,
+    )> {
+        self.runtime.pause_next_actor()
+    }
+    pub fn authentication_stop(&self) -> crate::provider_auth_service::StopInstances {
+        let runtime = std::sync::Arc::downgrade(&self.runtime);
+        std::sync::Arc::new(move |instances| {
+            let runtime = runtime.clone();
+            Box::pin(async move {
+                if let Some(runtime) = runtime.upgrade() {
+                    runtime.stop_instances(&instances).await;
+                }
+                Ok(())
+            })
+        })
+    }
     pub async fn shutdown(&self) {
         self.runtime.shutdown().await;
     }

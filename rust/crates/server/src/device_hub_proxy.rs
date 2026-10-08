@@ -194,12 +194,19 @@ pub async fn handle(
     *response.headers_mut() = headers;
     response
 }
+const MAX_SOCKET_PAYLOAD: usize = 100 * 1024 * 1024;
+fn upstream_socket_config() -> tokio_tungstenite::tungstenite::protocol::WebSocketConfig {
+    // Node ws defaults to 100 MiB for the source proxy client.
+    tokio_tungstenite::tungstenite::protocol::WebSocketConfig::default()
+        .max_message_size(Some(MAX_SOCKET_PAYLOAD))
+        .max_frame_size(Some(MAX_SOCKET_PAYLOAD))
+}
 async fn proxy_socket(
     client: WebSocket,
     upstream: String,
     service: crate::device_service::DeviceService,
 ) {
-    let upstream = tokio::select! {biased;_=service.closed()=>return,result=tokio::time::timeout(Duration::from_secs(10),tokio_tungstenite::connect_async(upstream))=>match result{Ok(Ok((socket,_)))=>socket,_=>return}};
+    let upstream = tokio::select! {biased;_=service.closed()=>return,result=tokio::time::timeout(Duration::from_secs(10),tokio_tungstenite::connect_async_with_config(upstream, Some(upstream_socket_config()), false))=>match result{Ok(Ok((socket,_)))=>socket,_=>return}};
     let (mut client_write, mut client_read) = client.split();
     let (mut upstream_write, mut upstream_read) = upstream.split();
     let forward = async {
@@ -323,7 +330,7 @@ mod integration_tests {
             let root=tempfile::tempdir().unwrap();let fixture=crate::device_service::tests::fixture(root.path()).await;
             let store=Store::memory().unwrap();let auth=AuthService::new(store.clone(),[75;32],"proxy_fixture".into(),"loopback-browser".into()).unwrap();
             let (reader,token)=auth.issue_session("fixture","bearer-access-token",vec![AuthEnvironmentScope::OrchestrationRead],json!({"deviceType":"unknown"}),chrono::Utc::now(),chrono::Duration::hours(1)).unwrap();
-            let state=ApiState{store,auth:auth.clone(),environment:json!({}),config:None,settings:Some(fixture.settings.clone()),cors_origins:None,assets:None,providers:None,execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,background:None,device_hosts:None,devices:Some(fixture.service.clone())};
+            let state=ApiState{store,auth:auth.clone(),environment:json!({}),config:None,settings:Some(fixture.settings.clone()),cors_origins:None,assets:None,providers:None,execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,background:None,device_hosts:None,devices:Some(fixture.service.clone()),provider_auth:None};
             let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();let (stop,stopped)=tokio::sync::oneshot::channel();let mut server=tokio::task::JoinSet::new();
             server.spawn(async move {axum::serve(listener,router(state)).with_graceful_shutdown(async {let _=stopped.await;}).await.unwrap();});
             let origin=format!("http://{address}/api/device-hub");let client=reqwest::Client::new();
@@ -358,6 +365,9 @@ mod integration_tests {
             let (mut socket,_)=tokio_tungstenite::connect_async(format!("ws://{address}/api/device-hub/api/devices/ws?wsTicket={ticket}&hostId=local")).await.unwrap();
             use tokio_tungstenite::tungstenite::Message as Frame;
             assert_eq!(socket.next().await.unwrap().unwrap(),Frame::Binary(b"\x00fixture\xff".to_vec().into()));let payload=b"\x00typed-input\xff";socket.send(Frame::Binary(payload.to_vec().into())).await.unwrap();assert_eq!(socket.next().await.unwrap().unwrap(),Frame::Binary(payload.to_vec().into()));socket.close(None).await.unwrap();drop(socket);milestone(&fixture.socket,"/api/devices/ws#closed").await;
+            let ticket=auth.issue_websocket_ticket(&reader,chrono::Utc::now()).unwrap()["ticket"].as_str().unwrap().to_owned();
+            let (mut large_socket,_)=tokio_tungstenite::connect_async_with_config(format!("ws://{address}/api/device-hub/api/devices/ws?wsTicket={ticket}&large=1"),Some(upstream_socket_config()),false).await.unwrap();
+            let frame=large_socket.next().await.unwrap().unwrap().into_data();assert_eq!(frame.len(),65*1024*1024);assert!(frame.iter().all(|byte|*byte==123));drop(frame);large_socket.close(None).await.unwrap();drop(large_socket);milestone(&fixture.socket,"/api/devices/ws?large=1#closed").await;
             let mut pending_stream=client.get(format!("{origin}/vendor/serve-sim/helper/proxy/stream.avcc")).bearer_auth(&token).send().await.unwrap();assert!(pending_stream.chunk().await.unwrap().is_some());
             let ticket=auth.issue_websocket_ticket(&reader,chrono::Utc::now()).unwrap()["ticket"].as_str().unwrap().to_owned();
             let (mut pending_socket,_)=tokio_tungstenite::connect_async(format!("ws://{address}/api/device-hub/api/devices/ws?wsTicket={ticket}")).await.unwrap();assert!(pending_socket.next().await.unwrap().unwrap().is_binary());
