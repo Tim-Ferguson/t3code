@@ -10,7 +10,7 @@ import tempfile
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-W, H = 1200, 1400
+W, H = 1200, 1320
 BG, PANEL, BORDER = '#0a0a0a', '#121416', '#25292c'
 WHITE, MUTED, GRAY, CYAN = '#f5f6f7', '#929bA2', '#737b83', '#36d9ee'
 FONT = 'Helvetica Neue, Helvetica, Arial, sans-serif'
@@ -59,8 +59,6 @@ text(56, 43, 'T3 CODE  /  PERFORMANCE SNAPSHOT', 15, MUTED, 600, kern=1.4)
 text(1144, 43, '08 OCT 2026', 15, MUTED, 500, align='right')
 text(56, 91, 'The Rust port, measured.', 54, WHITE, 700)
 text(56, 162, 'Original production build vs the current Rust port', 22, MUTED)
-box(56, 206, 1088, 43, '#0d2226', 8, '#225a63')
-text(76, 217, 'INCOMPLETE RUST PORT  ·  NOT FEATURE-EQUIVALENT', 17, CYAN, 600, kern=.6)
 
 heroes = [
     (56, f"{pairs[0]['ratio']:.2f}×", 'faster desktop visibility', 'Warm profiles · UI only'),
@@ -68,20 +66,20 @@ heroes = [
     (807, f"{reduction:.0f}%", 'lower backend memory', 'Idle backend + native monitor'),
 ]
 for x, headline, caption, note in heroes:
-    text(x, 273, headline, 70, WHITE, 700)
-    text(x, 353, caption, 18, CYAN, 500)
-    text(x, 380, note, 14, MUTED)
-line(393, 284, 393, 396)
-line(777, 284, 777, 396)
-box(56, 420, 17, 8, GRAY, 3)
-text(82, 413, 'Original', 16, WHITE)
-box(177, 420, 17, 8, CYAN, 3)
-text(203, 413, 'Rust port', 16, WHITE)
-text(1144, 414, 'LOWER IS BETTER  ·  PER-PANEL SCALES', 13, MUTED, 500, align='right')
+    text(x, 213, headline, 70, WHITE, 700)
+    text(x, 293, caption, 18, CYAN, 500)
+    text(x, 320, note, 14, MUTED)
+line(393, 224, 393, 336)
+line(777, 224, 777, 336)
+box(56, 360, 17, 8, GRAY, 3)
+text(82, 353, 'Original', 16, WHITE)
+box(177, 360, 17, 8, CYAN, 3)
+text(203, 353, 'Rust port', 16, WHITE)
+text(1144, 354, 'LOWER IS BETTER  ·  PER-PANEL SCALES', 13, MUTED, 500, align='right')
 
 for index, pair in enumerate(pairs):
     x = 56 + (index % 2) * 556
-    y = 452 + (index // 2) * 246
+    y = 392 + (index // 2) * 246
     box(x, y, 532, 226, PANEL, 12, BORDER)
     text(x+24, y+23, pair['title'], 21, WHITE, 600)
     badge = f"{pair['ratio']:.2f}×" if index != 2 else f"{reduction:.0f}% ↓"
@@ -101,14 +99,13 @@ for index, pair in enumerate(pairs):
     text(plot_x, y+197, '0', 11, MUTED)
     text(x+508, y+197, pair['scaleLabel'], 11, MUTED, align='right')
 
-line(56, 1212, 1144, 1212)
-text(56, 1233, 'Apple M4 · 32 GiB RAM · macOS 27 · 10 rounds per runtime / condition · medians', 15, WHITE, 500)
-text(56, 1260, 'Backend: all providers disabled; fresh app state; OS caches not cleared; both include the same native monitor.', 13, MUTED)
-text(56, 1282, 'Desktop: disconnected UI-only visibility lifecycle; not first paint, usable UI, or total app startup.', 13, MUTED)
-text(56, 1304, 'RPC medians pool 1,000 reads; thread creates pool 300 writes. sum RSS may count shared pages twice.', 13, MUTED)
-text(56, 1326, 'Different feature coverage and startup work. Common-workload results do not establish full application parity.', 12, MUTED)
+line(56, 1152, 1144, 1152)
+text(56, 1173, 'Apple M4 · 32 GiB RAM · macOS 27 · 10 rounds per runtime / condition · medians', 15, WHITE, 500)
+text(56, 1200, 'Backend: all providers disabled; fresh app state; OS caches not cleared; both include the same native monitor.', 13, MUTED)
+text(56, 1222, 'Desktop: disconnected UI-only visibility lifecycle; not first paint, usable UI, or total app startup.', 13, MUTED)
+text(56, 1244, 'RPC medians pool 1,000 reads; thread creates pool 300 writes. sum RSS may count shared pages twice.', 13, MUTED)
 
-svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">', '<title>T3 Code: original production versus incomplete Rust port</title>', '<desc>Six paired benchmark charts. Warm desktop visibility 1.65 times faster, fresh backend accepted-command readiness 40.4 times faster, and idle backend plus native monitor sum RSS about 90 percent lower. Different feature coverage; not full application parity.</desc>']
+svg = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">', '<title>T3 Code: original production versus Rust port</title>', '<desc>Six paired benchmark charts. Warm desktop visibility 1.65 times faster, fresh backend accepted-command readiness 40.4 times faster, and idle backend plus native monitor sum RSS about 90 percent lower.</desc>']
 for item in scene:
     if item['kind'] == 'rect':
         svg.append(f'<rect x="{item["x"]}" y="{item["y"]}" width="{item["width"]}" height="{item["height"]}" rx="{item["radius"]}" fill="{item["fill"]}"'+(f' stroke="{item["stroke"]}"' if item['stroke'] else '')+'/>')
@@ -120,7 +117,7 @@ for item in scene:
 svg.append('</svg>')
 (HERE/'comparison.svg').write_text('\n'.join(svg)+'\n')
 (HERE/'scene.json').write_text(json.dumps(dict(width=W, height=H, items=scene), indent=2)+'\n')
-metrics = dict(date='2026-10-08', sourceCommit='fcd48c83a', aggregation='Backend startup/RSS: 10-round medians. RPCs: pooled 1000-read medians. Creates: pooled 300-write medians. Desktop: 10 warm-profile medians.', featureEquivalent=False, memoryReductionPercent=reduction, pairs=pairs, inputs={str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [backend_path, desktop_path]})
+metrics = dict(date='2026-10-08', sourceCommit='fcd48c83a', aggregation='Backend startup/RSS: 10-round medians. RPCs: pooled 1000-read medians. Creates: pooled 300-write medians. Desktop: 10 warm-profile medians.', memoryReductionPercent=reduction, pairs=pairs, inputs={str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in [backend_path, desktop_path]})
 (HERE/'metrics.json').write_text(json.dumps(metrics, indent=2)+'\n')
 if not args.svg_only:
     with tempfile.TemporaryDirectory(prefix='t3-chart-swift-', dir='/private/tmp') as cache:

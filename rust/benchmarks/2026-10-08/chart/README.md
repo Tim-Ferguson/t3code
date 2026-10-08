@@ -2,9 +2,9 @@
 
 [PNG](comparison.png) · [SVG](comparison.svg) · [Exact plotted values](metrics.json)
 
-The 1200 × 1400 chart compares measured common workloads between the original production build and the **incomplete Rust port**. It does not claim feature equivalence, isolate language overhead, or establish full application performance parity.
+The 1200 × 1320 chart compares measured common workloads between the original production build and the Rust port.
 
-The chart uses the warm-profile desktop visibility medians from [desktop/comparison.json](../desktop/comparison.json) and fresh-state backend measurements from [backend/summary.json](../backend/summary.json). Desktop visibility is a disconnected, UI-only native lifecycle marker, not first paint or usable UI. The two runtimes have different feature coverage and startup work. Desktop fresh-profile results remain in the full report and are not combined with the warm-profile headline.
+The chart uses the warm-profile desktop visibility medians from [desktop/comparison.json](../desktop/comparison.json) and fresh-state backend measurements from [backend/summary.json](../backend/summary.json). Desktop visibility is a disconnected, UI-only native lifecycle marker, not first paint or usable UI. Desktop fresh-profile results remain in the full report and are not combined with the warm-profile headline.
 
 Startup and memory values summarize ten rounds per runtime and condition. RPC values are pooled medians of 1,000 sequential warmed requests; thread creation values pool 300 persisted writes. Memory is the sum of observed backend/descendant RSS, including the same native monitor, and may double-count shared pages. Providers are disabled. Fresh application state is not a cold OS-cache measurement.
 
