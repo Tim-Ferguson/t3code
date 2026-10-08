@@ -1,0 +1,11 @@
+{
+  "sourceCommit": "fcd48c83a4aa9fa7d79ccd3336f43256c8eb4fa7",
+  "bundle": "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app",
+  "executable": "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/MacOS/t3-ui",
+  "identifier": "org.t3port.benchmark.edbymn8h",
+  "bytes": 22193776,
+  "sha256": "737348a1e8261d3a6908cb980c2cc62ec824e502b1d578077b4ee97e05e9819c",
+  "desktopBuildLog": "${PREPARATION}/rust-desktop-release-v2.log",
+  "elapsedBuildSeconds": 278.94,
+  "instrumentation": "snapshot-only entry+patched pinned Dioxus visibility+WKUUID; no production workspace source changes"
+}

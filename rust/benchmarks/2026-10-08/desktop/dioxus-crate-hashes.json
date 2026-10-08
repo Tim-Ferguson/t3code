@@ -1,0 +1,290 @@
+[
+  {
+    "file": "Cargo.toml",
+    "original": "f348240ceab196dc33c29813675df86179d2156d119cf9720781518b2a56a03d",
+    "benchmark": "f348240ceab196dc33c29813675df86179d2156d119cf9720781518b2a56a03d",
+    "changed": false
+  },
+  {
+    "file": "Cargo.lock",
+    "original": "deb22dd7f865703e1b56b43480c48483e814931756c486007587384782ac2516",
+    "benchmark": "deb22dd7f865703e1b56b43480c48483e814931756c486007587384782ac2516",
+    "changed": false
+  },
+  {
+    "file": "build.rs",
+    "original": "d1c532cbc183254b66dacaa8a6533da029c53fd659c69f24a35f16df6b077c09",
+    "benchmark": "d1c532cbc183254b66dacaa8a6533da029c53fd659c69f24a35f16df6b077c09",
+    "changed": false
+  },
+  {
+    "file": "README.md",
+    "original": "f58eb72f2371c8edd947cb7d1037a777cb427d16048330afb2153aa0bb8afd24",
+    "benchmark": "f58eb72f2371c8edd947cb7d1037a777cb427d16048330afb2153aa0bb8afd24",
+    "changed": false
+  },
+  {
+    "file": "tsconfig.json",
+    "original": "26eb92af35461c63d468b40286c5037be7e18d25cc42b6d976644048a241d6e6",
+    "benchmark": "26eb92af35461c63d468b40286c5037be7e18d25cc42b6d976644048a241d6e6",
+    "changed": false
+  },
+  {
+    "file": ".cargo_vcs_info.json",
+    "original": "749f834ed7855783b535f71913cb4b75975ffbf231bf7252e473e8b404017211",
+    "benchmark": "749f834ed7855783b535f71913cb4b75975ffbf231bf7252e473e8b404017211",
+    "changed": false
+  },
+  {
+    "file": "Cargo.toml.orig",
+    "original": "1799e4c31de6d7d3432dfca396bf96baefbe3338f7b731a7564b93433cf9a1d9",
+    "benchmark": "1799e4c31de6d7d3432dfca396bf96baefbe3338f7b731a7564b93433cf9a1d9",
+    "changed": false
+  },
+  {
+    "file": ".cargo-ok",
+    "original": "afbf9d0f3560b0fd7795e81c42a0a79ee6b6fc67e064f77826aee642cad28d91",
+    "benchmark": "afbf9d0f3560b0fd7795e81c42a0a79ee6b6fc67e064f77826aee642cad28d91",
+    "changed": false
+  },
+  {
+    "file": "architecure/Desktop Event Architecture.png",
+    "original": "cd5ab3f493c5bb6729895dcc60f7b489dd9f6d4c129a08cfafe4fd7e424ee82e",
+    "benchmark": "cd5ab3f493c5bb6729895dcc60f7b489dd9f6d4c129a08cfafe4fd7e424ee82e",
+    "changed": false
+  },
+  {
+    "file": "headless_tests/events.rs",
+    "original": "125ac09fc456b7cd77f15a8efcc3996dd7a43df68e0ccfc97e19e5038d694a3d",
+    "benchmark": "125ac09fc456b7cd77f15a8efcc3996dd7a43df68e0ccfc97e19e5038d694a3d",
+    "changed": false
+  },
+  {
+    "file": "headless_tests/rendering.rs",
+    "original": "bee5277806b771fce0737292550cf61340b20afb5286535da8ffbdc0012ce8b5",
+    "benchmark": "bee5277806b771fce0737292550cf61340b20afb5286535da8ffbdc0012ce8b5",
+    "changed": false
+  },
+  {
+    "file": "headless_tests/eval.rs",
+    "original": "3ae8ec6a985219643ac26b436231addd344f25b66deb4970ca3d0a5edcba736d",
+    "benchmark": "3ae8ec6a985219643ac26b436231addd344f25b66deb4970ca3d0a5edcba736d",
+    "changed": false
+  },
+  {
+    "file": "headless_tests/forms.rs",
+    "original": "cbffbfe34211231ad2e972138c0a01f9eb2ebd1f75a8d2a6cbfc795c7ef19f38",
+    "benchmark": "cbffbfe34211231ad2e972138c0a01f9eb2ebd1f75a8d2a6cbfc795c7ef19f38",
+    "changed": false
+  },
+  {
+    "file": "headless_tests/utils.rs",
+    "original": "01295f717fbb5ea759a19ca4f7e7ff0996a986301350c7b0d71bb2d49d6b2d38",
+    "benchmark": "01295f717fbb5ea759a19ca4f7e7ff0996a986301350c7b0d71bb2d49d6b2d38",
+    "changed": false
+  },
+  {
+    "file": ".vscode/settings.json",
+    "original": "be539358240a6695b75d5b2053b5e4de849512c3c0561832e5770d223bb39cb0",
+    "benchmark": "be539358240a6695b75d5b2053b5e4de849512c3c0561832e5770d223bb39cb0",
+    "changed": false
+  },
+  {
+    "file": "src/desktop_context.rs",
+    "original": "2faa53a67b2ad2387d43ae0856556a64a114599143ab4b487450e60a2766006a",
+    "benchmark": "2faa53a67b2ad2387d43ae0856556a64a114599143ab4b487450e60a2766006a",
+    "changed": false
+  },
+  {
+    "file": "src/mobile_shortcut.rs",
+    "original": "01d4e87697876c122086b33cb42d4d25453776b72fbacbce19f4cc567a316f47",
+    "benchmark": "01d4e87697876c122086b33cb42d4d25453776b72fbacbce19f4cc567a316f47",
+    "changed": false
+  },
+  {
+    "file": "src/element.rs",
+    "original": "078ff8f24168786d200a3721a1a9ee013e161646359777519ed4d8005b958b81",
+    "benchmark": "078ff8f24168786d200a3721a1a9ee013e161646359777519ed4d8005b958b81",
+    "changed": false
+  },
+  {
+    "file": "src/waker.rs",
+    "original": "43dd9c237814d3cdcc0f14b3d36d991de9c3ed109b0de74c2a4d94e029b84714",
+    "benchmark": "43dd9c237814d3cdcc0f14b3d36d991de9c3ed109b0de74c2a4d94e029b84714",
+    "changed": false
+  },
+  {
+    "file": "src/events.rs",
+    "original": "b43781337b4cc59374755f8a2b02822df23f861c71d9cc3426d5283899d8a397",
+    "benchmark": "b43781337b4cc59374755f8a2b02822df23f861c71d9cc3426d5283899d8a397",
+    "changed": false
+  },
+  {
+    "file": "src/ipc.rs",
+    "original": "f1767b66ee82f207cd521753e52bef74b9b922618f8c47572f09ba4bba6b8943",
+    "benchmark": "f1767b66ee82f207cd521753e52bef74b9b922618f8c47572f09ba4bba6b8943",
+    "changed": false
+  },
+  {
+    "file": "src/mobile.rs",
+    "original": "ad288d9ef1f0d633115ad70cb6681227084a4bae178cd0d6ff7c90ea7f15a63a",
+    "benchmark": "ad288d9ef1f0d633115ad70cb6681227084a4bae178cd0d6ff7c90ea7f15a63a",
+    "changed": false
+  },
+  {
+    "file": "src/protocol.rs",
+    "original": "ab981773c85b85657b0d5293ac955e35f8ff1ca8bc39e3764932f58e17449da0",
+    "benchmark": "ab981773c85b85657b0d5293ac955e35f8ff1ca8bc39e3764932f58e17449da0",
+    "changed": false
+  },
+  {
+    "file": "src/config.rs",
+    "original": "3a368d5e785e86e014bb3f04c7e675d90dce43f8470d6976b2bd9cc22a3ca2f6",
+    "benchmark": "3a368d5e785e86e014bb3f04c7e675d90dce43f8470d6976b2bd9cc22a3ca2f6",
+    "changed": false
+  },
+  {
+    "file": "src/default_icon.rs",
+    "original": "e1c04a6afb7703dcea11873f0f114f2bdc5fc51d978d275c2028b5cafa510ffd",
+    "benchmark": "e1c04a6afb7703dcea11873f0f114f2bdc5fc51d978d275c2028b5cafa510ffd",
+    "changed": false
+  },
+  {
+    "file": "src/event_handlers.rs",
+    "original": "8d58e742e7a1902c162cfab1fe4cbd295f9067b09d44a00317e5d1315f26b693",
+    "benchmark": "8d58e742e7a1902c162cfab1fe4cbd295f9067b09d44a00317e5d1315f26b693",
+    "changed": false
+  },
+  {
+    "file": "src/lib.rs",
+    "original": "776a9cc5c1fcbf570cccad372c6e53d7a8a525129bbff8b27dfa8aa79717ae73",
+    "benchmark": "776a9cc5c1fcbf570cccad372c6e53d7a8a525129bbff8b27dfa8aa79717ae73",
+    "changed": false
+  },
+  {
+    "file": "src/query.rs",
+    "original": "826cd9e105673a6485191a81fb2dd87c8ae72092f74a4e520263be13702fc7a3",
+    "benchmark": "826cd9e105673a6485191a81fb2dd87c8ae72092f74a4e520263be13702fc7a3",
+    "changed": false
+  },
+  {
+    "file": "src/menubar.rs",
+    "original": "79eae393db922b9225ffa575ac75b9a3b177259a8c7fbc27d725da1c959e179f",
+    "benchmark": "79eae393db922b9225ffa575ac75b9a3b177259a8c7fbc27d725da1c959e179f",
+    "changed": false
+  },
+  {
+    "file": "src/hooks.rs",
+    "original": "5eea3a0162195c530606c841fc025833c11710095a4778d3be236e91f1ffb8f8",
+    "benchmark": "5eea3a0162195c530606c841fc025833c11710095a4778d3be236e91f1ffb8f8",
+    "changed": false
+  },
+  {
+    "file": "src/trayicon.rs",
+    "original": "b3bb3270320cbef9dfb013b67688d15cb4263f20c04baa83ffff634231f0505c",
+    "benchmark": "b3bb3270320cbef9dfb013b67688d15cb4263f20c04baa83ffff634231f0505c",
+    "changed": false
+  },
+  {
+    "file": "src/readme.md",
+    "original": "7ca91c02901e2c7986006bd9348ef8b0ed7e0739dffcc4856ff311945815fd7c",
+    "benchmark": "7ca91c02901e2c7986006bd9348ef8b0ed7e0739dffcc4856ff311945815fd7c",
+    "changed": false
+  },
+  {
+    "file": "src/android_sync_lock.rs",
+    "original": "a53d3dd332da3d4e90677deed882135e6f693cbc1a56cb324b87b0e8c5adc2e8",
+    "benchmark": "a53d3dd332da3d4e90677deed882135e6f693cbc1a56cb324b87b0e8c5adc2e8",
+    "changed": false
+  },
+  {
+    "file": "src/file_upload.rs",
+    "original": "0149919519409470fdee2385291285143f83a507ddf37b814ea60a9234edf5ab",
+    "benchmark": "0149919519409470fdee2385291285143f83a507ddf37b814ea60a9234edf5ab",
+    "changed": false
+  },
+  {
+    "file": "src/webview.rs",
+    "original": "5a050b0a150b1f0da3835d9bee8691fcd51a01e5598e6aa7e4e716c678711848",
+    "benchmark": "6321dd6f000bbc4d02c08261457d0f3185663615d777a30b9817bef794466195",
+    "changed": true
+  },
+  {
+    "file": "src/shortcut.rs",
+    "original": "9e2b9d77d00a1390fc8a524ff236b70fd6ee61eb44b017a8b4fa231889fd41d0",
+    "benchmark": "9e2b9d77d00a1390fc8a524ff236b70fd6ee61eb44b017a8b4fa231889fd41d0",
+    "changed": false
+  },
+  {
+    "file": "src/document.rs",
+    "original": "bf927fc3ee2ee7f8e7bc6cb969ed22d91b60f138a125515876ceb097c418270e",
+    "benchmark": "bf927fc3ee2ee7f8e7bc6cb969ed22d91b60f138a125515876ceb097c418270e",
+    "changed": false
+  },
+  {
+    "file": "src/assets.rs",
+    "original": "42997a910d2a424126a245384239a6f80b8de70f6e2db0282d22343c6962627e",
+    "benchmark": "42997a910d2a424126a245384239a6f80b8de70f6e2db0282d22343c6962627e",
+    "changed": false
+  },
+  {
+    "file": "src/app.rs",
+    "original": "429e9e6a1db4c5570b914e0e3ff4406b40bef9f8e2015ee51a3ed903bb7f3633",
+    "benchmark": "9c51d570aa5c4d0a506219f245276fab956c4317e6ed058f5c6f7c2c2f38bdbd",
+    "changed": true
+  },
+  {
+    "file": "src/launch.rs",
+    "original": "55542861dc740eede486b3ceaff5cc5a2ab4c84f03b5a15ddf81e7a4713798b6",
+    "benchmark": "55542861dc740eede486b3ceaff5cc5a2ab4c84f03b5a15ddf81e7a4713798b6",
+    "changed": false
+  },
+  {
+    "file": "src/edits.rs",
+    "original": "8aff0aaa66c0928d4cac241f0d4d168fc91206cf0a7ead58c3300b8757720458",
+    "benchmark": "8aff0aaa66c0928d4cac241f0d4d168fc91206cf0a7ead58c3300b8757720458",
+    "changed": false
+  },
+  {
+    "file": "src/js/hash.txt",
+    "original": "69e497faec628394d9733bf2719d93700611d4a691989b6861db979610a5d554",
+    "benchmark": "69e497faec628394d9733bf2719d93700611d4a691989b6861db979610a5d554",
+    "changed": false
+  },
+  {
+    "file": "src/js/native_eval.js",
+    "original": "fc39bfae6f037e44dafa80b9e8ec022dd9f76f7a515dd455a30afb3d5966ca85",
+    "benchmark": "fc39bfae6f037e44dafa80b9e8ec022dd9f76f7a515dd455a30afb3d5966ca85",
+    "changed": false
+  },
+  {
+    "file": "src/assets/default_icon.bin",
+    "original": "96b34c563ed17cbcba9fbf13b2314b7b9675ff1b444822d52b90ec14c96a4005",
+    "benchmark": "96b34c563ed17cbcba9fbf13b2314b7b9675ff1b444822d52b90ec14c96a4005",
+    "changed": false
+  },
+  {
+    "file": "src/assets/dev.index.html",
+    "original": "93f94bcfce3b330fb6700b5c2eeb46fe2bff32fed57d0c4bdbf07fcc9b5c503a",
+    "benchmark": "93f94bcfce3b330fb6700b5c2eeb46fe2bff32fed57d0c4bdbf07fcc9b5c503a",
+    "changed": false
+  },
+  {
+    "file": "src/assets/prod.index.html",
+    "original": "b716dcaeb7a5224f92a90eb297913cd1c2f58a446bfd683cfe09316452f4e214",
+    "benchmark": "b716dcaeb7a5224f92a90eb297913cd1c2f58a446bfd683cfe09316452f4e214",
+    "changed": false
+  },
+  {
+    "file": "src/assets/default_icon.png",
+    "original": "5269d01dc8d1f0ec4d410fc4b18e71403d6dd575d0ed8759b04bf3049fc752b8",
+    "benchmark": "5269d01dc8d1f0ec4d410fc4b18e71403d6dd575d0ed8759b04bf3049fc752b8",
+    "changed": false
+  },
+  {
+    "file": "src/ts/native_eval.ts",
+    "original": "12780a5b3bdc0ad30dbe4ff5b39f3a5a4d60ee7ef8727ad3d8efcf6782c5e0f7",
+    "benchmark": "12780a5b3bdc0ad30dbe4ff5b39f3a5a4d60ee7ef8727ad3d8efcf6782c5e0f7",
+    "changed": false
+  }
+]

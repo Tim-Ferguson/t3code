@@ -1,0 +1,828 @@
+{
+  "directory": "/private/tmp/t3-backend-benchmark-run-sSwr33",
+  "datasetSha256": "bc53251c2d3850f518c53e1572ea2718d973fdc41c76306158fef6f99a96f380",
+  "total": 40,
+  "errors": [],
+  "groups": [
+    {
+      "backend": "original-production",
+      "phase": "fresh",
+      "successfulRounds": 10,
+      "firstConfigResponseBytes": {
+        "n": 10,
+        "median": 33635,
+        "p95": 33642,
+        "min": 33635,
+        "max": 33642
+      },
+      "firstWriteResponseBytes": {
+        "n": 10,
+        "median": 463,
+        "p95": 464,
+        "min": 463,
+        "max": 464
+      },
+      "httpReadyMs": {
+        "n": 10,
+        "median": 1883.3677709999938,
+        "p95": 2115.2524590000103,
+        "min": 1775.7634580000013,
+        "max": 2115.2524590000103
+      },
+      "firstConfigReplyMs": {
+        "n": 10,
+        "median": 1968.688062499994,
+        "p95": 2217.7846250000002,
+        "min": 1859.4793329999957,
+        "max": 2217.7846250000002
+      },
+      "usableCommandReadyMs": {
+        "n": 10,
+        "median": 1978.1148960000028,
+        "p95": 2230.6645839999983,
+        "min": 1868.4700000000012,
+        "max": 2230.6645839999983
+      },
+      "authenticatedShellReadyMs": {
+        "n": 10,
+        "median": 1982.1537710000011,
+        "p95": 2235.9926669999986,
+        "min": 1871.9382909999986,
+        "max": 2235.9926669999986
+      },
+      "shutdownMs": {
+        "n": 10,
+        "median": 44.3873960000019,
+        "p95": 76.61920800000371,
+        "min": 42.7043330000015,
+        "max": 76.61920800000371
+      },
+      "finalRootRssKiB": {
+        "n": 10,
+        "median": 439928,
+        "p95": 442000,
+        "min": 306880,
+        "max": 442000
+      },
+      "finalSumRssKiB": {
+        "n": 10,
+        "median": 447744,
+        "p95": 450032,
+        "min": 313344,
+        "max": 450032
+      },
+      "idleRootRssKiB": {
+        "n": 10,
+        "median": 412088,
+        "p95": 415424,
+        "min": 399232,
+        "max": 415424
+      },
+      "idleSumRssKiB": {
+        "n": 10,
+        "median": 419920,
+        "p95": 423424,
+        "min": 407200,
+        "max": 423424
+      },
+      "httpShell": {
+        "n": 1000,
+        "median": 0.8030209999978979,
+        "p95": 2.5416669999976875,
+        "min": 0.5601249999999709,
+        "max": 11.505667000004905
+      },
+      "httpShellResponseBytes": {
+        "n": 10,
+        "median": 468,
+        "p95": 469,
+        "min": 468,
+        "max": 469
+      },
+      "httpShellRoundMedians": {
+        "n": 10,
+        "median": 0.7443542500004696,
+        "p95": 2.1731875000041327,
+        "min": 0.6994164999996428,
+        "max": 2.1731875000041327
+      },
+      "rpcConfig": {
+        "n": 1000,
+        "median": 4.163000000000466,
+        "p95": 12.3205830000079,
+        "min": 3.201582999994571,
+        "max": 18.946249999993597
+      },
+      "rpcConfigResponseBytes": {
+        "n": 10,
+        "median": 33636,
+        "p95": 33643,
+        "min": 33636,
+        "max": 33643
+      },
+      "rpcConfigRoundMedians": {
+        "n": 10,
+        "median": 4.086156250001295,
+        "p95": 12.3793955000001,
+        "min": 3.868854000000283,
+        "max": 12.3793955000001
+      },
+      "rpcProbe": {
+        "n": 1000,
+        "median": 0.2181044999997539,
+        "p95": 0.6966669999965234,
+        "min": 0.13858300000720192,
+        "max": 3.7528329999913694
+      },
+      "rpcProbeResponseBytes": {
+        "n": 10,
+        "median": 70,
+        "p95": 70,
+        "min": 70,
+        "max": 70
+      },
+      "rpcProbeRoundMedians": {
+        "n": 10,
+        "median": 0.2118544999984806,
+        "p95": 0.6743750000023283,
+        "min": 0.18818750000355067,
+        "max": 0.6743750000023283
+      },
+      "seededHttpShell": {
+        "n": 1000,
+        "median": 5.109541999998783,
+        "p95": 9.096417000007932,
+        "min": 3.6073750000068685,
+        "max": 15.467707999996492
+      },
+      "seededHttpShellResponseBytes": {
+        "n": 10,
+        "median": 43716,
+        "p95": 43726,
+        "min": 43716,
+        "max": 43726
+      },
+      "seededHttpShellRoundMedians": {
+        "n": 10,
+        "median": 4.9955832500018005,
+        "p95": 9.044396000004781,
+        "min": 4.764666499999294,
+        "max": 9.044396000004781
+      },
+      "rpcThreadProjection": {
+        "n": 1000,
+        "median": 1.6383965000004537,
+        "p95": 4.487291999990703,
+        "min": 1.1410420000029262,
+        "max": 15.943416000009165
+      },
+      "rpcThreadProjectionResponseBytes": {
+        "n": 10,
+        "median": 1065,
+        "p95": 1065,
+        "min": 1065,
+        "max": 1065
+      },
+      "rpcThreadProjectionRoundMedians": {
+        "n": 10,
+        "median": 1.6076357500023732,
+        "p95": 4.466416499999468,
+        "min": 1.4492920000047889,
+        "max": 4.466416499999468
+      },
+      "projectWrites": {
+        "n": 90,
+        "median": 4.2253954999978305,
+        "p95": 10.691500000000815,
+        "min": 2.9393330000020796,
+        "max": 19.968999999997322
+      },
+      "projectWritesResponseBytes": null,
+      "projectWritesRoundMedians": {
+        "n": 10,
+        "median": 4.1226039999965,
+        "p95": 10.691500000000815,
+        "min": 3.7155000000057044,
+        "max": 10.691500000000815
+      },
+      "threadWrites": {
+        "n": 300,
+        "median": 3.5322085000043444,
+        "p95": 12.908500000005006,
+        "min": 1.7945000000036089,
+        "max": 30.942500000004657
+      },
+      "threadWritesResponseBytes": null,
+      "threadWritesRoundMedians": {
+        "n": 10,
+        "median": 3.4325835000008738,
+        "p95": 13.144500000002154,
+        "min": 2.9239584999959334,
+        "max": 13.144500000002154
+      }
+    },
+    {
+      "backend": "original-production",
+      "phase": "reused",
+      "successfulRounds": 10,
+      "firstConfigResponseBytes": {
+        "n": 10,
+        "median": 33634,
+        "p95": 33641,
+        "min": 33634,
+        "max": 33641
+      },
+      "firstWriteResponseBytes": {
+        "n": 10,
+        "median": 463,
+        "p95": 464,
+        "min": 463,
+        "max": 464
+      },
+      "httpReadyMs": {
+        "n": 10,
+        "median": 1869.8911044999986,
+        "p95": 3999.837207999997,
+        "min": 1806.2613750000019,
+        "max": 3999.837207999997
+      },
+      "firstConfigReplyMs": {
+        "n": 10,
+        "median": 1958.6963125000002,
+        "p95": 4591.369166000004,
+        "min": 1903.2663329999996,
+        "max": 4591.369166000004
+      },
+      "usableCommandReadyMs": {
+        "n": 10,
+        "median": 1964.9266459999963,
+        "p95": 4623.050875000001,
+        "min": 1909.4960830000018,
+        "max": 4623.050875000001
+      },
+      "authenticatedShellReadyMs": {
+        "n": 10,
+        "median": 1973.7862290000012,
+        "p95": 4652.469750000004,
+        "min": 1917.0083750000013,
+        "max": 4652.469750000004
+      },
+      "shutdownMs": {
+        "n": 10,
+        "median": 43.09235400000762,
+        "p95": 53.068499999993946,
+        "min": 39.24175000000105,
+        "max": 53.068499999993946
+      },
+      "finalRootRssKiB": {
+        "n": 10,
+        "median": 445328,
+        "p95": 456192,
+        "min": 377344,
+        "max": 456192
+      },
+      "finalSumRssKiB": {
+        "n": 10,
+        "median": 453288,
+        "p95": 464176,
+        "min": 383632,
+        "max": 464176
+      },
+      "idleRootRssKiB": {
+        "n": 10,
+        "median": 402200,
+        "p95": 406192,
+        "min": 359872,
+        "max": 406192
+      },
+      "idleSumRssKiB": {
+        "n": 10,
+        "median": 410176,
+        "p95": 414144,
+        "min": 365504,
+        "max": 414144
+      },
+      "httpShell": {
+        "n": 1000,
+        "median": 4.79529150000144,
+        "p95": 12.922667000006186,
+        "min": 3.6358329999929992,
+        "max": 42.928625000000466
+      },
+      "httpShellResponseBytes": {
+        "n": 10,
+        "median": 43716,
+        "p95": 43726,
+        "min": 43716,
+        "max": 43726
+      },
+      "httpShellRoundMedians": {
+        "n": 10,
+        "median": 4.669135249998362,
+        "p95": 12.978291999999783,
+        "min": 4.3893954999985,
+        "max": 12.978291999999783
+      },
+      "rpcConfig": {
+        "n": 1000,
+        "median": 4.630332999993698,
+        "p95": 7.597999999998137,
+        "min": 3.3827089999977034,
+        "max": 13.192874999993364
+      },
+      "rpcConfigResponseBytes": {
+        "n": 10,
+        "median": 33635,
+        "p95": 33642,
+        "min": 33635,
+        "max": 33642
+      },
+      "rpcConfigRoundMedians": {
+        "n": 10,
+        "median": 4.614749749999646,
+        "p95": 7.609020500000042,
+        "min": 4.182395499996346,
+        "max": 7.609020500000042
+      },
+      "rpcProbe": {
+        "n": 1000,
+        "median": 0.2242084999979852,
+        "p95": 0.39383299999462906,
+        "min": 0.15312499999708962,
+        "max": 1.207124999986263
+      },
+      "rpcProbeResponseBytes": {
+        "n": 10,
+        "median": 70,
+        "p95": 70,
+        "min": 70,
+        "max": 70
+      },
+      "rpcProbeRoundMedians": {
+        "n": 10,
+        "median": 0.21884399999999005,
+        "p95": 0.28620799999771407,
+        "min": 0.20843750000130967,
+        "max": 0.28620799999771407
+      },
+      "seededHttpShell": {
+        "n": 1000,
+        "median": 5.286978999993153,
+        "p95": 7.414375000007567,
+        "min": 3.875041000006604,
+        "max": 9.671916999999667
+      },
+      "seededHttpShellResponseBytes": {
+        "n": 10,
+        "median": 43716,
+        "p95": 43726,
+        "min": 43716,
+        "max": 43726
+      },
+      "seededHttpShellRoundMedians": {
+        "n": 10,
+        "median": 5.166833250000309,
+        "p95": 6.613312500005122,
+        "min": 4.692437500001688,
+        "max": 6.613312500005122
+      },
+      "rpcThreadProjection": {
+        "n": 1000,
+        "median": 1.6399375000000873,
+        "p95": 3.2536249999830034,
+        "min": 1.2074159999974654,
+        "max": 5.864042000001064
+      },
+      "rpcThreadProjectionResponseBytes": {
+        "n": 10,
+        "median": 1065,
+        "p95": 1065,
+        "min": 1065,
+        "max": 1065
+      },
+      "rpcThreadProjectionRoundMedians": {
+        "n": 10,
+        "median": 1.584406000000854,
+        "p95": 2.444187499997497,
+        "min": 1.5215004999990924,
+        "max": 2.444187499997497
+      },
+      "projectWrites": null,
+      "projectWritesResponseBytes": null,
+      "projectWritesRoundMedians": null,
+      "threadWrites": null,
+      "threadWritesResponseBytes": null,
+      "threadWritesRoundMedians": null
+    },
+    {
+      "backend": "rust-release",
+      "phase": "fresh",
+      "successfulRounds": 10,
+      "firstConfigResponseBytes": {
+        "n": 10,
+        "median": 23363,
+        "p95": 23366,
+        "min": 23363,
+        "max": 23366
+      },
+      "firstWriteResponseBytes": {
+        "n": 10,
+        "median": 456,
+        "p95": 457,
+        "min": 456,
+        "max": 457
+      },
+      "httpReadyMs": {
+        "n": 10,
+        "median": 39.357708000003186,
+        "p95": 132.09537499998987,
+        "min": 32.6705409999995,
+        "max": 132.09537499998987
+      },
+      "firstConfigReplyMs": {
+        "n": 10,
+        "median": 47.49764600000344,
+        "p95": 148.06445799999346,
+        "min": 39.16649999999936,
+        "max": 148.06445799999346
+      },
+      "usableCommandReadyMs": {
+        "n": 10,
+        "median": 48.93062500000269,
+        "p95": 152.86108299999614,
+        "min": 40.517125000000306,
+        "max": 152.86108299999614
+      },
+      "authenticatedShellReadyMs": {
+        "n": 10,
+        "median": 50.25066649999826,
+        "p95": 154.4780829999945,
+        "min": 41.6281659999986,
+        "max": 154.4780829999945
+      },
+      "shutdownMs": {
+        "n": 10,
+        "median": 5.246125000001484,
+        "p95": 38.489041000008,
+        "min": 4.100291000002471,
+        "max": 38.489041000008
+      },
+      "finalRootRssKiB": {
+        "n": 10,
+        "median": 34536,
+        "p95": 34656,
+        "min": 34464,
+        "max": 34656
+      },
+      "finalSumRssKiB": {
+        "n": 10,
+        "median": 42456,
+        "p95": 42640,
+        "min": 42320,
+        "max": 42640
+      },
+      "idleRootRssKiB": {
+        "n": 10,
+        "median": 33360,
+        "p95": 33456,
+        "min": 33264,
+        "max": 33456
+      },
+      "idleSumRssKiB": {
+        "n": 10,
+        "median": 41296,
+        "p95": 41408,
+        "min": 41120,
+        "max": 41408
+      },
+      "httpShell": {
+        "n": 1000,
+        "median": 0.7114164999992454,
+        "p95": 1.1940420000028098,
+        "min": 0.5727499999993597,
+        "max": 1.9638750000012806
+      },
+      "httpShellResponseBytes": {
+        "n": 10,
+        "median": 461,
+        "p95": 462,
+        "min": 461,
+        "max": 462
+      },
+      "httpShellRoundMedians": {
+        "n": 10,
+        "median": 0.6969062499993015,
+        "p95": 1.0370414999924833,
+        "min": 0.6187294999981532,
+        "max": 1.0370414999924833
+      },
+      "rpcConfig": {
+        "n": 1000,
+        "median": 0.5402289999983623,
+        "p95": 1.2080839999980526,
+        "min": 0.4288750000014261,
+        "max": 2.403875000003609
+      },
+      "rpcConfigResponseBytes": {
+        "n": 10,
+        "median": 23364,
+        "p95": 23367,
+        "min": 23364,
+        "max": 23367
+      },
+      "rpcConfigRoundMedians": {
+        "n": 10,
+        "median": 0.5218017499973939,
+        "p95": 1.1691250000076252,
+        "min": 0.4611254999981611,
+        "max": 1.1691250000076252
+      },
+      "rpcProbe": {
+        "n": 1000,
+        "median": 0.17949999999837019,
+        "p95": 0.6888340000004973,
+        "min": 0.1489579999979469,
+        "max": 2.817957999999635
+      },
+      "rpcProbeResponseBytes": {
+        "n": 10,
+        "median": 70,
+        "p95": 70,
+        "min": 70,
+        "max": 70
+      },
+      "rpcProbeRoundMedians": {
+        "n": 10,
+        "median": 0.17386449999685283,
+        "p95": 0.6778540000013891,
+        "min": 0.15729149999606307,
+        "max": 0.6778540000013891
+      },
+      "seededHttpShell": {
+        "n": 1000,
+        "median": 1.399166499997591,
+        "p95": 3.304916000008234,
+        "min": 1.1368749999965075,
+        "max": 4.813999999998487
+      },
+      "seededHttpShellResponseBytes": {
+        "n": 10,
+        "median": 31886,
+        "p95": 31896,
+        "min": 31886,
+        "max": 31896
+      },
+      "seededHttpShellRoundMedians": {
+        "n": 10,
+        "median": 1.3648332500033575,
+        "p95": 3.3198750000010477,
+        "min": 1.253500000002532,
+        "max": 3.3198750000010477
+      },
+      "rpcThreadProjection": {
+        "n": 1000,
+        "median": 0.201687500000844,
+        "p95": 0.6091249999881256,
+        "min": 0.15320900000369875,
+        "max": 1.5459159999882104
+      },
+      "rpcThreadProjectionResponseBytes": {
+        "n": 10,
+        "median": 1065,
+        "p95": 1065,
+        "min": 1065,
+        "max": 1065
+      },
+      "rpcThreadProjectionRoundMedians": {
+        "n": 10,
+        "median": 0.19973974999993516,
+        "p95": 0.6077294999995502,
+        "min": 0.1724579999972775,
+        "max": 0.6077294999995502
+      },
+      "projectWrites": {
+        "n": 90,
+        "median": 0.4637914999984787,
+        "p95": 2.835416999994777,
+        "min": 0.3350829999999405,
+        "max": 3.077208000002429
+      },
+      "projectWritesResponseBytes": null,
+      "projectWritesRoundMedians": {
+        "n": 10,
+        "median": 0.4514790000013136,
+        "p95": 2.835416999994777,
+        "min": 0.3693750000002183,
+        "max": 2.835416999994777
+      },
+      "threadWrites": {
+        "n": 300,
+        "median": 0.45983350000096834,
+        "p95": 2.097750000000815,
+        "min": 0.30724999999802094,
+        "max": 43.73937500000466
+      },
+      "threadWritesResponseBytes": null,
+      "threadWritesRoundMedians": {
+        "n": 10,
+        "median": 0.43906250000509317,
+        "p95": 2.230708000002778,
+        "min": 0.3696044999996957,
+        "max": 2.230708000002778
+      }
+    },
+    {
+      "backend": "rust-release",
+      "phase": "reused",
+      "successfulRounds": 10,
+      "firstConfigResponseBytes": {
+        "n": 10,
+        "median": 23362,
+        "p95": 23365,
+        "min": 23362,
+        "max": 23365
+      },
+      "firstWriteResponseBytes": {
+        "n": 10,
+        "median": 456,
+        "p95": 457,
+        "min": 456,
+        "max": 457
+      },
+      "httpReadyMs": {
+        "n": 10,
+        "median": 24.42204149999452,
+        "p95": 86.06941599999845,
+        "min": 23.294624999994994,
+        "max": 86.06941599999845
+      },
+      "firstConfigReplyMs": {
+        "n": 10,
+        "median": 32.47197949999827,
+        "p95": 104.2335000000021,
+        "min": 30.418417000000773,
+        "max": 104.2335000000021
+      },
+      "usableCommandReadyMs": {
+        "n": 10,
+        "median": 33.50949999999284,
+        "p95": 109.29470800000126,
+        "min": 31.311041999993904,
+        "max": 109.29470800000126
+      },
+      "authenticatedShellReadyMs": {
+        "n": 10,
+        "median": 35.637353999998595,
+        "p95": 114.24054099999194,
+        "min": 33.42329199999949,
+        "max": 114.24054099999194
+      },
+      "shutdownMs": {
+        "n": 10,
+        "median": 4.010604500013869,
+        "p95": 15.838709000003291,
+        "min": 3.552332999999635,
+        "max": 15.838709000003291
+      },
+      "finalRootRssKiB": {
+        "n": 10,
+        "median": 34360,
+        "p95": 34624,
+        "min": 34272,
+        "max": 34624
+      },
+      "finalSumRssKiB": {
+        "n": 10,
+        "median": 42264,
+        "p95": 42608,
+        "min": 42208,
+        "max": 42608
+      },
+      "idleRootRssKiB": {
+        "n": 10,
+        "median": 34152,
+        "p95": 34352,
+        "min": 34096,
+        "max": 34352
+      },
+      "idleSumRssKiB": {
+        "n": 10,
+        "median": 42104,
+        "p95": 42336,
+        "min": 42032,
+        "max": 42336
+      },
+      "httpShell": {
+        "n": 1000,
+        "median": 1.3127915000004577,
+        "p95": 3.610584000009112,
+        "min": 1.118625000000975,
+        "max": 5.636083000004874
+      },
+      "httpShellResponseBytes": {
+        "n": 10,
+        "median": 31886,
+        "p95": 31896,
+        "min": 31886,
+        "max": 31896
+      },
+      "httpShellRoundMedians": {
+        "n": 10,
+        "median": 1.3056354999989708,
+        "p95": 3.6096460000044317,
+        "min": 1.2017084999997678,
+        "max": 3.6096460000044317
+      },
+      "rpcConfig": {
+        "n": 1000,
+        "median": 0.5330210000029183,
+        "p95": 1.5538329999981215,
+        "min": 0.47045799999978044,
+        "max": 6.24854200000118
+      },
+      "rpcConfigResponseBytes": {
+        "n": 10,
+        "median": 23363,
+        "p95": 23366,
+        "min": 23363,
+        "max": 23366
+      },
+      "rpcConfigRoundMedians": {
+        "n": 10,
+        "median": 0.5196667500003969,
+        "p95": 1.5044374999997672,
+        "min": 0.5103130000006786,
+        "max": 1.5044374999997672
+      },
+      "rpcProbe": {
+        "n": 1000,
+        "median": 0.1782085000022562,
+        "p95": 0.5865000000048894,
+        "min": 0.1507080000010319,
+        "max": 1.8459160000056727
+      },
+      "rpcProbeResponseBytes": {
+        "n": 10,
+        "median": 70,
+        "p95": 70,
+        "min": 70,
+        "max": 70
+      },
+      "rpcProbeRoundMedians": {
+        "n": 10,
+        "median": 0.17457324999850243,
+        "p95": 0.5776665000012144,
+        "min": 0.16933350000181235,
+        "max": 0.5776665000012144
+      },
+      "seededHttpShell": {
+        "n": 1000,
+        "median": 1.3165834999963408,
+        "p95": 3.3811249999998836,
+        "min": 1.1915829999998095,
+        "max": 5.1773749999993015
+      },
+      "seededHttpShellResponseBytes": {
+        "n": 10,
+        "median": 31886,
+        "p95": 31896,
+        "min": 31886,
+        "max": 31896
+      },
+      "seededHttpShellRoundMedians": {
+        "n": 10,
+        "median": 1.2787397500014777,
+        "p95": 3.3842290000029607,
+        "min": 1.2509580000041751,
+        "max": 3.3842290000029607
+      },
+      "rpcThreadProjection": {
+        "n": 1000,
+        "median": 0.1992709999976796,
+        "p95": 0.5144170000130543,
+        "min": 0.16100000000733417,
+        "max": 1.7887080000073183
+      },
+      "rpcThreadProjectionResponseBytes": {
+        "n": 10,
+        "median": 1065,
+        "p95": 1065,
+        "min": 1065,
+        "max": 1065
+      },
+      "rpcThreadProjectionRoundMedians": {
+        "n": 10,
+        "median": 0.1945934999966994,
+        "p95": 0.5130415000021458,
+        "min": 0.1898125000006985,
+        "max": 0.5130415000021458
+      },
+      "projectWrites": null,
+      "projectWritesResponseBytes": null,
+      "projectWritesRoundMedians": null,
+      "threadWrites": null,
+      "threadWritesResponseBytes": null,
+      "threadWritesRoundMedians": null
+    }
+  ]
+}

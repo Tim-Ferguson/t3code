@@ -1,0 +1,18 @@
+{
+  "crate": "dioxus-desktop",
+  "version": "0.7.10",
+  "cargoVcs": {
+    "git": {
+      "sha1": "57d6794ad60b949e5bd8aa282f6f8c3dc97a365e",
+      "dirty": true
+    },
+    "path_in_vcs": "packages/desktop"
+  },
+  "patchSha256": "28b2a3695e688eb18404a753233ccec5468894b0c8d2d396c20e661270b40602",
+  "originalChangedFiles": {
+    "src/app.rs": "429e9e6a1db4c5570b914e0e3ff4406b40bef9f8e2015ee51a3ed903bb7f3633",
+    "src/webview.rs": "5a050b0a150b1f0da3835d9bee8691fcd51a01e5598e6aa7e4e716c678711848"
+  },
+  "license": "MIT OR Apache-2.0",
+  "purpose": "Benchmark-only native visible marker and supported WKWebView UUID profile selector; no production workspace modification"
+}

@@ -1,0 +1,59 @@
+// Lifecycle telemetry only: no DOM inspection, automation or synthetic UI actions.
+// Test-only launcher. Load production boot.cjs; never run against developer state.
+// Electron <this-file> with T3_BENCH_ROOT=/private/tmp/t3port-bench-... and
+// T3_BENCH_ENTRY=/absolute/repo/apps/desktop/dist-electron/boot.cjs.
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const Module = require('node:module');
+const root = path.resolve(process.env.T3_BENCH_ROOT || '');
+const entry = path.resolve(process.env.T3_BENCH_ENTRY || '');
+if (!root.startsWith('/private/tmp/t3port-bench-')) throw Error('Explicit isolated benchmark root required');
+if (!entry.endsWith('/apps/desktop/dist-electron/boot.cjs') || !fs.existsSync(entry)) throw Error('Production desktop boot.cjs is required');
+const home = path.join(root, 'os-home');
+const temporary = path.join(root, 'temporary');
+const state = path.join(root, 't3-home');
+const profile = path.join(home, 'Library', 'Application Support', 't3code-v2');
+for (const directory of [home, temporary, profile, path.join(state, 'userdata')]) fs.mkdirSync(directory, {recursive: true});
+// Original main and pre-ready helpers use node:os.homedir directly. T3CODE_HOME
+// alone does NOT isolate Electron's profile on macOS. No HOME reassignment.
+os.homedir = () => home;
+os.tmpdir = () => temporary;
+Module.syncBuiltinESMExports();
+process.env.T3CODE_HOME = state;
+process.env.T3CODE_DISABLE_AUTO_UPDATE = 'true';
+delete process.env.VITE_DEV_SERVER_URL;
+delete process.env.T3CODE_DESKTOP_DEV;
+delete process.env.ELECTRON_RUN_AS_NODE;
+const settings = path.join(state, 'userdata', 'desktop-settings.json');
+if (!fs.existsSync(settings)) fs.writeFileSync(settings, JSON.stringify({localEnvironmentEnabled: false, tailscaleServeEnabled: false, serverExposureMode: 'local-only'}));
+const electron = Module.createRequire(entry)('electron');
+// --t3code-dev-root is only a launcher identity tag, not an asset override.
+// DesktopEnvironment uses main.cjs __dirname for the unpackaged app root.
+if (electron.app.isPackaged) throw Error('Benchmark requires stock unpackaged Electron');
+const originalRoot = path.resolve(path.dirname(entry), '../../..');
+const assets = path.join(originalRoot, 'apps/server/dist/client/index.html');
+if (!fs.existsSync(assets) || !fs.existsSync(path.join(path.dirname(entry), 'preload.cjs'))) throw Error('Production assets/preload missing');
+electron.app.setPath('userData', profile);
+electron.app.setPath('sessionData', profile);
+const started = process.hrtime.bigint();
+const record = (name, fields = {}) => {
+  const row = {kind: 'desktop-benchmark-marker', name, elapsedFromBootstrapMs: Number(process.hrtime.bigint() - started) / 1e6, pid: process.pid, ...fields};
+  fs.appendFileSync(path.join(root, 'markers.jsonl'), JSON.stringify(row) + '\n');
+  process.stdout.write(JSON.stringify(row) + '\n');
+};
+record('bootstrap', {entry, originalRoot, assets, appPath: electron.app.getAppPath(), isPackaged: electron.app.isPackaged, profile, state, versions: process.versions, note: 'Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn'});
+electron.app.once('ready', () => record('electron-app-ready'));
+electron.app.on('browser-window-created', (_, window) => {
+  record('window-created', {id: window.id});
+  window.once('ready-to-show', () => record('electron-ready-to-show', {id: window.id}));
+  let isMain=false;
+  // Navigation lifecycle URL identifies the real production client, never splash.
+  // No URL getter, DOM read or window state query.
+  window.webContents.on('did-start-navigation', (_,url,_inPlace,isMainFrame) => {
+    if(isMainFrame) isMain = url.startsWith('t3code://app/');
+  });
+  window.once('show', () => record(isMain?'electron-window-shown':'electron-other-window-shown', {id: window.id, mainClientNavigation:isMain}));
+  window.webContents.once('did-finish-load', () => record('electron-did-finish-load', {id: window.id}));
+});
+require(entry);

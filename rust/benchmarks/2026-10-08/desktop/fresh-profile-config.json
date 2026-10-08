@@ -1,0 +1,14 @@
+{
+  "root": "${FRESH_PROFILE_ROOT}",
+  "rounds": 10,
+  "profileMode": "fresh-profile",
+  "timeoutMs": 30000,
+  "settleMs": 500,
+  "betweenTrialsMs": 500,
+  "sourceCommit": "fcd48c83a4aa9fa7d79ccd3336f43256c8eb4fa7",
+  "originalExecutable": "${REPOSITORY}/apps/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron",
+  "originalBootstrap": "${PREPARATION}/original-desktop-bootstrap.cjs",
+  "originalEntry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+  "rustExecutable": "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/MacOS/t3-ui",
+  "rustBundleIdentifier": "org.t3port.benchmark.edbymn8h"
+}

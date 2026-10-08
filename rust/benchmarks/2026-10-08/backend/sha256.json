@@ -1,0 +1,77 @@
+[
+  {
+    "file": "README.md",
+    "sizeBytes": 2114,
+    "sha256": "6a10b17bab7ec7fe531aae96f810ebfac4b118546ef7d5696071855b66f42afe"
+  },
+  {
+    "file": "benchmark.mjs",
+    "sizeBytes": 28612,
+    "sha256": "b8282d004135092bb1e87d6849eb3f1fa9c68084b6ae29d37f4496002611f73c"
+  },
+  {
+    "file": "benchmark.mjs.txt",
+    "sizeBytes": 23107,
+    "sha256": "8047fe20172ffb52d87be8b5cbe781b6fd87c179b2aebe8772dea4edd0ca153b"
+  },
+  {
+    "file": "isolated-homedir.mjs",
+    "sizeBytes": 530,
+    "sha256": "b0b000dba4a7a88f1912c7886fd48839bba5448bb0bf767f73cb1adc4f806fae"
+  },
+  {
+    "file": "isolated-homedir.mjs.txt",
+    "sizeBytes": 513,
+    "sha256": "a1e78a452dac96ffe41ca5c6f968684a144344e82fd2ab189ce1419bcf988be7"
+  },
+  {
+    "file": "measurements.csv",
+    "sizeBytes": 5982,
+    "sha256": "bac3832265d74c926d600bd55b0b79765c5f7a1834b54e9b36e211c830e4b8f3"
+  },
+  {
+    "file": "metadata.json",
+    "sizeBytes": 2658,
+    "sha256": "bf5319bb8c9ebc18439d0636e25a23d14bd8d37418281f05c68dc5f33c9f2b74"
+  },
+  {
+    "file": "original-dist-sha256.json",
+    "sizeBytes": 548548,
+    "sha256": "e067dcaa050dc739d37a195e4bdaac9322c42bf17998a3085111495ac37d5bbb"
+  },
+  {
+    "file": "plan.json",
+    "sizeBytes": 2304,
+    "sha256": "f8cc7a5435fbf8970346e5f7ae4dfc6e126b110063a4bf742253e135c1a99bd7"
+  },
+  {
+    "file": "report.md",
+    "sizeBytes": 7370,
+    "sha256": "5f00724cf56a544d23edb401d2e5649ba0ad7dc95b44819c51e5459f3ddc773a"
+  },
+  {
+    "file": "results.json",
+    "sizeBytes": 1114072,
+    "sha256": "63e5c5c4bd93b478b494f9de984c7165df56bd9d6ed67cc3471d544f3e7a4a97"
+  },
+  {
+    "file": "run.log",
+    "sizeBytes": 26428,
+    "sha256": "6f14eee9b72b3613539d0a9317f6d2a77777bf4c0dd475766dcc2f2ae63ec6a8"
+  },
+  {
+    "file": "summary.json",
+    "sizeBytes": 21081,
+    "sha256": "361eeec5d6602e084c78a7cdc23ae9c4bca977148162c3f4883eb88cb36f394a"
+  },
+  {
+    "file": "write-report.mjs",
+    "sizeBytes": 5720,
+    "sha256": "30298c7d859e3f43b3ecbd7b6069a1c73afdfcbf4f29c2da6e3196923a7c14f4"
+  },
+  {
+    "file": "write-report.mjs.txt",
+    "sizeBytes": 5103,
+    "sha256": "69fdba6198432a7e88d2e845f319989ff24c653cdf5616be798e60e5515bed0a"
+  }
+]

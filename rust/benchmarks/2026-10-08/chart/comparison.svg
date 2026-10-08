@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1400" viewBox="0 0 1200 1400">
+<title>T3 Code: original production versus incomplete Rust port</title>
+<desc>Six paired benchmark charts. Warm desktop visibility 1.65 times faster, fresh backend accepted-command readiness 40.4 times faster, and idle backend plus native monitor sum RSS about 90 percent lower. Different feature coverage; not full application parity.</desc>
+<rect x="0" y="0" width="1200" height="1400" rx="0" fill="#0a0a0a"/>
+<text x="56" y="43" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" letter-spacing="1.4" fill="#929bA2">T3 CODE  /  PERFORMANCE SNAPSHOT</text>
+<text x="1144" y="43" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">08 OCT 2026</text>
+<text x="56" y="91" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="54" font-weight="700" letter-spacing="0" fill="#f5f6f7">The Rust port, measured.</text>
+<text x="56" y="162" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="22" font-weight="400" letter-spacing="0" fill="#929bA2">Original production build vs the current Rust port</text>
+<rect x="56" y="206" width="1088" height="43" rx="8" fill="#0d2226" stroke="#225a63"/>
+<text x="76" y="217" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="17" font-weight="600" letter-spacing="0.6" fill="#36d9ee">INCOMPLETE RUST PORT  ·  NOT FEATURE-EQUIVALENT</text>
+<text x="56" y="273" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="70" font-weight="700" letter-spacing="0" fill="#f5f6f7">1.65×</text>
+<text x="56" y="353" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#36d9ee">faster desktop visibility</text>
+<text x="56" y="380" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" letter-spacing="0" fill="#929bA2">Warm profiles · UI only</text>
+<text x="422" y="273" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="70" font-weight="700" letter-spacing="0" fill="#f5f6f7">40.4×</text>
+<text x="422" y="353" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#36d9ee">faster backend readiness</text>
+<text x="422" y="380" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" letter-spacing="0" fill="#929bA2">Fresh state · accepted command</text>
+<text x="807" y="273" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="70" font-weight="700" letter-spacing="0" fill="#f5f6f7">90%</text>
+<text x="807" y="353" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="18" font-weight="500" letter-spacing="0" fill="#36d9ee">lower backend memory</text>
+<text x="807" y="380" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="14" font-weight="400" letter-spacing="0" fill="#929bA2">Idle backend + native monitor</text>
+<path d="M393,284 L393,396" stroke="#25292c"/>
+<path d="M777,284 L777,396" stroke="#25292c"/>
+<rect x="56" y="420" width="17" height="8" rx="3" fill="#737b83"/>
+<text x="82" y="413" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="16" font-weight="400" letter-spacing="0" fill="#f5f6f7">Original</text>
+<rect x="177" y="420" width="17" height="8" rx="3" fill="#36d9ee"/>
+<text x="203" y="413" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="16" font-weight="400" letter-spacing="0" fill="#f5f6f7">Rust port</text>
+<text x="1144" y="414" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="500" letter-spacing="0" fill="#929bA2">LOWER IS BETTER  ·  PER-PANEL SCALES</text>
+<rect x="56" y="452" width="532" height="226" rx="12" fill="#121416" stroke="#25292c"/>
+<text x="80" y="475" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">Warm desktop window</text>
+<text x="564" y="475" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="600" letter-spacing="0" fill="#36d9ee">1.65×</text>
+<text x="80" y="509" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Warm profile · native visibility marker</text>
+<text x="80" y="541" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">Original</text>
+<text x="564" y="539" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">1.97 s</text>
+<rect x="80" y="570" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="80" y="570" width="433.17913837" height="12" rx="4" fill="#737b83"/>
+<text x="80" y="596" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#36d9ee">Rust port</text>
+<text x="564" y="594" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">1.19 s</text>
+<rect x="80" y="625" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="80" y="625" width="262.20657837" height="12" rx="4" fill="#36d9ee"/>
+<text x="80" y="649" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0</text>
+<text x="564" y="649" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">2.2 s</text>
+<rect x="612" y="452" width="532" height="226" rx="12" fill="#121416" stroke="#25292c"/>
+<text x="636" y="475" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">Backend accepted command</text>
+<text x="1120" y="475" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="600" letter-spacing="0" fill="#36d9ee">40.43×</text>
+<text x="636" y="509" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Fresh state · authenticated accepted write</text>
+<text x="636" y="541" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">Original</text>
+<text x="1120" y="539" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">1.98 s</text>
+<rect x="636" y="570" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="636" y="570" width="435.18527712000065" height="12" rx="4" fill="#737b83"/>
+<text x="636" y="596" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#36d9ee">Rust port</text>
+<text x="1120" y="594" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">49 ms</text>
+<rect x="636" y="625" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="636" y="625" width="10.764737500000592" height="12" rx="4" fill="#36d9ee"/>
+<text x="636" y="649" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0</text>
+<text x="1120" y="649" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">2.2 s</text>
+<rect x="56" y="698" width="532" height="226" rx="12" fill="#121416" stroke="#25292c"/>
+<text x="80" y="721" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">Idle backend memory</text>
+<text x="564" y="721" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="600" letter-spacing="0" fill="#36d9ee">90% ↓</text>
+<text x="80" y="755" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Backend + native monitor · sum RSS</text>
+<text x="80" y="787" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">Original</text>
+<text x="564" y="785" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">410.1 MiB</text>
+<rect x="80" y="816" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="80" y="816" width="441.06180555555557" height="12" rx="4" fill="#737b83"/>
+<text x="80" y="842" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#36d9ee">Rust port</text>
+<text x="564" y="840" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">40.3 MiB</text>
+<rect x="80" y="871" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="80" y="871" width="43.37513888888889" height="12" rx="4" fill="#36d9ee"/>
+<text x="80" y="895" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0</text>
+<text x="564" y="895" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">450 MiB</text>
+<rect x="612" y="698" width="532" height="226" rx="12" fill="#121416" stroke="#25292c"/>
+<text x="636" y="721" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">Thread projection RPC</text>
+<text x="1120" y="721" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="600" letter-spacing="0" fill="#36d9ee">8.12×</text>
+<text x="636" y="755" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Fresh state · equal 1,065-byte reply</text>
+<text x="636" y="787" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">Original</text>
+<text x="1120" y="785" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">1.64 ms</text>
+<rect x="636" y="816" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="636" y="816" width="440.54661444456644" height="12" rx="4" fill="#737b83"/>
+<text x="636" y="842" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#36d9ee">Rust port</text>
+<text x="1120" y="840" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">0.20 ms</text>
+<rect x="636" y="871" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="636" y="871" width="54.23152777800472" height="12" rx="4" fill="#36d9ee"/>
+<text x="636" y="895" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0</text>
+<text x="1120" y="895" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">1.8 ms</text>
+<rect x="56" y="944" width="532" height="226" rx="12" fill="#121416" stroke="#25292c"/>
+<text x="80" y="967" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">Persisted thread create</text>
+<text x="564" y="967" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="600" letter-spacing="0" fill="#36d9ee">7.68×</text>
+<text x="80" y="1001" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Fresh state · durable transaction</text>
+<text x="80" y="1033" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">Original</text>
+<text x="564" y="1031" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">3.53 ms</text>
+<rect x="80" y="1062" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="80" y="1062" width="427.39722850052567" height="12" rx="4" fill="#737b83"/>
+<text x="80" y="1088" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#36d9ee">Rust port</text>
+<text x="564" y="1086" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">0.46 ms</text>
+<rect x="80" y="1117" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="80" y="1117" width="55.63985350011717" height="12" rx="4" fill="#36d9ee"/>
+<text x="80" y="1141" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0</text>
+<text x="564" y="1141" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">4 ms</text>
+<rect x="612" y="944" width="532" height="226" rx="12" fill="#121416" stroke="#25292c"/>
+<text x="636" y="967" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">No-op RPC</text>
+<text x="1120" y="967" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="25" font-weight="600" letter-spacing="0" fill="#36d9ee">1.22×</text>
+<text x="636" y="1001" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Fresh state · equal 70-byte reply</text>
+<text x="636" y="1033" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#929bA2">Original</text>
+<text x="1120" y="1031" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">0.218 ms</text>
+<rect x="636" y="1062" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="636" y="1062" width="422.25031199952355" height="12" rx="4" fill="#737b83"/>
+<text x="636" y="1088" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#36d9ee">Rust port</text>
+<text x="1120" y="1086" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="21" font-weight="600" letter-spacing="0" fill="#f5f6f7">0.179 ms</text>
+<rect x="636" y="1117" width="484" height="12" rx="4" fill="#202529"/>
+<rect x="636" y="1117" width="347.5119999968447" height="12" rx="4" fill="#36d9ee"/>
+<text x="636" y="1141" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0</text>
+<text x="1120" y="1141" dominant-baseline="text-before-edge" text-anchor="end" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="11" font-weight="400" letter-spacing="0" fill="#929bA2">0.25 ms</text>
+<path d="M56,1212 L1144,1212" stroke="#25292c"/>
+<text x="56" y="1233" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="15" font-weight="500" letter-spacing="0" fill="#f5f6f7">Apple M4 · 32 GiB RAM · macOS 27 · 10 rounds per runtime / condition · medians</text>
+<text x="56" y="1260" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Backend: all providers disabled; fresh app state; OS caches not cleared; both include the same native monitor.</text>
+<text x="56" y="1282" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">Desktop: disconnected UI-only visibility lifecycle; not first paint, usable UI, or total app startup.</text>
+<text x="56" y="1304" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="0" fill="#929bA2">RPC medians pool 1,000 reads; thread creates pool 300 writes. sum RSS may count shared pages twice.</text>
+<text x="56" y="1326" dominant-baseline="text-before-edge" text-anchor="start" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" font-weight="400" letter-spacing="0" fill="#929bA2">Different feature coverage and startup work. Common-workload results do not establish full application parity.</text>
+</svg>

@@ -1,0 +1,3759 @@
+{
+  "kind": "desktop-lifecycle-comparison",
+  "generatedUtc": "2026-10-08T21:05:11.791Z",
+  "metric": "Parent process spawn to native visibility lifecycle marker receipt",
+  "sourceCommit": "fcd48c83a4aa9fa7d79ccd3336f43256c8eb4fa7",
+  "host": {
+    "hostname": "Mac",
+    "platform": "darwin",
+    "architecture": "arm64",
+    "osRelease": "27.0.0",
+    "osVersion": "27.0",
+    "logicalCpus": 10,
+    "cpuModel": "Apple M4",
+    "totalMemoryBytes": 34359738368,
+    "harnessNode": "v24.13.1"
+  },
+  "artifacts": {
+    "${REPOSITORY}/apps/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron": "ad321e34b2795d1910ff1a24f2b4249269f556dc7184ea64f353a851339f1582",
+    "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs": "72c69bd04c1a486cf3c61a8af3aadebd69fb1605519af0bea183ad406d9096b1",
+    "${PREPARATION}/original-desktop-bootstrap.cjs": "9061bbcf2ff95a6bb4f79fde6138b8b019b5941355529fe339b7d63c8028f403",
+    "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/MacOS/t3-ui": "737348a1e8261d3a6908cb980c2cc62ec824e502b1d578077b4ee97e05e9819c",
+    "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/Info.plist": "7c36e528be3559c60eb4b0d79a933cdbb212df22366c8bf838e656b0fb37da54",
+    "${REPOSITORY}/apps/desktop/dist-electron/main.cjs": "503af61b83b9929279784a17440460160b40d40d0193a1dd9e15f141ede9045f",
+    "${REPOSITORY}/apps/desktop/dist-electron/preload.cjs": "42df91cba1205d6f821e7338e6898e7e9d7221ea896d66a80d590f7baa74afde",
+    "${REPOSITORY}/apps/server/dist/client/index.html": "fd1e25ed24dbe58d55deeb1a57bf656c6530261a346a5a138a38e96b4f353037",
+    "${PREPARATION}/run-desktop-lifecycle.mjs": "ae0af944bc87295e2fd8b7b65cc7b9da70f4c2335c9a8bd0a1e3d7e375a9c319",
+    "${PREPARATION}/owned-process-lifecycle.mjs": "d884ccf2c5b7cb859cad2c929142ccf98f61dd83089ed3f5d9b20a7b44fcc5bc"
+  },
+  "milestones": {
+    "original": "electron-window-shown",
+    "rust": "rust-native-set-visible-completed"
+  },
+  "definitions": {
+    "warm": "One untimed setup launch perruntime;10 measured launches reuse isolated application/browser profiles",
+    "freshProfile": "10 measured launches perruntime each use a fresh application/browser profile; OS/filesystem caches not purged",
+    "original": "Productionbundles in unpackaged Electron; real t3code://app/ mainclient navigation followed by show event",
+    "rust": "Optimized release app; benchmark-only Dioxus set_visible completion marker and explicit isolated WK UUID"
+  },
+  "limitations": [
+    "Native lifecycle marker, not first paint or usable UI",
+    "Parent spawn to marker receipt includes OS startup and pipe delivery",
+    "Original unpackaged production Electron bundles; Rust release bundle with benchmark-only entry/dependency patch",
+    "Both disconnected UI-only with no owned backend startup",
+    "Fresh-profile is not a cold OS/filesystem-cache measurement",
+    "The source apps differ in implemented features and startup work; this comparison does not isolate language effects",
+    "Visibility lifecycle does not prove first paint, usable UI, connection readiness or total startup",
+    "Observed descendant cleanup excludes OS-owned/shared XPC processes; no unrelated process is signaled"
+  ],
+  "runs": {
+    "warm": {
+      "startedUtc": "2026-10-08T21:02:48.143Z",
+      "host": {
+        "hostname": "Mac",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "osRelease": "27.0.0",
+        "osVersion": "27.0",
+        "logicalCpus": 10,
+        "cpuModel": "Apple M4",
+        "totalMemoryBytes": 34359738368,
+        "harnessNode": "v24.13.1"
+      },
+      "kind": "instrumented-native-requested-visible",
+      "profileMode": "warm",
+      "rounds": 10,
+      "sourceCommit": "fcd48c83a4aa9fa7d79ccd3336f43256c8eb4fa7",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "rustBundleIdentifier": "org.t3port.benchmark.edbymn8h",
+      "milestones": {
+        "original": "electron-window-shown",
+        "rust": "rust-native-set-visible-completed"
+      },
+      "artifacts": {
+        "${REPOSITORY}/apps/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron": "ad321e34b2795d1910ff1a24f2b4249269f556dc7184ea64f353a851339f1582",
+        "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs": "72c69bd04c1a486cf3c61a8af3aadebd69fb1605519af0bea183ad406d9096b1",
+        "${PREPARATION}/original-desktop-bootstrap.cjs": "9061bbcf2ff95a6bb4f79fde6138b8b019b5941355529fe339b7d63c8028f403",
+        "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/MacOS/t3-ui": "737348a1e8261d3a6908cb980c2cc62ec824e502b1d578077b4ee97e05e9819c",
+        "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/Info.plist": "7c36e528be3559c60eb4b0d79a933cdbb212df22366c8bf838e656b0fb37da54",
+        "${REPOSITORY}/apps/desktop/dist-electron/main.cjs": "503af61b83b9929279784a17440460160b40d40d0193a1dd9e15f141ede9045f",
+        "${REPOSITORY}/apps/desktop/dist-electron/preload.cjs": "42df91cba1205d6f821e7338e6898e7e9d7221ea896d66a80d590f7baa74afde",
+        "${REPOSITORY}/apps/server/dist/client/index.html": "fd1e25ed24dbe58d55deeb1a57bf656c6530261a346a5a138a38e96b4f353037",
+        "${PREPARATION}/run-desktop-lifecycle.mjs": "ae0af944bc87295e2fd8b7b65cc7b9da70f4c2335c9a8bd0a1e3d7e375a9c319",
+        "${PREPARATION}/owned-process-lifecycle.mjs": "d884ccf2c5b7cb859cad2c929142ccf98f61dd83089ed3f5d9b20a7b44fcc5bc"
+      },
+      "limitations": [
+        "Native lifecycle marker, not first paint or usable UI",
+        "Parent spawn to marker receipt includes OS startup and pipe delivery",
+        "Original unpackaged production Electron bundles; Rust release bundle with benchmark-only entry/dependency patch",
+        "Both disconnected UI-only with no owned backend startup",
+        "Fresh-profile is not a cold OS/filesystem-cache measurement"
+      ],
+      "samples": [
+        {
+          "runtime": "original",
+          "round": 1,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:02:54.046Z",
+          "pid": 46309,
+          "spawnCallReturnedMs": 1.329875,
+          "requestedVisibleMs": 1941.560667,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.21225,
+              "pid": 46309,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 453.920417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 334.616958,
+              "pid": 46309,
+              "receivedFromSpawnMs": 786.934208
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1200.114958,
+              "pid": 46309,
+              "id": 1,
+              "receivedFromSpawnMs": 1652.474333
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1288.419917,
+              "pid": 46309,
+              "id": 1,
+              "receivedFromSpawnMs": 1744.129125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1477.678917,
+              "pid": 46309,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1941.560667
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1552.489042,
+              "pid": 46309,
+              "id": 1,
+              "receivedFromSpawnMs": 2005.883667
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46310,
+                "parentPid": 46309,
+                "started": "Thu Oct  8 14:02:54 2026"
+              },
+              {
+                "pid": 46311,
+                "parentPid": 46309,
+                "started": "Thu Oct  8 14:02:54 2026"
+              },
+              {
+                "pid": 46340,
+                "parentPid": 46309,
+                "started": "Thu Oct  8 14:02:55 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 1,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:02:57.754Z",
+          "pid": 46347,
+          "spawnCallReturnedMs": 1.855125,
+          "requestedVisibleMs": 871.496541,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.013042,
+              "pid": 46347,
+              "receivedFromSpawnMs": 14.412083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 367.16387499999996,
+              "pid": 46347,
+              "receivedFromSpawnMs": 381.34525
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46347,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 381.43475
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46347,
+              "receivedFromSpawnMs": 871.496541
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 2,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:02:59.736Z",
+          "pid": 46355,
+          "spawnCallReturnedMs": 1.247875,
+          "requestedVisibleMs": 927.84225,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.015625,
+              "pid": 46355,
+              "receivedFromSpawnMs": 12.689083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 484.805084,
+              "pid": 46355,
+              "receivedFromSpawnMs": 497.449292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46355,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 497.529167
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46355,
+              "receivedFromSpawnMs": 927.84225
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 2,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:01.775Z",
+          "pid": 46363,
+          "spawnCallReturnedMs": 1.074333,
+          "requestedVisibleMs": 1922.207833,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.283875,
+              "pid": 46363,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 403.021083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 327.390875,
+              "pid": 46363,
+              "receivedFromSpawnMs": 731.1085
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1207.186375,
+              "pid": 46363,
+              "id": 1,
+              "receivedFromSpawnMs": 1608.481208
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1321.823584,
+              "pid": 46363,
+              "id": 1,
+              "receivedFromSpawnMs": 1723.076125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1520.732959,
+              "pid": 46363,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1922.207833
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1562.330834,
+              "pid": 46363,
+              "id": 1,
+              "receivedFromSpawnMs": 1963.949583
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46364,
+                "parentPid": 46363,
+                "started": "Thu Oct  8 14:03:02 2026"
+              },
+              {
+                "pid": 46365,
+                "parentPid": 46363,
+                "started": "Thu Oct  8 14:03:02 2026"
+              },
+              {
+                "pid": 46394,
+                "parentPid": 46363,
+                "started": "Thu Oct  8 14:03:03 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 3,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:04.888Z",
+          "pid": 46398,
+          "spawnCallReturnedMs": 0.79175,
+          "requestedVisibleMs": 1840.175625,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.161666,
+              "pid": 46398,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 367.693875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 331.772583,
+              "pid": 46398,
+              "receivedFromSpawnMs": 697.978959
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1188.409208,
+              "pid": 46398,
+              "id": 1,
+              "receivedFromSpawnMs": 1554.652334
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1304.896625,
+              "pid": 46398,
+              "id": 1,
+              "receivedFromSpawnMs": 1671.120292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1473.989708,
+              "pid": 46398,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1840.175625
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1514.086791,
+              "pid": 46398,
+              "id": 1,
+              "receivedFromSpawnMs": 1880.542709
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46399,
+                "parentPid": 46398,
+                "started": "Thu Oct  8 14:03:05 2026"
+              },
+              {
+                "pid": 46400,
+                "parentPid": 46398,
+                "started": "Thu Oct  8 14:03:05 2026"
+              },
+              {
+                "pid": 46429,
+                "parentPid": 46398,
+                "started": "Thu Oct  8 14:03:06 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 3,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:07.913Z",
+          "pid": 46433,
+          "spawnCallReturnedMs": 1.365375,
+          "requestedVisibleMs": 882.501959,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.014917,
+              "pid": 46433,
+              "receivedFromSpawnMs": 12.866375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 471.878584,
+              "pid": 46433,
+              "receivedFromSpawnMs": 484.301209
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46433,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 484.385292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46433,
+              "receivedFromSpawnMs": 882.501959
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 4,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:09.911Z",
+          "pid": 46441,
+          "spawnCallReturnedMs": 0.946417,
+          "requestedVisibleMs": 835.156792,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.019041,
+              "pid": 46441,
+              "receivedFromSpawnMs": 47.179584
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 425.43541600000003,
+              "pid": 46441,
+              "receivedFromSpawnMs": 437.324875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46441,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 437.404792
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46441,
+              "receivedFromSpawnMs": 835.156792
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 4,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:11.909Z",
+          "pid": 46449,
+          "spawnCallReturnedMs": 14.055292,
+          "requestedVisibleMs": 1927.202875,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.363375,
+              "pid": 46449,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 384.089875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 328.5425,
+              "pid": 46449,
+              "receivedFromSpawnMs": 710.198042
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1198.728917,
+              "pid": 46449,
+              "id": 1,
+              "receivedFromSpawnMs": 1580.415958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1389.924958,
+              "pid": 46449,
+              "id": 1,
+              "receivedFromSpawnMs": 1771.994333
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1542.877542,
+              "pid": 46449,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1927.202875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1634.551667,
+              "pid": 46449,
+              "id": 1,
+              "receivedFromSpawnMs": 2015.975458
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46450,
+                "parentPid": 46449,
+                "started": "Thu Oct  8 14:03:12 2026"
+              },
+              {
+                "pid": 46451,
+                "parentPid": 46449,
+                "started": "Thu Oct  8 14:03:12 2026"
+              },
+              {
+                "pid": 46480,
+                "parentPid": 46449,
+                "started": "Thu Oct  8 14:03:13 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 5,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:15.001Z",
+          "pid": 46485,
+          "spawnCallReturnedMs": 1.120625,
+          "requestedVisibleMs": 1923.252042,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.143,
+              "pid": 46485,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 404.094875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 363.259792,
+              "pid": 46485,
+              "receivedFromSpawnMs": 766.004584
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1209.629833,
+              "pid": 46485,
+              "id": 1,
+              "receivedFromSpawnMs": 1612.035625
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1329.635375,
+              "pid": 46485,
+              "id": 1,
+              "receivedFromSpawnMs": 1732.030834
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1520.700167,
+              "pid": 46485,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1923.252042
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1592.618458,
+              "pid": 46485,
+              "id": 1,
+              "receivedFromSpawnMs": 1994.977167
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46486,
+                "parentPid": 46485,
+                "started": "Thu Oct  8 14:03:15 2026"
+              },
+              {
+                "pid": 46487,
+                "parentPid": 46485,
+                "started": "Thu Oct  8 14:03:15 2026"
+              },
+              {
+                "pid": 46516,
+                "parentPid": 46485,
+                "started": "Thu Oct  8 14:03:16 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 5,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:18.134Z",
+          "pid": 46520,
+          "spawnCallReturnedMs": 24.978292,
+          "requestedVisibleMs": 1251.556042,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.020208,
+              "pid": 46520,
+              "receivedFromSpawnMs": 172.535209
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 441.74983299999997,
+              "pid": 46520,
+              "receivedFromSpawnMs": 614.25125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46520,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 614.330709
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46520,
+              "receivedFromSpawnMs": 1251.556042
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 6,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:20.512Z",
+          "pid": 46528,
+          "spawnCallReturnedMs": 1.1815,
+          "requestedVisibleMs": 1238.933375,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.01375,
+              "pid": 46528,
+              "receivedFromSpawnMs": 93.844125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 518.24075,
+              "pid": 46528,
+              "receivedFromSpawnMs": 607.45675
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46528,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 607.603125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46528,
+              "receivedFromSpawnMs": 1238.933375
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 6,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:22.873Z",
+          "pid": 46536,
+          "spawnCallReturnedMs": 0.967375,
+          "requestedVisibleMs": 2034.849083,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.164583,
+              "pid": 46536,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 414.918458
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 367.768041,
+              "pid": 46536,
+              "receivedFromSpawnMs": 781.362666
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1245.863583,
+              "pid": 46536,
+              "id": 1,
+              "receivedFromSpawnMs": 1659.270041
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1397.069,
+              "pid": 46536,
+              "id": 1,
+              "receivedFromSpawnMs": 1811.9275
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1621.213083,
+              "pid": 46536,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2034.849083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1705.59125,
+              "pid": 46536,
+              "id": 1,
+              "receivedFromSpawnMs": 2119.555
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46537,
+                "parentPid": 46536,
+                "started": "Thu Oct  8 14:03:23 2026"
+              },
+              {
+                "pid": 46538,
+                "parentPid": 46536,
+                "started": "Thu Oct  8 14:03:23 2026"
+              },
+              {
+                "pid": 46567,
+                "parentPid": 46536,
+                "started": "Thu Oct  8 14:03:24 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 7,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:26.148Z",
+          "pid": 46571,
+          "spawnCallReturnedMs": 0.838,
+          "requestedVisibleMs": 2227.414083,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.206708,
+              "pid": 46571,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 443.662291
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 394.927125,
+              "pid": 46571,
+              "receivedFromSpawnMs": 836.743583
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1390.713958,
+              "pid": 46571,
+              "id": 1,
+              "receivedFromSpawnMs": 1832.570083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1470.100333,
+              "pid": 46571,
+              "id": 1,
+              "receivedFromSpawnMs": 1914.631375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1785.23625,
+              "pid": 46571,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2227.414083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1907.289,
+              "pid": 46571,
+              "id": 1,
+              "receivedFromSpawnMs": 2349.230708
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46572,
+                "parentPid": 46571,
+                "started": "Thu Oct  8 14:03:26 2026"
+              },
+              {
+                "pid": 46573,
+                "parentPid": 46571,
+                "started": "Thu Oct  8 14:03:26 2026"
+              },
+              {
+                "pid": 46602,
+                "parentPid": 46571,
+                "started": "Thu Oct  8 14:03:27 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 7,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:29.546Z",
+          "pid": 46606,
+          "spawnCallReturnedMs": 1.572292,
+          "requestedVisibleMs": 1212.49325,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.019708,
+              "pid": 46606,
+              "receivedFromSpawnMs": 18.026334
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 603.653167,
+              "pid": 46606,
+              "receivedFromSpawnMs": 621.945792
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46606,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 622.073792
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46606,
+              "receivedFromSpawnMs": 1212.49325
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 8,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:32.023Z",
+          "pid": 46614,
+          "spawnCallReturnedMs": 1.774625,
+          "requestedVisibleMs": 1226.211417,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.039916,
+              "pid": 46614,
+              "receivedFromSpawnMs": 29.0205
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 463.851708,
+              "pid": 46614,
+              "receivedFromSpawnMs": 492.549125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46614,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 492.636042
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46614,
+              "receivedFromSpawnMs": 1226.211417
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 8,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:34.367Z",
+          "pid": 46622,
+          "spawnCallReturnedMs": 1.285208,
+          "requestedVisibleMs": 2441.520916,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.236083,
+              "pid": 46622,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 551.200375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 470.778291,
+              "pid": 46622,
+              "receivedFromSpawnMs": 1018.088458
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1556.42625,
+              "pid": 46622,
+              "id": 1,
+              "receivedFromSpawnMs": 2103.325208
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1664.574833,
+              "pid": 46622,
+              "id": 1,
+              "receivedFromSpawnMs": 2214.908666
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1894.8595,
+              "pid": 46622,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2441.520916
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 2005.129,
+              "pid": 46622,
+              "id": 1,
+              "receivedFromSpawnMs": 2551.730416
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46623,
+                "parentPid": 46622,
+                "started": "Thu Oct  8 14:03:35 2026"
+              },
+              {
+                "pid": 46624,
+                "parentPid": 46622,
+                "started": "Thu Oct  8 14:03:35 2026"
+              },
+              {
+                "pid": 46653,
+                "parentPid": 46622,
+                "started": "Thu Oct  8 14:03:36 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 9,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:38.001Z",
+          "pid": 46657,
+          "spawnCallReturnedMs": 57.891333,
+          "requestedVisibleMs": 1996.4315,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.149792,
+              "pid": 46657,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 451.967333
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 332.573542,
+              "pid": 46657,
+              "receivedFromSpawnMs": 783.298125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1201.315417,
+              "pid": 46657,
+              "id": 1,
+              "receivedFromSpawnMs": 1652.057208
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1321.148333,
+              "pid": 46657,
+              "id": 1,
+              "receivedFromSpawnMs": 1772.594375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1545.65625,
+              "pid": 46657,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1996.4315
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1615.027,
+              "pid": 46657,
+              "id": 1,
+              "receivedFromSpawnMs": 2066.109416
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46658,
+                "parentPid": 46657,
+                "started": "Thu Oct  8 14:03:38 2026"
+              },
+              {
+                "pid": 46659,
+                "parentPid": 46657,
+                "started": "Thu Oct  8 14:03:38 2026"
+              },
+              {
+                "pid": 46688,
+                "parentPid": 46657,
+                "started": "Thu Oct  8 14:03:39 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 9,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:41.168Z",
+          "pid": 46693,
+          "spawnCallReturnedMs": 1.778375,
+          "requestedVisibleMs": 1219.258041,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.014584,
+              "pid": 46693,
+              "receivedFromSpawnMs": 14.638791
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 502.356417,
+              "pid": 46693,
+              "receivedFromSpawnMs": 516.7325
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46693,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 517.122958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46693,
+              "receivedFromSpawnMs": 1219.258041
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 10,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:43.480Z",
+          "pid": 46701,
+          "spawnCallReturnedMs": 1.2185,
+          "requestedVisibleMs": 1171.202917,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.017416,
+              "pid": 46701,
+              "receivedFromSpawnMs": 15.005292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 474.49150000000003,
+              "pid": 46701,
+              "receivedFromSpawnMs": 489.451167
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46701,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 489.459334
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46701,
+              "receivedFromSpawnMs": 1171.202917
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 10,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:03:45.751Z",
+          "pid": 46709,
+          "spawnCallReturnedMs": 1.132375,
+          "requestedVisibleMs": 2008.478083,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.177959,
+              "pid": 46709,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 474.754958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 357.39725,
+              "pid": 46709,
+              "receivedFromSpawnMs": 830.357083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1192.93175,
+              "pid": 46709,
+              "id": 1,
+              "receivedFromSpawnMs": 1665.899375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1303.146584,
+              "pid": 46709,
+              "id": 1,
+              "receivedFromSpawnMs": 1776.245125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1535.441,
+              "pid": 46709,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2008.478083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1574.321042,
+              "pid": 46709,
+              "id": 1,
+              "receivedFromSpawnMs": 2047.429042
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46710,
+                "parentPid": 46709,
+                "started": "Thu Oct  8 14:03:46 2026"
+              },
+              {
+                "pid": 46711,
+                "parentPid": 46709,
+                "started": "Thu Oct  8 14:03:46 2026"
+              },
+              {
+                "pid": 46740,
+                "parentPid": 46709,
+                "started": "Thu Oct  8 14:03:47 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        }
+      ],
+      "warmups": [
+        {
+          "runtime": "original",
+          "round": 0,
+          "measured": false,
+          "startedUtc": "2026-10-08T21:02:48.177Z",
+          "pid": 46266,
+          "spawnCallReturnedMs": 2.741958,
+          "requestedVisibleMs": 2484.483083,
+          "profile": "${WARM_PROFILE_ROOT}/original",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.9495,
+              "pid": 46266,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${WARM_PROFILE_ROOT}/original/os-home/Library/Application Support/t3code-v2",
+              "state": "${WARM_PROFILE_ROOT}/original/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 652.808208
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 562.746667,
+              "pid": 46266,
+              "receivedFromSpawnMs": 1209.180125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1509.712209,
+              "pid": 46266,
+              "id": 1,
+              "receivedFromSpawnMs": 2156.407625
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1669.534667,
+              "pid": 46266,
+              "id": 1,
+              "receivedFromSpawnMs": 2316.378958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1838.046792,
+              "pid": 46266,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2484.483083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1916.865084,
+              "pid": 46266,
+              "id": 1,
+              "receivedFromSpawnMs": 2563.406
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46267,
+                "parentPid": 46266,
+                "started": "Thu Oct  8 14:02:49 2026"
+              },
+              {
+                "pid": 46268,
+                "parentPid": 46266,
+                "started": "Thu Oct  8 14:02:49 2026"
+              },
+              {
+                "pid": 46297,
+                "parentPid": 46266,
+                "started": "Thu Oct  8 14:02:50 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 0,
+          "measured": false,
+          "startedUtc": "2026-10-08T21:02:51.858Z",
+          "pid": 46301,
+          "spawnCallReturnedMs": 1.43,
+          "requestedVisibleMs": 1080.035042,
+          "profile": "${WARM_PROFILE_ROOT}/rust",
+          "webkitStoreIdentifier": "16e51c03305544369a9d3dddcfd2cbc4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.032625,
+              "pid": 46301,
+              "receivedFromSpawnMs": 15.60275
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 394.145458,
+              "pid": 46301,
+              "receivedFromSpawnMs": 409.551125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46301,
+              "identifier": "16e51c03305544369a9d3dddcfd2cbc4",
+              "receivedFromSpawnMs": 409.6755
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46301,
+              "receivedFromSpawnMs": 1080.035042
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        }
+      ],
+      "summary": {
+        "original": {
+          "n": 10,
+          "medianMs": 1968.9960835,
+          "p95NearestRankMs": 2441.520916,
+          "minMs": 1840.175625,
+          "maxMs": 2441.520916
+        },
+        "rust": {
+          "n": 10,
+          "medianMs": 1191.8480835,
+          "p95NearestRankMs": 1251.556042,
+          "minMs": 835.156792,
+          "maxMs": 1251.556042
+        }
+      },
+      "finishedUtc": "2026-10-08T21:03:48.946Z",
+      "statistics": {
+        "original": {
+          "n": 10,
+          "medianMs": 1968.9960835,
+          "p95NearestRankMs": 2441.520916,
+          "minMs": 1840.175625,
+          "maxMs": 2441.520916
+        },
+        "rust": {
+          "n": 10,
+          "medianMs": 1191.8480835,
+          "p95NearestRankMs": 1251.556042,
+          "minMs": 835.156792,
+          "maxMs": 1251.556042
+        }
+      },
+      "comparison": {
+        "medianDifferenceMs": -777.1479999999999,
+        "medianRustOverOriginal": 0.6053074932385969,
+        "medianReductionPercent": 39.46925067614031,
+        "p95DifferenceMs": -1189.964874
+      },
+      "input": {
+        "path": "${WARM_PROFILE_ROOT}/results.json",
+        "sha256": "942733794d093d8a24d764856ea83f26e59bb64108ba30d6546d47558d5a2915"
+      }
+    },
+    "freshProfile": {
+      "startedUtc": "2026-10-08T21:04:00.450Z",
+      "host": {
+        "hostname": "Mac",
+        "platform": "darwin",
+        "architecture": "arm64",
+        "osRelease": "27.0.0",
+        "osVersion": "27.0",
+        "logicalCpus": 10,
+        "cpuModel": "Apple M4",
+        "totalMemoryBytes": 34359738368,
+        "harnessNode": "v24.13.1"
+      },
+      "kind": "instrumented-native-requested-visible",
+      "profileMode": "fresh-profile",
+      "rounds": 10,
+      "sourceCommit": "fcd48c83a4aa9fa7d79ccd3336f43256c8eb4fa7",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "rustBundleIdentifier": "org.t3port.benchmark.edbymn8h",
+      "milestones": {
+        "original": "electron-window-shown",
+        "rust": "rust-native-set-visible-completed"
+      },
+      "artifacts": {
+        "${REPOSITORY}/apps/desktop/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron": "ad321e34b2795d1910ff1a24f2b4249269f556dc7184ea64f353a851339f1582",
+        "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs": "72c69bd04c1a486cf3c61a8af3aadebd69fb1605519af0bea183ad406d9096b1",
+        "${PREPARATION}/original-desktop-bootstrap.cjs": "9061bbcf2ff95a6bb4f79fde6138b8b019b5941355529fe339b7d63c8028f403",
+        "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/MacOS/t3-ui": "737348a1e8261d3a6908cb980c2cc62ec824e502b1d578077b4ee97e05e9819c",
+        "${REPOSITORY}/rust/target/dx/t3-ui/release/macos/T3Ui.app/Contents/Info.plist": "7c36e528be3559c60eb4b0d79a933cdbb212df22366c8bf838e656b0fb37da54",
+        "${REPOSITORY}/apps/desktop/dist-electron/main.cjs": "503af61b83b9929279784a17440460160b40d40d0193a1dd9e15f141ede9045f",
+        "${REPOSITORY}/apps/desktop/dist-electron/preload.cjs": "42df91cba1205d6f821e7338e6898e7e9d7221ea896d66a80d590f7baa74afde",
+        "${REPOSITORY}/apps/server/dist/client/index.html": "fd1e25ed24dbe58d55deeb1a57bf656c6530261a346a5a138a38e96b4f353037",
+        "${PREPARATION}/run-desktop-lifecycle.mjs": "ae0af944bc87295e2fd8b7b65cc7b9da70f4c2335c9a8bd0a1e3d7e375a9c319",
+        "${PREPARATION}/owned-process-lifecycle.mjs": "d884ccf2c5b7cb859cad2c929142ccf98f61dd83089ed3f5d9b20a7b44fcc5bc"
+      },
+      "limitations": [
+        "Native lifecycle marker, not first paint or usable UI",
+        "Parent spawn to marker receipt includes OS startup and pipe delivery",
+        "Original unpackaged production Electron bundles; Rust release bundle with benchmark-only entry/dependency patch",
+        "Both disconnected UI-only with no owned backend startup",
+        "Fresh-profile is not a cold OS/filesystem-cache measurement"
+      ],
+      "samples": [
+        {
+          "runtime": "original",
+          "round": 1,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:00.481Z",
+          "pid": 46751,
+          "spawnCallReturnedMs": 2.952375,
+          "requestedVisibleMs": 2091.742,
+          "profile": "${FRESH_PROFILE_ROOT}/original-1",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.19075,
+              "pid": 46751,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-1/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-1/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 310.175417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 516.016167,
+              "pid": 46751,
+              "receivedFromSpawnMs": 824.341417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1491.621917,
+              "pid": 46751,
+              "id": 1,
+              "receivedFromSpawnMs": 1799.959875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1582.95825,
+              "pid": 46751,
+              "id": 1,
+              "receivedFromSpawnMs": 1893.766667
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1775.52125,
+              "pid": 46751,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2091.742
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1860.144417,
+              "pid": 46751,
+              "id": 1,
+              "receivedFromSpawnMs": 2168.336959
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46752,
+                "parentPid": 46751,
+                "started": "Thu Oct  8 14:04:01 2026"
+              },
+              {
+                "pid": 46753,
+                "parentPid": 46751,
+                "started": "Thu Oct  8 14:04:01 2026"
+              },
+              {
+                "pid": 46783,
+                "parentPid": 46751,
+                "started": "Thu Oct  8 14:04:02 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 1,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:03.862Z",
+          "pid": 46787,
+          "spawnCallReturnedMs": 1.640458,
+          "requestedVisibleMs": 1024.918375,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-1",
+          "webkitStoreIdentifier": "7d1ae684dade42a696db0774193d7d87",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.012458,
+              "pid": 46787,
+              "receivedFromSpawnMs": 12.134083
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 443.25933299999997,
+              "pid": 46787,
+              "receivedFromSpawnMs": 455.25275
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46787,
+              "identifier": "7d1ae684dade42a696db0774193d7d87",
+              "receivedFromSpawnMs": 455.36175
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46787,
+              "receivedFromSpawnMs": 1024.918375
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 2,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:05.996Z",
+          "pid": 46795,
+          "spawnCallReturnedMs": 1.430417,
+          "requestedVisibleMs": 1221.5025,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-2",
+          "webkitStoreIdentifier": "04a89727399e4014aee4c22db73fa98d",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.017042,
+              "pid": 46795,
+              "receivedFromSpawnMs": 61.343208
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 463.80475,
+              "pid": 46795,
+              "receivedFromSpawnMs": 523.431417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46795,
+              "identifier": "04a89727399e4014aee4c22db73fa98d",
+              "receivedFromSpawnMs": 523.523875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46795,
+              "receivedFromSpawnMs": 1221.5025
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 2,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:08.330Z",
+          "pid": 46803,
+          "spawnCallReturnedMs": 1.178917,
+          "requestedVisibleMs": 2449.107292,
+          "profile": "${FRESH_PROFILE_ROOT}/original-2",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.225709,
+              "pid": 46803,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-2/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-2/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 485.946667
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 521.541,
+              "pid": 46803,
+              "receivedFromSpawnMs": 1005.661667
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1537.476542,
+              "pid": 46803,
+              "id": 1,
+              "receivedFromSpawnMs": 2021.63725
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1651.261959,
+              "pid": 46803,
+              "id": 1,
+              "receivedFromSpawnMs": 2135.324667
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1963.985417,
+              "pid": 46803,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2449.107292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 2121.8695,
+              "pid": 46803,
+              "id": 1,
+              "receivedFromSpawnMs": 2606.944167
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46804,
+                "parentPid": 46803,
+                "started": "Thu Oct  8 14:04:09 2026"
+              },
+              {
+                "pid": 46805,
+                "parentPid": 46803,
+                "started": "Thu Oct  8 14:04:09 2026"
+              },
+              {
+                "pid": 46834,
+                "parentPid": 46803,
+                "started": "Thu Oct  8 14:04:10 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 3,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:12.032Z",
+          "pid": 46838,
+          "spawnCallReturnedMs": 1.057459,
+          "requestedVisibleMs": 2043.108959,
+          "profile": "${FRESH_PROFILE_ROOT}/original-3",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.197542,
+              "pid": 46838,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-3/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-3/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 408.122709
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 498.29775,
+              "pid": 46838,
+              "receivedFromSpawnMs": 905.885625
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1348.032042,
+              "pid": 46838,
+              "id": 1,
+              "receivedFromSpawnMs": 1754.901959
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1466.44175,
+              "pid": 46838,
+              "id": 1,
+              "receivedFromSpawnMs": 1872.967959
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1635.779667,
+              "pid": 46838,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2043.108959
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1720.635083,
+              "pid": 46838,
+              "id": 1,
+              "receivedFromSpawnMs": 2127.234625
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46839,
+                "parentPid": 46838,
+                "started": "Thu Oct  8 14:04:12 2026"
+              },
+              {
+                "pid": 46840,
+                "parentPid": 46838,
+                "started": "Thu Oct  8 14:04:12 2026"
+              },
+              {
+                "pid": 46870,
+                "parentPid": 46838,
+                "started": "Thu Oct  8 14:04:13 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 3,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:15.326Z",
+          "pid": 46874,
+          "spawnCallReturnedMs": 1.480625,
+          "requestedVisibleMs": 851.114,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-3",
+          "webkitStoreIdentifier": "a5138344032b40b9b912a9d8586ab430",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.020458,
+              "pid": 46874,
+              "receivedFromSpawnMs": 77.905417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 344.261458,
+              "pid": 46874,
+              "receivedFromSpawnMs": 420.835958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46874,
+              "identifier": "a5138344032b40b9b912a9d8586ab430",
+              "receivedFromSpawnMs": 420.924833
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46874,
+              "receivedFromSpawnMs": 851.114
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 4,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:17.276Z",
+          "pid": 46882,
+          "spawnCallReturnedMs": 1.969375,
+          "requestedVisibleMs": 659.083833,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-4",
+          "webkitStoreIdentifier": "90c7e102da504bbd865ed1fdba0a38fe",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.011708,
+              "pid": 46882,
+              "receivedFromSpawnMs": 13.472708
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 298.985292,
+              "pid": 46882,
+              "receivedFromSpawnMs": 312.176417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46882,
+              "identifier": "90c7e102da504bbd865ed1fdba0a38fe",
+              "receivedFromSpawnMs": 312.275375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46882,
+              "receivedFromSpawnMs": 659.083833
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 4,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:19.030Z",
+          "pid": 46890,
+          "spawnCallReturnedMs": 1.30375,
+          "requestedVisibleMs": 1756.125709,
+          "profile": "${FRESH_PROFILE_ROOT}/original-4",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.192167,
+              "pid": 46890,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-4/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-4/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 314.69375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 374.046917,
+              "pid": 46890,
+              "receivedFromSpawnMs": 687.424875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1181.0995,
+              "pid": 46890,
+              "id": 1,
+              "receivedFromSpawnMs": 1494.568834
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1273.10475,
+              "pid": 46890,
+              "id": 1,
+              "receivedFromSpawnMs": 1590.627
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1438.991459,
+              "pid": 46890,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1756.125709
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1779.729334,
+              "pid": 46890,
+              "id": 1,
+              "receivedFromSpawnMs": 2093.764584
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46891,
+                "parentPid": 46890,
+                "started": "Thu Oct  8 14:04:19 2026"
+              },
+              {
+                "pid": 46892,
+                "parentPid": 46890,
+                "started": "Thu Oct  8 14:04:19 2026"
+              },
+              {
+                "pid": 46921,
+                "parentPid": 46890,
+                "started": "Thu Oct  8 14:04:20 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 5,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:21.970Z",
+          "pid": 46925,
+          "spawnCallReturnedMs": 1.125,
+          "requestedVisibleMs": 1713.2345,
+          "profile": "${FRESH_PROFILE_ROOT}/original-5",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.166458,
+              "pid": 46925,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-5/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-5/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 308.891666
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 355.925708,
+              "pid": 46925,
+              "receivedFromSpawnMs": 663.44475
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1133.04975,
+              "pid": 46925,
+              "id": 1,
+              "receivedFromSpawnMs": 1440.667958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1243.697333,
+              "pid": 46925,
+              "id": 1,
+              "receivedFromSpawnMs": 1551.396916
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1401.910583,
+              "pid": 46925,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1713.2345
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1458.71875,
+              "pid": 46925,
+              "id": 1,
+              "receivedFromSpawnMs": 1766.349375
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46926,
+                "parentPid": 46925,
+                "started": "Thu Oct  8 14:04:22 2026"
+              },
+              {
+                "pid": 46927,
+                "parentPid": 46925,
+                "started": "Thu Oct  8 14:04:22 2026"
+              },
+              {
+                "pid": 46956,
+                "parentPid": 46925,
+                "started": "Thu Oct  8 14:04:23 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 5,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:24.840Z",
+          "pid": 46960,
+          "spawnCallReturnedMs": 1.066,
+          "requestedVisibleMs": 595.298791,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-5",
+          "webkitStoreIdentifier": "ef89e8257e7a433c80c59fba7a5a18c7",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.020832999999999997,
+              "pid": 46960,
+              "receivedFromSpawnMs": 10.4665
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 292.30395799999997,
+              "pid": 46960,
+              "receivedFromSpawnMs": 302.766958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46960,
+              "identifier": "ef89e8257e7a433c80c59fba7a5a18c7",
+              "receivedFromSpawnMs": 302.993416
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46960,
+              "receivedFromSpawnMs": 595.298791
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 6,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:26.515Z",
+          "pid": 46968,
+          "spawnCallReturnedMs": 0.804792,
+          "requestedVisibleMs": 547.385709,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-6",
+          "webkitStoreIdentifier": "21d487a1f4c8451c9ff8a39f9822ee37",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.009667,
+              "pid": 46968,
+              "receivedFromSpawnMs": 8.592709
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 286.212334,
+              "pid": 46968,
+              "receivedFromSpawnMs": 294.697834
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 46968,
+              "identifier": "21d487a1f4c8451c9ff8a39f9822ee37",
+              "receivedFromSpawnMs": 294.858792
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 46968,
+              "receivedFromSpawnMs": 547.385709
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 6,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:28.136Z",
+          "pid": 46976,
+          "spawnCallReturnedMs": 0.745125,
+          "requestedVisibleMs": 1539.737458,
+          "profile": "${FRESH_PROFILE_ROOT}/original-6",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.1625,
+              "pid": 46976,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-6/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-6/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 273.776291
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 337.529917,
+              "pid": 46976,
+              "receivedFromSpawnMs": 609.935958
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1002.499125,
+              "pid": 46976,
+              "id": 1,
+              "receivedFromSpawnMs": 1275.028666
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1143.549833,
+              "pid": 46976,
+              "id": 1,
+              "receivedFromSpawnMs": 1416.024041
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1267.222542,
+              "pid": 46976,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1539.737458
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1307.434417,
+              "pid": 46976,
+              "id": 1,
+              "receivedFromSpawnMs": 1579.86475
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 46977,
+                "parentPid": 46976,
+                "started": "Thu Oct  8 14:04:28 2026"
+              },
+              {
+                "pid": 46978,
+                "parentPid": 46976,
+                "started": "Thu Oct  8 14:04:28 2026"
+              },
+              {
+                "pid": 47007,
+                "parentPid": 46976,
+                "started": "Thu Oct  8 14:04:29 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 7,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:30.828Z",
+          "pid": 47011,
+          "spawnCallReturnedMs": 0.859375,
+          "requestedVisibleMs": 1552.269125,
+          "profile": "${FRESH_PROFILE_ROOT}/original-7",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.141833,
+              "pid": 47011,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-7/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-7/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 290.250459
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 346.178292,
+              "pid": 47011,
+              "receivedFromSpawnMs": 635.11425
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1010.022833,
+              "pid": 47011,
+              "id": 1,
+              "receivedFromSpawnMs": 1299.13175
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1140.727083,
+              "pid": 47011,
+              "id": 1,
+              "receivedFromSpawnMs": 1429.708375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1263.179833,
+              "pid": 47011,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1552.269125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1338.97375,
+              "pid": 47011,
+              "id": 1,
+              "receivedFromSpawnMs": 1628.091334
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 47012,
+                "parentPid": 47011,
+                "started": "Thu Oct  8 14:04:31 2026"
+              },
+              {
+                "pid": 47013,
+                "parentPid": 47011,
+                "started": "Thu Oct  8 14:04:31 2026"
+              },
+              {
+                "pid": 47042,
+                "parentPid": 47011,
+                "started": "Thu Oct  8 14:04:31 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 7,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:33.528Z",
+          "pid": 47046,
+          "spawnCallReturnedMs": 1.139209,
+          "requestedVisibleMs": 581.16225,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-7",
+          "webkitStoreIdentifier": "df0dc27f7da04ccc8eb9a3cf1ec81aeb",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.012707999999999999,
+              "pid": 47046,
+              "receivedFromSpawnMs": 10.099459
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 280.083875,
+              "pid": 47046,
+              "receivedFromSpawnMs": 290.000292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 47046,
+              "identifier": "df0dc27f7da04ccc8eb9a3cf1ec81aeb",
+              "receivedFromSpawnMs": 290.131417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 47046,
+              "receivedFromSpawnMs": 581.16225
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 8,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:35.183Z",
+          "pid": 47054,
+          "spawnCallReturnedMs": 0.898709,
+          "requestedVisibleMs": 691.073709,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-8",
+          "webkitStoreIdentifier": "fc9e0a3f968e4b49b92160a38273563f",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.01675,
+              "pid": 47054,
+              "receivedFromSpawnMs": 9.421709
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 341.188916,
+              "pid": 47054,
+              "receivedFromSpawnMs": 350.534875
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 47054,
+              "identifier": "fc9e0a3f968e4b49b92160a38273563f",
+              "receivedFromSpawnMs": 350.677417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 47054,
+              "receivedFromSpawnMs": 691.073709
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 8,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:36.949Z",
+          "pid": 47062,
+          "spawnCallReturnedMs": 0.636875,
+          "requestedVisibleMs": 1650.6405,
+          "profile": "${FRESH_PROFILE_ROOT}/original-8",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.151417,
+              "pid": 47062,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-8/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-8/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 263.505125
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 352.110084,
+              "pid": 47062,
+              "receivedFromSpawnMs": 614.294292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1030.369459,
+              "pid": 47062,
+              "id": 1,
+              "receivedFromSpawnMs": 1292.759792
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1241.623875,
+              "pid": 47062,
+              "id": 1,
+              "receivedFromSpawnMs": 1503.838375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1385.4625,
+              "pid": 47062,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1650.6405
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1469.261375,
+              "pid": 47062,
+              "id": 1,
+              "receivedFromSpawnMs": 1731.644917
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 47063,
+                "parentPid": 47062,
+                "started": "Thu Oct  8 14:04:37 2026"
+              },
+              {
+                "pid": 47064,
+                "parentPid": 47062,
+                "started": "Thu Oct  8 14:04:37 2026"
+              },
+              {
+                "pid": 47093,
+                "parentPid": 47062,
+                "started": "Thu Oct  8 14:04:38 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 9,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:39.846Z",
+          "pid": 47098,
+          "spawnCallReturnedMs": 1.066375,
+          "requestedVisibleMs": 1596.918917,
+          "profile": "${FRESH_PROFILE_ROOT}/original-9",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.175625,
+              "pid": 47098,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-9/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-9/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 310.228
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 379.12625,
+              "pid": 47098,
+              "receivedFromSpawnMs": 688.029459
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1052.386458,
+              "pid": 47098,
+              "id": 1,
+              "receivedFromSpawnMs": 1361.443625
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1177.032667,
+              "pid": 47098,
+              "id": 1,
+              "receivedFromSpawnMs": 1485.9365
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1287.981042,
+              "pid": 47098,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 1596.918917
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1350.34475,
+              "pid": 47098,
+              "id": 1,
+              "receivedFromSpawnMs": 1659.761542
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 47099,
+                "parentPid": 47098,
+                "started": "Thu Oct  8 14:04:40 2026"
+              },
+              {
+                "pid": 47100,
+                "parentPid": 47098,
+                "started": "Thu Oct  8 14:04:40 2026"
+              },
+              {
+                "pid": 47129,
+                "parentPid": 47098,
+                "started": "Thu Oct  8 14:04:41 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 9,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:42.727Z",
+          "pid": 47135,
+          "spawnCallReturnedMs": 54.086792,
+          "requestedVisibleMs": 1932.579834,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-9",
+          "webkitStoreIdentifier": "07f6ac06f219485ba26ef14716c9c010",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.013833,
+              "pid": 47135,
+              "receivedFromSpawnMs": 84.315417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 716.131458,
+              "pid": 47135,
+              "receivedFromSpawnMs": 799.996292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 47135,
+              "identifier": "07f6ac06f219485ba26ef14716c9c010",
+              "receivedFromSpawnMs": 800.172459
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 47135,
+              "receivedFromSpawnMs": 1932.579834
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "rust",
+          "round": 10,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:45.933Z",
+          "pid": 47143,
+          "spawnCallReturnedMs": 8.061291,
+          "requestedVisibleMs": 1192.115666,
+          "profile": "${FRESH_PROFILE_ROOT}/rust-10",
+          "webkitStoreIdentifier": "7dd9918092514115812c75fb92a66853",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-entry",
+              "elapsedFromEntryMs": 0.023,
+              "pid": 47143,
+              "receivedFromSpawnMs": 32.924791
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-window-created-before-webview",
+              "elapsedFromEntryMs": 470.296375,
+              "pid": 47143,
+              "receivedFromSpawnMs": 502.790541
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-isolated-webkit-store",
+              "pid": 47143,
+              "identifier": "7dd9918092514115812c75fb92a66853",
+              "receivedFromSpawnMs": 502.935
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "rust-native-set-visible-completed",
+              "pid": 47143,
+              "receivedFromSpawnMs": 1192.115666
+            }
+          ],
+          "cleanup": {
+            "captured": [],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        },
+        {
+          "runtime": "original",
+          "round": 10,
+          "measured": true,
+          "startedUtc": "2026-10-08T21:04:48.220Z",
+          "pid": 47151,
+          "spawnCallReturnedMs": 0.992459,
+          "requestedVisibleMs": 2155.647,
+          "profile": "${FRESH_PROFILE_ROOT}/original-10",
+          "markers": [
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "bootstrap",
+              "elapsedFromBootstrapMs": 0.249375,
+              "pid": 47151,
+              "entry": "${REPOSITORY}/apps/desktop/dist-electron/boot.cjs",
+              "originalRoot": "${REPOSITORY}",
+              "assets": "${REPOSITORY}/apps/server/dist/client/index.html",
+              "appPath": "${PREPARATION}",
+              "isPackaged": false,
+              "profile": "${FRESH_PROFILE_ROOT}/original-10/os-home/Library/Application Support/t3code-v2",
+              "state": "${FRESH_PROFILE_ROOT}/original-10/t3-home",
+              "versions": {
+                "node": "24.21.0",
+                "acorn": "8.18.0",
+                "ada": "4.0.0",
+                "amaro": "1.1.11",
+                "ares": "1.34.8",
+                "brotli": "1.2.0",
+                "cldr": "48.0",
+                "icu": "78.2",
+                "llhttp": "9.4.3",
+                "merve": "1.2.2",
+                "modules": "149",
+                "napi": "10",
+                "nbytes": "0.1.4",
+                "ncrypto": "0.0.1",
+                "nghttp2": "1.70.0",
+                "nghttp3": "",
+                "ngtcp2": "",
+                "openssl": "0.0.0",
+                "simdjson": "4.6.7",
+                "simdutf": "7.7.0",
+                "sqlite": "3.53.4",
+                "tz": "2025c",
+                "undici": "7.29.1",
+                "unicode": "17.0",
+                "uv": "1.52.1",
+                "uvwasi": "0.0.23",
+                "v8": "15.2.124.28-electron.0",
+                "zlib": "1.3.2.1-motley",
+                "zstd": "1.6.0",
+                "electron": "44.4.2",
+                "chrome": "152.0.7977.130"
+              },
+              "note": "Production bundles in unpackaged Electron; elapsed is from bootstrap, not process spawn",
+              "receivedFromSpawnMs": 377.945625
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-app-ready",
+              "elapsedFromBootstrapMs": 406.745959,
+              "pid": 47151,
+              "receivedFromSpawnMs": 782.995292
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "window-created",
+              "elapsedFromBootstrapMs": 1255.977167,
+              "pid": 47151,
+              "id": 1,
+              "receivedFromSpawnMs": 1632.713375
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-ready-to-show",
+              "elapsedFromBootstrapMs": 1636.149959,
+              "pid": 47151,
+              "id": 1,
+              "receivedFromSpawnMs": 2016.833417
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-window-shown",
+              "elapsedFromBootstrapMs": 1778.979292,
+              "pid": 47151,
+              "id": 1,
+              "mainClientNavigation": true,
+              "receivedFromSpawnMs": 2155.647
+            },
+            {
+              "kind": "desktop-benchmark-marker",
+              "name": "electron-did-finish-load",
+              "elapsedFromBootstrapMs": 1913.68725,
+              "pid": 47151,
+              "id": 1,
+              "receivedFromSpawnMs": 2290.089417
+            }
+          ],
+          "cleanup": {
+            "captured": [
+              {
+                "pid": 47152,
+                "parentPid": 47151,
+                "started": "Thu Oct  8 14:04:48 2026"
+              },
+              {
+                "pid": 47153,
+                "parentPid": 47151,
+                "started": "Thu Oct  8 14:04:48 2026"
+              },
+              {
+                "pid": 47182,
+                "parentPid": 47151,
+                "started": "Thu Oct  8 14:04:49 2026"
+              }
+            ],
+            "remaining": [],
+            "allObservedExited": true,
+            "scope": "Observed descendants only; no shared/OS-owned XPC processes are queried by name or signaled"
+          }
+        }
+      ],
+      "summary": {
+        "original": {
+          "n": 10,
+          "medianMs": 1734.6801045,
+          "p95NearestRankMs": 2449.107292,
+          "minMs": 1539.737458,
+          "maxMs": 2449.107292
+        },
+        "rust": {
+          "n": 10,
+          "medianMs": 771.0938545,
+          "p95NearestRankMs": 1932.579834,
+          "minMs": 547.385709,
+          "maxMs": 1932.579834
+        }
+      },
+      "finishedUtc": "2026-10-08T21:04:52.071Z",
+      "statistics": {
+        "original": {
+          "n": 10,
+          "medianMs": 1734.6801045,
+          "p95NearestRankMs": 2449.107292,
+          "minMs": 1539.737458,
+          "maxMs": 2449.107292
+        },
+        "rust": {
+          "n": 10,
+          "medianMs": 771.0938545,
+          "p95NearestRankMs": 1932.579834,
+          "minMs": 547.385709,
+          "maxMs": 1932.579834
+        }
+      },
+      "comparison": {
+        "medianDifferenceMs": -963.58625,
+        "medianRustOverOriginal": 0.4445164572416989,
+        "medianReductionPercent": 55.548354275830114,
+        "p95DifferenceMs": -516.5274580000003
+      },
+      "input": {
+        "path": "${FRESH_PROFILE_ROOT}/results.json",
+        "sha256": "036a2edcc37a1165c7351c7af1e2354c5caa3caaf2c34fe99411732afba94f5a"
+      }
+    }
+  }
+}

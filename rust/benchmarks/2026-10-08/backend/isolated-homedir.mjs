@@ -1,0 +1,14 @@
+// Benchmark process only. HOME stays unchanged; pre-bootstrap Node consumers use an explicit scratch root.
+import os from "node:os";
+import path from "node:path";
+import { syncBuiltinESMExports } from "node:module";
+const candidate = process.env.T3CODE_BENCH_HOME;
+if (
+  !candidate ||
+  !path.isAbsolute(candidate) ||
+  !candidate.startsWith("/private/tmp/t3-backend-benchmark-run-")
+) {
+  throw new Error("Benchmark homedir must be an explicit isolated run directory");
+}
+os.homedir = () => candidate;
+syncBuiltinESMExports();

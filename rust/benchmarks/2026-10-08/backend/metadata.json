@@ -1,0 +1,69 @@
+{
+  "startedAtUtc": "2026-10-08T20:58:35.469Z",
+  "finishedAtUtc": "2026-10-08T21:00:52.320Z",
+  "sourceCommit": "fcd48c83a",
+  "functionalPilot": false,
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "release": "27.0.0",
+    "node": "v24.13.1",
+    "cpu": "Apple M4",
+    "logicalCpuCount": 10,
+    "totalMemoryBytes": 34359738368
+  },
+  "artifacts": [
+    {
+      "path": "/private/tmp/t3port-backend-benchmark/benchmark.mjs",
+      "sizeBytes": 23107,
+      "sha256": "8047fe20172ffb52d87be8b5cbe781b6fd87c179b2aebe8772dea4edd0ca153b"
+    },
+    {
+      "path": "/private/tmp/t3port-backend-benchmark/write-report.mjs",
+      "sizeBytes": 5103,
+      "sha256": "69fdba6198432a7e88d2e845f319989ff24c653cdf5616be798e60e5515bed0a"
+    },
+    {
+      "path": "/Users/timferguson/code/repos/t3port/rust/target/resource-monitor/release/t3-resource-monitor",
+      "sizeBytes": 546176,
+      "sha256": "9a35bd93170b5aa60e6f607fb0253b32aa28859c78d128b4eb2b2e73ab2c4ad5"
+    },
+    {
+      "path": "/private/tmp/node-v24.13.1-darwin-arm64/bin/node",
+      "sizeBytes": 119127632,
+      "sha256": "d36b3d980963d44bd2c5e844fac4cfeee26a167b744287a4e74a9575af9d0559"
+    },
+    {
+      "path": "/private/tmp/t3port-backend-benchmark/isolated-homedir.mjs",
+      "sizeBytes": 513,
+      "sha256": "a1e78a452dac96ffe41ca5c6f968684a144344e82fd2ab189ce1419bcf988be7"
+    },
+    {
+      "path": "/Users/timferguson/code/repos/t3port/apps/server/dist/bin.mjs",
+      "sizeBytes": 1853,
+      "sha256": "03d6916d447a9f40f48bc835dafca2c4f31586aa4b76ce2c604f10c8463aee0b"
+    },
+    {
+      "path": "/Users/timferguson/code/repos/t3port/rust/target/release/t3-server",
+      "sizeBytes": 34411232,
+      "sha256": "817c5aa67c724474df3026f8014c7f8452ab121f6ac06c5e0754aaed9d1d6f02"
+    }
+  ],
+  "postRunOriginalDistManifest": {
+    "file": "original-dist-sha256.json",
+    "capturedAtUtc": "2026-10-08T21:06:17.470+00:00",
+    "fileCount": 2368,
+    "totalSizeBytes": 93200011,
+    "latestFileModifiedAtUtc": "2026-10-08T20:33:14.842+00:00",
+    "filesModifiedAfterRunStarted": []
+  },
+  "sanitization": {
+    "diagnosticText": "All diagnosticLog fields are omitted from committed results.json; tokens/cookies/bootstrap secrets were never captured in metric fields.",
+    "paths": "Application state/working directory paths refer only to isolated scratch runs. Absolute executable paths in the measured command provenance are retained, never live userdata paths. No SQLite databases or generated runtime state are included.",
+    "immutableMeasuredHarness": [
+      "benchmark.mjs.txt",
+      "isolated-homedir.mjs.txt",
+      "write-report.mjs.txt"
+    ]
+  }
+}

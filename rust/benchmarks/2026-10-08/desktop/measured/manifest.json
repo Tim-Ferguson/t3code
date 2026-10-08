@@ -1,0 +1,22 @@
+{
+  "run-desktop-lifecycle.mjs": {
+    "exactSource": "measured/run-desktop-lifecycle.mjs.txt",
+    "sha256": "ae0af944bc87295e2fd8b7b65cc7b9da70f4c2335c9a8bd0a1e3d7e375a9c319",
+    "reason": "Exact measured source retained outside formatter matching extensions"
+  },
+  "owned-process-lifecycle.mjs": {
+    "exactSource": "measured/owned-process-lifecycle.mjs.txt",
+    "sha256": "d884ccf2c5b7cb859cad2c929142ccf98f61dd83089ed3f5d9b20a7b44fcc5bc",
+    "reason": "Exact measured source retained outside formatter matching extensions"
+  },
+  "original-desktop-bootstrap.cjs": {
+    "exactSource": "measured/original-desktop-bootstrap.cjs.txt",
+    "sha256": "9061bbcf2ff95a6bb4f79fde6138b8b019b5941355529fe339b7d63c8028f403",
+    "reason": "Exact measured source retained outside formatter matching extensions"
+  },
+  "rust-desktop-main.rs": {
+    "exactSource": "measured/rust-desktop-main.rs.txt",
+    "sha256": "78b6573eb69447914f3185b0f2a63d4951f4bfe60d23361671b259eb038f5460",
+    "reason": "Exact measured source retained outside formatter matching extensions"
+  }
+}

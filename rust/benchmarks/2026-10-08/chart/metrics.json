@@ -1,0 +1,79 @@
+{
+  "date": "2026-10-08",
+  "sourceCommit": "fcd48c83a",
+  "aggregation": "Backend startup/RSS: 10-round medians. RPCs: pooled 1000-read medians. Creates: pooled 300-write medians. Desktop: 10 warm-profile medians.",
+  "featureEquivalent": false,
+  "memoryReductionPercent": 90.1657458563536,
+  "pairs": [
+    {
+      "title": "Warm desktop window",
+      "detail": "Warm profile \u00b7 native visibility marker",
+      "original": 1968.9960835,
+      "rust": 1191.8480835,
+      "unit": "ms",
+      "scale": 2200,
+      "scaleLabel": "2.2 s",
+      "labels": ["1.97 s", "1.19 s"],
+      "ratio": 1.6520529006665134
+    },
+    {
+      "title": "Backend accepted command",
+      "detail": "Fresh state \u00b7 authenticated accepted write",
+      "original": 1978.1148960000028,
+      "rust": 48.93062500000269,
+      "unit": "ms",
+      "scale": 2200,
+      "scaleLabel": "2.2 s",
+      "labels": ["1.98 s", "49 ms"],
+      "ratio": 40.42692886101279
+    },
+    {
+      "title": "Idle backend memory",
+      "detail": "Backend + native monitor \u00b7 sum RSS",
+      "original": 410.078125,
+      "rust": 40.328125,
+      "unit": "MiB",
+      "scale": 450,
+      "scaleLabel": "450 MiB",
+      "labels": ["410.1 MiB", "40.3 MiB"],
+      "ratio": 10.168539325842696
+    },
+    {
+      "title": "Thread projection RPC",
+      "detail": "Fresh state \u00b7 equal 1,065-byte reply",
+      "original": 1.6383965000004537,
+      "rust": 0.201687500000844,
+      "unit": "ms",
+      "scale": 1.8,
+      "scaleLabel": "1.8 ms",
+      "labels": ["1.64 ms", "0.20 ms"],
+      "ratio": 8.123440966810524
+    },
+    {
+      "title": "Persisted thread create",
+      "detail": "Fresh state \u00b7 durable transaction",
+      "original": 3.5322085000043444,
+      "rust": 0.45983350000096834,
+      "unit": "ms",
+      "scale": 4,
+      "scaleLabel": "4 ms",
+      "labels": ["3.53 ms", "0.46 ms"],
+      "ratio": 7.6814944974581145
+    },
+    {
+      "title": "No-op RPC",
+      "detail": "Fresh state \u00b7 equal 70-byte reply",
+      "original": 0.2181044999997539,
+      "rust": 0.17949999999837019,
+      "unit": "ms",
+      "scale": 0.25,
+      "scaleLabel": "0.25 ms",
+      "labels": ["0.218 ms", "0.179 ms"],
+      "ratio": 1.2150668523773496
+    }
+  ],
+  "inputs": {
+    "backend/summary.json": "361eeec5d6602e084c78a7cdc23ae9c4bca977148162c3f4883eb88cb36f394a",
+    "desktop/comparison.json": "069eb8ea0da7ecd5ce28a61a52f3fe9a260d5ef0d0591a2267c76e81d298cef6"
+  }
+}

@@ -1,0 +1,97 @@
+{
+  "rounds": 10,
+  "seed": 1729,
+  "reads": 100,
+  "writes": 10,
+  "idleMs": 1000,
+  "backends": [
+    {
+      "name": "original-production",
+      "source": "fcd48c83a original production bundle; Node24.13.1",
+      "command": [
+        "/private/tmp/node-v24.13.1-darwin-arm64/bin/node",
+        "--import",
+        "/private/tmp/t3port-backend-benchmark/isolated-homedir.mjs",
+        "/Users/timferguson/code/repos/t3port/apps/server/dist/bin.mjs"
+      ],
+      "args": ["serve"]
+    },
+    {
+      "name": "rust-release",
+      "source": "fcd48c83a isolated committed snapshot; optimized native release",
+      "command": ["/Users/timferguson/code/repos/t3port/rust/target/release/t3-server"],
+      "args": ["serve"]
+    }
+  ],
+  "resourceMonitorPath": "/Users/timferguson/code/repos/t3port/rust/target/resource-monitor/release/t3-resource-monitor",
+  "settings": {
+    "providers": {
+      "codex": {
+        "enabled": false
+      },
+      "claudeAgent": {
+        "enabled": false
+      },
+      "cursor": {
+        "enabled": false
+      },
+      "grok": {
+        "enabled": false
+      },
+      "pi": {
+        "enabled": false
+      },
+      "opencode": {
+        "enabled": false
+      },
+      "antigravity": {
+        "enabled": false
+      }
+    },
+    "providerInstances": {
+      "codex": {
+        "driver": "codex",
+        "enabled": false
+      },
+      "claudeAgent": {
+        "driver": "claudeAgent",
+        "enabled": false
+      },
+      "cursor": {
+        "driver": "cursor",
+        "enabled": false
+      },
+      "grok": {
+        "driver": "grok",
+        "enabled": false
+      },
+      "pi": {
+        "driver": "pi",
+        "enabled": false
+      },
+      "opencode": {
+        "driver": "opencode",
+        "enabled": false
+      },
+      "antigravity": {
+        "driver": "antigravity",
+        "enabled": false
+      }
+    },
+    "enableAgentBrowserAccess": false,
+    "enableAgentDeviceAccess": false
+  },
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v24.13.1",
+    "cpu": "Apple M4"
+  },
+  "pollIntervalMs": 5,
+  "notes": [
+    "Fresh state is not cold OS cache.",
+    "Desktop backend only; no renderer.",
+    "RSS descendant sum may double-count shared pages.",
+    "Reads use persistent transports; requests sequential."
+  ]
+}

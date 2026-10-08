@@ -1,0 +1,56 @@
+{
+  "files": {
+    "warm-results.json": {
+      "sourceSha256": "942733794d093d8a24d764856ea83f26e59bb64108ba30d6546d47558d5a2915",
+      "retainedSha256": "df8e30fbc02a5f9a3a2551f36a5807c70411010b3648c7d463d92bc24ed16196",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "warm-samples.jsonl": {
+      "sourceSha256": "96ba0c2b1e153dafc073e102e97ea96fcea89729338ea5e15ce5e2be107c16d0",
+      "retainedSha256": "420886232a4ef4d561e12656989ecc162e1f4f7346da5ea588f510adb4e18adf",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "warm-config.json": {
+      "sourceSha256": "9b0edae395b50d5a2625ed2f7d271514aca73bd473b511bda7bf731150ab6cf6",
+      "retainedSha256": "08ed98b56bf2293f967e925b72c350ac40bf8f4906fb6825c69160c3d40350d4",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "fresh-profile-results.json": {
+      "sourceSha256": "036a2edcc37a1165c7351c7af1e2354c5caa3caaf2c34fe99411732afba94f5a",
+      "retainedSha256": "dd117f2d4faad1e93f08d781ce3a386d1063a0943dc8095d31f288f998d0ecbb",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "fresh-profile-samples.jsonl": {
+      "sourceSha256": "5dc6efd96d89918985fc66ad08d33da5f12ed5c4d409a2fbbae0febca6c3b239",
+      "retainedSha256": "9c73217f7d1cd7d5df62420c2113454fd71cd377ab50b20dff100f1c15a11486",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "fresh-profile-config.json": {
+      "sourceSha256": "b2e79bf9c9c22b5e18d31fbea6e4fcb3940eb17d98897bee2c933dfe2f1a28a4",
+      "retainedSha256": "21bc546a119115f1e2e115d5c5f5a82d004c86de7e13651dfd1fb485ac9483f7",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "comparison.json": {
+      "sourceSha256": "ee41bf21079a3e0bd46980cbaa961546d4a857406323521ae7f0975c2d19acfc",
+      "retainedSha256": "069eb8ea0da7ecd5ce28a61a52f3fe9a260d5ef0d0591a2267c76e81d298cef6",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "comparison.md": {
+      "sourceSha256": "57888513889f07db80eb882198d95eb7db6e6234dc633953a951b5f349539171",
+      "retainedSha256": "228bee96a1e9738ccc0c4c427efb7c6fb872b0dc4f5f80d7f795335093a7cb5c",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    },
+    "rust-desktop-artifact.json": {
+      "sourceSha256": "a8afda2ddee1a88fd9d2cb77ea6ebbc6360a345a83cc16ef45fd02ee18c259be",
+      "retainedSha256": "f97e15e168ce32735e81545db7fcc2a3556bc5fe3e8baaed19e66a9840bd46a9",
+      "sanitization": "Only absolute repository/preparation/profile paths replaced with declared aliases; metrics/UTC/PIDs/UUIDs/host/cleanup/artifact hashes unchanged"
+    }
+  },
+  "aliases": {
+    "${REPOSITORY}": "Checkout with original production artifacts and shared Rust target",
+    "${PREPARATION}": "Directory of benchmark scripts before launches",
+    "${BENCHMARK_SNAPSHOT}": "Isolated Rust source extracted from the stated committed revision",
+    "${WARM_PROFILE_ROOT}": "Fresh benchmark-only root, reused across warm launches",
+    "${FRESH_PROFILE_ROOT}": "Fresh benchmark-only root, individual profile per launch"
+  }
+}

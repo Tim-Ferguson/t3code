@@ -1,0 +1,42 @@
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -301,6 +301,15 @@
+             view.desktop_context
+                 .window
+                 .set_visible(self.is_visible_before_start);
++            // Benchmark-only lifecycle marker, immediately after native show.
++            // Not first paint or command readiness; no DOM/window inspection.
++            if self.is_visible_before_start && std::env::var("T3_BENCH").as_deref() == Ok("1") {
++                println!("{}", serde_json::json!({
++                    "kind": "desktop-benchmark-marker",
++                    "name": "rust-native-set-visible-completed",
++                    "pid": std::process::id()
++                }));
++            }
+         }
+ 
+         _ = self.shared.proxy.send_event(UserWindowEvent::Poll(id));
+--- a/src/webview.rs
++++ b/src/webview.rs
+@@ -393,6 +393,21 @@
+             })
+             .with_asynchronous_custom_protocol(String::from("dioxus"), request_handler);
+ 
++        // Isolated lifecycle benchmark only. macOS >=14 supports explicit WK stores.
++        #[cfg(target_os = "macos")]
++        if std::env::var("T3_BENCH").as_deref() == Ok("1") {
++            use wry::WebViewBuilderExtDarwin as _;
++            let hex = std::env::var("T3_BENCH_WEBKIT_UUID").expect("benchmark WK UUID required");
++            assert_eq!(hex.len(), 32, "benchmark WK UUID must be 32 hex digits");
++            let mut identifier = [0u8; 16];
++            for (index, byte) in identifier.iter_mut().enumerate() {
++                *byte = u8::from_str_radix(&hex[index * 2..index * 2 + 2], 16)
++                    .expect("invalid benchmark WK UUID");
++            }
++            webview = webview.with_data_store_identifier(identifier);
++            println!("{}", serde_json::json!({"kind":"desktop-benchmark-marker", "name":"rust-isolated-webkit-store", "pid":std::process::id(), "identifier":hex}));
++        }
++
+         // Enable https scheme on android, needed for secure context API, like the geolocation API
+         #[cfg(target_os = "android")]
+         {

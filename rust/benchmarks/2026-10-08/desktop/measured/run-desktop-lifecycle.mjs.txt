@@ -1,0 +1,159 @@
+// Parent-owned process lifecycle measurements only. No UI/DOM/AX inspection.
+// Syntax-check without launching: node --check <this-file>.
+// Root launches only after CUA pilot verification and all builds are idle.
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import os from 'node:os';
+import {fileURLToPath} from 'node:url';
+import {spawn, spawnSync} from 'node:child_process';
+import readline from 'node:readline';
+import {setTimeout as delay} from 'node:timers/promises';
+import {captureDescendants,verifyDescendantsExit} from './owned-process-lifecycle.mjs';
+
+const configPath = process.argv[2];
+if (!configPath || process.argv[3] !== '--run') {
+  throw Error('Explicit config and --run required; this script launches benchmark-owned apps');
+}
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+const root = path.resolve(config.root);
+if (!root.startsWith('/private/tmp/t3port-bench-')) throw Error('Isolated root required');
+if (fs.existsSync(root)) throw Error('Use a new harness root; warm reuse occurs within this run only');
+if (!['warm', 'fresh-profile'].includes(config.profileMode)) throw Error('Specify warm or fresh-profile');
+if (config.rounds !== 10) throw Error('This benchmark requires exactly10 rounds per runtime');
+for (const p of [config.originalExecutable, config.originalBootstrap, config.originalEntry, config.rustExecutable]) {
+  if (!path.isAbsolute(p) || !fs.existsSync(p)) throw Error(`Missing absolute artifact ${p}`);
+}
+if (!config.rustBundleIdentifier?.startsWith('org.t3port.benchmark.')) throw Error('Unique benchmark bundle required');
+const infoPlist=path.resolve(path.dirname(config.rustExecutable),'../Info.plist');
+const bundle=spawnSync('/usr/bin/plutil',['-extract','CFBundleIdentifier','raw','-o','-',infoPlist],{encoding:'utf8'});
+if(bundle.status!==0 || bundle.stdout.trim()!==config.rustBundleIdentifier) throw Error('Release bundle identifier does not match isolated benchmark config');
+fs.mkdirSync(root, {recursive: true});
+const monotonicMs = (start) => Number(process.hrtime.bigint() - start) / 1e6;
+const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const owned = new Set();
+const abort=new AbortController();
+for(const signal of ['SIGINT','SIGTERM']) process.once(signal,()=>abort.abort(Error(`Harness interrupted by ${signal}`))); 
+const operatingSystemVersion=spawnSync('/usr/bin/sw_vers',['-productVersion'],{encoding:'utf8'});
+const host={hostname:os.hostname(),platform:process.platform,architecture:process.arch,
+  osRelease:os.release(),osVersion:operatingSystemVersion.status===0?operatingSystemVersion.stdout.trim():null,
+  logicalCpus:os.cpus().length,cpuModel:os.cpus()[0]?.model??null,totalMemoryBytes:os.totalmem(),
+  harnessNode:process.version};
+const originalDirectory=path.dirname(config.originalEntry);
+const originalRepository=path.resolve(originalDirectory,'../../..');
+const artifactFiles=[config.originalExecutable,config.originalEntry,config.originalBootstrap,config.rustExecutable,infoPlist,
+  path.join(originalDirectory,'main.cjs'),path.join(originalDirectory,'preload.cjs'),
+  path.join(originalRepository,'apps/server/dist/client/index.html'),fileURLToPath(import.meta.url),
+  fileURLToPath(new URL('./owned-process-lifecycle.mjs',import.meta.url))];
+const result = {startedUtc:new Date().toISOString(),host,kind:'instrumented-native-requested-visible', profileMode: config.profileMode,
+  rounds: config.rounds, sourceCommit: config.sourceCommit, platform: process.platform,
+  architecture: process.arch, rustBundleIdentifier:config.rustBundleIdentifier,
+  milestones:{original:'electron-window-shown',rust:'rust-native-set-visible-completed'},
+  artifacts:Object.fromEntries(artifactFiles.map(p=>[p,sha256(p)])),
+  limitations:['Native lifecycle marker, not first paint or usable UI',
+    'Parent spawn to marker receipt includes OS startup and pipe delivery',
+    'Original unpackaged production Electron bundles; Rust release bundle with benchmark-only entry/dependency patch',
+    'Both disconnected UI-only with no owned backend startup',
+    'Fresh-profile is not a cold OS/filesystem-cache measurement'],samples:[]};
+fs.writeFileSync(path.join(root,'configuration.json'), JSON.stringify(config,null,2)+'\n');
+
+async function waitExit(child, milliseconds) {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  let listener, timer;
+  const done = new Promise(resolve=>{listener=()=>resolve(true);child.once('exit',listener);});
+  const timeout=new Promise(resolve=>{timer=setTimeout(()=>resolve(false),milliseconds);});
+  const exited = await Promise.race([done, timeout]);
+  clearTimeout(timer);child.removeListener('exit',listener);
+  return exited;
+}
+async function stop(child) {
+  const descendants=captureDescendants(child.pid);
+  // No pkill, process-name lookup, process group or user-preview termination.
+  // The captured direct child owns the app; Electron/WebKit helpers follow its lifecycle.
+  for (const signal of ['SIGINT','SIGTERM','SIGKILL']) {
+    if (child.exitCode !== null || child.signalCode !== null) break;
+    child.kill(signal);
+    if (await waitExit(child, signal==='SIGKILL'?3000:5000)) break;
+  }
+  owned.delete(child);
+  if (child.exitCode===null && child.signalCode===null) throw Error(`Captured child ${child.pid} did not exit`);
+  return await verifyDescendantsExit(descendants);
+}
+const warmStore = crypto.randomUUID().replaceAll('-','');
+async function sample(runtime, round, measured=true) {
+  if(abort.signal.aborted) throw abort.signal.reason;
+  const profile = path.join(root,config.profileMode==='warm'?runtime:`${runtime}-${round}`);
+  fs.mkdirSync(profile,{recursive:true});
+  const store = config.profileMode==='warm'?warmStore:crypto.randomUUID().replaceAll('-','');
+  const env = {...process.env, T3_BENCH:'1',T3_BENCH_ROOT:profile,T3_SERVER_URL:'',
+    T3_BENCH_WEBKIT_UUID:store,T3_UI_DATA_DIR:path.join(profile,'webview'),
+    T3CODE_HOME:path.join(profile,'t3-home'),T3CODE_DISABLE_AUTO_UPDATE:'true',
+    XDG_CONFIG_HOME:path.join(profile,'xdg-config'),XDG_CACHE_HOME:path.join(profile,'xdg-cache')};
+  delete env.ELECTRON_RUN_AS_NODE; delete env.VITE_DEV_SERVER_URL; delete env.T3CODE_DESKTOP_DEV;
+  // HOME is intentionally inherited unchanged.
+  let executable = config.rustExecutable, args=[];
+  if (runtime==='original') {
+    executable=config.originalExecutable;
+    env.T3_BENCH_ENTRY=config.originalEntry;
+    args=[config.originalBootstrap];
+  }
+  const target=result.milestones[runtime], markers=[];
+  const startedUtc=new Date().toISOString();
+  const start=process.hrtime.bigint();
+  const child=spawn(executable,args,{cwd:profile,env,stdio:['ignore','pipe','pipe']});
+  owned.add(child);
+  const spawnedMs=monotonicMs(start);
+  let timeout, lines, stderr='', exitListener, errorListener, abortListener;
+  const milestone = new Promise((resolve,reject)=>{
+    abortListener=()=>reject(abort.signal.reason);abort.signal.addEventListener('abort',abortListener,{once:true});
+    timeout=setTimeout(()=>reject(Error(`${runtime} round${round} missing ${target} after ${config.timeoutMs??30000}ms`)),config.timeoutMs??30000);
+    errorListener=reject; child.once('error',errorListener);
+    exitListener=(code,signal)=>reject(Error(`${runtime} exited before target: code=${code} signal=${signal}`));
+    child.once('exit',exitListener);
+    lines=readline.createInterface({input:child.stdout});
+    lines.on('line',line=>{
+      let marker; try { marker=JSON.parse(line); } catch { return; }
+      if (marker.kind!=='desktop-benchmark-marker' || marker.pid!==child.pid) return;
+      const receivedMs=monotonicMs(start);
+      markers.push({...marker,receivedFromSpawnMs:receivedMs});
+      if (marker.name===target) resolve(receivedMs);
+    });
+    child.stderr.on('data',chunk=>{stderr=(stderr+chunk.toString()).slice(-8192);});
+  });
+  let row;
+  try {
+    const requestedVisibleMs=await milestone;
+    await delay(config.settleMs??500);
+    row={runtime,round,measured,startedUtc,pid:child.pid,spawnCallReturnedMs:spawnedMs,requestedVisibleMs,profile,
+      ...(runtime==='rust'?{webkitStoreIdentifier:store}:{}),markers};
+    if(measured) result.samples.push(row);else (result.warmups??=[]).push(row);
+    process.stdout.write(JSON.stringify({runtime,round,measured,pid:child.pid,requestedVisibleMs})+'\n');
+  } catch(error) {
+    // Private benchmark logs only. Never print app output/credentials to telemetry.
+    fs.writeFileSync(path.join(root,`${runtime}-${round}-failure.log`),stderr);
+    throw error;
+  } finally {
+    clearTimeout(timeout);abort.signal.removeEventListener('abort',abortListener); child.removeListener('exit',exitListener);child.removeListener('error',errorListener);
+    lines?.close(); const cleanup=await stop(child);
+    if(row) {row.cleanup=cleanup;fs.appendFileSync(path.join(root,'samples.jsonl'),JSON.stringify(row)+'\n');}
+    if(!cleanup.allObservedExited) throw Error(`Owned descendants remain after ${runtime} trial; no further launch: ${cleanup.remaining.map(p=>p.pid).join(',')}`);
+  }
+  await delay(config.betweenTrialsMs??500);
+}
+try {
+  // Fresh-profile trials have no warmup. Warm runs separate first-use setup.
+  if(config.profileMode==='warm') for(const runtime of ['original','rust']) await sample(runtime,0,false);
+  for(let round=1;round<=10;round++) {
+    for(const runtime of round%2?['original','rust']:['rust','original']) await sample(runtime,round);
+  }
+  result.summary=Object.fromEntries(['original','rust'].map(runtime=>{
+    const values=result.samples.filter(s=>s.runtime===runtime).map(s=>s.requestedVisibleMs).sort((a,b)=>a-b);
+    return [runtime,{n:values.length,medianMs:(values[4]+values[5])/2,p95NearestRankMs:values[9],minMs:values[0],maxMs:values[9]}];
+  }));
+} catch(error) {
+  result.error=String(error); process.exitCode=1;
+} finally {
+  for(const child of owned) await stop(child);
+  result.finishedUtc=new Date().toISOString();
+  fs.writeFileSync(path.join(root,'results.json'),JSON.stringify(result,null,2)+'\n');
+}
