@@ -306,6 +306,114 @@ mod tests {
             Some(libc::ESRCH)
         );
     }
+    #[tokio::test]
+    async fn durable_tools_merge_partial_updates_bound_output_and_accept_scalar_read_inputs() {
+        let (_directory, store, providers) = setup("tools").await;
+        let thread = launch(&store, &providers, false);
+        let execution = ExecutionService::start(store.clone(), providers);
+        let mut events = store.subscribe();
+        execution
+            .dispatch(&message(&thread, "prompt", "normal"), Utc::now())
+            .unwrap();
+        let pending = milestone(&store, &mut events, &thread, |view| {
+            view["runtimeRequests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|request| request["status"] == "pending")
+        })
+        .await;
+        let command = pending["turnItems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["type"] == "command_execution")
+            .unwrap();
+        assert_eq!(command["status"], "running");
+        assert_eq!(command["input"], "pwd -P");
+        assert_eq!(command["output"], "before");
+        assert!(command.get("exitCode").is_none());
+        assert_eq!(command["nativeItemRef"]["strength"], "strong");
+        for id in ["read-scalar", "read-array"] {
+            let item = pending["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["nativeItemRef"]["nativeId"] == id)
+                .unwrap();
+            assert_eq!(item["input"], json!({"path":"doc.txt"}));
+            assert_eq!(item["title"], "Read doc.txt");
+            assert_eq!(item["output"], "file body");
+        }
+        let tool = |id: &str| {
+            pending["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["nativeItemRef"]["nativeId"] == id)
+                .unwrap()
+        };
+        assert_eq!(tool("monitor")["type"], "command_execution");
+        assert_eq!(tool("monitor")["input"], "monitor cmd");
+        assert_eq!(tool("monitor")["output"], "monitor done");
+        assert_eq!(tool("monitor")["exitCode"], 0);
+        assert_eq!(tool("web-search")["type"], "web_search");
+        assert_eq!(tool("web-search")["title"], "Web search: ACP");
+        assert_eq!(tool("web-search")["patterns"], json!(["ACP"]));
+        assert_eq!(
+            tool("web-search")["results"],
+            json!([{"url":"https://example.test"}])
+        );
+        assert_eq!(tool("structured-file")["type"], "file_change");
+        assert_eq!(tool("structured-file")["fileName"], "src/file.rs");
+        assert_eq!(
+            tool("structured-file")["changes"],
+            json!([{"path":"src/file.rs","operation":"move","oldPath":"src/old.rs"}])
+        );
+        assert_eq!(tool("structured-file")["diffStr"], "diff patch");
+        let capabilities = &pending["providerSessions"][0]["capabilities"];
+        assert_eq!(capabilities["streaming"]["streamsToolOutput"], true);
+        assert_eq!(capabilities["tools"]["emitsToolStarted"], true);
+        assert_eq!(capabilities["tools"]["emitsToolCompleted"], true);
+        assert_eq!(capabilities["tools"]["emitsToolOutput"], true);
+        assert_eq!(capabilities["tools"]["supportsMcpTools"], false);
+        let item_id = command["id"].clone();
+        assert!(
+            item_id
+                .as_str()
+                .unwrap()
+                .starts_with("turn-item:provider:acpRegistry:native-item:provider-instance%3A")
+        );
+        assert_eq!(
+            pending["providerThreads"][0]["nativeMetadata"]["itemIdentityVersion"],
+            2
+        );
+        let done = approve(&execution, &store, &mut events, &thread, "answer").await;
+        let command = done["turnItems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["id"] == item_id)
+            .unwrap();
+        assert_eq!(command["status"], "completed");
+        assert_eq!(command["input"], "pwd -P");
+        assert_eq!(command["exitCode"], 0);
+        assert_eq!(
+            command["output"],
+            format!("[Earlier output truncated]\n\n{}", "z".repeat(8000))
+        );
+        assert_eq!(
+            done["nodes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|node| node["id"] == command["nodeId"])
+                .unwrap()["countsForRun"],
+            true
+        );
+        serde_json::from_value::<t3_contracts::ThreadProjection>(done).unwrap();
+        execution.shutdown().await;
+    }
 }
 struct Callback {
     request: RequestPermissionRequest,
@@ -317,11 +425,14 @@ struct Actor {
     thread_id: String,
     session_id: String,
     instance_id: String,
+    item_identity_v2: bool,
     session: AcpSession,
     active_run: Option<String>,
     callbacks: HashMap<String, Callback>,
     prompt: Option<tokio::task::JoinHandle<Result<PromptResponse, AcpError>>>,
     text_segments: HashMap<&'static str, u64>,
+    tools: HashMap<String, crate::acp_tools::ToolState>,
+    tool_emission: HashMap<String, (Option<usize>, usize)>,
 }
 impl Drop for Actor {
     fn drop(&mut self) {
@@ -367,15 +478,18 @@ impl Actor {
         if !cwd.is_dir() {
             return Err(error("Workspace root is not a directory."));
         }
-        let saved = view["providerThreads"]
+        let saved_thread = view["providerThreads"]
             .as_array()
             .unwrap()
             .iter()
             .find(|thread| {
                 thread["id"] == view["thread"]["activeProviderThreadId"]
                     && thread["providerInstanceId"] == instance_id
-            })
-            .and_then(|thread| thread["nativeThreadRef"]["nativeId"].as_str());
+            });
+        let saved = saved_thread.and_then(|thread| thread["nativeThreadRef"]["nativeId"].as_str());
+        let item_identity_v2 = saved.is_none()
+            || saved_thread
+                .is_some_and(|thread| thread["nativeMetadata"]["itemIdentityVersion"] == 2);
         let peer =
             crate::acp_peer::ProcessPeer::spawn(instance.process_options(&cwd).map_err(error)?)
                 .map_err(error)?;
@@ -405,11 +519,6 @@ impl Actor {
                     "supportsSteeringByInterruptRestart",
                     "supportsQueuedMessages",
                 ][..],
-            ),
-            ("streaming", &["streamsToolOutput"][..]),
-            (
-                "tools",
-                &["emitsToolStarted", "emitsToolCompleted", "emitsToolOutput"][..],
             ),
             ("planning", &["supportsStructuredQuestions"][..]),
             (
@@ -455,11 +564,14 @@ impl Actor {
             thread_id: thread_id.into(),
             session_id,
             instance_id,
+            item_identity_v2,
             session,
             active_run: None,
             callbacks: HashMap::new(),
             prompt: None,
             text_segments: HashMap::new(),
+            tools: HashMap::new(),
+            tool_emission: HashMap::new(),
         })
     }
     async fn effect(&mut self, effect: &crate::persistence::Effect) -> Result<(), StoreError> {
@@ -584,6 +696,12 @@ impl Actor {
             thread["driver"] = json!("acpRegistry");
             thread["providerSessionId"] = json!(self.session_id);
             thread["nativeThreadRef"] = native_ref(&self.session.setup.session_id, true);
+            if self.item_identity_v2 {
+                if !thread["nativeMetadata"].is_object() {
+                    thread["nativeMetadata"] = json!({});
+                }
+                thread["nativeMetadata"]["itemIdentityVersion"] = json!(2);
+            }
             thread["nativeConversationHeadRef"] = native_ref(&native_turn_id, false);
             thread["status"] = json!("active");
             thread["lastRunOrdinal"] = run["ordinal"].clone();
@@ -599,6 +717,8 @@ impl Actor {
         })?;
         self.active_run = Some(run_id.into());
         self.text_segments.clear();
+        self.tools.clear();
+        self.tool_emission.clear();
         let client = self.session.client.clone();
         let session_id = self.session.setup.session_id.clone();
         self.prompt = Some(tokio::spawn(async move {
@@ -696,8 +816,270 @@ impl Actor {
                     None => Ok(()),
                 }
             }
+            Some("tool_call" | "tool_call_update") => self.tool(update),
             _ => Ok(()),
         }
+    }
+    fn tool(&mut self, update: &Value) -> Result<(), StoreError> {
+        let Some(parsed) =
+            crate::acp_tools::ToolState::parse(update, update["sessionUpdate"] == "tool_call")
+        else {
+            return Ok(());
+        };
+        let id = parsed.wire["toolCallId"].as_str().unwrap().to_owned();
+        let previous = self.tools.get(&id);
+        let next = crate::acp_tools::ToolState::merge(previous, parsed);
+        let (last, skipped) = self.tool_emission.get(&id).copied().unwrap_or((None, 0));
+        let (emit, skipped) = crate::acp_tools::ToolState::emission(previous, &next, last, skipped);
+        self.tool_emission.insert(
+            id.clone(),
+            (
+                if emit {
+                    Some(next.progress_length())
+                } else {
+                    last
+                },
+                skipped,
+            ),
+        );
+        self.tools.insert(id.clone(), next.clone());
+        if !emit {
+            return Ok(());
+        }
+        let native = &next.wire;
+        let now = at(Utc::now());
+        commit(&self.store, &self.thread_id, |view| {
+            let (run, attempt) = self.context(view)?;
+            let native_id = format!("{}:tool:{id}", self.session.setup.session_id);
+            let (item_id, node_id) = crate::acp_tools::provider_item_ids(
+                &self.instance_id,
+                &native_id,
+                self.item_identity_v2,
+            );
+            let existing = view["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|item| item["id"] == item_id);
+            let mut item = existing
+                .cloned()
+                .unwrap_or_else(|| self.base_item(view, run, attempt, &item_id, &node_id));
+            let status = match native["status"].as_str() {
+                Some("pending") => "pending",
+                Some("requiresAction") => "waiting",
+                Some("completed") => "completed",
+                Some("failed") => "failed",
+                _ => "running",
+            };
+            let complete = matches!(status, "completed" | "failed");
+            item["status"] = json!(status);
+            item["title"] = native.get("title").cloned().unwrap_or(Value::Null);
+            item["nativeItemRef"] = native_ref(&id, true);
+            item["updatedAt"] = json!(now);
+            item["completedAt"] = if complete { json!(now) } else { Value::Null };
+            let data = &native["data"];
+            let input = data
+                .get("rawInput")
+                .filter(|value| !value.is_null())
+                .cloned()
+                .unwrap_or(json!({}));
+            let output = data
+                .get("rawOutput")
+                .filter(|value| !value.is_null())
+                .or_else(|| data.get("content"));
+            let changes = crate::acp_tools::structured_changes(data);
+            let path = changes
+                .first()
+                .and_then(|change| change["path"].as_str())
+                .or_else(|| {
+                    data["locations"]
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .find_map(|location| {
+                            location["path"]
+                                .as_str()
+                                .filter(|value| !t3_contracts::trim_wire_string(value).is_empty())
+                        })
+                        .or_else(|| {
+                            ["path", "filePath", "file_path", "url", "query", "pattern"]
+                                .iter()
+                                .find_map(|key| {
+                                    input[key].as_str().filter(|value| {
+                                        !t3_contracts::trim_wire_string(value).is_empty()
+                                    })
+                                })
+                        })
+                })
+                .map(t3_contracts::trim_wire_string);
+            for key in [
+                "output", "exitCode", "toolName", "input", "pattern", "patterns", "results",
+                "fileName", "diffStr", "changes",
+            ] {
+                item.as_object_mut().unwrap().remove(key);
+            }
+            let patch = data["content"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .find(|entry| entry["type"] == "diff" && entry["patch"]["text"].is_string())
+                .and_then(|entry| entry["patch"]["text"].as_str().map(ToOwned::to_owned))
+                .or_else(|| output.and_then(crate::acp_tools::output_text));
+            if !changes.is_empty() {
+                item["type"] = json!("file_change");
+                item["fileName"] = changes[0]["path"].clone();
+                item["changes"] = json!(changes);
+                if let Some(patch) = patch {
+                    item["diffStr"] = json!(patch);
+                }
+            } else {
+                match native["kind"].as_str() {
+                    Some("execute") => {
+                        item["type"] = json!("command_execution");
+                        item["input"] = native
+                            .get("command")
+                            .cloned()
+                            .or_else(|| {
+                                crate::acp_tools::monitor_command(
+                                    &input,
+                                    &output.cloned().unwrap_or(Value::Null),
+                                )
+                                .1
+                                .map(|value| json!(value))
+                            })
+                            .or_else(|| native.get("title").cloned())
+                            .unwrap_or(json!("Command"));
+                        if let Some(output) = output {
+                            if let Some(text) = crate::acp_tools::output_text(output) {
+                                item["output"] = json!(text);
+                            }
+                            if let Some(code) =
+                                crate::acp_tools::projected_exit_code(status, output)
+                            {
+                                item["exitCode"] = code;
+                            }
+                        }
+                    }
+                    Some("read") => {
+                        item["type"] = json!("dynamic_tool");
+                        item["toolName"] = json!("Read");
+                        item["title"] =
+                            json!(path.map(|path| format!("Read {path}")).unwrap_or_else(|| {
+                                native["title"].as_str().unwrap_or("Read file").to_owned()
+                            }));
+                        item["input"] = crate::acp_tools::read_input(&input, path);
+                        if let Some(output) = output {
+                            item["output"] = output.clone();
+                        }
+                    }
+                    Some("search") => {
+                        if let Some(search) = crate::acp_tools::backend_search(
+                            &input,
+                            &output.cloned().unwrap_or(Value::Null),
+                        ) {
+                            item["type"] = json!("web_search");
+                            item["title"] = json!(crate::acp_tools::backend_title(
+                                &data["title"],
+                                &native["title"],
+                                search["query"].as_str()
+                            ));
+                            if let Some(query) = search["query"].as_str() {
+                                item["patterns"] = json!([query]);
+                            }
+                            if !search["results"].as_array().unwrap().is_empty() {
+                                item["results"] = search["results"].clone();
+                            }
+                        } else {
+                            item["type"] = json!("file_search");
+                            item["title"] = crate::acp_tools::search_label(
+                                &json!({"rawInput":input,"input":input,"pattern":path}),
+                            )
+                            .map(|value| json!(value))
+                            .unwrap_or_else(|| item["title"].clone());
+                            if let Some(path) = path {
+                                item["pattern"] = json!(path);
+                                let mut result = json!({"fileName":path});
+                                if let Some(text) = output.and_then(crate::acp_tools::output_text) {
+                                    result["preview"] = json!(text);
+                                }
+                                item["results"] = json!([result]);
+                            }
+                        }
+                    }
+                    Some("fetch") => {
+                        item["type"] = json!("web_search");
+                        if let Some(path) = path {
+                            item["patterns"] = json!([path]);
+                            let mut result = json!({"url":path});
+                            if let Some(snippet) = crate::acp_tools::output_text(&data["content"])
+                                .or_else(|| output.and_then(crate::acp_tools::output_text))
+                            {
+                                result["snippet"] = json!(snippet);
+                            }
+                            item["results"] = json!([result]);
+                        }
+                    }
+                    Some("edit" | "delete" | "move") => {
+                        item["type"] = json!("file_change");
+                        item["fileName"] = json!(path.unwrap_or_else(|| {
+                            native["title"].as_str().unwrap_or("File change")
+                        }));
+                        if let Some(patch) = patch {
+                            item["diffStr"] = json!(patch);
+                        }
+                    }
+                    _ => {
+                        let (monitor, command) = crate::acp_tools::monitor_command(
+                            &input,
+                            &output.cloned().unwrap_or(Value::Null),
+                        );
+                        if monitor {
+                            item["type"] = json!("command_execution");
+                            item["input"] = native
+                                .get("command")
+                                .cloned()
+                                .or_else(|| command.map(|command| json!(command)))
+                                .or_else(|| native.get("title").cloned())
+                                .unwrap_or_else(|| {
+                                    json!(if input["variant"]
+                                        .as_str()
+                                        .unwrap_or("")
+                                        .trim()
+                                        .eq_ignore_ascii_case("monitor")
+                                    {
+                                        "Monitor"
+                                    } else {
+                                        "Command"
+                                    })
+                                });
+                            if let Some(output) = output {
+                                if let Some(text) = crate::acp_tools::output_text(output) {
+                                    item["output"] = json!(text);
+                                }
+                                if let Some(code) =
+                                    crate::acp_tools::projected_exit_code(status, output)
+                                {
+                                    item["exitCode"] = code;
+                                }
+                            }
+                        } else {
+                            item["type"] = json!("dynamic_tool");
+                            item["toolName"] = native
+                                .get("title")
+                                .or_else(|| native.get("kind"))
+                                .cloned()
+                                .unwrap_or(Value::Null);
+                            item["input"] = input;
+                            if let Some(output) = output {
+                                item["output"] = output.clone();
+                            }
+                        }
+                    }
+                }
+            }
+            let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":"tool_call","status":if status=="pending"{"running"}else{status},"countsForRun":true,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":item["nativeItemRef"],"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":item["startedAt"],"completedAt":item["completedAt"]});
+            Ok(vec![("node.updated", node), ("turn-item.updated", item)])
+        })
     }
     fn plan(&mut self, update: &Value) -> Result<(), StoreError> {
         self.close_text_streams()?;

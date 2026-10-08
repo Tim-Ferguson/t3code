@@ -132,7 +132,7 @@ impl RequestId {
         }
     }
 }
-pub(crate) fn js_number(number: &Number) -> String {
+pub fn js_number(number: &Number) -> String {
     let n = number.as_f64().expect("finite JSON number");
     if n == 0.0 {
         return "0".into();

@@ -3,6 +3,7 @@ pub mod acp_adapter;
 pub mod acp_model;
 pub mod acp_peer;
 pub mod acp_runtime;
+pub mod acp_tools;
 pub mod auth;
 pub mod codex;
 pub mod codex_runtime;

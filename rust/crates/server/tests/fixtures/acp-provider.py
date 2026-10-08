@@ -37,6 +37,8 @@ for line in sys.stdin:
     if "method" not in request:
         assert request["id"] == 0 and type(request["id"]) is int, request
         assert request["result"] == {"outcome": {"outcome": "selected", "optionId": "once"}}, request
+        if scenario == "tools":
+            update({"sessionUpdate": "tool_call_update", "toolCallId": "command", "status": "completed", "rawInput": {}, "rawOutput": {"stdout": "z" * 9001, "exit_code": 0}})
         if scenario == "plans":
             update({"sessionUpdate": "plan_update", "plan": {"type": "items", "planId": "todo plan", "entries": [{"content": " Finish ", "status": "completed", "priority": "medium"}]}})
             update({"sessionUpdate": "plan_removed", "planId": "draft"})
@@ -90,6 +92,16 @@ for line in sys.stdin:
                 update({"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": ""}})
                 update({"sessionUpdate": "agent_thought_chunk", "content": {"type": "text", "text": " think "}})
             update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Hello "}})
+            if scenario == "tools":
+                update({"sessionUpdate": "tool_call_update" if generation == 2 else "tool_call", "toolCallId": "command", "kind": "execute", "title": "Terminal", "status": "pending", "rawInput": {"command": [" pwd ", " -P "]}})
+                update({"sessionUpdate": "tool_call_update", "toolCallId": "command", "status": "in_progress", "rawOutput": {"stdout": "before", "exit_code": 0}})
+                for tool_id, raw_input in [("read-scalar", "scalar"), ("read-array", ["array"])]:
+                    update({"sessionUpdate": "tool_call_update" if generation == 2 else "tool_call", "toolCallId": tool_id, "kind": "read", "title": "Read", "status": "completed", "rawInput": raw_input, "locations": [{"path": "doc.txt"}], "rawOutput": "file body"})
+            if scenario == "tools":
+                update({"sessionUpdate": "tool_call_update" if generation == 2 else "tool_call", "toolCallId": "monitor", "kind": "other", "title": "Monitor", "status": "completed", "rawInput": {"variant": " Monitor ", "command": " monitor cmd "}, "rawOutput": {"type": "Bash", "stdout": "monitor done", "exit_code": 0}})
+                update({"sessionUpdate": "tool_call_update" if generation == 2 else "tool_call", "toolCallId": "web-search", "kind": "search", "title": "Web search:", "status": "completed", "rawInput": {"variant": "WebSearch", "backend": True}, "rawOutput": {"action": {"type": "search", "query": " ACP ", "sources": [{"url": " https://example.test "}, {"url": "https://example.test"}]}}})
+                if generation == 2:
+                    update({"sessionUpdate": "tool_call_update", "toolCallId": "structured-file", "kind": "other", "title": "Edit", "status": "completed", "content": [{"type": "diff", "changes": [{"path": " src/file.rs ", "operation": "move", "oldPath": " src/old.rs "}], "patch": {"format": "git_patch", "text": "diff patch"}}]})
             if scenario == "plans":
                 update({"sessionUpdate": "plan_update", "plan": {"type": "items", "planId": "todo plan", "entries": [{"content": " Finish ", "status": "in_progress", "priority": "medium"}]}})
                 update({"sessionUpdate": "plan_update", "plan": {"type": "markdown", "planId": "draft", "content": "Draft plan"}})
