@@ -427,6 +427,7 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
         let window = use_window();
         let preferences = try_consume_context::<crate::client_settings::Writer>();
         let fonts = try_consume_context::<crate::font_service::Fonts>();
+        let themes = try_consume_context::<crate::themes::Themes>();
         let closing = use_hook(|| Rc::new(Cell::new(false)));
         use_wry_event_handler(move |event, _| {
             if !matches!(
@@ -439,7 +440,8 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
                 && !preferences
                     .as_ref()
                     .is_some_and(|writer| writer.needs_flush())
-                && !fonts.as_ref().is_some_and(|fonts| fonts.commits.pending()))
+                && !fonts.as_ref().is_some_and(|fonts| fonts.commits.pending())
+                && !themes.as_ref().is_some_and(|themes| themes.needs_flush()))
             {
                 return;
             }
@@ -451,15 +453,21 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
             let closing = closing.clone();
             let preferences = preferences.clone();
             let fonts = fonts.clone();
+            let themes = themes.clone();
             spawn(async move {
                 let mut result = Ok(());
                 loop {
-                    if let Some(writer) = &preferences {
-                        result = if let Some(fonts) = &fonts {
-                            writer.flush_after(&fonts.commits).await
-                        } else {
-                            writer.flush().await
-                        };
+                    if let Some(themes) = &themes {
+                        result = themes.flush().await;
+                    }
+                    if result.is_ok() {
+                        if let Some(writer) = &preferences {
+                            result = if let Some(fonts) = &fonts {
+                                writer.flush_after(&fonts.commits).await
+                            } else {
+                                writer.flush().await
+                            };
+                        }
                     }
                     if result.is_ok() && state.peek().draft_storage.document.borrow().dirty() {
                         result=match request_flush(state){Ok(receiver)=>receiver.await.unwrap_or_else(|_|Err("Draft writer stopped before saving. Unsent drafts remain in memory.".into())),Err(error)=>Err(error)};
@@ -469,7 +477,8 @@ pub fn use_native_close_flush(state: Store<UiModel>) {
                             && !preferences
                                 .as_ref()
                                 .is_some_and(|writer| writer.needs_flush())
-                            && !fonts.as_ref().is_some_and(|fonts| fonts.commits.pending()))
+                            && !fonts.as_ref().is_some_and(|fonts| fonts.commits.pending())
+                            && !themes.as_ref().is_some_and(|themes| themes.needs_flush()))
                     {
                         break;
                     }

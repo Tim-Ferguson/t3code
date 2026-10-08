@@ -16,6 +16,7 @@ pub mod terminal_output;
 pub mod terminal_preview;
 pub mod terminal_session;
 pub mod terminal_ui;
+pub mod themes;
 pub mod thread;
 pub mod timeline_scroll;
 pub mod work_log;
