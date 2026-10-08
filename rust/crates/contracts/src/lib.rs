@@ -52,3 +52,6 @@ pub mod preview;
 pub use preview::*;
 pub mod resource_telemetry;
 pub use resource_telemetry::*;
+
+pub mod resource_discovery;
+pub use resource_discovery::*;

@@ -241,13 +241,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         native_config.providers.clone(),
         runtime_lease,
     )?;
-    let terminals = t3_server::terminal_manager::TerminalManager::new(
-        t3_server::terminal_manager::TerminalManagerOptions::host(
-            state_dir.join("logs").join("terminals"),
-            &native_config.settings,
-        ),
-    )
-    .await?;
+    let telemetry = t3_server::native_telemetry::NativeTelemetryClient::new(
+        t3_server::native_telemetry::NativeTelemetryOptions::host(std::env::current_dir()?, None),
+    );
+    let registry = t3_server::resource_ports::TerminalRegistry::default();
+    let discovery = t3_server::resource_discovery::PortDiscovery::new(
+        t3_server::resource_discovery::PortDiscoveryOptions::host(os, registry.clone())?,
+    );
+    let mut terminal_options = t3_server::terminal_manager::TerminalManagerOptions::host(
+        state_dir.join("logs").join("terminals"),
+        &native_config.settings,
+    );
+    t3_server::resource_discovery::configure_terminal_tracking(
+        &mut terminal_options,
+        telemetry.clone(),
+        registry,
+    );
+    let terminals = t3_server::terminal_manager::TerminalManager::new(terminal_options).await?;
     let state = ApiState {
         store,
         auth,
@@ -259,6 +269,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         execution: Some(execution.clone()),
         workspace: Some(t3_server::workspace_entries::WorkspaceEntries::from_host()?),
         terminals: Some(terminals.clone()),
+        discovery: Some(discovery.clone()),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -269,5 +280,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     execution.shutdown().await;
     terminals.shutdown().await;
+    discovery.shutdown().await;
+    telemetry.shutdown().await;
     Ok(())
 }

@@ -66,10 +66,23 @@ struct Task {
     cancel: watch::Sender<bool>,
     handle: JoinHandle<()>,
 }
+impl Drop for Task {
+    fn drop(&mut self) {
+        self.cancel.send_replace(true);
+    }
+}
+#[derive(Clone, Debug)]
+pub struct CommandOutput {
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+    pub exit_code: Option<i32>,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+}
 struct Inner {
     tasks: Mutex<Option<Vec<Task>>>,
     spec: CommandSpec,
-    shutdown: tokio::sync::Mutex<()>,
+    shutdown: tokio::sync::Mutex<Vec<Task>>,
 }
 impl Drop for Inner {
     fn drop(&mut self) {
@@ -92,6 +105,8 @@ struct CommandSpec {
     max_bytes: usize,
     #[cfg(test)]
     started: Option<Arc<(std::sync::atomic::AtomicU32, tokio::sync::Notify)>>,
+    #[cfg(test)]
+    finish_gate: Option<Arc<(tokio::sync::Notify, tokio::sync::Notify)>>,
 }
 struct Cancel(watch::Sender<bool>);
 impl Drop for Cancel {
@@ -123,16 +138,59 @@ impl NativeProcessTable {
             max_bytes: if windows { 262_144 } else { 524_288 },
             #[cfg(test)]
             started: None,
+            #[cfg(test)]
+            finish_gate: None,
         })
     }
     fn with_spec(spec: CommandSpec) -> Self {
         Self(Arc::new(Inner {
             tasks: Mutex::new(Some(Vec::new())),
             spec,
-            shutdown: tokio::sync::Mutex::new(()),
+            shutdown: tokio::sync::Mutex::new(Vec::new()),
         }))
     }
+    /// Shares captured-child cancellation and reap ownership with process tables.
+    /// Returned native diagnostics (nonzero exit/truncation) remain distinguishable
+    /// from spawn/read/timeout failure; PortScanner consumes even partial output.
+    pub fn command(
+        command: PathBuf,
+        args: Vec<String>,
+        label: &'static str,
+        timeout: Duration,
+        max_bytes: usize,
+    ) -> Self {
+        Self::with_spec(CommandSpec {
+            command,
+            args,
+            label,
+            windows: false,
+            timeout,
+            max_bytes,
+            #[cfg(test)]
+            started: None,
+            #[cfg(test)]
+            finish_gate: None,
+        })
+    }
     pub async fn snapshot(&self) -> Result<ProcessTable, InspectionError> {
+        let output = self.output().await?;
+        if output.exit_code != Some(0) || output.stdout_truncated {
+            return Err(InspectionError {
+                command: self.0.spec.label,
+                cause: None,
+                exit_code: output.exit_code,
+                timed_out: false,
+                stdout_truncated: output.stdout_truncated,
+            });
+        }
+        let text = String::from_utf8_lossy(&output.stdout);
+        Ok(if self.0.spec.windows {
+            ProcessTable::windows(&text)
+        } else {
+            ProcessTable::posix(&text)
+        })
+    }
+    pub async fn output(&self) -> Result<CommandOutput, InspectionError> {
         let (result, receive) = oneshot::channel();
         let (cancel, cancelled) = watch::channel(false);
         let guard = Cancel(cancel.clone());
@@ -160,15 +218,16 @@ impl NativeProcessTable {
     pub async fn shutdown(&self) {
         // Every concurrent caller observes full worker quiescence, rather than
         // only the first caller taking ownership of the join handles.
-        let _shutdown = self.0.shutdown.lock().await;
-        let tasks = self.0.tasks.lock().unwrap().take().unwrap_or_default();
-        for task in &tasks {
+        let mut shutdown = self.0.shutdown.lock().await;
+        shutdown.extend(self.0.tasks.lock().unwrap().take().unwrap_or_default());
+        for task in shutdown.iter() {
             task.cancel.send_replace(true);
         }
-        for task in tasks {
-            if let Err(error) = task.handle.await {
-                tracing::warn!(%error, "process-table worker failed");
+        while let Some(task) = shutdown.first_mut() {
+            if let Err(error) = (&mut task.handle).await {
+                tracing::warn!(%error,"process-table worker failed");
             }
+            shutdown.remove(0);
         }
     }
 }
@@ -194,7 +253,7 @@ async fn collect(
 async fn run(
     spec: CommandSpec,
     mut cancelled: watch::Receiver<bool>,
-) -> Result<ProcessTable, InspectionError> {
+) -> Result<CommandOutput, InspectionError> {
     if *cancelled.borrow() {
         return Err(InspectionError::source(
             spec.label,
@@ -231,14 +290,7 @@ async fn run(
         outcome = tokio::time::timeout(spec.timeout, complete) => match outcome {
             Err(_) => Err(InspectionError { command: spec.label, cause: None, exit_code: None, timed_out: true, stdout_truncated: false }),
             Ok(Err(cause)) => Err(InspectionError::source(spec.label, cause)),
-            Ok(Ok((status, (stdout, truncated), _stderr))) => {
-                if status.code() != Some(0) || truncated {
-                    Err(InspectionError { command: spec.label, cause: None, exit_code: status.code(), timed_out: false, stdout_truncated: truncated })
-                } else {
-                    let text = String::from_utf8_lossy(&stdout);
-                    Ok(if spec.windows { ProcessTable::windows(&text) } else { ProcessTable::posix(&text) })
-                }
-            }
+            Ok(Ok((status,(stdout,stdout_truncated),(stderr,stderr_truncated))))=>Ok(CommandOutput{stdout,stderr,exit_code:status.code(),stdout_truncated,stderr_truncated}),
         }
     };
     if outcome.is_err() {
@@ -249,6 +301,11 @@ async fn run(
         if let Err(error) = child.wait().await {
             tracing::warn!(%error, "failed to reap process-table child");
         }
+    }
+    #[cfg(test)]
+    if let Some(gate) = spec.finish_gate {
+        gate.0.notify_one();
+        gate.1.notified().await;
     }
     outcome
 }
@@ -269,7 +326,61 @@ mod tests {
             timeout: Duration::from_secs(3),
             max_bytes,
             started: None,
+            #[cfg(test)]
+            finish_gate: None,
         })
+    }
+    #[tokio::test]
+    async fn raw_command_preserves_returned_nonzero_and_truncation_diagnostics() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = fixture(
+            directory.path(),
+            "import sys;print('abcdefghijk');sys.stderr.write('diagnostic');sys.exit(7)",
+            5,
+        );
+        let output = source.output().await.unwrap();
+        assert_eq!(output.exit_code, Some(7));
+        assert_eq!(output.stdout, b"abcde");
+        assert_eq!(output.stderr, b"diagn");
+        assert!(output.stdout_truncated && output.stderr_truncated);
+        source.shutdown().await;
+    }
+    #[tokio::test]
+    async fn cancelled_shutdown_retains_owned_join_until_next_shutdown_completes() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut source = fixture(directory.path(), "import signal;signal.pause()", 1024);
+        let started = Arc::new((
+            std::sync::atomic::AtomicU32::new(0),
+            tokio::sync::Notify::new(),
+        ));
+        let gate = Arc::new((tokio::sync::Notify::new(), tokio::sync::Notify::new()));
+        let spec = &mut Arc::get_mut(&mut source.0).unwrap().spec;
+        spec.started = Some(started.clone());
+        spec.finish_gate = Some(gate.clone());
+        let request = tokio::spawn({
+            let source = source.clone();
+            async move { source.output().await }
+        });
+        started.1.notified().await;
+        let first = tokio::spawn({
+            let source = source.clone();
+            async move { source.shutdown().await }
+        });
+        gate.0.notified().await; // Captured child has been reaped; worker is held.
+        first.abort();
+        assert!(matches!(first.await,Err(error) if error.is_cancelled()));
+        let pid = started.0.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(unsafe { libc::kill(pid as i32, 0) }, -1);
+        assert_eq!(io::Error::last_os_error().raw_os_error(), Some(libc::ESRCH));
+        assert_eq!(
+            source.0.shutdown.lock().await.len(),
+            1,
+            "cancelled caller retained the worker join"
+        );
+        gate.1.notify_one();
+        source.shutdown().await;
+        assert!(request.await.unwrap().is_err());
+        assert!(source.0.shutdown.lock().await.is_empty());
     }
     #[tokio::test]
     async fn authoritative_table_requires_success_and_full_output() {

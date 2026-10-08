@@ -124,6 +124,9 @@ fn resource_codecs_match_original_effect_json_oracle() {
             "ResourceTelemetrySourceStatus" => {
                 roundtrip::<ResourceTelemetrySourceStatus>(fixture.input)
             }
+            "ConfiguredLocalServerUrls" => roundtrip::<ConfiguredLocalServerUrls>(fixture.input),
+            "DiscoveredLocalServer" => roundtrip::<DiscoveredLocalServer>(fixture.input),
+            "DiscoveredLocalServerList" => roundtrip::<DiscoveredLocalServerList>(fixture.input),
             // END RESOURCE DISPATCH
             other => panic!("unhandled resource schema {other}"),
         };

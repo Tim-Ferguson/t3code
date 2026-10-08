@@ -39,6 +39,7 @@ pub struct ApiState {
     pub execution: Option<crate::execution::ExecutionService>,
     pub workspace: Option<crate::workspace_entries::WorkspaceEntries>,
     pub terminals: Option<crate::terminal_manager::TerminalManager>,
+    pub discovery: Option<crate::resource_discovery::PortDiscovery>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -575,9 +576,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -767,6 +768,59 @@ async fn terminal_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, V
     };
     result.map(|()| Value::Null).map_err(|error| error.wire())
 }
+fn discovery_value(
+    servers: Vec<crate::resource_ports::LocalServer>,
+    scanned_at: i64,
+) -> Result<Value, Value> {
+    let value = json!({"servers":servers,"scannedAt":chrono::DateTime::from_timestamp_millis(scanned_at).ok_or_else(||json!({"_tag":"NativeServiceError","message":"Invalid discovery timestamp."}))?.to_rfc3339_opts(chrono::SecondsFormat::Millis,true),"configuredUrlProbing":true});
+    let typed: t3_contracts::DiscoveredLocalServerList = serde_json::from_value(value)
+        .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+    serde_json::to_value(typed)
+        .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))
+}
+
+async fn discovery_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let service = state.discovery.as_ref().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Port discovery is not configured."}))?;
+        let input: t3_contracts::SubscribeDiscoveredLocalServersInput = terminal_decode(&request)?;
+        let urls = input.configured_urls.flatten().map(|urls| urls.0.into_iter().map(|url|url.0.as_str().to_owned()).collect::<Vec<_>>()).unwrap_or_default();
+        let _retention = service.retain().await.map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+        let initial = service.scan(&urls).await.map_err(|error|json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+        let clock = service.clock();
+        let mut update = discovery_value(initial.clone(),clock())?;
+        let (updates, mut updated) = mpsc::unbounded_channel();
+        let _subscription = service.subscribe_callback(&urls, initial, std::sync::Arc::new(move |servers| {
+            let updates = updates.clone();
+            let clock = clock.clone();
+            Box::pin(async move {let _ = updates.send(discovery_value(servers,clock()));})
+        })).map_err(|error|json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+        loop {
+            let active = state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            let value = update;
+            let admitted = tokio::select! {biased;_=service.closed()=>return Ok(()),admitted=chunk(&output,&mut ack,&request.id,vec![value])=>admitted};
+            if !admitted {return Ok(());}
+            let next = tokio::select! {biased;_=service.closed()=>return Ok(()),next=updated.recv()=>next};
+            let Some(next) = next else {return Ok(());};
+            update = next?;
+        }
+    }.await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
 async fn terminal_stream(
     request: RpcRequest,
     state: ApiState,
@@ -1160,6 +1214,136 @@ mod tests {
         stop.send(()).unwrap();
         server.await.unwrap();
     }
+    #[tokio::test]
+    async fn discovery_socket_preserves_queued_scan_time_and_exits_on_service_shutdown() {
+        use crate::{
+            resource_discovery::{PortDiscovery, PortDiscoveryOptions},
+            resource_ports::{LocalServer, TerminalRegistry},
+        };
+        use futures_util::FutureExt;
+        use std::sync::{Arc, Mutex};
+        use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
+        let clock = Arc::new(std::sync::atomic::AtomicI64::new(1000));
+        let rows = Arc::new(Mutex::new(vec![LocalServer {
+            host: "localhost".into(),
+            port: 5123,
+            url: "http://localhost:5123".into(),
+            pid: None,
+            process_name: None,
+            terminal: None,
+        }]));
+        let mut options = PortDiscoveryOptions::custom(
+            TerminalRegistry::default(),
+            Arc::new({
+                let rows = rows.clone();
+                move || {
+                    let result = rows.lock().unwrap().clone();
+                    async move { Ok(result) }.boxed()
+                }
+            }),
+            Arc::new(|_| async { true }.boxed()),
+            Arc::new({
+                let clock = clock.clone();
+                move || clock.load(std::sync::atomic::Ordering::SeqCst)
+            }),
+        );
+        options.poll_interval = std::time::Duration::from_millis(10);
+        let discovery = PortDiscovery::new(options);
+        let mut api = state();
+        api.discovery = Some(discovery.clone());
+        let bearer = token(&api, vec![AuthEnvironmentScope::OrchestrationRead]);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(api))
+                .with_graceful_shutdown(async {
+                    let _ = stopped.await;
+                })
+                .await
+                .unwrap();
+        });
+        let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
+            .into_client_request()
+            .unwrap();
+        request
+            .headers_mut()
+            .insert("Authorization", format!("Bearer {bearer}").parse().unwrap());
+        let (mut socket, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+        socket.send(Message::Text(json!({"_tag":"Request","id":1,"tag":"subscribeDiscoveredLocalServers","payload":{"configuredUrls":null},"headers":[]}).to_string().into())).await.unwrap();
+        async fn next(
+            socket: &mut tokio_tungstenite::WebSocketStream<
+                tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+            >,
+        ) -> Value {
+            let item = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            serde_json::from_str(item.to_text().unwrap()).unwrap()
+        }
+        let initial = next(&mut socket).await;
+        assert_eq!(initial["_tag"], "Chunk");
+        let _: t3_contracts::DiscoveredLocalServerList =
+            serde_json::from_value(initial["values"][0].clone()).unwrap();
+        assert_eq!(initial["values"][0]["servers"][0]["port"], 5123);
+        let published = Arc::new(tokio::sync::Notify::new());
+        let _listener = discovery
+            .subscribe_callback(
+                &[],
+                rows.lock().unwrap().clone(),
+                Arc::new({
+                    let published = published.clone();
+                    move |_| {
+                        let published = published.clone();
+                        async move {
+                            published.notify_one();
+                        }
+                        .boxed()
+                    }
+                }),
+            )
+            .unwrap();
+        rows.lock().unwrap()[0].process_name = Some("changed-before-ack".into());
+        tokio::time::timeout(std::time::Duration::from_secs(5), published.notified())
+            .await
+            .unwrap();
+        clock.store(2000, std::sync::atomic::Ordering::SeqCst);
+        socket
+            .send(Message::Text(
+                json!({"_tag":"Ack","requestId":1}).to_string().into(),
+            ))
+            .await
+            .unwrap();
+        let changed = next(&mut socket).await;
+        assert_eq!(
+            changed["values"][0]["servers"][0]["processName"],
+            "changed-before-ack"
+        );
+        let scanned = chrono::DateTime::parse_from_rfc3339(
+            changed["values"][0]["scannedAt"].as_str().unwrap(),
+        )
+        .unwrap()
+        .timestamp_millis();
+        assert_eq!(
+            scanned, 1000,
+            "queued notification was restamped during delivery"
+        );
+        // Leave the changed chunk unacknowledged: shutdown must unblock Ack too.
+        discovery.shutdown().await;
+        let exit = next(&mut socket).await;
+        assert_eq!(exit["_tag"], "Exit");
+        assert_eq!(exit["exit"]["_tag"], "Success");
+        socket
+            .send(Message::Text(json!({"_tag":"Ping"}).to_string().into()))
+            .await
+            .unwrap();
+        assert_eq!(next(&mut socket).await["_tag"], "Pong");
+        socket.close(None).await.unwrap();
+        stop.send(()).unwrap();
+        server.await.unwrap();
+    }
     fn state() -> ApiState {
         let store = Store::memory().unwrap();
         let auth = AuthService::new(
@@ -1180,6 +1364,7 @@ mod tests {
             execution: None,
             workspace: None,
             terminals: None,
+            discovery: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

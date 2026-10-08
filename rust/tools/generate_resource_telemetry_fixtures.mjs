@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 // Development-only Effect oracle. Rust runtime/tests never execute TypeScript.
 import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL, fileURLToPath } from "node:url";
@@ -5,7 +6,9 @@ const root = fileURLToPath(new URL("../../", import.meta.url)).replace(/\/$/, ""
 const Schema = await import(
   pathToFileURL(root + "/packages/contracts/node_modules/effect/dist/Schema.js")
 );
-const rust = readFileSync(root + "/rust/crates/contracts/src/resource_telemetry.rs", "utf8");
+const rust =
+  readFileSync(root + "/rust/crates/contracts/src/resource_telemetry.rs", "utf8") +
+  readFileSync(root + "/rust/crates/contracts/src/resource_discovery.rs", "utf8");
 const rustNames = new Set(
   [
     ...rust.matchAll(/pub (?:struct|enum|type) (\w+)|(?:vocabulary|protocol_union)!\s*\{\s*(\w+)/g),
@@ -30,7 +33,7 @@ const { seed, codecCases } = new Function(
 )(Schema, fixtures, strictObjectTypes);
 const mapping = {},
   skipped = [];
-for (const file of ["background", "resourceTelemetry"]) {
+for (const file of ["background", "resourceTelemetry", "preview"]) {
   const module = await import(pathToFileURL(root + "/packages/contracts/src/" + file + ".ts"));
   for (const [name, schema] of Object.entries(module)) {
     if (!rustNames.has(name) || !Schema.isSchema(schema)) continue;
@@ -58,4 +61,5 @@ test =
   "\n" +
   test.slice(end);
 writeFileSync(testPath, test);
+execFileSync("rustfmt", ["--edition", "2024", testPath]);
 console.log(JSON.stringify({ cases: unique.length, codecs: Object.keys(mapping).length, skipped }));

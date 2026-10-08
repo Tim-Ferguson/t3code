@@ -5822,6 +5822,7 @@ dependencies = [
  "portable-pty",
  "rand 0.9.5",
  "regex",
+ "reqwest",
  "rusqlite",
  "serde",
  "serde_json",
@@ -5836,6 +5837,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-segmentation",
+ "url",
  "uuid",
 ]
 

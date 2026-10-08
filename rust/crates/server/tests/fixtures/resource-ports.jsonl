@@ -1,0 +1,567 @@
+{"kind":"port","input":"*:5173","expected":5173}
+{"kind":"port","input":"*:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"*:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"*:0","expected":null}
+{"kind":"port","input":"*:0 (LISTEN)","expected":null}
+{"kind":"port","input":"*:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"*:65535","expected":65535}
+{"kind":"port","input":"*:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"*:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"*:65536","expected":null}
+{"kind":"port","input":"*:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"*:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"*:-1","expected":null}
+{"kind":"port","input":"*:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"*:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"*:+13","expected":13}
+{"kind":"port","input":"*:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"*:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"*: 21","expected":null}
+{"kind":"port","input":"*: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"*: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"*:12junk","expected":12}
+{"kind":"port","input":"*:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"*:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"*:0x20","expected":null}
+{"kind":"port","input":"*:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"*:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"*:12.5","expected":12}
+{"kind":"port","input":"*:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"*:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"*:1e3","expected":1}
+{"kind":"port","input":"*:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"*:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"*:","expected":null}
+{"kind":"port","input":"*: (LISTEN)","expected":null}
+{"kind":"port","input":"*:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"*||12| node |ignored","expected":[]}
+{"kind":"port","input":"localhost:5173","expected":5173}
+{"kind":"port","input":"localhost:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"localhost:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"localhost:0","expected":null}
+{"kind":"port","input":"localhost:0 (LISTEN)","expected":null}
+{"kind":"port","input":"localhost:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"localhost:65535","expected":65535}
+{"kind":"port","input":"localhost:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"localhost:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"localhost:65536","expected":null}
+{"kind":"port","input":"localhost:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"localhost:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"localhost:-1","expected":null}
+{"kind":"port","input":"localhost:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"localhost:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"localhost:+13","expected":13}
+{"kind":"port","input":"localhost:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"localhost:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"localhost: 21","expected":null}
+{"kind":"port","input":"localhost: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"localhost: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"localhost:12junk","expected":12}
+{"kind":"port","input":"localhost:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"localhost:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"localhost:0x20","expected":null}
+{"kind":"port","input":"localhost:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"localhost:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"localhost:12.5","expected":12}
+{"kind":"port","input":"localhost:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"localhost:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"localhost:1e3","expected":1}
+{"kind":"port","input":"localhost:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"localhost:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"localhost:","expected":null}
+{"kind":"port","input":"localhost: (LISTEN)","expected":null}
+{"kind":"port","input":"localhost:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"localhost||12| node |ignored","expected":[]}
+{"kind":"port","input":"127.0.0.1:5173","expected":5173}
+{"kind":"port","input":"127.0.0.1:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"127.0.0.1:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"127.0.0.1:0","expected":null}
+{"kind":"port","input":"127.0.0.1:0 (LISTEN)","expected":null}
+{"kind":"port","input":"127.0.0.1:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"127.0.0.1:65535","expected":65535}
+{"kind":"port","input":"127.0.0.1:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"127.0.0.1:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"127.0.0.1:65536","expected":null}
+{"kind":"port","input":"127.0.0.1:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"127.0.0.1:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"127.0.0.1:-1","expected":null}
+{"kind":"port","input":"127.0.0.1:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"127.0.0.1:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"127.0.0.1:+13","expected":13}
+{"kind":"port","input":"127.0.0.1:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"127.0.0.1:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"127.0.0.1: 21","expected":null}
+{"kind":"port","input":"127.0.0.1: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"127.0.0.1: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"127.0.0.1:12junk","expected":12}
+{"kind":"port","input":"127.0.0.1:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"127.0.0.1:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"127.0.0.1:0x20","expected":null}
+{"kind":"port","input":"127.0.0.1:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"127.0.0.1:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"127.0.0.1:12.5","expected":12}
+{"kind":"port","input":"127.0.0.1:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"127.0.0.1:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"127.0.0.1:1e3","expected":1}
+{"kind":"port","input":"127.0.0.1:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"127.0.0.1:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"127.0.0.1:","expected":null}
+{"kind":"port","input":"127.0.0.1: (LISTEN)","expected":null}
+{"kind":"port","input":"127.0.0.1:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1||12| node |ignored","expected":[]}
+{"kind":"port","input":"0.0.0.0:5173","expected":5173}
+{"kind":"port","input":"0.0.0.0:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"0.0.0.0:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"0.0.0.0:0","expected":null}
+{"kind":"port","input":"0.0.0.0:0 (LISTEN)","expected":null}
+{"kind":"port","input":"0.0.0.0:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"0.0.0.0:65535","expected":65535}
+{"kind":"port","input":"0.0.0.0:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"0.0.0.0:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"0.0.0.0:65536","expected":null}
+{"kind":"port","input":"0.0.0.0:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"0.0.0.0:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"0.0.0.0:-1","expected":null}
+{"kind":"port","input":"0.0.0.0:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"0.0.0.0:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"0.0.0.0:+13","expected":13}
+{"kind":"port","input":"0.0.0.0:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"0.0.0.0:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"0.0.0.0: 21","expected":null}
+{"kind":"port","input":"0.0.0.0: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"0.0.0.0: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"0.0.0.0:12junk","expected":12}
+{"kind":"port","input":"0.0.0.0:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"0.0.0.0:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"0.0.0.0:0x20","expected":null}
+{"kind":"port","input":"0.0.0.0:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"0.0.0.0:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"0.0.0.0:12.5","expected":12}
+{"kind":"port","input":"0.0.0.0:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"0.0.0.0:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"0.0.0.0:1e3","expected":1}
+{"kind":"port","input":"0.0.0.0:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"0.0.0.0:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"0.0.0.0:","expected":null}
+{"kind":"port","input":"0.0.0.0: (LISTEN)","expected":null}
+{"kind":"port","input":"0.0.0.0:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"0.0.0.0||12| node |ignored","expected":[]}
+{"kind":"port","input":"::1:5173","expected":5173}
+{"kind":"port","input":"::1:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"::1:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::1:0","expected":null}
+{"kind":"port","input":"::1:0 (LISTEN)","expected":null}
+{"kind":"port","input":"::1:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"::1:65535","expected":65535}
+{"kind":"port","input":"::1:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"::1:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::1:65536","expected":null}
+{"kind":"port","input":"::1:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"::1:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"::1:-1","expected":null}
+{"kind":"port","input":"::1:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"::1:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"::1:+13","expected":13}
+{"kind":"port","input":"::1:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"::1:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::1: 21","expected":null}
+{"kind":"port","input":"::1: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"::1: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::1:12junk","expected":12}
+{"kind":"port","input":"::1:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"::1:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"::1:0x20","expected":null}
+{"kind":"port","input":"::1:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"::1:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::1:12.5","expected":12}
+{"kind":"port","input":"::1:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"::1:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"::1:1e3","expected":1}
+{"kind":"port","input":"::1:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"::1:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::1:","expected":null}
+{"kind":"port","input":"::1: (LISTEN)","expected":null}
+{"kind":"port","input":"::1:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::1||12| node |ignored","expected":[]}
+{"kind":"port","input":"[::1]:5173","expected":5173}
+{"kind":"port","input":"[::1]:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"[::1]:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::1]:0","expected":null}
+{"kind":"port","input":"[::1]:0 (LISTEN)","expected":null}
+{"kind":"port","input":"[::1]:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::1]:65535","expected":65535}
+{"kind":"port","input":"[::1]:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"[::1]:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::1]:65536","expected":null}
+{"kind":"port","input":"[::1]:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"[::1]:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::1]:-1","expected":null}
+{"kind":"port","input":"[::1]:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"[::1]:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::1]:+13","expected":13}
+{"kind":"port","input":"[::1]:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"[::1]:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::1]: 21","expected":null}
+{"kind":"port","input":"[::1]: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"[::1]: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::1]:12junk","expected":12}
+{"kind":"port","input":"[::1]:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"[::1]:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::1]:0x20","expected":null}
+{"kind":"port","input":"[::1]:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"[::1]:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::1]:12.5","expected":12}
+{"kind":"port","input":"[::1]:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"[::1]:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::1]:1e3","expected":1}
+{"kind":"port","input":"[::1]:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"[::1]:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::1]:","expected":null}
+{"kind":"port","input":"[::1]: (LISTEN)","expected":null}
+{"kind":"port","input":"[::1]:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::1]||12| node |ignored","expected":[]}
+{"kind":"port","input":"[::]:5173","expected":5173}
+{"kind":"port","input":"[::]:5173 (LISTEN)","expected":5173}
+{"kind":"port","input":"[::]:5173\r","expected":5173}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::]:0","expected":null}
+{"kind":"port","input":"[::]:0 (LISTEN)","expected":null}
+{"kind":"port","input":"[::]:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::]:65535","expected":65535}
+{"kind":"port","input":"[::]:65535 (LISTEN)","expected":65535}
+{"kind":"port","input":"[::]:65535\r","expected":65535}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::]:65536","expected":null}
+{"kind":"port","input":"[::]:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"[::]:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::]:-1","expected":null}
+{"kind":"port","input":"[::]:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"[::]:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::]:+13","expected":13}
+{"kind":"port","input":"[::]:+13 (LISTEN)","expected":13}
+{"kind":"port","input":"[::]:+13\r","expected":13}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::]: 21","expected":null}
+{"kind":"port","input":"[::]: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"[::]: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::]:12junk","expected":12}
+{"kind":"port","input":"[::]:12junk (LISTEN)","expected":12}
+{"kind":"port","input":"[::]:12junk\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::]:0x20","expected":null}
+{"kind":"port","input":"[::]:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"[::]:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::]:12.5","expected":12}
+{"kind":"port","input":"[::]:12.5 (LISTEN)","expected":12}
+{"kind":"port","input":"[::]:12.5\r","expected":12}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"[::]:1e3","expected":1}
+{"kind":"port","input":"[::]:1e3 (LISTEN)","expected":1}
+{"kind":"port","input":"[::]:1e3\r","expected":1}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"[::]:","expected":null}
+{"kind":"port","input":"[::]: (LISTEN)","expected":null}
+{"kind":"port","input":"[::]:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"[::]||12| node |ignored","expected":[]}
+{"kind":"port","input":":::5173","expected":null}
+{"kind":"port","input":":::5173 (LISTEN)","expected":null}
+{"kind":"port","input":":::5173\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|5173|12| node |ignored","expected":[{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":":::0","expected":null}
+{"kind":"port","input":":::0 (LISTEN)","expected":null}
+{"kind":"port","input":":::0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|0|12| node |ignored","expected":[]}
+{"kind":"port","input":":::65535","expected":null}
+{"kind":"port","input":":::65535 (LISTEN)","expected":null}
+{"kind":"port","input":":::65535\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|65535|12| node |ignored","expected":[{"host":"localhost","port":65535,"url":"http://localhost:65535","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":":::65536","expected":null}
+{"kind":"port","input":":::65536 (LISTEN)","expected":null}
+{"kind":"port","input":":::65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":":::-1","expected":null}
+{"kind":"port","input":":::-1 (LISTEN)","expected":null}
+{"kind":"port","input":":::-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":":::+13","expected":null}
+{"kind":"port","input":":::+13 (LISTEN)","expected":null}
+{"kind":"port","input":":::+13\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|+13|12| node |ignored","expected":[{"host":"localhost","port":13,"url":"http://localhost:13","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":"::: 21","expected":null}
+{"kind":"port","input":"::: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"::: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::| 21|12| node |ignored","expected":[{"host":"localhost","port":21,"url":"http://localhost:21","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":":::12junk","expected":null}
+{"kind":"port","input":":::12junk (LISTEN)","expected":null}
+{"kind":"port","input":":::12junk\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":":::0x20","expected":null}
+{"kind":"port","input":":::0x20 (LISTEN)","expected":null}
+{"kind":"port","input":":::0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|0x20|12| node |ignored","expected":[{"host":"localhost","port":32,"url":"http://localhost:32","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":":::12.5","expected":null}
+{"kind":"port","input":":::12.5 (LISTEN)","expected":null}
+{"kind":"port","input":":::12.5\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":":::1e3","expected":null}
+{"kind":"port","input":":::1e3 (LISTEN)","expected":null}
+{"kind":"port","input":":::1e3\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::|1e3|12| node |ignored","expected":[{"host":"localhost","port":1000,"url":"http://localhost:1000","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"port","input":":::","expected":null}
+{"kind":"port","input":"::: (LISTEN)","expected":null}
+{"kind":"port","input":":::\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"::||12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:5173","expected":null}
+{"kind":"port","input":"LOCALHOST:5173 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:5173\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|5173|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:0","expected":null}
+{"kind":"port","input":"LOCALHOST:0 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:65535","expected":null}
+{"kind":"port","input":"LOCALHOST:65535 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:65535\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|65535|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:65536","expected":null}
+{"kind":"port","input":"LOCALHOST:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:-1","expected":null}
+{"kind":"port","input":"LOCALHOST:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:+13","expected":null}
+{"kind":"port","input":"LOCALHOST:+13 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:+13\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|+13|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST: 21","expected":null}
+{"kind":"port","input":"LOCALHOST: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST| 21|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:12junk","expected":null}
+{"kind":"port","input":"LOCALHOST:12junk (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:12junk\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:0x20","expected":null}
+{"kind":"port","input":"LOCALHOST:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|0x20|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:12.5","expected":null}
+{"kind":"port","input":"LOCALHOST:12.5 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:12.5\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:1e3","expected":null}
+{"kind":"port","input":"LOCALHOST:1e3 (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:1e3\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST|1e3|12| node |ignored","expected":[]}
+{"kind":"port","input":"LOCALHOST:","expected":null}
+{"kind":"port","input":"LOCALHOST: (LISTEN)","expected":null}
+{"kind":"port","input":"LOCALHOST:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"LOCALHOST||12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:5173","expected":null}
+{"kind":"port","input":"192.168.1.10:5173 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:5173\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|5173|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:0","expected":null}
+{"kind":"port","input":"192.168.1.10:0 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|0|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:65535","expected":null}
+{"kind":"port","input":"192.168.1.10:65535 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:65535\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|65535|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:65536","expected":null}
+{"kind":"port","input":"192.168.1.10:65536 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:-1","expected":null}
+{"kind":"port","input":"192.168.1.10:-1 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:+13","expected":null}
+{"kind":"port","input":"192.168.1.10:+13 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:+13\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|+13|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10: 21","expected":null}
+{"kind":"port","input":"192.168.1.10: 21 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10: 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10| 21|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:12junk","expected":null}
+{"kind":"port","input":"192.168.1.10:12junk (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:12junk\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:0x20","expected":null}
+{"kind":"port","input":"192.168.1.10:0x20 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|0x20|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:12.5","expected":null}
+{"kind":"port","input":"192.168.1.10:12.5 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:12.5\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:1e3","expected":null}
+{"kind":"port","input":"192.168.1.10:1e3 (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:1e3\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10|1e3|12| node |ignored","expected":[]}
+{"kind":"port","input":"192.168.1.10:","expected":null}
+{"kind":"port","input":"192.168.1.10: (LISTEN)","expected":null}
+{"kind":"port","input":"192.168.1.10:\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"192.168.1.10||12| node |ignored","expected":[]}
+{"kind":"port","input":":5173","expected":null}
+{"kind":"port","input":":5173 (LISTEN)","expected":null}
+{"kind":"port","input":":5173\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|5173|12| node |ignored","expected":[]}
+{"kind":"port","input":":0","expected":null}
+{"kind":"port","input":":0 (LISTEN)","expected":null}
+{"kind":"port","input":":0\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|0|12| node |ignored","expected":[]}
+{"kind":"port","input":":65535","expected":null}
+{"kind":"port","input":":65535 (LISTEN)","expected":null}
+{"kind":"port","input":":65535\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|65535|12| node |ignored","expected":[]}
+{"kind":"port","input":":65536","expected":null}
+{"kind":"port","input":":65536 (LISTEN)","expected":null}
+{"kind":"port","input":":65536\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|65536|12| node |ignored","expected":[]}
+{"kind":"port","input":":-1","expected":null}
+{"kind":"port","input":":-1 (LISTEN)","expected":null}
+{"kind":"port","input":":-1\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|-1|12| node |ignored","expected":[]}
+{"kind":"port","input":":+13","expected":null}
+{"kind":"port","input":":+13 (LISTEN)","expected":null}
+{"kind":"port","input":":+13\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|+13|12| node |ignored","expected":[]}
+{"kind":"port","input":": 21","expected":null}
+{"kind":"port","input":": 21 (LISTEN)","expected":null}
+{"kind":"port","input":": 21\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"| 21|12| node |ignored","expected":[]}
+{"kind":"port","input":":12junk","expected":null}
+{"kind":"port","input":":12junk (LISTEN)","expected":null}
+{"kind":"port","input":":12junk\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|12junk|12| node |ignored","expected":[]}
+{"kind":"port","input":":0x20","expected":null}
+{"kind":"port","input":":0x20 (LISTEN)","expected":null}
+{"kind":"port","input":":0x20\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|0x20|12| node |ignored","expected":[]}
+{"kind":"port","input":":12.5","expected":null}
+{"kind":"port","input":":12.5 (LISTEN)","expected":null}
+{"kind":"port","input":":12.5\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|12.5|12| node |ignored","expected":[]}
+{"kind":"port","input":":1e3","expected":null}
+{"kind":"port","input":":1e3 (LISTEN)","expected":null}
+{"kind":"port","input":":1e3\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"|1e3|12| node |ignored","expected":[]}
+{"kind":"port","input":":","expected":null}
+{"kind":"port","input":": (LISTEN)","expected":null}
+{"kind":"port","input":":\r","expected":null}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"||12| node |ignored","expected":[]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p12\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p13\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p0\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p-1\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p+12junk\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p1e3\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":1,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p0x12\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p9007199254740992\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":9007199254740992,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p999999999999999999999999999999999999\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":1e+36,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"lsof","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"p\nc﻿node﻿\nn*:5173\np13\ncpython\nnlocalhost:5173\nn[::1]:3000\np12\nn*:6000\nn192.168.1.1:7000\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null},{"host":"localhost","port":6000,"url":"http://localhost:6000","processName":null,"pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|12| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|12.0| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|1e1| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":10,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|0x0c| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":12,"terminal":{"threadId":"thread-one","terminalId":"term-one"}}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|-1| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|Infinity| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|NaN| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|inf| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|+0x0c| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":null,"terminal":null}]}
+{"kind":"windows","owners":[[12,{"threadId":"thread-one","terminalId":"term-one"}],[13,{"threadId":"thread-two","terminalId":"term-two"}]],"input":"127.0.0.1|5173|999999999999999999999999999999| node \r\n::|3000|13|﻿ python ﻿\n127.0.0.1|5173|13|duplicate\n","expected":[{"host":"localhost","port":3000,"url":"http://localhost:3000","processName":"python","pid":13,"terminal":{"threadId":"thread-two","terminalId":"term-two"}},{"host":"localhost","port":5173,"url":"http://localhost:5173","processName":"node","pid":1e+30,"terminal":null}]}
+{"kind":"urls","input":["http://localhost:3000","https://localhost","http://127.0.0.1/a?q=1#one","http://[::1]:3000/a","http://0.0.0.0:3000/a","http://LOCALHOST:80"," http://localhost/ ","http://localhost/😀","ftp://localhost","http://192.168.1.1","http://localhost:0","http://user:pass@localhost/path#two","http://localhost/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","http://localhost/😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","not a url"],"expected":["http://localhost:3000/","https://localhost/","http://127.0.0.1/a?q=1#one","http://[::1]:3000/a","http://localhost:3000/a","http://localhost/","http://localhost/%F0%9F%98%80","http://localhost:0/","http://user:pass@localhost/path#two"]}
+{"kind":"urls","input":["invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","invalid","http://localhost:3000"],"expected":[]}
+{"kind":"urls","input":["not a url","http://localhost/😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","http://localhost/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","http://user:pass@localhost/path#two","http://localhost:0","http://192.168.1.1","ftp://localhost","http://localhost/😀"," http://localhost/ ","http://LOCALHOST:80","http://0.0.0.0:3000/a","http://[::1]:3000/a","http://127.0.0.1/a?q=1#one","https://localhost","http://localhost:3000"],"expected":["http://user:pass@localhost/path#two","http://localhost:0/","http://localhost/%F0%9F%98%80","http://localhost/","http://localhost:3000/a","http://[::1]:3000/a","http://127.0.0.1/a?q=1#one","https://localhost/","http://localhost:3000/"]}
+{"kind":"urls","input":["http://0.0.0.0","http://localhost/","http://localhost/#x","http://localhost/#y"],"expected":["http://localhost/","http://localhost/#x","http://localhost/#y"]}
+{"kind":"cache","input":"http://localhost:3000","expected":"http://localhost:3000/"}
+{"kind":"cache","input":"https://localhost","expected":"https://localhost/"}
+{"kind":"cache","input":"http://127.0.0.1/a?q=1#one","expected":"http://127.0.0.1/a?q=1"}
+{"kind":"cache","input":"http://[::1]:3000/a","expected":"http://[::1]:3000/a"}
+{"kind":"cache","input":"http://0.0.0.0:3000/a","expected":"http://0.0.0.0:3000/a"}
+{"kind":"cache","input":"http://LOCALHOST:80","expected":"http://localhost/"}
+{"kind":"cache","input":" http://localhost/ ","expected":"http://localhost/"}
+{"kind":"cache","input":"http://localhost/😀","expected":"http://localhost/%F0%9F%98%80"}
+{"kind":"cache","input":"ftp://localhost","expected":"ftp://localhost/"}
+{"kind":"cache","input":"http://192.168.1.1","expected":"http://192.168.1.1/"}
+{"kind":"cache","input":"http://localhost:0","expected":"http://localhost:0/"}
+{"kind":"cache","input":"http://user:pass@localhost/path#two","expected":"http://user:pass@localhost/path"}
+{"kind":"cache","input":"http://localhost/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected":"http://localhost/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
+{"kind":"cache","input":"http://localhost/😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","expected":"http://localhost/%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80%F0%9F%98%80"}
