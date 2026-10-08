@@ -36,3 +36,7 @@ pub mod resource_policy;
 pub mod resource_ports;
 
 pub mod resource_discovery;
+
+pub mod resource_model;
+
+pub mod resource_history;
