@@ -40,3 +40,5 @@ pub mod resource_discovery;
 pub mod resource_model;
 
 pub mod resource_history;
+
+pub mod desktop_telemetry;

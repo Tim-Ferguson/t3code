@@ -828,14 +828,14 @@ async fn run_attempt(
 // Effect decodeText replaces invalid UTF-8, strips initial BOM and does not
 // flush incomplete UTF-8 at EOF. splitLines emits CR/LF and final partial lines.
 // Source NDJSON imposes no size limit on trusted native history frames.
-struct NdjsonLines<R> {
+pub(crate) struct NdjsonLines<R> {
     reader: R,
     pending: Vec<u8>,
     skip_lf: bool,
     first: bool,
 }
 impl<R: AsyncBufRead + Unpin> NdjsonLines<R> {
-    fn new(reader: R) -> Self {
+    pub(crate) fn new(reader: R) -> Self {
         Self {
             reader,
             pending: vec![],
@@ -867,7 +867,7 @@ impl<R: AsyncBufRead + Unpin> NdjsonLines<R> {
         };
         text.to_owned()
     }
-    async fn next(&mut self) -> io::Result<Option<String>> {
+    pub(crate) async fn next(&mut self) -> io::Result<Option<String>> {
         loop {
             let buffer = self.reader.fill_buf().await?;
             if buffer.is_empty() {

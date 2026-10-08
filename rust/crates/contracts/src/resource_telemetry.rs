@@ -133,6 +133,50 @@ object_struct! {pub struct DesktopHostTelemetrySnapshot{
     pub electron_processes:Vec<DesktopElectronProcessMetric>,
 }}
 object_struct! {pub struct DesktopHostTelemetryHello{pub version:RangeInt<1,1>,pub r#type:DesktopHostTelemetryHelloTag,pub electron_pid:PositiveInt,}}
+vocabulary! {DesktopUpdateStatusSchema{Disabled=>"disabled",Idle=>"idle",Checking=>"checking",UpToDate=>"up-to-date",Available=>"available",Downloading=>"downloading",Downloaded=>"downloaded",Error=>"error"}}
+vocabulary! {DesktopRuntimeArchSchema{Arm64=>"arm64",X64=>"x64",Other=>"other"}}
+vocabulary! {DesktopUpdateChannelSchema{Latest=>"latest",Nightly=>"nightly"}}
+vocabulary! {DesktopUpdateErrorContext{Check=>"check",Download=>"download",Install=>"install"}}
+vocabulary! {DesktopUpdateRemoteOutcome{ReadyToInstall=>"ready-to-install",UpToDate=>"up-to-date",Failed=>"failed"}}
+object_struct! {pub struct DesktopUpdateReleaseNoteSchema{pub version:String,pub items:Vec<String>,pub total_items:Number,}}
+object_struct! {pub struct DesktopUpdateStateSchema{
+    pub enabled:bool,pub status:DesktopUpdateStatusSchema,pub channel:DesktopUpdateChannelSchema,
+    pub current_version:String,pub host_arch:DesktopRuntimeArchSchema,pub app_arch:DesktopRuntimeArchSchema,pub running_under_arm64_translation:bool,
+    #[serde(deserialize_with="deserialize_required_nullable")]pub available_version:Option<String>,
+    #[serde(deserialize_with="deserialize_required_nullable")]pub downloaded_version:Option<String>,
+    pub release_notes:Vec<DesktopUpdateReleaseNoteSchema>,pub omitted_release_count:Number,
+    #[serde(deserialize_with="deserialize_required_nullable")]pub download_percent:Option<Number>,
+    #[serde(deserialize_with="deserialize_required_nullable")]pub checked_at:Option<String>,
+    #[serde(deserialize_with="deserialize_required_nullable")]pub message:Option<String>,
+    #[serde(deserialize_with="deserialize_required_nullable")]pub error_context:Option<DesktopUpdateErrorContext>,
+    pub can_retry:bool,
+}}
+vocabulary! {DesktopUpdateStatusTag{Status=>"desktopUpdateStatus"}}
+object_struct! {pub struct DesktopUpdateStatusReport{
+    pub version:RangeInt<1,1>,pub r#type:DesktopUpdateStatusTag,
+    #[serde(default,skip_serializing_if="Option::is_none",deserialize_with="deserialize_optional")]pub request_id:Option<TrimmedNonEmptyString>,
+    #[serde(default,skip_serializing_if="Option::is_none",deserialize_with="deserialize_optional")]pub outcome:Option<DesktopUpdateRemoteOutcome>,
+    #[serde(default,skip_serializing_if="Option::is_none",deserialize_with="deserialize_optional")]pub reason:Option<TrimmedNonEmptyString>,
+    pub state:DesktopUpdateStateSchema,
+}}
+protocol_union! {DesktopHostTelemetryMessage{Hello(DesktopHostTelemetryHello)=>"desktopTelemetryHello",Snapshot(DesktopHostTelemetrySnapshot)=>"desktopTelemetry",Update(DesktopUpdateStatusReport)=>"desktopUpdateStatus",}}
+vocabulary! {DesktopTelemetryDiagnosticsTag{Set=>"setDiagnosticsDemand"}}
+vocabulary! {DesktopTelemetryPowerIntervalsTag{Set=>"setHostPowerIntervals"}}
+vocabulary! {DesktopTelemetryRequestUpdateTag{Request=>"requestDesktopUpdate"}}
+vocabulary! {DesktopTelemetryCommitUpdateTag{Commit=>"commitDesktopUpdate"}}
+vocabulary! {DesktopTelemetryCancelUpdateTag{Cancel=>"cancelDesktopUpdate"}}
+object_struct! {pub struct DesktopTelemetrySetDiagnosticsDemand{pub version:RangeInt<1,1>,pub r#type:DesktopTelemetryDiagnosticsTag,pub enabled:bool,}}
+object_struct! {pub struct DesktopTelemetrySetHostPowerIntervals{pub version:RangeInt<1,1>,pub r#type:DesktopTelemetryPowerIntervalsTag,pub active_interval_ms:PositiveInt,pub idle_interval_ms:PositiveInt,}}
+object_struct! {pub struct DesktopTelemetryRequestDesktopUpdate{pub version:RangeInt<1,1>,pub r#type:DesktopTelemetryRequestUpdateTag,pub request_id:TrimmedNonEmptyString,}}
+object_struct! {pub struct DesktopTelemetryCommitDesktopUpdate{pub version:RangeInt<1,1>,pub r#type:DesktopTelemetryCommitUpdateTag,pub request_id:TrimmedNonEmptyString,}}
+object_struct! {pub struct DesktopTelemetryCancelDesktopUpdate{pub version:RangeInt<1,1>,pub r#type:DesktopTelemetryCancelUpdateTag,pub request_id:TrimmedNonEmptyString,}}
+protocol_union! {DesktopTelemetryControlMessage{
+    Diagnostics(DesktopTelemetrySetDiagnosticsDemand)=>"setDiagnosticsDemand",
+    PowerIntervals(DesktopTelemetrySetHostPowerIntervals)=>"setHostPowerIntervals",
+    RequestUpdate(DesktopTelemetryRequestDesktopUpdate)=>"requestDesktopUpdate",
+    CommitUpdate(DesktopTelemetryCommitDesktopUpdate)=>"commitDesktopUpdate",
+    CancelUpdate(DesktopTelemetryCancelDesktopUpdate)=>"cancelDesktopUpdate",
+}}
 object_struct! {pub struct ResourceTelemetryProcess{
     pub identity:ResourceTelemetryProcessIdentity,pub ppid:NonNegativeInt,pub child_pids:Vec<PositiveInt>,pub depth:NonNegativeInt,pub name:String,pub command:String,pub status:String,pub category:ResourceTelemetryProcessCategory,
     #[serde(default,skip_serializing_if="Option::is_none",deserialize_with="deserialize_optional")]

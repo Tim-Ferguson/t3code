@@ -34,9 +34,32 @@ fn resource_codecs_match_original_effect_json_oracle() {
             }
             "DesktopElectronProcessType" => roundtrip::<DesktopElectronProcessType>(fixture.input),
             "DesktopHostTelemetryHello" => roundtrip::<DesktopHostTelemetryHello>(fixture.input),
+            "DesktopHostTelemetryMessage" => {
+                roundtrip::<DesktopHostTelemetryMessage>(fixture.input)
+            }
             "DesktopHostTelemetrySnapshot" => {
                 roundtrip::<DesktopHostTelemetrySnapshot>(fixture.input)
             }
+            "DesktopTelemetryCancelDesktopUpdate" => {
+                roundtrip::<DesktopTelemetryCancelDesktopUpdate>(fixture.input)
+            }
+            "DesktopTelemetryCommitDesktopUpdate" => {
+                roundtrip::<DesktopTelemetryCommitDesktopUpdate>(fixture.input)
+            }
+            "DesktopTelemetryControlMessage" => {
+                roundtrip::<DesktopTelemetryControlMessage>(fixture.input)
+            }
+            "DesktopTelemetryRequestDesktopUpdate" => {
+                roundtrip::<DesktopTelemetryRequestDesktopUpdate>(fixture.input)
+            }
+            "DesktopTelemetrySetDiagnosticsDemand" => {
+                roundtrip::<DesktopTelemetrySetDiagnosticsDemand>(fixture.input)
+            }
+            "DesktopTelemetrySetHostPowerIntervals" => {
+                roundtrip::<DesktopTelemetrySetHostPowerIntervals>(fixture.input)
+            }
+            "DesktopUpdateRemoteOutcome" => roundtrip::<DesktopUpdateRemoteOutcome>(fixture.input),
+            "DesktopUpdateStatusReport" => roundtrip::<DesktopUpdateStatusReport>(fixture.input),
             "HostResourcesSnapshot" => roundtrip::<HostResourcesSnapshot>(fixture.input),
             "ResourceAttributionEntry" => roundtrip::<ResourceAttributionEntry>(fixture.input),
             "ResourceAttributionSnapshot" => {
@@ -127,6 +150,13 @@ fn resource_codecs_match_original_effect_json_oracle() {
             "ConfiguredLocalServerUrls" => roundtrip::<ConfiguredLocalServerUrls>(fixture.input),
             "DiscoveredLocalServer" => roundtrip::<DiscoveredLocalServer>(fixture.input),
             "DiscoveredLocalServerList" => roundtrip::<DiscoveredLocalServerList>(fixture.input),
+            "DesktopRuntimeArchSchema" => roundtrip::<DesktopRuntimeArchSchema>(fixture.input),
+            "DesktopUpdateChannelSchema" => roundtrip::<DesktopUpdateChannelSchema>(fixture.input),
+            "DesktopUpdateReleaseNoteSchema" => {
+                roundtrip::<DesktopUpdateReleaseNoteSchema>(fixture.input)
+            }
+            "DesktopUpdateStateSchema" => roundtrip::<DesktopUpdateStateSchema>(fixture.input),
+            "DesktopUpdateStatusSchema" => roundtrip::<DesktopUpdateStatusSchema>(fixture.input),
             // END RESOURCE DISPATCH
             other => panic!("unhandled resource schema {other}"),
         };

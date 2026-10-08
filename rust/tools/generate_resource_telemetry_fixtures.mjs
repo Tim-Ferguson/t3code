@@ -33,7 +33,7 @@ const { seed, codecCases } = new Function(
 )(Schema, fixtures, strictObjectTypes);
 const mapping = {},
   skipped = [];
-for (const file of ["background", "resourceTelemetry", "preview"]) {
+for (const file of ["background", "resourceTelemetry", "preview", "ipc"]) {
   const module = await import(pathToFileURL(root + "/packages/contracts/src/" + file + ".ts"));
   for (const [name, schema] of Object.entries(module)) {
     if (!rustNames.has(name) || !Schema.isSchema(schema)) continue;
