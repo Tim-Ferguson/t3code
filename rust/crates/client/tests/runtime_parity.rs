@@ -478,3 +478,19 @@ fn user_input_preserves_provider_option_ids_and_custom_answer_displacement() {
     draft.attachments_blocked = true;
     assert!(resolve_answer(&question, &draft).is_none());
 }
+
+#[test]
+fn browser_cookie_pairing_is_limited_to_the_exact_origin() {
+    let endpoint =
+        t3_client::connection::EnvironmentEndpoint::new("https://server.example/proxy/").unwrap();
+    assert!(endpoint.is_same_origin("https://server.example"));
+    assert!(endpoint.is_same_origin("https://server.example:443/app"));
+    for remote in [
+        "http://server.example",
+        "https://server.example:444",
+        "https://app.t3.codes",
+        "not an origin",
+    ] {
+        assert!(!endpoint.is_same_origin(remote));
+    }
+}

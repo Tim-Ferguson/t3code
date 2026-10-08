@@ -87,7 +87,7 @@ impl ProviderRegistry {
                         .as_ref()
                         .and_then(Option::as_ref)
                         .map(ToString::to_string),
-                    enabled: entry.enabled.unwrap_or(config.enabled),
+                    enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
                     config,
                     environment,
                 };
@@ -164,7 +164,10 @@ pub fn redact_settings(settings: &ServerSettings) -> Value {
         .unwrap()
         .values_mut()
     {
-        if let Some(environment) = instance["environment"].as_array_mut() {
+        if let Some(environment) = instance
+            .get_mut("environment")
+            .and_then(Value::as_array_mut)
+        {
             for variable in environment {
                 if variable["sensitive"] == true {
                     let redacted = variable["value"]
@@ -188,7 +191,9 @@ pub fn redact_settings(settings: &ServerSettings) -> Value {
     };
     if let Some(sources) = value["usageLimitSources"].as_object_mut() {
         for source in sources.values_mut() {
-            redact(&mut source["managementKey"]);
+            if let Some(key) = source.get_mut("managementKey") {
+                redact(key);
+            }
         }
     }
     for field in ["accessToken", "apiToken"] {
@@ -245,6 +250,38 @@ mod tests {
             "unavailable"
         );
         assert!(registry.codex("codex").is_err());
+    }
+    #[tokio::test]
+    async fn either_explicit_disable_flag_prevents_executable_launch() {
+        let directory = tempfile::tempdir().unwrap();
+        let script = directory.path().join("provider");
+        let marker = directory.path().join("launched");
+        std::fs::write(
+            &script,
+            "#!/usr/bin/env python3\nimport os\nopen(os.environ['MARKER'],'w').write('started')\n",
+        )
+        .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        }
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":true,"config":{"enabled":false,"binaryPath":script},"environment":[{"name":"MARKER","value":marker}]},"codex_work":{"driver":"codex","enabled":false,"config":{"enabled":true,"binaryPath":script},"environment":[{"name":"MARKER","value":marker}]}}})).unwrap();
+        let registry = ProviderRegistry::discover(&settings, directory.path())
+            .await
+            .unwrap();
+        for id in ["codex", "codex_work"] {
+            assert_eq!(
+                registry
+                    .snapshots()
+                    .iter()
+                    .find(|value| value["instanceId"] == id)
+                    .unwrap()["status"],
+                "disabled"
+            );
+            assert!(registry.codex(id).is_err());
+        }
+        assert!(!marker.exists());
     }
     #[test]
     fn settings_redact_sensitive_environment_without_mutating_runtime_values() {

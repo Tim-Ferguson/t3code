@@ -61,11 +61,18 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             Err(error) => (false, Err(error)),
         }
     }
-    let fixtures: Vec<Fixture> = include_str!("fixtures/expanded-codecs.jsonl")
+    let mut fixtures_json = String::new();
+    std::io::Read::read_to_string(
+        &mut flate2::read::GzDecoder::new(&include_bytes!("fixtures/expanded-codecs.jsonl.gz")[..]),
+        &mut fixtures_json,
+    )
+    .unwrap();
+    let fixtures: Vec<Fixture> = fixtures_json
         .lines()
         .map(|line| serde_json::from_str(line).unwrap())
         .collect();
     let mut failures = Vec::new();
+    let mut counts = std::collections::BTreeMap::<String, usize>::new();
     for fixture in fixtures {
         let (decoded_valid, result) = match fixture.schema.as_str() {
             // BEGIN ORIGINAL CODEC DISPATCH
@@ -433,6 +440,118 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "RemoteOpenTargetKind" => {
                 checked_roundtrip::<RemoteOpenTargetKind>(fixture.input.clone())
             }
+            "ChatAttachment" => checked_roundtrip::<ChatAttachment>(fixture.input.clone()),
+            "ChatFileAttachment" => checked_roundtrip::<ChatFileAttachment>(fixture.input.clone()),
+            "ChatImageAttachment" => {
+                checked_roundtrip::<ChatImageAttachment>(fixture.input.clone())
+            }
+            "ChatUnknownAttachment" => {
+                checked_roundtrip::<ChatUnknownAttachment>(fixture.input.clone())
+            }
+            "PastedTextAttachmentSource" => {
+                checked_roundtrip::<PastedTextAttachmentSource>(fixture.input.clone())
+            }
+            "PersistChatAttachmentsInput" => {
+                checked_roundtrip::<PersistChatAttachmentsInput>(fixture.input.clone())
+            }
+            "PersistChatAttachmentsResult" => {
+                checked_roundtrip::<PersistChatAttachmentsResult>(fixture.input.clone())
+            }
+            "SnapShotAccessibility" => {
+                checked_roundtrip::<SnapShotAccessibility>(fixture.input.clone())
+            }
+            "SnapShotAccessibilityNode" => {
+                checked_roundtrip::<SnapShotAccessibilityNode>(fixture.input.clone())
+            }
+            "SnapShotSource" => checked_roundtrip::<SnapShotSource>(fixture.input.clone()),
+            "UploadChatAttachment" => {
+                checked_roundtrip::<UploadChatAttachment>(fixture.input.clone())
+            }
+            "UploadChatImageAttachment" => {
+                checked_roundtrip::<UploadChatImageAttachment>(fixture.input.clone())
+            }
+            "ComposerContextRecord" => {
+                checked_roundtrip::<ComposerContextRecord>(fixture.input.clone())
+            }
+            "ElementContextDetails" => {
+                checked_roundtrip::<ElementContextDetails>(fixture.input.clone())
+            }
+            "ElementContextRecord" => {
+                checked_roundtrip::<ElementContextRecord>(fixture.input.clone())
+            }
+            "ElementContextSource" => {
+                checked_roundtrip::<ElementContextSource>(fixture.input.clone())
+            }
+            "FileContextRecord" => checked_roundtrip::<FileContextRecord>(fixture.input.clone()),
+            "ImageContextRecord" => checked_roundtrip::<ImageContextRecord>(fixture.input.clone()),
+            "KnownComposerContextRecord" => {
+                checked_roundtrip::<KnownComposerContextRecord>(fixture.input.clone())
+            }
+            "MentionContextRecord" => {
+                checked_roundtrip::<MentionContextRecord>(fixture.input.clone())
+            }
+            "OrchestrationMessageContext" => {
+                checked_roundtrip::<OrchestrationMessageContext>(fixture.input.clone())
+            }
+            "PreviewAnnotationContextRecord" => {
+                checked_roundtrip::<PreviewAnnotationContextRecord>(fixture.input.clone())
+            }
+            "PullRequestContextMetadata" => {
+                checked_roundtrip::<PullRequestContextMetadata>(fixture.input.clone())
+            }
+            "ReviewCommentContextRecord" => {
+                checked_roundtrip::<ReviewCommentContextRecord>(fixture.input.clone())
+            }
+            "SkillContextRecord" => checked_roundtrip::<SkillContextRecord>(fixture.input.clone()),
+            "TerminalContextRecord" => {
+                checked_roundtrip::<TerminalContextRecord>(fixture.input.clone())
+            }
+            "ThreadContextRecord" => {
+                checked_roundtrip::<ThreadContextRecord>(fixture.input.clone())
+            }
+            "UnknownContextRecord" => {
+                checked_roundtrip::<UnknownContextRecord>(fixture.input.clone())
+            }
+            "ThreadTokenUsageSnapshot" => {
+                checked_roundtrip::<ThreadTokenUsageSnapshot>(fixture.input.clone())
+            }
+            "ToolActivityIcon" => checked_roundtrip::<ToolActivityIcon>(fixture.input.clone()),
+            "ToolActivityNativeAppReference" => {
+                checked_roundtrip::<ToolActivityNativeAppReference>(fixture.input.clone())
+            }
+            "ToolActivitySource" => checked_roundtrip::<ToolActivitySource>(fixture.input.clone()),
+            "ToolActivitySurface" => {
+                checked_roundtrip::<ToolActivitySurface>(fixture.input.clone())
+            }
+            "TurnTokenUsage" => checked_roundtrip::<TurnTokenUsage>(fixture.input.clone()),
+            "ProviderApprovalDecision" => {
+                checked_roundtrip::<ProviderApprovalDecision>(fixture.input.clone())
+            }
+            "ProviderApprovalOption" => {
+                checked_roundtrip::<ProviderApprovalOption>(fixture.input.clone())
+            }
+            "ProviderApprovalPolicy" => {
+                checked_roundtrip::<ProviderApprovalPolicy>(fixture.input.clone())
+            }
+            "ProviderInteractionMode" => {
+                checked_roundtrip::<ProviderInteractionMode>(fixture.input.clone())
+            }
+            "ProviderRequestKind" => {
+                checked_roundtrip::<ProviderRequestKind>(fixture.input.clone())
+            }
+            "ProviderSandboxMode" => {
+                checked_roundtrip::<ProviderSandboxMode>(fixture.input.clone())
+            }
+            "ProviderUserInputAnswers" => {
+                checked_roundtrip::<ProviderUserInputAnswers>(fixture.input.clone())
+            }
+            "RuntimeMode" => checked_roundtrip::<RuntimeMode>(fixture.input.clone()),
+            "UserInputAttachmentAnswerPayload" => {
+                checked_roundtrip::<UserInputAttachmentAnswerPayload>(fixture.input.clone())
+            }
+            "UserInputAttachments" => {
+                checked_roundtrip::<UserInputAttachments>(fixture.input.clone())
+            }
             "ProviderRef" => checked_roundtrip::<ProviderRef>(fixture.input.clone()),
             "ProviderThreadNativeMetadata" => {
                 checked_roundtrip::<ProviderThreadNativeMetadata>(fixture.input.clone())
@@ -447,7 +566,124 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "ThreadForkSourcePoint" => {
                 checked_roundtrip::<ThreadForkSourcePoint>(fixture.input.clone())
             }
+            "ConversationMessage" => {
+                checked_roundtrip::<ConversationMessage>(fixture.input.clone())
+            }
+            "RuntimeRequest" => checked_roundtrip::<RuntimeRequest>(fixture.input.clone()),
+            "ThreadProjection" => checked_roundtrip::<ThreadProjection>(fixture.input.clone()),
+            "DomainEvent" => checked_roundtrip::<DomainEvent>(fixture.input.clone()),
+            "ThreadStreamItem" => checked_roundtrip::<ThreadStreamItem>(fixture.input.clone()),
+            "SessionCapabilities" => {
+                checked_roundtrip::<SessionCapabilities>(fixture.input.clone())
+            }
+            "ThreadCapabilities" => checked_roundtrip::<ThreadCapabilities>(fixture.input.clone()),
+            "TurnCapabilities" => checked_roundtrip::<TurnCapabilities>(fixture.input.clone()),
+            "StreamingCapabilities" => {
+                checked_roundtrip::<StreamingCapabilities>(fixture.input.clone())
+            }
+            "ToolCapabilities" => checked_roundtrip::<ToolCapabilities>(fixture.input.clone()),
+            "ApprovalCapabilities" => {
+                checked_roundtrip::<ApprovalCapabilities>(fixture.input.clone())
+            }
+            "PlanningCapabilities" => {
+                checked_roundtrip::<PlanningCapabilities>(fixture.input.clone())
+            }
+            "SubagentCapabilities" => {
+                checked_roundtrip::<SubagentCapabilities>(fixture.input.clone())
+            }
+            "ContextCapabilities" => {
+                checked_roundtrip::<ContextCapabilities>(fixture.input.clone())
+            }
+            "CheckpointCapabilities" => {
+                checked_roundtrip::<CheckpointCapabilities>(fixture.input.clone())
+            }
+            "IdentityCapabilities" => {
+                checked_roundtrip::<IdentityCapabilities>(fixture.input.clone())
+            }
+            "RuntimePolicyCapabilities" => {
+                checked_roundtrip::<RuntimePolicyCapabilities>(fixture.input.clone())
+            }
+            "ProviderCapabilities" => {
+                checked_roundtrip::<ProviderCapabilities>(fixture.input.clone())
+            }
+            "RunStatus" => checked_roundtrip::<RunStatus>(fixture.input.clone()),
+            "DelegatedCompletionTaskDeliveryState" => {
+                checked_roundtrip::<DelegatedCompletionTaskDeliveryState>(fixture.input.clone())
+            }
+            "DelegatedCompletionTaskDelivery" => {
+                checked_roundtrip::<DelegatedCompletionTaskDelivery>(fixture.input.clone())
+            }
+            "DelegatedCompletionDelivery" => {
+                checked_roundtrip::<DelegatedCompletionDelivery>(fixture.input.clone())
+            }
+            "DelegatedCompletionCohort" => {
+                checked_roundtrip::<DelegatedCompletionCohort>(fixture.input.clone())
+            }
+            "RestartCancelledBackgroundWork" => {
+                checked_roundtrip::<RestartCancelledBackgroundWork>(fixture.input.clone())
+            }
+            "RunBackgroundWorkCancelled" => {
+                checked_roundtrip::<RunBackgroundWorkCancelled>(fixture.input.clone())
+            }
+            "ThreadLaunchWorkspaceStrategy" => {
+                checked_roundtrip::<ThreadLaunchWorkspaceStrategy>(fixture.input.clone())
+            }
+            "Run" => checked_roundtrip::<Run>(fixture.input.clone()),
+            "RunAttempt" => checked_roundtrip::<RunAttempt>(fixture.input.clone()),
+            "ExecutionNode" => checked_roundtrip::<ExecutionNode>(fixture.input.clone()),
+            "Subagent" => checked_roundtrip::<Subagent>(fixture.input.clone()),
+            "CheckpointScope" => checked_roundtrip::<CheckpointScope>(fixture.input.clone()),
+            "ProviderSessionDetached" => {
+                checked_roundtrip::<ProviderSessionDetached>(fixture.input.clone())
+            }
+            "ProviderThread" => checked_roundtrip::<ProviderThread>(fixture.input.clone()),
+            "ProviderTurnTokenUsage" => {
+                checked_roundtrip::<ProviderTurnTokenUsage>(fixture.input.clone())
+            }
+            "ProviderTurn" => checked_roundtrip::<ProviderTurn>(fixture.input.clone()),
+            "ProviderFailure" => checked_roundtrip::<ProviderFailure>(fixture.input.clone()),
+            "ProviderRetry" => checked_roundtrip::<ProviderRetry>(fixture.input.clone()),
+            "ThreadLaunchInput" => checked_roundtrip::<ThreadLaunchInput>(fixture.input.clone()),
+            "ThreadLaunchResult" => checked_roundtrip::<ThreadLaunchResult>(fixture.input.clone()),
+            "NotificationSource" => checked_roundtrip::<NotificationSource>(fixture.input.clone()),
+            "Notification" => checked_roundtrip::<Notification>(fixture.input.clone()),
+            "PlanStep" => checked_roundtrip::<PlanStep>(fixture.input.clone()),
+            "PlanArtifact" => checked_roundtrip::<PlanArtifact>(fixture.input.clone()),
+            "CheckpointFileSummary" => {
+                checked_roundtrip::<CheckpointFileSummary>(fixture.input.clone())
+            }
+            "Checkpoint" => checked_roundtrip::<Checkpoint>(fixture.input.clone()),
+            "CheckpointRollbackRequest" => {
+                checked_roundtrip::<CheckpointRollbackRequest>(fixture.input.clone())
+            }
+            "TurnItemStatus" => checked_roundtrip::<TurnItemStatus>(fixture.input.clone()),
+            "UserMessageInputIntent" => {
+                checked_roundtrip::<UserMessageInputIntent>(fixture.input.clone())
+            }
+            "FileChangeDetail" => checked_roundtrip::<FileChangeDetail>(fixture.input.clone()),
+            "FileSearchResult" => checked_roundtrip::<FileSearchResult>(fixture.input.clone()),
+            "WebSearchResult" => checked_roundtrip::<WebSearchResult>(fixture.input.clone()),
+            "SecretRequestStatus" => {
+                checked_roundtrip::<SecretRequestStatus>(fixture.input.clone())
+            }
+            "TurnItem" => checked_roundtrip::<TurnItem>(fixture.input.clone()),
+            "ProjectedTurnItem" => checked_roundtrip::<ProjectedTurnItem>(fixture.input.clone()),
+            "HistoricalMessage" => checked_roundtrip::<HistoricalMessage>(fixture.input.clone()),
+            "ContextHandoff" => checked_roundtrip::<ContextHandoff>(fixture.input.clone()),
+            "ContextTransferType" => {
+                checked_roundtrip::<ContextTransferType>(fixture.input.clone())
+            }
+            "ContextSourcePoint" => checked_roundtrip::<ContextSourcePoint>(fixture.input.clone()),
+            "ContextTransferResolution" => {
+                checked_roundtrip::<ContextTransferResolution>(fixture.input.clone())
+            }
+            "ContextTransfer" => checked_roundtrip::<ContextTransfer>(fixture.input.clone()),
+            "ProviderSessionV2" => checked_roundtrip::<ProviderSessionV2>(fixture.input.clone()),
+            "UserInputQuestionV2" => {
+                checked_roundtrip::<UserInputQuestionV2>(fixture.input.clone())
+            }
             "ThreadCommand" => checked_roundtrip::<ThreadCommand>(fixture.input.clone()),
+            "ProviderCommand" => checked_roundtrip::<ProviderCommand>(fixture.input.clone()),
             // END ORIGINAL CODEC DISPATCH
             schema => panic!("unsupported fixture codec {schema}"),
         };
@@ -455,16 +691,20 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             || result.is_ok() != fixture.valid
             || fixture.valid && result.as_ref().ok() != fixture.output.as_ref()
         {
-            failures.push(format!(
-                "{} input {}: Rust {:?}; original {:?}",
-                fixture.schema, fixture.input, result, fixture.output
-            ));
+            let count = counts.entry(fixture.schema.clone()).or_default();
+            *count += 1;
+            if *count <= 3 {
+                failures.push(format!(
+                    "{} input {}: Rust {:?}; original {:?}",
+                    fixture.schema, fixture.input, result, fixture.output
+                ));
+            }
         }
     }
     assert!(
         failures.is_empty(),
         "{} mismatches:\n{}",
-        failures.len(),
+        format!("{:?}", counts),
         failures.join("\n")
     );
 }

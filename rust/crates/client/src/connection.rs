@@ -36,6 +36,10 @@ impl EnvironmentEndpoint {
             .expect("relative endpoint")
     }
 
+    pub fn is_same_origin(&self, origin: &str) -> bool {
+        Url::parse(origin).is_ok_and(|origin| self.base.origin() == origin.origin())
+    }
+
     pub fn socket(&self, ticket: Option<&str>, surface: &str) -> Url {
         let mut url = self.http("ws");
         url.set_scheme(if self.base.scheme() == "https" {

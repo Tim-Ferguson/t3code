@@ -7,6 +7,7 @@ use std::{
 };
 use t3_server::{
     auth::AuthService,
+    config::NativeConfig,
     persistence::Store,
     transport::{ApiState, router},
 };
@@ -18,6 +19,7 @@ struct Options {
     port: u16,
     config: Option<PathBuf>,
     assets: Option<PathBuf>,
+    settings: Option<PathBuf>,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     let mut options = Options {
@@ -27,6 +29,7 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
         port: 3774,
         config: None,
         assets: None,
+        settings: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -48,9 +51,14 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
                         .ok_or("--assets requires the built web asset directory")?,
                 ))
             }
+            "--settings" => {
+                options.settings = Some(PathBuf::from(
+                    args.next().ok_or("--settings requires a JSON path")?,
+                ))
+            }
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--config JSON] [--assets DIRECTORY]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
+                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
                 );
                 std::process::exit(0)
             }
@@ -193,6 +201,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
         return Ok(());
     }
+    let runtime_lease = store.acquire_runtime_lease()?;
     let mut config = options
         .config
         .map(|path| {
@@ -216,6 +225,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         arch => arch,
     };
     let environment = json!({"environmentId":environment_id,"label":"T3 Code Rust","platform":{"os":os,"arch":arch},"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
+    let native_config = NativeConfig::load(
+        &state_dir,
+        &std::env::current_dir()?,
+        options.settings.as_deref(),
+        &environment,
+        &auth.descriptor(),
+    )
+    .await?;
+    if config.is_none() {
+        config = Some(native_config.snapshot.clone());
+    }
+    let execution = t3_server::execution::ExecutionService::try_start_with_lease(
+        store.clone(),
+        native_config.providers.clone(),
+        runtime_lease,
+    )?;
     let state = ApiState {
         store,
         auth,
@@ -223,6 +248,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config,
         cors_origins: None,
         assets: options.assets.map(fs::canonicalize).transpose()?,
+        providers: Some(native_config.providers),
+        execution: Some(execution.clone()),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -231,5 +258,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
+    execution.shutdown().await;
     Ok(())
 }

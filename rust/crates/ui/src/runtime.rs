@@ -24,6 +24,13 @@ pub enum View {
     Providers,
     Appearance,
 }
+#[derive(Debug, Clone)]
+pub struct PendingMessage {
+    pub destination: EnvironmentId,
+    pub thread_id: String,
+    pub text: String,
+}
+
 #[derive(Debug, Clone, Default, Store)]
 pub struct UiModel {
     pub status: ConnectionStatus,
@@ -37,7 +44,7 @@ pub struct UiModel {
     pub environments: EnvironmentCatalog,
     pub error: Option<String>,
     pub draft: String,
-    pub pending_message: Option<(String, String)>,
+    pub pending_messages: std::collections::BTreeMap<String, PendingMessage>,
     pub view: View,
     pub dark: bool,
     pub sidebar_open: bool,
@@ -121,8 +128,27 @@ pub fn default_address() -> String {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::env::var("T3_SERVER_URL").unwrap_or_else(|_| "http://127.0.0.1:3774".into())
+        std::env::var("T3_SERVER_URL").unwrap_or_else(|_| {
+            if cfg!(feature = "mobile") {
+                String::new()
+            } else {
+                "http://127.0.0.1:3774".into()
+            }
+        })
     }
+}
+
+fn browser_pairing(endpoint: &EnvironmentEndpoint) -> bool {
+    cfg!(target_arch = "wasm32") && endpoint.is_same_origin(&default_address())
+}
+
+pub fn default_credential_kind() -> String {
+    if cfg!(target_arch = "wasm32") {
+        "session"
+    } else {
+        "pairing"
+    }
+    .into()
 }
 
 fn fail(state: Store<UiModel>, message: impl Into<String>) {
@@ -274,7 +300,7 @@ pub fn forget_environment(
         model.selected_project = None;
         model.config = Value::Null;
         model.draft.clear();
-        model.pending_message = None;
+        model.pending_messages.clear();
         model.grants = SessionGrantInput::default();
         model.error = None;
         model.status = ConnectionStatus::Disconnected;
@@ -283,7 +309,7 @@ pub fn forget_environment(
     state.environments().write().forget(destination);
 }
 
-pub fn select_thread(handle: &TransportHandle, mut state: Store<UiModel>, thread_id: String) {
+fn cancel_thread_subscription(handle: &TransportHandle) {
     {
         let mut transport = handle.borrow_mut();
         transport.thread_generation += 1;
@@ -295,6 +321,24 @@ pub fn select_thread(handle: &TransportHandle, mut state: Store<UiModel>, thread
             }
         }
     }
+}
+
+pub fn new_thread(handle: &TransportHandle, mut state: Store<UiModel>, project: Option<String>) {
+    cancel_thread_subscription(handle);
+    let mut model = state.write();
+    save_current_environment(&mut model);
+    if let Some(project) = project {
+        model.selected_project = Some(project);
+    }
+    model.active_thread = None;
+    model.thread = ThreadState::default();
+    model.draft.clear();
+    model.view = View::Chat;
+    model.sidebar_open = false;
+}
+
+pub fn select_thread(handle: &TransportHandle, mut state: Store<UiModel>, thread_id: String) {
+    cancel_thread_subscription(handle);
     {
         let mut model = state.write();
         save_current_environment(&mut model);
@@ -337,6 +381,22 @@ pub fn command(
     )
 }
 
+pub fn launch_thread(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    project: &str,
+    instance: &str,
+    model: &str,
+) -> Option<String> {
+    request(
+        handle,
+        state,
+        "orchestration.launchThread",
+        json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":"New thread","modelSelection":{"instanceId":instance,"model":model},"runtimeMode":"approval-required","interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":{"type":"root"}}),
+        RequestKind::Unary,
+    )
+}
+
 pub fn stop_thread(handle: &TransportHandle, state: Store<UiModel>, thread_id: &str) {
     let run = state
         .peek()
@@ -370,7 +430,15 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
         return;
     };
     let text = model.draft.clone();
-    if text.trim().is_empty() || model.pending_message.is_some() {
+    let Some(destination) = model.destination.clone() else {
+        return;
+    };
+    if text.trim().is_empty()
+        || model
+            .pending_messages
+            .values()
+            .any(|pending| pending.destination == destination && pending.thread_id == thread_id)
+    {
         return;
     }
     drop(model);
@@ -380,7 +448,14 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
         "message.dispatch",
         json!({"threadId":thread_id,"messageId":uuid::Uuid::new_v4().to_string(),"text":text,"attachments":[],"createdBy":"user","creationSource":creation_source(),"dispatchMode":{"type":"start_immediately"},"deliveryIntent":"auto"}),
     ) {
-        state.pending_message().set(Some((id, text)));
+        state.pending_messages().write().insert(
+            id,
+            PendingMessage {
+                destination,
+                thread_id,
+                text,
+            },
+        );
     }
 }
 
@@ -574,7 +649,7 @@ fn interrupt_connection(handle: &TransportHandle, state: Store<UiModel>, reason:
     state
         .status()
         .set(ConnectionStatus::Interrupted(reason.to_owned()));
-    state.pending_message().set(None);
+    state.pending_messages().write().clear();
 }
 
 /// A bootstrap credential is exchanged once; it never becomes an ordinary
@@ -596,10 +671,16 @@ pub async fn pair_and_connect(
         let endpoint=EnvironmentEndpoint::new(&address).map_err(|error|error.to_string())?;
         let client=reqwest::Client::new();
         let descriptor=authenticated_json(&client,&endpoint,".well-known/t3/environment","",false).await?;
+        let _:t3_contracts::ExecutionEnvironmentDescriptor=serde_json::from_value(descriptor.clone()).map_err(|error|format!("Invalid environment descriptor: {error}"))?;
         let destination:EnvironmentId=serde_json::from_value(descriptor["environmentId"].clone()).map_err(|error|format!("Invalid environment identity: {error}"))?;
         let protocol=descriptor["orchestrationProtocolVersion"].as_u64().unwrap_or(1);
         if handle.borrow().generation!=generation{return Err("Connection superseded.".into());}
         state.peek().environments.validate_identity(&endpoint,&destination,protocol).map_err(|error|error.to_string())?;
+        if browser_pairing(&endpoint) {
+            let response=read_json(client.post(endpoint.http("api/auth/browser-session")).json(&json!({"credential":credential.trim()})),"","browser pairing").await?;
+            let _:t3_contracts::AuthBrowserSessionResult=serde_json::from_value(response).map_err(|error|format!("Invalid browser pairing response: {error}"))?;
+            return Ok(String::new());
+        }
         let response=read_json(client.post(endpoint.http("oauth/token")).form(&[
             ("grant_type","urn:ietf:params:oauth:grant-type:token-exchange"),
             ("subject_token",credential.trim()),
@@ -687,7 +768,7 @@ fn reset_for_connect(handle: &TransportHandle, mut state: Store<UiModel>) {
         model.draft.clear();
         model.status = ConnectionStatus::Connecting;
         model.error = None;
-        model.pending_message = None;
+        model.pending_messages.clear();
         model.grants = SessionGrantInput::default();
     }
 }
@@ -705,6 +786,7 @@ async fn connect_once(
         Err(error) => {
             fail(state, error.to_string());
             state.status().set(ConnectionStatus::Disconnected);
+            state.view().set(View::Connections);
             return;
         }
     };
@@ -712,6 +794,9 @@ async fn connect_once(
     let authorization = async {
         let descriptor =
             authenticated_json(&client, &endpoint, ".well-known/t3/environment", "", false).await?;
+        let _: t3_contracts::ExecutionEnvironmentDescriptor =
+            serde_json::from_value(descriptor.clone())
+                .map_err(|error| format!("Invalid environment descriptor: {error}"))?;
         let destination: EnvironmentId =
             serde_json::from_value(descriptor["environmentId"].clone())
                 .map_err(|error| format!("Invalid environment identity: {error}"))?;
@@ -729,8 +814,9 @@ async fn connect_once(
             .map_err(|error| error.to_string())?;
         let session =
             authenticated_json(&client, &endpoint, "api/auth/session", &token, false).await?;
-        let grants: SessionGrantInput = serde_json::from_value(session)
+        let session: t3_contracts::AuthSessionState = serde_json::from_value(session)
             .map_err(|error| format!("Invalid session response: {error}"))?;
+        let grants = SessionGrantInput::from(&session);
         let ticket = authenticated_json(
             &client,
             &endpoint,
@@ -759,6 +845,9 @@ async fn connect_once(
                     ConnectionStatus::Blocked(error.clone())
                 },
             );
+            if matches!(*state.status().peek(), ConnectionStatus::Blocked(_)) {
+                state.view().set(View::Connections);
+            }
             fail(state, error);
             return;
         }
@@ -927,21 +1016,36 @@ async fn connect_once(
 fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEvent) {
     match event {
         RpcEvent::Values { method, values, .. } => {
-            for value in values {
-                if method == "orchestration.subscribeShell" {
-                    match serde_json::from_value::<ShellStreamItem>(value) {
-                        Ok(item) => {
-                            state.shell().write().apply(item);
-                        }
-                        Err(error) => {
-                            fail(state, format!("Could not decode shell update: {error}"))
+            // The source RPC codec decodes the complete chunk before exposing it
+            // to subscribers. Avoid committing a prefix of a malformed chunk.
+            if method == "orchestration.subscribeShell" {
+                let decoded: Result<Vec<ShellStreamItem>, _> =
+                    values.into_iter().map(serde_json::from_value).collect();
+                match decoded {
+                    Ok(items) => {
+                        let mut shell_store = state.shell();
+                        let mut shell = shell_store.write();
+                        for item in items {
+                            shell.apply(item);
                         }
                     }
-                } else if method == "orchestration.subscribeThread" {
-                    let result = state.thread().write().apply(&value);
-                    if let Err(error) = result {
-                        fail(state, error);
+                    Err(error) => fail(state, format!("Could not decode shell update: {error}")),
+                }
+            } else if method == "orchestration.subscribeThread" {
+                let decoded: Result<Vec<Value>, _> =
+                    values.into_iter().map(decode_thread_stream).collect();
+                match decoded {
+                    Ok(items) => {
+                        let mut thread_store = state.thread();
+                        let mut thread = thread_store.write();
+                        for item in items {
+                            if let Err(error) = thread.apply(&item) {
+                                fail(state, error);
+                                break;
+                            }
+                        }
                     }
+                    Err(error) => fail(state, error),
                 }
             }
         }
@@ -950,6 +1054,15 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                 let _ = waiter.send(Ok(value.clone()));
             }
             if method == "server.getConfig" {
+                let value = match serde_json::from_value::<t3_contracts::ServerConfig>(value)
+                    .and_then(serde_json::to_value)
+                {
+                    Ok(value) => value,
+                    Err(error) => {
+                        fail(state, format!("Invalid server configuration: {error}"));
+                        return;
+                    }
+                };
                 let expected = state.peek().destination.clone();
                 if expected.as_ref().is_none_or(|expected| {
                     value["environment"]["environmentId"].as_str() != Some(expected.as_str())
@@ -969,32 +1082,68 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                     select_thread(handle, state, thread_id.to_owned());
                 }
             }
-            let pending = state.peek().pending_message.clone();
-            if let Some((pending_id, text)) = pending {
-                if id == pending_id {
-                    if *state.draft().peek() == text {
-                        state.draft().set(String::new());
-                    }
-                    state.pending_message().set(None);
-                }
-            }
+            finish_pending_message(state, &id, true);
         }
         RpcEvent::Failed { id, cause, .. } => {
             if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
                 let _ = waiter.send(Err(rpc_error_message(&cause)));
             }
-            if state
-                .peek()
-                .pending_message
-                .as_ref()
-                .is_some_and(|(pending_id, _)| *pending_id == id)
-            {
-                state.pending_message().set(None);
-            }
+            finish_pending_message(state, &id, false);
             fail(state, rpc_error_message(&cause));
         }
         RpcEvent::Defect(error) => fail(state, rpc_error_message(&error)),
         _ => {}
+    }
+}
+
+/// Decode the complete available contract before acquiring a mutable state
+/// guard. Unknown future events advance the cursor without applying payloads.
+fn decode_thread_stream(value: Value) -> Result<Value, String> {
+    let decoded = serde_json::from_value::<t3_contracts::ThreadStreamItem>(value.clone())
+        .map_err(|error| format!("Invalid thread update: {error}"))?;
+    match decoded {
+        t3_contracts::ThreadStreamItem::UnknownEvent {
+            sequence,
+            event_type,
+        } => Ok(json!({"kind":"unknown-event","sequence":sequence,"eventType":event_type})),
+        t3_contracts::ThreadStreamItem::Event {
+            sequence,
+            mut event,
+        } => {
+            event.payload = t3_contracts::normalize_event_payload(&event.event_type, event.payload)
+                .map_err(|error| format!("Invalid thread update: {error}"))?;
+            Ok(json!({"kind":"event","sequence":sequence,"event":event}))
+        }
+        decoded => {
+            serde_json::to_value(decoded).map_err(|error| format!("Invalid thread update: {error}"))
+        }
+    }
+}
+
+fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
+    let pending = state.pending_messages().write().remove(id);
+    let Some(pending) = pending.filter(|_| success) else {
+        return;
+    };
+    // A receipt belongs to its original destination and conversation even when
+    // the user has navigated elsewhere while the request was in flight.
+    let current = {
+        let model = state.peek();
+        model.destination.as_ref() == Some(&pending.destination)
+            && model.active_thread.as_deref() == Some(pending.thread_id.as_str())
+    };
+    if current && *state.draft().peek() == pending.text {
+        state.draft().set(String::new());
+    }
+    if let Some(record) = state
+        .environments()
+        .write()
+        .records
+        .get_mut(&pending.destination)
+    {
+        if record.cache.drafts.get(&pending.thread_id) == Some(&pending.text) {
+            record.cache.drafts.remove(&pending.thread_id);
+        }
     }
 }
 
@@ -1018,6 +1167,153 @@ fn rpc_error_message(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[derive(Clone)]
+    struct ReceiptHarness(std::rc::Rc<RefCell<Option<Store<UiModel>>>>);
+    fn receipt_harness(props: ReceiptHarness) -> Element {
+        let state = use_store(UiModel::default);
+        *props.0.borrow_mut() = Some(state);
+        rsx! {}
+    }
+    #[test]
+    fn malformed_thread_chunk_does_not_commit_a_valid_prefix() {
+        let props = ReceiptHarness(Rc::new(RefCell::new(None)));
+        let mut dom = VirtualDom::new_with_props(receipt_harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.0.borrow().unwrap();
+        apply_rpc_event(
+            &TransportHandle::default(),
+            state,
+            RpcEvent::Values {
+                id: "subscription".into(),
+                method: "orchestration.subscribeThread".into(),
+                values: vec![
+                    json!({"kind":"event","sequence":5,"event":{"type":"future.event"}}),
+                    json!({"kind":"snapshot","snapshotSequence":6,"projection":{"thread":{"id":"thread"}}}),
+                ],
+            },
+        );
+        assert_eq!(state.thread().peek().sequence, 0);
+        assert!(state.thread().peek().projection.is_none());
+        assert!(
+            state
+                .error()
+                .peek()
+                .as_ref()
+                .is_some_and(|error| error.starts_with("Invalid thread update:"))
+        );
+    }
+
+    #[test]
+    fn delayed_message_receipts_only_clear_owned_unchanged_drafts() {
+        let props = ReceiptHarness(Rc::new(RefCell::new(None)));
+        let mut dom = VirtualDom::new_with_props(receipt_harness, props.clone());
+        dom.rebuild_in_place();
+        let mut state = props.0.borrow().unwrap();
+        let environment_a: EnvironmentId = serde_json::from_value(json!("environment-a")).unwrap();
+        let environment_b: EnvironmentId = serde_json::from_value(json!("environment-b")).unwrap();
+        let endpoint_a = EnvironmentEndpoint::new("http://environment-a").unwrap();
+        let endpoint_b = EnvironmentEndpoint::new("http://environment-b").unwrap();
+        {
+            let mut model = state.write();
+            model
+                .environments
+                .register(&endpoint_a, environment_a.clone(), "A".into(), 2)
+                .unwrap();
+            model
+                .environments
+                .register(&endpoint_b, environment_b.clone(), "B".into(), 2)
+                .unwrap();
+            model.destination = Some(environment_b.clone());
+            model.active_thread = Some("same-thread".into());
+            model.draft = "identical text".into();
+            model
+                .environments
+                .records
+                .get_mut(&environment_a)
+                .unwrap()
+                .cache
+                .drafts
+                .insert("same-thread".into(), "identical text".into());
+            model
+                .environments
+                .records
+                .get_mut(&environment_b)
+                .unwrap()
+                .cache
+                .drafts
+                .insert("other-thread".into(), "edited while pending".into());
+            model.pending_messages.insert(
+                "old-environment".into(),
+                PendingMessage {
+                    destination: environment_a.clone(),
+                    thread_id: "same-thread".into(),
+                    text: "identical text".into(),
+                },
+            );
+            model.pending_messages.insert(
+                "other-thread".into(),
+                PendingMessage {
+                    destination: environment_b.clone(),
+                    thread_id: "other-thread".into(),
+                    text: "original text".into(),
+                },
+            );
+            model.pending_messages.insert(
+                "failed-current".into(),
+                PendingMessage {
+                    destination: environment_b.clone(),
+                    thread_id: "same-thread".into(),
+                    text: "identical text".into(),
+                },
+            );
+        }
+        finish_pending_message(state, "old-environment", true);
+        assert_eq!(*state.draft().peek(), "identical text");
+        assert!(
+            !state.peek().environments.records[&environment_a]
+                .cache
+                .drafts
+                .contains_key("same-thread")
+        );
+        finish_pending_message(state, "other-thread", true);
+        assert_eq!(*state.draft().peek(), "identical text");
+        assert_eq!(
+            state.peek().environments.records[&environment_b]
+                .cache
+                .drafts["other-thread"],
+            "edited while pending"
+        );
+        finish_pending_message(state, "failed-current", false);
+        assert_eq!(*state.draft().peek(), "identical text");
+        assert!(state.pending_messages().peek().is_empty());
+        state.pending_messages().write().insert(
+            "confirmed-current".into(),
+            PendingMessage {
+                destination: environment_b,
+                thread_id: "same-thread".into(),
+                text: "identical text".into(),
+            },
+        );
+        finish_pending_message(state, "confirmed-current", true);
+        assert!(state.draft().peek().is_empty());
+    }
+
+    #[test]
+    fn malformed_known_thread_event_is_rejected_but_future_event_advances_cursor() {
+        assert!(decode_thread_stream(json!({"kind":"event","sequence":5,"event":{"id":"event","threadId":"thread","type":"thread.metadata-updated","occurredAt":"2026-10-07T00:00:00Z","payload":{"id":"thread"}}})).is_err());
+        let value=decode_thread_stream(json!({"kind":"event","sequence":6,"event":{"type":"future.event","payload":{"bad":"unknown"}}})).unwrap();
+        let mut thread = ThreadState::default();
+        assert!(!thread.apply(&value).unwrap());
+        assert_eq!(thread.sequence, 6);
+    }
+    #[test]
+    fn known_stream_event_uses_source_normalized_payload() {
+        let value=decode_thread_stream(json!({"kind":"event","sequence":7,"event":{"id":"  event  ","threadId":"  thread  ","type":"provider-session.detached","occurredAt":"2026-10-07T00:00:00Z","payload":{"providerSessionId":"  session  ","detachedAt":"2026-10-07T00:00:00Z","unrecognized":"discarded by source codec"}}})).unwrap();
+        assert_eq!(value["event"]["id"], "event");
+        assert_eq!(value["event"]["threadId"], "thread");
+        assert_eq!(value["event"]["payload"]["providerSessionId"], "session");
+        assert!(value["event"]["payload"].get("unrecognized").is_none());
+    }
     #[test]
     fn cancelled_detail_read_releases_waiter_and_suppresses_late_values() {
         let handle = TransportHandle::default();
@@ -1092,3 +1388,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "transport_tests.rs"]
+mod transport_tests;

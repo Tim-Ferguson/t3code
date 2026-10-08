@@ -3,7 +3,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use thiserror::Error;
@@ -97,6 +97,21 @@ pub struct NewEffect {
 pub struct Store {
     connection: Arc<Mutex<Connection>>,
     committed: tokio::sync::broadcast::Sender<Vec<StoredEvent>>,
+    database_path: Option<PathBuf>,
+    runtime_owned: Arc<std::sync::atomic::AtomicBool>,
+}
+pub struct RuntimeLease {
+    file: Option<std::fs::File>,
+    owned: Arc<std::sync::atomic::AtomicBool>,
+}
+impl Drop for RuntimeLease {
+    fn drop(&mut self) {
+        if let Some(file) = &self.file {
+            let _ = fs2::FileExt::unlock(file);
+        }
+        self.owned
+            .store(false, std::sync::atomic::Ordering::Release);
+    }
 }
 
 pub enum Decision {
@@ -132,14 +147,20 @@ impl Store {
         Ok(result)
     }
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StoreError> {
-        Self::from_connection(Connection::open(path)?)
+        let connection = Connection::open(path.as_ref())?;
+        let path = std::fs::canonicalize(path)
+            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
+        Self::from_connection(connection, Some(path))
     }
 
     pub fn memory() -> Result<Self, StoreError> {
-        Self::from_connection(Connection::open_in_memory()?)
+        Self::from_connection(Connection::open_in_memory()?, None)
     }
 
-    fn from_connection(connection: Connection) -> Result<Self, StoreError> {
+    fn from_connection(
+        connection: Connection,
+        database_path: Option<PathBuf>,
+    ) -> Result<Self, StoreError> {
         connection.busy_timeout(std::time::Duration::from_secs(5))?;
         connection.execute_batch("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS rust_application_events (
@@ -162,7 +183,43 @@ impl Store {
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
             committed,
+            database_path,
+            runtime_owned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
+    }
+    /// Other connections may read/issue pairing credentials while one execution
+    /// owner holds the OS lock. The lock is released by the OS on process loss.
+    pub fn acquire_runtime_lease(&self) -> Result<RuntimeLease, StoreError> {
+        if self
+            .runtime_owned
+            .swap(true, std::sync::atomic::Ordering::AcqRel)
+        {
+            return Err(StoreError::InvalidCommand(
+                "This database already has a native execution owner.".into(),
+            ));
+        }
+        let mut lease = RuntimeLease {
+            file: None,
+            owned: self.runtime_owned.clone(),
+        };
+        if let Some(path) = &self.database_path {
+            let mut lock_path = path.as_os_str().to_os_string();
+            lock_path.push(".runtime.lock");
+            let file = std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(false)
+                .open(PathBuf::from(lock_path))
+                .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
+            fs2::FileExt::try_lock_exclusive(&file).map_err(|error| {
+                StoreError::InvalidCommand(format!(
+                    "Another native server owns this database: {error}"
+                ))
+            })?;
+            lease.file = Some(file);
+        }
+        Ok(lease)
     }
 
     /// Subscribe before reading a snapshot, then discard events through its sequence.
@@ -189,6 +246,14 @@ impl Store {
         let connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         read_projections(&connection, kind)
     }
+    pub(crate) fn validate_runtime_lease(&self, lease: &RuntimeLease) -> Result<(), StoreError> {
+        if !Arc::ptr_eq(&self.runtime_owned, &lease.owned) {
+            return Err(StoreError::InvalidCommand(
+                "Execution ownership lease belongs to a different database connection.".into(),
+            ));
+        }
+        Ok(())
+    }
 
     /// The lock and transaction cover state reads and pure planning as well as commit.
     /// Reusing a command ID returns its original receipt even if state has changed.
@@ -202,10 +267,37 @@ impl Store {
         decide: impl FnOnce(&Transaction<'_>) -> Result<Decision, StoreError>,
         reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
     ) -> Result<Receipt, StoreError> {
+        self.dispatch_resolved(
+            command_id,
+            kind,
+            command_type,
+            now,
+            |_, _| Ok(aggregate_id.to_owned()),
+            |transaction, _| decide(transaction),
+            reduce,
+        )
+        .map(|(receipt, _)| receipt)
+    }
+
+    /// Resolve server-allocated aggregate identity under the same transaction as
+    /// receipt replay, command planning and commit. Concurrent first launches
+    /// cannot allocate divergent threads or enqueue duplicate provider work.
+    pub fn dispatch_resolved(
+        &self,
+        command_id: &str,
+        kind: &str,
+        command_type: &str,
+        now: DateTime<Utc>,
+        resolve: impl FnOnce(&Transaction<'_>, Option<&Receipt>) -> Result<String, StoreError>,
+        decide: impl FnOnce(&Transaction<'_>, &str) -> Result<Decision, StoreError>,
+        reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
+    ) -> Result<(Receipt, bool), StoreError> {
         let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        if let Some(receipt) = read_receipt(&transaction, command_id)? {
+        let existing = read_receipt(&transaction, command_id)?;
+        let aggregate_id = resolve(&transaction, existing.as_ref())?;
+        if let Some(receipt) = existing {
             if receipt.aggregate_kind != kind
                 || receipt.aggregate_id != aggregate_id
                 || receipt.command_type != command_type
@@ -214,10 +306,10 @@ impl Store {
                     "Command ID belongs to a different command.".into(),
                 ));
             }
-            return Ok(receipt);
+            return Ok((receipt, true));
         }
         let mut stored = Vec::new();
-        let (status, error) = match decide(&transaction)? {
+        let (status, error) = match decide(&transaction, &aggregate_id)? {
             Decision::Rejected(error) => ("rejected", Some(error)),
             Decision::Accepted { events, effects } => {
                 for event in events {
@@ -256,7 +348,7 @@ impl Store {
         if !stored.is_empty() {
             let _ = self.committed.send(stored);
         }
-        Ok(receipt)
+        Ok((receipt, false))
     }
 
     pub fn events(
@@ -350,12 +442,26 @@ impl Store {
     /// Runtime-bound requests cannot be replayed after process loss. Recovery cancels
     /// those and puts safe effects back in pending state after their lease expires.
     pub fn recover_expired_effects(&self, now: DateTime<Utc>) -> Result<usize, StoreError> {
+        self.recover_effects(now, false)
+    }
+    /// Only the single native server owner may reconcile a previous process's leases.
+    pub(crate) fn recover_effects_at_startup(
+        &self,
+        now: DateTime<Utc>,
+        lease: &RuntimeLease,
+    ) -> Result<usize, StoreError> {
+        self.validate_runtime_lease(lease)?;
+        self.recover_effects(now, true)
+    }
+    fn recover_effects(&self, now: DateTime<Utc>, all_running: bool) -> Result<usize, StoreError> {
         let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         let transaction = connection.transaction()?;
         let pending: Vec<(String, String)> = {
-            let mut statement = transaction.prepare("SELECT id,request_json FROM rust_effect_outbox WHERE status='running' AND lease_expires_at<=?1")?;
+            let mut statement = transaction.prepare("SELECT id,request_json FROM rust_effect_outbox WHERE (?2 AND status IN ('pending','running')) OR (status='running' AND lease_expires_at<=?1)")?;
             statement
-                .query_map([now.to_rfc3339()], |row| Ok((row.get(0)?, row.get(1)?)))?
+                .query_map(params![now.to_rfc3339(), all_running], |row| {
+                    Ok((row.get(0)?, row.get(1)?))
+                })?
                 .collect::<Result<_, _>>()?
         };
         for (id, json) in &pending {

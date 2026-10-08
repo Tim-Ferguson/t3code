@@ -304,8 +304,8 @@ impl AuthService {
             let Some((scopes,expires_at,consumed))=raw else {return Ok(None)};
             if consumed.is_some() || expires_at<=now.timestamp_millis() {return Ok(None)};
             let grants:Vec<AuthEnvironmentScope>=serde_json::from_str(&scopes)?;
-            if requested.is_some_and(|requested|requested.is_empty() || requested.iter().any(|scope|!scope.is_grantable() || !grants.contains(scope))) { return Ok(Some(Err(AuthError::ScopeNotGranted))); }
-            let scopes=requested.map(|requested|{let mut granted=Vec::new();for scope in requested {if !granted.contains(scope) {granted.push(*scope);}}granted}).unwrap_or(grants);
+            let scopes=requested.map(|requested|{let mut granted=Vec::new();for scope in requested {if scope.is_grantable() && grants.contains(scope) && !granted.contains(scope) {granted.push(*scope);}}granted}).unwrap_or(grants);
+            if scopes.is_empty() { return Ok(Some(Err(AuthError::ScopeNotGranted))); }
             let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject:"client".into(),method:method.into(),scopes,client,expires_at:now+chrono::Duration::days(30),revoked_at:None};
             transaction.execute("UPDATE rust_pairing_credentials SET consumed_at=?1 WHERE token_hash=?2",params![now.timestamp_millis(),hash])?;
             transaction.execute("INSERT INTO rust_auth_sessions(session_id,session_json) VALUES(?1,?2)",params![session.session_id,serde_json::to_string(&session)?])?;

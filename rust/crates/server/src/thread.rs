@@ -538,7 +538,59 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
             }
         })?
     };
-    projection["thread"] = event.payload.clone();
+    let field = match event.event_type.as_str() {
+        "run.created" | "run.updated" => Some("runs"),
+        "run-attempt.created" | "run-attempt.updated" => Some("attempts"),
+        "node.updated" => Some("nodes"),
+        "provider-session.attached" | "provider-session.updated" => Some("providerSessions"),
+        "provider-thread.updated" => Some("providerThreads"),
+        "provider-turn.updated" => Some("providerTurns"),
+        "runtime-request.updated" => Some("runtimeRequests"),
+        "message.updated" => Some("messages"),
+        "turn-item.updated" => Some("turnItems"),
+        _ => None,
+    };
+    if event.event_type == "run.updated"
+        && matches!(
+            event.payload["status"].as_str(),
+            Some("interrupted" | "cancelled" | "failed")
+        )
+    {
+        transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
+    }
+    if let Some(field) = field {
+        let rows =
+            projection[field]
+                .as_array_mut()
+                .ok_or_else(|| StoreError::InvalidProjection {
+                    kind: "thread".into(),
+                    id: event.aggregate_id.clone(),
+                    detail: format!("{field} is not an array"),
+                })?;
+        if let Some(existing) = rows.iter_mut().find(|row| row["id"] == event.payload["id"]) {
+            *existing = event.payload.clone();
+        } else {
+            rows.push(event.payload.clone());
+        }
+        if field == "providerThreads"
+            && event.payload["appThreadId"] == event.aggregate_id
+            && !event.payload["nativeThreadRef"].is_null()
+        {
+            projection["thread"]["activeProviderThreadId"] = event.payload["id"].clone();
+        }
+        if field == "turnItems" {
+            // Local histories keep first-write order; fork visibility and rollback
+            // filtering are supplied by their own lifecycle reducers when ported.
+            projection["visibleTurnItems"] = Value::Array(projection["turnItems"].as_array().unwrap().iter().enumerate().map(|(position,item)|json!({"position":position,"visibility":"local","sourceThreadId":item["threadId"],"sourceItemId":item["id"],"item":item})).collect());
+        }
+    } else if event.event_type.starts_with("thread.") {
+        projection["thread"] = event.payload.clone();
+    } else {
+        return Err(StoreError::InvalidCommand(format!(
+            "Unsupported projection event {}",
+            event.event_type
+        )));
+    }
     if !matches!(
         event.event_type.as_str(),
         "thread.visited" | "thread.marked-unread"

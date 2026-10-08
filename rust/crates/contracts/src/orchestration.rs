@@ -287,7 +287,9 @@ pub struct ThreadShell {
     pub pending_background_tasks: Vec<PendingBackgroundTask>,
     #[serde(default, deserialize_with = "crate::provider::deserialize_default_vec")]
     pub provider_instance_history: Vec<ProviderInstanceId>,
+    #[serde(deserialize_with = "deserialize_nonnegative_u64")]
     pub item_count: u64,
+    #[serde(deserialize_with = "deserialize_nonnegative_u64")]
     pub visible_item_count: u64,
     pub created_at: UtcDateTime,
     pub updated_at: UtcDateTime,
@@ -475,13 +477,14 @@ pub struct ThreadShell {
 pub struct ShellSnapshot {
     #[serde(deserialize_with = "positive_schema_version")]
     pub schema_version: u64,
+    #[serde(deserialize_with = "deserialize_nonnegative_u64")]
     pub snapshot_sequence: u64,
     pub projects: Vec<ProjectShell>,
     pub threads: Vec<ThreadShell>,
     pub archived_threads: Vec<ThreadShell>,
 }
 fn positive_schema_version<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
-    let version = u64::deserialize(d)?;
+    let version = PositiveInt::deserialize(d)?.0;
     if version == 0 {
         Err(serde::de::Error::custom("schemaVersion must be positive"))
     } else {
@@ -506,22 +509,26 @@ pub enum ShellStreamItem {
     },
     #[serde(rename = "project.updated")]
     ProjectUpdated {
+        #[serde(deserialize_with = "deserialize_nonnegative_u64")]
         sequence: u64,
         project: ProjectShell,
     },
     #[serde(rename = "project.removed")]
     ProjectRemoved {
+        #[serde(deserialize_with = "deserialize_nonnegative_u64")]
         sequence: u64,
         project_id: ProjectId,
     },
     #[serde(rename = "thread.updated")]
     ThreadUpdated {
+        #[serde(deserialize_with = "deserialize_nonnegative_u64")]
         sequence: u64,
         location: ThreadLocation,
         thread: ThreadShell,
     },
     #[serde(rename = "thread.removed")]
     ThreadRemoved {
+        #[serde(deserialize_with = "deserialize_nonnegative_u64")]
         sequence: u64,
         location: ThreadLocation,
         thread_id: ThreadId,
@@ -531,6 +538,37 @@ pub enum ShellStreamItem {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationMessage {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub notification: Option<Option<Notification>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub scheduled_task_id: Option<Option<ScheduledTaskId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub sender_thread_id: Option<Option<ThreadId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub context: Option<Option<OrchestrationMessageContext>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub delegated_completion: Option<Option<DelegatedCompletionMessage>>,
+
     pub created_by: Actor,
     pub creation_source: CreationSource,
     pub id: MessageId,
@@ -541,11 +579,11 @@ pub struct ConversationMessage {
     pub node_id: Option<NodeId>,
     pub role: MessageRole,
     pub text: String,
-    pub attachments: Vec<Value>,
+    pub attachments: Vec<ChatAttachment>,
     pub streaming: bool,
     pub created_at: UtcDateTime,
     pub updated_at: UtcDateTime,
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing)]
     pub extra: ExtraFields,
 }
 
@@ -584,10 +622,10 @@ pub struct RuntimeRequest {
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub provider_turn_id: Option<ProviderTurnId>,
     #[serde(deserialize_with = "deserialize_required_nullable")]
-    pub native_request_ref: Option<Value>,
+    pub native_request_ref: Option<ProviderRef>,
     pub kind: RuntimeRequestKind,
     pub status: RuntimeRequestStatus,
-    pub response_capability: Value,
+    pub response_capability: RuntimeResponseCapability,
     pub created_at: UtcDateTime,
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub resolved_at: Option<UtcDateTime>,
@@ -596,14 +634,14 @@ pub struct RuntimeRequest {
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_optional"
     )]
-    pub decision: Option<ProviderApprovalDecision>,
+    pub decision: Option<Option<ProviderApprovalDecision>>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         deserialize_with = "deserialize_optional"
     )]
-    pub answers: Option<BTreeMap<String, Value>>,
-    #[serde(flatten)]
+    pub answers: Option<Option<ProviderUserInputAnswers>>,
+    #[serde(flatten, skip_serializing)]
     pub extra: ExtraFields,
 }
 
@@ -611,37 +649,70 @@ pub struct RuntimeRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ThreadProjection {
     pub thread: AppThread,
-    pub runs: Vec<Value>,
-    pub attempts: Vec<Value>,
-    pub nodes: Vec<Value>,
-    pub subagents: Vec<Value>,
-    pub provider_sessions: Vec<Value>,
-    pub provider_threads: Vec<Value>,
-    pub provider_turns: Vec<Value>,
+    pub runs: Vec<Run>,
+    pub attempts: Vec<RunAttempt>,
+    pub nodes: Vec<ExecutionNode>,
+    pub subagents: Vec<Subagent>,
+    pub provider_sessions: Vec<ProviderSessionV2>,
+    pub provider_threads: Vec<ProviderThread>,
+    pub provider_turns: Vec<ProviderTurn>,
     pub runtime_requests: Vec<RuntimeRequest>,
     pub messages: Vec<ConversationMessage>,
-    pub plans: Vec<Value>,
-    pub turn_items: Vec<Value>,
-    pub checkpoint_scopes: Vec<Value>,
-    pub checkpoints: Vec<Value>,
-    pub context_handoffs: Vec<Value>,
-    pub context_transfers: Vec<Value>,
-    pub visible_turn_items: Vec<Value>,
+    pub plans: Vec<PlanArtifact>,
+    #[serde(deserialize_with = "deserialize_turn_item_array")]
+    pub turn_items: Vec<TurnItem>,
+    pub checkpoint_scopes: Vec<CheckpointScope>,
+    pub checkpoints: Vec<Checkpoint>,
+    pub context_handoffs: Vec<ContextHandoff>,
+    pub context_transfers: Vec<ContextTransfer>,
+    #[serde(deserialize_with = "deserialize_projected_turn_item_array")]
+    pub visible_turn_items: Vec<ProjectedTurnItem>,
     pub updated_at: UtcDateTime,
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing)]
     pub extra: ExtraFields,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", try_from = "DomainEventWire")]
 pub struct DomainEvent {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub run_id: Option<Option<RunId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub node_id: Option<Option<NodeId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub driver: Option<Option<ProviderDriverKind>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub provider_instance_id: Option<Option<ProviderInstanceId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub raw_event_id: Option<Option<RawEventId>>,
+
     pub id: EventId,
     pub thread_id: ThreadId,
     #[serde(rename = "type")]
     pub event_type: String,
     pub payload: Value,
     pub occurred_at: UtcDateTime,
-    #[serde(flatten)]
+    #[serde(flatten, skip_serializing)]
     pub extra: ExtraFields,
 }
 
@@ -652,6 +723,7 @@ pub enum ThreadStreamItem {
     Synchronized,
     #[serde(rename = "snapshot")]
     Snapshot {
+        #[serde(deserialize_with = "deserialize_nonnegative_u64")]
         snapshot_sequence: u64,
         projection: ThreadProjection,
         #[serde(
@@ -692,13 +764,14 @@ enum ThreadStreamWire {
     Synchronized,
     #[serde(rename = "snapshot")]
     Snapshot {
+        #[serde(deserialize_with = "deserialize_nonnegative_u64")]
         snapshot_sequence: u64,
         projection: ThreadProjection,
         #[serde(default, deserialize_with = "deserialize_optional")]
         history_cursor: Option<Option<TrimmedNonEmptyString>>,
         #[serde(default, deserialize_with = "deserialize_optional")]
         has_more_history: Option<bool>,
-        #[serde(default, deserialize_with = "deserialize_optional")]
+        #[serde(default, deserialize_with = "deserialize_optional_nonnegative_u64")]
         latest_local_turn_ordinal: Option<Option<u64>>,
         #[serde(default, deserialize_with = "deserialize_optional")]
         payload_budget_exceeded: Option<bool>,
@@ -709,12 +782,13 @@ impl<'de> Deserialize<'de> for ThreadStreamItem {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let raw = Value::deserialize(d)?;
         if raw.get("kind").and_then(Value::as_str) == Some("event") {
-            let sequence: u64 = serde_json::from_value(
+            let sequence: u64 = serde_json::from_value::<NonNegativeInt>(
                 raw.get("sequence")
                     .cloned()
                     .ok_or_else(|| serde::de::Error::missing_field("sequence"))?,
             )
-            .map_err(serde::de::Error::custom)?;
+            .map_err(serde::de::Error::custom)?
+            .0;
             let event = raw
                 .get("event")
                 .ok_or_else(|| serde::de::Error::missing_field("event"))?;
@@ -726,8 +800,8 @@ impl<'de> Deserialize<'de> for ThreadStreamItem {
                 && event
                     .get("payload")
                     .and_then(|v| v.get("type"))
-                    .is_some_and(|v| {
-                        !v.as_str()
+                    .is_some_and(|tag| {
+                        !tag.as_str()
                             .is_some_and(|t| KNOWN_TURN_ITEM_TYPES.contains(&t))
                     });
             if !KNOWN_EVENT_TYPES.contains(&event_type) || unknown_turn_item {
@@ -765,32 +839,86 @@ impl<'de> Deserialize<'de> for ThreadStreamItem {
     }
 }
 
-fn validate_event_payload(event: &DomainEvent) -> Result<(), serde_json::Error> {
-    match event.event_type.as_str() {
-        t if t.starts_with("thread.") => {
-            serde_json::from_value::<AppThread>(event.payload.clone())?;
-        }
-        "message.updated" => {
-            serde_json::from_value::<ConversationMessage>(event.payload.clone())?;
-        }
-        "runtime-request.updated" => {
-            serde_json::from_value::<RuntimeRequest>(event.payload.clone())?;
-        }
-        "provider-session.detached" => {
-            #[derive(Deserialize)]
-            #[serde(rename_all = "camelCase")]
-            struct Detached {
-                #[serde(rename = "providerSessionId")]
-                _provider_session_id: ProviderSessionId,
-                #[serde(rename = "detachedAt")]
-                _detached_at: UtcDateTime,
-            }
-            serde_json::from_value::<Detached>(event.payload.clone())?;
-        }
-        // Other payload contracts still require a typed port. Their JSON is retained.
-        _ => {}
+pub fn validate_event_payload(event: &DomainEvent) -> Result<(), serde_json::Error> {
+    normalize_event_payload(&event.event_type, event.payload.clone()).map(|_| ())
+}
+/// Validate and canonicalize every known domain payload using its source-backed codec.
+pub fn normalize_event_payload(
+    event_type: &str,
+    payload: Value,
+) -> Result<Value, serde_json::Error> {
+    fn normalize<T: serde::de::DeserializeOwned + Serialize>(
+        payload: Value,
+    ) -> Result<Value, serde_json::Error> {
+        serde_json::to_value(serde_json::from_value::<T>(payload)?)
     }
-    Ok(())
+    match event_type {
+        t if t.starts_with("thread.") && KNOWN_EVENT_TYPES.contains(&t) => {
+            normalize::<AppThread>(payload)
+        }
+        "run.created" | "run.updated" => normalize::<Run>(payload),
+        "run.background-work-cancelled" => normalize::<RunBackgroundWorkCancelled>(payload),
+        "run-attempt.created" | "run-attempt.updated" => normalize::<RunAttempt>(payload),
+        "node.updated" => normalize::<ExecutionNode>(payload),
+        "subagent.updated" => normalize::<Subagent>(payload),
+        "provider-session.attached" | "provider-session.updated" => {
+            normalize::<ProviderSessionV2>(payload)
+        }
+        "provider-session.detached" => normalize::<ProviderSessionDetached>(payload),
+        "provider-thread.updated" => normalize::<ProviderThread>(payload),
+        "provider-turn.updated" => normalize::<ProviderTurn>(payload),
+        "runtime-request.updated" => normalize::<RuntimeRequest>(payload),
+        "message.updated" => normalize::<ConversationMessage>(payload),
+        "turn-item.updated" => normalize::<TurnItem>(payload),
+        "plan.updated" => normalize::<PlanArtifact>(payload),
+        "checkpoint-scope.created" => normalize::<CheckpointScope>(payload),
+        "checkpoint.captured" => normalize::<Checkpoint>(payload),
+        "checkpoint.rollback-requested" => normalize::<CheckpointRollbackRequest>(payload),
+        "context-handoff.updated" => normalize::<ContextHandoff>(payload),
+        "context-transfer.created" | "context-transfer.updated" => {
+            normalize::<ContextTransfer>(payload)
+        }
+        _ => Err(<serde_json::Error as serde::de::Error>::custom(
+            "unknown domain event type",
+        )),
+    }
+}
+fn deserialize_turn_item_array<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<TurnItem>, D::Error> {
+    decode_forward_union_array(Value::deserialize(d)?, "type", KNOWN_TURN_ITEM_TYPES)
+        .map_err(serde::de::Error::custom)
+}
+fn deserialize_projected_turn_item_array<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Vec<ProjectedTurnItem>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Wire {
+        position: NonNegativeInt,
+        visibility: ProjectedTurnItemVisibility,
+        source_thread_id: ThreadId,
+        source_item_id: TurnItemId,
+        item: Value,
+    }
+    let rows = Vec::<Wire>::deserialize(d)?;
+    rows.into_iter()
+        .filter(|row| {
+            row.item
+                .get("type")
+                .and_then(Value::as_str)
+                .is_none_or(|kind| KNOWN_TURN_ITEM_TYPES.contains(&kind))
+        })
+        .map(|row| {
+            Ok(ProjectedTurnItem {
+                position: row.position,
+                visibility: row.visibility,
+                source_thread_id: row.source_thread_id,
+                source_item_id: row.source_item_id,
+                item: serde_json::from_value(row.item).map_err(serde::de::Error::custom)?,
+            })
+        })
+        .collect()
 }
 
 pub const KNOWN_TURN_ITEM_TYPES: &[&str] = &[
@@ -864,3 +992,66 @@ pub const KNOWN_EVENT_TYPES: &[&str] = &[
     "context-transfer.created",
     "context-transfer.updated",
 ];
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DomainEventWire {
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    run_id: Option<Option<RunId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    node_id: Option<Option<NodeId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    driver: Option<Option<ProviderDriverKind>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    provider_instance_id: Option<Option<ProviderInstanceId>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    raw_event_id: Option<Option<RawEventId>>,
+
+    id: EventId,
+    thread_id: ThreadId,
+    #[serde(rename = "type")]
+    event_type: String,
+    payload: Value,
+    occurred_at: UtcDateTime,
+    #[serde(flatten)]
+    extra: ExtraFields,
+}
+impl TryFrom<DomainEventWire> for DomainEvent {
+    type Error = serde_json::Error;
+    fn try_from(wire: DomainEventWire) -> Result<Self, Self::Error> {
+        let payload = normalize_event_payload(&wire.event_type, wire.payload)?;
+        Ok(Self {
+            id: wire.id,
+            thread_id: wire.thread_id,
+            event_type: wire.event_type,
+            payload,
+            occurred_at: wire.occurred_at,
+            run_id: wire.run_id,
+            node_id: wire.node_id,
+            driver: wire.driver,
+            provider_instance_id: wire.provider_instance_id,
+            raw_event_id: wire.raw_event_id,
+            extra: wire.extra,
+        })
+    }
+}

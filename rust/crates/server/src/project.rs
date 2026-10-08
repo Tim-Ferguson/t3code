@@ -90,6 +90,11 @@ impl ProjectService {
             now,
             |transaction| {
                 let project = read_projection(transaction, "project", &command.project_id)?;
+                if command.command_type == "project.delete"
+                    && project.as_ref().is_some_and(|project|project["deletedAt"].is_null())
+                    && read_projections(transaction,"thread")?.iter().any(|projection|projection["thread"]["projectId"]==command.project_id&&projection["thread"]["deletedAt"].is_null()) {
+                    return Ok(Decision::Rejected(json!({"_tag":"ProjectCommandInvariantError","commandType":command.command_type,"detail":"Project has threads; native project cascade deletion is not yet ported."})));
+                }
                 let workspace_owner =
                     match command.fields.get("workspaceRoot").and_then(Value::as_str) {
                         Some(root) => read_projections(transaction, "project")?
@@ -121,16 +126,6 @@ impl ProjectService {
         let mut command = ProjectCommand::from_json(input)?.normalized()?;
         if command.command_type == "project.update" {
             command.command_type = "project.meta.update".into();
-        }
-        if command.command_type == "project.delete"
-            && self.store.projections("thread")?.iter().any(|projection| {
-                projection["thread"]["projectId"] == command.project_id
-                    && projection["thread"]["deletedAt"].is_null()
-            })
-        {
-            return Err(StoreError::InvalidCommand(
-                "Project has threads; native project cascade deletion is not yet ported.".into(),
-            ));
         }
         if command.fields.get("createWorkspaceRootIfMissing") == Some(&json!(true)) {
             return Err(StoreError::InvalidCommand(
@@ -393,6 +388,30 @@ mod tests {
         assert_eq!(event.payload["scripts"], json!([]));
         assert!(event.payload["defaultModelSelection"].is_null());
         assert_eq!(event.occurred_at, "2026-01-01T00:00:00.000Z");
+    }
+    #[test]
+    fn delete_rechecks_threads_after_stale_independent_connection_preflight() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state.sqlite");
+        let deleting = Store::open(&path).unwrap();
+        let creating = Store::open(&path).unwrap();
+        let projects = ProjectService::new(deleting.clone());
+        projects.dispatch(&create(), now()).unwrap();
+        // An earlier handler read can be stale; the command's write transaction
+        // must enforce the guard after another connection commits thread.create.
+        assert!(deleting.projections("thread").unwrap().is_empty());
+        let receipt=crate::thread::ThreadService::new(creating).dispatch(&json!({"type":"thread.create","commandId":"create-thread","threadId":"thread-race","projectId":"project-scripts","title":"Thread","modelSelection":{"instanceId":"codex","model":"fixture"},"runtimeMode":"approval-required","interactionMode":"default","branch":null,"worktreePath":null}),now()).unwrap();
+        assert_eq!(receipt.status, "accepted");
+        let deleted = projects
+            .dispatch(&command("project.delete", "delete", json!({})), now())
+            .unwrap();
+        assert_eq!(deleted.status, "rejected");
+        assert!(projects.get("project-scripts").unwrap().is_some());
+        assert_eq!(deleting.projections("thread").unwrap().len(), 1);
+        assert_eq!(
+            deleting.receipt("delete").unwrap().unwrap().status,
+            "rejected"
+        );
     }
 
     #[test]

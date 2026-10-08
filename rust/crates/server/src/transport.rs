@@ -35,6 +35,8 @@ pub struct ApiState {
     pub cors_origins: Option<Vec<String>>,
     /// Built Rust web assets, served with the API for cookie authentication.
     pub assets: Option<std::path::PathBuf>,
+    pub providers: Option<crate::provider_registry::ProviderRegistry>,
+    pub execution: Option<crate::execution::ExecutionService>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -559,8 +561,9 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
     match request.tag.as_str(){
         "server.probe"=>Ok(json!({})),
         "server.getConfig"=>state.config.clone().ok_or_else(||json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"Native configuration service is not yet available."})),
+        "orchestration.launchThread"=>crate::launch::ThreadLaunchService::new(state.store.clone()).launch(request.payload.clone(),Utc::now()).map_err(error),
         "orchestration.dispatchCommand"=>{
-            let receipt=ThreadService::new(state.store.clone()).dispatch(&request.payload,Utc::now()).map_err(error)?;
+            let receipt=if request.payload["type"].as_str().is_some_and(|kind|kind.starts_with("thread.")) {ThreadService::new(state.store.clone()).dispatch(&request.payload,Utc::now()).map_err(error)?}else{state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?.dispatch(&request.payload,Utc::now()).map_err(error)?};
             if receipt.status=="rejected"{return Err(json!({"_tag":"OrchestrationV2DispatchCommandError","commandId":receipt.command_id,"commandType":receipt.command_type,"message":"Command rejected.","detail":receipt.error.unwrap_or(Value::Null).to_string()}));}
             Ok(json!({"sequence":receipt.result_sequence}))
         },
@@ -778,6 +781,8 @@ mod tests {
             config: None,
             cors_origins: None,
             assets: None,
+            providers: None,
+            execution: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {
@@ -834,7 +839,7 @@ mod tests {
         let response = app
             .clone()
             .oneshot(request(
-                "orchestration%3Aread+unknown%3Afuture+orchestration%3Aread+review%3Awrite",
+                "orchestration%3Aread+access%3Awrite+unknown%3Afuture+orchestration%3Aread+review%3Awrite",
             ))
             .await
             .unwrap();

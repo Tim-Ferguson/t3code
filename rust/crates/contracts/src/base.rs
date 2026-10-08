@@ -231,7 +231,7 @@ impl<'de, const MAX: usize> Deserialize<'de> for BoundedTrimmedString<MAX> {
 }
 impl<'de, const VALUE: u64> Deserialize<'de> for LiteralInt<VALUE> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        if u64::deserialize(d)? == VALUE {
+        if deserialize_safe_u64(d)? == VALUE {
             Ok(Self)
         } else {
             Err(serde::de::Error::custom(format!("expected {VALUE}")))
@@ -444,3 +444,47 @@ macro_rules! plain_string_type {
 
 pub(crate) use plain_string_type;
 plain_string_type!(NonEmptyString, non_blank);
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct BoundedVec<T, const MAX: usize>(pub Vec<T>);
+impl<'de, T: Deserialize<'de>, const MAX: usize> Deserialize<'de> for BoundedVec<T, MAX> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let values = Vec::<T>::deserialize(d)?;
+        if values.len() <= MAX {
+            Ok(Self(values))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected at most {MAX} entries"
+            )))
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct BoundedTrimmedAllowEmptyString<const MAX: usize>(pub TrimmedString);
+impl<'de, const MAX: usize> Deserialize<'de> for BoundedTrimmedAllowEmptyString<MAX> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = TrimmedString::deserialize(d)?;
+        if value.as_str().encode_utf16().count() <= MAX {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected at most {MAX} UTF-16 code units"
+            )))
+        }
+    }
+}
+
+/// Maintain ergonomic u64 counters without accepting integers beyond JS's
+/// representable range in source wire schemas.
+pub fn deserialize_nonnegative_u64<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<u64, D::Error> {
+    NonNegativeInt::deserialize(d).map(|n| n.0)
+}
+pub fn deserialize_optional_nonnegative_u64<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<Option<Option<u64>>, D::Error> {
+    Option::<NonNegativeInt>::deserialize(d).map(|value| Some(value.map(|n| n.0)))
+}

@@ -29,7 +29,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     }
     let mut address = use_signal(runtime::default_address);
     let mut token = use_signal(String::new);
-    let mut credential_kind = use_signal(|| "session".to_owned());
+    let mut credential_kind = use_signal(runtime::default_credential_kind);
     let mut add_project = use_signal(|| false);
     let mut project_title = use_signal(String::new);
     let mut project_path = use_signal(String::new);
@@ -117,13 +117,13 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
                 nav { class: "sidebar-actions",
-                    button { onclick: move |_| { state.view().set(View::Chat); state.active_thread().set(None); }, "＋ New thread" }
+                    button { onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
                     button { onclick: move |_| add_project.set(true), "＋ Add project" }
                 }
                 div { class: "project-list",
                     for project in projects.iter() {
                         div { class: "project-group", key: "{project.id}",
-                            button { class: "project-heading", title: "{project.workspace_root}", onclick: { let id = project.id.to_string(); move |_| { state.selected_project().set(Some(id.clone())); state.active_thread().set(None); state.view().set(View::Chat); } },
+                            button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
                                 span { class: "project-icon", "◇" } "{project.title}"
                             }
                             for thread in threads.iter().filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none()) {
@@ -173,7 +173,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 for (id,label,saved_address) in saved_connections {
                                     article {class:"connection-row",key:"{id}",
                                         div {strong {"{label}"} p {class:"muted","{saved_address}"}}
-                                        button {onclick:{let saved_address=saved_address.clone();move |_|{address.set(saved_address.clone());token.set(String::new());credential_kind.set("session".into());}},"Use address"}
+                                        button {onclick:{let saved_address=saved_address.clone();move |_|{address.set(saved_address.clone());token.set(String::new());credential_kind.set(runtime::default_credential_kind());}},"Use address"}
                                         button {onclick:{let transport=transport.clone();move |_|{runtime::forget_environment(&transport,state,&id);token.set(String::new());}},"Forget"}
                                     }
                                 }
@@ -218,7 +218,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                             let project=state.peek().selected_project.clone().unwrap_or_else(||projects[0].id.to_string());
                                             let chosen=chosen_model();
                                             let (instance,slug,_)=options.iter().find(|(instance,slug,_)|format!("{instance}/{slug}")==chosen).unwrap_or(&options[0]);
-                                            runtime::request(&transport,state,"orchestration.launchThread",json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":"New thread","modelSelection":{"instanceId":instance,"model":slug},"runtimeMode":"approval-required","interactionMode":"default","creationSource":runtime::creation_source(),"workspaceStrategy":{"type":"root"}}),RequestKind::Unary);
+                                            runtime::launch_thread(&transport,state,&project,instance,slug);
                                         } }, "New thread" }
                                     }
                                 }
@@ -426,7 +426,10 @@ fn Composer(
         probe.composer.set(probe.composer.get() + 1);
     }
     let draft = state.draft().read().clone();
-    let pending = state.pending_message().read().is_some();
+    let pending = state.pending_messages().read().values().any(|pending| {
+        pending.thread_id == thread.id.as_str()
+            && state.destination().peek().as_ref() == Some(&pending.destination)
+    });
     rsx! {
         form { class: "composer", onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); runtime::send_message(&transport,state); } },
             textarea { "aria-label": "Message", placeholder: "Ask anything, or describe what to build…", value: "{draft}", oninput: move |event| state.draft().set(event.value()) }

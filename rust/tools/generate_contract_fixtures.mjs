@@ -11,6 +11,7 @@ const Schema = await import(
   pathToFileURL(root + "/packages/contracts/node_modules/effect/dist/Schema.js")
 );
 import { readFileSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 const fixtures = [],
   mapping = {};
 const files = [
@@ -29,6 +30,10 @@ const files = [
   "project",
   "keybindings",
   "editor",
+  "chatAttachment",
+  "composerContext",
+  "providerRuntime",
+  "providerPolicy",
 ];
 const rustNames = new Set(
   [
@@ -39,6 +44,9 @@ const rustNames = new Set(
     "server_config",
     "settings",
     "api_config",
+    "messages",
+    "execution",
+    "turn_items",
   ].flatMap((f) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + f + ".rs", "utf8").matchAll(
@@ -48,6 +56,7 @@ const rustNames = new Set(
   ),
 );
 function seed(s, defs, key = "", depth = 0) {
+  if (!s) return {};
   if (depth > 20) return null;
   if (s.$ref) return seed(defs[s.$ref.split("/").pop()], defs, key, depth + 1);
   if (/ModelSelection$/.test(key) || key === "modelSelection")
@@ -61,7 +70,7 @@ function seed(s, defs, key = "", depth = 0) {
     const all = s.anyOf ?? s.oneOf;
     return seed(all.find((x) => x.type !== "null") ?? all[0], defs, key, depth + 1);
   }
-  if (s.allOf) return seed(s.allOf[0], defs, key, depth + 1);
+  if (s.allOf && !s.type) return seed(s.allOf[0], defs, key, depth + 1);
   if (s.type === "object") {
     const o = {};
     for (const p of s.required ?? []) o[p] = seed(s.properties[p], defs, p, depth + 1);
@@ -160,6 +169,92 @@ function codecCases(name, schema, schemaDoc, initial) {
       }
     }
   }
+  if (name === "ThreadProjection") {
+    const unknown = { type: "future_item", opaque: true };
+    test({ ...clone(initial), turnItems: [unknown] }, "unknown timeline type omitted");
+    test({ ...clone(initial), turnItems: [{ type: 42 }] }, "malformed timeline tag rejected");
+    test(
+      { ...clone(initial), turnItems: [{ type: "assistant_message" }] },
+      "malformed known timeline member rejected",
+    );
+    test(
+      {
+        ...clone(initial),
+        visibleTurnItems: [
+          {
+            position: 1,
+            visibility: "local",
+            sourceThreadId: "thread",
+            sourceItemId: "item",
+            item: unknown,
+          },
+        ],
+      },
+      "unknown projected timeline type omitted",
+    );
+    test(
+      {
+        ...clone(initial),
+        visibleTurnItems: [
+          {
+            position: -1,
+            visibility: "local",
+            sourceThreadId: "thread",
+            sourceItemId: "item",
+            item: unknown,
+          },
+        ],
+      },
+      "invalid projection envelope still fails for unknown item",
+    );
+  }
+  if (name === "ThreadStreamItem") {
+    test(
+      { kind: "event", sequence: 1, event: { type: "future.event" } },
+      "future event is decode only",
+    );
+    test(
+      { kind: "event", sequence: 9007199254740992, event: { type: "future.event" } },
+      "future event rejects unsafe cursor",
+    );
+    test(
+      {
+        kind: "event",
+        sequence: 1,
+        event: { type: "turn-item.updated", payload: { type: "future_item" } },
+      },
+      "future timeline event is decode only",
+    );
+    test(
+      { kind: "event", sequence: 1, event: { type: "turn-item.updated", payload: { type: 42 } } },
+      "unknown non-string timeline tag follows source envelope fallback",
+    );
+  }
+  if (name === "OrchestrationMessageContext") {
+    const record = {
+      version: 1,
+      contextId: "id",
+      label: "image",
+      kind: "image",
+      attachmentId: "attachment",
+      name: "image.png",
+      mimeType: "image/png",
+      sizeBytes: 1,
+    };
+    test(
+      { version: 1, records: [record, { ...record, contextId: "other", attachmentId: "other" }] },
+      "distinct composer records",
+    );
+    test({ version: 1, records: [record, record] }, "duplicate composer record identity rejected");
+    test(
+      { version: 1, records: [record, { kind: "terminal", contextId: "broken" }] },
+      "malformed composer members dropped",
+    );
+    test(
+      { version: 1, records: Array(201).fill({ future: true }) },
+      "raw composer count checked before filtering",
+    );
+  }
   return true;
 }
 const skipped = [];
@@ -183,7 +278,27 @@ const mapped = {
   LimitRecoveryUpdate: "OrchestrationV2LimitRecoveryUpdate",
   PendingBackgroundTask: "OrchestrationV2PendingBackgroundTask",
   ThreadForkSourcePoint: "OrchestrationV2ThreadForkSourcePoint",
+  ConversationMessage: "OrchestrationV2ConversationMessage",
+  RuntimeRequest: "OrchestrationV2RuntimeRequest",
+  ThreadProjection: "OrchestrationV2ThreadProjection",
+  DomainEvent: "OrchestrationV2DomainEvent",
+  ThreadStreamItem: "OrchestrationV2ThreadStreamItem",
 };
+const executionNames = new Set(
+  ["execution", "turn_items"].flatMap((file) =>
+    [
+      ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
+        /pub (?:struct|enum|type) (\w+)/g,
+      ),
+    ].map((m) => m[1]),
+  ),
+);
+for (const rust of executionNames) {
+  if (orch["OrchestrationV2" + rust] && !mapped[rust] && !mapping[rust])
+    mapped[rust] = "OrchestrationV2" + rust;
+}
+mapped.ProviderSessionV2 = "OrchestrationV2ProviderSession";
+mapped.UserInputQuestionV2 = "OrchestrationV2UserInputQuestion";
 for (const [rust, source] of Object.entries(mapped)) {
   const s = orch[source];
   if (!s) continue;
@@ -219,10 +334,30 @@ for (const variant of doc.schema.anyOf) {
     mapping.ThreadCommand = "ThreadCommand";
   else skipped.push(tag);
 }
+const executionTags = [
+  ...readFileSync(root + "/rust/crates/contracts/src/execution.rs", "utf8").matchAll(
+    /serde\(rename\s*=\s*"([^"]+)"/g,
+  ),
+].map((m) => m[1]);
+for (const variant of doc.schema.anyOf) {
+  const tag = variant.properties?.type?.const ?? variant.properties?.type?.enum?.[0];
+  if (!executionTags.includes(tag)) continue;
+  const initial = seed(variant, doc.definitions);
+  if (
+    codecCases(
+      "ProviderCommand",
+      orch.OrchestrationV2Command,
+      { schema: variant, definitions: doc.definitions },
+      initial,
+    )
+  )
+    mapping.ProviderCommand = "ProviderCommand";
+  else skipped.push(tag);
+}
 const unique = [...new Map(fixtures.map((f) => [JSON.stringify([f.schema, f.input]), f])).values()];
 writeFileSync(
-  root + "/rust/crates/contracts/tests/fixtures/expanded-codecs.jsonl",
-  unique.map((f) => JSON.stringify(f)).join("\n") + "\n",
+  root + "/rust/crates/contracts/tests/fixtures/expanded-codecs.jsonl.gz",
+  gzipSync(unique.map((f) => JSON.stringify(f)).join("\n") + "\n", { level: 9 }),
 );
 const testPath = root + "/rust/crates/contracts/tests/original_codec_parity.rs";
 let rustTest = readFileSync(testPath, "utf8");

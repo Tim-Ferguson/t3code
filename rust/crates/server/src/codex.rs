@@ -546,6 +546,90 @@ pub fn tokenize_cli_args(value: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn reusable_fixture_emits_tool_execution_only_after_approval_acceptance() {
+        for decision in ["accept", "decline", "cancel"] {
+            let directory = tempfile::tempdir().unwrap();
+            let binary =
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex-provider.py");
+            let instance = CodexInstance {
+                instance_id: "codex".into(),
+                display_name: "Codex".into(),
+                accent_color: None,
+                enabled: true,
+                config: serde_json::from_value(json!({"binaryPath":binary})).unwrap(),
+                environment: HashMap::new(),
+            };
+            let mut connection = instance.connect(directory.path()).await.unwrap();
+            let thread = connection
+                .process
+                .request(
+                    "thread/start",
+                    json!({"cwd":directory.path(),"model":"fixture-model"}),
+                    Duration::from_secs(2),
+                )
+                .await
+                .unwrap();
+            connection.process.request("turn/start",json!({"threadId":thread["thread"]["id"],"input":[{"type":"text","text":"[approval]"}]}),Duration::from_secs(2)).await.unwrap();
+            let id = loop {
+                match tokio::time::timeout(Duration::from_secs(2), connection.events.recv())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                {
+                    ProcessEvent::Request { id, method, .. } => {
+                        assert_eq!(method, "item/commandExecution/requestApproval");
+                        break id;
+                    }
+                    ProcessEvent::Notification { method, .. } => assert!(
+                        method != "item/commandExecution/outputDelta" && method != "item/completed"
+                    ),
+                    event => panic!("unexpected event {event:?}"),
+                }
+            };
+            connection
+                .process
+                .respond(id, Ok(json!({"decision":decision})))
+                .await
+                .unwrap();
+            let mut saw_output = false;
+            let mut successful_execution = false;
+            loop {
+                match tokio::time::timeout(Duration::from_secs(2), connection.events.recv())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                {
+                    ProcessEvent::Notification { method, params }
+                        if method == "item/commandExecution/outputDelta" =>
+                    {
+                        saw_output = !params["delta"].as_str().unwrap().is_empty()
+                    }
+                    ProcessEvent::Notification { method, params }
+                        if method == "item/completed"
+                            && params["item"]["type"] == "commandExecution" =>
+                    {
+                        successful_execution = params["item"]["exitCode"] == 0
+                    }
+                    ProcessEvent::Notification { method, params } if method == "turn/completed" => {
+                        assert_eq!(
+                            params["turn"]["status"],
+                            if decision == "cancel" {
+                                "interrupted"
+                            } else {
+                                "completed"
+                            }
+                        );
+                        break;
+                    }
+                    ProcessEvent::Notification { .. } => {}
+                    event => panic!("unexpected event {event:?}"),
+                }
+            }
+            assert_eq!(saw_output, decision == "accept");
+            assert_eq!(successful_execution, decision == "accept");
+        }
+    }
     #[test]
     fn catalog_traits_preserve_provider_options_and_native_default_preference() {
         let mut models=vec![map_model(&json!({"model":"gpt-5.6-sol","displayName":"gpt-5.6-sol","isDefault":true,"defaultReasoningEffort":"low","supportedReasoningEfforts":[{"reasoningEffort":"low"}],"additionalSpeedTiers":["fast"]})).unwrap(),map_model(&json!({"model":"openai.gpt-6-astra","displayName":"gpt-6-astra","defaultReasoningEffort":"low","supportedReasoningEfforts":[{"reasoningEffort":"low"},{"reasoningEffort":"medium"}],"serviceTiers":[{"id":"ultrafast","name":"Ultra fast","description":"long description"}],"defaultServiceTier":"ultrafast"})).unwrap()];
