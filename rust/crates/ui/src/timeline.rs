@@ -1,7 +1,7 @@
 use crate::{
     Message,
+    markdown::Markdown,
     runtime::{self, UiModel},
-    safe_markdown,
 };
 use dioxus::prelude::*;
 use serde_json::{Value, json};
@@ -45,7 +45,7 @@ pub(crate) fn TimelineItem(
         return rsx! {Message {role:(if kind=="user_message"{"user"}else{"assistant"}).to_owned(),text:effective["text"].as_str().unwrap_or_default().to_owned()}};
     }
     if kind == "proposed_plan" {
-        return rsx! {section {class:"plan-card",h3 {"Proposed plan"}div {class:"markdown",dangerous_inner_html:safe_markdown(effective["markdown"].as_str().unwrap_or_default())}}};
+        return rsx! {section {class:"plan-card",h3 {"Proposed plan"}Markdown {text:effective["markdown"].as_str().unwrap_or_default().to_owned()}}};
     }
     if kind == "todo_list" {
         let steps: Vec<_> = effective["steps"]
@@ -133,7 +133,7 @@ pub(crate) fn TimelineItem(
             }
             div {class:"activity-body",
                 match kind {
-                    "reasoning"=>rsx!{div {class:"markdown",dangerous_inner_html:safe_markdown(effective["text"].as_str().unwrap_or_default())}},
+                    "reasoning"=>rsx!{Markdown {text:effective["text"].as_str().unwrap_or_default().to_owned()}},
                     "command_execution"=>rsx!{pre {class:"command-input",{effective["input"].as_str().unwrap_or_default()}}if let Some(code)=effective["exitCode"].as_i64(){p {class:if code==0{"muted"}else{"failure"},"Exit code {code}"}}},
                     "file_change"=>rsx!{FileChange {item:effective.clone()}},
                     "dynamic_tool"=>rsx!{if let Some(input)=work_log::format_value(&effective["input"]){pre {class:"tool-input","{input}"}}},

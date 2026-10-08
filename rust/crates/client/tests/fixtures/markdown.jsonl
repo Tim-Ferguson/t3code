@@ -1,0 +1,721 @@
+{"kind":"language","value":null,"expected":"text"}
+{"kind":"language","value":"","expected":"text"}
+{"kind":"language","value":"language-rust","expected":"rust"}
+{"kind":"language","value":"language-gitignore","expected":"ini"}
+{"kind":"language","value":"language-GITIGNORE","expected":"GITIGNORE"}
+{"kind":"language","value":"language-bash foo","expected":"bash"}
+{"kind":"language","value":"first language-js","expected":"js"}
+{"kind":"language","value":"language-ab","expected":"ab"}
+{"kind":"language","value":"﻿language-pwsh","expected":"pwsh"}
+{"kind":"language","value":"language-ts﻿x","expected":"ts"}
+{"kind":"language","value":" language-text\tlanguage-js","expected":"text"}
+{"kind":"title","value":null,"expected":null}
+{"kind":"title","value":"","expected":null}
+{"kind":"title","value":"src/main.rs","expected":"src/main.rs"}
+{"kind":"title","value":"title=main.rs","expected":"main.rs"}
+{"kind":"title","value":"title=\"a b.rs\"","expected":"a b.rs"}
+{"kind":"title","value":"file='index.ts'","expected":"index.ts"}
+{"kind":"title","value":"FILENAME=a.js","expected":"a.js"}
+{"kind":"title","value":"notitle=a.rs","expected":null}
+{"kind":"title","value":" title=\"\" foo.md","expected":"\"\""}
+{"kind":"title","value":"α.rs","expected":null}
+{"kind":"title","value":"@scope/a.ts","expected":"@scope/a.ts"}
+{"kind":"title","value":"a.b.cpp","expected":"a.b.cpp"}
+{"kind":"title","value":"a.🦀","expected":null}
+{"kind":"title","value":"﻿title=BOM.rs","expected":"BOM.rs"}
+{"kind":"title","value":"title=NEL.rs","expected":null}
+{"kind":"title","value":"name foo.txt bar.rs","expected":"foo.txt"}
+{"kind":"title","value":"title=\"a.rs\" title=b.ts","expected":"a.rs"}
+{"kind":"closed","value":"```","expected":true}
+{"kind":"closed","value":"```\n","expected":false}
+{"kind":"closed","value":"```rs\na\n```","expected":true}
+{"kind":"closed","value":"```rs\na\n~~~~","expected":false}
+{"kind":"closed","value":"~~~~js\na\n~~~","expected":false}
+{"kind":"closed","value":"```rs\na\n`````","expected":true}
+{"kind":"closed","value":" ```rs\na\n```","expected":false}
+{"kind":"closed","value":"```rs\na\n> ```","expected":true}
+{"kind":"closed","value":"```rs\na\n```\r","expected":true}
+{"kind":"closed","value":"```rs\na\n```\n","expected":false}
+{"kind":"closed","value":"```rs\na\n```x","expected":false}
+{"kind":"closed","value":"~~~\nx\n~~~","expected":true}
+{"kind":"closed","value":"```\n```\ntext","expected":false}
+{"kind":"run","code":"","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"bash","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"sh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"zsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"fish","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"shell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"powershell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"pwsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo ok\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"bash","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"sh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"zsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"fish","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"shell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"powershell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"pwsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":" echo ok \n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":" echo ok \n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"bash","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"sh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"zsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"fish","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"shell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"powershell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"pwsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"echo 😀\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo 😀\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\\\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\r\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"bash","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"sh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"zsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"fish","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"shell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"powershell","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"pwsh","streaming":false,"available":true,"expected":true}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"printf 'one\\ntwo'\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo\tgood\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ‮bad\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ​bad\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ﻿ok\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"﻿echo ok\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echobad\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echobad\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo \u0000bad\n","language":"text","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"bash","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"bash","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"bash","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"bash","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"sh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"sh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"sh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"sh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"zsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"zsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"zsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"zsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"fish","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"fish","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"fish","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"fish","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"shell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"shell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"shell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"shell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"powershell","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"powershell","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"powershell","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"powershell","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"pwsh","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"pwsh","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"pwsh","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"pwsh","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"BASH","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"BASH","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"BASH","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"BASH","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"rust","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"rust","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"rust","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"rust","streaming":true,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"text","streaming":false,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"text","streaming":false,"available":true,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"text","streaming":true,"available":false,"expected":false}
+{"kind":"run","code":"echo ok\nnext\n","language":"text","streaming":true,"available":true,"expected":false}

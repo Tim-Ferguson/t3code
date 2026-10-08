@@ -4,6 +4,7 @@ pub mod connection;
 pub mod draft_storage;
 pub mod drafts;
 pub mod environments;
+pub mod markdown;
 pub mod models;
 pub mod new_thread;
 pub mod provider_auth;

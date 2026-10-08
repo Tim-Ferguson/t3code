@@ -1,0 +1,218 @@
+{"source":"```\nconst value = \"😀\";","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```\nconst value = \"😀\";\n```","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```\n> const value = \"😀\";","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```\n> const value = \"😀\";\n> ```","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```\n  const value = \"😀\";","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```\n  const value = \"😀\";\n  ```","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```\n   const value = \"😀\";","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```\n   const value = \"😀\";\n   ```","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"text","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust\nconst value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust\nconst value = \"😀\";\n```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust\n> const value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust\n> const value = \"😀\";\n> ```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust\n  const value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust\n  const value = \"😀\";\n  ```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust\n   const value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust\n   const value = \"😀\";\n   ```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```gitignore\nconst value = \"😀\";","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```gitignore\nconst value = \"😀\";\n```","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```gitignore\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```gitignore\n> const value = \"😀\";","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```gitignore\n> const value = \"😀\";\n> ```","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```gitignore\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```gitignore\n  const value = \"😀\";","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```gitignore\n  const value = \"😀\";\n  ```","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```gitignore\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```gitignore\n   const value = \"😀\";","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```gitignore\n   const value = \"😀\";\n   ```","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```gitignore\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"ini","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```GITIGNORE\nconst value = \"😀\";","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```GITIGNORE\nconst value = \"😀\";\n```","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```GITIGNORE\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```GITIGNORE\n> const value = \"😀\";","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```GITIGNORE\n> const value = \"😀\";\n> ```","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```GITIGNORE\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```GITIGNORE\n  const value = \"😀\";","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```GITIGNORE\n  const value = \"😀\";\n  ```","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```GITIGNORE\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```GITIGNORE\n   const value = \"😀\";","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```GITIGNORE\n   const value = \"😀\";\n   ```","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```GITIGNORE\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"GITIGNORE","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust src/main.rs\nconst value = \"😀\";","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"```rust src/main.rs\nconst value = \"😀\";\n```","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"```rust src/main.rs\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust src/main.rs\n> const value = \"😀\";","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust src/main.rs\n> const value = \"😀\";\n> ```","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust src/main.rs\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust src/main.rs\n  const value = \"😀\";","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust src/main.rs\n  const value = \"😀\";\n  ```","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust src/main.rs\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust src/main.rs\n   const value = \"😀\";","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust src/main.rs\n   const value = \"😀\";\n   ```","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust src/main.rs\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"rust","title":"src/main.rs","code":"const value = \"😀\";\n"}]}
+{"source":"```ts title=\"a b.ts\"\nconst value = \"😀\";","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts title=\"a b.ts\"\nconst value = \"😀\";\n```","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts title=\"a b.ts\"\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts title=\"a b.ts\"\n> const value = \"😀\";","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts title=\"a b.ts\"\n> const value = \"😀\";\n> ```","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts title=\"a b.ts\"\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts title=\"a b.ts\"\n  const value = \"😀\";","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts title=\"a b.ts\"\n  const value = \"😀\";\n  ```","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts title=\"a b.ts\"\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts title=\"a b.ts\"\n   const value = \"😀\";","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts title=\"a b.ts\"\n   const value = \"😀\";\n   ```","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts title=\"a b.ts\"\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"ts","title":"a b.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```sh\tfilename=a.sh\nconst value = \"😀\";","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"```sh\tfilename=a.sh\nconst value = \"😀\";\n```","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"```sh\tfilename=a.sh\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"> ```sh\tfilename=a.sh\n> const value = \"😀\";","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"> ```sh\tfilename=a.sh\n> const value = \"😀\";\n> ```","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"> ```sh\tfilename=a.sh\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"- ```sh\tfilename=a.sh\n  const value = \"😀\";","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"- ```sh\tfilename=a.sh\n  const value = \"😀\";\n  ```","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"- ```sh\tfilename=a.sh\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"   ```sh\tfilename=a.sh\n   const value = \"😀\";","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"   ```sh\tfilename=a.sh\n   const value = \"😀\";\n   ```","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"   ```sh\tfilename=a.sh\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"sh","title":"a.sh","code":"const value = \"😀\";\n"}]}
+{"source":"```jstitle=x.js\nconst value = \"😀\";","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```jstitle=x.js\nconst value = \"😀\";\n```","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```jstitle=x.js\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```jstitle=x.js\n> const value = \"😀\";","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```jstitle=x.js\n> const value = \"😀\";\n> ```","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```jstitle=x.js\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```jstitle=x.js\n  const value = \"😀\";","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```jstitle=x.js\n  const value = \"😀\";\n  ```","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```jstitle=x.js\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```jstitle=x.js\n   const value = \"😀\";","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```jstitle=x.js\n   const value = \"😀\";\n   ```","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```jstitle=x.js\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"jstitle=x.js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```js﻿title=x.js\nconst value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```js﻿title=x.js\nconst value = \"😀\";\n```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```js﻿title=x.js\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```js﻿title=x.js\n> const value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```js﻿title=x.js\n> const value = \"😀\";\n> ```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```js﻿title=x.js\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```js﻿title=x.js\n  const value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```js﻿title=x.js\n  const value = \"😀\";\n  ```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```js﻿title=x.js\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```js﻿title=x.js\n   const value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```js﻿title=x.js\n   const value = \"😀\";\n   ```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```js﻿title=x.js\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```js ﻿title=x.js\nconst value = \"😀\";","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"```js ﻿title=x.js\nconst value = \"😀\";\n```","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"```js ﻿title=x.js\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"> ```js ﻿title=x.js\n> const value = \"😀\";","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"> ```js ﻿title=x.js\n> const value = \"😀\";\n> ```","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"> ```js ﻿title=x.js\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"- ```js ﻿title=x.js\n  const value = \"😀\";","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"- ```js ﻿title=x.js\n  const value = \"😀\";\n  ```","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"- ```js ﻿title=x.js\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"   ```js ﻿title=x.js\n   const value = \"😀\";","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"   ```js ﻿title=x.js\n   const value = \"😀\";\n   ```","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"   ```js ﻿title=x.js\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"js","title":"x.js","code":"const value = \"😀\";\n"}]}
+{"source":"```js title=x.js\nconst value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```js title=x.js\nconst value = \"😀\";\n```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```js title=x.js\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```js title=x.js\n> const value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```js title=x.js\n> const value = \"😀\";\n> ```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```js title=x.js\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```js title=x.js\n  const value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```js title=x.js\n  const value = \"😀\";\n  ```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```js title=x.js\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```js title=x.js\n   const value = \"😀\";","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```js title=x.js\n   const value = \"😀\";\n   ```","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```js title=x.js\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"js","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=🦀.rs\nconst value = \"😀\";","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=🦀.rs\nconst value = \"😀\";\n```","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=🦀.rs\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=🦀.rs\n> const value = \"😀\";","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=🦀.rs\n> const value = \"😀\";\n> ```","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=🦀.rs\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=🦀.rs\n  const value = \"😀\";","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=🦀.rs\n  const value = \"😀\";\n  ```","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=🦀.rs\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=🦀.rs\n   const value = \"😀\";","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=🦀.rs\n   const value = \"😀\";\n   ```","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=🦀.rs\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"rust","title":"🦀.rs","code":"const value = \"😀\";\n"}]}
+{"source":"```text file=a.md\nconst value = \"😀\";","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"```text file=a.md\nconst value = \"😀\";\n```","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"```text file=a.md\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"> ```text file=a.md\n> const value = \"😀\";","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"> ```text file=a.md\n> const value = \"😀\";\n> ```","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"> ```text file=a.md\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"- ```text file=a.md\n  const value = \"😀\";","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"- ```text file=a.md\n  const value = \"😀\";\n  ```","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"- ```text file=a.md\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"   ```text file=a.md\n   const value = \"😀\";","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"   ```text file=a.md\n   const value = \"😀\";\n   ```","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"   ```text file=a.md\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"text","title":"a.md","code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=\nconst value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=\nconst value = \"😀\";\n```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=\n> const value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=\n> const value = \"😀\";\n> ```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=\n  const value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=\n  const value = \"😀\";\n  ```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=\n   const value = \"😀\";","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=\n   const value = \"😀\";\n   ```","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"rust","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=\"\"\nconst value = \"😀\";","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=\"\"\nconst value = \"😀\";\n```","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"```rust title=\"\"\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=\"\"\n> const value = \"😀\";","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=\"\"\n> const value = \"😀\";\n> ```","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"> ```rust title=\"\"\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=\"\"\n  const value = \"😀\";","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=\"\"\n  const value = \"😀\";\n  ```","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"- ```rust title=\"\"\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=\"\"\n   const value = \"😀\";","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=\"\"\n   const value = \"😀\";\n   ```","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"   ```rust title=\"\"\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"rust","title":"\"\"","code":"const value = \"😀\";\n"}]}
+{"source":"```ts a\\.ts\nconst value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts a\\.ts\nconst value = \"😀\";\n```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts a\\.ts\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts a\\.ts\n> const value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts a\\.ts\n> const value = \"😀\";\n> ```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts a\\.ts\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts a\\.ts\n  const value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts a\\.ts\n  const value = \"😀\";\n  ```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts a\\.ts\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts a\\.ts\n   const value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts a\\.ts\n   const value = \"😀\";\n   ```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts a\\.ts\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts &quot;x&quot;\nconst value = \"😀\";","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```ts &quot;x&quot;\nconst value = \"😀\";\n```","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```ts &quot;x&quot;\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts &quot;x&quot;\n> const value = \"😀\";","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts &quot;x&quot;\n> const value = \"😀\";\n> ```","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts &quot;x&quot;\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts &quot;x&quot;\n  const value = \"😀\";","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts &quot;x&quot;\n  const value = \"😀\";\n  ```","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts &quot;x&quot;\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts &quot;x&quot;\n   const value = \"😀\";","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts &quot;x&quot;\n   const value = \"😀\";\n   ```","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts &quot;x&quot;\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"ts","title":null,"code":"const value = \"😀\";\n"}]}
+{"source":"```ts title=&quot;a.ts&quot;\nconst value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts title=&quot;a.ts&quot;\nconst value = \"😀\";\n```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"```ts title=&quot;a.ts&quot;\nconst value = \"😀\";\n```\n\nstream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts title=&quot;a.ts&quot;\n> const value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts title=&quot;a.ts&quot;\n> const value = \"😀\";\n> ```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"> ```ts title=&quot;a.ts&quot;\n> const value = \"😀\";\n> ```\n> \n> stream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts title=&quot;a.ts&quot;\n  const value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts title=&quot;a.ts&quot;\n  const value = \"😀\";\n  ```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"- ```ts title=&quot;a.ts&quot;\n  const value = \"😀\";\n  ```\n  \n  stream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts title=&quot;a.ts&quot;\n   const value = \"😀\";","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts title=&quot;a.ts&quot;\n   const value = \"😀\";\n   ```","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"   ```ts title=&quot;a.ts&quot;\n   const value = \"😀\";\n   ```\n   \n   stream","expected":[{"language":"ts","title":"a.ts","code":"const value = \"😀\";\n"}]}
+{"source":"| Left | Center | Right | None |\n|:--|:--:|--:|--|\n| a | b | c | d |","align":["left","center","right",null]}
+{"source":"| a | b |\n|---|---|\n| **a** | `b` |","align":[null,null]}

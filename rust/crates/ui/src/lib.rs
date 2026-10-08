@@ -2,6 +2,7 @@ mod appearance;
 mod client_settings;
 mod draft_storage;
 mod font_service;
+mod markdown;
 mod model_controls;
 mod new_thread;
 mod provider_auth;
@@ -505,8 +506,7 @@ fn Wordmark() -> Element {
 
 #[component]
 fn Message(role: String, text: String) -> Element {
-    let html = safe_markdown(&text);
-    rsx! { article { class: if role=="user" { "message user" } else { "message assistant" }, div { class: "markdown", dangerous_inner_html: html } } }
+    rsx! { article { class: if role=="user" { "message user" } else { "message assistant" }, markdown::Markdown {text} } }
 }
 
 /// Raw HTML and unsafe link/image schemes cannot cross into the webview. Rich

@@ -1451,3 +1451,69 @@ html[data-theme-token-probe] *::after {
   overflow: hidden;
   margin-top: 12px;
 }
+
+.chat-markdown-codeblock {
+  margin: 0.65rem 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--secondary);
+  line-height: 1.4;
+}
+.chat-markdown-codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 0 12px;
+  user-select: none;
+}
+.codeblock-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.chat-markdown-codeblock-header [role="toolbar"] {
+  display: inline-flex;
+  gap: 2px;
+}
+.chat-markdown-codeblock-header button {
+  min-height: 24px;
+  padding: 3px 6px;
+  background: transparent;
+  border: 0;
+  font-size: 11px;
+}
+.chat-markdown-codeblock-header button[aria-pressed="true"] {
+  background: var(--accent);
+}
+.markdown .chat-markdown-codeblock pre {
+  margin: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 12px 12px;
+}
+.markdown .chat-markdown-codeblock pre code {
+  font-size: inherit;
+}
+.markdown-table {
+  max-width: 100%;
+  overflow: auto;
+  margin: 12px 0;
+}
+.markdown-table table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+}
+.markdown-table th,
+.markdown-table td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+}
+.markdown-table th {
+  background: var(--secondary);
+}
