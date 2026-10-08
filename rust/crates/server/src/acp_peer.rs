@@ -120,6 +120,9 @@ fn error(cause: ProcessError) -> AcpError {
     }
 }
 impl Peer for ProcessPeer {
+    fn external_failure(&self) -> BoxFuture<'_, AcpError> {
+        Box::pin(async { error(self.0.process.external_failure().await) })
+    }
     fn enable_ordered_ingress(&self) {
         self.0.process.enable_ordered_ingress();
     }
@@ -133,6 +136,20 @@ impl Peer for ProcessPeer {
             self.0
                 .process
                 .request(method, params, timeout)
+                .await
+                .map_err(error)
+        })
+    }
+    fn request_core<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Value, AcpError>> {
+        Box::pin(async move {
+            self.0
+                .process
+                .request_core(method, params, timeout)
                 .await
                 .map_err(error)
         })
@@ -705,5 +722,116 @@ threading.Event().wait()
                 .unwrap(),
             ProcessEvent::Closed(ProcessError::Closed(_))
         ));
+    }
+    #[tokio::test]
+    async fn typed_core_and_raw_extension_requests_have_original_disjoint_wire_ids() {
+        let (_directory, _peer, client) = ordered_fixture(
+            r#"import sys,json
+for expected in [4294967296,1,4294967297,2]:
+ request=json.loads(sys.stdin.readline())
+ assert request['id']==expected,request
+ result={'protocolVersion':2,'info':{'name':'fixture','version':'1'}} if request['method']=='initialize' else {}
+ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result}),flush=True)
+"#,
+        );
+        client
+            .initialize(json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}))
+            .await
+            .unwrap();
+        client.raw_request("x/first", json!({})).await.unwrap();
+        client
+            .call(t3_acp::AgentMethod::Logout, json!({}))
+            .await
+            .unwrap();
+        client.raw_request("x/second", json!({})).await.unwrap();
+    }
+    #[tokio::test]
+    async fn actual_writer_failure_escapes_held_incoming_observer_and_fails_pending_before_termination_hook()
+     {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("held-observer.py");
+        std::fs::write(
+            &path,
+            r#"import sys,json,os,threading
+request=json.loads(sys.stdin.readline())
+os.close(0)
+print(json.dumps({'jsonrpc':'2.0','id':7,'method':'x/held','params':{}}),flush=True)
+threading.Event().wait()
+"#,
+        )
+        .unwrap();
+        let peer = ProcessPeer::spawn(ProcessOptions {
+            binary: "python3".into(),
+            args: vec![path.to_string_lossy().into()],
+            cwd: directory.path().into(),
+            environment: Default::default(),
+        })
+        .unwrap();
+        let (entered, mut entries) = tokio::sync::mpsc::unbounded_channel();
+        let (terminated, mut terminations) = tokio::sync::mpsc::unbounded_channel();
+        let (release, gate) = tokio::sync::oneshot::channel::<()>();
+        let gate = Arc::new(Mutex::new(Some(gate)));
+        let client = t3_acp::Client::with_options(
+            Arc::new(peer.clone()),
+            Duration::from_secs(10),
+            t3_acp::ClientOptions {
+                on_incoming_request: Some(Arc::new(move |_, _| {
+                    let entered = entered.clone();
+                    let gate = gate.lock().unwrap().take().unwrap();
+                    Box::pin(async move {
+                        entered.send(()).unwrap();
+                        let _ = gate.await;
+                    })
+                })),
+                on_termination: Some(Arc::new(move |error| {
+                    let terminated = terminated.clone();
+                    Box::pin(async move {
+                        terminated.send(error).unwrap();
+                    })
+                })),
+                ..Default::default()
+            },
+        );
+        let caller = client.clone();
+        let pending = tokio::spawn(async move { caller.raw_request("x/pending", json!({})).await });
+        tokio::time::timeout(Duration::from_secs(3), entries.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            client
+                .raw_notify("x/trigger-broken-writer", json!({}))
+                .await
+                .is_err()
+        );
+        let failure = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(failure, AcpError::Transport(_)));
+        assert!(
+            tokio::time::timeout(Duration::from_secs(3), pending)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err()
+        );
+        assert!(
+            release.send(()).is_err(),
+            "held observer must be canceled without release"
+        );
+        assert!(terminations.try_recv().is_err());
+        let mut closed = peer.0.terminal.subscribe();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if closed.borrow().is_some() {
+                    break;
+                }
+                closed.changed().await.unwrap();
+            }
+        })
+        .await
+        .unwrap();
+        assert!(client.raw_request("x/future", json!({})).await.is_err());
     }
 }

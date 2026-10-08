@@ -50,11 +50,21 @@ pub type RequestHandler =
 pub type NotificationHandler =
     Arc<dyn Fn(Value) -> BoxFuture<'static, Result<(), AcpError>> + Send + Sync>;
 pub type SessionUpdateTransform = Arc<dyn Fn(Value) -> Value + Send + Sync>;
+pub type IncomingRequestObserver =
+    Arc<dyn Fn(RequestContext, Value) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type TerminationObserver = Arc<dyn Fn(AcpError) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type ResponseObserver = Arc<dyn Fn(String) -> BoxFuture<'static, ()> + Send + Sync>;
+pub type ResponseFailureObserver =
+    Arc<dyn Fn(String, AcpError) -> BoxFuture<'static, ()> + Send + Sync>;
 #[derive(Clone, Default)]
 pub struct ClientOptions {
     /// Receives the compatibility-normalized update; its result is retained
     /// in the raw stream and delivered to handlers without another decode.
     pub transform_session_update: Option<SessionUpdateTransform>,
+    pub on_incoming_request: Option<IncomingRequestObserver>,
+    pub on_termination: Option<TerminationObserver>,
+    pub on_outgoing_response: Option<ResponseObserver>,
+    pub on_outgoing_response_failure: Option<ResponseFailureObserver>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AgentMethod {
@@ -285,9 +295,17 @@ impl Client {
         }
     }
     pub async fn raw_request(&self, method: &str, params: Value) -> Result<Value, AcpError> {
+        self.request_with_mode(method, params, false).await
+    }
+    async fn request_with_mode(
+        &self,
+        method: &str,
+        params: Value,
+        core: bool,
+    ) -> Result<Value, AcpError> {
         let mut closed = self.0.state.closed_signal.subscribe();
         self.0.state.active()?;
-        tokio::select! {biased;_=closed.changed()=>Err(closed.borrow().clone().unwrap_or(AcpError::Closed)),result=self.0.peer.request(method,params,self.0.timeout)=>result}
+        tokio::select! {biased;_=closed.changed()=>Err(closed.borrow().clone().unwrap_or(AcpError::Closed)),result=async { if core { self.0.peer.request_core(method,params,self.0.timeout).await } else { self.0.peer.request(method,params,self.0.timeout).await } }=>result}
     }
     pub async fn raw_notify(&self, method: &str, params: Value) -> Result<(), AcpError> {
         let mut closed = self.0.state.closed_signal.subscribe();
@@ -299,7 +317,7 @@ impl Client {
         method: &str,
         params: Value,
     ) -> Result<Value, AcpError> {
-        self.raw_request(method, params)
+        self.request_with_mode(method, params, true)
             .await
             .map_err(|error| match error {
                 AcpError::ResponseError { error, .. } => {
@@ -754,11 +772,32 @@ async fn incoming_request(
     };
     match written {
         Ok(()) => {
+            if let Some(observer) = &state.options.on_outgoing_response {
+                if let Err(panic) = AssertUnwindSafe(async { observer(identity.clone()).await })
+                    .catch_unwind()
+                    .await
+                {
+                    // Extension replies run in the reader; core replies run
+                    // independently in RpcServer and cannot end the reader.
+                    if spec.is_none() {
+                        state.terminate(read_input_defect(panic));
+                    }
+                    return;
+                }
+            }
             let _ = state.events.send(ClientEvent::ResponseAcknowledged {
                 request_id: identity,
             });
         }
         Err(error) => {
+            if spec.is_some() {
+                if let Some(observer) = &state.options.on_outgoing_response_failure {
+                    let _ =
+                        AssertUnwindSafe(async { observer(identity.clone(), error.clone()).await })
+                            .catch_unwind()
+                            .await;
+                }
+            }
             let _ = state.events.send(ClientEvent::ResponseFailed {
                 request_id: identity,
                 error: error.clone(),
@@ -982,13 +1021,37 @@ async fn dispatch(
         }
     });
     let mut input_finished = false;
+    let failure = peer.external_failure();
+    tokio::pin!(failure);
     loop {
         tokio::select! {
+            error=&mut failure=>{state.terminate(error);break;},
             _=state.termination.notified()=>break,
             _=callbacks.join_next(),if !callbacks.is_empty()=>{},
             event=incoming.recv(),if !input_finished=>match event{
                 Ok(PeerEvent::IngressBarrier{acknowledgement})=>{acknowledgement.acknowledge();},
-                Ok(PeerEvent::Request{id,method,params})=>{callbacks.spawn(incoming_request(peer.clone(),state.clone(),id,method,params));},
+                Ok(PeerEvent::Request{id,method,params})=>{
+                    if let Some(observer)=&state.options.on_incoming_request {
+                        let context=RequestContext {request_id:id.identity(),method:method.clone(),wire_id:id.clone()};
+                        let observed=tokio::select! {
+                            result=AssertUnwindSafe(async { observer(context,params.clone()).await }).catch_unwind()=>result,
+                            error=&mut failure=>{state.terminate(error);break;},
+                            _=state.termination.notified()=>break,
+                        };
+                        if let Err(panic)=observed {
+                            state.terminate(read_input_defect(panic));break;
+                        }
+                    }
+                    if inbound_spec(state.role,&method).is_some() {
+                        callbacks.spawn(incoming_request(peer.clone(),state.clone(),id,method,params));
+                    } else {
+                        tokio::select! {
+                            _=incoming_request(peer.clone(),state.clone(),id,method,params)=>{},
+                            error=&mut failure=>{state.terminate(error);break;},
+                            _=state.termination.notified()=>break,
+                        }
+                    }
+                },
                 Ok(PeerEvent::Notification{method,params})=>{
                     let (complete, finished)=oneshot::channel();
                     if state.notification_jobs.send(NotificationJob::Incoming{method,params,complete}).is_err() { break; }
@@ -999,6 +1062,7 @@ async fn dispatch(
                     tokio::select! {
                         _=finished=>{},
                         _=closed.changed()=>break,
+                        error=&mut failure=>{state.terminate(error);break;},
                     }
                 },
                 Ok(PeerEvent::Closed(error))=>{input_finished=true;let _=state.notification_jobs.send(NotificationJob::Terminal(error));},
@@ -1008,5 +1072,11 @@ async fn dispatch(
         if state.closed.lock().unwrap().is_some() {
             break;
         }
+    }
+    let error = state.closed.lock().unwrap().clone();
+    if let (Some(observer), Some(error)) = (&state.options.on_termination, error) {
+        let _ = AssertUnwindSafe(async { observer(error).await })
+            .catch_unwind()
+            .await;
     }
 }

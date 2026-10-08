@@ -96,11 +96,13 @@ struct Inner {
     ordered_ingress: Arc<AtomicBool>,
     pending: Pending,
     next_id: AtomicU64,
+    next_core_id: AtomicU64,
     permits: Arc<Semaphore>,
     events: broadcast::Sender<ProcessEvent>,
     first_receiver: Mutex<Option<broadcast::Receiver<ProcessEvent>>>,
     shutdown: watch::Sender<bool>,
     closed: Arc<Mutex<Option<ProcessError>>>,
+    external_failure: watch::Sender<Option<ProcessError>>,
 }
 impl Drop for Inner {
     fn drop(&mut self) {
@@ -148,6 +150,7 @@ impl ProviderProcess {
         let (shutdown, mut stopping) = watch::channel(false);
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
         let closed = Arc::new(Mutex::new(None));
+        let (external_failure, _) = watch::channel(None);
         let ordered_ingress = Arc::new(AtomicBool::new(false));
         let inner = Arc::new(Inner {
             outbound,
@@ -155,11 +158,13 @@ impl ProviderProcess {
             ordered_ingress: ordered_ingress.clone(),
             pending: pending.clone(),
             next_id: AtomicU64::new(1),
+            next_core_id: AtomicU64::new(1u64 << 32),
             permits: Arc::new(Semaphore::new(MAX_PENDING)),
             events: events.clone(),
             first_receiver: Mutex::new(Some(first_receiver)),
             shutdown,
             closed: closed.clone(),
+            external_failure: external_failure.clone(),
         });
         let (writer_error, mut errors) = mpsc::channel::<ProcessError>(1);
         tokio::spawn(async move {
@@ -253,6 +258,9 @@ impl ProviderProcess {
                     });
                     acknowledgement
                 });
+            if !input_failure {
+                external_failure.send_replace(Some(failure.clone()));
+            }
             *closed.lock().unwrap() = Some(failure.clone());
             for (_, waiter) in pending.lock().unwrap().drain() {
                 let _ = waiter.send(PendingReply {
@@ -287,11 +295,39 @@ impl ProviderProcess {
             self.0.ordered_ingress.store(true, Ordering::Release);
         }
     }
+    pub async fn external_failure(&self) -> ProcessError {
+        let mut receiver = self.0.external_failure.subscribe();
+        loop {
+            if let Some(error) = receiver.borrow().clone() {
+                return error;
+            }
+            if receiver.changed().await.is_err() {
+                return ProcessError::Closed("provider writer was released".into());
+            }
+        }
+    }
     pub async fn request(
         &self,
         method: &str,
         params: Value,
         timeout: Duration,
+    ) -> Result<Value, ProcessError> {
+        self.request_with_mode(method, params, timeout, false).await
+    }
+    pub async fn request_core(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, ProcessError> {
+        self.request_with_mode(method, params, timeout, true).await
+    }
+    async fn request_with_mode(
+        &self,
+        method: &str,
+        params: Value,
+        timeout: Duration,
+        core: bool,
     ) -> Result<Value, ProcessError> {
         let operation = async {
             let _permit = self
@@ -307,7 +343,12 @@ impl ProviderProcess {
                 if let Some(error) = &*closed {
                     return Err(error.clone());
                 }
-                let id = self.0.next_id.fetch_add(1, Ordering::Relaxed);
+                let counter = if self.0.json_rpc && core {
+                    &self.0.next_core_id
+                } else {
+                    &self.0.next_id
+                };
+                let id = counter.fetch_add(1, Ordering::Relaxed);
                 let (waiter, response) = oneshot::channel();
                 self.0.pending.lock().unwrap().insert(id, waiter);
                 (id, response)
@@ -439,7 +480,7 @@ impl ProviderProcess {
     }
 }
 
-async fn bounded_line(
+pub(crate) async fn bounded_line(
     reader: &mut (impl tokio::io::AsyncBufRead + Unpin),
 ) -> Result<Option<Vec<u8>>, ProcessError> {
     let mut line = Vec::new();

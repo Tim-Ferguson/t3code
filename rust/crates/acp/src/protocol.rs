@@ -292,6 +292,11 @@ pub enum PeerEvent {
 /// completion, remove canceled request waiters, and propagate terminal errors.
 /// Subscribe before initialization so no callback or update is lost.
 pub trait Peer: Send + Sync + 'static {
+    /// Output failure is independent of ordered input routing: a held input
+    /// callback cannot delay failure of the writer and its pending requests.
+    fn external_failure(&self) -> BoxFuture<'_, AcpError> {
+        Box::pin(std::future::pending())
+    }
     /// Called before subscribing or issuing requests. Ordered transports emit
     /// barriers before correlated replies and terminal pending failures, then
     /// await them before returning request results. The default preserves
@@ -303,6 +308,16 @@ pub trait Peer: Send + Sync + 'static {
         params: Value,
         timeout: Duration,
     ) -> BoxFuture<'a, Result<Value, AcpError>>;
+    /// Typed Effect RPC calls use a disjoint numeric ID namespace beginning at
+    /// 2^32. Legacy peers may delegate when their transport owns its allocator.
+    fn request_core<'a>(
+        &'a self,
+        method: &'a str,
+        params: Value,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Value, AcpError>> {
+        self.request(method, params, timeout)
+    }
     fn notify<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<(), AcpError>>;
     fn respond<'a>(
         &'a self,

@@ -47,8 +47,20 @@ struct FakePeer {
     calls: mpsc::UnboundedSender<Call>,
     responses: mpsc::UnboundedSender<Response>,
     response_gate: Mutex<Option<oneshot::Receiver<Result<(), AcpError>>>>,
+    external_failure: tokio::sync::watch::Sender<Option<AcpError>>,
 }
 impl Peer for FakePeer {
+    fn external_failure(&self) -> BoxFuture<'_, AcpError> {
+        Box::pin(async move {
+            let mut receiver = self.external_failure.subscribe();
+            loop {
+                if let Some(error) = receiver.borrow().clone() {
+                    return error;
+                }
+                receiver.changed().await.unwrap();
+            }
+        })
+    }
     fn subscribe(&self) -> broadcast::Receiver<PeerEvent> {
         self.events.subscribe()
     }
@@ -144,6 +156,7 @@ impl Harness {
             calls,
             responses,
             response_gate: Mutex::new(None),
+            external_failure: tokio::sync::watch::channel(None).0,
         });
         let client = Client::with_options(peer.clone(), Duration::from_secs(10), options);
         Self {
@@ -958,6 +971,7 @@ async fn normalized_update_transform_replaces_large_payload_in_raw_stream_and_ha
             calls.fetch_add(1, Ordering::Relaxed);
             transformed.clone()
         })),
+        ..Default::default()
     });
     h.initialize(Generation::V1, 1).await;
     let (handled, mut received) = mpsc::unbounded_channel();
@@ -994,6 +1008,7 @@ async fn normalized_update_transform_replaces_large_payload_in_raw_stream_and_ha
 async fn transform_defect_terminates_pending_and_future_calls_with_private_transport_cause() {
     let mut h = Harness::with_options(t3_acp::ClientOptions {
         transform_session_update: Some(Arc::new(|_| panic!("normalizer bug"))),
+        ..Default::default()
     });
     let client = h.client.clone();
     let pending = tokio::spawn(async move { client.raw_request("x/pending", json!({})).await });
@@ -1175,4 +1190,428 @@ async fn core_request_admitted_before_notification_can_finish_while_reader_is_ga
         json!({"content":"done"})
     );
     finish_notification.send(()).unwrap();
+}
+
+#[tokio::test]
+async fn incoming_observer_precedes_decode_and_response_observer_follows_writer_ack() {
+    let (observed, mut observations) = mpsc::unbounded_channel();
+    let (release_observer, observer_gate) = oneshot::channel();
+    let observer_gate = Arc::new(Mutex::new(Some(observer_gate)));
+    let (acknowledged, mut acknowledgements) = mpsc::unbounded_channel();
+    let mut h = Harness::with_options(t3_acp::ClientOptions {
+        on_incoming_request: Some(Arc::new(move |context, value| {
+            let observed = observed.clone();
+            let gate = observer_gate.lock().unwrap().take().unwrap();
+            Box::pin(async move {
+                observed.send((context, value)).unwrap();
+                gate.await.unwrap();
+            })
+        })),
+        on_outgoing_response: Some(Arc::new(move |id| {
+            let acknowledged = acknowledged.clone();
+            Box::pin(async move {
+                acknowledged.send(id).unwrap();
+            })
+        })),
+        ..Default::default()
+    });
+    h.client.handle_request(
+        "fs/read_text_file",
+        Arc::new(|value, _| {
+            Box::pin(async move {
+                assert!(value.get("privateExtra").is_none());
+                Ok(json!({"content":"done"}))
+            })
+        }),
+    );
+    let (release_write, writer_gate) = oneshot::channel();
+    *h.peer.response_gate.lock().unwrap() = Some(writer_gate);
+    let params = json!({"sessionId":"s","path":"/test","privateExtra":true});
+    h.event(PeerEvent::Request {
+        id: RequestId::Number(0.into()),
+        method: "fs/read_text_file".into(),
+        params: params.clone(),
+    });
+    let (context, raw) = tokio::time::timeout(Duration::from_secs(2), observations.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(raw, params);
+    assert_eq!(context.request_id, "$t3:jsonrpc:number:0");
+    assert!(h.responses.try_recv().is_err());
+    release_observer.send(()).unwrap();
+    assert_eq!(
+        h.response().await.result.unwrap(),
+        json!({"content":"done"})
+    );
+    assert!(acknowledgements.try_recv().is_err());
+    release_write.send(Ok(())).unwrap();
+    assert_eq!(
+        tokio::time::timeout(Duration::from_secs(2), acknowledgements.recv())
+            .await
+            .unwrap()
+            .unwrap(),
+        "$t3:jsonrpc:number:0"
+    );
+}
+
+#[tokio::test]
+async fn writer_failure_observer_is_core_only_and_termination_observer_runs_once() {
+    for core in [true, false] {
+        let (failed, mut failures) = mpsc::unbounded_channel();
+        let (terminated, mut terminations) = mpsc::unbounded_channel();
+        let mut h = Harness::with_options(t3_acp::ClientOptions {
+            on_outgoing_response_failure: Some(Arc::new(move |id, error| {
+                let failed = failed.clone();
+                Box::pin(async move {
+                    failed.send((id, error)).unwrap();
+                })
+            })),
+            on_termination: Some(Arc::new(move |error| {
+                let terminated = terminated.clone();
+                Box::pin(async move {
+                    terminated.send(error).unwrap();
+                })
+            })),
+            ..Default::default()
+        });
+        let method = if core {
+            "fs/read_text_file"
+        } else {
+            "x/callback"
+        };
+        h.client.handle_request(
+            method,
+            Arc::new(|_, _| Box::pin(async { Ok(json!({"content":"done"})) })),
+        );
+        let caller = h.client.clone();
+        let pending = tokio::spawn(async move { caller.raw_request("x/pending", json!({})).await });
+        let _call = h.call().await;
+        let (release, gate) = oneshot::channel();
+        *h.peer.response_gate.lock().unwrap() = Some(gate);
+        h.event(PeerEvent::Request {
+            id: RequestId::String("held".into()),
+            method: method.into(),
+            params: json!({"sessionId":"s","path":"/test"}),
+        });
+        h.response().await;
+        release
+            .send(Err(AcpError::Transport("writer failed".into())))
+            .unwrap();
+        let termination = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(matches!(termination,AcpError::Transport(ref detail) if detail=="writer failed"));
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(2), pending)
+                .await
+                .unwrap()
+                .unwrap(),
+            Err(AcpError::Transport(_))
+        ));
+        if core {
+            assert_eq!(failures.try_recv().unwrap().0, "held");
+        } else {
+            assert!(failures.try_recv().is_err());
+        }
+        assert!(terminations.try_recv().is_err());
+        assert!(h.client.raw_notify("x/future", json!({})).await.is_err());
+    }
+}
+
+#[tokio::test]
+async fn incoming_observer_defect_fails_pending_calls_before_dispatching_handler() {
+    let (terminated, mut terminations) = mpsc::unbounded_channel();
+    let mut h = Harness::with_options(t3_acp::ClientOptions {
+        on_incoming_request: Some(Arc::new(|_, _| Box::pin(async { panic!("observer bug") }))),
+        on_termination: Some(Arc::new(move |error| {
+            let terminated = terminated.clone();
+            Box::pin(async move {
+                terminated.send(error).unwrap();
+            })
+        })),
+        ..Default::default()
+    });
+    h.client.handle_request(
+        "x/callback",
+        Arc::new(|_, _| Box::pin(async { panic!("handler must not run") })),
+    );
+    let caller = h.client.clone();
+    let pending = tokio::spawn(async move { caller.raw_request("x/pending", json!({})).await });
+    let _call = h.call().await;
+    h.event(PeerEvent::Request {
+        id: RequestId::Number(1.into()),
+        method: "x/callback".into(),
+        params: json!({}),
+    });
+    let error = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    let AcpError::Failure(failure) = error else {
+        panic!("wrong callback defect category");
+    };
+    assert!(
+        matches!(failure.as_ref(),t3_acp::errors::Failure::Transport(error) if error.operation==Some(t3_acp::errors::TransportOperation::ReadInputStream))
+    );
+    assert!(pending.await.unwrap().is_err());
+    assert!(h.responses.try_recv().is_err());
+}
+
+// Original protocol's gated onIncomingRequest: EOF is routed in input order;
+// the independent writer failure bypasses that gate; scope shutdown observes no
+// termination callback. Verified with the original Effect stdio/protocol.
+#[tokio::test]
+async fn held_incoming_observer_preserves_eof_writer_failure_and_scope_shutdown_distinctions() {
+    for terminal in ["eof", "writer", "shutdown"] {
+        let (entered, mut entries) = mpsc::unbounded_channel();
+        let (terminated, mut terminations) = mpsc::unbounded_channel();
+        let (release, gate) = oneshot::channel();
+        let gate = Arc::new(Mutex::new(Some(gate)));
+        let mut h = Harness::with_options(t3_acp::ClientOptions {
+            on_incoming_request: Some(Arc::new(move |_, _| {
+                let entered = entered.clone();
+                let gate = gate.lock().unwrap().take().unwrap();
+                Box::pin(async move {
+                    entered.send(()).unwrap();
+                    let _ = gate.await;
+                })
+            })),
+            on_termination: Some(Arc::new(move |error| {
+                let terminated = terminated.clone();
+                Box::pin(async move {
+                    terminated.send(error).unwrap();
+                })
+            })),
+            ..Default::default()
+        });
+        let caller = h.client.clone();
+        let pending = tokio::spawn(async move { caller.raw_request("x/pending", json!({})).await });
+        let _call = h.call().await;
+        h.event(PeerEvent::Request {
+            id: RequestId::Number(7.into()),
+            method: "x/held".into(),
+            params: json!({}),
+        });
+        tokio::time::timeout(Duration::from_secs(2), entries.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        match terminal {
+            "eof" => {
+                h.event(PeerEvent::Closed(AcpError::Closed));
+                assert!(terminations.try_recv().is_err());
+                assert!(!pending.is_finished());
+                release.send(()).unwrap();
+                tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            }
+            "writer" => {
+                h.peer
+                    .external_failure
+                    .send_replace(Some(AcpError::Transport("writer failed".into())));
+                let error = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    matches!(error,AcpError::Transport(ref message) if message=="writer failed")
+                );
+                assert!(h.responses.try_recv().is_err());
+                // The observer was canceled without needing its release.
+                assert!(release.send(()).is_err());
+            }
+            "shutdown" => {
+                h.client.shutdown();
+                assert!(terminations.try_recv().is_err());
+                drop(release);
+            }
+            _ => unreachable!(),
+        }
+        assert!(
+            tokio::time::timeout(Duration::from_secs(2), pending)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err()
+        );
+        assert!(terminations.try_recv().is_err());
+    }
+}
+
+// In the source, extensions reply in the reader; RpcServer core handlers send
+// independently. The same observer defect therefore terminates only extensions.
+#[tokio::test]
+async fn response_observer_defect_terminates_extensions_but_not_independent_core_requests() {
+    for core in [false, true] {
+        let (observed, mut observations) = mpsc::unbounded_channel();
+        let (terminated, mut terminations) = mpsc::unbounded_channel();
+
+        let mut h = Harness::with_options(t3_acp::ClientOptions {
+            on_outgoing_response: Some(Arc::new(move |_| {
+                let observed = observed.clone();
+                Box::pin(async move {
+                    observed.send(()).unwrap();
+                    panic!("response observer bug");
+                })
+            })),
+            on_termination: Some(Arc::new(move |error| {
+                let terminated = terminated.clone();
+                Box::pin(async move {
+                    terminated.send(error).unwrap();
+                })
+            })),
+            ..Default::default()
+        });
+        let mut events = h.client.subscribe();
+        let method = if core { "fs/read_text_file" } else { "x/reply" };
+        h.client.handle_request(
+            method,
+            Arc::new(|_, _| Box::pin(async { Ok(json!({"content":"done"})) })),
+        );
+        h.event(PeerEvent::Request {
+            id: RequestId::Number(7.into()),
+            method: method.into(),
+            params: json!({"sessionId":"s","path":"/test"}),
+        });
+        h.response().await;
+        tokio::time::timeout(Duration::from_secs(2), observations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        if core {
+            // A later ordered response proves dispatch survived the failed core
+            // observer, rather than relying on absence of a termination event.
+            let caller = h.client.clone();
+            let next =
+                tokio::spawn(async move { caller.raw_request("x/still-alive", json!({})).await });
+            h.call()
+                .await
+                .reply
+                .unwrap()
+                .send(Ok(json!({"alive":true})))
+                .unwrap();
+            assert_eq!(next.await.unwrap().unwrap(), json!({"alive":true}));
+            assert!(terminations.try_recv().is_err());
+            assert!(events.try_recv().is_err());
+            h.event(PeerEvent::Closed(AcpError::Closed));
+        }
+        let error = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        if !core {
+            assert!(
+                matches!(error,AcpError::Failure(failure) if matches!(failure.as_ref(),t3_acp::errors::Failure::Transport(error) if error.operation==Some(t3_acp::errors::TransportOperation::ReadInputStream)))
+            );
+        }
+        assert!(terminations.try_recv().is_err());
+    }
+}
+
+#[tokio::test]
+async fn generic_extension_handler_holds_later_requests_replies_and_eof_in_original_reader_order() {
+    for next in ["request", "response", "eof"] {
+        let (entered, mut entries) = mpsc::unbounded_channel();
+        let (later, mut later_requests) = mpsc::unbounded_channel();
+        let (terminated, mut terminations) = mpsc::unbounded_channel();
+        let (release, gate) = oneshot::channel();
+        let gate = Arc::new(Mutex::new(Some(gate)));
+        let mut h = Harness::with_options(t3_acp::ClientOptions {
+            on_termination: Some(Arc::new(move |error| {
+                let terminated = terminated.clone();
+                Box::pin(async move {
+                    terminated.send(error).unwrap();
+                })
+            })),
+            ..Default::default()
+        });
+        h.client.handle_request(
+            "x/gate",
+            Arc::new(move |_, _| {
+                let entered = entered.clone();
+                let gate = gate.lock().unwrap().take().unwrap();
+                Box::pin(async move {
+                    entered.send(()).unwrap();
+                    gate.await.unwrap();
+                    Ok(json!({"released":true}))
+                })
+            }),
+        );
+        h.client.handle_request(
+            "x/later",
+            Arc::new(move |_, _| {
+                let later = later.clone();
+                Box::pin(async move {
+                    later.send(()).unwrap();
+                    Ok(json!({"later":true}))
+                })
+            }),
+        );
+        let mut pending = None;
+        let mut reply = None;
+        if next == "response" {
+            let caller = h.client.clone();
+            pending = Some(tokio::spawn(async move {
+                caller.raw_request("x/pending", json!({})).await
+            }));
+            reply = h.call().await.reply;
+        }
+        h.event(PeerEvent::Request {
+            id: RequestId::String("held".into()),
+            method: "x/gate".into(),
+            params: json!({}),
+        });
+        tokio::time::timeout(Duration::from_secs(2), entries.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        match next {
+            "request" => h.event(PeerEvent::Request {
+                id: RequestId::Number(7.into()),
+                method: "x/later".into(),
+                params: json!({}),
+            }),
+            "response" => reply.unwrap().send(Ok(json!({"reply":true}))).unwrap(),
+            "eof" => h.event(PeerEvent::Closed(AcpError::Closed)),
+            _ => unreachable!(),
+        }
+        assert!(later_requests.try_recv().is_err());
+        assert!(terminations.try_recv().is_err());
+        assert!(
+            pending
+                .as_ref()
+                .is_none_or(|pending| !pending.is_finished())
+        );
+        assert!(h.responses.try_recv().is_err());
+        release.send(()).unwrap();
+        assert_eq!(h.response().await.result.unwrap(), json!({"released":true}));
+        match next {
+            "request" => {
+                tokio::time::timeout(Duration::from_secs(2), later_requests.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(h.response().await.result.unwrap(), json!({"later":true}));
+            }
+            "response" => assert_eq!(
+                tokio::time::timeout(Duration::from_secs(2), pending.unwrap())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap(),
+                json!({"reply":true})
+            ),
+            "eof" => {
+                tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+                    .await
+                    .unwrap()
+                    .unwrap();
+            }
+            _ => unreachable!(),
+        }
+    }
 }
