@@ -77,7 +77,11 @@ unverified or unimplemented.
 
 The server now has an executable with HTTP authentication and WebSocket transport.
 Configured Codex instances support text turns, streamed messages/tools, live
-approvals and input, and interruption. Other provider adapters, complete
+approvals and input, and interruption. Native local ACP v1/v2 instances support
+negotiated sessions, saved-session replay, assistant/reasoning text, plans, live
+approvals, interruption and owned child cleanup. ACP registry installation,
+authentication metadata, tools and client filesystem/terminal/MCP callbacks,
+handoff and checkpoint paths remain incomplete. Other provider adapters, complete
 orchestration, filesystem and terminal services, desktop/mobile native
 integrations, and most interface features still require implementation. Thread creation requires a compatible server with configured
 providers; unavailable services are shown as errors rather than simulated data.

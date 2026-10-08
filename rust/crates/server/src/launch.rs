@@ -134,14 +134,14 @@ impl ThreadLaunchService {
                 if resolved_scripts(settings,&project_key,project.as_ref().unwrap())?.iter().any(|script|script["runOnWorktreeCreate"]==true) {return Err(StoreError::InvalidCommand("Native launch setup-script execution is not yet available.".into()));}
                 let Some(initial)=input.get("initialMessage") else {return Ok(Decision::Accepted { events, effects: vec![] });};
                 let providers=self.providers.as_ref().ok_or_else(||StoreError::InvalidCommand("Native provider execution is not configured.".into()))?;
-                providers.codex(input["modelSelection"]["instanceId"].as_str().unwrap()).map_err(|error|StoreError::InvalidCommand(error.to_string()))?;
+                let driver=providers.driver(input["modelSelection"]["instanceId"].as_str().unwrap()).map_err(|error|StoreError::InvalidCommand(error.to_string()))?;
                 let mut projected=projection;
                 for event in &events {projected=Some(thread::projection_after(projected,event)?);}
                 let initial_id=format!("{command_id}:initial-message");let release_id=format!("{command_id}:release");
                 let mut message=json!({"type":"message.dispatch","commandId":initial_id,"threadId":id,"messageId":initial.get("messageId").cloned().unwrap_or_else(||json!(uuid::Uuid::new_v4().to_string())),"text":initial["text"],"attachments":initial["attachments"],"modelSelection":input["modelSelection"],"createdBy":"user","creationSource":input.get("creationSource").cloned().unwrap_or(json!("web")),"dispatchMode":{"type":"defer_start","workspaceStrategy":strategy}});
                 if let Some(context)=initial.get("context"){message["context"]=context.clone();}
                 let message:t3_contracts::ProviderCommand=serde_json::from_value(message)?;let message=message.service_payload()?;
-                let decision=crate::execution::plan_message(&message,projected.as_ref().unwrap(),now)?;
+                let decision=crate::execution::plan_message_for_driver(&message,projected.as_ref().unwrap(),now,driver)?;
                 let Decision::Accepted{events:message_events,effects:message_effects}=decision else {return Err(StoreError::InvalidCommand("Initial-message planning did not accept.".into()));};
                 if !message_effects.is_empty(){return Err(StoreError::InvalidCommand("Prepared initial message scheduled provider work before release.".into()));}
                 let run_id=message_events.iter().find(|event|event.event_type=="run.created").unwrap().payload["id"].clone();

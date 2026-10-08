@@ -102,10 +102,11 @@ impl ExecutionService {
                         let model = command
                             .get("modelSelection")
                             .unwrap_or(&projection["thread"]["modelSelection"]);
-                        self.providers
-                            .codex(model["instanceId"].as_str().unwrap())
+                        let driver = self
+                            .providers
+                            .driver(model["instanceId"].as_str().unwrap())
                             .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
-                        plan_message(&command, &projection, now)
+                        plan_message_for_driver(&command, &projection, now, driver)
                     }
                     "run.interrupt" => plan_interrupt(&command, &projection, now),
                     "runtime-request.respond" => plan_response(&command, &projection, now),
@@ -402,6 +403,14 @@ pub fn plan_message(
     projection: &Value,
     now: DateTime<Utc>,
 ) -> Result<Decision, StoreError> {
+    plan_message_for_driver(command, projection, now, "codex")
+}
+pub fn plan_message_for_driver(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    driver: &str,
+) -> Result<Decision, StoreError> {
     for field in [
         "notification",
         "scheduledTaskId",
@@ -516,7 +525,7 @@ pub fn plan_message(
     }
     if existing_provider_thread.is_none() {
         let provider_thread = checked::<t3_contracts::ProviderThread>(
-            json!({"id":provider_thread_id,"driver":"codex","providerInstanceId":model["instanceId"],"providerSessionId":null,"appThreadId":thread_id,"ownerNodeId":null,"nativeThreadRef":null,"nativeConversationHeadRef":null,"status":"not_loaded","firstRunOrdinal":ordinal,"lastRunOrdinal":ordinal,"handoffIds":[],"forkedFrom":null,"pendingBackgroundTasks":[],"createdAt":timestamp,"updatedAt":timestamp}),
+            json!({"id":provider_thread_id,"driver":driver,"providerInstanceId":model["instanceId"],"providerSessionId":null,"appThreadId":thread_id,"ownerNodeId":null,"nativeThreadRef":null,"nativeConversationHeadRef":null,"status":"not_loaded","firstRunOrdinal":ordinal,"lastRunOrdinal":ordinal,"handoffIds":[],"forkedFrom":null,"pendingBackgroundTasks":[],"createdAt":timestamp,"updatedAt":timestamp}),
         )?;
         events.push(event(
             thread_id,

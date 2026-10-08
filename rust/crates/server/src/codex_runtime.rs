@@ -53,9 +53,9 @@ impl RuntimeOwner {
         }
     }
 }
-struct Work {
-    effect: Effect,
-    complete: oneshot::Sender<Result<(), String>>,
+pub(crate) struct Work {
+    pub(crate) effect: Effect,
+    pub(crate) complete: oneshot::Sender<Result<(), String>>,
 }
 pub fn start(
     store: Store,
@@ -167,6 +167,29 @@ async fn actor(
     store: Store,
     providers: ProviderRegistry,
     thread_id: String,
+    work: mpsc::Receiver<Work>,
+    stopped: watch::Receiver<bool>,
+    canceled: watch::Receiver<Option<String>>,
+) {
+    let instance_id = projection(&store, &thread_id).ok().and_then(|projection| {
+        projection["thread"]["modelSelection"]["instanceId"]
+            .as_str()
+            .map(ToOwned::to_owned)
+    });
+    if instance_id
+        .as_deref()
+        .and_then(|id| providers.driver(id).ok())
+        == Some("acpRegistry")
+    {
+        crate::acp_adapter::actor(store, providers, thread_id, work, stopped, canceled).await;
+    } else {
+        codex_actor(store, providers, thread_id, work, stopped, canceled).await;
+    }
+}
+async fn codex_actor(
+    store: Store,
+    providers: ProviderRegistry,
+    thread_id: String,
     mut work: mpsc::Receiver<Work>,
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
@@ -253,7 +276,7 @@ async fn actor(
         .await;
     }
 }
-fn projection(store: &Store, id: &str) -> Result<Value, StoreError> {
+pub(crate) fn projection(store: &Store, id: &str) -> Result<Value, StoreError> {
     store
         .projection("thread", id)?
         .ok_or_else(|| StoreError::InvalidCommand("Thread not found.".into()))
@@ -263,7 +286,11 @@ fn report(result: Result<(), StoreError>, operation: &str) {
         tracing::error!(operation,%error,"Native provider state could not be persisted");
     }
 }
-fn find<'a>(projection: &'a Value, field: &str, id: &Value) -> Result<&'a Value, StoreError> {
+pub(crate) fn find<'a>(
+    projection: &'a Value,
+    field: &str,
+    id: &Value,
+) -> Result<&'a Value, StoreError> {
     projection[field]
         .as_array()
         .unwrap()
@@ -271,7 +298,7 @@ fn find<'a>(projection: &'a Value, field: &str, id: &Value) -> Result<&'a Value,
         .find(|row| row["id"] == *id)
         .ok_or_else(|| StoreError::InvalidCommand(format!("Missing {field} row {id}")))
 }
-fn commit(
+pub(crate) fn commit(
     store: &Store,
     thread_id: &str,
     plan: impl FnOnce(&Value) -> Result<Vec<(&'static str, Value)>, StoreError>,
@@ -748,7 +775,7 @@ impl Actor {
         )
     }
 }
-fn terminal(
+pub(crate) fn terminal(
     store: &Store,
     thread_id: &str,
     run_id: Option<&str>,
@@ -879,7 +906,7 @@ fn terminal(
         Ok(events)
     })
 }
-fn fail_run(
+pub(crate) fn fail_run(
     store: &Store,
     thread_id: &str,
     run_id: Option<&str>,

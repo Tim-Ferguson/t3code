@@ -1,5 +1,6 @@
 //! Instance routing and source-compatible legacy configuration hydration.
 use crate::{
+    acp_runtime::AcpInstance,
     codex::{CodexConfig, CodexInstance},
     provider_process::ProcessError,
 };
@@ -23,9 +24,14 @@ pub fn derive_instance_configs(settings: &ServerSettings) -> ProviderInstanceCon
     }
     instances
 }
+enum RegisteredInstance {
+    Codex(CodexInstance),
+    Acp(AcpInstance),
+}
 #[derive(Clone)]
 pub struct ProviderRegistry {
     codex: Arc<HashMap<String, CodexInstance>>,
+    acp: Arc<HashMap<String, AcpInstance>>,
     snapshots: Arc<Vec<Value>>,
     settings: Arc<ServerSettings>,
 }
@@ -35,6 +41,53 @@ impl ProviderRegistry {
         let mut results = futures_util::stream::iter(entries)
             .map(|(id, entry)| async move {
                 let id = id.to_string();
+                if entry.driver.as_str() == "acpRegistry" {
+                    let config = match serde_json::from_value::<t3_contracts::AcpRegistrySettings>(
+                        entry.config.clone().unwrap_or(json!({})),
+                    ) {
+                        Ok(config) => config,
+                        Err(error) => {
+                            return Ok((
+                                id.clone(),
+                                None,
+                                unavailable(&id, &entry, format!("Invalid ACP config: {error}"))?,
+                            ));
+                        }
+                    };
+                    let instance = AcpInstance {
+                        instance_id: id.clone(),
+                        display_name: entry
+                            .display_name
+                            .as_ref()
+                            .and_then(Option::as_ref)
+                            .map(ToString::to_string)
+                            .unwrap_or_else(|| "ACP Registry".into()),
+                        accent_color: entry
+                            .accent_color
+                            .as_ref()
+                            .and_then(Option::as_ref)
+                            .map(ToString::to_string),
+                        enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                        config,
+                        environment: entry
+                            .environment
+                            .as_ref()
+                            .map(|variables| {
+                                variables
+                                    .iter()
+                                    .map(|variable| {
+                                        (variable.name.to_string(), variable.value.clone())
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                    };
+                    let snapshot = instance
+                        .discover(cwd)
+                        .await
+                        .map_err(|error| ProcessError::Protocol(error.to_string()))?;
+                    return Ok((id, Some(RegisteredInstance::Acp(instance)), snapshot));
+                }
                 if entry.driver.as_str() != "codex" {
                     return Ok((
                         id.clone(),
@@ -93,7 +146,7 @@ impl ProviderRegistry {
                     environment,
                 };
                 let snapshot = instance.discover(cwd).await?;
-                Ok::<_, ProcessError>((id, Some(instance), snapshot))
+                Ok::<_, ProcessError>((id, Some(RegisteredInstance::Codex(instance)), snapshot))
             })
             .buffer_unordered(4)
             .collect::<Vec<_>>()
@@ -103,15 +156,24 @@ impl ProviderRegistry {
         // Keep deterministic instance ordering even when probes complete out of order.
         results.sort_by(|left, right| left.0.cmp(&right.0));
         let mut codex = HashMap::new();
+        let mut acp = HashMap::new();
         let mut snapshots = vec![];
         for (id, instance, snapshot) in results {
             if let Some(instance) = instance {
-                codex.insert(id, instance);
+                match instance {
+                    RegisteredInstance::Codex(instance) => {
+                        codex.insert(id, instance);
+                    }
+                    RegisteredInstance::Acp(instance) => {
+                        acp.insert(id, instance);
+                    }
+                }
             }
             snapshots.push(snapshot);
         }
         Ok(Self {
             codex: Arc::new(codex),
+            acp: Arc::new(acp),
             snapshots: Arc::new(snapshots),
             settings: Arc::new(settings.clone()),
         })
@@ -121,6 +183,35 @@ impl ProviderRegistry {
     }
     pub(crate) fn settings(&self) -> &ServerSettings {
         &self.settings
+    }
+    pub fn driver(&self, instance_id: &str) -> Result<&str, ProcessError> {
+        let snapshot = self
+            .snapshots
+            .iter()
+            .find(|snapshot| snapshot["instanceId"] == instance_id)
+            .ok_or_else(|| {
+                ProcessError::Protocol(format!("Provider instance '{instance_id}' is unavailable."))
+            })?;
+        if snapshot["enabled"] != true || snapshot["status"] != "ready" {
+            return Err(ProcessError::Protocol(
+                snapshot["message"]
+                    .as_str()
+                    .unwrap_or("Provider instance is not ready.")
+                    .into(),
+            ));
+        }
+        Ok(snapshot["driver"].as_str().unwrap())
+    }
+    pub fn acp(&self, instance_id: &str) -> Result<AcpInstance, ProcessError> {
+        if self.driver(instance_id)? != "acpRegistry" {
+            return Err(ProcessError::Protocol(
+                "Provider instance is not ACP Registry.".into(),
+            ));
+        }
+        self.acp
+            .get(instance_id)
+            .cloned()
+            .ok_or_else(|| ProcessError::Protocol("ACP provider instance is unavailable.".into()))
     }
     pub fn codex(&self, instance_id: &str) -> Result<CodexInstance, ProcessError> {
         let instance = self

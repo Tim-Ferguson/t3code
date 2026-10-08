@@ -586,6 +586,7 @@ pub(crate) fn projection_after(
         "provider-turn.updated" => Some("providerTurns"),
         "runtime-request.updated" => Some("runtimeRequests"),
         "message.updated" => Some("messages"),
+        "plan.updated" => Some("plans"),
         "turn-item.updated" => Some("turnItems"),
         _ => None,
     };

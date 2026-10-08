@@ -24,6 +24,13 @@ impl Drop for Inner {
 #[derive(Clone)]
 pub struct ProcessPeer(Arc<Inner>);
 impl ProcessPeer {
+    #[cfg(test)]
+    pub(crate) fn process_events(&self) -> broadcast::Receiver<ProcessEvent> {
+        self.0.process.subscribe()
+    }
+    pub(crate) async fn shutdown(&self) {
+        self.0.process.shutdown().await;
+    }
     pub fn spawn(options: ProcessOptions) -> Result<Self, AcpError> {
         Self::spawn_with_options(options, t3_acp::transport::ProtocolOptions::default())
     }

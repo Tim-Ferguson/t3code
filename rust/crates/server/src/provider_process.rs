@@ -392,6 +392,16 @@ impl ProviderProcess {
             self.0.ordered_ingress.store(true, Ordering::Release);
         }
     }
+    /// Stop and reap this owned child before releasing its runtime scope.
+    pub async fn shutdown(&self) {
+        let mut events = self.subscribe();
+        let _ = self.0.shutdown.send(true);
+        while let Ok(event) = events.recv().await {
+            if matches!(event, ProcessEvent::Closed(_)) {
+                break;
+            }
+        }
+    }
     pub async fn external_failure(&self) -> ProcessError {
         let mut receiver = self.0.external_failure.subscribe();
         loop {

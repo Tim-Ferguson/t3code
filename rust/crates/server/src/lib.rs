@@ -1,5 +1,8 @@
 //! Native backend services. Services own behavior; transports only decode and dispatch.
+pub mod acp_adapter;
+pub mod acp_model;
 pub mod acp_peer;
+pub mod acp_runtime;
 pub mod auth;
 pub mod codex;
 pub mod codex_runtime;
