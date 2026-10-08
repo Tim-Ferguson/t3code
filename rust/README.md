@@ -36,8 +36,17 @@ cargo run --locked --manifest-path rust/Cargo.toml -p t3-server -- serve --state
 
 Those descriptors must already be inherited from the supervising desktop; they
 are adopted before runtime/database startup. Ordinary web startup omits them.
-The original bootstrap-envelope handshake, Windows descriptor adapter, live
-settings updates and the desktop producer remain pending. Host resources are
+A Unix supervisor can instead supply `--bootstrap-fd FD` (or
+`T3CODE_BOOTSTRAP_FD`) with the original first-line JSON envelope. Acquisition
+finishes before runtime/state startup. Flags override environment values, then
+the envelope; `T3CODE_HOME` and envelope `t3Home` select `<home>/userdata`, while
+`--state-dir` selects its directory directly. Desktop bootstrap credentials are
+reusable and support the original rotating-secret windows. The envelope also
+supplies telemetry channels and an explicit resource-monitor executable.
+Browser IPC, Tailscale Serve and OTLP requests currently fail explicitly.
+Automatic browser launching remains unimplemented, so `noBrowser` has no
+launcher to control. Windows inherited descriptors, original database/layout
+migration, live settings updates and the desktop producer remain pending. Host resources are
 sampled on demand with a shared five-second cache. The legacy process diagnostics,
 process history and scoped SIGINT/SIGKILL methods now project the resource service;
 signaling requires a fresh process identity and a permitted backend category.

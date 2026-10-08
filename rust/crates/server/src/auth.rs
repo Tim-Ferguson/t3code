@@ -48,11 +48,19 @@ struct Claims {
 }
 
 #[derive(Clone)]
+struct DesktopBootstrapGrant {
+    token: String,
+    secret: Option<String>,
+    expires_at: DateTime<Utc>,
+}
+#[derive(Clone)]
 pub struct AuthService {
     store: Store,
     secret: [u8; 32],
     pub cookie_name: String,
     pub policy: String,
+    desktop_bootstrap: Option<DesktopBootstrapGrant>,
+    desktop_mode: bool,
 }
 
 impl AuthService {
@@ -72,11 +80,40 @@ impl AuthService {
             secret,
             cookie_name,
             policy,
+            desktop_bootstrap: None,
+            desktop_mode: false,
         })
     }
 
+    /// The trusted supervisor's reusable grant is process-local, as in the
+    /// original PairingGrantStore. Never persist or include these IPC secrets in
+    /// the public descriptor or diagnostics.
+    pub fn with_desktop_bootstrap(
+        mut self,
+        token: String,
+        secret: Option<String>,
+        now: DateTime<Utc>,
+    ) -> Self {
+        self.desktop_bootstrap = Some(DesktopBootstrapGrant {
+            token,
+            secret,
+            expires_at: now + chrono::Duration::hours(24),
+        });
+        self
+    }
+    pub fn with_desktop_mode(mut self) -> Self {
+        self.desktop_mode = true;
+        self
+    }
     pub fn descriptor(&self) -> Value {
-        json!({"policy":self.policy,"bootstrapMethods":["one-time-token"],"sessionMethods":["browser-session-cookie","bearer-access-token"],"sessionCookieName":self.cookie_name,"serverUpdateScope":"environment:maintain"})
+        let methods = if self.policy == "desktop-managed-local" {
+            vec!["desktop-bootstrap"]
+        } else if self.desktop_mode {
+            vec!["desktop-bootstrap", "one-time-token"]
+        } else {
+            vec!["one-time-token"]
+        };
+        json!({"policy":self.policy,"bootstrapMethods":methods,"sessionMethods":["browser-session-cookie","bearer-access-token"],"sessionCookieName":self.cookie_name,"serverUpdateScope":"environment:maintain"})
     }
 
     pub fn session_state(&self, session: Option<&Session>) -> Value {
@@ -117,6 +154,24 @@ impl AuthService {
         };
         let token = self.session_token(&session, now)?;
         self.store.transaction(|transaction| {
+            if subject == "desktop-bootstrap" && method == "bearer-access-token" {
+                let mut statement =
+                    transaction.prepare("SELECT session_json FROM rust_auth_sessions")?;
+                let rows = statement
+                    .query_map([], |row| row.get::<_, String>(0))?
+                    .collect::<Result<Vec<_>, _>>()?;
+                drop(statement);
+                for raw in rows {
+                    let mut old: Session = serde_json::from_str(&raw)?;
+                    if old.subject == subject && old.method == method && old.revoked_at.is_none() {
+                        old.revoked_at = Some(now);
+                        transaction.execute(
+                            "UPDATE rust_auth_sessions SET session_json=?1 WHERE session_id=?2",
+                            params![serde_json::to_string(&old)?, old.session_id],
+                        )?;
+                    }
+                }
+            }
             transaction.execute(
                 "INSERT INTO rust_auth_sessions(session_id,session_json) VALUES(?1,?2)",
                 params![session.session_id, serde_json::to_string(&session)?],
@@ -298,6 +353,40 @@ impl AuthService {
         method: &str,
         requested: Option<&[AuthEnvironmentScope]>,
     ) -> Result<(Session, String), AuthError> {
+        if let Some(grant) = &self.desktop_bootstrap {
+            let valid = if let Some(secret) = &grant.secret {
+                valid_desktop_bootstrap_token(secret, credential, now.timestamp_millis())
+            } else {
+                now < grant.expires_at
+                    && !grant.token.is_empty()
+                    && constant_time_token_eq(&grant.token, credential)
+            };
+            if valid {
+                let grants = t3_contracts::AUTH_ADMINISTRATIVE_SCOPES;
+                let scopes = requested
+                    .map(|requested| {
+                        let mut scopes = Vec::new();
+                        for scope in requested {
+                            if grants.contains(scope) && !scopes.contains(scope) {
+                                scopes.push(*scope);
+                            }
+                        }
+                        scopes
+                    })
+                    .unwrap_or_else(|| grants.to_vec());
+                if scopes.is_empty() {
+                    return Err(AuthError::ScopeNotGranted);
+                }
+                return self.issue_session(
+                    "desktop-bootstrap",
+                    method,
+                    scopes,
+                    client,
+                    now,
+                    chrono::Duration::days(30),
+                );
+            }
+        }
         let result=self.store.transaction(|transaction| {
             let hash=token_hash(credential);
             let raw:Option<(String,i64,Option<i64>)>=transaction.query_row("SELECT scopes_json,expires_at,consumed_at FROM rust_pairing_credentials WHERE token_hash=?1",[&hash],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional()?;
@@ -347,6 +436,41 @@ impl AuthService {
     }
 }
 
+pub fn is_remote_reachable_host(host: &str) -> bool {
+    !host.is_empty()
+        && !matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]")
+        && !host.starts_with("127.")
+}
+const DESKTOP_TOKEN_WINDOW_MS: i64 = 12 * 60 * 60 * 1000;
+fn desktop_bootstrap_token(secret: &str, window: i64) -> String {
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC accepts every key length");
+    mac.update(format!("t3-desktop-bootstrap:{window}").as_bytes());
+    mac.finalize()
+        .into_bytes()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+fn constant_time_token_eq(expected: &str, presented: &str) -> bool {
+    // Fixed-key HMAC verification keeps arbitrary UTF-8 token comparisons
+    // constant-time once their byte lengths match, including legacy IPC tokens.
+    if expected.len() != presented.len() {
+        return false;
+    }
+    let mut mac = Hmac::<Sha256>::new_from_slice(b"t3-desktop-comparison").unwrap();
+    mac.update(expected.as_bytes());
+    let digest = mac.finalize().into_bytes();
+    let mut presented_mac = Hmac::<Sha256>::new_from_slice(b"t3-desktop-comparison").unwrap();
+    presented_mac.update(presented.as_bytes());
+    presented_mac.verify_slice(&digest).is_ok()
+}
+fn valid_desktop_bootstrap_token(secret: &str, token: &str, now_ms: i64) -> bool {
+    let window = now_ms.div_euclid(DESKTOP_TOKEN_WINDOW_MS);
+    [window - 1, window, window + 1]
+        .iter()
+        .any(|window| constant_time_token_eq(&desktop_bootstrap_token(secret, *window), token))
+}
 fn token_hash(token: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(token.as_bytes()))
 }
@@ -354,6 +478,119 @@ fn token_hash(token: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn desktop_auth_matches_original_token_and_policy_witnesses() {
+        let mut count = 0;
+        for row in include_str!("../tests/fixtures/desktop-auth.jsonl").lines() {
+            let row: Value = serde_json::from_str(row).unwrap();
+            if row["op"] == "token" {
+                let secret = row["secret"].as_str().unwrap();
+                let now = row["now"].as_i64().unwrap();
+                assert_eq!(
+                    desktop_bootstrap_token(secret, now.div_euclid(DESKTOP_TOKEN_WINDOW_MS)),
+                    row["current"]
+                );
+                assert_eq!(
+                    valid_desktop_bootstrap_token(secret, row["token"].as_str().unwrap(), now),
+                    row["valid"].as_bool().unwrap()
+                );
+            } else {
+                let desktop = row["mode"] == "desktop";
+                let remote = is_remote_reachable_host(row["host"].as_str().unwrap());
+                let policy = if remote {
+                    "remote-reachable"
+                } else if desktop {
+                    "desktop-managed-local"
+                } else {
+                    "loopback-browser"
+                };
+                let mut auth = AuthService::new(
+                    Store::memory().unwrap(),
+                    [7; 32],
+                    "fixture-session".into(),
+                    policy.into(),
+                )
+                .unwrap();
+                if desktop {
+                    auth = auth.with_desktop_mode();
+                }
+                let descriptor = auth.descriptor();
+                assert_eq!(descriptor["policy"], row["policy"]);
+                assert_eq!(descriptor["bootstrapMethods"], row["bootstrapMethods"]);
+            }
+            count += 1;
+        }
+        assert_eq!(count, 209);
+    }
+    #[test]
+    fn reusable_desktop_grants_enforce_static_expiry_rotation_and_scope_intersection() {
+        let now = now();
+        let scopes = [AuthEnvironmentScope::OrchestrationRead];
+        let static_auth = service().with_desktop_bootstrap("trusted IPC token".into(), None, now);
+        for _ in 0..2 {
+            let (session, _) = static_auth
+                .exchange_pairing_bearer("trusted IPC token", Some(&scopes), json!({}), now)
+                .unwrap();
+            assert_eq!(session.subject, "desktop-bootstrap");
+            assert_eq!(session.scopes, scopes);
+        }
+        let (_, old) = static_auth
+            .exchange_pairing_bearer("trusted IPC token", Some(&scopes), json!({}), now)
+            .unwrap();
+        let (_, fresh) = static_auth
+            .exchange_pairing_bearer("trusted IPC token", Some(&scopes), json!({}), now)
+            .unwrap();
+        assert!(static_auth.verify_session(&old, now).is_err());
+        assert!(static_auth.verify_session(&fresh, now).is_ok());
+        assert!(
+            static_auth
+                .exchange_pairing_bearer(
+                    "trusted IPC token",
+                    None,
+                    json!({}),
+                    now + chrono::Duration::hours(24)
+                )
+                .is_err()
+        );
+        let auth =
+            service().with_desktop_bootstrap("legacy-token".into(), Some("密钥".into()), now);
+        assert!(
+            auth.exchange_pairing_bearer("legacy-token", None, json!({}), now)
+                .is_err()
+        );
+        let token = desktop_bootstrap_token(
+            "密钥",
+            now.timestamp_millis().div_euclid(DESKTOP_TOKEN_WINDOW_MS),
+        );
+        assert!(matches!(
+            auth.exchange_pairing_bearer(&token, Some(&[]), json!({}), now),
+            Err(AuthError::ScopeNotGranted)
+        ));
+        assert!(
+            auth.exchange_pairing_bearer(&token, Some(&scopes), json!({}), now)
+                .is_ok()
+        );
+        assert!(
+            auth.exchange_pairing_bearer(
+                &token,
+                None,
+                json!({}),
+                now + chrono::Duration::hours(12)
+            )
+            .is_ok()
+        );
+        assert!(
+            auth.exchange_pairing_bearer(
+                &token,
+                None,
+                json!({}),
+                now + chrono::Duration::hours(24)
+            )
+            .is_err()
+        );
+        assert!(!auth.descriptor().to_string().contains("密钥"));
+    }
+
     fn now() -> DateTime<Utc> {
         "2026-01-01T00:00:00Z".parse().unwrap()
     }

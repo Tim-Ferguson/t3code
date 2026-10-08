@@ -58,3 +58,6 @@ pub use resource_discovery::*;
 
 pub mod diagnostics;
 pub use diagnostics::*;
+
+pub mod desktop_bootstrap;
+pub use desktop_bootstrap::*;

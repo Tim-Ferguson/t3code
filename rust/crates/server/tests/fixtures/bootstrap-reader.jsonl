@@ -1,0 +1,16 @@
+{"op":"line","input":"7b226d6f6465223a226465736b746f70227d0a","result":{"mode":"desktop"}}
+{"op":"line","input":"7b226d6f6465223a226465736b746f70227d0d0a","result":{"mode":"desktop"}}
+{"op":"line","input":"7b226d6f6465223a226465736b746f70227d0d","result":{"mode":"desktop"}}
+{"op":"line","input":"7b226d6f6465223a226465736b746f70227d","result":{"mode":"desktop"}}
+{"op":"line","input":"","result":null}
+{"op":"line","input":"7b226d6f6465223a34327d0a","error":"BootstrapEnvelopeDecodeError"}
+{"op":"line","input":"5b5d0a","error":"BootstrapEnvelopeDecodeError"}
+{"op":"line","input":"0a7b226d6f6465223a226465736b746f70227d","error":"BootstrapEnvelopeDecodeError"}
+{"op":"line","input":"7b226d6f6465223a226465736b746f70227d0a69676e6f726564","result":{"mode":"desktop"}}
+{"op":"line","input":"7b226d6f6465223a22efbbbf227d0a","result":{"mode":"﻿"}}
+{"op":"line","input":"efbbbf7b226d6f6465223a226465736b746f70227d0a","error":"BootstrapEnvelopeDecodeError"}
+{"op":"line","input":"7b226d6f6465223a22ffc0af227d0a","result":{"mode":"���"}}
+{"op":"read-error","code":"EBADF","result":null}
+{"op":"read-error","code":"ENOENT","result":null}
+{"op":"read-error","code":"EACCES","error":"BootstrapEnvelopeReadError","message":"Failed to read bootstrap envelope from file descriptor 7.","causeCode":"EACCES"}
+{"op":"read-error","code":"EIO","error":"BootstrapEnvelopeReadError","message":"Failed to read bootstrap envelope from file descriptor 7.","causeCode":"EIO"}

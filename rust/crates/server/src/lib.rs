@@ -57,3 +57,5 @@ pub mod host_resources;
 mod host_system;
 
 pub mod process_diagnostics;
+
+pub mod bootstrap;

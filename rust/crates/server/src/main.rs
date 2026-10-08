@@ -23,8 +23,17 @@ struct Options {
     mode: String,
     desktop_telemetry_fd: Option<i32>,
     desktop_telemetry_control_fd: Option<i32>,
+    bootstrap_fd: Option<i32>,
+    bootstrap: Option<t3_contracts::DesktopBackendBootstrap>,
+    overrides: std::collections::HashSet<String>,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
+    parse_options(std::env::args().skip(1), |key| std::env::var(key).ok())
+}
+fn parse_options(
+    args: impl IntoIterator<Item = String>,
+    env: impl Fn(&str) -> Option<String>,
+) -> Result<Options, Box<dyn std::error::Error>> {
     let mut options = Options {
         command: "serve".into(),
         state_dir: std::env::current_dir()?.join(".t3-rust"),
@@ -36,9 +45,57 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
         mode: "web".into(),
         desktop_telemetry_fd: None,
         desktop_telemetry_control_fd: None,
+        bootstrap_fd: env("T3CODE_BOOTSTRAP_FD")
+            .map(|value| value.parse())
+            .transpose()?,
+        bootstrap: None,
+        overrides: Default::default(),
     };
-    let mut args = std::env::args().skip(1);
+    for (key, name) in [
+        ("T3CODE_HOST", "--host"),
+        ("T3CODE_PORT", "--port"),
+        ("T3CODE_MODE", "--mode"),
+        ("T3CODE_HOME", "--state-dir"),
+    ] {
+        if let Some(value) = env(key) {
+            match name {
+                "--host" => options.host = value,
+                "--port" => {
+                    options.port = value.parse()?;
+                    if options.port == 0 {
+                        return Err("T3CODE_PORT must be between 1 and 65535".into());
+                    }
+                }
+                "--mode" => {
+                    if !matches!(value.as_str(), "web" | "desktop") {
+                        return Err("T3CODE_MODE requires web or desktop".into());
+                    }
+                    options.mode = value;
+                }
+                "--state-dir" => {
+                    if value.trim().is_empty() {
+                        continue;
+                    }
+                    options.state_dir = PathBuf::from(value.trim()).join("userdata");
+                }
+                _ => unreachable!(),
+            }
+            options.overrides.insert(name.to_owned());
+        }
+    }
+    let mut args = args.into_iter();
     while let Some(arg) = args.next() {
+        if matches!(
+            arg.as_str(),
+            "--host"
+                | "--port"
+                | "--mode"
+                | "--state-dir"
+                | "--desktop-telemetry-fd"
+                | "--desktop-telemetry-control-fd"
+        ) {
+            options.overrides.insert(arg.clone());
+        }
         match arg.as_str() {
             "serve" | "pair" => options.command = arg,
             "--state-dir" => {
@@ -68,6 +125,13 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
                     return Err("--mode requires web or desktop".into());
                 }
             }
+            "--bootstrap-fd" => {
+                options.bootstrap_fd = Some(
+                    args.next()
+                        .ok_or("--bootstrap-fd requires an inherited descriptor")?
+                        .parse()?,
+                )
+            }
             "--desktop-telemetry-fd" => {
                 options.desktop_telemetry_fd = Some(
                     args.next()
@@ -84,7 +148,7 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
             }
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
+                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
                 );
                 std::process::exit(0)
             }
@@ -92,6 +156,97 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
         }
     }
     Ok(options)
+}
+
+fn apply_bootstrap(
+    options: &mut Options,
+    envelope: t3_contracts::DesktopBackendBootstrap,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // These services are still explicit parity gaps. Refuse requested external
+    // side effects until their implementations exist; don't silently claim them.
+    if envelope.tailscale_serve_enabled {
+        return Err(
+            "Desktop bootstrap requests Tailscale Serve; this service is not ported yet".into(),
+        );
+    }
+    if [
+        envelope.otlp_traces_url.as_ref(),
+        envelope.otlp_metrics_url.as_ref(),
+        envelope.otlp_logs_url.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    .flatten()
+    .any(|url| !url.is_empty())
+    {
+        return Err(
+            "Desktop bootstrap requests OTLP export; this service is not ported yet".into(),
+        );
+    }
+    if envelope.desktop_browser_fd.is_some() || envelope.desktop_browser_control_fd.is_some() {
+        return Err("Desktop bootstrap browser IPC is not ported yet".into());
+    }
+    if !options.overrides.contains("--host") {
+        options.host = envelope.host.clone();
+    }
+    if !options.overrides.contains("--port") {
+        options.port = envelope.port.0 as u16;
+    }
+    if !options.overrides.contains("--mode") {
+        options.mode = "desktop".into();
+    }
+    if !options.overrides.contains("--state-dir") {
+        if let Some(home) = envelope
+            .t3_home
+            .as_ref()
+            .and_then(|home| home.as_ref())
+            .filter(|home| !home.trim().is_empty())
+        {
+            options.state_dir = PathBuf::from(home.trim()).join("userdata");
+        }
+    }
+    if !options.overrides.contains("--desktop-telemetry-fd") {
+        options.desktop_telemetry_fd = envelope
+            .desktop_telemetry_fd
+            .map(|fd| i32::try_from(fd.0))
+            .transpose()?;
+    }
+    if !options.overrides.contains("--desktop-telemetry-control-fd") {
+        options.desktop_telemetry_control_fd = envelope
+            .desktop_telemetry_control_fd
+            .map(|fd| i32::try_from(fd.0))
+            .transpose()?;
+    }
+    options.bootstrap = Some(envelope);
+    Ok(())
+}
+#[cfg(unix)]
+fn acquire_bootstrap(
+    options: &mut Options,
+) -> Result<Option<std::os::fd::OwnedFd>, Box<dyn std::error::Error>> {
+    let Some(fd) = options.bootstrap_fd else {
+        return Ok(None);
+    };
+    // This is called before Tokio, SQLite, logging, or any other service opens
+    // descriptors. The supervisor explicitly transfers ownership to this process.
+    let Some(mut input) =
+        (unsafe { t3_server::bootstrap::BootstrapInput::acquire_transferred(fd) })?
+    else {
+        return Ok(None);
+    };
+    if let Some(envelope) = input.read_retaining(std::time::Duration::from_millis(1000))? {
+        apply_bootstrap(options, envelope)?;
+    }
+    Ok(Some(input.into_descriptor()))
+}
+#[cfg(not(unix))]
+fn acquire_bootstrap(options: &mut Options) -> Result<Option<()>, Box<dyn std::error::Error>> {
+    if options.bootstrap_fd.is_some() {
+        return Err(
+            "Inherited desktop bootstrap descriptors are not supported on this platform yet".into(),
+        );
+    }
+    Ok(None)
 }
 
 fn secret(path: &Path) -> Result<[u8; 32], Box<dyn std::error::Error>> {
@@ -151,6 +306,91 @@ fn publish_once(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Err
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn envelope() -> t3_contracts::DesktopBackendBootstrap {
+        serde_json::from_value(json!({"mode":"desktop","noBrowser":true,"port":3773,"host":"127.0.0.1","t3Home":" /tmp/bootstrap-home ","desktopBootstrapToken":"fixture-IPC","tailscaleServeEnabled":false,"tailscaleServePort":443})).unwrap()
+    }
+    #[test]
+    fn bootstrap_startup_precedence_keeps_explicit_flags_then_environment_then_envelope() {
+        let mut defaults = parse_options(Vec::new(), |_| None).unwrap();
+        apply_bootstrap(&mut defaults, envelope()).unwrap();
+        assert_eq!(
+            (
+                defaults.mode.as_str(),
+                defaults.host.as_str(),
+                defaults.port
+            ),
+            ("desktop", "127.0.0.1", 3773)
+        );
+        assert_eq!(
+            defaults.state_dir,
+            PathBuf::from("/tmp/bootstrap-home/userdata")
+        );
+        let mut environment = parse_options(Vec::new(), |key| match key {
+            "T3CODE_HOME" => Some(" /tmp/env-home ".into()),
+            "T3CODE_PORT" => Some("3775".into()),
+            "T3CODE_HOST" => Some("localhost".into()),
+            "T3CODE_MODE" => Some("web".into()),
+            "T3CODE_BOOTSTRAP_FD" => Some("7".into()),
+            _ => None,
+        })
+        .unwrap();
+        apply_bootstrap(&mut environment, envelope()).unwrap();
+        assert_eq!(
+            (
+                environment.mode.as_str(),
+                environment.host.as_str(),
+                environment.port,
+                environment.bootstrap_fd
+            ),
+            ("web", "localhost", 3775, Some(7))
+        );
+        assert_eq!(
+            environment.state_dir,
+            PathBuf::from("/tmp/env-home/userdata")
+        );
+        let mut explicit = parse_options(
+            [
+                "--state-dir",
+                "/tmp/explicit-state",
+                "--port",
+                "0",
+                "--bootstrap-fd",
+                "9",
+            ]
+            .map(String::from),
+            |key| match key {
+                "T3CODE_HOME" => Some("/tmp/env-home".into()),
+                "T3CODE_BOOTSTRAP_FD" => Some("7".into()),
+                _ => None,
+            },
+        )
+        .unwrap();
+        apply_bootstrap(&mut explicit, envelope()).unwrap();
+        assert_eq!(explicit.state_dir, PathBuf::from("/tmp/explicit-state"));
+        assert_eq!(explicit.port, 0);
+        assert_eq!(explicit.bootstrap_fd, Some(9));
+    }
+    #[cfg(unix)]
+    #[test]
+    fn bootstrap_shared_channel_is_cloned_after_all_caller_numbers_are_validated() {
+        use std::os::fd::AsRawFd;
+        let (socket, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
+        let descriptor: std::os::fd::OwnedFd = socket.into();
+        let mut options = parse_options(Vec::new(), |_| None).unwrap();
+        options.desktop_telemetry_fd = Some(descriptor.as_raw_fd());
+        options.desktop_telemetry_control_fd = options.desktop_telemetry_fd;
+        let descriptors = adopt_desktop_descriptors(&options, Some(descriptor)).unwrap();
+        assert_ne!(
+            descriptors.input.unwrap().as_raw_fd(),
+            descriptors.control.unwrap().as_raw_fd()
+        );
+        let (socket, _peer) = std::os::unix::net::UnixStream::pair().unwrap();
+        let descriptor: std::os::fd::OwnedFd = socket.into();
+        options.desktop_telemetry_fd = Some(descriptor.as_raw_fd());
+        options.desktop_telemetry_control_fd = Some(i32::MAX);
+        assert!(adopt_desktop_descriptors(&options, Some(descriptor)).is_err());
+    }
+
     #[cfg(unix)]
     #[test]
     fn shared_inherited_socket_is_cloned_before_any_runtime_owns_descriptors() {
@@ -168,8 +408,11 @@ mod tests {
             mode: "desktop".into(),
             desktop_telemetry_fd: Some(raw),
             desktop_telemetry_control_fd: Some(raw),
+            bootstrap_fd: None,
+            bootstrap: None,
+            overrides: Default::default(),
         };
-        let descriptors = adopt_desktop_descriptors(&options).unwrap();
+        let descriptors = adopt_desktop_descriptors(&options, None).unwrap();
         assert_ne!(
             descriptors.input.as_ref().unwrap().as_raw_fd(),
             descriptors.control.as_ref().unwrap().as_raw_fd()
@@ -217,13 +460,17 @@ struct DesktopDescriptors {
 }
 #[cfg(not(unix))]
 struct DesktopDescriptors;
-fn adopt_desktop_descriptors(options: &Options) -> std::io::Result<DesktopDescriptors> {
+fn adopt_desktop_descriptors(
+    options: &Options,
+    #[cfg(unix)] bootstrap_owner: Option<std::os::fd::OwnedFd>,
+    #[cfg(not(unix))] _bootstrap_owner: Option<()>,
+) -> std::io::Result<DesktopDescriptors> {
     #[cfg(unix)]
     {
-        use std::os::fd::{FromRawFd, OwnedFd};
+        use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
         // Called at process entry, before Tokio or any service can open/reuse
         // descriptors. These handles are explicitly transferred by the caller.
-        let adopt = |fd: i32| -> std::io::Result<OwnedFd> {
+        let validate = |fd: i32| -> std::io::Result<()> {
             if fd < 3 {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidInput,
@@ -241,7 +488,28 @@ fn adopt_desktop_descriptors(options: &Options) -> std::io::Result<DesktopDescri
                     "desktop descriptors must be inherited pipes or sockets",
                 ));
             }
-            Ok(unsafe { OwnedFd::from_raw_fd(fd) })
+            Ok(())
+        };
+        // Validate every caller-provided number before cloning can allocate an
+        // FD that accidentally makes a previously unavailable channel look real.
+        for fd in [
+            options.desktop_telemetry_fd,
+            options.desktop_telemetry_control_fd,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            validate(fd)?;
+        }
+        let adopt = |fd: i32| -> std::io::Result<OwnedFd> {
+            if let Some(owner) = bootstrap_owner
+                .as_ref()
+                .filter(|owner| owner.as_raw_fd() == fd)
+            {
+                owner.try_clone()
+            } else {
+                Ok(unsafe { OwnedFd::from_raw_fd(fd) })
+            }
         };
         let input = options.desktop_telemetry_fd.map(adopt).transpose()?;
         let control = if options.desktop_telemetry_fd.is_some()
@@ -269,8 +537,9 @@ fn adopt_desktop_descriptors(options: &Options) -> std::io::Result<DesktopDescri
     }
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let options = options()?;
-    let descriptors = adopt_desktop_descriptors(&options)?;
+    let mut options = options()?;
+    let bootstrap_owner = acquire_bootstrap(&mut options)?;
+    let descriptors = adopt_desktop_descriptors(&options, bootstrap_owner)?;
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
@@ -288,13 +557,13 @@ async fn run(
     let store = Store::open(state_dir.join("rust-state.sqlite"))?;
     let environment_id = identity(&state_dir.join("rust-environment-id"))?;
     let instance_hash = format!("{:x}", Sha256::digest(environment_id.as_bytes()));
-    let loopback = options
-        .host
-        .parse::<std::net::IpAddr>()
-        .is_ok_and(|address| address.is_loopback())
-        || options.host == "localhost";
+    let loopback = !t3_server::auth::is_remote_reachable_host(&options.host);
     let policy = if loopback {
-        "loopback-browser"
+        if options.mode == "desktop" {
+            "desktop-managed-local"
+        } else {
+            "loopback-browser"
+        }
     } else {
         "remote-reachable"
     };
@@ -303,12 +572,22 @@ async fn run(
     } else {
         format!("t3_session_{}", &instance_hash[..12])
     };
-    let auth = AuthService::new(
+    let mut auth = AuthService::new(
         store.clone(),
         secret(&state_dir.join("rust-signing-secret"))?,
         cookie_name,
         policy.into(),
     )?;
+    if options.mode == "desktop" {
+        auth = auth.with_desktop_mode();
+    }
+    if let Some(bootstrap) = &options.bootstrap {
+        auth = auth.with_desktop_bootstrap(
+            bootstrap.desktop_bootstrap_token.clone(),
+            bootstrap.desktop_bootstrap_secret.clone(),
+            chrono::Utc::now(),
+        );
+    }
     if options.command == "pair" {
         let scopes = t3_contracts::RPC_REQUIRED_SCOPES
             .iter()
@@ -368,7 +647,14 @@ async fn run(
         runtime_lease,
     )?;
     let telemetry = t3_server::native_telemetry::NativeTelemetryClient::new(
-        t3_server::native_telemetry::NativeTelemetryOptions::host(std::env::current_dir()?, None),
+        t3_server::native_telemetry::NativeTelemetryOptions::host(
+            std::env::current_dir()?,
+            options
+                .bootstrap
+                .as_ref()
+                .and_then(|bootstrap| bootstrap.resource_monitor_path.as_ref())
+                .map(|path| PathBuf::from(path.as_str())),
+        ),
     );
     let mut desktop_options = t3_server::desktop_telemetry_bootstrap::options_for_settings(
         &options.mode,
