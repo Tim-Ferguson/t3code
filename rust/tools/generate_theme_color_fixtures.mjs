@@ -1,4 +1,6 @@
 // Actual original themePalette helpers plus pinned Culori4.0.2; no application runtime dependency.
+// Regenerate color fixtures with Node23.11.0 / V8 12.9.202.28-node.14 (captured on macOS arm64).
+// Later V8 math changes alter seven extreme-magnitude witnesses; do not replace the pinned corpus.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { pathToFileURL } from "node:url";
@@ -38,6 +40,11 @@ export const createThemeOracle = (window) =>
       ";return {toCanonicalThemeColor,themeColorToHex,parseThemeFile,serializeThemeFile,createVividThemeColors,getDefaultThemeColors,lenientThemeColorOverrides,isReservedThemeId,parseStoredTheme,parseStoredThemes,readCustomThemeLibrarySnapshot,installCustomTheme,updateCustomTheme,removeCustomThemes,replaceCustomThemeCollection,updateThemeColorFamily,themeIdFromName,getThemeModes,getCustomThemes,removeCustomTheme};",
   )(data, converter, parse, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) }, window);
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  if (process.version !== "v23.11.0" || process.versions.v8 !== "12.9.202.28-node.14") {
+    throw new Error(
+      "Color fixture regeneration requires Node23.11.0 / V8 12.9.202.28-node.14; other generators may import this oracle independently.",
+    );
+  }
   writeFileSync(
     new URL("../crates/client/src/themes/named-colors.json", import.meta.url),
     JSON.stringify(named, null, 2) + "\n",
