@@ -11,8 +11,8 @@ pub mod notifications;
 pub use notifications::{IncomingNotification, NotificationStream};
 pub mod protocol;
 pub mod schema;
-pub mod types;
 pub mod transport;
+pub mod types;
 pub mod v1;
 pub mod v2;
 pub use client::{

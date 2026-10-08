@@ -98,11 +98,6 @@ enum NotificationJob {
         params: Value,
         complete: oneshot::Sender<()>,
     },
-    Register {
-        method: String,
-        handler: NotificationHandler,
-        complete: oneshot::Sender<()>,
-    },
     Terminal(AcpError),
 }
 struct State {
@@ -279,21 +274,36 @@ impl Client {
         method: impl Into<String>,
         handler: NotificationHandler,
     ) {
-        let (sender, receiver) = oneshot::channel();
-        if self
-            .0
-            .state
-            .notification_jobs
-            .send(NotificationJob::Register {
-                method: method.into(),
-                handler,
-                complete: sender,
-            })
-            .is_ok()
-        {
-            let _ = receiver.await;
+        let method = method.into();
+        let pending = {
+            let mut registry = self.0.state.notifications.lock().unwrap();
+            let entry = registry
+                .entry(method.clone())
+                .or_insert_with(|| Registration {
+                    handlers: Vec::new(),
+                    pending: Vec::new(),
+                });
+            entry.handlers.push(handler);
+            std::mem::take(&mut entry.pending)
+        };
+        // Source registration flushes in the caller's fiber; live input is
+        // independent of a suspended replay. Read handlers per notification so
+        // subsequent registrations can participate in remaining replay items.
+        for value in pending {
+            let handlers = self
+                .0
+                .state
+                .notifications
+                .lock()
+                .unwrap()
+                .get(&method)
+                .unwrap()
+                .handlers
+                .clone();
+            run_notifications(&handlers, value).await;
         }
     }
+
     pub async fn raw_request(&self, method: &str, params: Value) -> Result<Value, AcpError> {
         self.request_with_mode(method, params, false).await
     }
@@ -766,12 +776,13 @@ async fn incoming_request(
     }
     .await;
     let written = match result {
-        Ok(value) => peer.respond(id, Ok(value)).await,
-        Err(ReplyError::Protocol(error)) => peer.respond(id, Err(error)).await,
-        Err(ReplyError::Cause(cause)) => peer.respond_cause(id, cause).await,
+        Ok(value) => peer.respond_observed(id, Ok(value)).await,
+        Err(ReplyError::Protocol(error)) => peer.respond_observed(id, Err(error)).await,
+        Err(ReplyError::Cause(cause)) => peer.respond_cause_observed(id, cause).await,
     };
     match written {
-        Ok(()) => {
+        Ok(crate::ResponseDisposition::Buffered) => {}
+        Ok(crate::ResponseDisposition::Written) => {
             if let Some(observer) = &state.options.on_outgoing_response {
                 if let Err(panic) = AssertUnwindSafe(async { observer(identity.clone()).await })
                     .catch_unwind()
@@ -993,25 +1004,6 @@ async fn dispatch(
                             break;
                         }
                     }
-                }
-                NotificationJob::Register {
-                    method,
-                    handler,
-                    complete,
-                } => {
-                    let (pending, handlers) = {
-                        let mut registry = worker_state.notifications.lock().unwrap();
-                        let entry = registry.entry(method).or_insert_with(|| Registration {
-                            handlers: Vec::new(),
-                            pending: Vec::new(),
-                        });
-                        entry.handlers.push(handler);
-                        (std::mem::take(&mut entry.pending), entry.handlers.clone())
-                    };
-                    for value in pending {
-                        run_notifications(&handlers, value).await;
-                    }
-                    let _ = complete.send(());
                 }
                 NotificationJob::Terminal(error) => {
                     worker_state.terminate(error);

@@ -288,6 +288,12 @@ pub enum PeerEvent {
     },
     Closed(AcpError),
 }
+/// A response buffered inside an incoming JSON-RPC batch has not been written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResponseDisposition {
+    Written,
+    Buffered,
+}
 /// Implementations own framing/correlation and must acknowledge writes after
 /// completion, remove canceled request waiters, and propagate terminal errors.
 /// Subscribe before initialization so no callback or update is lost.
@@ -324,6 +330,29 @@ pub trait Peer: Send + Sync + 'static {
         id: RequestId,
         result: Result<Value, RpcError>,
     ) -> BoxFuture<'a, Result<(), AcpError>>;
+    /// Batch-aware peers report only the final response as acknowledged.
+    fn respond_observed<'a>(
+        &'a self,
+        id: RequestId,
+        result: Result<Value, RpcError>,
+    ) -> BoxFuture<'a, Result<ResponseDisposition, AcpError>> {
+        Box::pin(async move {
+            self.respond(id, result)
+                .await
+                .map(|()| ResponseDisposition::Written)
+        })
+    }
+    fn respond_cause_observed<'a>(
+        &'a self,
+        id: RequestId,
+        cause: EffectCause,
+    ) -> BoxFuture<'a, Result<ResponseDisposition, AcpError>> {
+        Box::pin(async move {
+            self.respond_cause(id, cause)
+                .await
+                .map(|()| ResponseDisposition::Written)
+        })
+    }
     fn subscribe(&self) -> broadcast::Receiver<PeerEvent>;
     /// Effect's private Cause response is distinct from a standard ACP error.
     /// Transports supporting source agent core defect parity override this.

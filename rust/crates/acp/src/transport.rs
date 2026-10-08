@@ -35,6 +35,8 @@ pub struct ProtocolLogEvent {
 }
 #[derive(Clone, Default)]
 pub struct ProtocolOptions {
+    /// ACP has no default frame limit. A caller may opt into a byte budget.
+    pub max_frame_bytes: Option<usize>,
     pub log_incoming: bool,
     pub log_outgoing: bool,
     pub logger: Option<ProtocolLogger>,
@@ -64,6 +66,7 @@ pub struct NdjsonDecoder {
     buffer: Vec<u8>,
     max_frame_bytes: usize,
     initial_bom: bool,
+    scanned: usize,
 }
 impl NdjsonDecoder {
     pub fn new(max_frame_bytes: usize) -> Self {
@@ -71,9 +74,22 @@ impl NdjsonDecoder {
             buffer: Vec::new(),
             max_frame_bytes,
             initial_bom: true,
+            scanned: 0,
         }
     }
     pub fn decode(&mut self, chunk: &[u8]) -> Result<Vec<Value>, AcpError> {
+        Ok(self
+            .decode_frames(chunk)?
+            .into_iter()
+            .flat_map(|value| match value {
+                Value::Array(batch) => batch.into_iter().filter(Value::is_object).collect(),
+                value if value.is_object() => vec![value],
+                _ => Vec::new(),
+            })
+            .collect())
+    }
+    /// Preserves JSON-RPC batch boundaries for transports that aggregate replies.
+    pub fn decode_frames(&mut self, chunk: &[u8]) -> Result<Vec<Value>, AcpError> {
         self.buffer.extend_from_slice(chunk);
         if self.initial_bom {
             const BOM: &[u8] = &[0xef, 0xbb, 0xbf];
@@ -87,8 +103,8 @@ impl NdjsonDecoder {
         }
         let mut start = 0;
         let mut frames = Vec::new();
-        for (end, byte) in self.buffer.iter().enumerate() {
-            if *byte != b'\n' {
+        for end in self.scanned..self.buffer.len() {
+            if self.buffer[end] != b'\n' {
                 continue;
             }
             if end - start > self.max_frame_bytes {
@@ -97,17 +113,14 @@ impl NdjsonDecoder {
             let text = String::from_utf8_lossy(&self.buffer[start..end]);
             let value: Value =
                 serde_json::from_str(&text).map_err(|error| wire_parse_error(error.to_string()))?;
-            match value {
-                Value::Array(batch) => frames.extend(batch.into_iter().filter(Value::is_object)),
-                value if value.is_object() => frames.push(value),
-                _ => {}
-            }
+            frames.push(value);
             start = end + 1;
         }
         if self.buffer.len() - start > self.max_frame_bytes {
             return Err(wire_parse_error("ACP input frame exceeds byte budget"));
         }
         self.buffer.drain(..start);
+        self.scanned = self.buffer.len();
         Ok(frames)
     }
 }

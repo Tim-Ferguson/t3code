@@ -93,6 +93,51 @@ struct PendingReply {
     acknowledgement: Option<t3_acp::IngressAcknowledgement>,
 }
 type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<PendingReply>>>>;
+// A source batch stores replies in completion order and emits only when all
+// non-notification requests have replied. Associations are consumed once.
+type Batches = Arc<Mutex<HashMap<String, Arc<Mutex<ResponseBatch>>>>>;
+struct ResponseBatch {
+    expected: usize,
+    responses: indexmap::IndexMap<String, Value>,
+}
+fn response_identity(id: &Value) -> Option<String> {
+    serde_json::from_value::<t3_acp::RequestId>(id.clone())
+        .ok()
+        .map(|id| id.identity())
+}
+fn register_batch(batch: &[Value], batches: &Batches) {
+    let ids: Vec<_> = batch
+        .iter()
+        .filter(|item| item.get("method").is_some())
+        .filter_map(|item| item.get("id").and_then(response_identity))
+        .collect();
+    let group = Arc::new(Mutex::new(ResponseBatch {
+        expected: ids.len(),
+        responses: indexmap::IndexMap::new(),
+    }));
+    let mut batches = batches.lock().unwrap();
+    for id in ids {
+        batches.insert(id, group.clone());
+    }
+}
+fn batch_response(value: Value, batches: &Batches) -> Option<Value> {
+    let group = value
+        .get("id")
+        .and_then(response_identity)
+        .and_then(|id| batches.lock().unwrap().remove(&id).map(|group| (id, group)));
+    if let Some((id, group)) = group {
+        let mut group = group.lock().unwrap();
+        group.responses.insert(id, value);
+        if group.responses.len() != group.expected {
+            return None;
+        }
+        Some(Value::Array(
+            group.responses.drain(..).map(|(_, value)| value).collect(),
+        ))
+    } else {
+        Some(value)
+    }
+}
 struct Outgoing {
     value: Value,
     written: oneshot::Sender<Result<(), ProcessError>>,
@@ -111,6 +156,7 @@ struct Inner {
     closed: Arc<Mutex<Option<ProcessError>>>,
     external_failure: watch::Sender<Option<ProcessError>>,
     protocol_options: ProtocolOptions,
+    batches: Batches,
 }
 impl Drop for Inner {
     fn drop(&mut self) {
@@ -170,6 +216,7 @@ impl ProviderProcess {
         let closed = Arc::new(Mutex::new(None));
         let (external_failure, _) = watch::channel(None);
         let ordered_ingress = Arc::new(AtomicBool::new(false));
+        let batches: Batches = Arc::new(Mutex::new(HashMap::new()));
         let inner = Arc::new(Inner {
             outbound,
             json_rpc,
@@ -184,6 +231,7 @@ impl ProviderProcess {
             closed: closed.clone(),
             external_failure: external_failure.clone(),
             protocol_options: protocol_options.clone(),
+            batches: batches.clone(),
         });
         let mut input = if json_rpc {
             let stream: StdoutStream = Box::pin(futures_util::stream::unfold(
@@ -209,22 +257,27 @@ impl ProviderProcess {
                 } else {
                     stream
                 },
-                decoder: NdjsonDecoder::new(MAX_LINE_BYTES),
+                decoder: NdjsonDecoder::new(protocol_options.max_frame_bytes.unwrap_or(usize::MAX)),
             }
         } else {
             ProcessInput::Raw(BufReader::new(stdout))
         };
         let (writer_error, mut errors) = mpsc::channel::<ProcessError>(1);
+        let writer_limit = if json_rpc {
+            protocol_options.max_frame_bytes
+        } else {
+            Some(MAX_LINE_BYTES)
+        };
         tokio::spawn(async move {
             let writer = tokio::spawn(async move {
                 while let Some(Outgoing { mut value, written }) = outgoing.recv().await {
-                    if json_rpc {
+                    if json_rpc && value.is_object() {
                         value["jsonrpc"] = json!("2.0");
                     }
                     let result = async {
                         let mut bytes = serde_json::to_vec(&value)
                             .map_err(|e| ProcessError::Protocol(e.to_string()))?;
-                        if bytes.len() > MAX_LINE_BYTES {
+                        if writer_limit.is_some_and(|limit| bytes.len() > limit) {
                             return Err(ProcessError::Protocol(
                                 "outgoing message exceeds byte budget".into(),
                             ));
@@ -265,7 +318,7 @@ impl ProviderProcess {
                 tokio::select! {
                     _ = stopping.changed() => { let _=child.kill().await; break (ProcessError::Closed("client was released".into()), false); }
                     Some(error) = errors.recv() => break (error, false),
-                    result = next_input(&mut input, &protocol_options) => {
+                    result = next_input(&mut input, &protocol_options, &batches) => {
                         match result {
                             Ok(Some(values)) => {
                                 for value in values {
@@ -401,7 +454,7 @@ impl ProviderProcess {
                 id,
                 pending: self.0.pending.clone(),
             };
-            self.send(json!({"id":id,"method":method,"params":params}))
+            self.send_admitted(json!({"id":id,"method":method,"params":params}))
                 .await?;
             let reply = response
                 .await
@@ -444,13 +497,20 @@ impl ProviderProcess {
         if let Some(params) = params {
             value["params"] = params;
         }
-        self.send(value).await
+        self.send_admitted(value).await
     }
     pub async fn respond(
         &self,
         id: Value,
         result: Result<Value, ProcessError>,
     ) -> Result<(), ProcessError> {
+        self.respond_observed(id, result).await.map(|_| ())
+    }
+    pub async fn respond_observed(
+        &self,
+        id: Value,
+        result: Result<Value, ProcessError>,
+    ) -> Result<t3_acp::ResponseDisposition, ProcessError> {
         let value = match result {
             Ok(result) => json!({"id":id,"result":result}),
             Err(ProcessError::Remote {
@@ -472,7 +532,7 @@ impl ProviderProcess {
             }
             Err(error) => json!({"id":id,"error":{"code":-32603,"message":error.to_string()}}),
         };
-        self.send(value).await
+        self.send_response(value).await
     }
     /// Effect RPC's private Cause envelope is used only by versioned ACP peers.
     /// Writes retain the same bounded-queue / completed-stdin acknowledgement.
@@ -481,6 +541,13 @@ impl ProviderProcess {
         id: Value,
         cause: t3_acp::EffectCause,
     ) -> Result<(), ProcessError> {
+        self.respond_cause_observed(id, cause).await.map(|_| ())
+    }
+    pub async fn respond_cause_observed(
+        &self,
+        id: Value,
+        cause: t3_acp::EffectCause,
+    ) -> Result<t3_acp::ResponseDisposition, ProcessError> {
         if !self.0.json_rpc {
             return Err(ProcessError::Protocol(
                 "Effect causes require versioned JSON-RPC".into(),
@@ -500,9 +567,25 @@ impl ProviderProcess {
         }
         serde_json::from_value::<t3_acp::EffectCause>(cause_value.clone())
             .map_err(|error| ProcessError::Protocol(error.to_string()))?;
-        self.send(json!({"id":id,"error":cause_value})).await
+        self.send_response(json!({"id":id,"error":cause_value}))
+            .await
     }
-    async fn send(&self, value: Value) -> Result<(), ProcessError> {
+    async fn send_admitted(&self, value: Value) -> Result<(), ProcessError> {
+        self.send_with_ack(value, !self.0.json_rpc)
+            .await
+            .map(|_| ())
+    }
+    async fn send_response(
+        &self,
+        value: Value,
+    ) -> Result<t3_acp::ResponseDisposition, ProcessError> {
+        self.send_with_ack(value, true).await
+    }
+    async fn send_with_ack(
+        &self,
+        value: Value,
+        acknowledge_write: bool,
+    ) -> Result<t3_acp::ResponseDisposition, ProcessError> {
         let value = if self.0.json_rpc {
             if let Some(error) = self.0.closed.lock().unwrap().clone() {
                 return Err(error);
@@ -519,6 +602,24 @@ impl ProviderProcess {
                 .await;
             }
             let wire = t3_acp::transport::outgoing_wire(&value);
+            let wire = if acknowledge_write {
+                match batch_response(wire, &self.0.batches) {
+                    Some(wire) => wire,
+                    None => return Ok(t3_acp::ResponseDisposition::Buffered),
+                }
+            } else {
+                wire
+            };
+            if let Some(limit) = self.0.protocol_options.max_frame_bytes {
+                let size = serde_json::to_vec(&wire)
+                    .map_err(|error| ProcessError::Protocol(error.to_string()))?
+                    .len();
+                if size > limit {
+                    return Err(ProcessError::Protocol(
+                        "outgoing message exceeds byte budget".into(),
+                    ));
+                }
+            }
             if self.0.protocol_options.log_outgoing {
                 let raw = serde_json::to_string(&wire)
                     .map_err(|error| ProcessError::Protocol(error.to_string()))?
@@ -546,7 +647,10 @@ impl ProviderProcess {
             .send(Outgoing { value, written })
             .await
             .map_err(|_| self.writer_closed())?;
-        acknowledgement.await.map_err(|_| self.writer_closed())?
+        if acknowledge_write {
+            acknowledgement.await.map_err(|_| self.writer_closed())??;
+        }
+        Ok(t3_acp::ResponseDisposition::Written)
     }
     fn writer_closed(&self) -> ProcessError {
         self.0
@@ -626,6 +730,7 @@ async fn log_event(options: &ProtocolOptions, event: ProtocolLogEvent) {
 async fn next_input(
     input: &mut ProcessInput,
     options: &ProtocolOptions,
+    batches: &Batches,
 ) -> Result<Option<Vec<Value>>, ProcessError> {
     let read = async {
         match input {
@@ -652,7 +757,7 @@ async fn next_input(
                     )
                     .await;
                 }
-                let values = match decoder.decode(&chunk) {
+                let frames = match decoder.decode_frames(&chunk) {
                     Ok(values) => values,
                     Err(error) => {
                         if options.log_incoming {
@@ -669,6 +774,17 @@ async fn next_input(
                         return Err(ProcessError::Acp(Arc::new(error)));
                     }
                 };
+                let mut values = Vec::new();
+                for frame in frames {
+                    match frame {
+                        Value::Array(batch) => {
+                            register_batch(&batch, batches);
+                            values.extend(batch.into_iter().filter(Value::is_object));
+                        }
+                        value if value.is_object() => values.push(value),
+                        _ => {}
+                    }
+                }
                 if options.log_incoming {
                     log_event(
                         options,
@@ -863,6 +979,29 @@ fn dispatch_message(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn batch_association_and_collision_behavior_matches_actual_source_serializer() {
+        for line in include_str!("../../acp/tests/fixtures/batch.jsonl").lines() {
+            let case: Value = serde_json::from_str(line).unwrap();
+            let batches: Batches = Arc::new(Mutex::new(HashMap::new()));
+            // Source decodes the entire chunk before routing any request.
+            for frame in case["frames"].as_array().unwrap() {
+                if let Some(batch) = frame.as_array() {
+                    register_batch(batch, &batches);
+                }
+            }
+            for (response, expected) in case["responses"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .zip(case["observations"].as_array().unwrap())
+            {
+                let actual = batch_response(t3_acp::transport::outgoing_wire(response), &batches);
+                assert_eq!(actual.unwrap_or(Value::Null), *expected, "{}", case["name"]);
+            }
+        }
+    }
+
     use super::*;
     fn fixture(body: &str) -> (tempfile::TempDir, ProcessOptions) {
         let directory = tempfile::tempdir().unwrap();
@@ -1013,9 +1152,16 @@ mod tests {
         );
     }
     #[tokio::test]
-    async fn notification_acknowledges_writer_validation_and_process_exit_keeps_identity() {
+    async fn opt_in_notification_frame_budget_and_process_exit_keep_identity() {
         let (_directory, options) = fixture("for line in sys.stdin: pass");
-        let process = ProviderProcess::spawn_json_rpc(options).unwrap();
+        let process = ProviderProcess::spawn_json_rpc_with_options(
+            options,
+            ProtocolOptions {
+                max_frame_bytes: Some(MAX_LINE_BYTES),
+                ..Default::default()
+            },
+        )
+        .unwrap();
         assert!(
             matches!(process.notify("oversized",Some(json!("x".repeat(MAX_LINE_BYTES)))).await,Err(ProcessError::Protocol(message))if message.contains("outgoing message"))
         );

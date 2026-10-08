@@ -741,7 +741,7 @@ async fn deferred_notification_handlers_hold_later_requests_chunks_and_idle_in_w
     );
 }
 #[tokio::test]
-async fn handler_registration_replay_cannot_be_overtaken_by_new_incoming_updates() {
+async fn registration_replay_and_live_ingress_run_independently_like_original_client() {
     let mut h = Harness::new();
     h.initialize(Generation::V2, 2).await;
     let mut events = h.client.subscribe();
@@ -792,14 +792,15 @@ async fn handler_registration_replay_cannot_be_overtaken_by_new_incoming_updates
         method: "x/barrier".into(),
         params: json!({}),
     });
-    assert!(h.responses.try_recv().is_err());
-    assert_eq!(*values.lock().unwrap(), vec![json!("old")]);
-    release.send(()).unwrap();
-    registration.await.unwrap();
+    // Original buffered flush runs in the registration caller, while live
+    // notifications and this subsequent callback continue in the reader.
     h.response().await;
     for _ in 0..2 {
         notification(&mut events).await;
     }
+    assert!(!registration.is_finished());
+    release.send(()).unwrap();
+    registration.await.unwrap();
     assert_eq!(
         *values.lock().unwrap(),
         vec![json!("old"), json!("new-1"), json!("new-2")]

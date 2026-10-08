@@ -30,6 +30,22 @@ const inputs = [
     ],
   ],
   [
+    "split_bom_multiple_frames_and_trailing_partial",
+    [
+      Uint8Array.of(bom[0]),
+      Uint8Array.of(bom[1]),
+      Uint8Array.from([
+        bom[2],
+        ...encoder.encode(
+          '{"jsonrpc":"2.0","method":"x/a"}\n{"jsonrpc":"2.0","method":"x/b"}\n{"jsonrpc":"2.0","method":"x/',
+        ),
+      ]),
+      encoder.encode(
+        'c"}\n{"jsonrpc":"2.0","method":"x/d"}\n{"jsonrpc":"2.0","method":"x/unfinished"',
+      ),
+    ],
+  ],
+  [
     "later_bom_is_not_stripped",
     [
       encoder.encode('{"jsonrpc":"2.0","method":"x/first"}\n'),
@@ -148,3 +164,57 @@ fs.writeFileSync(
   cases.map((c) => JSON.stringify(c)).join("\n") + "\n",
 );
 console.log(`${cases.length} original ACP transport cases`);
+
+// Source serializer keeps one ID map across every fully decoded frame, even
+// when a provider repeats IDs. These witnesses pin that observable behavior.
+const request = (id, method) => ({ jsonrpc: "2.0", id, method, params: {} });
+const response = (id, method) => ({ id, result: { method } });
+const batchCases = [
+  {
+    name: "reverse_completion_order",
+    frames: [[request("a", "x/a"), request(0, "x/b")]],
+    responses: [response(0, "x/b"), response("a", "x/a")],
+  },
+  {
+    name: "duplicate_ids_in_one_batch",
+    frames: [[request(0, "x/a"), request(0, "x/b")]],
+    responses: [response(0, "x/a"), response(0, "x/b")],
+  },
+  {
+    name: "later_batch_overwrites_same_id",
+    frames: [[request(0, "x/a")], [request(0, "x/b")]],
+    responses: [response(0, "x/a"), response(0, "x/b")],
+  },
+  {
+    name: "standalone_does_not_clear_batch_id",
+    frames: [[request("a", "x/a")], request("a", "x/b")],
+    responses: [response("a", "x/a"), response("a", "x/b")],
+  },
+  {
+    name: "later_batch_captures_prior_standalone_id",
+    frames: [request("a", "x/a"), [request("a", "x/b")]],
+    responses: [response("a", "x/a"), response("a", "x/b")],
+  },
+  {
+    name: "numeric_and_string_ids_are_distinct",
+    frames: [[request(0, "x/n"), request("0", "x/s"), request("$t3:jsonrpc:number:0", "x/p")]],
+    responses: [response("0", "x/s"), response(0, "x/n"), response("$t3:jsonrpc:number:0", "x/p")],
+  },
+];
+for (const fixture of batchCases) {
+  const parser = makeParser();
+  parser.decode(encoder.encode(fixture.frames.map(JSON.stringify).join("\n") + "\n"));
+  fixture.observations = fixture.responses.map((response) => {
+    const encoded = parser.encode({
+      _tag: "Exit",
+      requestId: response.id,
+      exit: { _tag: "Success", value: response.result },
+    });
+    return encoded === undefined ? null : JSON.parse(encoded);
+  });
+}
+fs.writeFileSync(
+  new URL("../crates/acp/tests/fixtures/batch.jsonl", import.meta.url),
+  batchCases.map(JSON.stringify).join("\n") + "\n",
+);
+console.log(`${batchCases.length} original ACP batch collision cases`);

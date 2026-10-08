@@ -176,17 +176,32 @@ impl Peer for ProcessPeer {
         id: RequestId,
         result: Result<Value, RpcError>,
     ) -> BoxFuture<'a, Result<(), AcpError>> {
+        Box::pin(async move { self.respond_observed(id, result).await.map(|_| ()) })
+    }
+    fn respond_observed<'a>(
+        &'a self,
+        id: RequestId,
+        result: Result<Value, RpcError>,
+    ) -> BoxFuture<'a, Result<t3_acp::ResponseDisposition, AcpError>> {
         Box::pin(async move {
             let id = serde_json::to_value(id).expect("JSON-RPC id serializes");
             match result {
-                Ok(value) => self.0.process.respond(id, Ok(value)).await.map_err(error),
+                Ok(value) => self
+                    .0
+                    .process
+                    .respond_observed(id, Ok(value))
+                    .await
+                    .map_err(error),
                 Err(failure) => {
-                    // Effect ACP uses the Cause/Fail wrapper even for ordinary
-                    // protocol errors. Keep explicit data:null inside the Fail.
+                    // Ordinary protocol errors retain the source Cause/Fail wrapper.
                     let cause = t3_acp::EffectCause::new(vec![t3_acp::EffectCauseReason::Fail {
                         error: serde_json::to_value(failure).expect("RPC error serializes"),
                     }]);
-                    self.0.process.respond_cause(id, cause).await.map_err(error)
+                    self.0
+                        .process
+                        .respond_cause_observed(id, cause)
+                        .await
+                        .map_err(error)
                 }
             }
         })
@@ -196,10 +211,17 @@ impl Peer for ProcessPeer {
         id: RequestId,
         cause: t3_acp::EffectCause,
     ) -> BoxFuture<'a, Result<(), AcpError>> {
+        Box::pin(async move { self.respond_cause_observed(id, cause).await.map(|_| ()) })
+    }
+    fn respond_cause_observed<'a>(
+        &'a self,
+        id: RequestId,
+        cause: t3_acp::EffectCause,
+    ) -> BoxFuture<'a, Result<t3_acp::ResponseDisposition, AcpError>> {
         Box::pin(async move {
             self.0
                 .process
-                .respond_cause(
+                .respond_cause_observed(
                     serde_json::to_value(id).expect("JSON-RPC id serializes"),
                     cause,
                 )
@@ -227,6 +249,189 @@ mod tests {
     use super::*;
     use futures_util::StreamExt;
     use serde_json::json;
+    #[tokio::test]
+    async fn actual_child_mixed_batch_replies_share_one_wire_array_and_only_final_ack() {
+        use tokio::sync::mpsc;
+        let (_directory, peer) = peer_fixture(
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+batch=[{'jsonrpc':'2.0','id':'a','method':'x/a','params':{}},False,{'jsonrpc':'2.0','method':'x/n','params':{}},{'jsonrpc':'2.0','id':0,'method':'x/fail','params':{}}]
+# Split the same batch across chunks before its final framing newline.
+wire=json.dumps(batch)
+sys.stdout.write(wire[:13]);sys.stdout.flush()
+sys.stdout.write(wire[13:]+'\n');sys.stdout.flush()
+reply=json.loads(sys.stdin.readline())
+assert isinstance(reply,list) and len(reply)==2,reply
+assert reply[0]=={'jsonrpc':'2.0','id':'a','result':{'method':'x/a'}},reply
+assert reply[1]['id']==0 and type(reply[1]['id']) is int
+assert reply[1]['error']=={'_tag':'Cause','code':-32000,'message':'denied','data':[{'_tag':'Fail','error':{'code':-32000,'message':'denied','data':None}}]},reply
+print(json.dumps({'jsonrpc':'2.0','id':'barrier','method':'x/barrier','params':{}}),flush=True)
+barrier=json.loads(sys.stdin.readline())
+assert isinstance(barrier,dict) and barrier['id']=='barrier',barrier
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),flush=True)
+"#,
+        );
+        let (observed, mut acknowledgements) = mpsc::unbounded_channel();
+        let client = t3_acp::Client::with_options(
+            Arc::new(peer),
+            Duration::from_secs(3),
+            t3_acp::ClientOptions {
+                on_outgoing_response: Some(Arc::new(move |id| {
+                    let observed = observed.clone();
+                    Box::pin(async move {
+                        observed.send(id).unwrap();
+                    })
+                })),
+                ..Default::default()
+            },
+        );
+        client.handle_unknown_request(Arc::new(|_, context| {
+            Box::pin(async move {
+                if context.method == "x/fail" {
+                    Err(RpcError {
+                        code: -32000,
+                        message: "denied".into(),
+                        data: Some(Value::Null),
+                    })
+                } else {
+                    Ok(json!({"method":context.method}))
+                }
+            })
+        }));
+        assert_eq!(
+            client.raw_request("x/start", json!({})).await.unwrap(),
+            json!({"batch":true})
+        );
+        assert_eq!(acknowledgements.try_recv().unwrap(), "$t3:jsonrpc:number:0");
+        assert_eq!(acknowledgements.try_recv().unwrap(), "barrier");
+        assert!(acknowledgements.try_recv().is_err());
+    }
+
+    struct BatchMilestonePeer {
+        peer: ProcessPeer,
+        buffered: tokio::sync::mpsc::UnboundedSender<()>,
+    }
+    impl Peer for BatchMilestonePeer {
+        fn enable_ordered_ingress(&self) {
+            self.peer.enable_ordered_ingress();
+        }
+        fn external_failure(&self) -> BoxFuture<'_, AcpError> {
+            self.peer.external_failure()
+        }
+        fn subscribe(&self) -> broadcast::Receiver<PeerEvent> {
+            self.peer.subscribe()
+        }
+        fn request<'a>(
+            &'a self,
+            method: &'a str,
+            params: Value,
+            timeout: Duration,
+        ) -> BoxFuture<'a, Result<Value, AcpError>> {
+            self.peer.request(method, params, timeout)
+        }
+        fn notify<'a>(
+            &'a self,
+            method: &'a str,
+            params: Value,
+        ) -> BoxFuture<'a, Result<(), AcpError>> {
+            self.peer.notify(method, params)
+        }
+        fn respond<'a>(
+            &'a self,
+            id: RequestId,
+            result: Result<Value, RpcError>,
+        ) -> BoxFuture<'a, Result<(), AcpError>> {
+            self.peer.respond(id, result)
+        }
+        fn respond_observed<'a>(
+            &'a self,
+            id: RequestId,
+            result: Result<Value, RpcError>,
+        ) -> BoxFuture<'a, Result<t3_acp::ResponseDisposition, AcpError>> {
+            Box::pin(async move {
+                let outcome = self.peer.respond_observed(id, result).await?;
+                if outcome == t3_acp::ResponseDisposition::Buffered {
+                    self.buffered.send(()).unwrap();
+                }
+                Ok(outcome)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn actual_child_parallel_core_batch_emits_completion_order_and_final_observer_only() {
+        use tokio::sync::{mpsc, oneshot};
+        let (_directory, peer) = peer_fixture(
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+print(json.dumps([{'jsonrpc':'2.0','id':'first','method':'fs/read_text_file','params':{'sessionId':'s','path':'/first'}},{'jsonrpc':'2.0','id':0,'method':'fs/read_text_file','params':{'sessionId':'s','path':'/second'}}]),flush=True)
+reply=json.loads(sys.stdin.readline())
+assert reply==[{'jsonrpc':'2.0','id':0,'result':{'content':'second'}},{'jsonrpc':'2.0','id':'first','result':{'content':'first'}}],reply
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),flush=True)
+"#,
+        );
+        let (observed, mut acknowledgements) = mpsc::unbounded_channel();
+        let (buffered, mut milestones) = mpsc::unbounded_channel();
+        let client = t3_acp::Client::with_options(
+            Arc::new(BatchMilestonePeer { peer, buffered }),
+            Duration::from_secs(3),
+            t3_acp::ClientOptions {
+                on_outgoing_response: Some(Arc::new(move |id| {
+                    let observed = observed.clone();
+                    Box::pin(async move {
+                        observed.send(id).unwrap();
+                    })
+                })),
+                ..Default::default()
+            },
+        );
+        let (release, gate) = oneshot::channel();
+        let gate = Arc::new(Mutex::new(Some(gate)));
+        client.handle_request(
+            "fs/read_text_file",
+            Arc::new(move |params, _| {
+                let gate = if params["path"] == "/first" {
+                    gate.lock().unwrap().take()
+                } else {
+                    None
+                };
+                Box::pin(async move {
+                    if let Some(gate) = gate {
+                        gate.await.unwrap();
+                        Ok(json!({"content":"first"}))
+                    } else {
+                        Ok(json!({"content":"second"}))
+                    }
+                })
+            }),
+        );
+        let caller = client.clone();
+        let request = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
+        tokio::time::timeout(Duration::from_secs(3), milestones.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        // Await the actual buffered transport reply before releasing the first
+        // callback; this proves concurrent core handlers and completion order.
+        release.send(()).unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), request)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+            json!({"batch":true})
+        );
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), acknowledgements.recv())
+                .await
+                .unwrap()
+                .unwrap(),
+            "first"
+        );
+        assert!(acknowledgements.try_recv().is_err());
+    }
+
     #[tokio::test]
     async fn standard_rpc_errors_preserve_omitted_and_explicit_null_data_from_actual_child() {
         let directory = tempfile::tempdir().unwrap();
@@ -445,7 +650,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
             Err(AcpError::ProcessExited { code: Some(6), .. })
         ));
     }
-    fn ordered_fixture(body: &str) -> (tempfile::TempDir, ProcessPeer, t3_acp::Client) {
+    fn peer_fixture(body: &str) -> (tempfile::TempDir, ProcessPeer) {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("ordered-acp.py");
         std::fs::write(&path, body).unwrap();
@@ -456,6 +661,10 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
             environment: Default::default(),
         })
         .unwrap();
+        (directory, peer)
+    }
+    fn ordered_fixture(body: &str) -> (tempfile::TempDir, ProcessPeer, t3_acp::Client) {
+        let (directory, peer) = peer_fixture(body);
         let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(10));
         (directory, peer, client)
     }
@@ -807,12 +1016,10 @@ threading.Event().wait()
             .await
             .unwrap()
             .unwrap();
-        assert!(
-            client
-                .raw_notify("x/trigger-broken-writer", json!({}))
-                .await
-                .is_err()
-        );
+        // Notifications acknowledge admission, not completion of the write.
+        let _ = client
+            .raw_notify("x/trigger-broken-writer", json!({}))
+            .await;
         let failure = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
             .await
             .unwrap()
@@ -917,6 +1124,7 @@ for method in ['initialize','x/echo']:
                     })
                 })),
                 transform_stdout: Some(strip_startup_notice()),
+                ..Default::default()
             },
         );
         let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
@@ -1194,5 +1402,91 @@ threading.Event().wait()
             };
             assert!(Arc::ptr_eq(first, cause));
         }
+    }
+    #[tokio::test]
+    async fn acp_notifications_acknowledge_admission_while_actual_child_pipe_is_full_and_responses_wait_for_write()
+     {
+        let (_directory, peer) = option_fixture(
+            r#"import sys,json,select,threading
+select.select([sys.stdin],[],[])
+print(json.dumps({'jsonrpc':'2.0','method':'x/pipe-readable','params':{}}),flush=True)
+threading.Event().wait()
+"#,
+            Default::default(),
+        );
+        let mut ingress = peer.subscribe();
+        tokio::time::timeout(
+            Duration::from_secs(3),
+            peer.notify("x/fill", json!({"data":"x".repeat(4*1024*1024)})),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(
+            matches!(tokio::time::timeout(Duration::from_secs(3),ingress.recv()).await.unwrap().unwrap(),PeerEvent::Notification{method,..}if method=="x/pipe-readable")
+        );
+        {
+            let response = peer.respond(RequestId::Number(7.into()), Ok(json!({})));
+            tokio::pin!(response);
+            assert!(
+                futures_util::poll!(&mut response).is_pending(),
+                "a queued response must await the actual blocked write"
+            );
+        }
+        let mut process = peer.0.process.subscribe();
+        drop(peer);
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if matches!(process.recv().await.unwrap(), ProcessEvent::Closed(_)) {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+    }
+    #[tokio::test]
+    async fn default_acp_accepts_source_valid_frames_larger_than_sixteen_megabytes_in_both_directions()
+     {
+        // Actual unchanged source strict parser accepts this witness; the
+        // legacy Codex framing policy is separate from default ACP behavior.
+        let length = 16 * 1024 * 1024 + 1;
+        let (_directory, peer) = option_fixture(
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+data=request['params']['data']
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'length':len(data),'data':data}}),flush=True)
+"#,
+            Default::default(),
+        );
+        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        let value = tokio::time::timeout(
+            Duration::from_secs(5),
+            client.raw_request("x/large", json!({"data":"x".repeat(length)})),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(value["length"], json!(length));
+        assert_eq!(value["data"].as_str().unwrap().len(), length);
+    }
+    #[tokio::test]
+    async fn explicit_acp_frame_budget_rejects_oversized_input_without_changing_unbounded_default()
+    {
+        let (_directory, peer) = option_fixture(
+            "import sys,json\nrequest=json.loads(sys.stdin.readline())\nprint(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':'x'*512}),flush=True)\n",
+            t3_acp::transport::ProtocolOptions {
+                max_frame_bytes: Some(256),
+                ..Default::default()
+            },
+        );
+        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        let error = client
+            .raw_request("x/limited", json!({}))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(error,AcpError::Failure(failure)if matches!(failure.as_ref(),t3_acp::errors::Failure::ProtocolParse(error)if error.operation==t3_acp::errors::ProtocolParseOperation::DecodeWireMessage))
+        );
     }
 }
