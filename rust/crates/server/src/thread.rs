@@ -482,13 +482,6 @@ pub fn plan(
                 "thread.interaction-mode-updated"
             }
             "thread.runtime-mode.set" => {
-                if array(projection, "providerSessions").iter().any(|session| {
-                    !matches!(session["status"].as_str(), Some("stopped" | "error"))
-                        && session["capabilities"]["sessions"]["supportsRuntimeModeSwitchInSession"]
-                            != true
-                }) {
-                    return Err(unsupported("provider detach for runtime mode switching"));
-                }
                 serde_json::from_value::<t3_contracts::RuntimeMode>(command["runtimeMode"].clone())
                     .map_err(|error| reject(error.to_string()))?;
                 thread["runtimeMode"] = command["runtimeMode"].clone();
@@ -503,12 +496,12 @@ pub fn plan(
                 if selection["instanceId"] != thread["providerInstanceId"] {
                     return Err(unsupported("provider switching via handoff"));
                 }
-                if array(projection, "providerSessions").iter().any(|session| {
-                    !matches!(session["status"].as_str(), Some("stopped" | "error"))
-                        && session["capabilities"]["sessions"]["supportsModelSwitchInSession"]
-                            != true
-                }) {
-                    return Err(unsupported("provider detach for model switching"));
+                if let crate::provider_selection_transition::SelectionTransition::Reject {
+                    reason,
+                } =
+                    crate::provider_selection_transition::classify_selection(projection, &selection)
+                {
+                    return Err(reject(reason));
                 }
                 thread["modelSelection"] = selection;
                 "thread.model-selection-updated"
@@ -535,21 +528,32 @@ pub fn plan(
     }];
     // Match the source lifecycle: workspace changes detach bindings in the
     // command transaction; the persisted effect unloads/reaps the runtime.
-    if kind == "thread.metadata.update"
+    let detach_reason = if kind == "thread.metadata.update"
         && command
             .get("worktreePath")
             .is_some_and(|path| *path != projection.unwrap()["thread"]["worktreePath"])
     {
+        Some("Workspace changed.")
+    } else if kind == "thread.runtime-mode.set" {
+        Some("Runtime mode changed.")
+    } else {
+        None
+    };
+    if let Some(reason) = detach_reason {
         for session in array(projection.unwrap(), "providerSessions")
             .iter()
             .filter(|session| !matches!(session["status"].as_str(), Some("stopped" | "error")))
+            .filter(|session| {
+                kind != "thread.runtime-mode.set"
+                    || crate::provider_selection_transition::needs_runtime_detach(session)
+            })
         {
             events.push(Event {
                 event_id: uuid::Uuid::new_v4().to_string(),
                 aggregate_kind: "thread".into(), aggregate_id: id.into(), occurred_at: iso(now),
                 command_id: Some(command_id.into()), causation_event_id: None,
                 correlation_id: Some(command_id.into()), event_type: "provider-session.detached".into(),
-                payload: json!({"providerSessionId":session["id"],"detachedAt":iso(now),"reason":"Workspace changed."}),
+                payload: json!({"providerSessionId":session["id"],"detachedAt":iso(now),"reason":reason}),
                 metadata: json!({}),
             });
         }
@@ -755,15 +759,80 @@ mod tests {
         assert!(plan(&switch, Some(&current), None, now()).is_err());
         current["providerSessions"][0]["capabilities"]["sessions"]["supportsRuntimeModeSwitchInSession"] =
             json!(false);
-        assert!(
-            plan(
-                &command("thread.runtime-mode.set", json!({"runtimeMode":"auto"})),
-                Some(&current),
-                None,
-                now()
-            )
-            .is_err()
+        current["providerSessions"][0]["id"] = json!("session:mode");
+        let detached = plan(
+            &command("thread.runtime-mode.set", json!({"runtimeMode":"auto"})),
+            Some(&current),
+            None,
+            now(),
+        )
+        .unwrap();
+        assert_eq!(detached.len(), 2);
+        assert_eq!(detached[1].event_type, "provider-session.detached");
+        assert_eq!(detached[1].payload["reason"], "Runtime mode changed.");
+    }
+
+    #[test]
+    fn acp_selection_uses_bound_negotiation_and_detached_native_thread_falls_back_to_adapter() {
+        let mut current = projection();
+        current["thread"]["providerInstanceId"] = json!("agent");
+        current["thread"]["modelSelection"] = json!({"instanceId":"agent","model":"first"});
+        current["thread"]["activeProviderThreadId"] = json!("provider-thread");
+        current["providerThreads"] = json!([{"id":"provider-thread","providerInstanceId":"agent","driver":"acpRegistry","nativeThreadRef":{"nativeId":"native"}}]);
+        current["providerSessions"] = json!([
+            {"id":"old","driver":"acpRegistry","providerInstanceId":"agent","status":"ready","updatedAt":"2026-01-01T00:00:00Z","capabilities":{"sessions":{"supportsModelSwitchInSession":false}}},
+            {"id":"new","driver":"acpRegistry","providerInstanceId":"agent","status":"ready","updatedAt":"2026-01-02T00:00:00Z","capabilities":{"sessions":{"supportsModelSwitchInSession":true}}},
+            {"id":"unrelated","driver":"acpRegistry","providerInstanceId":"other","status":"ready","updatedAt":"2026-01-03T00:00:00Z","capabilities":{"sessions":{"supportsModelSwitchInSession":false}}}
+        ]);
+        let change = command(
+            "thread.model-selection.set",
+            json!({"modelSelection":{"instanceId":"agent","model":"second"}}),
         );
+        assert_eq!(plan(&change, Some(&current), None, now()).unwrap().len(), 1);
+        current["providerSessions"][1]["capabilities"]["sessions"]["supportsModelSwitchInSession"] =
+            json!(false);
+        let rejection = plan(&change, Some(&current), None, now()).unwrap_err();
+        assert!(
+            rejection
+                .to_string()
+                .contains("The active ACP session does not expose a model-switch capability.")
+        );
+        let unchanged = command(
+            "thread.model-selection.set",
+            json!({"modelSelection":{"instanceId":"agent","model":"first"}}),
+        );
+        let options_only = command(
+            "thread.model-selection.set",
+            json!({"modelSelection":{"instanceId":"agent","model":"first","options":[{"id":"effort","value":"high"}]}}),
+        );
+        assert_eq!(
+            plan(&unchanged, Some(&current), None, now()).unwrap().len(),
+            1
+        );
+        assert_eq!(
+            plan(&options_only, Some(&current), None, now())
+                .unwrap()
+                .len(),
+            1
+        );
+        // Detach removes bindings. Original planning uses adapter capabilities,
+        // rather than recovering negotiated state from the unbound global row.
+        current["providerSessions"] = json!([]);
+        assert!(
+            plan(&change, Some(&current), None, now())
+                .unwrap_err()
+                .to_string()
+                .contains("model-switch capability")
+        );
+        assert_eq!(
+            plan(&options_only, Some(&current), None, now())
+                .unwrap()
+                .len(),
+            1
+        );
+        current["providerThreads"] = json!([]);
+        // A fresh thread has no current native session to constrain selection.
+        assert_eq!(plan(&change, Some(&current), None, now()).unwrap().len(), 1);
     }
 
     #[test]

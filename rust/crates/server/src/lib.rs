@@ -31,6 +31,8 @@ pub mod provider_auth_rpc;
 pub mod provider_auth_service;
 pub mod provider_process;
 pub mod provider_registry;
+mod provider_selection_transition;
+mod provider_failure;
 pub mod provider_mcp;
 mod provider_instructions;
 pub mod thread;
@@ -143,3 +145,5 @@ pub mod acp_mcp_bridge;
 pub mod mcp_access;
 
 pub mod mcp_control;
+
+mod message_queue;

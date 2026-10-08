@@ -848,13 +848,7 @@ impl Actor {
                 "threads",
                 &["canReadThreadSnapshot", "canRollbackThread"][..],
             ),
-            (
-                "turns",
-                &[
-                    "supportsSteeringByInterruptRestart",
-                    "supportsQueuedMessages",
-                ][..],
-            ),
+            ("turns", &["supportsSteeringByInterruptRestart"][..]),
             ("planning", &["supportsStructuredQuestions"][..]),
             (
                 "context",
@@ -1692,6 +1686,7 @@ impl Actor {
         self.active_run = None;
         self.session.services.settle();
         self.callbacks.clear();
+        crate::codex_runtime::settle_queue(&self.store, &self.thread_id, None)?;
         Ok(())
     }
     fn close_text_streams(&mut self) -> Result<(), StoreError> {

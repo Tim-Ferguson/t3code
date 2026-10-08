@@ -94,7 +94,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
             .find(|row| row["instanceId"] == instance)
             .unwrap()
     );
-    let store = Store::open(cwd.join("state.db")).unwrap();
+    let mut store = Store::open(cwd.join("state.db")).unwrap();
     ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Fixture","workspaceRoot":cwd}),Utc::now()).unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -159,12 +159,55 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
     ));
     let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let thread=ThreadLaunchService::with_providers(store.clone(),providers.clone()).launch(json!({"commandId":"launch","projectId":"project","title":"MCP fixture","modelSelection":{"instanceId":instance,"model":"fixture-model"},"runtimeMode":"approval-required","interactionMode":"default","workspaceStrategy":{"type":"root"}}),Utc::now()).unwrap()["threadId"].as_str().unwrap().to_owned();
-    let execution = ExecutionService::start(store.clone(), providers.clone());
+    let mut execution = ExecutionService::start(store.clone(), providers.clone());
     let mut events = store.subscribe();
+    let recovered = if scenario == "queue-recovery" {
+        execution.dispatch(&json!({"type":"message.dispatch", "commandId":"prepared-before-exit", "threadId":thread, "messageId":"prepared-before-exit", "text":"Not started", "attachments":[], "dispatchMode":{"type":"defer_start", "workspaceStrategy":{"type":"root"}}}), Utc::now()).unwrap();
+        let queued = json!({"type":"message.dispatch", "commandId":"queued-before-exit", "threadId":thread, "messageId":"queued-before-exit", "text":"Use MCP", "attachments":[], "dispatchMode":{"type":"queue_after_active"}});
+        let receipt = execution.dispatch(&queued, Utc::now()).unwrap();
+        let view = store.projection("thread", &thread).unwrap().unwrap();
+        assert_eq!(view["runs"][0]["status"], "preparing");
+        assert_eq!(view["runs"][1]["status"], "queued");
+        let queued_id = view["runs"][1]["id"].as_str().unwrap();
+        assert!(
+            store
+                .effect(&format!(
+                    "effect:command:system:start-queued:{queued_id}:provider-turn.start:{queued_id}"
+                ))
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            view["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["messageId"] != "queued-before-exit")
+        );
+        let identity = (
+            view["runs"][1]["id"].clone(),
+            view["runs"][1]["rootNodeId"].clone(),
+            view["runs"][1]["activeAttemptId"].clone(),
+        );
+        execution.shutdown().await;
+        drop(execution);
+        drop(store);
+        store = Store::open(cwd.join("state.db")).unwrap();
+        events = store.subscribe();
+        let durable = store.projection("thread", &thread).unwrap().unwrap();
+        assert_eq!(durable["runs"][1]["status"], "queued");
+        assert_eq!(durable["runs"][1]["id"], identity.0);
+        execution = ExecutionService::start(store.clone(), providers.clone());
+        Some((queued, receipt, identity))
+    } else {
+        None
+    };
     let dispatch = |id: &str| {
         execution.dispatch(&json!({"type":"message.dispatch","commandId":id,"threadId":thread,"messageId":id,"text":"Use MCP","attachments":[],"dispatchMode":{"type":"start_immediately"}}),Utc::now()).unwrap()
     };
-    dispatch("first");
+    if recovered.is_none() {
+        dispatch("first");
+    }
     eprintln!("provider fixture {driver}/{scenario}: first startup");
     let configured = signal(&socket, "configured").await;
     let pid = configured["pid"].as_i64().unwrap() as i32;
@@ -186,7 +229,143 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
     let mut owned_pids = vec![pid];
     let mut issued_authorizations = vec![authorization.clone()];
     eprintln!("provider fixture {driver}/{scenario}: configured");
-    if matches!(
+    if let Some((queued, receipt, identity)) = recovered {
+        signal(&socket, "prompt").await;
+        assert_eq!(
+            settled(&store, &mut events, &thread, 2).await["status"],
+            "completed"
+        );
+        let view = store.projection("thread", &thread).unwrap().unwrap();
+        assert_eq!(view["runs"][0]["status"], "cancelled");
+        assert_eq!(view["runs"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            (
+                view["runs"][1]["id"].clone(),
+                view["runs"][1]["rootNodeId"].clone(),
+                view["runs"][1]["activeAttemptId"].clone()
+            ),
+            identity
+        );
+        assert_eq!(view["providerTurns"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            view["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|item| item["messageId"] == "queued-before-exit")
+                .count(),
+            1
+        );
+        let sequence = store.latest_sequence().unwrap();
+        assert_eq!(execution.dispatch(&queued, Utc::now()).unwrap(), receipt);
+        assert_eq!(store.latest_sequence().unwrap(), sequence);
+    } else if scenario.starts_with("queue") {
+        let first = signal(&socket, "prompt").await;
+        eprintln!("provider fixture {driver}/{scenario}: waiting for permission");
+        let permission = loop {
+            let view = store.projection("thread", &thread).unwrap().unwrap();
+            if let Some(request) = view["runtimeRequests"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|request| request["status"] == "pending")
+            {
+                break request["id"].clone();
+            }
+            events.recv().await.unwrap();
+        };
+        eprintln!("provider fixture {driver}/{scenario}: permission persisted");
+        let queued = json!({"type":"message.dispatch", "commandId":"queued", "threadId":thread, "messageId":"queued", "text":"Use MCP", "attachments":[], "dispatchMode":{"type":"queue_after_active"}});
+        let receipt = execution.dispatch(&queued, Utc::now()).unwrap();
+        assert_eq!(receipt.status, "accepted");
+        let sequence = store.latest_sequence().unwrap();
+        assert_eq!(execution.dispatch(&queued, Utc::now()).unwrap(), receipt);
+        assert_eq!(store.latest_sequence().unwrap(), sequence);
+        let view = store.projection("thread", &thread).unwrap().unwrap();
+        let queued_run = view["runs"][1]["id"].clone();
+        let graph = (
+            view["runs"][1]["rootNodeId"].clone(),
+            view["runs"][1]["activeAttemptId"].clone(),
+        );
+        let queued_id = queued_run.as_str().unwrap();
+        assert!(
+            store
+                .effect(&format!(
+                    "effect:command:system:start-queued:{queued_id}:provider-turn.start:{queued_id}"
+                ))
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(view["runs"][1]["status"], "queued");
+        assert!(
+            view["turnItems"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|item| item["messageId"] != "queued")
+        );
+        assert!(
+            view["providerTurns"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|turn| turn["runAttemptId"] != graph.1)
+        );
+        eprintln!("provider fixture {driver}/{scenario}: queued graph admitted");
+        execution.dispatch(&json!({"type":"runtime-request.respond", "commandId":"accept-queue-gate", "threadId":thread, "requestId":permission, "decision":"accept"}), Utc::now()).unwrap();
+        eprintln!("provider fixture {driver}/{scenario}: permission response admitted");
+        assert_eq!(
+            settled(&store, &mut events, &thread, 1).await["status"],
+            if scenario == "queue-failed" {
+                "failed"
+            } else {
+                "completed"
+            }
+        );
+        eprintln!("provider fixture {driver}/{scenario}: first root terminal");
+        if scenario == "queue-failed" {
+            loop {
+                let view = store.projection("thread", &thread).unwrap().unwrap();
+                if view["runs"][1]["queueHeld"] == true {
+                    assert_eq!(view["runs"][1]["status"], "queued");
+                    assert!(
+                        view["turnItems"]
+                            .as_array()
+                            .unwrap()
+                            .iter()
+                            .any(|item| item["type"] == "error"
+                                && item["failure"]["class"] == "transport_error")
+                    );
+                    if driver == "codex" {
+                        assert_eq!(view["runs"][0]["completedAt"], "2024-01-01T00:00:00.000Z");
+                    }
+                    break;
+                }
+                events.recv().await.unwrap();
+            }
+        } else {
+            let next = signal(&socket, "prompt").await;
+            assert_eq!(next["pid"], first["pid"]);
+            assert_eq!(next["hash"], first["hash"]);
+            assert_eq!(
+                settled(&store, &mut events, &thread, 2).await["status"],
+                "completed"
+            );
+        }
+        let view = store.projection("thread", &thread).unwrap().unwrap();
+        assert_eq!(view["runs"][1]["id"], queued_run);
+        assert_eq!(
+            (
+                view["runs"][1]["rootNodeId"].clone(),
+                view["runs"][1]["activeAttemptId"].clone()
+            ),
+            graph
+        );
+        let sequence = store.latest_sequence().unwrap();
+        assert_eq!(execution.dispatch(&queued, Utc::now()).unwrap(), receipt);
+        assert_eq!(store.latest_sequence().unwrap(), sequence);
+        assert_eq!(view["runs"].as_array().unwrap().len(), 2);
+    } else if matches!(
         scenario,
         "normal"
             | "prompt-retry"
@@ -372,6 +551,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
             "interrupted"
         );
     }
+    eprintln!("provider fixture {driver}/{scenario}: scenario assertions complete");
     if matches!(
         scenario,
         "normal"
@@ -380,7 +560,12 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
             | "workspace-rotate"
             | "workspace-busy"
             | "workspace-interrupt-error"
+            | "queue"
+            | "queue-failed"
+            | "queue-recovery"
     ) {
+        // Queue completion/holding preserves the admitted provider actor just
+        // like a normal turn. Explicit shutdown owns its final cleanup.
         execution.shutdown().await;
     } else {
         // Failed/interrupted startup itself closes the actor. Observe its
@@ -516,6 +701,19 @@ async fn busy_workspace_detach_interrupts_and_reaps_or_unloads_before_reattach()
             exercise(driver, "workspace-busy").await;
         }
         exercise("codex", "workspace-interrupt-error").await;
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn actual_provider_queue_waits_for_approval_promotes_once_and_holds_root_failure() {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        for driver in ["codex", "acp"] {
+            for scenario in ["queue", "queue-failed", "queue-recovery"] {
+                exercise(driver, scenario).await;
+            }
+        }
     })
     .await
     .unwrap();

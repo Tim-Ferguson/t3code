@@ -182,6 +182,24 @@ fn effect(command: &Value, request: Value, now: DateTime<Utc>) -> NewEffect {
         available_at: at(now),
     }
 }
+
+fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
+    if let Some(capabilities) = session
+        .and_then(|session| session.get("capabilities"))
+        .filter(|capabilities| !capabilities.is_null())
+    {
+        return capabilities["turns"]["supportsQueuedMessages"] == true;
+    }
+    // A prepared run has no negotiated session yet. Admission uses the actual
+    // selected adapter's default capabilities, exactly as the original does.
+    let encoded = match driver {
+        "codex" => include_str!("codex-capabilities.json"),
+        "acpRegistry" | "antigravity" => include_str!("acp-capabilities.json"),
+        _ => return false,
+    };
+    let capabilities: Value = serde_json::from_str(encoded).expect("static provider capabilities");
+    capabilities["turns"]["supportsQueuedMessages"] == true
+}
 fn plan_interrupt(
     command: &Value,
     projection: &Value,
@@ -451,7 +469,6 @@ pub fn plan_message_for_driver(
     for field in [
         "notification",
         "scheduledTaskId",
-        "senderThreadId",
         "titleSeed",
         "sourcePlanRef",
         "restartContinuationOfRunId",
@@ -475,15 +492,13 @@ pub fn plan_message_for_driver(
         ));
     }
     let deferred = command["dispatchMode"]["type"] == "defer_start";
-    if !deferred && command["dispatchMode"]["type"] != "start_immediately" {
+    if !deferred
+        && command["dispatchMode"]["type"] != "start_immediately"
+        && command["dispatchMode"]["type"] != "queue_after_active"
+    {
         return Err(StoreError::InvalidCommand(
             "Native queue, steering and prepared-message orchestration is not yet available."
                 .into(),
-        ));
-    }
-    if deferred && command["dispatchMode"]["workspaceStrategy"]["type"] == "worktree" {
-        return Err(StoreError::InvalidCommand(
-            "Native Git worktree preparation is not yet available.".into(),
         ));
     }
     if !command["attachments"].as_array().is_some_and(Vec::is_empty)
@@ -494,16 +509,6 @@ pub fn plan_message_for_driver(
         ));
     }
     let runs = projection["runs"].as_array().unwrap();
-    if runs.iter().any(|run| {
-        matches!(
-            run["status"].as_str(),
-            Some("preparing" | "starting" | "running" | "waiting")
-        )
-    }) {
-        return Err(StoreError::InvalidCommand(
-            "Thread already has an active run.".into(),
-        ));
-    }
     if projection["messages"]
         .as_array()
         .unwrap()
@@ -523,6 +528,67 @@ pub fn plan_message_for_driver(
     if model["instanceId"] != projection["thread"]["modelSelection"]["instanceId"] {
         return Err(StoreError::InvalidCommand(
             "Native provider switching via handoff is not yet available.".into(),
+        ));
+    }
+    if let Some(active) = runs.iter().find(|run| crate::message_queue::blocking(run)) {
+        if projection["contextTransfers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|transfer| {
+                transfer["type"] == "merge_back"
+                    && transfer["targetThreadId"] == projection["thread"]["id"]
+                    && transfer["status"] == "pending"
+            })
+        {
+            return Err(StoreError::InvalidCommand(format!(
+                "Thread {thread_id} has a pending merge-back transfer; queued merge-back consumption is not implemented yet."
+            )));
+        }
+        let provider = projection["providerThreads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["id"] == projection["thread"]["activeProviderThreadId"])
+            .or_else(|| {
+                projection["providerThreads"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|row| row["id"] == active["providerThreadId"])
+            })
+            .ok_or_else(|| {
+                StoreError::InvalidCommand(format!(
+                    "Active run {} has no provider thread for queued dispatch.",
+                    active["id"].as_str().unwrap()
+                ))
+            })?;
+        let session = projection["providerSessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|session| session["id"] == provider["providerSessionId"]);
+        let supported = supports_queued_messages(session, driver);
+        if !supported {
+            return Err(StoreError::InvalidCommand(format!(
+                "Provider instance {} does not support queued messages.",
+                model["instanceId"].as_str().unwrap()
+            )));
+        }
+        return crate::message_queue::allocate(
+            command,
+            projection,
+            crate::message_queue::QueueContext {
+                provider_thread: provider,
+                new_provider_thread: false,
+                checkpoint_scope: None,
+            },
+            now,
+        );
+    }
+    if deferred && command["dispatchMode"]["workspaceStrategy"]["type"] == "worktree" {
+        return Err(StoreError::InvalidCommand(
+            "Native Git worktree preparation is not yet available.".into(),
         ));
     }
     let run_id = uuid::Uuid::new_v4().to_string();
@@ -585,12 +651,14 @@ pub fn plan_message_for_driver(
     let node = checked::<t3_contracts::ExecutionNode>(
         json!({"id":node_id,"threadId":thread_id,"runId":run_id,"parentNodeId":null,"rootNodeId":node_id,"kind":"root_turn","status":"pending","countsForRun":true,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":null,"completedAt":null}),
     )?;
-    let message = checked::<t3_contracts::ConversationMessage>(
-        json!({"createdBy":command["createdBy"],"creationSource":command["creationSource"],"id":command["messageId"],"threadId":thread_id,"runId":run_id,"nodeId":node_id,"role":"user","text":command["text"],"attachments":[],"streaming":false,"createdAt":timestamp,"updatedAt":timestamp}),
-    )?;
-    let item = checked::<t3_contracts::TurnItem>(
-        json!({"id":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().len(),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","createdBy":command["createdBy"],"creationSource":command["creationSource"],"messageId":command["messageId"],"inputIntent":"turn_start","text":command["text"],"attachments":[]}),
-    )?;
+    let mut message = json!({"createdBy":command["createdBy"],"creationSource":command["creationSource"],"id":command["messageId"],"threadId":thread_id,"runId":run_id,"nodeId":node_id,"role":"user","text":command["text"],"attachments":[],"streaming":false,"createdAt":timestamp,"updatedAt":timestamp});
+    let mut item = json!({"id":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().len(),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","createdBy":command["createdBy"],"creationSource":command["creationSource"],"messageId":command["messageId"],"inputIntent":"turn_start","text":command["text"],"attachments":[]});
+    if let Some(sender) = command.get("senderThreadId") {
+        message["senderThreadId"] = sender.clone();
+        item["senderThreadId"] = sender.clone();
+    }
+    let message = checked::<t3_contracts::ConversationMessage>(message)?;
+    let item = checked::<t3_contracts::TurnItem>(item)?;
     for (kind, payload) in [
         ("run.created", run),
         ("run-attempt.created", attempt),
@@ -701,6 +769,172 @@ mod tests {
     }
     fn message(thread: &str, id: &str, text: &str) -> Value {
         json!({"type":"message.dispatch","commandId":id,"threadId":thread,"messageId":format!("message:{id}"),"text":text,"attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})
+    }
+    #[test]
+    fn active_turn_queues_each_new_turn_mode_without_early_transcript_or_effect() {
+        for dispatch in [
+            json!({"type":"start_immediately"}),
+            json!({"type":"queue_after_active"}),
+            json!({"type":"defer_start","workspaceStrategy":{"type":"worktree"}}),
+        ] {
+            let directory = tempfile::tempdir().unwrap();
+            let store = Store::memory().unwrap();
+            project(&store, directory.path());
+            let id = launch(&store, "launch");
+            let mut first = message(&id, "first", "First");
+            first["dispatchMode"] =
+                json!({"type":"defer_start","workspaceStrategy":{"type":"root"}});
+            let dispatch_command = |command: &Value| {
+                store
+                    .dispatch(
+                        command["commandId"].as_str().unwrap(),
+                        "thread",
+                        &id,
+                        "message.dispatch",
+                        Utc::now(),
+                        |transaction| {
+                            plan_message(
+                                command,
+                                &read_projection(transaction, "thread", &id)?.unwrap(),
+                                Utc::now(),
+                            )
+                        },
+                        thread::reduce,
+                    )
+                    .unwrap()
+            };
+            dispatch_command(&first);
+            let mut next = message(&id, "second", "Next");
+            next["dispatchMode"] = dispatch;
+            next["senderThreadId"] = json!("trusted-sender");
+            let receipt = dispatch_command(&next);
+            assert_eq!(dispatch_command(&next), receipt);
+            let projection = store.projection("thread", &id).unwrap().unwrap();
+            assert_eq!(projection["runs"][0]["status"], "preparing");
+            assert_eq!(projection["runs"][1]["status"], "queued");
+            assert_eq!(
+                projection["messages"][1]["senderThreadId"],
+                "trusted-sender"
+            );
+            assert!(
+                !projection["turnItems"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|item| item["messageId"] == next["messageId"])
+            );
+            assert!(
+                store
+                    .claim_effect("worker", Utc::now(), chrono::Duration::minutes(1))
+                    .unwrap()
+                    .is_none()
+            );
+        }
+    }
+
+    #[test]
+    fn cold_acp_queue_uses_adapter_defaults_and_negotiated_refusal_wins() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::memory().unwrap();
+        project(&store, directory.path());
+        let id = launch(&store, "launch");
+        let mut first = message(&id, "first", "First");
+        first["dispatchMode"] = json!({"type":"defer_start","workspaceStrategy":{"type":"root"}});
+        store
+            .dispatch(
+                "first",
+                "thread",
+                &id,
+                "message.dispatch",
+                Utc::now(),
+                |transaction| {
+                    plan_message(
+                        &first,
+                        &read_projection(transaction, "thread", &id)?.unwrap(),
+                        Utc::now(),
+                    )
+                },
+                thread::reduce,
+            )
+            .unwrap();
+        let mut projection = store.projection("thread", &id).unwrap().unwrap();
+        projection["providerThreads"][0]["driver"] = json!("acpRegistry");
+        assert!(
+            projection["providerSessions"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+        let mut next = message(&id, "second", "Next");
+        next["dispatchMode"] = json!({"type":"queue_after_active"});
+        for driver in ["acpRegistry", "antigravity"] {
+            let Decision::Accepted { events, effects } =
+                plan_message_for_driver(&next, &projection, Utc::now(), driver).unwrap()
+            else {
+                panic!("cold ACP queue rejected")
+            };
+            assert!(effects.is_empty());
+            assert!(
+                events.iter().any(|event| event.event_type == "run.created"
+                    && event.payload["status"] == "queued")
+            );
+            assert!(
+                !events
+                    .iter()
+                    .any(|event| event.event_type == "turn-item.updated")
+            );
+        }
+        projection["providerThreads"][0]["providerSessionId"] = json!("session:negotiated");
+        projection["providerSessions"] = json!([{"id":"session:negotiated","capabilities":{"turns":{"supportsQueuedMessages":false}}}]);
+        assert!(
+            matches!(plan_message_for_driver(&next, &projection, Utc::now(), "acpRegistry"), Err(StoreError::InvalidCommand(message)) if message.contains("does not support queued messages"))
+        );
+        assert!(!supports_queued_messages(None, "not-registered"));
+    }
+
+    #[test]
+    fn idle_queue_mode_starts_normally_and_preserves_trusted_sender() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::memory().unwrap();
+        project(&store, directory.path());
+        let id = launch(&store, "launch");
+        let mut command = message(&id, "first", "First");
+        command["dispatchMode"] = json!({"type":"queue_after_active"});
+        command["senderThreadId"] = json!("trusted-sender");
+        store
+            .dispatch(
+                "first",
+                "thread",
+                &id,
+                "message.dispatch",
+                Utc::now(),
+                |transaction| {
+                    plan_message(
+                        &command,
+                        &read_projection(transaction, "thread", &id)?.unwrap(),
+                        Utc::now(),
+                    )
+                },
+                thread::reduce,
+            )
+            .unwrap();
+        let projection = store.projection("thread", &id).unwrap().unwrap();
+        assert_eq!(projection["runs"][0]["status"], "starting");
+        assert_eq!(
+            projection["messages"][0]["senderThreadId"],
+            "trusted-sender"
+        );
+        assert_eq!(
+            projection["turnItems"][0]["senderThreadId"],
+            "trusted-sender"
+        );
+        assert_eq!(projection["turnItems"][0]["inputIntent"], "turn_start");
+        assert!(
+            store
+                .claim_effect("worker", Utc::now(), chrono::Duration::minutes(1))
+                .unwrap()
+                .is_some()
+        );
     }
     #[test]
     fn prepared_message_has_no_provider_effect_until_release_and_stop_blocks_later_release() {

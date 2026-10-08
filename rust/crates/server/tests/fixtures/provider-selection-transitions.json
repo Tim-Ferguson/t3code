@@ -1,0 +1,8973 @@
+[
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "acpRegistry",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "codex",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "claudeCode",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "cursor",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "pi",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": []
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "reject",
+      "reason": "The active ACP session does not expose a model-switch capability."
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "model",
+        "options": [
+          {
+            "id": "fast",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": false
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "selection",
+    "input": {
+      "driver": "antigravity",
+      "current": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "target": {
+        "instanceId": "agent",
+        "model": "other"
+      },
+      "sessionCapabilities": {
+        "sessions": {
+          "supportsModelSwitchInSession": true
+        }
+      }
+    },
+    "output": {
+      "type": "apply_on_next_turn"
+    }
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "ready",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": false
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "ready",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": true
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "ready",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": null
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "ready",
+      "capabilities": {
+        "sessions": {}
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "ready",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": 0
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "busy",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": false
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "busy",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": true
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "busy",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": null
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "busy",
+      "capabilities": {
+        "sessions": {}
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "busy",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": 0
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "starting",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": false
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "starting",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": true
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "starting",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": null
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "starting",
+      "capabilities": {
+        "sessions": {}
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "starting",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": 0
+        }
+      }
+    },
+    "output": true
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "stopped",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": false
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "stopped",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": true
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "stopped",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": null
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "stopped",
+      "capabilities": {
+        "sessions": {}
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "stopped",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": 0
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "error",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": false
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "error",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": true
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "error",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": null
+        }
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "error",
+      "capabilities": {
+        "sessions": {}
+      }
+    },
+    "output": false
+  },
+  {
+    "operation": "runtimeDetach",
+    "input": {
+      "id": "session",
+      "status": "error",
+      "capabilities": {
+        "sessions": {
+          "supportsRuntimeModeSwitchInSession": 0
+        }
+      }
+    },
+    "output": false
+  }
+]

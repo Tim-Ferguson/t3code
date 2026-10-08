@@ -205,6 +205,20 @@ for line in sys.stdin:
         if driver == "acp" and scenario == "prompt-retry" and turn_ordinal == 1:
             emit({"jsonrpc":"2.0","id":request["id"],"error":{"code":-32603,"message":"Fixture transient prompt rejection"}})
             continue
+        if scenario in ("queue", "queue-failed") and turn_ordinal == 1:
+            if driver == "codex":
+                reply(request, {"turn": {"id": "native-turn-1"}})
+                answer = callback("item/commandExecution/requestApproval", {"threadId":"native-thread", "turnId":"native-turn-1", "itemId":"queue-approval", "reason":"Fixture queue gate", "command":"true", "cwd":os.getcwd()})
+                assert answer == {"decision":"accept"}, answer
+            else:
+                answer = callback("session/request_permission", {"sessionId":"native-session", "title":"Fixture queue gate", "subject":{"type":"command", "command":"true", "cwd":os.getcwd(), "toolCallId":"queue-approval"}, "options":[{"optionId":"once", "name":"Allow", "kind":"allow_once"}]})
+                assert answer == {"outcome":{"outcome":"selected", "optionId":"once"}}, answer
+            if scenario == "queue-failed":
+                if driver == "codex":
+                    emit({"method":"turn/completed", "params":{"threadId":"native-thread", "turn":{"id":"native-turn-1", "status":"failed", "completedAt":1704067200, "error":{"message":"Fixture root failed"}}}})
+                else:
+                    emit({"jsonrpc":"2.0", "id":request["id"], "error":{"code":-32603, "message":"Fixture root failed"}})
+                continue
         if driver == "acp":
             if scenario == "workspace-busy" and turn_ordinal == 2:
                 continue  # Prompt stays pending until detach kills this owned peer.
@@ -215,7 +229,8 @@ for line in sys.stdin:
                 "update": {"sessionUpdate": "state_update", "state": "idle", "stopReason": "end_turn"}}})
         else:
             native_turn = "native-turn-" + str(turn_ordinal)
-            reply(request, {"turn": {"id": native_turn}})
+            if not (scenario in ("queue", "queue-failed") and turn_ordinal == 1):
+                reply(request, {"turn": {"id": native_turn}})
             if scenario in ("workspace-busy", "workspace-interrupt-error") and turn_ordinal == 2:
                 continue
             if resumed and scenario.startswith("workspace-"):

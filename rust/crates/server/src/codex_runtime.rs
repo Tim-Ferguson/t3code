@@ -850,9 +850,27 @@ impl Actor {
                     Some("interrupted") => "interrupted",
                     _ => "failed",
                 };
-                self.terminal(status, &params["turn"])?;
+                let run_id = self.active_run.clone();
+                if status == "failed" {
+                    // Preserve native completion time and stream finalization,
+                    // then classify the root failure before holding its queue.
+                    self.terminal(status, &params["turn"])?;
+                    fail_run(
+                        &self.store,
+                        &self.thread_id,
+                        run_id.as_deref(),
+                        params["turn"]["error"]["message"]
+                            .as_str()
+                            .unwrap_or("Provider turn failed."),
+                    )?;
+                } else {
+                    self.terminal(status, &params["turn"])?;
+                }
                 self.active_run = None;
                 self.native_turn_id = None;
+                if status != "failed" {
+                    settle_queue(&self.store, &self.thread_id, None)?;
+                }
                 Ok(())
             }
             "item/started" | "item/completed" => {
@@ -1222,7 +1240,21 @@ pub(crate) fn fail_run(
         };
         let item = json!({"id":format!("{run_id}:error"),"threadId":thread_id,"runId":run_id,"nodeId":run["rootNodeId"],"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().len(),"status":"failed","title":"Provider error","startedAt":now,"completedAt":now,"updatedAt":now,"type":"error","failure":{"class":"transport_error","message":message,"code":null,"retryable":false}});
         Ok(vec![("turn-item.updated", item)])
-    })
+    })?;
+    // A failed root is classified before deciding whether its queue must hold.
+    // Already-interrupted startup work waits for owned cleanup instead.
+    let view = projection(store, thread_id)?;
+    if find(&view, "runs", &json!(run_id))?["status"] == "failed" {
+        settle_queue(store, thread_id, Some(run_id))?;
+    }
+    Ok(())
+}
+pub(crate) fn settle_queue(
+    store: &Store,
+    thread_id: &str,
+    failed_run_id: Option<&str>,
+) -> Result<(), StoreError> {
+    crate::message_queue::settle(store, thread_id, failed_run_id).map(|_| ())
 }
 pub fn turn_params(
     native_thread_id: &str,
@@ -1334,7 +1366,7 @@ pub(crate) fn recover(
             let id = run["id"].as_str().unwrap();
             if matches!(
                 run["status"].as_str(),
-                Some("preparing" | "queued" | "starting" | "running" | "waiting")
+                Some("preparing" | "starting" | "running" | "waiting")
             ) {
                 terminal(store, thread_id, Some(id), "cancelled", None)?;
             }
@@ -1382,6 +1414,11 @@ pub(crate) fn recover(
                 Ok(events)
             })?;
         }
+    }
+    for projection in
+        store.read(|connection| crate::persistence::read_projections(connection, "thread"))?
+    {
+        settle_queue(store, projection["thread"]["id"].as_str().unwrap(), None)?;
     }
     Ok(())
 }
