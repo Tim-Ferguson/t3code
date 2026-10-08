@@ -1,0 +1,75 @@
+{"kind":"label","id":"term-1","summary":null,"expected":"Terminal 1"}
+{"kind":"label","id":"term-1","summary":"","expected":"Terminal 1"}
+{"kind":"label","id":"term-1","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"term-1","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"term-1","summary":"","expected":""}
+{"kind":"label","id":"term-1","summary":"﻿","expected":"Terminal 1"}
+{"kind":"label","id":"terminal-001","summary":null,"expected":"Terminal 001"}
+{"kind":"label","id":"terminal-001","summary":"","expected":"Terminal 001"}
+{"kind":"label","id":"terminal-001","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"terminal-001","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"terminal-001","summary":"","expected":""}
+{"kind":"label","id":"terminal-001","summary":"﻿","expected":"Terminal 001"}
+{"kind":"label","id":"TERM-2","summary":null,"expected":"Terminal 2"}
+{"kind":"label","id":"TERM-2","summary":"","expected":"Terminal 2"}
+{"kind":"label","id":"TERM-2","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"TERM-2","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"TERM-2","summary":"","expected":""}
+{"kind":"label","id":"TERM-2","summary":"﻿","expected":"Terminal 2"}
+{"kind":"label","id":"term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef","summary":null,"expected":"Terminal 3"}
+{"kind":"label","id":"term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef","summary":"","expected":"Terminal 3"}
+{"kind":"label","id":"term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef","summary":"","expected":""}
+{"kind":"label","id":"term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef","summary":"﻿","expected":"Terminal 3"}
+{"kind":"label","id":"term-3-extra","summary":null,"expected":"term-3-extra"}
+{"kind":"label","id":"term-3-extra","summary":"","expected":"term-3-extra"}
+{"kind":"label","id":"term-3-extra","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"term-3-extra","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"term-3-extra","summary":"","expected":""}
+{"kind":"label","id":"term-3-extra","summary":"﻿","expected":"term-3-extra"}
+{"kind":"label","id":"term-١","summary":null,"expected":"term-١"}
+{"kind":"label","id":"term-١","summary":"","expected":"term-١"}
+{"kind":"label","id":"term-١","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"term-١","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"term-١","summary":"","expected":""}
+{"kind":"label","id":"term-١","summary":"﻿","expected":"term-١"}
+{"kind":"label","id":"raw","summary":null,"expected":"raw"}
+{"kind":"label","id":"raw","summary":"","expected":"raw"}
+{"kind":"label","id":"raw","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"raw","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"raw","summary":"","expected":""}
+{"kind":"label","id":"raw","summary":"﻿","expected":"raw"}
+{"kind":"label","id":"﻿term-1","summary":null,"expected":"﻿term-1"}
+{"kind":"label","id":"﻿term-1","summary":"","expected":"﻿term-1"}
+{"kind":"label","id":"﻿term-1","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"﻿term-1","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"﻿term-1","summary":"","expected":""}
+{"kind":"label","id":"﻿term-1","summary":"﻿","expected":"﻿term-1"}
+{"kind":"label","id":"term-01","summary":null,"expected":"Terminal 01"}
+{"kind":"label","id":"term-01","summary":"","expected":"Terminal 01"}
+{"kind":"label","id":"term-01","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"term-01","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"term-01","summary":"","expected":""}
+{"kind":"label","id":"term-01","summary":"﻿","expected":"Terminal 01"}
+{"kind":"label","id":"term-99","summary":null,"expected":"Terminal 99"}
+{"kind":"label","id":"term-99","summary":"","expected":"Terminal 99"}
+{"kind":"label","id":"term-99","summary":"  Shell  ","expected":"Shell"}
+{"kind":"label","id":"term-99","summary":"﻿name﻿","expected":"name"}
+{"kind":"label","id":"term-99","summary":"","expected":""}
+{"kind":"label","id":"term-99","summary":"﻿","expected":"Terminal 99"}
+{"kind":"next","ids":[],"suffix":null,"expected":"term-1"}
+{"kind":"next","ids":[],"suffix":"","expected":"term-1-"}
+{"kind":"next","ids":[],"suffix":"00000000-abcd-abcd-abcd-000000000000","expected":"term-1-00000000-abcd-abcd-abcd-000000000000"}
+{"kind":"next","ids":["term-1"],"suffix":null,"expected":"term-2"}
+{"kind":"next","ids":["term-1"],"suffix":"","expected":"term-2-"}
+{"kind":"next","ids":["term-1"],"suffix":"00000000-abcd-abcd-abcd-000000000000","expected":"term-2-00000000-abcd-abcd-abcd-000000000000"}
+{"kind":"next","ids":["term-01"],"suffix":null,"expected":"term-1"}
+{"kind":"next","ids":["term-01"],"suffix":"","expected":"term-1-"}
+{"kind":"next","ids":["term-01"],"suffix":"00000000-abcd-abcd-abcd-000000000000","expected":"term-1-00000000-abcd-abcd-abcd-000000000000"}
+{"kind":"next","ids":["term-1","TERM-2","terminal-3"],"suffix":null,"expected":"term-4"}
+{"kind":"next","ids":["term-1","TERM-2","terminal-3"],"suffix":"","expected":"term-4-"}
+{"kind":"next","ids":["term-1","TERM-2","terminal-3"],"suffix":"00000000-abcd-abcd-abcd-000000000000","expected":"term-4-00000000-abcd-abcd-abcd-000000000000"}
+{"kind":"next","ids":["raw","term-2","term-1-abcdef01-abcd-abcd-abcd-abcdefabcdef"],"suffix":null,"expected":"term-3"}
+{"kind":"next","ids":["raw","term-2","term-1-abcdef01-abcd-abcd-abcd-abcdefabcdef"],"suffix":"","expected":"term-3-"}
+{"kind":"next","ids":["raw","term-2","term-1-abcdef01-abcd-abcd-abcd-abcdefabcdef"],"suffix":"00000000-abcd-abcd-abcd-000000000000","expected":"term-3-00000000-abcd-abcd-abcd-000000000000"}

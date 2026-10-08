@@ -5842,6 +5842,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "t3-terminal"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "t3-ui"
 version = "0.1.0"
 dependencies = [

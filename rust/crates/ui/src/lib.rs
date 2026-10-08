@@ -4,6 +4,8 @@ mod model_controls;
 mod new_thread;
 mod runtime;
 mod scroll_state;
+mod terminal_bridge;
+mod terminal_pane;
 mod terminal_stream;
 mod thread_controls;
 mod timeline;
@@ -21,12 +23,15 @@ pub fn App() -> Element {
     let state = use_store(UiModel::default);
     let transport = use_hook(runtime::TransportHandle::default);
     let startup_transport = transport.clone();
+    let terminal_catalog = terminal_pane::use_catalog();
     draft_storage::use_writer(state);
     draft_storage::use_native_close_flush(state);
     draft_storage::use_flush_on_unload(state);
     use_future(move || {
         let transport = startup_transport.clone();
+        let terminal_catalog = terminal_catalog.clone();
         async move {
+            terminal_catalog.hydrate().await;
             client_settings::hydrate(state).await;
             draft_storage::hydrate(state).await;
             runtime::connect(transport, state, runtime::default_address(), String::new()).await;
@@ -229,6 +234,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             }
                             for current in [active.as_ref().unwrap().clone()] {
                                 Composer { key:"{timeline_key}",state, transport: transport.clone(), thread: current, can_operate }
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
+                                terminal_pane::Drawer {key:"terminal:{timeline_key}",state,transport:transport.clone(),environment:environment_key.clone(),thread_id:current.id.to_string(),cwd:projects.iter().find(|project|project.id==current.project_id).map(|p|p.workspace_root.to_string()).unwrap_or_default(),worktree:current.worktree_path.as_ref().map(ToString::to_string)}
                             }
                         }
                     },

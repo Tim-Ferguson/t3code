@@ -1,6 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["crates/contracts", "crates/server", "crates/client", "crates/ui", "crates/acp"]
+members = [
+  "crates/contracts",
+  "crates/server",
+  "crates/client",
+  "crates/ui",
+  "crates/acp",
+  "crates/terminal",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +19,7 @@ rust-version = "1.89"
 t3-contracts = { path = "crates/contracts" }
 t3-client = { path = "crates/client" }
 t3-acp = { path = "crates/acp" }
+t3-terminal = { path = "crates/terminal" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 indexmap = { version = "2", features = ["serde"] }

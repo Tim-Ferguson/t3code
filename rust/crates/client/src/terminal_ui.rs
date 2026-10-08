@@ -28,7 +28,9 @@ pub struct PaneState {
     pub terminal_height: f64,
     pub terminal_ids: Vec<String>,
     pub active_terminal_id: String,
+    #[serde(default)]
     pub terminal_groups: Vec<Group>,
+    #[serde(default)]
     pub active_terminal_group_id: String,
 }
 impl Default for PaneState {

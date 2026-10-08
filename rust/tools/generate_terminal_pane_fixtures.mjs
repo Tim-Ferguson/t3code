@@ -129,3 +129,55 @@ writeFileSync(
   rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
 );
 console.log(`${rows.length} original pane witnesses`);
+const labelsSource = readFileSync(
+  new URL("../../packages/shared/src/terminalLabels.ts", import.meta.url),
+  "utf8",
+)
+  .replace(/import\s+[\s\S]*?from\s+"[^"\n]+";/g, "")
+  .replace(/^export /gm, "");
+const labels = new Function(
+  stripTypeScriptTypes(labelsSource) +
+    ";return {getTerminalLabel,resolveTerminalSessionLabel,nextTerminalId};",
+)();
+const labelsRows = [];
+const ids = [
+  "term-1",
+  "terminal-001",
+  "TERM-2",
+  "term-3-abcdef01-abcd-abcd-abcd-abcdefabcdef",
+  "term-3-extra",
+  "term-١",
+  "raw",
+  "\ufeffterm-1",
+  "term-01",
+  "term-99",
+];
+for (const id of ids)
+  for (const summary of [null, "", "  Shell  ", "\ufeffname\ufeff", "\u0085", "\ufeff"])
+    labelsRows.push({
+      kind: "label",
+      id,
+      summary,
+      expected: labels.resolveTerminalSessionLabel(
+        id,
+        summary === null ? null : { label: summary },
+      ),
+    });
+for (const ids of [
+  [],
+  ["term-1"],
+  ["term-01"],
+  ["term-1", "TERM-2", "terminal-3"],
+  ["raw", "term-2", "term-1-abcdef01-abcd-abcd-abcd-abcdefabcdef"],
+])
+  for (const suffix of [null, "", "00000000-abcd-abcd-abcd-000000000000"])
+    labelsRows.push({
+      kind: "next",
+      ids,
+      suffix,
+      expected: labels.nextTerminalId(ids, suffix === null ? undefined : suffix),
+    });
+writeFileSync(
+  new URL("../crates/client/tests/fixtures/terminal-labels.jsonl", import.meta.url),
+  labelsRows.map((row) => JSON.stringify(row)).join("\n") + "\n",
+);

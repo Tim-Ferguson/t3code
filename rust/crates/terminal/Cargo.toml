@@ -1,0 +1,50 @@
+[package]
+name = "t3-terminal"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+futures-util.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = "0.3"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+  "console",
+  "Window",
+  "Document",
+  "HtmlCanvasElement",
+  "CanvasRenderingContext2d",
+  "HtmlTextAreaElement",
+  "KeyboardEvent",
+  "InputEvent",
+  "CompositionEvent",
+  "MouseEvent",
+  "WheelEvent",
+  "ClipboardEvent",
+  "DomRect",
+  "Event",
+  "EventTarget",
+  "HtmlElement",
+  "CssStyleDeclaration",
+  "Navigator",
+  "Clipboard",
+  "Performance",
+  "TextMetrics",
+  "Element",
+  "Node",
+  "PointerEvent",
+  "DataTransfer",
+  "ResizeObserver",
+  "MediaQueryList",
+  "AddEventListenerOptions",
+  "FontFace",
+  "FontFaceSet",
+] }

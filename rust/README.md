@@ -92,6 +92,11 @@ builds sharing the Rust component and client layers. The WASM target check,
 macOS desktop compilation, and Dioxus 0.7.10 web bundle build have passed:
 
 ```sh
+# Before UI checks/builds (all WebViews load this Rust WASM terminal surface):
+# Install the wasm-bindgen CLI at the exact version in rust/Cargo.lock.
+# Generated assets are ignored; source, fonts and pinned Ghostty dependencies
+# are committed under rust/crates/terminal and do not need the original app.
+T3_WASM_BINDGEN=/path/to/wasm-bindgen rust/tools/build_terminal_surface.sh
 cargo check --locked --manifest-path rust/Cargo.toml -p t3-ui --target wasm32-unknown-unknown -j 2
 cargo check --locked --manifest-path rust/Cargo.toml -p t3-ui --no-default-features --features desktop -j 2
 # From rust/crates/ui, with Dioxus CLI 0.7.10 and the WASM target installed:
