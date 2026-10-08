@@ -24,8 +24,22 @@ cargo test --locked --manifest-path rust/Cargo.toml -p t3-server native_telemetr
 
 The regular workspace suite uses deterministic subprocess fixtures and does not
 require a prebuilt monitor. The owner can discover the artifact above, or use
-`T3CODE_RESOURCE_MONITOR_PATH` to select an explicit executable. Higher-level
-resource aggregation and port discovery are still being implemented.
+`T3CODE_RESOURCE_MONITOR_PATH` to select an explicit executable. The native resource service merges process counters and Electron telemetry,
+with scoped sampling, history/retry RPCs and terminal port discovery. Logical-I/O
+accounting is implemented and can merge recorded attribution; production
+instrumentation call sites remain pending. The current Unix desktop ingress accepts explicitly transferred
+pipes or socket pairs:
+
+```sh
+cargo run --locked --manifest-path rust/Cargo.toml -p t3-server -- serve --state-dir /tmp/t3-rust-isolated --mode desktop --desktop-telemetry-fd 4 --desktop-telemetry-control-fd 5
+```
+
+Those descriptors must already be inherited from the supervising desktop; they
+are adopted before runtime/database startup. Ordinary web startup omits them.
+The original bootstrap-envelope handshake, Windows descriptor adapter, live
+settings updates, host-resource/process-diagnostics RPCs and the desktop producer
+remain pending. Resource values retain source arithmetic and fail typed wire
+validation when the original public schema cannot represent them.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and

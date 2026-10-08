@@ -20,6 +20,9 @@ struct Options {
     config: Option<PathBuf>,
     assets: Option<PathBuf>,
     settings: Option<PathBuf>,
+    mode: String,
+    desktop_telemetry_fd: Option<i32>,
+    desktop_telemetry_control_fd: Option<i32>,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     let mut options = Options {
@@ -30,6 +33,9 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
         config: None,
         assets: None,
         settings: None,
+        mode: "web".into(),
+        desktop_telemetry_fd: None,
+        desktop_telemetry_control_fd: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -56,9 +62,29 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
                     args.next().ok_or("--settings requires a JSON path")?,
                 ))
             }
+            "--mode" => {
+                options.mode = args.next().ok_or("--mode requires web or desktop")?;
+                if !matches!(options.mode.as_str(), "web" | "desktop") {
+                    return Err("--mode requires web or desktop".into());
+                }
+            }
+            "--desktop-telemetry-fd" => {
+                options.desktop_telemetry_fd = Some(
+                    args.next()
+                        .ok_or("--desktop-telemetry-fd requires an inherited descriptor")?
+                        .parse()?,
+                )
+            }
+            "--desktop-telemetry-control-fd" => {
+                options.desktop_telemetry_control_fd = Some(
+                    args.next()
+                        .ok_or("--desktop-telemetry-control-fd requires an inherited descriptor")?
+                        .parse()?,
+                )
+            }
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
+                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
                 );
                 std::process::exit(0)
             }
@@ -125,6 +151,39 @@ fn publish_once(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Err
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[test]
+    fn shared_inherited_socket_is_cloned_before_any_runtime_owns_descriptors() {
+        use std::os::fd::{AsRawFd, IntoRawFd};
+        let (server, mut host) = std::os::unix::net::UnixStream::pair().unwrap();
+        let raw = server.into_raw_fd();
+        let options = Options {
+            command: "serve".into(),
+            state_dir: PathBuf::new(),
+            host: String::new(),
+            port: 0,
+            config: None,
+            assets: None,
+            settings: None,
+            mode: "desktop".into(),
+            desktop_telemetry_fd: Some(raw),
+            desktop_telemetry_control_fd: Some(raw),
+        };
+        let descriptors = adopt_desktop_descriptors(&options).unwrap();
+        assert_ne!(
+            descriptors.input.as_ref().unwrap().as_raw_fd(),
+            descriptors.control.as_ref().unwrap().as_raw_fd()
+        );
+        drop(descriptors.input);
+        host.write_all(b"owned").unwrap();
+        let mut stream = std::os::unix::net::UnixStream::from(descriptors.control.unwrap());
+        let mut bytes = [0; 5];
+        std::io::Read::read_exact(&mut stream, &mut bytes).unwrap();
+        assert_eq!(&bytes, b"owned");
+        drop(stream);
+        let mut byte = [0];
+        assert_eq!(std::io::Read::read(&mut host, &mut byte).unwrap(), 0);
+    }
     #[test]
     fn concurrent_startup_observes_complete_stable_identity_and_secret() {
         let directory = tempfile::tempdir().unwrap();
@@ -151,12 +210,79 @@ mod tests {
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[cfg(unix)]
+struct DesktopDescriptors {
+    input: Option<std::os::fd::OwnedFd>,
+    control: Option<std::os::fd::OwnedFd>,
+}
+#[cfg(not(unix))]
+struct DesktopDescriptors;
+fn adopt_desktop_descriptors(options: &Options) -> std::io::Result<DesktopDescriptors> {
+    #[cfg(unix)]
+    {
+        use std::os::fd::{FromRawFd, OwnedFd};
+        // Called at process entry, before Tokio or any service can open/reuse
+        // descriptors. These handles are explicitly transferred by the caller.
+        let adopt = |fd: i32| -> std::io::Result<OwnedFd> {
+            if fd < 3 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "desktop descriptors must be above stderr",
+                ));
+            }
+            let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+            if unsafe { libc::fstat(fd, stat.as_mut_ptr()) } < 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let kind = unsafe { stat.assume_init() }.st_mode & libc::S_IFMT;
+            if kind != libc::S_IFIFO && kind != libc::S_IFSOCK {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "desktop descriptors must be inherited pipes or sockets",
+                ));
+            }
+            Ok(unsafe { OwnedFd::from_raw_fd(fd) })
+        };
+        let input = options.desktop_telemetry_fd.map(adopt).transpose()?;
+        let control = if options.desktop_telemetry_fd.is_some()
+            && options.desktop_telemetry_fd == options.desktop_telemetry_control_fd
+        {
+            input.as_ref().map(OwnedFd::try_clone).transpose()?
+        } else {
+            options
+                .desktop_telemetry_control_fd
+                .map(adopt)
+                .transpose()?
+        };
+        Ok(DesktopDescriptors { input, control })
+    }
+    #[cfg(not(unix))]
+    {
+        if options.desktop_telemetry_fd.is_some() || options.desktop_telemetry_control_fd.is_some()
+        {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Inherited desktop telemetry descriptors are not supported on this platform yet",
+            ));
+        }
+        Ok(DesktopDescriptors)
+    }
+}
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let options = options()?;
+    let descriptors = adopt_desktop_descriptors(&options)?;
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(run(options, descriptors))
+}
+async fn run(
+    options: Options,
+    descriptors: DesktopDescriptors,
+) -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
-    let options = options()?;
     fs::create_dir_all(&options.state_dir)?;
     let state_dir = fs::canonicalize(&options.state_dir)?;
     let store = Store::open(state_dir.join("rust-state.sqlite"))?;
@@ -244,6 +370,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let telemetry = t3_server::native_telemetry::NativeTelemetryClient::new(
         t3_server::native_telemetry::NativeTelemetryOptions::host(std::env::current_dir()?, None),
     );
+    let mut desktop_options = t3_server::desktop_telemetry_bootstrap::options_for_settings(
+        &options.mode,
+        &native_config.settings,
+    );
+    #[cfg(unix)]
+    {
+        desktop_options = t3_server::desktop_telemetry_bootstrap::from_owned_descriptors(
+            desktop_options,
+            descriptors.input,
+            descriptors.control,
+        )?;
+    }
+    #[cfg(not(unix))]
+    let _ = descriptors;
+    let desktop =
+        t3_server::desktop_telemetry::DesktopTelemetryReceiver::new(desktop_options).await;
+    let resources = t3_server::resource_telemetry_service::ResourceTelemetry::new(
+        telemetry.clone(),
+        desktop.clone(),
+        t3_server::resource_attribution::ResourceAttribution::default(),
+        std::process::id() as u64,
+        std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
+    )
+    .await;
     let registry = t3_server::resource_ports::TerminalRegistry::default();
     let discovery = t3_server::resource_discovery::PortDiscovery::new(
         t3_server::resource_discovery::PortDiscoveryOptions::host(os, registry.clone())?,
@@ -270,6 +420,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         workspace: Some(t3_server::workspace_entries::WorkspaceEntries::from_host()?),
         terminals: Some(terminals.clone()),
         discovery: Some(discovery.clone()),
+        resource_telemetry: Some(resources.clone()),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -281,6 +432,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     execution.shutdown().await;
     terminals.shutdown().await;
     discovery.shutdown().await;
+    tokio::join!(resources.shutdown(), desktop.shutdown());
     telemetry.shutdown().await;
     Ok(())
 }

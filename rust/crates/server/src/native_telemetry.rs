@@ -86,6 +86,8 @@ struct Outgoing {
 struct Shared {
     options: NativeTelemetryOptions,
     health: watch::Sender<NativeTelemetryHealth>,
+    health_events: broadcast::Sender<NativeTelemetryHealth>,
+    health_publication: Mutex<()>,
     snapshots: broadcast::Sender<NativeSnapshot>,
     writer: Mutex<Option<mpsc::Sender<Outgoing>>>,
     pending: Mutex<HashMap<String, Pending>>,
@@ -109,6 +111,19 @@ impl Drop for Inner {
 }
 #[derive(Clone)]
 pub struct NativeTelemetryClient(Arc<Inner>);
+/// Source sliding-four health changes with an atomically paired current value.
+pub struct NativeHealthSubscription {
+    pub latest: NativeTelemetryHealth,
+    receiver: broadcast::Receiver<NativeTelemetryHealth>,
+    stopped: watch::Receiver<bool>,
+}
+impl NativeHealthSubscription {
+    pub async fn recv(&mut self) -> Option<NativeTelemetryHealth> {
+        loop {
+            tokio::select! {biased;_=self.stopped.wait_for(|stopped|*stopped)=>return None,event=self.receiver.recv()=>match event{Ok(event)=>return Some(event),Err(broadcast::error::RecvError::Lagged(_))=>continue,Err(_)=>return None}}
+        }
+    }
+}
 struct PendingGuard {
     shared: Arc<Shared>,
     id: String,
@@ -157,7 +172,9 @@ fn command_error(operation: impl Into<String>, error: impl std::fmt::Display) ->
 }
 impl Shared {
     fn update_health(&self, update: impl FnOnce(&mut NativeTelemetryHealth)) {
+        let _publication = self.health_publication.lock().unwrap();
         self.health.send_modify(update);
+        let _ = self.health_events.send(self.health.borrow().clone());
     }
     fn unavailable(&self) -> TelemetryError {
         TelemetryError::Unavailable {
@@ -342,11 +359,14 @@ impl NativeTelemetryClient {
             sample_interval_ms: 5000,
         });
         let (snapshots, _) = broadcast::channel(8);
+        let (health_events, _) = broadcast::channel(4);
         let (stop, stopped) = watch::channel(false);
         let (releases, mut released) = mpsc::unbounded_channel();
         let shared = Arc::new(Shared {
             options,
             health,
+            health_events,
+            health_publication: Mutex::new(()),
             snapshots,
             writer: Mutex::new(None),
             pending: Mutex::new(HashMap::new()),
@@ -395,6 +415,15 @@ impl NativeTelemetryClient {
     }
     pub fn subscribe_health(&self) -> watch::Receiver<NativeTelemetryHealth> {
         self.0.shared.health.subscribe()
+    }
+    pub fn subscribe_health_events(&self) -> NativeHealthSubscription {
+        let shared = &self.0.shared;
+        let _publication = shared.health_publication.lock().unwrap();
+        NativeHealthSubscription {
+            latest: shared.health.borrow().clone(),
+            receiver: shared.health_events.subscribe(),
+            stopped: shared.stop.subscribe(),
+        }
     }
     pub fn capabilities(&self) -> Result<ResourceMonitorCapabilities, TelemetryError> {
         self.health()
@@ -943,6 +972,42 @@ mod tests {
             "owned sidecar remains alive"
         );
         assert_eq!(io::Error::last_os_error().raw_os_error(), Some(libc::ESRCH));
+    }
+    #[tokio::test]
+    async fn sliding_four_health_events_atomically_pair_seed_and_subscription() {
+        let (_directory, client) = fixture("normal");
+        healthy(&client).await;
+        let mut events = client.subscribe_health_events();
+        for index in 1..=10 {
+            client
+                .0
+                .shared
+                .update_health(|health| health.restart_count = index);
+        }
+        for expected in 7..=10 {
+            assert_eq!(events.recv().await.unwrap().restart_count, expected);
+        }
+        for expected in 11..111 {
+            let barrier = Arc::new(std::sync::Barrier::new(2));
+            let update = client.clone();
+            let started = barrier.clone();
+            let writer = std::thread::spawn(move || {
+                started.wait();
+                update
+                    .0
+                    .shared
+                    .update_health(|health| health.restart_count = expected);
+            });
+            barrier.wait();
+            let mut subscription = client.subscribe_health_events();
+            writer.join().unwrap();
+            if subscription.latest.restart_count < expected {
+                assert_eq!(subscription.recv().await.unwrap().restart_count, expected);
+            } else {
+                assert_eq!(subscription.latest.restart_count, expected);
+            }
+        }
+        client.shutdown().await;
     }
     #[tokio::test]
     async fn sidecar_handshake_correlated_requests_chunked_history_and_owned_shutdown() {

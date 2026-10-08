@@ -40,6 +40,7 @@ pub struct ApiState {
     pub workspace: Option<crate::workspace_entries::WorkspaceEntries>,
     pub terminals: Option<crate::terminal_manager::TerminalManager>,
     pub discovery: Option<crate::resource_discovery::PortDiscovery>,
+    pub resource_telemetry: Option<crate::resource_telemetry_service::ResourceTelemetry>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -576,9 +577,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeResourceTelemetry") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -605,6 +606,34 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
 }
 
 async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Value> {
+    if matches!(
+        request.tag.as_str(),
+        "server.getResourceTelemetryHistory" | "server.retryResourceTelemetry"
+    ) {
+        let service = state.resource_telemetry.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Resource telemetry is not configured."}))?;
+        return match request.tag.as_str() {
+            "server.getResourceTelemetryHistory" => {
+                let input: t3_contracts::ResourceTelemetryHistoryInput = terminal_decode(&request)?;
+                let history = service.read_history(&input).await;
+                let typed = history.wire().map_err(
+                    |error| json!({"_tag":"NativeServiceError","message":error.to_string()}),
+                )?;
+                Ok(serde_json::to_value(typed).unwrap())
+            }
+            _ => {
+                if request.payload.is_null() {
+                    return Err(
+                        json!({"_tag":"SchemaDecodeError","message":"Expected a non-null value."}),
+                    );
+                }
+                let typed: t3_contracts::ResourceTelemetryRetryResult =
+                    serde_json::from_value(service.retry()).map_err(
+                        |error| json!({"_tag":"NativeServiceError","message":error.to_string()}),
+                    )?;
+                Ok(serde_json::to_value(typed).unwrap())
+            }
+        };
+    }
     if request.tag.starts_with("terminal.") {
         return terminal_rpc(&state, &request).await;
     }
@@ -777,6 +806,38 @@ fn discovery_value(
         .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
     serde_json::to_value(typed)
         .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))
+}
+
+async fn resource_telemetry_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result=async {
+        // Original Schema.Struct({}) accepts every non-null encoded value.
+        if request.payload.is_null(){return Err(json!({"_tag":"SchemaDecodeError","message":"Expected a non-null value."}));}
+        let service=state.resource_telemetry.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Resource telemetry is not configured."}))?;
+        let mut subscription=service.subscribe().await.ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Resource telemetry stopped."}))?;
+        let mut next=subscription.latest.clone();
+        loop {
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            let typed: t3_contracts::ResourceTelemetrySnapshot=serde_json::from_value(next).map_err(|error|json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+            let sent=tokio::select! {biased;_=service.closed()=>return Ok(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(typed).unwrap()])=>sent};
+            if !sent{return Ok(());}
+            match subscription.recv().await {Some(value)=>next=value,None=>return Ok(())}
+        }
+    }.await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
 }
 
 async fn discovery_stream(
@@ -1214,6 +1275,141 @@ mod tests {
         stop.send(()).unwrap();
         server.await.unwrap();
     }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn resource_telemetry_socket_scopes_history_retry_ack_and_owned_shutdown() {
+        use crate::{
+            desktop_telemetry::{DesktopTelemetryOptions, DesktopTelemetryReceiver},
+            native_telemetry::{NativeTelemetryClient, NativeTelemetryOptions},
+            resource_attribution::ResourceAttribution,
+            resource_telemetry_service::ResourceTelemetry,
+        };
+        use std::{os::unix::fs::PermissionsExt, sync::Arc, time::Duration};
+        use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
+        let directory = tempfile::tempdir().unwrap();
+        let script = directory.path().join("monitor.py");
+        std::fs::write(
+            &script,
+            include_str!("../tests/fixtures/resource-monitor.py")
+                .replace("__MODE__", "normal")
+                .replace("__LOG__", ""),
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let mut options = NativeTelemetryOptions::host(directory.path().to_owned(), None);
+        options.binary.overrides = vec![script];
+        options.binary.directories.clear();
+        let native = NativeTelemetryClient::new(options);
+        let mut health = native.subscribe_health();
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            health.wait_for(|health| {
+                health.status == t3_contracts::ResourceTelemetrySourceStatus::Healthy
+            }),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let desktop =
+            DesktopTelemetryReceiver::new(DesktopTelemetryOptions::unavailable("web")).await;
+        let telemetry = ResourceTelemetry::new(
+            native.clone(),
+            desktop.clone(),
+            ResourceAttribution::default(),
+            std::process::id() as u64,
+            Arc::new(|| 5000),
+        )
+        .await;
+        let mut api = state();
+        api.resource_telemetry = Some(telemetry.clone());
+        let diagnostic = token(&api, vec![AuthEnvironmentScope::DiagnosticsRead]);
+        let readonly = token(&api, vec![AuthEnvironmentScope::OrchestrationRead]);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router(api))
+                .with_graceful_shutdown(async {
+                    let _ = stopped.await;
+                })
+                .await
+                .unwrap();
+        });
+        let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
+            .into_client_request()
+            .unwrap();
+        request.headers_mut().insert(
+            "Authorization",
+            format!("Bearer {diagnostic}").parse().unwrap(),
+        );
+        let (mut socket, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+        async fn next(
+            socket: &mut tokio_tungstenite::WebSocketStream<
+                tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+            >,
+        ) -> Value {
+            let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap();
+            serde_json::from_str(message.to_text().unwrap()).unwrap()
+        }
+        socket.send(Message::Text(json!({"_tag":"Request","id":1,"tag":"subscribeResourceTelemetry","payload":{},"headers":[]}).to_string().into())).await.unwrap();
+        let initial = next(&mut socket).await;
+        assert_eq!(initial["_tag"], "Chunk");
+        let _: t3_contracts::ResourceTelemetrySnapshot =
+            serde_json::from_value(initial["values"][0].clone()).unwrap();
+        // Unary work remains usable on the same socket while its stream awaits Ack.
+        for (id, tag, payload) in [
+            (
+                2,
+                "server.getResourceTelemetryHistory",
+                json!({"windowMs":5000,"bucketMs":1000}),
+            ),
+            (3, "server.retryResourceTelemetry", json!({})),
+        ] {
+            socket
+                .send(Message::Text(
+                    json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]})
+                        .to_string()
+                        .into(),
+                ))
+                .await
+                .unwrap();
+            let reply = next(&mut socket).await;
+            assert_eq!(reply["requestId"], id);
+            assert_eq!(reply["exit"]["_tag"], "Success");
+            if id == 2 {
+                let _: t3_contracts::ResourceTelemetryHistory =
+                    serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
+            } else {
+                let _: t3_contracts::ResourceTelemetryRetryResult =
+                    serde_json::from_value(reply["exit"]["value"].clone()).unwrap();
+            }
+        }
+        let mut request = format!("ws://{address}/ws?orchestrationProtocol=2")
+            .into_client_request()
+            .unwrap();
+        request.headers_mut().insert(
+            "Authorization",
+            format!("Bearer {readonly}").parse().unwrap(),
+        );
+        let (mut reader, _) = tokio_tungstenite::connect_async(request).await.unwrap();
+        reader.send(Message::Text(json!({"_tag":"Request","id":4,"tag":"subscribeResourceTelemetry","payload":{},"headers":[]}).to_string().into())).await.unwrap();
+        let refused = next(&mut reader).await;
+        assert_eq!(refused["exit"]["_tag"], "Failure");
+        assert!(refused.to_string().contains("diagnostics:read"));
+        tokio::join!(telemetry.shutdown(), desktop.shutdown());
+        let exit = next(&mut socket).await;
+        assert_eq!(exit["requestId"], 1);
+        assert_eq!(exit["_tag"], "Exit");
+        socket.close(None).await.unwrap();
+        reader.close(None).await.unwrap();
+        stop.send(()).unwrap();
+        server.await.unwrap();
+        native.shutdown().await;
+    }
     #[tokio::test]
     async fn discovery_socket_preserves_queued_scan_time_and_exits_on_service_shutdown() {
         use crate::{
@@ -1365,6 +1561,7 @@ mod tests {
             workspace: None,
             terminals: None,
             discovery: None,
+            resource_telemetry: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

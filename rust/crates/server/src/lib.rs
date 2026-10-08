@@ -45,3 +45,7 @@ pub mod resource_model;
 pub mod resource_history;
 
 pub mod desktop_telemetry;
+
+pub mod resource_attribution;
+pub mod resource_telemetry_service;
+pub mod desktop_telemetry_bootstrap;
