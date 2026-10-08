@@ -1,0 +1,144 @@
+{"kind":"normalize","raw":"","platform":"darwin","expected":null}
+{"kind":"normalize","raw":"  ","platform":"darwin","expected":null}
+{"kind":"normalize","raw":"﻿/bin/zsh﻿","platform":"darwin","expected":"zsh"}
+{"kind":"normalize","raw":"zsh","platform":"darwin","expected":"zsh"}
+{"kind":"normalize","raw":" [ /usr/bin/bash ] ","platform":"darwin","expected":"bash"}
+{"kind":"normalize","raw":"(node --inspect)","platform":"darwin","expected":"node"}
+{"kind":"normalize","raw":"[/usr/bin/node]","platform":"darwin","expected":"node"}
+{"kind":"normalize","raw":"/bin/my command","platform":"darwin","expected":"my"}
+{"kind":"normalize","raw":"C:\\Windows\\System32\\CMD.EXE args","platform":"darwin","expected":"C:\\Windows\\System32\\CMD.EXE"}
+{"kind":"normalize","raw":"C:/Windows/PWSH.exe","platform":"darwin","expected":"PWSH.exe"}
+{"kind":"normalize","raw":"/","platform":"darwin","expected":null}
+{"kind":"normalize","raw":".exe","platform":"darwin","expected":".exe"}
+{"kind":"normalize","raw":"[]","platform":"darwin","expected":null}
+{"kind":"normalize","raw":"[ ]","platform":"darwin","expected":null}
+{"kind":"normalize","raw":"vimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvim","platform":"darwin","expected":"vimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvim"}
+{"kind":"normalize","raw":"前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前","platform":"darwin","expected":"前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前"}
+{"kind":"normalize","raw":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","platform":"darwin","expected":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"}
+{"kind":"normalize","raw":"vim ignored","platform":"darwin","expected":"vim"}
+{"kind":"normalize","raw":"xkept","platform":"darwin","expected":"xkept"}
+{"kind":"entries","entries":[],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"zsh"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"[zsh]"},{"pid":102,"ppid":100,"name":"/usr/bin/vim"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101,102]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"zsh"},{"pid":102,"ppid":101,"name":"node"},{"pid":103,"ppid":100,"name":"python"},{"pid":104,"ppid":103,"name":"worker"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"zsh","processIds":[100,101,103,104,102]}}
+{"kind":"entries","entries":[{"pid":101,"ppid":100,"name":""}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":null,"processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":101,"name":"zsh"},{"pid":101,"ppid":100,"name":"bash"},{"pid":101,"ppid":100,"name":"vim"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100.5,"ppid":1,"name":"bad"},{"pid":101,"ppid":100,"name":"node"},{"pid":102,"ppid":100.5,"name":"badparent"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"pwsh.exe"},{"pid":101,"ppid":100,"name":"C:\\Windows\\PWSH.EXE"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"C:\\Windows\\PWSH.EXE","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"sh"},{"pid":101,"ppid":100,"name":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}],"pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","processIds":[100,101]}}
+{"kind":"posix","stdout":" 100 1 /bin/zsh\n101 100 /usr/bin/vim editor\n","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101]}}
+{"kind":"posix","stdout":"100 1 zsh\r\n101 100 zsh\r\n102 101 node\r\n","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"zsh","processIds":[100,101,102]}}
+{"kind":"posix","stdout":"ignored\n-100 1 bad\n100.0 1 bad\n100 1 sh\n101 100 \n102 100\n103 100 grep\n","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"grep","processIds":[100,103]}}
+{"kind":"posix","stdout":"﻿100 1 zsh﻿\n101 100 vim hidden\n102\t100\t前\n","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"前","processIds":[100,102]}}
+{"kind":"posix","stdout":"100 1 sh\n0 100 zero\n000101 000100 node\n9007199254740993 100 rounded\n","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"zero","processIds":[100,0,101,9007199254740992]}}
+{"kind":"posix","stdout":"100 1 sh\n101 100 vim\n101 100 node\n102 101 worker\n100 102 sh\n","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101,102]}}
+{"kind":"posix","stdout":"100 1 sh\n101 100 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","pid":100,"platform":"darwin","expected":{"hasRunningSubprocess":true,"childCommand":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","processIds":[100,101]}}
+{"kind":"normalize","raw":"","platform":"linux","expected":null}
+{"kind":"normalize","raw":"  ","platform":"linux","expected":null}
+{"kind":"normalize","raw":"﻿/bin/zsh﻿","platform":"linux","expected":"zsh"}
+{"kind":"normalize","raw":"zsh","platform":"linux","expected":"zsh"}
+{"kind":"normalize","raw":" [ /usr/bin/bash ] ","platform":"linux","expected":"bash"}
+{"kind":"normalize","raw":"(node --inspect)","platform":"linux","expected":"node"}
+{"kind":"normalize","raw":"[/usr/bin/node]","platform":"linux","expected":"node"}
+{"kind":"normalize","raw":"/bin/my command","platform":"linux","expected":"my"}
+{"kind":"normalize","raw":"C:\\Windows\\System32\\CMD.EXE args","platform":"linux","expected":"C:\\Windows\\System32\\CMD.EXE"}
+{"kind":"normalize","raw":"C:/Windows/PWSH.exe","platform":"linux","expected":"PWSH.exe"}
+{"kind":"normalize","raw":"/","platform":"linux","expected":null}
+{"kind":"normalize","raw":".exe","platform":"linux","expected":".exe"}
+{"kind":"normalize","raw":"[]","platform":"linux","expected":null}
+{"kind":"normalize","raw":"[ ]","platform":"linux","expected":null}
+{"kind":"normalize","raw":"vimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvim","platform":"linux","expected":"vimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvim"}
+{"kind":"normalize","raw":"前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前","platform":"linux","expected":"前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前"}
+{"kind":"normalize","raw":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","platform":"linux","expected":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"}
+{"kind":"normalize","raw":"vim ignored","platform":"linux","expected":"vim"}
+{"kind":"normalize","raw":"xkept","platform":"linux","expected":"xkept"}
+{"kind":"entries","entries":[],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"zsh"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"[zsh]"},{"pid":102,"ppid":100,"name":"/usr/bin/vim"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101,102]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"zsh"},{"pid":102,"ppid":101,"name":"node"},{"pid":103,"ppid":100,"name":"python"},{"pid":104,"ppid":103,"name":"worker"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"zsh","processIds":[100,101,103,104,102]}}
+{"kind":"entries","entries":[{"pid":101,"ppid":100,"name":""}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":null,"processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":101,"name":"zsh"},{"pid":101,"ppid":100,"name":"bash"},{"pid":101,"ppid":100,"name":"vim"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100.5,"ppid":1,"name":"bad"},{"pid":101,"ppid":100,"name":"node"},{"pid":102,"ppid":100.5,"name":"badparent"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"pwsh.exe"},{"pid":101,"ppid":100,"name":"C:\\Windows\\PWSH.EXE"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"C:\\Windows\\PWSH.EXE","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"sh"},{"pid":101,"ppid":100,"name":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}],"pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","processIds":[100,101]}}
+{"kind":"posix","stdout":" 100 1 /bin/zsh\n101 100 /usr/bin/vim editor\n","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101]}}
+{"kind":"posix","stdout":"100 1 zsh\r\n101 100 zsh\r\n102 101 node\r\n","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"zsh","processIds":[100,101,102]}}
+{"kind":"posix","stdout":"ignored\n-100 1 bad\n100.0 1 bad\n100 1 sh\n101 100 \n102 100\n103 100 grep\n","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"grep","processIds":[100,103]}}
+{"kind":"posix","stdout":"﻿100 1 zsh﻿\n101 100 vim hidden\n102\t100\t前\n","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"前","processIds":[100,102]}}
+{"kind":"posix","stdout":"100 1 sh\n0 100 zero\n000101 000100 node\n9007199254740993 100 rounded\n","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"zero","processIds":[100,0,101,9007199254740992]}}
+{"kind":"posix","stdout":"100 1 sh\n101 100 vim\n101 100 node\n102 101 worker\n100 102 sh\n","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101,102]}}
+{"kind":"posix","stdout":"100 1 sh\n101 100 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","pid":100,"platform":"linux","expected":{"hasRunningSubprocess":true,"childCommand":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","processIds":[100,101]}}
+{"kind":"normalize","raw":"","platform":"win32","expected":null}
+{"kind":"normalize","raw":"  ","platform":"win32","expected":null}
+{"kind":"normalize","raw":"﻿/bin/zsh﻿","platform":"win32","expected":"zsh"}
+{"kind":"normalize","raw":"zsh","platform":"win32","expected":"zsh"}
+{"kind":"normalize","raw":" [ /usr/bin/bash ] ","platform":"win32","expected":"bash"}
+{"kind":"normalize","raw":"(node --inspect)","platform":"win32","expected":"node"}
+{"kind":"normalize","raw":"[/usr/bin/node]","platform":"win32","expected":"node"}
+{"kind":"normalize","raw":"/bin/my command","platform":"win32","expected":"my"}
+{"kind":"normalize","raw":"C:\\Windows\\System32\\CMD.EXE args","platform":"win32","expected":"CMD"}
+{"kind":"normalize","raw":"C:/Windows/PWSH.exe","platform":"win32","expected":"PWSH"}
+{"kind":"normalize","raw":"/","platform":"win32","expected":null}
+{"kind":"normalize","raw":".exe","platform":"win32","expected":null}
+{"kind":"normalize","raw":"[]","platform":"win32","expected":null}
+{"kind":"normalize","raw":"[ ]","platform":"win32","expected":null}
+{"kind":"normalize","raw":"vimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvim","platform":"win32","expected":"vimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvimvim"}
+{"kind":"normalize","raw":"前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前","platform":"win32","expected":"前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前前"}
+{"kind":"normalize","raw":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","platform":"win32","expected":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"}
+{"kind":"normalize","raw":"vim ignored","platform":"win32","expected":"vim"}
+{"kind":"normalize","raw":"xkept","platform":"win32","expected":"xkept"}
+{"kind":"entries","entries":[],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"zsh"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"[zsh]"},{"pid":102,"ppid":100,"name":"/usr/bin/vim"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101,102]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"/bin/zsh"},{"pid":101,"ppid":100,"name":"zsh"},{"pid":102,"ppid":101,"name":"node"},{"pid":103,"ppid":100,"name":"python"},{"pid":104,"ppid":103,"name":"worker"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"zsh","processIds":[100,101,103,104,102]}}
+{"kind":"entries","entries":[{"pid":101,"ppid":100,"name":""}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":null,"processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":101,"name":"zsh"},{"pid":101,"ppid":100,"name":"bash"},{"pid":101,"ppid":100,"name":"vim"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100.5,"ppid":1,"name":"bad"},{"pid":101,"ppid":100,"name":"node"},{"pid":102,"ppid":100.5,"name":"badparent"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"pwsh.exe"},{"pid":101,"ppid":100,"name":"C:\\Windows\\PWSH.EXE"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"PWSH","processIds":[100,101]}}
+{"kind":"entries","entries":[{"pid":100,"ppid":1,"name":"sh"},{"pid":101,"ppid":100,"name":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}],"pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","processIds":[100,101]}}
+{"kind":"posix","stdout":" 100 1 /bin/zsh\n101 100 /usr/bin/vim editor\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"vim","processIds":[100,101]}}
+{"kind":"posix","stdout":"100 1 zsh\r\n101 100 zsh\r\n102 101 node\r\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"zsh","processIds":[100,101,102]}}
+{"kind":"posix","stdout":"ignored\n-100 1 bad\n100.0 1 bad\n100 1 sh\n101 100 \n102 100\n103 100 grep\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"grep","processIds":[100,103]}}
+{"kind":"posix","stdout":"﻿100 1 zsh﻿\n101 100 vim hidden\n102\t100\t前\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"前","processIds":[100,102]}}
+{"kind":"posix","stdout":"100 1 sh\n0 100 zero\n000101 000100 node\n9007199254740993 100 rounded\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"zero","processIds":[100,0,101,9007199254740992]}}
+{"kind":"posix","stdout":"100 1 sh\n101 100 vim\n101 100 node\n102 101 worker\n100 102 sh\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101,102]}}
+{"kind":"posix","stdout":"100 1 sh\n101 100 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","processIds":[100,101]}}
+{"kind":"windows","stdout":"100|1|pwsh.exe\r\n101|100|node.exe\r\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101]}}
+{"kind":"windows","stdout":"100|1|pwsh.exe\n101|100|PWSH.EXE\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"PWSH","processIds":[100,101]}}
+{"kind":"windows","stdout":"100|1|pwsh.exe\n101|100|pwsh.exe\n102|101|node.exe\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"pwsh","processIds":[100,101,102]}}
+{"kind":"windows","stdout":"100|1|pwsh.exe\n0|100|zero\n-1|100|negative\n101.5|100|fraction\n102|100.5|fractionParent\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":false,"childCommand":null,"processIds":[]}}
+{"kind":"windows","stdout":"100|1|pwsh.exe\n0x65|1e2|C:\\x\\node.EXE|discarded\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"node","processIds":[100,101]}}
+{"kind":"windows","stdout":"100|1|cmd.exe\n101||emptyParent\n102|100|﻿Node.EXE﻿\n","pid":100,"platform":"win32","expected":{"hasRunningSubprocess":true,"childCommand":"Node","processIds":[100,102]}}
+{"kind":"delay","interval":0,"failures":0,"expected":0}
+{"kind":"delay","interval":0,"failures":1,"expected":0}
+{"kind":"delay","interval":0,"failures":2,"expected":0}
+{"kind":"delay","interval":0,"failures":6,"expected":0}
+{"kind":"delay","interval":0,"failures":30,"expected":0}
+{"kind":"delay","interval":1,"failures":0,"expected":1}
+{"kind":"delay","interval":1,"failures":1,"expected":2}
+{"kind":"delay","interval":1,"failures":2,"expected":4}
+{"kind":"delay","interval":1,"failures":6,"expected":64}
+{"kind":"delay","interval":1,"failures":30,"expected":60000}
+{"kind":"delay","interval":1000,"failures":0,"expected":1000}
+{"kind":"delay","interval":1000,"failures":1,"expected":2000}
+{"kind":"delay","interval":1000,"failures":2,"expected":4000}
+{"kind":"delay","interval":1000,"failures":6,"expected":60000}
+{"kind":"delay","interval":1000,"failures":30,"expected":60000}
+{"kind":"delay","interval":1500,"failures":0,"expected":1500}
+{"kind":"delay","interval":1500,"failures":1,"expected":3000}
+{"kind":"delay","interval":1500,"failures":2,"expected":6000}
+{"kind":"delay","interval":1500,"failures":6,"expected":60000}
+{"kind":"delay","interval":1500,"failures":30,"expected":60000}
+{"kind":"delay","interval":60000,"failures":0,"expected":60000}
+{"kind":"delay","interval":60000,"failures":1,"expected":60000}
+{"kind":"delay","interval":60000,"failures":2,"expected":60000}
+{"kind":"delay","interval":60000,"failures":6,"expected":60000}
+{"kind":"delay","interval":60000,"failures":30,"expected":60000}
+{"kind":"delay","interval":100000,"failures":0,"expected":60000}
+{"kind":"delay","interval":100000,"failures":1,"expected":60000}
+{"kind":"delay","interval":100000,"failures":2,"expected":60000}
+{"kind":"delay","interval":100000,"failures":6,"expected":60000}
+{"kind":"delay","interval":100000,"failures":30,"expected":60000}

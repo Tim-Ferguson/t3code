@@ -21,7 +21,9 @@ pub mod terminal_history;
 
 pub mod terminal_utf8;
 
+pub mod terminal_activity;
 pub mod terminal_environment;
+pub mod terminal_inspector;
 pub mod terminal_io;
 pub mod terminal_manager;
 pub mod terminal_process;

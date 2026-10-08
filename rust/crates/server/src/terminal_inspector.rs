@@ -1,0 +1,343 @@
+//! One bounded, authoritative process-table snapshot, shared across terminals.
+//! Requests own cancellation; the worker always reaps its captured child before
+//! completion, including when a caller drops the request future.
+use crate::terminal_activity::ProcessTable;
+use futures_util::future::BoxFuture;
+use std::{
+    fmt, io,
+    path::PathBuf,
+    process::Stdio,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::{
+    io::{AsyncRead, AsyncReadExt},
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
+
+#[derive(Clone, Debug)]
+pub struct InspectionError {
+    pub command: &'static str,
+    pub cause: Option<String>,
+    pub exit_code: Option<i32>,
+    pub timed_out: bool,
+    pub stdout_truncated: bool,
+}
+impl InspectionError {
+    pub fn source(command: &'static str, cause: impl fmt::Display) -> Self {
+        Self {
+            command,
+            cause: Some(cause.to_string()),
+            exit_code: None,
+            timed_out: false,
+            stdout_truncated: false,
+        }
+    }
+}
+impl fmt::Display for InspectionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Failed to inspect terminal subprocesses with {}",
+            self.command
+        )?;
+        let mut details = Vec::new();
+        if let Some(code) = self.exit_code {
+            details.push(format!("exit code {code}"));
+        }
+        if self.timed_out {
+            details.push("timed out".into());
+        }
+        if self.stdout_truncated {
+            details.push("output truncated".into());
+        }
+        if !details.is_empty() {
+            write!(f, " ({})", details.join(", "))?;
+        }
+        Ok(())
+    }
+}
+impl std::error::Error for InspectionError {}
+pub type ProcessTableProvider =
+    Arc<dyn Fn() -> BoxFuture<'static, Result<ProcessTable, InspectionError>> + Send + Sync>;
+
+struct Task {
+    cancel: watch::Sender<bool>,
+    handle: JoinHandle<()>,
+}
+struct Inner {
+    tasks: Mutex<Option<Vec<Task>>>,
+    spec: CommandSpec,
+    shutdown: tokio::sync::Mutex<()>,
+}
+impl Drop for Inner {
+    fn drop(&mut self) {
+        if let Some(tasks) = self.tasks.get_mut().unwrap().take() {
+            for task in tasks {
+                task.cancel.send_replace(true);
+            }
+        }
+    }
+}
+#[derive(Clone)]
+pub struct NativeProcessTable(Arc<Inner>);
+#[derive(Clone)]
+struct CommandSpec {
+    command: PathBuf,
+    args: Vec<String>,
+    label: &'static str,
+    windows: bool,
+    timeout: Duration,
+    max_bytes: usize,
+    #[cfg(test)]
+    started: Option<Arc<(std::sync::atomic::AtomicU32, tokio::sync::Notify)>>,
+}
+struct Cancel(watch::Sender<bool>);
+impl Drop for Cancel {
+    fn drop(&mut self) {
+        self.0.send_replace(true);
+    }
+}
+impl NativeProcessTable {
+    pub fn new(platform: &str) -> Self {
+        let windows = platform == "win32";
+        let command = if windows {
+            PathBuf::from("powershell.exe")
+        } else {
+            ["/bin/ps", "/usr/bin/ps"]
+                .into_iter()
+                .find(|candidate| std::path::Path::new(candidate).exists())
+                .unwrap_or("ps")
+                .into()
+        };
+        let args = if windows {
+            vec!["-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance Win32_Process -ErrorAction Stop | ForEach-Object { Write-Output \"$($_.ProcessId)|$($_.ParentProcessId)|$($_.Name)\" }"]
+        } else { vec!["-eo", "pid=,ppid=,comm="] }.into_iter().map(String::from).collect();
+        Self::with_spec(CommandSpec {
+            command,
+            args,
+            label: if windows { "powershell" } else { "ps" },
+            windows,
+            timeout: Duration::from_millis(if windows { 1500 } else { 1000 }),
+            max_bytes: if windows { 262_144 } else { 524_288 },
+            #[cfg(test)]
+            started: None,
+        })
+    }
+    fn with_spec(spec: CommandSpec) -> Self {
+        Self(Arc::new(Inner {
+            tasks: Mutex::new(Some(Vec::new())),
+            spec,
+            shutdown: tokio::sync::Mutex::new(()),
+        }))
+    }
+    pub async fn snapshot(&self) -> Result<ProcessTable, InspectionError> {
+        let (result, receive) = oneshot::channel();
+        let (cancel, cancelled) = watch::channel(false);
+        let guard = Cancel(cancel.clone());
+        {
+            let mut owned = self.0.tasks.lock().unwrap();
+            let tasks = owned.as_mut().ok_or_else(|| {
+                InspectionError::source(self.0.spec.label, "process-table source is shut down")
+            })?;
+            tasks.retain(|task| !task.handle.is_finished());
+            let spec = self.0.spec.clone();
+            tasks.push(Task {
+                cancel,
+                handle: tokio::spawn(async move {
+                    let outcome = run(spec, cancelled).await;
+                    let _ = result.send(outcome);
+                }),
+            });
+        }
+        let result = receive
+            .await
+            .map_err(|cause| InspectionError::source(self.0.spec.label, cause))?;
+        drop(guard);
+        result
+    }
+    pub async fn shutdown(&self) {
+        // Every concurrent caller observes full worker quiescence, rather than
+        // only the first caller taking ownership of the join handles.
+        let _shutdown = self.0.shutdown.lock().await;
+        let tasks = self.0.tasks.lock().unwrap().take().unwrap_or_default();
+        for task in &tasks {
+            task.cancel.send_replace(true);
+        }
+        for task in tasks {
+            if let Err(error) = task.handle.await {
+                tracing::warn!(%error, "process-table worker failed");
+            }
+        }
+    }
+}
+
+async fn collect(
+    mut reader: impl AsyncRead + Unpin,
+    max_bytes: usize,
+) -> io::Result<(Vec<u8>, bool)> {
+    let mut retained = Vec::new();
+    let mut buffer = [0_u8; 8192];
+    let mut truncated = false;
+    loop {
+        let count = reader.read(&mut buffer).await?;
+        if count == 0 {
+            break;
+        }
+        let remaining = max_bytes.saturating_sub(retained.len());
+        retained.extend_from_slice(&buffer[..count.min(remaining)]);
+        truncated |= count > remaining;
+    }
+    Ok((retained, truncated))
+}
+async fn run(
+    spec: CommandSpec,
+    mut cancelled: watch::Receiver<bool>,
+) -> Result<ProcessTable, InspectionError> {
+    if *cancelled.borrow() {
+        return Err(InspectionError::source(
+            spec.label,
+            "process inspection cancelled",
+        ));
+    }
+    let mut child = tokio::process::Command::new(&spec.command)
+        .args(&spec.args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|cause| InspectionError::source(spec.label, cause))?;
+    #[cfg(test)]
+    if let Some(started) = &spec.started {
+        started
+            .0
+            .store(child.id().unwrap(), std::sync::atomic::Ordering::SeqCst);
+        started.1.notify_one();
+    }
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    let complete = async {
+        tokio::try_join!(
+            child.wait(),
+            collect(stdout, spec.max_bytes),
+            collect(stderr, spec.max_bytes)
+        )
+    };
+    let outcome = tokio::select! {
+        biased;
+        _ = cancelled.wait_for(|value| *value) => Err(InspectionError::source(spec.label, "process inspection cancelled")),
+        outcome = tokio::time::timeout(spec.timeout, complete) => match outcome {
+            Err(_) => Err(InspectionError { command: spec.label, cause: None, exit_code: None, timed_out: true, stdout_truncated: false }),
+            Ok(Err(cause)) => Err(InspectionError::source(spec.label, cause)),
+            Ok(Ok((status, (stdout, truncated), _stderr))) => {
+                if status.code() != Some(0) || truncated {
+                    Err(InspectionError { command: spec.label, cause: None, exit_code: status.code(), timed_out: false, stdout_truncated: truncated })
+                } else {
+                    let text = String::from_utf8_lossy(&stdout);
+                    Ok(if spec.windows { ProcessTable::windows(&text) } else { ProcessTable::posix(&text) })
+                }
+            }
+        }
+    };
+    if outcome.is_err() {
+        // This is this command's unreaped child handle, never a matched PID.
+        if let Err(error) = child.kill().await {
+            tracing::debug!(%error, "process-table child already exited or could not be killed");
+        }
+        if let Err(error) = child.wait().await {
+            tracing::warn!(%error, "failed to reap process-table child");
+        }
+    }
+    outcome
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    fn fixture(directory: &std::path::Path, body: &str, max_bytes: usize) -> NativeProcessTable {
+        let script = directory.join("process-table.py");
+        std::fs::write(&script, format!("#!/usr/bin/env python3\n{body}\n")).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+        NativeProcessTable::with_spec(CommandSpec {
+            command: script,
+            args: vec![],
+            label: "ps",
+            windows: false,
+            timeout: Duration::from_secs(3),
+            max_bytes,
+            started: None,
+        })
+    }
+    #[tokio::test]
+    async fn authoritative_table_requires_success_and_full_output() {
+        let directory = tempfile::tempdir().unwrap();
+        let source = fixture(directory.path(), "print('100 1 sh\\n101 100 vim')", 1024);
+        assert_eq!(
+            source
+                .snapshot()
+                .await
+                .unwrap()
+                .inspect(
+                    crate::terminal_activity::ProcessId::new(100.0).unwrap(),
+                    "linux"
+                )
+                .child_command
+                .as_deref(),
+            Some("vim")
+        );
+        source.shutdown().await;
+        let source = fixture(directory.path(), "print('100 1 sh\\n101 100 vim')", 10);
+        let error = source.snapshot().await.unwrap_err();
+        assert!(error.stdout_truncated);
+        assert_eq!(error.exit_code, Some(0));
+        source.shutdown().await;
+        let source = fixture(
+            directory.path(),
+            "import sys;print('100 1 sh');sys.exit(7)",
+            1024,
+        );
+        assert_eq!(source.snapshot().await.unwrap_err().exit_code, Some(7));
+        source.shutdown().await;
+    }
+    #[tokio::test]
+    async fn dropped_request_cancels_and_reaps_owned_child_before_source_shutdown_completes() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut source = fixture(directory.path(), "import signal;signal.pause()", 1024);
+        let started = Arc::new((
+            std::sync::atomic::AtomicU32::new(0),
+            tokio::sync::Notify::new(),
+        ));
+        Arc::get_mut(&mut source.0).unwrap().spec.started = Some(started.clone());
+        let task_source = source.clone();
+        let request = tokio::spawn(async move { task_source.snapshot().await });
+        started.1.notified().await;
+        let pid = started.0.load(std::sync::atomic::Ordering::SeqCst) as i32;
+        assert_eq!(unsafe { libc::kill(pid, 0) }, 0);
+        request.abort();
+        let _ = request.await;
+        source.shutdown().await;
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+        assert_eq!(io::Error::last_os_error().raw_os_error(), Some(libc::ESRCH));
+    }
+    #[tokio::test]
+    async fn timeout_reaps_captured_child_before_returning_failure() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut source = fixture(directory.path(), "import signal;signal.pause()", 1024);
+        let started = Arc::new((
+            std::sync::atomic::AtomicU32::new(0),
+            tokio::sync::Notify::new(),
+        ));
+        let spec = &mut Arc::get_mut(&mut source.0).unwrap().spec;
+        spec.started = Some(started.clone());
+        spec.timeout = Duration::ZERO;
+        assert!(source.snapshot().await.unwrap_err().timed_out);
+        let pid = started.0.load(std::sync::atomic::Ordering::SeqCst) as i32;
+        assert!(pid > 0);
+        assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+        assert_eq!(io::Error::last_os_error().raw_os_error(), Some(libc::ESRCH));
+        source.shutdown().await;
+    }
+}
