@@ -63,6 +63,7 @@ pub struct UiModel {
     pub environments: EnvironmentCatalog,
     pub error: Option<String>,
     pub draft: String,
+    pub timeline_send: Option<(String, String)>,
     pub pending_messages: std::collections::BTreeMap<String, PendingMessage>,
     pub new_thread_drafts: std::collections::BTreeMap<(EnvironmentId, String), String>,
     pub new_thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
@@ -642,12 +643,20 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
             state.pending_messages().write().remove(&pending_id);
             return;
         }
+        let message_id = uuid::Uuid::new_v4().to_string();
         let id = command(
             &handle,
             state,
             "message.dispatch",
-            json!({"threadId":thread_id,"messageId":uuid::Uuid::new_v4().to_string(),"modelSelection":selection,"text":text,"attachments":[],"createdBy":"user","creationSource":creation_source(),"dispatchMode":{"type":"start_immediately"},"deliveryIntent":"auto"}),
+            json!({"threadId":thread_id,"messageId":message_id,"modelSelection":selection,"text":text,"attachments":[],"createdBy":"user","creationSource":creation_source(),"dispatchMode":{"type":"start_immediately"},"deliveryIntent":"auto"}),
         );
+        if id.is_some() {
+            state.timeline_send().set(Some((
+                serde_json::to_string(&(destination.as_str(), &thread_id))
+                    .expect("scoped timeline identity"),
+                message_id,
+            )));
+        }
         let pending = state.pending_messages().write().remove(&pending_id);
         if let Some((id, pending)) = id.zip(pending) {
             state.pending_messages().write().insert(id, pending);

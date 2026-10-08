@@ -10,4 +10,5 @@ pub mod rpc;
 pub mod shell;
 pub mod started_thread;
 pub mod thread;
+pub mod timeline_scroll;
 pub mod work_log;

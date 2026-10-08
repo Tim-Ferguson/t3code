@@ -17,7 +17,7 @@ serde_json.workspace = true
 serde.workspace = true
 chrono.workspace = true
 dioxus-stores = "0.7"
-dioxus = { workspace = true, features = ["document", "asset"] }
+dioxus = { workspace = true, features = ["document", "asset", "mounted"] }
 ewebsock = { version = "0.8", features = ["tls"] }
 futures-channel = "0.3"
 futures-util.workspace = true

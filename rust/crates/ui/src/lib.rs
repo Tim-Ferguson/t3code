@@ -3,8 +3,10 @@ mod draft_storage;
 mod model_controls;
 mod new_thread;
 mod runtime;
+mod scroll_state;
 mod thread_controls;
 mod timeline;
+mod timeline_scroll;
 use dioxus::prelude::*;
 use runtime::{UiModel, UiModelStoreExt, View};
 use serde_json::{Value, json};
@@ -14,6 +16,7 @@ const STYLES: &str = include_str!("../assets/app.css");
 
 #[component]
 pub fn App() -> Element {
+    use_context_provider(timeline_scroll::Positions::default);
     let state = use_store(UiModel::default);
     let transport = use_hook(runtime::TransportHandle::default);
     let startup_transport = transport.clone();
@@ -259,6 +262,11 @@ fn ThreadTimeline(
     if let Some(probe) = try_consume_context::<RenderProbe>() {
         probe.timeline.set(probe.timeline.get() + 1);
     }
+    let owner =
+        serde_json::to_string(&(&environment_key, &thread_id)).expect("scoped timeline identity");
+    let scrolling = timeline_scroll::use_scroll(state, owner);
+    let mount_scroll = scrolling.clone();
+    let latest_scroll = scrolling.clone();
     let thread = state.thread();
     let mut history_loading = use_signal(|| None::<String>);
     let mut history_error = use_signal(|| None::<(String, String)>);
@@ -284,7 +292,7 @@ fn ThreadTimeline(
         })
         .collect();
     rsx! {
-        div { class: "timeline", "aria-label": "Conversation",
+        div { class: "timeline", id:scrolling.id.clone(), tabindex:"0", "aria-label": "Conversation", onmounted:move |_|mount_scroll.mount(),
             if projection.is_some() {
                 if domain.has_more_history || history_error.read().as_ref().is_some_and(|(id,_)|id==&thread_id) {
                     button { "aria-label":"Load earlier messages",class:"load-earlier",disabled:history_loading.read().as_ref()==Some(&thread_id),onclick:{let transport=transport.clone();let thread_id=thread_id.clone();move |_|{
@@ -297,11 +305,16 @@ fn ThreadTimeline(
                     }},if history_loading.read().as_ref()==Some(&thread_id){"Loading earlier messages…"}else{"Load earlier messages"} }
                     if let Some((id,error))=&*history_error.read(){if id==&thread_id {p {class:"history-error",role:"alert","{error}"}}}
                 }
-                for (key,row) in rows { timeline::TimelineItem { key: "{key}", environment_key:environment_key.clone(),item: row["item"].clone(),state,transport:transport.clone(),source_thread_id:row["sourceThreadId"].as_str().unwrap_or(&thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned() } }
+                for (key,row) in rows { div { key:"{key}","data-timeline-row":key.clone(),"data-message-id":row["item"]["messageId"].as_str().unwrap_or_default(),
+                    timeline::TimelineItem { environment_key:environment_key.clone(),item: row["item"].clone(),state,transport:transport.clone(),source_thread_id:row["sourceThreadId"].as_str().unwrap_or(&thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned() }
+                }}
                 for approval in pending.approvals.iter() { ApprovalCard { key: "{approval.id}", approval:approval.clone(), state, transport:transport.clone(),thread_id:thread_id.clone(),can_operate } }
                 for request in pending.user_inputs.iter() { UserInputCard { key: "{request.id}", request:request.clone(),state,transport:transport.clone(),thread_id:thread_id.clone(),can_operate } }
             } else { p { class: "muted", "Loading thread…" } }
+            div {"data-timeline-spacer":"true","aria-hidden":"true"}
         }
+        if let Some(detail)=&*scrolling.error.read() {p {class:"scroll-error",role:"alert",title:detail.clone(),"Automatic conversation scrolling is unavailable. Reload to retry."}}
+        if *scrolling.show_latest.read() {button {class:"scroll-to-end","aria-label":"Scroll to end",onclick:move |_|latest_scroll.latest(),"↓ Latest"}}
     }
 }
 
