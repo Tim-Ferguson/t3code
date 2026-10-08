@@ -22,6 +22,7 @@ struct Call {
 struct Response {
     id: RequestId,
     result: Result<Value, RpcError>,
+    cause: Option<t3_acp::EffectCause>,
 }
 struct FakePeer {
     events: broadcast::Sender<PeerEvent>,
@@ -70,12 +71,34 @@ impl Peer for FakePeer {
     ) -> BoxFuture<'a, Result<(), AcpError>> {
         Box::pin(async move {
             let gate = self.response_gate.lock().unwrap().take();
-            self.responses.send(Response { id, result }).unwrap();
+            self.responses
+                .send(Response {
+                    id,
+                    result,
+                    cause: None,
+                })
+                .unwrap();
             if let Some(gate) = gate {
                 gate.await.map_err(|_| AcpError::Closed)?
             } else {
                 Ok(())
             }
+        })
+    }
+    fn respond_cause<'a>(
+        &'a self,
+        id: RequestId,
+        cause: t3_acp::EffectCause,
+    ) -> BoxFuture<'a, Result<(), AcpError>> {
+        Box::pin(async move {
+            self.responses
+                .send(Response {
+                    id,
+                    result: Err(RpcError::internal()),
+                    cause: Some(cause),
+                })
+                .unwrap();
+            Ok(())
         })
     }
 }
@@ -148,6 +171,91 @@ impl Harness {
 }
 fn prompt() -> Value {
     json!({"sessionId":"s","prompt":[{"type":"text","text":"hello"}]})
+}
+#[tokio::test]
+async fn response_cause_normalization_matches_actual_original_client_failures() {
+    for line in include_str!("fixtures/client-response-errors.jsonl").lines() {
+        let fixture: Value = serde_json::from_str(line).unwrap();
+        let mut h = Harness::new();
+        let core = fixture["core"] == true;
+        let client = h.client.clone();
+        let pending = tokio::spawn(async move {
+            if core {
+                client
+                    .initialize(
+                        json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}),
+                    )
+                    .await
+            } else {
+                client.extension_request("x/test", json!({})).await
+            }
+        });
+        let call = h.call().await;
+        let cause: t3_acp::EffectCause = serde_json::from_value(fixture["error"].clone()).unwrap();
+        let id: RequestId = serde_json::from_value(fixture["requestId"].clone()).unwrap();
+        call.reply
+            .unwrap()
+            .send(Err(AcpError::ResponseCause {
+                method: call.method,
+                request_id: id,
+                cause,
+            }))
+            .unwrap();
+        let error = pending.await.unwrap().unwrap_err();
+        let observed = match error {
+            AcpError::Failure(failure) => {
+                let t3_acp::errors::Failure::Request(error) = failure.as_ref() else {
+                    panic!("wrong category {failure}")
+                };
+                let mut result = json!({"tag":"AcpRequestError","message":error.error_message,"code":error.code});
+                let d = &error.diagnostics;
+                if let Some(method) = &d.method {
+                    result["method"] = json!(method);
+                }
+                if let Some(id) = &d.request_id {
+                    result["requestId"] = json!(id);
+                }
+                if let Some(operation) = d.operation {
+                    result["operation"] = json!(operation);
+                }
+                if let Some(data) = &error.data {
+                    result["data"] = data.clone();
+                }
+                result["causeShape"] = json!(match &d.cause {
+                    Some(t3_acp::errors::FailureCause::Value(value)) if value.is_array() => "array",
+                    Some(t3_acp::errors::FailureCause::Value(value))
+                        if value.get("code").is_some() =>
+                        "protocol-error",
+                    _ => "other",
+                });
+                result
+            }
+            AcpError::ResponseDefect {
+                cause,
+                decode_error,
+                ..
+            } => {
+                let message = if let Some(error) = decode_error {
+                    format!("SchemaError({})", error.issue.formatted())
+                } else {
+                    cause
+                        .data
+                        .iter()
+                        .find_map(|reason| {
+                            if let t3_acp::EffectCauseReason::Die { defect } = reason {
+                                defect.as_str().map(str::to_owned)
+                            } else {
+                                None
+                            }
+                        })
+                        .expect("defect")
+                };
+                json!({"tag":"Defect","message":message,"causeShape":"defect"})
+            }
+            other => panic!("wrong error category {other:?}"),
+        };
+        assert_eq!(observed, fixture["output"], "source fixture {fixture}");
+    }
 }
 fn permission() -> Value {
     json!({"sessionId":"s","title":"Allow?","options":[{"optionId":"allow","name":"Allow","kind":"allow_once"}],"subject":{"type":"command","toolCallId":"tool","command":"echo","cwd":"/workspace"}})
@@ -394,7 +502,15 @@ async fn elicitation_requires_mode_fields_and_preserves_flat_and_legacy_response
         method: "elicitation/create".into(),
         params: json!({"sessionId":"s","mode":"url","message":"sign in"}),
     });
-    assert_eq!(h.response().await.result.unwrap_err().code, -32602);
+    let cause = h
+        .response()
+        .await
+        .cause
+        .expect("malformed core request uses Effect defect");
+    assert!(matches!(
+        &cause.data[..],
+        [t3_acp::EffectCauseReason::Die { .. }]
+    ));
     assert_eq!(calls.load(Ordering::Relaxed), 0);
     for (id, method) in [(2, "elicitation/create"), (3, "session/elicitation")] {
         h.event(PeerEvent::Request{id:RequestId::Number(id.into()),method:method.into(),params:json!({"sessionId":"s","mode":"form","message":"choose","requestedSchema":{"type":"object","properties":{}}})});

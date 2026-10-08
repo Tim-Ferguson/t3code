@@ -18,7 +18,9 @@ pub struct SchemaError {
 pub struct ValidationIssue {
     pub kind: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub path: Vec<String>,
+    pub path: Vec<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub issues: Vec<ValidationIssue>,
 }
@@ -34,6 +36,7 @@ impl ValidationIssue {
         Self {
             kind: kind.into(),
             path: Vec::new(),
+            message: None,
             issues: Vec::new(),
         }
     }
@@ -41,15 +44,72 @@ impl ValidationIssue {
         Self {
             kind: kind.into(),
             path: Vec::new(),
+            message: None,
             issues,
         }
     }
-    fn pointer(key: String, issue: Self) -> Self {
+    pub(crate) fn pointer(key: String, issue: Self) -> Self {
         Self {
             kind: "Pointer".into(),
-            path: vec![key],
+            path: vec![Value::String(key)],
+            message: None,
             issues: vec![issue],
         }
+    }
+    pub(crate) fn pointer_index(index: usize, issue: Self) -> Self {
+        let mut out = Self::pointer(index.to_string(), issue);
+        out.path = vec![Value::from(index)];
+        out
+    }
+    fn with_message(mut self, message: String) -> Self {
+        self.message = Some(message);
+        self
+    }
+    pub fn formatted(&self) -> String {
+        fn render(issue: &ValidationIssue, path: &str) -> String {
+            if issue.kind == "Pointer" {
+                let path = format!(
+                    "{path}{}",
+                    issue
+                        .path
+                        .iter()
+                        .map(|part| format!("[{part}]"))
+                        .collect::<String>()
+                );
+                return issue
+                    .issues
+                    .iter()
+                    .map(|child| render(child, &path))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+            }
+            if let Some(message) = &issue.message {
+                return if path.is_empty() {
+                    message.clone()
+                } else {
+                    format!("{message}\n  at {path}")
+                };
+            }
+            if !issue.issues.is_empty() {
+                return issue
+                    .issues
+                    .iter()
+                    .map(|child| render(child, path))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+            }
+            let message = match issue.kind.as_str() {
+                "MissingKey" => "Missing key",
+                "Forbidden" => "Forbidden operation",
+                _ => "Expected a valid value",
+            };
+            if path.is_empty() {
+                message.into()
+            } else {
+                format!("{message}\n  at {path}")
+            }
+        }
+        render(self, "")
     }
     pub fn diagnostics(&self) -> IssueDiagnostics {
         fn visit(issue: &ValidationIssue, depth: usize, out: &mut IssueDiagnostics) {
@@ -135,6 +195,7 @@ struct Table {
 #[derive(Deserialize)]
 struct Node {
     kind: String,
+    expected: String,
     #[serde(default)]
     checks: Vec<Check>,
     target: Option<usize>,
@@ -162,6 +223,7 @@ struct Index {
 #[serde(rename_all = "camelCase")]
 struct Check {
     kind: String,
+    expected: Option<String>,
     minimum: Option<f64>,
     maximum: Option<f64>,
     min_length: Option<usize>,
@@ -364,19 +426,43 @@ fn collect_issue(id: usize, value: &Value, depth: usize) -> Option<ValidationIss
         return None;
     }
     let n = &table().nodes[id];
+    let invalid_type =
+        || ValidationIssue::leaf("InvalidType").with_message(format!("Expected {}", n.expected));
+    let filter_issue = || {
+        let failure = check(id, value, "$", depth).unwrap_err().1;
+        let expected = n
+            .checks
+            .iter()
+            .find(|check| check.kind == failure)
+            .and_then(|check| check.expected.as_deref())
+            .unwrap_or("<filter>");
+        ValidationIssue::children(
+            "Composite",
+            vec![
+                ValidationIssue::children("Filter", vec![ValidationIssue::leaf("InvalidValue")])
+                    .with_message(format!("Expected {expected}")),
+            ],
+        )
+    };
     let issue = match n.kind.as_str() {
         "Suspend" => return collect_issue(n.target.unwrap(), value, depth + 1),
-        "Union" => ValidationIssue::children(
-            "AnyOf",
-            n.members
+        "Union" => {
+            let children = n
+                .members
                 .iter()
                 .filter(|m| eligible(**m, value))
                 .filter_map(|m| collect_issue(*m, value, depth + 1))
-                .collect(),
-        ),
+                .collect::<Vec<_>>();
+            let issue = ValidationIssue::children("AnyOf", children);
+            if issue.issues.is_empty() {
+                issue.with_message(format!("Expected {}", n.expected))
+            } else {
+                issue
+            }
+        }
         "Objects" => {
             let Some(values) = value.as_object() else {
-                return Some(ValidationIssue::leaf("InvalidType"));
+                return Some(invalid_type());
             };
             for field in &n.fields {
                 let issue = match values.get(&field.name) {
@@ -406,42 +492,24 @@ fn collect_issue(id: usize, value: &Value, depth: usize) -> Option<ValidationIss
                     }
                 }
             }
-            ValidationIssue::children(
-                "Composite",
-                vec![ValidationIssue::children(
-                    "Filter",
-                    vec![ValidationIssue::leaf("InvalidValue")],
-                )],
-            )
+            filter_issue()
         }
         "Arrays" => {
             let Some(values) = value.as_array() else {
-                return Some(ValidationIssue::leaf("InvalidType"));
+                return Some(invalid_type());
             };
             for (index, v) in values.iter().enumerate() {
                 if let Some(issue) = collect_issue(n.item.unwrap(), v, depth + 1) {
                     return Some(ValidationIssue::children(
                         "Composite",
-                        vec![ValidationIssue::pointer(index.to_string(), issue)],
+                        vec![ValidationIssue::pointer_index(index, issue)],
                     ));
                 }
             }
-            ValidationIssue::children(
-                "Composite",
-                vec![ValidationIssue::children(
-                    "Filter",
-                    vec![ValidationIssue::leaf("InvalidValue")],
-                )],
-            )
+            filter_issue()
         }
-        _ if eligible(id, value) => ValidationIssue::children(
-            "Composite",
-            vec![ValidationIssue::children(
-                "Filter",
-                vec![ValidationIssue::leaf("InvalidValue")],
-            )],
-        ),
-        _ => ValidationIssue::leaf("InvalidType"),
+        _ if eligible(id, value) => filter_issue(),
+        _ => invalid_type(),
     };
     Some(issue)
 }

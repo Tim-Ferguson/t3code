@@ -35,6 +35,20 @@ pub enum ProcessError {
         message: String,
         data: Value,
     },
+    #[error("Provider JSON-RPC request failed ({code}): {message}")]
+    JsonRpcRemote {
+        method: String,
+        request_id: Value,
+        code: i64,
+        message: String,
+        data: Option<Value>,
+    },
+    #[error("Provider request {method} failed with an Effect cause")]
+    EffectCause {
+        method: String,
+        request_id: Value,
+        cause: t3_acp::EffectCause,
+    },
     #[error("Provider process ended: {0}")]
     Closed(String),
     #[error("Provider process ended: {message}")]
@@ -71,6 +85,7 @@ struct Outgoing {
 }
 struct Inner {
     outbound: mpsc::Sender<Outgoing>,
+    json_rpc: bool,
     pending: Pending,
     next_id: AtomicU64,
     permits: Arc<Semaphore>,
@@ -127,6 +142,7 @@ impl ProviderProcess {
         let closed = Arc::new(Mutex::new(None));
         let inner = Arc::new(Inner {
             outbound,
+            json_rpc,
             pending: pending.clone(),
             next_id: AtomicU64::new(1),
             permits: Arc::new(Semaphore::new(MAX_PENDING)),
@@ -267,6 +283,29 @@ impl ProviderProcess {
             response
                 .await
                 .map_err(|_| ProcessError::Closed("response channel closed".into()))?
+                .map_err(|error| match error {
+                    ProcessError::EffectCause {
+                        request_id, cause, ..
+                    } => ProcessError::EffectCause {
+                        method: method.into(),
+                        request_id,
+                        cause,
+                    },
+                    ProcessError::JsonRpcRemote {
+                        request_id,
+                        code,
+                        message,
+                        data,
+                        ..
+                    } => ProcessError::JsonRpcRemote {
+                        method: method.into(),
+                        request_id,
+                        code,
+                        message,
+                        data,
+                    },
+                    other => other,
+                })
         };
         tokio::time::timeout(timeout, operation)
             .await
@@ -293,9 +332,49 @@ impl ProviderProcess {
                 message,
                 data,
             }) => json!({"id":id,"error":{"code":code,"message":message,"data":data}}),
+            Err(ProcessError::JsonRpcRemote {
+                code,
+                message,
+                data,
+                ..
+            }) => {
+                let mut response = json!({"id":id,"error":{"code":code,"message":message}});
+                if let Some(data) = data {
+                    response["error"]["data"] = data;
+                }
+                response
+            }
             Err(error) => json!({"id":id,"error":{"code":-32603,"message":error.to_string()}}),
         };
         self.send(value).await
+    }
+    /// Effect RPC's private Cause envelope is used only by versioned ACP peers.
+    /// Writes retain the same bounded-queue / completed-stdin acknowledgement.
+    pub async fn respond_cause(
+        &self,
+        id: Value,
+        cause: t3_acp::EffectCause,
+    ) -> Result<(), ProcessError> {
+        if !self.0.json_rpc {
+            return Err(ProcessError::Protocol(
+                "Effect causes require versioned JSON-RPC".into(),
+            ));
+        }
+        if !id.is_string() && !id.is_number() {
+            return Err(ProcessError::Protocol(
+                "invalid JSON-RPC response id".into(),
+            ));
+        }
+        let cause_value = serde_json::to_value(cause)
+            .map_err(|error| ProcessError::Protocol(error.to_string()))?;
+        if safe_rpc_error_code(&cause_value["code"]).is_none() {
+            return Err(ProcessError::Protocol(
+                "invalid JSON-RPC Effect cause code".into(),
+            ));
+        }
+        serde_json::from_value::<t3_acp::EffectCause>(cause_value.clone())
+            .map_err(|error| ProcessError::Protocol(error.to_string()))?;
+        self.send(json!({"id":id,"error":cause_value})).await
     }
     async fn send(&self, value: Value) -> Result<(), ProcessError> {
         if let Some(error) = self.0.closed.lock().unwrap().clone() {
@@ -387,7 +466,20 @@ fn dispatch_message(
                     "invalid JSON-RPC response envelope".into(),
                 ));
             }
-            if has_error
+            if has_error && value["error"]["_tag"] == "Cause" {
+                if safe_rpc_error_code(&value["error"]["code"]).is_none() {
+                    return Err(ProcessError::Protocol(
+                        "invalid JSON-RPC Effect cause code".into(),
+                    ));
+                }
+                serde_json::from_value::<t3_acp::EffectCause>(value["error"].clone()).map_err(
+                    |cause| {
+                        ProcessError::Protocol(format!(
+                            "invalid JSON-RPC Effect cause envelope: {cause}"
+                        ))
+                    },
+                )?;
+            } else if has_error
                 && (!value["error"].is_object()
                     || safe_rpc_error_code(&value["error"]["code"]).is_none()
                     || !value["error"]["message"].is_string())
@@ -434,19 +526,37 @@ fn dispatch_message(
             Err(ProcessError::Protocol("response has no request id".into()))
         };
     };
-    let result = if let Some(error) = value.get("error") {
-        Err(ProcessError::Remote {
-            code: if json_rpc {
-                safe_rpc_error_code(&error["code"]).unwrap()
-            } else {
-                error["code"].as_i64().unwrap_or(-32603)
-            },
-            message: error["message"]
-                .as_str()
-                .unwrap_or("Provider request failed")
-                .into(),
-            data: error.get("data").cloned().unwrap_or(Value::Null),
+    let result = if json_rpc && value["error"]["_tag"] == "Cause" {
+        Err(ProcessError::EffectCause {
+            method: String::new(),
+            request_id: value["id"].clone(),
+            cause: serde_json::from_value(value["error"].clone()).expect("validated Effect cause"),
         })
+    } else if let Some(error) = value.get("error") {
+        let code = if json_rpc {
+            safe_rpc_error_code(&error["code"]).unwrap()
+        } else {
+            error["code"].as_i64().unwrap_or(-32603)
+        };
+        let message = error["message"]
+            .as_str()
+            .unwrap_or("Provider request failed")
+            .into();
+        if json_rpc {
+            Err(ProcessError::JsonRpcRemote {
+                method: String::new(),
+                request_id: value["id"].clone(),
+                code,
+                message,
+                data: error.get("data").cloned(),
+            })
+        } else {
+            Err(ProcessError::Remote {
+                code,
+                message,
+                data: error.get("data").cloned().unwrap_or(Value::Null),
+            })
+        }
     } else {
         Ok(value
             .get("result")
@@ -608,7 +718,7 @@ mod tests {
         );
         let process = ProviderProcess::spawn_json_rpc(options).unwrap();
         assert!(
-            matches!(process.request("probe",Value::Null,Duration::from_secs(2)).await,Err(ProcessError::Remote{code:-32000,message,data}) if message=="detail"&&data["why"]=="retained")
+            matches!(process.request("probe",Value::Null,Duration::from_secs(2)).await,Err(ProcessError::JsonRpcRemote{code:-32000,message,data:Some(data),..}) if message=="detail"&&data["why"]=="retained")
         );
     }
     #[tokio::test]
@@ -671,7 +781,7 @@ mod tests {
                 .await;
             if accepted {
                 assert!(
-                    matches!(result, Err(ProcessError::Remote { .. })),
+                    matches!(result, Err(ProcessError::JsonRpcRemote { .. })),
                     "{code}: {result:?}"
                 );
             } else {

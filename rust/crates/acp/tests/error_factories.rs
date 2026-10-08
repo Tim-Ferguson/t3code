@@ -258,3 +258,40 @@ fn schema_failure_retains_typed_cause_without_leaking_rejected_values() {
     let preserved = RequestError::from_core_handler_error(AcpError::Failure(request), "new method");
     assert_eq!(preserved.diagnostics.method.as_deref(), Some("x/prompt"));
 }
+
+#[test]
+fn protocol_error_codec_preserves_explicit_null_and_js_integer_numbers() {
+    for code in ["1", "1.0", "-0.0", "9007199254740991", "-9007199254740991"] {
+        let raw =
+            format!("{{\"code\":{code},\"message\":\"error\",\"data\":null,\"future\":true}}");
+        let error: RpcError = serde_json::from_str(&raw).unwrap();
+        assert_eq!(error.data, Some(Value::Null));
+        let encoded = serde_json::to_value(&error).unwrap();
+        assert_eq!(encoded["data"], Value::Null);
+        assert!(!encoded.as_object().unwrap().contains_key("future"));
+    }
+    for code in [
+        "1.5",
+        "9007199254740992",
+        "-9007199254740992",
+        "\"1\"",
+        "null",
+    ] {
+        let raw = format!("{{\"code\":{code},\"message\":\"error\"}}");
+        assert!(
+            serde_json::from_str::<RpcError>(&raw).is_err(),
+            "code {code}"
+        );
+    }
+    let omitted: RpcError =
+        serde_json::from_value(json!({"code":-32603,"message":"error"})).unwrap();
+    assert!(omitted.data.is_none());
+    assert!(
+        !serde_json::to_value(omitted)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .contains_key("data")
+    );
+    assert!(serde_json::from_value::<RpcError>(json!([-32603, "error", null])).is_err());
+}

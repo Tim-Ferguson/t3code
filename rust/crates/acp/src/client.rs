@@ -273,9 +273,66 @@ impl Client {
         self.0.state.active()?;
         tokio::select! {biased;_=closed.changed()=>Err(closed.borrow().clone().unwrap_or(AcpError::Closed)),result=self.0.peer.notify(method,params)=>result}
     }
+    pub(crate) async fn core_request(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> Result<Value, AcpError> {
+        self.raw_request(method, params)
+            .await
+            .map_err(|error| match error {
+                AcpError::ResponseError { error, .. } => {
+                    crate::errors::RequestError::from_protocol_error(error, method, None, None)
+                        .into()
+                }
+                AcpError::Request(error) => {
+                    crate::errors::RequestError::from_protocol_error(error, method, None, None)
+                        .into()
+                }
+                AcpError::ResponseCause {
+                    request_id, cause, ..
+                } => {
+                    for (index, reason) in cause.data.iter().enumerate() {
+                        if let crate::EffectCauseReason::Fail { error } = reason {
+                            if let Err(mut decode_error) = schema::decode("v2.Error", error.clone())
+                            {
+                                decode_error.issue = schema::ValidationIssue::pointer(
+                                    "cause".into(),
+                                    schema::ValidationIssue::pointer_index(
+                                        index,
+                                        schema::ValidationIssue::pointer(
+                                            "error".into(),
+                                            decode_error.issue,
+                                        ),
+                                    ),
+                                );
+                                return AcpError::ResponseDefect {
+                                    method: method.into(),
+                                    request_id,
+                                    cause,
+                                    decode_error: Some(Arc::new(decode_error)),
+                                };
+                            }
+                        }
+                    }
+                    if let Some(error) = cause.protocol_error() {
+                        crate::errors::RequestError::from_protocol_error(error, method, None, None)
+                            .into()
+                    } else {
+                        AcpError::ResponseDefect {
+                            method: method.into(),
+                            request_id,
+                            cause,
+                            decode_error: None,
+                        }
+                    }
+                }
+                other => other,
+            })
+    }
     pub async fn initialize(&self, request: Value) -> Result<Value, AcpError> {
         let response = self
-            .raw_request("initialize", normalize::negotiating_initialize(request))
+            .core_request("initialize", normalize::negotiating_initialize(request))
             .await?;
         let response = decode_any(
             &["v2.InitializeResponse", "v1.InitializeResponse"],
@@ -321,7 +378,7 @@ impl Client {
         }
         let (wire, request, response) = method_spec(method, v1);
         let params = decode_any(request, params)?;
-        let response = decode_any(response, self.raw_request(wire, params).await?)?;
+        let response = decode_any(response, self.core_request(wire, params).await?)?;
         Ok(
             if !v1
                 && matches!(
@@ -342,7 +399,7 @@ impl Client {
         if self.generation() == Some(Generation::V1) {
             return decode_any(
                 &["v1.PromptResponse", "v2.PromptResponse"],
-                self.raw_request("session/prompt", params).await?,
+                self.core_request("session/prompt", params).await?,
             )
             .map_err(Into::into);
         }
@@ -368,7 +425,7 @@ impl Client {
         };
         decode_any(
             &["v1.PromptResponse", "v2.PromptResponse"],
-            self.raw_request("session/prompt", params).await?,
+            self.core_request("session/prompt", params).await?,
         )?;
         receiver.await.map_err(|_| AcpError::Closed)?
     }
@@ -570,6 +627,15 @@ async fn incoming_request(
     method: String,
     params: Value,
 ) {
+    enum ReplyError {
+        Protocol(RpcError),
+        Cause(crate::EffectCause),
+    }
+    impl From<RpcError> for ReplyError {
+        fn from(error: RpcError) -> Self {
+            Self::Protocol(error)
+        }
+    }
     let identity = id.identity();
     let context = RequestContext {
         request_id: identity.clone(),
@@ -608,9 +674,11 @@ async fn incoming_request(
     });
     let result = async {
         let mut params = match spec {
-            Some((request, _)) => {
-                decode_any(request, params).map_err(|_| RpcError::invalid_params())?
-            }
+            Some((request, _)) => decode_any(request, params).map_err(|error| {
+                ReplyError::Cause(crate::EffectCause::defect(Value::String(
+                    error.issue.formatted(),
+                )))
+            })?,
             None => params,
         };
         if state.role == Role::Client && method == "session/request_permission" {
@@ -620,7 +688,20 @@ async fn incoming_request(
         let response = AssertUnwindSafe(async move { handler(params, context).await })
             .catch_unwind()
             .await
-            .map_err(|_| RpcError::internal())??;
+            .map_err(|panic| {
+                if spec.is_some() {
+                    let message = panic
+                        .downcast_ref::<String>()
+                        .map(String::as_str)
+                        .or_else(|| panic.downcast_ref::<&str>().copied())
+                        .unwrap_or("Rust handler panicked");
+                    ReplyError::Cause(crate::EffectCause::defect(
+                        json!({"name":"Error","message":message}),
+                    ))
+                } else {
+                    ReplyError::Protocol(RpcError::internal())
+                }
+            })??;
         let response = match spec {
             Some((_, response_schemas)) => {
                 decode_any(response_schemas, response).map_err(|_| RpcError::internal())?
@@ -639,13 +720,18 @@ async fn incoming_request(
             if let Some(meta) = meta {
                 response["_meta"] = meta;
             }
-            Ok(response)
+            Ok::<_, ReplyError>(response)
         } else {
             Ok(response)
         }
     }
     .await;
-    match peer.respond(id, result).await {
+    let written = match result {
+        Ok(value) => peer.respond(id, Ok(value)).await,
+        Err(ReplyError::Protocol(error)) => peer.respond(id, Err(error)).await,
+        Err(ReplyError::Cause(cause)) => peer.respond_cause(id, cause).await,
+    };
+    match written {
         Ok(()) => {
             let _ = state.events.send(ClientEvent::ResponseAcknowledged {
                 request_id: identity,

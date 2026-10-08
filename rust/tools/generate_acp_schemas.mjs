@@ -11,6 +11,8 @@ import * as V1 from "../../packages/effect-acp/src/_generated/schema-v1.gen.ts";
 import * as V2 from "../../packages/effect-acp/src/schema.ts";
 import * as Compat from "../../packages/effect-acp/src/compat.ts";
 import * as Errors from "../../packages/effect-acp/src/errors.ts";
+import * as SchemaIssue from "../../packages/effect-acp/node_modules/effect/dist/SchemaIssue.js";
+import * as Annotations from "../../packages/effect-acp/node_modules/effect/dist/internal/schema/annotations.js";
 
 const out = new URL("../crates/acp/", import.meta.url);
 fs.mkdirSync(new URL("src/", out), { recursive: true });
@@ -24,16 +26,18 @@ function add(ast) {
   seen.set(ast, id);
   nodes.push(null);
   const checks = (ast.checks ?? []).map((c) => {
+    const expected = c.annotations?.expected;
     const r = c.annotations?.representation;
     if (!r) throw Error(`Unsupported ACP check ${JSON.stringify(c.annotations)}`);
     const kind = r.id.replace("effect/schema/", "");
     if (kind === "isPattern") {
       const source = r.payload.source;
-      if (source === "^[A-Z]{3}$") return { kind: "currency" };
+      if (source === "^[A-Z]{3}$") return { kind: "currency", expected };
       const match = source.match(/^\^\(\?!\(\?:([^)]*)\)\$\)\[\\s\\S\]\*\$$/);
       if (!match) throw Error(`Unsupported ACP pattern ${source}`);
       return {
         kind: "exclude",
+        expected,
         values: match[1]
           .split("|")
           .map((s) =>
@@ -51,9 +55,9 @@ function add(ast) {
       ].includes(kind)
     )
       throw Error(`Unsupported ACP check ${kind}`);
-    return { kind, ...r.payload };
+    return { kind, ...r.payload, expected };
   });
-  let node = { kind: ast._tag, checks };
+  let node = { kind: ast._tag, checks, expected: Annotations.getExpected(ast) };
   switch (ast._tag) {
     case "Suspend":
       node.target = add(ast.thunk());
@@ -212,6 +216,7 @@ for (const [key, id] of Object.entries(roots)) {
         input,
         valid: false,
         diagnostics: Errors.AcpRequestError.invalidExtensionPayload("fixture", cause).data,
+        formatted: SchemaIssue.defaultFormatter(cause.issue),
       });
     }
   }
@@ -466,6 +471,7 @@ try {
         input,
         valid: false,
         diagnostics: Errors.AcpRequestError.invalidExtensionPayload("fixture", cause).data,
+        formatted: SchemaIssue.defaultFormatter(cause.issue),
       });
     }
   };

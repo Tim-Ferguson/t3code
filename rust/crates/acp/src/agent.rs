@@ -80,7 +80,7 @@ impl Agent {
     ) -> Result<Wire<R>, AcpError> {
         Ok(Wire::<R>::decode(
             self.connection
-                .raw_request(method, request.into_value())
+                .core_request(method, request.into_value())
                 .await?,
         )?)
     }

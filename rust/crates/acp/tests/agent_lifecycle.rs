@@ -21,6 +21,7 @@ struct Call {
 struct Reply {
     id: RequestId,
     result: Result<Value, RpcError>,
+    cause: Option<t3_acp::EffectCause>,
 }
 struct MemoryPeer {
     events: broadcast::Sender<PeerEvent>,
@@ -67,7 +68,26 @@ impl Peer for MemoryPeer {
     ) -> BoxFuture<'a, Result<(), AcpError>> {
         Box::pin(async move {
             self.replies
-                .send(Reply { id, result })
+                .send(Reply {
+                    id,
+                    result,
+                    cause: None,
+                })
+                .map_err(|_| AcpError::Closed)
+        })
+    }
+    fn respond_cause<'a>(
+        &'a self,
+        id: RequestId,
+        cause: t3_acp::EffectCause,
+    ) -> BoxFuture<'a, Result<(), AcpError>> {
+        Box::pin(async move {
+            self.replies
+                .send(Reply {
+                    id,
+                    result: Err(RpcError::internal()),
+                    cause: Some(cause),
+                })
                 .map_err(|_| AcpError::Closed)
         })
     }
@@ -300,15 +320,28 @@ async fn request_defects_reply_once_and_core_payloads_cannot_escape_to_extension
         Box::pin(async { Ok(json!({"extension":true})) })
     }));
     h.request(RequestId::Number(7.into()), "initialize", initialize());
-    let error = h.reply().await.result.unwrap_err();
-    assert_eq!(error.code, -32603);
-    assert!(!error.message.contains("private"));
+    let reply = h.reply().await;
+    let cause = reply.cause.expect("core defect uses Effect Cause envelope");
+    assert_eq!(cause.code, 0);
+    assert!(
+        matches!(&cause.data[..],[t3_acp::EffectCauseReason::Die{defect}]if defect["message"]=="private handler defect")
+    );
     h.request(
         RequestId::Number(8.into()),
         "initialize",
         json!({"protocolVersion":"invalid"}),
     );
-    assert_eq!(h.reply().await.result.unwrap_err().code, -32602);
+    let cause = h
+        .reply()
+        .await
+        .cause
+        .expect("core decode rejection is an Effect defect");
+    assert_eq!(
+        cause,
+        t3_acp::EffectCause::defect(json!(
+            "Expected ProtocolVersion\n  at [\"protocolVersion\"]"
+        ))
+    );
     h.request(RequestId::Number(9.into()), "auth/logout", json!({}));
     assert_eq!(h.reply().await.result.unwrap_err().code, -32601);
     h.request(RequestId::String("future".into()), "x/future", json!({}));
@@ -454,4 +487,64 @@ async fn extension_response_encoding_failures_are_typed_and_extensions_do_not_ov
     }));
     h.request(RequestId::Number(8.into()), "initialize", initialize());
     assert_eq!(h.reply().await.result.unwrap()["info"]["name"], "core");
+}
+
+#[tokio::test]
+async fn agent_raw_response_frames_match_actual_original_agent_oracle() {
+    for line in include_str!("fixtures/agent-wire.jsonl").lines() {
+        let fixture: Value = serde_json::from_str(line).unwrap();
+        let mut h = Harness::new();
+        let mode = fixture["mode"].as_str().unwrap().to_owned();
+        h.agent.handle_initialize(Arc::new(move |_, _| {
+            let mode = mode.clone();
+            Box::pin(async move {
+                match mode.as_str() {
+                    "request-error" => Err(t3_acp::errors::RequestError::auth_required(
+                        Some("custom auth"),
+                        Some(Value::Null),
+                    )
+                    .into()),
+                    "transport-error" => Err(t3_acp::errors::TransportError {
+                        operation: None,
+                        method: None,
+                        detail: None,
+                        pid: None,
+                        cause: json!({"private":true}).into(),
+                    }
+                    .into()),
+                    "die" => panic!("handler bug"),
+                    _ => Ok(v2::InitializeResponse::decode(
+                        json!({"protocolVersion":2,"info":{"name":"mock-agent","version":"1"}}),
+                    )?),
+                }
+            })
+        }));
+        h.agent.handle_unknown_request(Arc::new(|_, _| {
+            Box::pin(async {
+                Err(RpcError {
+                    code: -32000,
+                    message: "custom auth".into(),
+                    data: Some(Value::Null),
+                })
+            })
+        }));
+        let input = &fixture["input"];
+        h.request(
+            serde_json::from_value(input["id"].clone()).unwrap(),
+            input["method"].as_str().unwrap(),
+            input["params"].clone(),
+        );
+        let reply = h.reply().await;
+        let output = if let Some(cause) = reply.cause {
+            json!({"jsonrpc":"2.0","id":reply.id,"error":cause})
+        } else {
+            match reply.result {
+                Ok(result) => json!({"jsonrpc":"2.0","id":reply.id,"result":result}),
+                Err(error) => {
+                    json!({"jsonrpc":"2.0","id":reply.id,"error":t3_acp::EffectCause::new(vec![t3_acp::EffectCauseReason::Fail{error:serde_json::to_value(error).unwrap()}])})
+                }
+            }
+        };
+        assert_eq!(output, fixture["output"], "mode {}", fixture["mode"]);
+    }
 }

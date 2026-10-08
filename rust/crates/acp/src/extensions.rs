@@ -2,7 +2,7 @@
 //! custom pure Rust validators; built-in ACP schemas use the same Wire codecs.
 use crate::{
     AcpError, Client, ClientEvent, RequestContext,
-    errors::{ProtocolParseError, RequestError},
+    errors::{ProtocolParseError, ProtocolParseOperation, RequestError},
     schema::{SchemaError, SchemaName, Wire},
 };
 use futures_util::future::BoxFuture;
@@ -111,7 +111,11 @@ impl Client {
                 let name = name.clone();
                 Box::pin(async move {
                     let decoded = payload.decode(value).map_err(|cause| {
-                        AcpError::from(RequestError::invalid_extension_payload(&name, cause))
+                        AcpError::from(ProtocolParseError::from_schema_error(
+                            ProtocolParseOperation::DecodeNotificationPayload,
+                            &name,
+                            cause,
+                        ))
                     })?;
                     handler(decoded).await
                 })
@@ -123,6 +127,51 @@ impl Client {
         self.raw_request(method, payload)
             .await
             .map_err(|error| match error {
+                AcpError::ResponseError {
+                    method,
+                    request_id,
+                    error,
+                } => {
+                    let cause = serde_json::to_value(vec![crate::EffectCauseReason::Fail {
+                        error: serde_json::to_value(&error).expect("protocol error"),
+                    }])
+                    .expect("JSON cause");
+                    RequestError::from_protocol_error(
+                        error,
+                        &method,
+                        Some(request_id),
+                        Some(cause.into()),
+                    )
+                    .into()
+                }
+                AcpError::ResponseCause {
+                    method,
+                    request_id,
+                    cause,
+                } => {
+                    if let Some(error) = cause.protocol_error() {
+                        RequestError::from_protocol_error(
+                            error,
+                            &method,
+                            Some(request_id),
+                            Some(
+                                serde_json::to_value(&cause.data)
+                                    .expect("JSON cause")
+                                    .into(),
+                            ),
+                        )
+                        .into()
+                    } else {
+                        RequestError::from_extension_response_failure(
+                            &method,
+                            request_id,
+                            serde_json::to_value(&cause.data)
+                                .expect("JSON cause")
+                                .into(),
+                        )
+                        .into()
+                    }
+                }
                 AcpError::Request(error) => {
                     RequestError::from_protocol_error(error, method, None, None).into()
                 }

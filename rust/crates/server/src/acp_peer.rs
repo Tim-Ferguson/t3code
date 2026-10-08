@@ -80,6 +80,32 @@ fn error(cause: ProcessError) -> AcpError {
             message,
             data: Some(data),
         }),
+        ProcessError::JsonRpcRemote {
+            method,
+            request_id,
+            code,
+            message,
+            data,
+        } => AcpError::ResponseError {
+            method,
+            request_id: serde_json::from_value(request_id)
+                .expect("validated numeric outgoing request id"),
+            error: RpcError {
+                code,
+                message,
+                data,
+            },
+        },
+        ProcessError::EffectCause {
+            method,
+            request_id,
+            cause,
+        } => AcpError::ResponseCause {
+            method,
+            request_id: serde_json::from_value(request_id)
+                .expect("validated numeric outgoing request id"),
+            cause,
+        },
         ProcessError::Timeout { method } => AcpError::Timeout { method },
         ProcessError::Exited { code, pid, message } => AcpError::ProcessExited {
             code: code.map(i64::from),
@@ -120,16 +146,31 @@ impl Peer for ProcessPeer {
         result: Result<Value, RpcError>,
     ) -> BoxFuture<'a, Result<(), AcpError>> {
         Box::pin(async move {
-            let result = result.map_err(|cause| ProcessError::Remote {
-                code: cause.code,
-                message: cause.message,
-                data: cause.data.unwrap_or(Value::Null),
-            });
+            let id = serde_json::to_value(id).expect("JSON-RPC id serializes");
+            match result {
+                Ok(value) => self.0.process.respond(id, Ok(value)).await.map_err(error),
+                Err(failure) => {
+                    // Effect ACP uses the Cause/Fail wrapper even for ordinary
+                    // protocol errors. Keep explicit data:null inside the Fail.
+                    let cause = t3_acp::EffectCause::new(vec![t3_acp::EffectCauseReason::Fail {
+                        error: serde_json::to_value(failure).expect("RPC error serializes"),
+                    }]);
+                    self.0.process.respond_cause(id, cause).await.map_err(error)
+                }
+            }
+        })
+    }
+    fn respond_cause<'a>(
+        &'a self,
+        id: RequestId,
+        cause: t3_acp::EffectCause,
+    ) -> BoxFuture<'a, Result<(), AcpError>> {
+        Box::pin(async move {
             self.0
                 .process
-                .respond(
+                .respond_cause(
                     serde_json::to_value(id).expect("JSON-RPC id serializes"),
-                    result,
+                    cause,
                 )
                 .await
                 .map_err(error)
@@ -154,6 +195,136 @@ impl Peer for ProcessPeer {
 mod tests {
     use super::*;
     use serde_json::json;
+    #[tokio::test]
+    async fn standard_rpc_errors_preserve_omitted_and_explicit_null_data_from_actual_child() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("standard-errors.py");
+        std::fs::write(&path,"import sys,json\nfor data in [{},{'data':None}]:\n request=json.loads(sys.stdin.readline())\n error={'code':-32000,'message':'fixture detail',**data}\n print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)\n").unwrap();
+        let peer = ProcessPeer::spawn(ProcessOptions {
+            binary: "python3".into(),
+            args: vec![path.to_string_lossy().into()],
+            cwd: directory.path().into(),
+            environment: Default::default(),
+        })
+        .unwrap();
+        for expected in [None, Some(Value::Null)] {
+            let AcpError::ResponseError {
+                method,
+                request_id,
+                error,
+            } = peer
+                .request("probe", Value::Null, Duration::from_secs(3))
+                .await
+                .unwrap_err()
+            else {
+                panic!("not a protocol request error")
+            };
+            assert_eq!(method, "probe");
+            assert!(matches!(request_id, RequestId::Number(_)));
+            assert_eq!(error.code, -32000);
+            assert_eq!(error.data, expected);
+            let encoded = serde_json::to_value(error).unwrap();
+            assert_eq!(encoded.get("data").cloned(), expected);
+        }
+    }
+    #[tokio::test]
+    async fn process_peer_roundtrips_effect_defect_causes_with_original_correlation_and_write_ack()
+    {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("effect-cause.py");
+        std::fs::write(
+            &path,
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+assert request['jsonrpc']=='2.0' and 'headers' not in request
+print(json.dumps({'jsonrpc':'2.0','id':'callback-0','method':'initialize','params':{}}),flush=True)
+reply=json.loads(sys.stdin.readline())
+assert reply['jsonrpc']=='2.0' and reply['id']=='callback-0'
+error=reply['error']
+assert error['_tag']=='Cause' and error['code']==0
+assert error['data']==[{'_tag':'Die','defect':{'name':'Error','message':'fixture defect'}}]
+assert json.loads(error['message'])==error['data']
+print(json.dumps({'jsonrpc':'2.0','id':7,'method':'x/fail','params':{}}),flush=True)
+failure=json.loads(sys.stdin.readline())
+assert failure['id']==7 and type(failure['id']) is int
+assert failure['error']=={'_tag':'Cause','code':-32000,'message':'custom auth','data':[{'_tag':'Fail','error':{'code':-32000,'message':'custom auth','data':None}}]}
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
+"#,
+        )
+        .unwrap();
+        let peer = ProcessPeer::spawn(ProcessOptions {
+            binary: "python3".into(),
+            args: vec![path.to_string_lossy().into()],
+            cwd: directory.path().into(),
+            environment: Default::default(),
+        })
+        .unwrap();
+        let mut events = peer.subscribe();
+        let caller = peer.clone();
+        let pending = tokio::spawn(async move {
+            caller
+                .request("initialize", serde_json::json!({}), Duration::from_secs(3))
+                .await
+        });
+        let PeerEvent::Request { id, .. } =
+            tokio::time::timeout(Duration::from_secs(3), events.recv())
+                .await
+                .unwrap()
+                .unwrap()
+        else {
+            panic!("missing callback")
+        };
+        let cause = t3_acp::EffectCause::defect(
+            serde_json::json!({"name":"Error","message":"fixture defect"}),
+        );
+        let mut invalid = cause.clone();
+        invalid.code = 9_007_199_254_740_992;
+        assert!(peer.respond_cause(id.clone(), invalid).await.is_err());
+        peer.respond_cause(id, cause.clone()).await.unwrap();
+        let PeerEvent::Request { id, .. } =
+            tokio::time::timeout(Duration::from_secs(3), events.recv())
+                .await
+                .unwrap()
+                .unwrap()
+        else {
+            panic!("missing extension callback")
+        };
+        peer.respond(
+            id,
+            Err(RpcError {
+                code: -32000,
+                message: "custom auth".into(),
+                data: Some(Value::Null),
+            }),
+        )
+        .await
+        .unwrap();
+        let error = pending.await.unwrap().unwrap_err();
+        let AcpError::ResponseCause {
+            method,
+            request_id,
+            cause: received,
+        } = error
+        else {
+            panic!("cause marker was flattened")
+        };
+        assert_eq!(method, "initialize");
+        assert_eq!(
+            serde_json::to_value(request_id).unwrap(),
+            serde_json::json!(1)
+        );
+        assert_eq!(
+            serde_json::to_value(received).unwrap(),
+            serde_json::to_value(cause).unwrap()
+        );
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(3), events.recv())
+                .await
+                .unwrap()
+                .unwrap(),
+            PeerEvent::Closed(AcpError::ProcessExited { code: Some(0), .. })
+        ));
+    }
     #[tokio::test]
     async fn process_peer_preserves_callback_id_types_and_exit_information() {
         let directory = tempfile::tempdir().unwrap();

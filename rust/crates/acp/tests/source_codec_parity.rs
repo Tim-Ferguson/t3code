@@ -11,6 +11,8 @@ struct Case {
     output: Value,
     #[serde(default)]
     diagnostics: Option<t3_acp::schema::IssueDiagnostics>,
+    #[serde(default)]
+    formatted: Option<String>,
 }
 #[test]
 fn all_pinned_acp_codecs_match_original_effect_decode_and_encode() {
@@ -33,6 +35,54 @@ fn all_pinned_acp_codecs_match_original_effect_decode_and_encode() {
         count += 1;
     }
     assert!(count >= 6254);
+}
+#[test]
+fn validation_failure_formatter_matches_original_effect_default_formatter() {
+    let bytes = include_bytes!("fixtures/source-codecs.jsonl.gz");
+    let reader = BufReader::new(GzDecoder::new(&bytes[..]));
+    let mut mismatches = Vec::new();
+    for (index, line) in reader.lines().enumerate() {
+        let c: Case = serde_json::from_str(&line.unwrap()).unwrap();
+        if let Some(expected) = c.formatted {
+            let error = t3_acp::schema::decode(&c.schema, c.input.clone()).unwrap_err();
+            let actual = error.issue.formatted();
+            if actual != expected {
+                mismatches.push(format!(
+                    "{index} {} input{} expected{expected:?} actual{actual:?}",
+                    c.schema, c.input
+                ));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "{} formatter mismatches:\n{}",
+        mismatches.len(),
+        mismatches
+            .into_iter()
+            .take(20)
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+#[test]
+fn ergonomic_protocol_error_matches_original_wire_error_schema() {
+    let bytes = include_bytes!("fixtures/source-codecs.jsonl.gz");
+    let reader = BufReader::new(GzDecoder::new(&bytes[..]));
+    let mut count = 0;
+    for line in reader.lines() {
+        let c: Case = serde_json::from_str(&line.unwrap()).unwrap();
+        if !matches!(c.schema.as_str(), "v1.Error" | "v2.Error") {
+            continue;
+        }
+        let result = serde_json::from_value::<t3_acp::RpcError>(c.input.clone());
+        assert_eq!(result.is_ok(), c.valid, "{} input{}", c.schema, c.input);
+        if let Ok(error) = result {
+            assert_eq!(serde_json::to_value(error).unwrap(), c.output);
+        }
+        count += 1;
+    }
+    assert!(count > 20);
 }
 #[test]
 fn only_source_never_schemas_lack_a_positive_witness() {
