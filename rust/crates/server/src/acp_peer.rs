@@ -25,7 +25,14 @@ impl Drop for Inner {
 pub struct ProcessPeer(Arc<Inner>);
 impl ProcessPeer {
     pub fn spawn(options: ProcessOptions) -> Result<Self, AcpError> {
-        let process = ProviderProcess::spawn_json_rpc(options).map_err(error)?;
+        Self::spawn_with_options(options, t3_acp::transport::ProtocolOptions::default())
+    }
+    pub fn spawn_with_options(
+        options: ProcessOptions,
+        protocol_options: t3_acp::transport::ProtocolOptions,
+    ) -> Result<Self, AcpError> {
+        let process = ProviderProcess::spawn_json_rpc_with_options(options, protocol_options)
+            .map_err(error)?;
         // Register before initialization; the forwarder retains no process clone,
         // so releasing the peer also releases and reaps the owned child.
         let mut incoming = process.subscribe();
@@ -74,6 +81,7 @@ impl ProcessPeer {
 }
 fn error(cause: ProcessError) -> AcpError {
     match cause {
+        ProcessError::Acp(error) => error.as_ref().clone(),
         ProcessError::Remote {
             code,
             message,
@@ -217,6 +225,7 @@ impl Peer for ProcessPeer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use futures_util::StreamExt;
     use serde_json::json;
     #[tokio::test]
     async fn standard_rpc_errors_preserve_omitted_and_explicit_null_data_from_actual_child() {
@@ -808,7 +817,9 @@ threading.Event().wait()
             .await
             .unwrap()
             .unwrap();
-        assert!(matches!(failure, AcpError::Transport(_)));
+        assert!(
+            matches!(failure, AcpError::Failure(failure) if matches!(failure.as_ref(),t3_acp::errors::Failure::Transport(_)))
+        );
         assert!(
             tokio::time::timeout(Duration::from_secs(3), pending)
                 .await
@@ -833,5 +844,355 @@ threading.Event().wait()
         .await
         .unwrap();
         assert!(client.raw_request("x/future", json!({})).await.is_err());
+    }
+    fn option_fixture(
+        body: &str,
+        options: t3_acp::transport::ProtocolOptions,
+    ) -> (tempfile::TempDir, ProcessPeer) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("option-acp.py");
+        std::fs::write(&path, body).unwrap();
+        let peer = ProcessPeer::spawn_with_options(
+            ProcessOptions {
+                binary: "python3".into(),
+                args: vec![path.to_string_lossy().into()],
+                cwd: directory.path().into(),
+                environment: Default::default(),
+            },
+            options,
+        )
+        .unwrap();
+        (directory, peer)
+    }
+    fn strip_startup_notice() -> t3_acp::transport::StdoutTransform {
+        Arc::new(|stream| {
+            let fragmented = stream.flat_map(|item| {
+                futures_util::stream::iter(match item {
+                    Ok(bytes) => bytes
+                        .into_iter()
+                        .map(|byte| Ok(vec![byte]))
+                        .collect::<Vec<_>>(),
+                    Err(error) => vec![Err(error)],
+                })
+            });
+            let mut startup = true;
+            let mut banner = Vec::new();
+            Box::pin(fragmented.filter_map(move |item| {
+                let output = match item {
+                    Ok(bytes) if startup => {
+                        banner.extend_from_slice(&bytes);
+                        if banner.last() == Some(&b'\n') {
+                            assert_eq!(banner, b"startup notice\n");
+                            startup = false;
+                        }
+                        None
+                    }
+                    value => Some(value),
+                };
+                futures_util::future::ready(output)
+            }))
+        })
+    }
+    #[tokio::test]
+    async fn startup_stdout_transform_filters_notice_and_preserves_fragmented_unicode_before_logging_and_decode()
+     {
+        let logs = Arc::new(Mutex::new(Vec::new()));
+        let recorder = logs.clone();
+        let (_directory, peer) = option_fixture(
+            r#"import sys,json
+print('startup notice',flush=True)
+for method in ['initialize','x/echo']:
+ request=json.loads(sys.stdin.readline())
+ assert request['method']==method and 'headers' not in request,request
+ result={'protocolVersion':2,'info':{'name':'fixture','version':'1'}} if method=='initialize' else request['params']
+ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':result},ensure_ascii=False),flush=True)
+"#,
+            t3_acp::transport::ProtocolOptions {
+                log_incoming: true,
+                log_outgoing: true,
+                logger: Some(Arc::new(move |event| {
+                    let recorder = recorder.clone();
+                    Box::pin(async move {
+                        recorder.lock().unwrap().push(event);
+                    })
+                })),
+                transform_stdout: Some(strip_startup_notice()),
+            },
+        );
+        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        client
+            .initialize(json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}))
+            .await
+            .unwrap();
+        let payload = json!({"message":"café 😀"});
+        assert_eq!(
+            client.raw_request("x/echo", payload.clone()).await.unwrap(),
+            payload
+        );
+        let logs = logs.lock().unwrap();
+        assert!(
+            logs.iter()
+                .all(|event| !event.payload.to_string().contains("startup notice"))
+        );
+        let incoming: Vec<_> = logs
+            .iter()
+            .filter(|event| {
+                event.direction == t3_acp::transport::LogDirection::Incoming
+                    && event.stage == t3_acp::transport::LogStage::Decoded
+            })
+            .collect();
+        assert!(
+            incoming
+                .iter()
+                .any(|event| event.payload.pointer("/0/exit/value/message")
+                    == Some(&json!("café 😀")))
+        );
+        let outgoing: Vec<_> = logs
+            .iter()
+            .filter(|event| event.direction == t3_acp::transport::LogDirection::Outgoing)
+            .collect();
+        assert_eq!(outgoing.len(), 4);
+        assert_eq!(outgoing[0].stage, t3_acp::transport::LogStage::Decoded);
+        assert_eq!(outgoing[0].payload["headers"], json!([]));
+        assert_eq!(outgoing[1].stage, t3_acp::transport::LogStage::Raw);
+        assert!(
+            outgoing[1]
+                .payload
+                .as_str()
+                .unwrap()
+                .starts_with("{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"params\":")
+        );
+        assert_eq!(
+            outgoing[3].payload,
+            json!(
+                "{\"jsonrpc\":\"2.0\",\"method\":\"x/echo\",\"params\":{\"message\":\"café 😀\"},\"id\":1}\n"
+            )
+        );
+    }
+    #[tokio::test]
+    async fn malformed_transformed_stdout_retains_typed_parse_error_and_private_decode_failure_log()
+    {
+        let logs = Arc::new(Mutex::new(Vec::new()));
+        let recorder = logs.clone();
+        let (_directory, peer) = option_fixture(
+            "import threading\nprint('startup notice',flush=True)\nprint('{\"secret\":\"private-token\"',flush=True)\nthreading.Event().wait()\n",
+            t3_acp::transport::ProtocolOptions {
+                log_incoming: true,
+                logger: Some(Arc::new(move |event| {
+                    let recorder = recorder.clone();
+                    Box::pin(async move {
+                        recorder.lock().unwrap().push(event);
+                    })
+                })),
+                transform_stdout: Some(strip_startup_notice()),
+                ..Default::default()
+            },
+        );
+        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        let failure = client
+            .raw_request("x/pending", json!({}))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(failure,AcpError::Failure(failure) if matches!(failure.as_ref(),t3_acp::errors::Failure::ProtocolParse(error) if error.operation==t3_acp::errors::ProtocolParseOperation::DecodeWireMessage))
+        );
+        let logs = logs.lock().unwrap();
+        let safe: Vec<_> = logs
+            .iter()
+            .filter(|event| event.stage == t3_acp::transport::LogStage::DecodeFailed)
+            .collect();
+        assert_eq!(safe.len(), 1);
+        assert_eq!(safe[0].payload, json!({"operation":"decode-wire-message"}));
+        assert!(!safe[0].payload.to_string().contains("private-token"));
+        assert!(
+            logs.iter()
+                .all(|event| !event.payload.to_string().contains("startup notice"))
+        );
+    }
+    #[tokio::test]
+    async fn stdout_transform_declared_failure_preserves_error_identity_and_never_logs_rejected_private_input()
+     {
+        let expected: AcpError = t3_acp::errors::TransportError {
+            operation: Some(t3_acp::errors::TransportOperation::ReadInputStream),
+            method: None,
+            detail: Some("Sign in to the fixture agent.".into()),
+            pid: None,
+            cause: t3_acp::errors::FailureCause::Value(Value::Null),
+        }
+        .into();
+        let logs = Arc::new(Mutex::new(Vec::new()));
+        let recorder = logs.clone();
+        let rejected = expected.clone();
+        let (terminated, mut terminations) = tokio::sync::mpsc::unbounded_channel();
+        let (_directory, peer) = option_fixture(
+            "import threading\nprint('sign-in https://example.test/?token=private-secret',flush=True)\nthreading.Event().wait()\n",
+            t3_acp::transport::ProtocolOptions {
+                log_incoming: true,
+                logger: Some(Arc::new(move |event| {
+                    let recorder = recorder.clone();
+                    Box::pin(async move {
+                        recorder.lock().unwrap().push(event);
+                    })
+                })),
+                transform_stdout: Some(Arc::new(move |stream| {
+                    let rejected = rejected.clone();
+                    Box::pin(stream.map(move |_| Err(rejected.clone())))
+                })),
+                ..Default::default()
+            },
+        );
+        let client = t3_acp::Client::with_options(
+            Arc::new(peer),
+            Duration::from_secs(10),
+            t3_acp::ClientOptions {
+                on_termination: Some(Arc::new(move |error| {
+                    let terminated = terminated.clone();
+                    Box::pin(async move {
+                        terminated.send(error).unwrap();
+                    })
+                })),
+                ..Default::default()
+            },
+        );
+        let failure = client
+            .raw_request("x/pending", json!({}))
+            .await
+            .unwrap_err();
+        let termination = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let (
+            AcpError::Failure(expected),
+            AcpError::Failure(failure),
+            AcpError::Failure(termination),
+        ) = (expected, failure, termination)
+        else {
+            panic!("supplied failure was flattened");
+        };
+        assert!(Arc::ptr_eq(&expected, &failure));
+        assert!(Arc::ptr_eq(&expected, &termination));
+        assert!(logs.lock().unwrap().is_empty());
+    }
+    #[tokio::test]
+    async fn raw_logger_paused_send_is_rejected_after_eof_without_crossing_the_wire() {
+        for request in [true, false] {
+            let (entered, mut entries) = tokio::sync::mpsc::unbounded_channel();
+            let (terminated, mut terminations) = tokio::sync::mpsc::unbounded_channel();
+            let (release, gate) = tokio::sync::oneshot::channel();
+            let gate = Arc::new(Mutex::new(Some(gate)));
+            let (_directory, peer) = option_fixture(
+                "import sys,json\nrequest=json.loads(sys.stdin.readline())\nassert request['method']=='x/finish'\n",
+                t3_acp::transport::ProtocolOptions {
+                    log_outgoing: true,
+                    logger: Some(Arc::new(move |event| {
+                        let entered = entered.clone();
+                        let gate = gate.clone();
+                        Box::pin(async move {
+                            if event.stage == t3_acp::transport::LogStage::Raw
+                                && event
+                                    .payload
+                                    .as_str()
+                                    .is_some_and(|wire| wire.contains("x/held"))
+                            {
+                                let gate = gate.lock().unwrap().take().unwrap();
+                                entered.send(()).unwrap();
+                                let _ = gate.await;
+                            }
+                        })
+                    })),
+                    ..Default::default()
+                },
+            );
+            let client = t3_acp::Client::with_options(
+                Arc::new(peer.clone()),
+                Duration::from_secs(10),
+                t3_acp::ClientOptions {
+                    on_termination: Some(Arc::new(move |error| {
+                        let terminated = terminated.clone();
+                        Box::pin(async move {
+                            terminated.send(error).unwrap();
+                        })
+                    })),
+                    ..Default::default()
+                },
+            );
+            let caller = client.clone();
+            let sending = tokio::spawn(async move {
+                if request {
+                    caller.raw_request("x/held", json!({})).await.map(|_| ())
+                } else {
+                    caller.raw_notify("x/held", json!({})).await
+                }
+            });
+            tokio::time::timeout(Duration::from_secs(3), entries.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            // This independently admitted message is the only line the child
+            // accepts. Any held send that leaked onto stdin would fail its check.
+            peer.notify("x/finish", json!({})).await.unwrap();
+            let error = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(matches!(
+                error,
+                AcpError::ProcessExited { code: Some(0), .. }
+            ));
+            let _ = release.send(());
+            assert!(
+                tokio::time::timeout(Duration::from_secs(3), sending)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .is_err()
+            );
+            assert!(terminations.try_recv().is_err());
+        }
+    }
+    #[tokio::test]
+    async fn actual_writer_failure_rejects_current_queued_and_future_responses_with_one_preserved_cause()
+     {
+        let (_directory, peer) = option_fixture(
+            r#"import sys,json,os,threading
+request=json.loads(sys.stdin.readline())
+os.close(0)
+print(json.dumps({'jsonrpc':'2.0','method':'x/ready','params':{}}),flush=True)
+threading.Event().wait()
+"#,
+            Default::default(),
+        );
+        let mut ingress = peer.subscribe();
+        peer.notify("x/start", json!({})).await.unwrap();
+        assert!(
+            matches!(tokio::time::timeout(Duration::from_secs(3),ingress.recv()).await.unwrap().unwrap(),PeerEvent::Notification{method,..} if method=="x/ready")
+        );
+        // Current-thread join admits all three responses before the writer runs.
+        let (a, b, c) = tokio::join!(
+            peer.respond(RequestId::Number(1.into()), Ok(json!({}))),
+            peer.respond(RequestId::Number(2.into()), Ok(json!({}))),
+            peer.respond(RequestId::Number(3.into()), Ok(json!({})))
+        );
+        let errors = [
+            a.unwrap_err(),
+            b.unwrap_err(),
+            c.unwrap_err(),
+            peer.respond(RequestId::Number(4.into()), Ok(json!({})))
+                .await
+                .unwrap_err(),
+        ];
+        let AcpError::Failure(first) = &errors[0] else {
+            panic!("writer failure category lost");
+        };
+        assert!(
+            matches!(first.as_ref(),t3_acp::errors::Failure::Transport(error) if error.detail.as_deref()==Some("Failed to write an outgoing ACP message"))
+        );
+        for error in &errors[1..] {
+            let AcpError::Failure(cause) = error else {
+                panic!("queued error category lost");
+            };
+            assert!(Arc::ptr_eq(first, cause));
+        }
     }
 }

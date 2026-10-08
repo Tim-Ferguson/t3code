@@ -1,7 +1,9 @@
 //! Bidirectional provider JSON-lines transport (raw Codex or versioned JSON-RPC).
 //! The process belongs to the client lifetime, and response waiters are removed on
 //! cancellation. Notification consumers must treat broadcast lag as lost continuity.
+use futures_util::{FutureExt, StreamExt};
 use serde_json::{Value, json};
+use std::panic::AssertUnwindSafe;
 use std::{
     collections::HashMap,
     path::PathBuf,
@@ -11,6 +13,9 @@ use std::{
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
+};
+use t3_acp::transport::{
+    LogDirection, LogStage, NdjsonDecoder, ProtocolLogEvent, ProtocolOptions, StdoutStream,
 };
 use tokio::{
     io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader},
@@ -23,6 +28,8 @@ const MAX_PENDING: usize = 128;
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ProcessError {
+    #[error(transparent)]
+    Acp(std::sync::Arc<t3_acp::AcpError>),
     #[error("Provider process failed: {0}")]
     Io(String),
     #[error("Provider protocol failed: {0}")]
@@ -103,6 +110,7 @@ struct Inner {
     shutdown: watch::Sender<bool>,
     closed: Arc<Mutex<Option<ProcessError>>>,
     external_failure: watch::Sender<Option<ProcessError>>,
+    protocol_options: ProtocolOptions,
 }
 impl Drop for Inner {
     fn drop(&mut self) {
@@ -123,14 +131,24 @@ impl Drop for PendingGuard {
 
 impl ProviderProcess {
     pub fn spawn(options: ProcessOptions) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, false)
+        Self::spawn_protocol(options, false, ProtocolOptions::default())
     }
     /// ACP uses versioned JSON-RPC envelopes; Codex's raw envelopes retain their
     /// existing encoding through `spawn`. Both modes share owned process cleanup.
     pub fn spawn_json_rpc(options: ProcessOptions) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, true)
+        Self::spawn_json_rpc_with_options(options, ProtocolOptions::default())
     }
-    fn spawn_protocol(options: ProcessOptions, json_rpc: bool) -> Result<Self, ProcessError> {
+    pub fn spawn_json_rpc_with_options(
+        options: ProcessOptions,
+        protocol_options: ProtocolOptions,
+    ) -> Result<Self, ProcessError> {
+        Self::spawn_protocol(options, true, protocol_options)
+    }
+    fn spawn_protocol(
+        options: ProcessOptions,
+        json_rpc: bool,
+        protocol_options: ProtocolOptions,
+    ) -> Result<Self, ProcessError> {
         let mut child = Command::new(options.binary)
             .args(options.args)
             .current_dir(options.cwd)
@@ -165,7 +183,37 @@ impl ProviderProcess {
             shutdown,
             closed: closed.clone(),
             external_failure: external_failure.clone(),
+            protocol_options: protocol_options.clone(),
         });
+        let mut input = if json_rpc {
+            let stream: StdoutStream = Box::pin(futures_util::stream::unfold(
+                stdout,
+                |mut stdout| async move {
+                    let mut buffer = vec![0; 8192];
+                    match stdout.read(&mut buffer).await {
+                        Ok(0) => None,
+                        Ok(size) => {
+                            buffer.truncate(size);
+                            Some((Ok(buffer), stdout))
+                        }
+                        Err(error) => Some((
+                            Err(t3_acp::transport::read_input_error(error.to_string())),
+                            stdout,
+                        )),
+                    }
+                },
+            ));
+            ProcessInput::Json {
+                stream: if let Some(transform) = &protocol_options.transform_stdout {
+                    transform(stream)
+                } else {
+                    stream
+                },
+                decoder: NdjsonDecoder::new(MAX_LINE_BYTES),
+            }
+        } else {
+            ProcessInput::Raw(BufReader::new(stdout))
+        };
         let (writer_error, mut errors) = mpsc::channel::<ProcessError>(1);
         tokio::spawn(async move {
             let writer = tokio::spawn(async move {
@@ -185,11 +233,11 @@ impl ProviderProcess {
                         stdin
                             .write_all(&bytes)
                             .await
-                            .map_err(|e| ProcessError::Io(e.to_string()))?;
+                            .map_err(|e| writer_failure(json_rpc, e.to_string()))?;
                         stdin
                             .flush()
                             .await
-                            .map_err(|e| ProcessError::Io(e.to_string()))
+                            .map_err(|e| writer_failure(json_rpc, e.to_string()))
                     }
                     .await;
                     let _ = written.send(result.clone());
@@ -213,33 +261,29 @@ impl ProviderProcess {
                     tail.drain(..extra);
                 }
             });
-            let mut reader = BufReader::new(stdout);
-            let (failure, input_failure) = loop {
+            let (failure, input_failure) = 'reader: loop {
                 tokio::select! {
                     _ = stopping.changed() => { let _=child.kill().await; break (ProcessError::Closed("client was released".into()), false); }
                     Some(error) = errors.recv() => break (error, false),
-                    line = bounded_line(&mut reader) => {
-                        match line {
-                            Ok(Some(line)) => {
-                                let value = match serde_json::from_slice::<Value>(&line) { Ok(value) => value, Err(error) => break (ProcessError::Protocol(error.to_string()), true) };
-                                if json_rpc && value["jsonrpc"]!="2.0" {break (ProcessError::Protocol("Expected JSON-RPC version 2.0.".into()), true);}
-                                let acknowledgement = match dispatch_message(value, &pending, &events, json_rpc, ordered_ingress.load(Ordering::Acquire)) {
-                                    Ok(acknowledgement) => acknowledgement,
-                                    Err(error) => break (error, true),
-                                };
-                                if let Some(acknowledgement) = acknowledgement {
-                                    // Backpressure belongs at the owned reader: a held
-                                    // notification must not fill a lossy broadcast queue.
-                                    tokio::select! {
-                                        _=acknowledgement.wait()=>{},
-                                        _=stopping.changed()=>break (ProcessError::Closed("client was released".into()), false),
-                                        Some(error)=errors.recv()=>break (error, false),
+                    result = next_input(&mut input, &protocol_options) => {
+                        match result {
+                            Ok(Some(values)) => {
+                                for value in values {
+                                    if json_rpc && value["jsonrpc"]!="2.0" {break 'reader (ProcessError::Protocol("Expected JSON-RPC version 2.0.".into()), true);}
+                                    let acknowledgement = match dispatch_message(value, &pending, &events, json_rpc, ordered_ingress.load(Ordering::Acquire)) {
+                                        Ok(acknowledgement) => acknowledgement,
+                                        Err(error) => break 'reader (error, true),
+                                    };
+                                    if let Some(acknowledgement) = acknowledgement {
+                                        tokio::select! {
+                                            _=acknowledgement.wait()=>{},
+                                            _=stopping.changed()=>break 'reader (ProcessError::Closed("client was released".into()), false),
+                                            Some(error)=errors.recv()=>break 'reader (error, false),
+                                        }
                                     }
                                 }
                             }
                             Ok(None) => {
-                                // EOF may precede process exit; never wait indefinitely for an
-                                // executable that closed stdout but continues running.
                                 let status = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
                                 let details = String::from_utf8_lossy(&diagnostic.lock().unwrap()).into_owned();
                                 let code = status.as_ref().ok().and_then(|status|status.as_ref().ok()).and_then(|status|status.code());
@@ -459,6 +503,40 @@ impl ProviderProcess {
         self.send(json!({"id":id,"error":cause_value})).await
     }
     async fn send(&self, value: Value) -> Result<(), ProcessError> {
+        let value = if self.0.json_rpc {
+            if let Some(error) = self.0.closed.lock().unwrap().clone() {
+                return Err(error);
+            }
+            if self.0.protocol_options.log_outgoing {
+                log_event(
+                    &self.0.protocol_options,
+                    ProtocolLogEvent {
+                        direction: LogDirection::Outgoing,
+                        stage: LogStage::Decoded,
+                        payload: t3_acp::transport::outgoing_decoded(&value),
+                    },
+                )
+                .await;
+            }
+            let wire = t3_acp::transport::outgoing_wire(&value);
+            if self.0.protocol_options.log_outgoing {
+                let raw = serde_json::to_string(&wire)
+                    .map_err(|error| ProcessError::Protocol(error.to_string()))?
+                    + "\n";
+                log_event(
+                    &self.0.protocol_options,
+                    ProtocolLogEvent {
+                        direction: LogDirection::Outgoing,
+                        stage: LogStage::Raw,
+                        payload: json!(raw),
+                    },
+                )
+                .await;
+            }
+            wire
+        } else {
+            value
+        };
         if let Some(error) = self.0.closed.lock().unwrap().clone() {
             return Err(error);
         }
@@ -483,6 +561,12 @@ impl ProviderProcess {
 pub(crate) async fn bounded_line(
     reader: &mut (impl tokio::io::AsyncBufRead + Unpin),
 ) -> Result<Option<Vec<u8>>, ProcessError> {
+    bounded_line_with_limit(reader, MAX_LINE_BYTES).await
+}
+pub(crate) async fn bounded_line_with_limit(
+    reader: &mut (impl tokio::io::AsyncBufRead + Unpin),
+    max_bytes: usize,
+) -> Result<Option<Vec<u8>>, ProcessError> {
     let mut line = Vec::new();
     loop {
         let buffer = reader
@@ -501,7 +585,7 @@ pub(crate) async fn bounded_line(
             .position(|byte| *byte == b'\n')
             .map(|index| index + 1);
         let size = end.unwrap_or(buffer.len());
-        if line.len() + size > MAX_LINE_BYTES {
+        if line.len().saturating_add(size) > max_bytes {
             return Err(ProcessError::Protocol(
                 "incoming message exceeds byte budget".into(),
             ));
@@ -512,6 +596,112 @@ pub(crate) async fn bounded_line(
             return Ok(Some(line));
         }
     }
+}
+enum ProcessInput {
+    Raw(BufReader<tokio::process::ChildStdout>),
+    Json {
+        stream: StdoutStream,
+        decoder: NdjsonDecoder,
+    },
+}
+fn writer_failure(json_rpc: bool, cause: String) -> ProcessError {
+    if json_rpc {
+        ProcessError::Acp(Arc::new(
+            t3_acp::errors::TransportError {
+                operation: None,
+                method: None,
+                detail: Some("Failed to write an outgoing ACP message".into()),
+                pid: None,
+                cause: t3_acp::errors::FailureCause::Value(json!({"name":"Error","message":cause})),
+            }
+            .into(),
+        ))
+    } else {
+        ProcessError::Io(cause)
+    }
+}
+async fn log_event(options: &ProtocolOptions, event: ProtocolLogEvent) {
+    options.log(event).await;
+}
+async fn next_input(
+    input: &mut ProcessInput,
+    options: &ProtocolOptions,
+) -> Result<Option<Vec<Value>>, ProcessError> {
+    let read = async {
+        match input {
+            ProcessInput::Raw(reader) => match bounded_line(reader).await? {
+                Some(line) => serde_json::from_slice(&line)
+                    .map(|value| Some(vec![value]))
+                    .map_err(|error| ProcessError::Protocol(error.to_string())),
+                None => Ok(None),
+            },
+            ProcessInput::Json { stream, decoder } => {
+                let chunk = match stream.next().await {
+                    None => return Ok(None),
+                    Some(Err(error)) => return Err(ProcessError::Acp(Arc::new(error))),
+                    Some(Ok(chunk)) => chunk,
+                };
+                if options.log_incoming {
+                    log_event(
+                        options,
+                        ProtocolLogEvent {
+                            direction: LogDirection::Incoming,
+                            stage: LogStage::Raw,
+                            payload: json!(String::from_utf8_lossy(&chunk)),
+                        },
+                    )
+                    .await;
+                }
+                let values = match decoder.decode(&chunk) {
+                    Ok(values) => values,
+                    Err(error) => {
+                        if options.log_incoming {
+                            log_event(
+                                options,
+                                ProtocolLogEvent {
+                                    direction: LogDirection::Incoming,
+                                    stage: LogStage::DecodeFailed,
+                                    payload: json!({"operation":"decode-wire-message"}),
+                                },
+                            )
+                            .await;
+                        }
+                        return Err(ProcessError::Acp(Arc::new(error)));
+                    }
+                };
+                if options.log_incoming {
+                    log_event(
+                        options,
+                        ProtocolLogEvent {
+                            direction: LogDirection::Incoming,
+                            stage: LogStage::Decoded,
+                            payload: json!(
+                                values
+                                    .iter()
+                                    .map(t3_acp::transport::decoded_message)
+                                    .collect::<Vec<_>>()
+                            ),
+                        },
+                    )
+                    .await;
+                }
+                Ok(Some(values))
+            }
+        }
+    };
+    AssertUnwindSafe(read)
+        .catch_unwind()
+        .await
+        .unwrap_or_else(|panic| {
+            let message = panic
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| panic.downcast_ref::<&str>().copied())
+                .unwrap_or("Rust input callback panicked");
+            Err(ProcessError::Acp(Arc::new(
+                t3_acp::transport::read_input_error(message),
+            )))
+        })
 }
 fn safe_rpc_error_code(value: &Value) -> Option<i64> {
     const MAX: i64 = (1i64 << 53) - 1;

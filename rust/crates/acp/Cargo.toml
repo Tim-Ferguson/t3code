@@ -11,6 +11,8 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 futures-util.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 flate2 = "1"
+tracing-subscriber.workspace = true
