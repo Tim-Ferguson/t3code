@@ -433,6 +433,125 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),f
     }
 
     #[tokio::test]
+    async fn typed_facade_drives_real_child_session_prompt_permission_stream_and_bidirectional_work()
+     {
+        use t3_acp::types::{
+            CompatibleSessionUpdate, InitializeRequest, NewSessionRequest, Optional, PromptRequest,
+            SessionUpdate,
+        };
+        use tokio::sync::{mpsc, oneshot};
+        let (_directory, peer) = peer_fixture(
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+assert request['method']=='initialize' and request['params']['protocolVersion']==2
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'protocolVersion':2,'info':{'name':'fixture','version':'2'},'capabilities':{'session':{'prompt':{}}}}}),flush=True)
+request=json.loads(sys.stdin.readline())
+assert request['method']=='session/new' and request['params']['cwd']=='/workspace'
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'sessionId':'s'}}),flush=True)
+prompt=json.loads(sys.stdin.readline())
+assert prompt['method']=='session/prompt' and prompt['params']['prompt'][0]['text']=='hello'
+print(json.dumps({'jsonrpc':'2.0','id':0,'method':'session/request_permission','params':{'sessionId':'s','title':'Allow command?','subject':{'type':'command','toolCallId':'tool','command':'echo','cwd':'/workspace'},'options':[{'optionId':'allow','name':'Allow','kind':'allow_once'}]}}),flush=True)
+work=json.loads(sys.stdin.readline())
+assert work['method']=='x/work'
+print(json.dumps({'jsonrpc':'2.0','id':work['id'],'result':{'work':True}}),flush=True)
+permission=json.loads(sys.stdin.readline())
+assert permission['id']==0 and type(permission['id']) is int
+assert permission['result']=={'outcome':{'outcome':'selected','optionId':'allow'}}
+frames=[{'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'s','update':{'sessionUpdate':'agent_message_chunk','content':{'type':'text','text':'done'}}}},{'jsonrpc':'2.0','id':prompt['id'],'result':{}},{'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'s','update':{'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'}}}]
+print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
+"#,
+        );
+        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(3));
+        let initialized = client
+            .initialize_typed(InitializeRequest::default())
+            .await
+            .unwrap();
+        assert!(
+            initialized
+                .agent_capabilities
+                .unwrap()
+                .load_session
+                .unwrap()
+        );
+        let session = client
+            .create_session_typed(NewSessionRequest {
+                cwd: "/workspace".into(),
+                additional_directories: None,
+                mcp_servers: vec![],
+                meta: Optional::Missing,
+            })
+            .await
+            .unwrap();
+        assert_eq!(session.session_id, "s");
+        let (entered, mut requests) = mpsc::unbounded_channel();
+        let (release, held) = oneshot::channel();
+        let held = Arc::new(Mutex::new(Some(held)));
+        client.handle_request_permission(Arc::new(move |request, context| {
+            let entered = entered.clone();
+            let held = held.lock().unwrap().take().unwrap();
+            Box::pin(async move {
+                assert_eq!(request.tool_call.tool_call_id, "tool");
+                assert_eq!(context.request_id, "$t3:jsonrpc:number:0");
+                entered.send(()).unwrap();
+                held.await.unwrap();
+                Ok(t3_acp::v2::RequestPermissionResponse::decode(
+                    json!({"outcome":{"outcome":"selected","optionId":"allow"}}),
+                )?)
+            })
+        }));
+        let (observed, mut updates) = mpsc::unbounded_channel();
+        client
+            .handle_session_update(Arc::new(move |notification| {
+                let observed = observed.clone();
+                Box::pin(async move {
+                    observed.send(notification.update).unwrap();
+                    Ok(())
+                })
+            }))
+            .await;
+        let caller = client.clone();
+        let prompt = tokio::spawn(async move {
+            caller
+                .prompt_typed(PromptRequest {
+                    session_id: "s".into(),
+                    prompt: vec![
+                        t3_acp::v2::ContentBlock::decode(json!({"type":"text","text":"hello"}))
+                            .unwrap(),
+                    ],
+                    meta: Optional::Missing,
+                })
+                .await
+        });
+        tokio::time::timeout(Duration::from_secs(3), requests.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        // Actual unrelated work completes while the typed core permission body
+        // is suspended. No scheduling delay is used as evidence.
+        assert_eq!(
+            client.raw_request("x/work", json!({})).await.unwrap(),
+            json!({"work":true})
+        );
+        assert!(!prompt.is_finished());
+        release.send(()).unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(3), prompt)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.stop_reason, "end_turn");
+        let chunk = tokio::time::timeout(Duration::from_secs(3), updates.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let SessionUpdate::Compatible(CompatibleSessionUpdate::AgentMessageChunk(chunk)) = chunk
+        else {
+            panic!("Expected typed message chunk")
+        };
+        assert_eq!(chunk.content.as_value()["text"], "done");
+    }
+
+    #[tokio::test]
     async fn standard_rpc_errors_preserve_omitted_and_explicit_null_data_from_actual_child() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("standard-errors.py");
