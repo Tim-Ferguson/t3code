@@ -24,12 +24,25 @@ const files = [
   "server",
   "providerUsageLimits",
   "acpRegistry",
+  "settings",
+  "device",
+  "project",
+  "keybindings",
+  "editor",
 ];
 const rustNames = new Set(
-  ["auth", "provider", "thread_command", "orchestration", "server_config"].flatMap((f) =>
+  [
+    "auth",
+    "provider",
+    "thread_command",
+    "orchestration",
+    "server_config",
+    "settings",
+    "api_config",
+  ].flatMap((f) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + f + ".rs", "utf8").matchAll(
-        /pub (?:struct|enum) (\w+)/g,
+        /pub (?:struct|enum|type) (\w+)/g,
       ),
     ].map((m) => m[1]),
   ),
@@ -37,6 +50,11 @@ const rustNames = new Set(
 function seed(s, defs, key = "", depth = 0) {
   if (depth > 20) return null;
   if (s.$ref) return seed(defs[s.$ref.split("/").pop()], defs, key, depth + 1);
+  if (/ModelSelection$/.test(key) || key === "modelSelection")
+    return { instanceId: "codex", model: "gpt-6-astra" };
+  if (key === "mimeType") return "image/png";
+  if (key === "canvas" || key === "accent") return "#123abc";
+  if (key === "autoCompactWindow") return "300000";
   if (s.const !== undefined) return s.const;
   if (s.enum) return s.enum[0];
   if (s.anyOf || s.oneOf) {
@@ -85,6 +103,11 @@ function codecCases(name, schema, schemaDoc, initial) {
     return false;
   }
   test({ ...initial, ignoredFutureField: { hello: true } }, "unknown field");
+  if (schemaDoc.schema.type === "array") {
+    const member = seed(schemaDoc.schema.items, schemaDoc.definitions);
+    test([member], "array member");
+    test([member, null, { future: true }], "mixed array");
+  }
   const variants = schemaDoc.schema.anyOf ?? [schemaDoc.schema];
   for (const variant of variants) {
     const candidate = seed(variant, schemaDoc.definitions);
@@ -102,6 +125,16 @@ function codecCases(name, schema, schemaDoc, initial) {
       ])
         test({ ...clone(candidate), [key]: v }, label + " " + key);
       const present = seed(s, schemaDoc.definitions, key);
+      if (s.type === "string")
+        test({ ...clone(candidate), [key]: " sample " }, "trim boundary " + key);
+      if (s.type === "array") {
+        const member = seed(s.items, schemaDoc.definitions, key);
+        test({ ...clone(candidate), [key]: [member] }, "array member " + key);
+        test(
+          { ...clone(candidate), [key]: [member, null, { future: true }] },
+          "mixed array " + key,
+        );
+      }
       if (typeof present === "number")
         for (const value of [-1, 0, 1.5, 9007199254740991, 9007199254740992])
           test({ ...clone(candidate), [key]: value }, "numeric boundary " + key);
@@ -216,4 +249,22 @@ console.log(
     null,
     2,
   ),
+);
+
+// Runtime default artifact: generated once from source, loaded by pure Rust.
+const { DEFAULT_RESOLVED_KEYBINDINGS } = await import(
+  pathToFileURL(root + "/packages/shared/src/keybindings.ts")
+);
+const { ResolvedKeybindingsConfig } = await import(
+  pathToFileURL(root + "/packages/contracts/src/keybindings.ts")
+);
+writeFileSync(
+  root + "/rust/crates/contracts/assets/default-keybindings.json",
+  JSON.stringify(
+    Schema.encodeUnknownSync(Schema.toCodecJson(ResolvedKeybindingsConfig))(
+      DEFAULT_RESOLVED_KEYBINDINGS,
+    ),
+    null,
+    2,
+  ) + "\n",
 );

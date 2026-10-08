@@ -41,6 +41,32 @@ pub enum EnvironmentError {
 }
 
 impl EnvironmentCatalog {
+    /// Check ownership before transmitting a credential to a saved address.
+    pub fn validate_identity(
+        &self,
+        endpoint: &EnvironmentEndpoint,
+        id: &EnvironmentId,
+        protocol: u64,
+    ) -> Result<(), EnvironmentError> {
+        if protocol != 2 {
+            return Err(EnvironmentError::IncompatibleProtocol(protocol));
+        }
+        if self
+            .endpoint_identities
+            .get(endpoint.http("").as_str())
+            .is_some_and(|known| known != id)
+        {
+            return Err(EnvironmentError::IdentityChanged);
+        }
+        Ok(())
+    }
+    /// Forget the environment and every proxy/LAN alias, together with its
+    /// authorization and cached drafts. Re-pairing then starts with empty state.
+    pub fn forget(&mut self, destination: &EnvironmentId) -> bool {
+        self.endpoint_identities.retain(|_, id| id != destination);
+        self.records.remove(destination).is_some()
+    }
+
     /// The same environment may have multiple LAN/relay aliases, while equal
     /// thread IDs on different environments must remain different entities.
     pub fn register(
@@ -50,9 +76,7 @@ impl EnvironmentCatalog {
         label: String,
         protocol: u64,
     ) -> Result<(), EnvironmentError> {
-        if protocol != 2 {
-            return Err(EnvironmentError::IncompatibleProtocol(protocol));
-        }
+        self.validate_identity(endpoint, &id, protocol)?;
         let address = endpoint.http("").to_string();
         if self
             .endpoint_identities

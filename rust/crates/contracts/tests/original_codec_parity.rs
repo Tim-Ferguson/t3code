@@ -165,6 +165,9 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "ProviderInstanceConfig" => {
                 checked_roundtrip::<ProviderInstanceConfig>(fixture.input.clone())
             }
+            "ProviderInstanceConfigMap" => {
+                checked_roundtrip::<ProviderInstanceConfigMap>(fixture.input.clone())
+            }
             "ProviderInstanceEnvironmentVariable" => {
                 checked_roundtrip::<ProviderInstanceEnvironmentVariable>(fixture.input.clone())
             }
@@ -188,6 +191,9 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             }
             "ProviderOptionSelectionValue" => {
                 checked_roundtrip::<ProviderOptionSelectionValue>(fixture.input.clone())
+            }
+            "ProviderOptionSelections" => {
+                checked_roundtrip::<ProviderOptionSelections>(fixture.input.clone())
             }
             "ThreadLinkedPullRequest" => {
                 checked_roundtrip::<ThreadLinkedPullRequest>(fixture.input.clone())
@@ -245,6 +251,18 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             }
             "ThreadEnvMode" => checked_roundtrip::<ThreadEnvMode>(fixture.input.clone()),
             "WorktreeSubmodules" => checked_roundtrip::<WorktreeSubmodules>(fixture.input.clone()),
+            "EnvironmentTheme" => checked_roundtrip::<EnvironmentTheme>(fixture.input.clone()),
+            "EnvironmentThemeFile" => {
+                checked_roundtrip::<EnvironmentThemeFile>(fixture.input.clone())
+            }
+            "ServerConfig" => checked_roundtrip::<ServerConfig>(fixture.input.clone()),
+            "ServerConfigIssue" => checked_roundtrip::<ServerConfigIssue>(fixture.input.clone()),
+            "ServerDirectEndpoint" => {
+                checked_roundtrip::<ServerDirectEndpoint>(fixture.input.clone())
+            }
+            "ServerDirectEndpointKind" => {
+                checked_roundtrip::<ServerDirectEndpointKind>(fixture.input.clone())
+            }
             "ServerObservability" => {
                 checked_roundtrip::<ServerObservability>(fixture.input.clone())
             }
@@ -307,8 +325,113 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "ServerProviderUsageWindow" => {
                 checked_roundtrip::<ServerProviderUsageWindow>(fixture.input.clone())
             }
+            "UsageLimitSourceAccount" => {
+                checked_roundtrip::<UsageLimitSourceAccount>(fixture.input.clone())
+            }
+            "UsageLimitSourceSnapshot" => {
+                checked_roundtrip::<UsageLimitSourceSnapshot>(fixture.input.clone())
+            }
             "AcpRegistryUrlAuthAction" => {
                 checked_roundtrip::<AcpRegistryUrlAuthAction>(fixture.input.clone())
+            }
+            "AcpRegistryDistributionPreference" => {
+                checked_roundtrip::<AcpRegistryDistributionPreference>(fixture.input.clone())
+            }
+            "AcpRegistrySettings" => {
+                checked_roundtrip::<AcpRegistrySettings>(fixture.input.clone())
+            }
+            "AntigravityAuthMethod" => {
+                checked_roundtrip::<AntigravityAuthMethod>(fixture.input.clone())
+            }
+            "AntigravitySettings" => {
+                checked_roundtrip::<AntigravitySettings>(fixture.input.clone())
+            }
+            "BackgroundActivityOverrides" => {
+                checked_roundtrip::<BackgroundActivityOverrides>(fixture.input.clone())
+            }
+            "BackgroundActivityProfile" => {
+                checked_roundtrip::<BackgroundActivityProfile>(fixture.input.clone())
+            }
+            "BackgroundActivityProfileSelection" => {
+                checked_roundtrip::<BackgroundActivityProfileSelection>(fixture.input.clone())
+            }
+            "BackgroundActivitySettings" => {
+                checked_roundtrip::<BackgroundActivitySettings>(fixture.input.clone())
+            }
+            "BitbucketSettings" => checked_roundtrip::<BitbucketSettings>(fixture.input.clone()),
+            "BranchNamingMode" => checked_roundtrip::<BranchNamingMode>(fixture.input.clone()),
+            "ClaudeSettings" => checked_roundtrip::<ClaudeSettings>(fixture.input.clone()),
+            "CodexSettings" => checked_roundtrip::<CodexSettings>(fixture.input.clone()),
+            "CursorSettings" => checked_roundtrip::<CursorSettings>(fixture.input.clone()),
+            "GitHubHost" => checked_roundtrip::<GitHubHost>(fixture.input.clone()),
+            "GitHubHostSettings" => checked_roundtrip::<GitHubHostSettings>(fixture.input.clone()),
+            "GitHubSettings" => checked_roundtrip::<GitHubSettings>(fixture.input.clone()),
+            "GrokSettings" => checked_roundtrip::<GrokSettings>(fixture.input.clone()),
+            "ObservabilitySettings" => {
+                checked_roundtrip::<ObservabilitySettings>(fixture.input.clone())
+            }
+            "OpenCodeSettings" => checked_roundtrip::<OpenCodeSettings>(fixture.input.clone()),
+            "PiSettings" => checked_roundtrip::<PiSettings>(fixture.input.clone()),
+            "ProjectSettingsOverrides" => {
+                checked_roundtrip::<ProjectSettingsOverrides>(fixture.input.clone())
+            }
+            "ResponseStreamingMode" => {
+                checked_roundtrip::<ResponseStreamingMode>(fixture.input.clone())
+            }
+            "ServerSettings" => checked_roundtrip::<ServerSettings>(fixture.input.clone()),
+            "ServerSettingsPatch" => {
+                checked_roundtrip::<ServerSettingsPatch>(fixture.input.clone())
+            }
+            "SidebarAutoSettleAfterDays" => {
+                checked_roundtrip::<SidebarAutoSettleAfterDays>(fixture.input.clone())
+            }
+            "SourceControlWritingStyleMode" => {
+                checked_roundtrip::<SourceControlWritingStyleMode>(fixture.input.clone())
+            }
+            "SourceControlWritingStyleSettings" => {
+                checked_roundtrip::<SourceControlWritingStyleSettings>(fixture.input.clone())
+            }
+            "StorageCleanupSettings" => {
+                checked_roundtrip::<StorageCleanupSettings>(fixture.input.clone())
+            }
+            "UsageLimitSourceConfig" => {
+                checked_roundtrip::<UsageLimitSourceConfig>(fixture.input.clone())
+            }
+            "UsageModelPriceOverride" => {
+                checked_roundtrip::<UsageModelPriceOverride>(fixture.input.clone())
+            }
+            "WorktreeCleanup" => checked_roundtrip::<WorktreeCleanup>(fixture.input.clone()),
+            "WorktreeCleanupRules" => {
+                checked_roundtrip::<WorktreeCleanupRules>(fixture.input.clone())
+            }
+            "SshDeviceHostConfig" => {
+                checked_roundtrip::<SshDeviceHostConfig>(fixture.input.clone())
+            }
+            "SshDeviceHostConfigs" => {
+                checked_roundtrip::<SshDeviceHostConfigs>(fixture.input.clone())
+            }
+            "ProjectScript" => checked_roundtrip::<ProjectScript>(fixture.input.clone()),
+            "ProjectScriptIcon" => checked_roundtrip::<ProjectScriptIcon>(fixture.input.clone()),
+            "KeybindingRule" => checked_roundtrip::<KeybindingRule>(fixture.input.clone()),
+            "KeybindingShortcut" => checked_roundtrip::<KeybindingShortcut>(fixture.input.clone()),
+            "KeybindingWhenNode" => checked_roundtrip::<KeybindingWhenNode>(fixture.input.clone()),
+            "KeybindingsConfig" => checked_roundtrip::<KeybindingsConfig>(fixture.input.clone()),
+            "PreviewForwardedShortcut" => {
+                checked_roundtrip::<PreviewForwardedShortcut>(fixture.input.clone())
+            }
+            "ResolvedKeybindingRule" => {
+                checked_roundtrip::<ResolvedKeybindingRule>(fixture.input.clone())
+            }
+            "ResolvedKeybindingsConfig" => {
+                checked_roundtrip::<ResolvedKeybindingsConfig>(fixture.input.clone())
+            }
+            "EditorId" => checked_roundtrip::<EditorId>(fixture.input.clone()),
+            "FileManagerRevealKind" => {
+                checked_roundtrip::<FileManagerRevealKind>(fixture.input.clone())
+            }
+            "RemoteOpenTarget" => checked_roundtrip::<RemoteOpenTarget>(fixture.input.clone()),
+            "RemoteOpenTargetKind" => {
+                checked_roundtrip::<RemoteOpenTargetKind>(fixture.input.clone())
             }
             "ProviderRef" => checked_roundtrip::<ProviderRef>(fixture.input.clone()),
             "ProviderThreadNativeMetadata" => {

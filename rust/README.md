@@ -20,12 +20,21 @@ Effect RPC envelopes. Server tests cover atomic commits, durable command receipt
 project validation, and effect leases.
 
 The UI implements the project/thread sidebar, conversation and composer,
-approval and user-input responses, remote server connections, provider listing,
-and theme selection. It uses the original Effect RPC envelopes and validates
+approval and user-input responses, earlier-history loading, command output,
+file changes, plans and search activities, remote server connections, provider
+listing, and theme selection. Pairing credentials exchange into bearer sessions;
+saved connections can be forgotten. The native UI defaults to the Rust server's
+port 3774, with `T3_SERVER_URL` available for another existing server. It uses the
+original Effect RPC envelopes and validates
 destination-specific permissions and environment identity before issuing actions.
 Client tests cover history merging, stream cancellation, malformed-message
-rollback, and isolated environment state. A rendering test verifies that typing
-does not rerender the project list or a 2,000-item conversation.
+rollback, heartbeat policy, cancelled detail reads, and isolated environment state.
+A rendering test verifies that identical thread/item IDs on another environment
+receive fresh detail state. Another rendering test verifies that typing
+does not rerender the project list or a 2,000-item conversation. Disconnections
+trigger fresh session/ticket handshakes and subscriptions; uncertain mutations
+are not replayed. The integrated provider/session/reconnect flow still requires
+end-to-end verification.
 
 The server now has an executable with HTTP authentication and WebSocket transport.
 Provider execution, complete orchestration, filesystem and terminal services,

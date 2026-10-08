@@ -530,3 +530,143 @@ select:focus-visible {
 .user-input fieldset p {
   margin: 8px 0;
 }
+.connection-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  padding: 14px 0;
+}
+.connection-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.connection-row p {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  margin: 4px 0;
+}
+.load-earlier {
+  display: block;
+  margin: 0 auto 20px;
+}
+.history-error {
+  color: #dc2626;
+  text-align: center;
+  font-size: 12px;
+}
+.tool-activity {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  overflow: hidden;
+}
+.tool-activity summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 9px 12px;
+}
+.tool-activity summary::before {
+  content: "›";
+}
+.tool-activity[open] summary::before {
+  content: "⌄";
+}
+.activity-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.activity-status {
+  font-size: 11px;
+}
+.activity-body {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+.activity-body pre {
+  overflow: auto;
+  max-height: 400px;
+  white-space: pre-wrap;
+  margin: 6px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.command-input,
+.tool-input {
+  background: var(--accent);
+  padding: 10px;
+  border-radius: 5px;
+}
+.tool-output {
+  padding: 8px 0;
+}
+.diff-count {
+  font-size: 11px;
+}
+.additions {
+  color: #16a34a;
+}
+.deletions,
+.failure {
+  color: #dc2626;
+}
+.unified-diff {
+  font-size: 12px;
+}
+.activity-notice {
+  padding: 12px 0;
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.activity-notice.failure {
+  color: #dc2626;
+}
+.plan-card,
+.todo-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.plan-card h3 {
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.todo-card ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.todo-card li {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.todo-card li > span:nth-child(2) {
+  flex: 1;
+}
+.todo-card .completed {
+  color: var(--muted-foreground);
+}
+.todo-card small {
+  color: var(--muted-foreground);
+}
+.search-result {
+  margin: 12px 0;
+}
+.search-result a {
+  color: var(--primary);
+}
+.search-result p {
+  margin: 4px 0;
+}

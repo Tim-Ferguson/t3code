@@ -198,3 +198,35 @@ fn project_fields_preserve_future_payloads_and_required_nullability() {
     assert!(serde_json::from_value::<ProjectShell>(missing).is_err());
     assert!(serde_json::from_value::<ShellSnapshot>(json!({"schemaVersion":0,"snapshotSequence":0,"projects":[],"threads":[],"archivedThreads":[]})).is_err());
 }
+
+#[test]
+fn default_configuration_matches_required_native_boundaries() {
+    let defaults = ServerSettings::default();
+    assert_eq!(defaults.providers.codex.binary_path.as_str(), "codex");
+    assert!(defaults.providers.codex.enabled);
+    assert!(!defaults.providers.cursor.enabled);
+    assert_eq!(default_resolved_keybindings().0.len(), 80);
+    let mixed: ServerSettingsPatch = serde_json::from_value(
+        serde_json::json!({"providers":{},"enableAgentBrowserAccess":false}),
+    )
+    .unwrap();
+    assert_eq!(
+        mixed.required_scopes(),
+        vec![
+            AuthEnvironmentScope::SettingsWrite,
+            AuthEnvironmentScope::ProvidersManage
+        ]
+    );
+    let providers: ServerSettingsPatch =
+        serde_json::from_value(serde_json::json!({"providerInstances":{}})).unwrap();
+    assert_eq!(
+        providers.required_scopes(),
+        vec![AuthEnvironmentScope::ProvidersManage]
+    );
+    assert_eq!(
+        serde_json::from_value::<ServerSettingsPatch>(serde_json::json!({}))
+            .unwrap()
+            .required_scopes(),
+        vec![AuthEnvironmentScope::SettingsWrite]
+    );
+}

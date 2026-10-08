@@ -4,7 +4,9 @@ use serde_json::{Value, json};
 use std::{cell::RefCell, rc::Rc};
 use t3_client::environments::EnvironmentCatalog;
 use t3_client::{
-    connection::{ConnectionStatus, EnvironmentEndpoint},
+    connection::{
+        ConnectionStatus, EnvironmentEndpoint, Heartbeat, HeartbeatAction, reconnect_delay_ms,
+    },
     rpc::{RequestKind, RpcEvent, RpcSession},
     shell::ShellState,
     thread::ThreadState,
@@ -81,10 +83,20 @@ pub struct Transport {
     rpc: RpcSession,
     thread_subscription: Option<String>,
     generation: u64,
+    opened: bool,
     thread_generation: u64,
     destination: Option<EnvironmentId>,
     endpoint: Option<EnvironmentEndpoint>,
     bearer_token: String,
+    unary_waiters:
+        std::collections::BTreeMap<String, futures_channel::oneshot::Sender<Result<Value, String>>>,
+}
+impl Transport {
+    fn fail_waiters(&mut self) {
+        for (_, waiter) in std::mem::take(&mut self.unary_waiters) {
+            let _ = waiter.send(Err("Connection closed before the server replied.".into()));
+        }
+    }
 }
 #[derive(Clone, Default)]
 pub struct TransportHandle(Rc<RefCell<Transport>>);
@@ -109,7 +121,7 @@ pub fn default_address() -> String {
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
-        std::env::var("T3_SERVER_URL").unwrap_or_else(|_| "http://127.0.0.1:3773".into())
+        std::env::var("T3_SERVER_URL").unwrap_or_else(|_| "http://127.0.0.1:3774".into())
     }
 }
 
@@ -172,6 +184,105 @@ fn required_scopes(method: &str, payload: &Value) -> Result<Vec<AuthEnvironmentS
     Ok(scopes)
 }
 
+pub async fn request_value(
+    handle: TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+) -> Result<Value, String> {
+    let id = request(&handle, state, method, payload, RequestKind::Unary).ok_or_else(|| {
+        state
+            .peek()
+            .error
+            .clone()
+            .unwrap_or_else(|| "Request unavailable.".into())
+    })?;
+    let (sender, receiver) = futures_channel::oneshot::channel();
+    let generation = handle.borrow().generation;
+    handle.borrow_mut().unary_waiters.insert(id.clone(), sender);
+    let _guard = UnaryRequestGuard {
+        handle: handle.clone(),
+        id,
+        generation,
+    };
+    receiver
+        .await
+        .map_err(|_| "Request was interrupted.".to_owned())?
+}
+
+struct UnaryRequestGuard {
+    handle: TransportHandle,
+    id: String,
+    generation: u64,
+}
+impl Drop for UnaryRequestGuard {
+    fn drop(&mut self) {
+        let mut transport = self.handle.borrow_mut();
+        if transport.generation != self.generation {
+            return;
+        }
+        transport.unary_waiters.remove(&self.id);
+        if let Some(frame) = transport.rpc.cancel(&self.id) {
+            if let Some(sender) = transport.sender.as_mut() {
+                sender.send(ewebsock::WsMessage::Text(frame.to_string()));
+            }
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct ResponseOwner {
+    generation: u64,
+    thread_generation: u64,
+    destination: EnvironmentId,
+    active_thread: Option<String>,
+}
+pub fn response_owner(handle: &TransportHandle, state: Store<UiModel>) -> Option<ResponseOwner> {
+    let transport = handle.borrow();
+    let model = state.peek();
+    let destination = model.destination.clone()?;
+    (transport.destination.as_ref() == Some(&destination)).then(|| ResponseOwner {
+        generation: transport.generation,
+        thread_generation: transport.thread_generation,
+        destination,
+        active_thread: model.active_thread.clone(),
+    })
+}
+
+pub fn forget_environment(
+    handle: &TransportHandle,
+    mut state: Store<UiModel>,
+    destination: &EnvironmentId,
+) {
+    if state.peek().destination.as_ref() == Some(destination) {
+        let mut transport = handle.borrow_mut();
+        transport.generation += 1;
+        if let Some(mut sender) = transport.sender.take() {
+            sender.close();
+        }
+        transport.rpc.disconnect();
+        transport.fail_waiters();
+        transport.destination = None;
+        transport.endpoint = None;
+        transport.bearer_token.clear();
+        transport.thread_subscription = None;
+        let mut model = state.write();
+        model.destination = None;
+        model.shell = ShellState::default();
+        model.thread = ThreadState::default();
+        model.active_thread = None;
+        model.selected_project = None;
+        model.config = Value::Null;
+        model.draft.clear();
+        model.pending_message = None;
+        model.grants = SessionGrantInput::default();
+        model.error = None;
+        model.status = ConnectionStatus::Disconnected;
+        model.view = View::Connections;
+    }
+    state.environments().write().forget(destination);
+}
+
 pub fn select_thread(handle: &TransportHandle, mut state: Store<UiModel>, thread_id: String) {
     {
         let mut transport = handle.borrow_mut();
@@ -224,6 +335,33 @@ pub fn command(
         payload,
         RequestKind::Unary,
     )
+}
+
+pub fn stop_thread(handle: &TransportHandle, state: Store<UiModel>, thread_id: &str) {
+    let run = state
+        .peek()
+        .thread
+        .projection
+        .as_ref()
+        .and_then(|projection| projection["runs"].as_array())
+        .and_then(|runs| {
+            runs.iter().rev().find(|run| {
+                matches!(
+                    run["status"].as_str(),
+                    Some("preparing" | "starting" | "running" | "waiting")
+                )
+            })
+        })
+        .and_then(|run| run["id"].as_str())
+        .map(str::to_owned);
+    if let Some(run_id) = run {
+        command(
+            handle,
+            state,
+            "run.interrupt",
+            json!({"threadId":thread_id,"runId":run_id,"holdQueue":true}),
+        );
+    }
 }
 
 pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
@@ -413,24 +551,127 @@ pub async fn load_earlier(handle: TransportHandle, state: Store<UiModel>) -> Res
     Ok(())
 }
 
+async fn delay(milliseconds: u64) {
+    #[cfg(target_arch = "wasm32")]
+    gloo_timers::future::TimeoutFuture::new(milliseconds.min(u32::MAX as u64) as u32).await;
+    #[cfg(not(target_arch = "wasm32"))]
+    tokio::time::sleep(std::time::Duration::from_millis(milliseconds)).await;
+}
+
+#[derive(Clone, Copy)]
+enum SocketWake {
+    Socket,
+    Heartbeat,
+}
+
+fn interrupt_connection(handle: &TransportHandle, state: Store<UiModel>, reason: &str) {
+    let mut transport = handle.borrow_mut();
+    if let Some(mut sender) = transport.sender.take() {
+        sender.close();
+    }
+    transport.rpc.disconnect();
+    transport.fail_waiters();
+    state
+        .status()
+        .set(ConnectionStatus::Interrupted(reason.to_owned()));
+    state.pending_message().set(None);
+}
+
+/// A bootstrap credential is exchanged once; it never becomes an ordinary
+/// Authorization header or a WebSocket query parameter.
+pub async fn pair_and_connect(
+    handle: TransportHandle,
+    state: Store<UiModel>,
+    address: String,
+    credential: String,
+) {
+    let generation = {
+        let mut transport = handle.borrow_mut();
+        transport.generation += 1;
+        transport.generation
+    };
+    reset_for_connect(&handle, state);
+    let result=async {
+        if credential.trim().is_empty(){return Err("Enter the pairing credential generated by this server.".into());}
+        let endpoint=EnvironmentEndpoint::new(&address).map_err(|error|error.to_string())?;
+        let client=reqwest::Client::new();
+        let descriptor=authenticated_json(&client,&endpoint,".well-known/t3/environment","",false).await?;
+        let destination:EnvironmentId=serde_json::from_value(descriptor["environmentId"].clone()).map_err(|error|format!("Invalid environment identity: {error}"))?;
+        let protocol=descriptor["orchestrationProtocolVersion"].as_u64().unwrap_or(1);
+        if handle.borrow().generation!=generation{return Err("Connection superseded.".into());}
+        state.peek().environments.validate_identity(&endpoint,&destination,protocol).map_err(|error|error.to_string())?;
+        let response=read_json(client.post(endpoint.http("oauth/token")).form(&[
+            ("grant_type","urn:ietf:params:oauth:grant-type:token-exchange"),
+            ("subject_token",credential.trim()),
+            ("subject_token_type","urn:t3:params:oauth:token-type:environment-bootstrap"),
+            ("requested_token_type","urn:ietf:params:oauth:token-type:access_token"),
+        ]),"","oauth/token").await?;
+        let result:t3_contracts::AuthAccessTokenResult=serde_json::from_value(response).map_err(|error|format!("Invalid token exchange response: {error}"))?;
+        if serde_json::to_value(result.token_type).map_err(|error|error.to_string())?!=json!("Bearer"){return Err("This server requires a proof-bound client session, which this Rust client does not yet support.".into());}
+        Ok::<_,String>(result.access_token.to_string())
+    }.await;
+    if handle.borrow().generation != generation {
+        return;
+    }
+    match result {
+        Ok(token) => connect(handle, state, address, token).await,
+        Err(error) => {
+            state.status().set(ConnectionStatus::Blocked(error.clone()));
+            fail(state, error);
+        }
+    }
+}
+
 pub async fn connect(
     handle: TransportHandle,
-    mut state: Store<UiModel>,
+    state: Store<UiModel>,
     address: String,
     token: String,
 ) {
     let generation = {
         let mut transport = handle.borrow_mut();
         transport.generation += 1;
+        transport.generation
+    };
+    let mut failures = 0;
+    loop {
+        connect_once(
+            handle.clone(),
+            state,
+            address.clone(),
+            token.clone(),
+            generation,
+        )
+        .await;
+        if handle.borrow().generation != generation
+            || !matches!(&state.peek().status, ConnectionStatus::Interrupted(_))
+        {
+            return;
+        }
+        if handle.borrow().opened {
+            failures = 0;
+        }
+        delay(reconnect_delay_ms(failures)).await;
+        failures = failures.saturating_add(1);
+        if handle.borrow().generation != generation {
+            return;
+        }
+    }
+}
+
+fn reset_for_connect(handle: &TransportHandle, mut state: Store<UiModel>) {
+    {
+        let mut transport = handle.borrow_mut();
         if let Some(mut sender) = transport.sender.take() {
             sender.close();
         }
         transport.rpc.disconnect();
+        transport.fail_waiters();
+        transport.opened = false;
         transport.rpc = RpcSession::default();
         transport.thread_subscription = None;
         transport.destination = None;
-        transport.generation
-    };
+    }
     {
         let mut model = state.write();
         save_current_environment(&mut model);
@@ -449,6 +690,16 @@ pub async fn connect(
         model.pending_message = None;
         model.grants = SessionGrantInput::default();
     }
+}
+
+async fn connect_once(
+    handle: TransportHandle,
+    mut state: Store<UiModel>,
+    address: String,
+    token: String,
+    generation: u64,
+) {
+    reset_for_connect(&handle, state);
     let endpoint = match EnvironmentEndpoint::new(&address) {
         Ok(endpoint) => endpoint,
         Err(error) => {
@@ -468,6 +719,14 @@ pub async fn connect(
             .as_u64()
             .unwrap_or(1);
         let label = descriptor["label"].as_str().unwrap_or(&address).to_owned();
+        if handle.borrow().generation != generation {
+            return Err("Connection superseded.".to_owned());
+        }
+        state
+            .peek()
+            .environments
+            .validate_identity(&endpoint, &destination, protocol)
+            .map_err(|error| error.to_string())?;
         let session =
             authenticated_json(&client, &endpoint, "api/auth/session", &token, false).await?;
         let grants: SessionGrantInput = serde_json::from_value(session)
@@ -493,7 +752,13 @@ pub async fn connect(
     let (destination, label, protocol, grants, ticket) = match authorization {
         Ok(authorization) => authorization,
         Err(error) => {
-            state.status().set(ConnectionStatus::Blocked(error.clone()));
+            state.status().set(
+                if error.starts_with("Could not reach your T3 Code server:") {
+                    ConnectionStatus::Interrupted(error.clone())
+                } else {
+                    ConnectionStatus::Blocked(error.clone())
+                },
+            );
             fail(state, error);
             return;
         }
@@ -530,19 +795,22 @@ pub async fn connect(
             .set_session(&destination, grants.clone())
             .expect("registered environment");
     }
-    let (wake_sender, mut wake_receiver) = futures_channel::mpsc::unbounded::<()>();
+    let (wake_sender, mut wake_receiver) = futures_channel::mpsc::unbounded::<SocketWake>();
+    let heartbeat_sender = wake_sender.clone();
     let socket_url = endpoint.socket(Some(&ticket), client_surface());
     let (sender, receiver) = match ewebsock::connect_with_wakeup(
         socket_url.to_string(),
         ewebsock::Options::default(),
         move || {
-            let _ = wake_sender.unbounded_send(());
+            let _ = wake_sender.unbounded_send(SocketWake::Socket);
         },
     ) {
         Ok(socket) => socket,
         Err(error) => {
             fail(state, error.to_string());
-            state.status().set(ConnectionStatus::Disconnected);
+            state
+                .status()
+                .set(ConnectionStatus::Interrupted(error.to_string()));
             return;
         }
     };
@@ -554,6 +822,20 @@ pub async fn connect(
         transport.bearer_token = token;
     }
     state.grants().set(grants);
+    // This timer never writes render state while the connection is healthy.
+    // Socket traffic cannot postpone the protocol heartbeat.
+    spawn(async move {
+        loop {
+            delay(5000).await;
+            if heartbeat_sender
+                .unbounded_send(SocketWake::Heartbeat)
+                .is_err()
+            {
+                return;
+            }
+        }
+    });
+    let mut heartbeat = Heartbeat::default();
     loop {
         if handle.borrow().generation != generation {
             return;
@@ -561,6 +843,8 @@ pub async fn connect(
         while let Some(event) = receiver.try_recv() {
             match event {
                 ewebsock::WsEvent::Opened => {
+                    heartbeat.reset();
+                    handle.borrow_mut().opened = true;
                     state.status().set(ConnectionStatus::Connected);
                     request(
                         &handle,
@@ -594,6 +878,9 @@ pub async fn connect(
                                 }
                             }
                             for event in events {
+                                if matches!(&event, RpcEvent::Pong) {
+                                    heartbeat.pong();
+                                }
                                 apply_rpc_event(&handle, state, event);
                             }
                         }
@@ -601,20 +888,38 @@ pub async fn connect(
                     }
                 }
                 ewebsock::WsEvent::Closed | ewebsock::WsEvent::Error(_) => {
-                    let mut transport = handle.borrow_mut();
-                    transport.sender = None;
-                    transport.rpc.disconnect();
-                    state.status().set(ConnectionStatus::Interrupted(
-                        "Connection closed. Reconnect to continue.".into(),
-                    ));
-                    state.pending_message().set(None);
+                    interrupt_connection(&handle, state, "Connection interrupted. Reconnecting…");
                     return;
                 }
                 _ => {}
             }
         }
-        if wake_receiver.next().await.is_none() {
+        let wake = wake_receiver.next().await;
+        if handle.borrow().generation != generation {
             return;
+        }
+        match wake {
+            Some(SocketWake::Heartbeat) if state.peek().status == ConnectionStatus::Connected => {
+                match heartbeat.tick() {
+                    HeartbeatAction::Ping => {
+                        if let Some(sender) = handle.borrow_mut().sender.as_mut() {
+                            sender.send(ewebsock::WsMessage::Text(
+                                json!({"_tag":"Ping"}).to_string(),
+                            ));
+                        }
+                    }
+                    HeartbeatAction::Timeout => {
+                        interrupt_connection(
+                            &handle,
+                            state,
+                            "Server heartbeat timed out. Reconnecting…",
+                        );
+                        return;
+                    }
+                }
+            }
+            Some(_) => {}
+            None => return,
         }
     }
 }
@@ -641,6 +946,9 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             }
         }
         RpcEvent::Complete { id, method, value } => {
+            if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
+                let _ = waiter.send(Ok(value.clone()));
+            }
             if method == "server.getConfig" {
                 let expected = state.peek().destination.clone();
                 if expected.as_ref().is_none_or(|expected| {
@@ -672,6 +980,9 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             }
         }
         RpcEvent::Failed { id, cause, .. } => {
+            if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
+                let _ = waiter.send(Err(rpc_error_message(&cause)));
+            }
             if state
                 .peek()
                 .pending_message
@@ -707,6 +1018,64 @@ fn rpc_error_message(value: &Value) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn cancelled_detail_read_releases_waiter_and_suppresses_late_values() {
+        let handle = TransportHandle::default();
+        let (id, _) = handle.borrow_mut().rpc.request(
+            "orchestration.getTurnItem",
+            json!({}),
+            RequestKind::Unary,
+        );
+        let (sender, _receiver) = futures_channel::oneshot::channel();
+        handle.borrow_mut().unary_waiters.insert(id.clone(), sender);
+        drop(UnaryRequestGuard {
+            handle: handle.clone(),
+            id: id.clone(),
+            generation: 0,
+        });
+        assert!(handle.borrow().unary_waiters.is_empty());
+        let (events, acks) = handle
+            .borrow_mut()
+            .rpc
+            .receive(
+                &json!({"_tag":"Chunk","requestId":id,"values":[{"item":{"output":"late"}}]})
+                    .to_string(),
+            )
+            .unwrap();
+        assert!(events.is_empty());
+        assert_eq!(acks.len(), 1);
+    }
+    #[test]
+    fn old_cancelled_read_cannot_remove_reused_request_id_on_new_connection() {
+        let handle = TransportHandle::default();
+        let (old_id, _) = handle.borrow_mut().rpc.request(
+            "orchestration.getTurnItem",
+            json!({}),
+            RequestKind::Unary,
+        );
+        let guard = UnaryRequestGuard {
+            handle: handle.clone(),
+            id: old_id.clone(),
+            generation: 0,
+        };
+        {
+            let mut transport = handle.borrow_mut();
+            transport.generation = 1;
+            transport.rpc = RpcSession::default();
+        }
+        let (id, _) = handle.borrow_mut().rpc.request(
+            "orchestration.getTurnItem",
+            json!({}),
+            RequestKind::Unary,
+        );
+        assert_eq!(id, old_id);
+        let (sender, _receiver) = futures_channel::oneshot::channel();
+        handle.borrow_mut().unary_waiters.insert(id.clone(), sender);
+        drop(guard);
+        assert!(handle.borrow().unary_waiters.contains_key(&id));
+        let (events,_)=handle.borrow_mut().rpc.receive(&json!({"_tag":"Exit","requestId":id,"exit":{"_tag":"Success","value":{"item":null}}}).to_string()).unwrap();
+        assert!(matches!(&events[0], RpcEvent::Complete { .. }));
+    }
     #[test]
     fn bearer_requests_omit_cookies_for_hosted_remote_browser_compatibility() {
         assert_eq!(cookie_policy(true), CookiePolicy::Omit);

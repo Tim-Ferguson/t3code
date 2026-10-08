@@ -23,3 +23,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 uuid = { workspace = true, features = ["js"] }
 pulldown-cmark = "0.13"
 web-sys = { version = "0.3", features = ["Window", "Location"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-timers = { version = "0.3", features = ["futures"] }

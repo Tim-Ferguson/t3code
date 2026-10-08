@@ -5,7 +5,7 @@ use crate::{
     thread::ThreadService,
 };
 use axum::{
-    Json, Router,
+    Form, Json, Router,
     extract::{
         Path, Query, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
@@ -33,6 +33,8 @@ pub struct ApiState {
     pub config: Option<Value>,
     /// None uses the packaged wildcard policy; development names explicit origins.
     pub cors_origins: Option<Vec<String>>,
+    /// Built Rust web assets, served with the API for cookie authentication.
+    pub assets: Option<std::path::PathBuf>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -41,6 +43,14 @@ fn unauthorized() -> ApiError {
         StatusCode::UNAUTHORIZED,
         Json(
             json!({"_tag":"EnvironmentAuthInvalidError","code":"auth_invalid","reason":"invalid_credential","traceId":"unavailable"}),
+        ),
+    )
+}
+fn invalid_request(reason: &str) -> ApiError {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(
+            json!({"_tag":"EnvironmentRequestInvalidError","code":"invalid_request","reason":reason,"traceId":"unavailable"}),
         ),
     )
 }
@@ -70,15 +80,78 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/auth/session", get(session_state))
         .route("/api/auth/browser-session", post(browser_session))
         .route("/api/auth/websocket-ticket", post(websocket_ticket))
+        .route("/oauth/token", post(exchange_token))
         .route("/api/orchestration/shell", get(shell_snapshot))
         .route(
             "/api/orchestration/threads/{threadId}",
             get(thread_snapshot),
         )
         .route("/ws", get(upgrade))
+        .fallback(get(static_asset))
         .layer(axum::middleware::map_response(no_cache))
         .layer(axum::middleware::from_fn_with_state(cors_origins, cors))
         .with_state(state)
+}
+
+async fn static_asset(State(state): State<ApiState>, uri: axum::http::Uri) -> Response {
+    let Some(root) = state.assets else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    let path = uri.path().trim_start_matches('/');
+    if path.starts_with("api/")
+        || path.starts_with("oauth/")
+        || path.starts_with(".well-known/")
+        || path.split('/').any(|part| part == ".." || part == ".")
+        || path.contains('\\')
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let candidate = if path.is_empty() {
+        root.join("index.html")
+    } else {
+        root.join(path)
+    };
+    let candidate = match tokio::fs::canonicalize(candidate).await {
+        Ok(path) => path,
+        Err(_) if std::path::Path::new(path).extension().is_none() => {
+            match tokio::fs::canonicalize(root.join("index.html")).await {
+                Ok(path) => path,
+                Err(_) => return StatusCode::NOT_FOUND.into_response(),
+            }
+        }
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    let root = match tokio::fs::canonicalize(root).await {
+        Ok(root) => root,
+        Err(_) => return StatusCode::NOT_FOUND.into_response(),
+    };
+    if !candidate.starts_with(root)
+        || !tokio::fs::metadata(&candidate)
+            .await
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() <= 64 * 1024 * 1024)
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let content_type = match candidate
+        .extension()
+        .and_then(|extension| extension.to_str())
+    {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js" | "mjs") => "text/javascript; charset=utf-8",
+        Some("css") => "text/css; charset=utf-8",
+        Some("wasm") => "application/wasm",
+        Some("json" | "map") => "application/json",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("ico") => "image/x-icon",
+        Some("woff2") => "font/woff2",
+        _ => "application/octet-stream",
+    };
+    match tokio::fs::read(candidate).await {
+        Ok(bytes) => ([(header::CONTENT_TYPE, content_type)], bytes).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn cors(
@@ -244,6 +317,87 @@ async fn websocket_ticket(
         .issue_websocket_ticket(&session, Utc::now())
         .map(Json)
         .map_err(internal)
+}
+
+async fn exchange_token(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Form(input): Form<t3_contracts::AuthTokenExchangeRequest>,
+) -> Result<Json<Value>, ApiError> {
+    if headers.contains_key("dpop") {
+        return Err(unauthorized());
+    }
+    let requested = input
+        .scope
+        .as_ref()
+        .map(|scope| requested_scopes(scope.as_str()))
+        .transpose()?;
+    let now = Utc::now();
+    let mut client = json!({"deviceType":input.client_device_type.unwrap_or(t3_contracts::AuthClientMetadataDeviceType::Unknown)});
+    if let Some(label) = input.client_label {
+        client["label"] = json!(label);
+    }
+    if let Some(os) = input.client_os {
+        client["os"] = json!(os);
+    }
+    if let Some(agent) = headers
+        .get(header::USER_AGENT)
+        .and_then(|value| value.to_str().ok())
+    {
+        client["userAgent"] = json!(agent);
+    }
+    let (session, token) = state
+        .auth
+        .exchange_pairing_bearer(
+            input.subject_token.as_str(),
+            requested.as_deref(),
+            client,
+            now,
+        )
+        .map_err(|error| match error {
+            crate::auth::AuthError::ScopeNotGranted => invalid_request("scope_not_granted"),
+            crate::auth::AuthError::Invalid(_) => unauthorized(),
+            error => internal(error),
+        })?;
+    let scopes = session
+        .scopes
+        .iter()
+        .map(|scope| {
+            serde_json::to_value(scope)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    Ok(Json(
+        json!({"access_token":token,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":"Bearer","expires_in":(session.expires_at-now).num_seconds().max(0),"scope":scopes}),
+    ))
+}
+fn requested_scopes(value: &str) -> Result<Vec<AuthEnvironmentScope>, ApiError> {
+    let tokens = value.split(' ').collect::<Vec<_>>();
+    if tokens.iter().any(|scope| {
+        scope.is_empty()
+            || !scope.bytes().all(|byte| {
+                byte == 0x21 || (0x23..=0x5b).contains(&byte) || (0x5d..=0x7e).contains(&byte)
+            })
+    }) {
+        return Err(invalid_request("invalid_scope"));
+    }
+    let mut scopes = Vec::new();
+    for token in tokens {
+        if let Ok(scope) = serde_json::from_value::<AuthEnvironmentScope>(json!(token)) {
+            if scope.is_grantable() && !scopes.contains(&scope) {
+                scopes.push(scope);
+            }
+        }
+    }
+    if scopes.is_empty() {
+        Err(invalid_request("invalid_scope"))
+    } else {
+        Ok(scopes)
+    }
 }
 async fn shell_snapshot(
     State(state): State<ApiState>,
@@ -623,6 +777,7 @@ mod tests {
             environment: json!({"environmentId":"test-environment","label":"Tests","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
             config: None,
             cors_origins: None,
+            assets: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {
@@ -641,6 +796,116 @@ mod tests {
     }
     async fn json_body(response: Response) -> Value {
         serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await.unwrap()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn pairing_form_issues_native_bearer_and_invalid_grants_do_not_consume_it() {
+        let state = state();
+        let credential = state
+            .auth
+            .create_pairing_credential(
+                &[AuthEnvironmentScope::OrchestrationRead],
+                Utc::now(),
+                chrono::Duration::minutes(5),
+            )
+            .unwrap();
+        let app = router(state.clone());
+        let request = |scope: &str| {
+            Request::builder().method("POST").uri("/oauth/token").header(header::CONTENT_TYPE,"application/x-www-form-urlencoded").body(Body::from(format!("grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Atoken-exchange&subject_token={credential}&subject_token_type=urn%3At3%3Aparams%3Aoauth%3Atoken-type%3Aenvironment-bootstrap&requested_token_type=urn%3Aietf%3Aparams%3Aoauth%3Atoken-type%3Aaccess_token&scope={scope}&client_device_type=desktop&client_label=Native+Client"))).unwrap()
+        };
+        assert_eq!(
+            app.clone()
+                .oneshot(request("orchestration%3Aoperate"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::BAD_REQUEST
+        );
+        for scope in [
+            "unknown%3Afuture",
+            "orchestration%3Aread++unknown%3Afuture",
+            "orchestration%3Aread%09unknown%3Afuture",
+            "orchestration%3Aread+invalid%5Cscope",
+        ] {
+            let response = app.clone().oneshot(request(scope)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+            assert_eq!(json_body(response).await["reason"], "invalid_scope");
+        }
+        let response = app
+            .clone()
+            .oneshot(request(
+                "orchestration%3Aread+unknown%3Afuture+orchestration%3Aread+review%3Awrite",
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(!response.headers().contains_key(header::SET_COOKIE));
+        let issued = json_body(response).await;
+        assert_eq!(issued["token_type"], "Bearer");
+        assert_eq!(issued["scope"], "orchestration:read");
+        let session = state
+            .auth
+            .verify_session(issued["access_token"].as_str().unwrap(), Utc::now())
+            .unwrap();
+        assert_eq!(session.method, "bearer-access-token");
+        assert_eq!(session.client["deviceType"], "desktop");
+        assert_eq!(session.client["label"], "Native Client");
+        assert_eq!(
+            app.oneshot(request("orchestration%3Aread"))
+                .await
+                .unwrap()
+                .status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    #[tokio::test]
+    async fn web_assets_share_api_origin_and_reject_symlinks_outside_asset_root() {
+        let directory = tempfile::tempdir().unwrap();
+        let assets = directory.path().join("web");
+        std::fs::create_dir(&assets).unwrap();
+        std::fs::write(assets.join("index.html"), "<html>Rust UI</html>").unwrap();
+        std::fs::write(assets.join("app.wasm"), [0, 97, 115, 109]).unwrap();
+        std::fs::write(directory.path().join("secret"), "private").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(directory.path().join("secret"), assets.join("escape.txt"))
+            .unwrap();
+        let mut state = state();
+        state.assets = Some(assets);
+        let app = router(state);
+        for path in ["/", "/thread/example"] {
+            let response = app
+                .clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response.headers()[header::CONTENT_TYPE],
+                "text/html; charset=utf-8"
+            );
+        }
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/app.wasm")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.headers()[header::CONTENT_TYPE], "application/wasm");
+        for path in ["/api/unknown", "/missing.js", "/../secret", "/escape.txt"] {
+            assert_eq!(
+                app.clone()
+                    .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                    .await
+                    .unwrap()
+                    .status(),
+                StatusCode::NOT_FOUND
+            );
+        }
     }
 
     #[tokio::test]

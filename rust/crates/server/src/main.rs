@@ -17,6 +17,7 @@ struct Options {
     host: String,
     port: u16,
     config: Option<PathBuf>,
+    assets: Option<PathBuf>,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     let mut options = Options {
@@ -25,6 +26,7 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
         host: "127.0.0.1".into(),
         port: 3774,
         config: None,
+        assets: None,
     };
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
@@ -40,9 +42,15 @@ fn options() -> Result<Options, Box<dyn std::error::Error>> {
                     args.next().ok_or("--config requires a JSON path")?,
                 ))
             }
+            "--assets" => {
+                options.assets = Some(PathBuf::from(
+                    args.next()
+                        .ok_or("--assets requires the built web asset directory")?,
+                ))
+            }
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--config JSON]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
+                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--config JSON] [--assets DIRECTORY]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
                 );
                 std::process::exit(0)
             }
@@ -63,29 +71,27 @@ fn secret(path: &Path) -> Result<[u8; 32], Box<dyn std::error::Error>> {
         Err(error) => return Err(error.into()),
     }
     let bytes = rand::random::<[u8; 32]>();
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    match options.open(path) {
-        Ok(mut file) => {
-            file.write_all(&bytes)?;
-            file.sync_all()?;
-            Ok(bytes)
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => secret(path),
-        Err(error) => Err(error.into()),
-    }
+    publish_once(path, &bytes)?;
+    fs::read(path)?
+        .try_into()
+        .map_err(|_| "Invalid native signing-secret length".into())
 }
 
 fn identity(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
-    if path.exists() {
-        return Ok(fs::read_to_string(path)?.trim().into());
-    }
     let identity = uuid::Uuid::new_v4().to_string();
+    publish_once(path, identity.as_bytes())?;
+    let identity = fs::read_to_string(path)?.trim().to_owned();
+    uuid::Uuid::parse_str(&identity)?;
+    Ok(identity)
+}
+
+/// Publish a fully synced inode using an atomic, exclusive hard link. Concurrent
+/// serve/pair invocations observe the same complete identity and secret.
+fn publish_once(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
+    if path.exists() {
+        return Ok(());
+    }
+    let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -93,14 +99,47 @@ fn identity(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    match options.open(path) {
-        Ok(mut file) => {
-            file.write_all(identity.as_bytes())?;
-            file.sync_all()?;
-            Ok(identity)
+    let result = (|| -> std::io::Result<()> {
+        let mut file = options.open(&temporary)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        match fs::hard_link(&temporary, path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) => Err(error),
         }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => self::identity(path),
-        Err(error) => Err(error.into()),
+    })();
+    let _ = fs::remove_file(temporary);
+    result?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn concurrent_startup_observes_complete_stable_identity_and_secret() {
+        let directory = tempfile::tempdir().unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(12));
+        let workers = (0..12)
+            .map(|_| {
+                let root = directory.path().to_owned();
+                let barrier = barrier.clone();
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    (
+                        identity(&root.join("id")).unwrap(),
+                        secret(&root.join("secret")).unwrap(),
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        let values = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>();
+        assert!(values.iter().all(|value| value == &values[0]));
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 2);
     }
 }
 
@@ -183,6 +222,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         environment,
         config,
         cors_origins: None,
+        assets: options.assets.map(fs::canonicalize).transpose()?,
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");

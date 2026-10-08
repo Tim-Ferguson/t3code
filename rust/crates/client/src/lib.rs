@@ -5,3 +5,4 @@ pub mod requests;
 pub mod rpc;
 pub mod shell;
 pub mod thread;
+pub mod work_log;

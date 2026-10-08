@@ -1,0 +1,276 @@
+//! Instance routing and source-compatible legacy configuration hydration.
+use crate::{
+    codex::{CodexConfig, CodexInstance},
+    provider_process::ProcessError,
+};
+use futures_util::StreamExt;
+use serde_json::{Value, json};
+use std::{collections::HashMap, path::Path, sync::Arc};
+use t3_contracts::{
+    ProviderInstanceConfig, ProviderInstanceConfigMap, ProviderInstanceId, ServerSettings,
+};
+
+pub fn derive_instance_configs(settings: &ServerSettings) -> ProviderInstanceConfigMap {
+    let mut instances = settings.provider_instances.clone();
+    let legacy =
+        serde_json::to_value(&settings.providers).expect("typed legacy settings serialize");
+    for (driver, config) in legacy.as_object().unwrap() {
+        let id: ProviderInstanceId = driver.parse().unwrap();
+        instances.entry(id).or_insert_with(|| {
+            serde_json::from_value(json!({"driver":driver,"config":config}))
+                .expect("legacy settings envelope")
+        });
+    }
+    instances
+}
+#[derive(Clone)]
+pub struct ProviderRegistry {
+    codex: Arc<HashMap<String, CodexInstance>>,
+    snapshots: Arc<Vec<Value>>,
+}
+impl ProviderRegistry {
+    pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
+        let entries = derive_instance_configs(settings);
+        let mut results = futures_util::stream::iter(entries)
+            .map(|(id, entry)| async move {
+                let id = id.to_string();
+                if entry.driver.as_str() != "codex" {
+                    return Ok((
+                        id.clone(),
+                        None,
+                        unavailable(
+                            &id,
+                            &entry,
+                            format!(
+                                "Driver '{}' is not registered in this native build.",
+                                entry.driver
+                            ),
+                        )?,
+                    ));
+                }
+                let config = match serde_json::from_value::<CodexConfig>(
+                    entry.config.clone().unwrap_or(json!({})),
+                ) {
+                    Ok(config) => config,
+                    Err(error) => {
+                        return Ok((
+                            id.clone(),
+                            None,
+                            unavailable(
+                                &id,
+                                &entry,
+                                format!("Invalid config for instance '{id}': {error}"),
+                            )?,
+                        ));
+                    }
+                };
+                let environment = entry
+                    .environment
+                    .as_ref()
+                    .map(|variables| {
+                        variables
+                            .iter()
+                            .map(|variable| (variable.name.to_string(), variable.value.clone()))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let instance = CodexInstance {
+                    instance_id: id.clone(),
+                    display_name: entry
+                        .display_name
+                        .as_ref()
+                        .and_then(Option::as_ref)
+                        .map(ToString::to_string)
+                        .unwrap_or_else(|| "Codex".into()),
+                    accent_color: entry
+                        .accent_color
+                        .as_ref()
+                        .and_then(Option::as_ref)
+                        .map(ToString::to_string),
+                    enabled: entry.enabled.unwrap_or(config.enabled),
+                    config,
+                    environment,
+                };
+                let snapshot = instance.discover(cwd).await?;
+                Ok::<_, ProcessError>((id, Some(instance), snapshot))
+            })
+            .buffer_unordered(4)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+        // Keep deterministic instance ordering even when probes complete out of order.
+        results.sort_by(|left, right| left.0.cmp(&right.0));
+        let mut codex = HashMap::new();
+        let mut snapshots = vec![];
+        for (id, instance, snapshot) in results {
+            if let Some(instance) = instance {
+                codex.insert(id, instance);
+            }
+            snapshots.push(snapshot);
+        }
+        Ok(Self {
+            codex: Arc::new(codex),
+            snapshots: Arc::new(snapshots),
+        })
+    }
+    pub fn snapshots(&self) -> &[Value] {
+        &self.snapshots
+    }
+    pub fn codex(&self, instance_id: &str) -> Result<CodexInstance, ProcessError> {
+        let instance = self
+            .codex
+            .get(instance_id)
+            .filter(|instance| instance.enabled)
+            .ok_or_else(|| {
+                ProcessError::Protocol(format!(
+                    "Provider instance '{instance_id}' is unavailable or disabled."
+                ))
+            })?;
+        let snapshot = self
+            .snapshots
+            .iter()
+            .find(|snapshot| snapshot["instanceId"] == instance_id)
+            .unwrap();
+        if snapshot["status"] != "ready" {
+            return Err(ProcessError::Protocol(
+                snapshot["message"]
+                    .as_str()
+                    .unwrap_or("Provider is not ready.")
+                    .into(),
+            ));
+        }
+        Ok(instance.clone())
+    }
+}
+fn unavailable(
+    id: &str,
+    entry: &ProviderInstanceConfig,
+    reason: String,
+) -> Result<Value, ProcessError> {
+    let mut value = json!({"instanceId":id,"driver":entry.driver,"displayName":entry.display_name.as_ref().and_then(Option::as_ref).map(ToString::to_string).unwrap_or_else(||entry.driver.to_string()),"enabled":false,"installed":false,"version":null,"status":"disabled","auth":{"status":"unknown"},"checkedAt":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis,true),"models":[],"slashCommands":[],"skills":[],"availability":"unavailable","unavailableReason":reason,"message":reason});
+    if let Some(accent) = entry.accent_color.as_ref().and_then(Option::as_ref) {
+        value["accentColor"] = json!(accent);
+    }
+    let typed: t3_contracts::ServerProvider =
+        serde_json::from_value(value).map_err(|error| ProcessError::Protocol(error.to_string()))?;
+    Ok(serde_json::to_value(typed).unwrap())
+}
+/// Apply the original client settings redaction without changing runtime secrets.
+pub fn redact_settings(settings: &ServerSettings) -> Value {
+    let mut value = serde_json::to_value(settings).unwrap();
+    for instance in value["providerInstances"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        if let Some(environment) = instance["environment"].as_array_mut() {
+            for variable in environment {
+                if variable["sensitive"] == true {
+                    let redacted = variable["value"]
+                        .as_str()
+                        .is_some_and(|value| !value.is_empty())
+                        || variable["valueRedacted"] == true;
+                    variable["value"] = json!("");
+                    if redacted {
+                        variable["valueRedacted"] = json!(true);
+                    }
+                } else {
+                    variable.as_object_mut().unwrap().remove("valueRedacted");
+                }
+            }
+        }
+    }
+    let redact = |value: &mut Value| {
+        if value.as_str().is_some_and(|value| !value.is_empty()) {
+            *value = json!("••••••");
+        }
+    };
+    if let Some(sources) = value["usageLimitSources"].as_object_mut() {
+        for source in sources.values_mut() {
+            redact(&mut source["managementKey"]);
+        }
+    }
+    for field in ["accessToken", "apiToken"] {
+        redact(&mut value["bitbucket"][field]);
+    }
+    if let Some(tokens) = value["github"]["tokens"].as_object_mut() {
+        for token in tokens.values_mut() {
+            redact(token);
+        }
+    }
+    value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn explicit_instances_win_legacy_slots_and_unknown_drivers_survive() {
+        let settings:ServerSettings=serde_json::from_value(json!({"providers":{"codex":{"enabled":true}},"providerInstances":{"codex":{"driver":"fork","config":{"opaque":true}},"codex_work":{"driver":"codex","enabled":false}}})).unwrap();
+        let instances = derive_instance_configs(&settings);
+        assert_eq!(instances[&"codex".parse().unwrap()].driver.as_str(), "fork");
+        assert_eq!(
+            instances[&"codex".parse().unwrap()]
+                .config
+                .as_ref()
+                .unwrap()["opaque"],
+            true
+        );
+        assert!(instances.contains_key(&"pi".parse().unwrap()));
+        assert_eq!(
+            instances[&"codex_work".parse().unwrap()].enabled,
+            Some(false)
+        );
+    }
+    #[tokio::test]
+    async fn unavailable_and_disabled_instances_never_launch_executables() {
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false,"config":{"binaryPath":"/must-not-execute"}},"unknown":{"driver":"fork","config":{}}}})).unwrap();
+        let registry = ProviderRegistry::discover(&settings, std::env::temp_dir().as_path())
+            .await
+            .unwrap();
+        let snapshots = registry.snapshots();
+        assert_eq!(
+            snapshots
+                .iter()
+                .find(|value| value["instanceId"] == "codex")
+                .unwrap()["status"],
+            "disabled"
+        );
+        assert_eq!(
+            snapshots
+                .iter()
+                .find(|value| value["instanceId"] == "unknown")
+                .unwrap()["availability"],
+            "unavailable"
+        );
+        assert!(registry.codex("codex").is_err());
+    }
+    #[test]
+    fn settings_redact_sensitive_environment_without_mutating_runtime_values() {
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"work":{"driver":"codex","environment":[{"name":"SECRET","value":"private","sensitive":true},{"name":"PUBLIC","value":"public","valueRedacted":true}]}},"github":{"tokens":{"github.com":"private"}},"bitbucket":{"apiToken":"private"}})).unwrap();
+        let redacted = redact_settings(&settings);
+        assert_eq!(
+            redacted["providerInstances"]["work"]["environment"][0]["value"],
+            ""
+        );
+        assert_eq!(
+            redacted["providerInstances"]["work"]["environment"][0]["valueRedacted"],
+            true
+        );
+        assert!(
+            redacted["providerInstances"]["work"]["environment"][1]
+                .get("valueRedacted")
+                .is_none()
+        );
+        assert_ne!(redacted["github"]["tokens"]["github.com"], "private");
+        assert_eq!(
+            settings.provider_instances[&"work".parse().unwrap()]
+                .environment
+                .as_ref()
+                .unwrap()[0]
+                .value,
+            "private"
+        );
+    }
+}

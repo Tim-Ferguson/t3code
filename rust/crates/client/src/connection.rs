@@ -77,10 +77,38 @@ pub enum ConnectionStatus {
     Interrupted(String),
 }
 
-/// Reconnect delays are bounded and deterministic; the supervisor supplies
-/// jitter. A successful handshake resets the failure count.
+/// Original Effect RPC retry policy: exponential 500ms × 1.5, capped at 5s.
 pub fn reconnect_delay_ms(failure_count: u32) -> u64 {
-    500u64
-        .saturating_mul(1u64 << failure_count.min(6))
-        .min(30_000)
+    (500.0 * 1.5_f64.powi(failure_count.min(32) as i32))
+        .round()
+        .min(5_000.0) as u64
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HeartbeatAction {
+    Ping,
+    Timeout,
+}
+
+/// Effect RPC checks the previous pong on each five-second heartbeat. Regular
+/// stream traffic is not a substitute for a pong, and callers own the timer.
+#[derive(Debug, Default)]
+pub struct Heartbeat {
+    awaiting_pong: bool,
+}
+impl Heartbeat {
+    pub fn tick(&mut self) -> HeartbeatAction {
+        if self.awaiting_pong {
+            HeartbeatAction::Timeout
+        } else {
+            self.awaiting_pong = true;
+            HeartbeatAction::Ping
+        }
+    }
+    pub fn pong(&mut self) {
+        self.awaiting_pong = false;
+    }
+    pub fn reset(&mut self) {
+        self.awaiting_pong = false;
+    }
 }

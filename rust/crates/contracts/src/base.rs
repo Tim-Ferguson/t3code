@@ -341,3 +341,106 @@ pub fn serialize_forward_optional<S: serde::Serializer, T: Serialize>(
         )),
     }
 }
+
+fn any_string(_: &str) -> Result<(), ValidationError> {
+    Ok(())
+}
+string_type!(TrimmedString, any_string);
+impl Default for TrimmedString {
+    fn default() -> Self {
+        Self(String::new())
+    }
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub struct RangeInt<const MIN: i64, const MAX: i64>(pub i64);
+impl<'de, const MIN: i64, const MAX: i64> Deserialize<'de> for RangeInt<MIN, MAX> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = SafeInt::deserialize(d)?.0;
+        if (MIN..=MAX).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected integer between {MIN} and {MAX}"
+            )))
+        }
+    }
+}
+pub type PortSchema = RangeInt<1, 65535>;
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct RangeNumber<const MIN: i64, const MAX: i64>(pub serde_json::Number);
+impl<'de, const MIN: i64, const MAX: i64> Deserialize<'de> for RangeNumber<MIN, MAX> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = serde_json::Number::deserialize(d)?;
+        if value
+            .as_f64()
+            .is_some_and(|n| n >= MIN as f64 && n <= MAX as f64)
+        {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "expected number between {MIN} and {MAX}"
+            )))
+        }
+    }
+}
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct NonNegativeNumber(pub serde_json::Number);
+impl<'de> Deserialize<'de> for NonNegativeNumber {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let value = serde_json::Number::deserialize(d)?;
+        if value.as_f64().is_some_and(|n| n >= 0.0) {
+            Ok(Self(value))
+        } else {
+            Err(serde::de::Error::custom(
+                "expected a finite non-negative number",
+            ))
+        }
+    }
+}
+macro_rules! plain_string_type {
+    ($name:ident, $validate:path) => {
+        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+        #[serde(transparent)]
+        pub struct $name(String);
+        impl $name {
+            pub fn new(value: impl AsRef<str>) -> Result<Self, ValidationError> {
+                let value = value.as_ref();
+                $validate(value)?;
+                Ok(Self(value.to_owned()))
+            }
+            pub fn as_str(&self) -> &str {
+                &self.0
+            }
+            pub fn into_string(self) -> String {
+                self.0
+            }
+        }
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.0.fmt(f)
+            }
+        }
+        impl AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                &self.0
+            }
+        }
+        impl std::str::FromStr for $name {
+            type Err = ValidationError;
+            fn from_str(value: &str) -> Result<Self, Self::Err> {
+                Self::new(value)
+            }
+        }
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                Self::new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
+            }
+        }
+    };
+}
+
+pub(crate) use plain_string_type;
+plain_string_type!(NonEmptyString, non_blank);

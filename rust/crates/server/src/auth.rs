@@ -12,6 +12,8 @@ use t3_contracts::AuthEnvironmentScope;
 pub enum AuthError {
     #[error("{0}")]
     Invalid(&'static str),
+    #[error("Requested scope was not granted.")]
+    ScopeNotGranted,
     #[error(transparent)]
     Store(#[from] StoreError),
     #[error(transparent)]
@@ -275,16 +277,40 @@ impl AuthService {
         client: Value,
         now: DateTime<Utc>,
     ) -> Result<(Session, String), AuthError> {
+        self.exchange_pairing(credential, client, now, "browser-session-cookie", None)
+    }
+
+    pub fn exchange_pairing_bearer(
+        &self,
+        credential: &str,
+        scopes: Option<&[AuthEnvironmentScope]>,
+        client: Value,
+        now: DateTime<Utc>,
+    ) -> Result<(Session, String), AuthError> {
+        self.exchange_pairing(credential, client, now, "bearer-access-token", scopes)
+    }
+
+    fn exchange_pairing(
+        &self,
+        credential: &str,
+        client: Value,
+        now: DateTime<Utc>,
+        method: &str,
+        requested: Option<&[AuthEnvironmentScope]>,
+    ) -> Result<(Session, String), AuthError> {
         let result=self.store.transaction(|transaction| {
             let hash=token_hash(credential);
             let raw:Option<(String,i64,Option<i64>)>=transaction.query_row("SELECT scopes_json,expires_at,consumed_at FROM rust_pairing_credentials WHERE token_hash=?1",[&hash],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional()?;
             let Some((scopes,expires_at,consumed))=raw else {return Ok(None)};
             if consumed.is_some() || expires_at<=now.timestamp_millis() {return Ok(None)};
-            let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject:"client".into(),method:"browser-session-cookie".into(),scopes:serde_json::from_str(&scopes)?,client,expires_at:now+chrono::Duration::days(30),revoked_at:None};
+            let grants:Vec<AuthEnvironmentScope>=serde_json::from_str(&scopes)?;
+            if requested.is_some_and(|requested|requested.is_empty() || requested.iter().any(|scope|!scope.is_grantable() || !grants.contains(scope))) { return Ok(Some(Err(AuthError::ScopeNotGranted))); }
+            let scopes=requested.map(|requested|{let mut granted=Vec::new();for scope in requested {if !granted.contains(scope) {granted.push(*scope);}}granted}).unwrap_or(grants);
+            let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject:"client".into(),method:method.into(),scopes,client,expires_at:now+chrono::Duration::days(30),revoked_at:None};
             transaction.execute("UPDATE rust_pairing_credentials SET consumed_at=?1 WHERE token_hash=?2",params![now.timestamp_millis(),hash])?;
             transaction.execute("INSERT INTO rust_auth_sessions(session_id,session_json) VALUES(?1,?2)",params![session.session_id,serde_json::to_string(&session)?])?;
-            Ok(Some(session))
-        })?.ok_or(AuthError::Invalid("Pairing credential is unknown, expired, or consumed."))?;
+            Ok(Some(Ok(session)))
+        })?.ok_or(AuthError::Invalid("Pairing credential is unknown, expired, or consumed."))??;
         let token = self.session_token(&result, now)?;
         Ok((result, token))
     }
