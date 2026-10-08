@@ -36,6 +36,7 @@ pub struct AcpSession {
     pub setup: NewSessionResponse,
     pub events: mpsc::UnboundedReceiver<SessionEvent>,
     peer: ProcessPeer,
+    pub(crate) services: crate::acp_client_callbacks::Services,
 }
 impl Drop for AcpSession {
     fn drop(&mut self) {
@@ -45,6 +46,7 @@ impl Drop for AcpSession {
 impl AcpSession {
     pub async fn shutdown(&self) {
         self.client.shutdown();
+        self.services.shutdown().await;
         self.peer.shutdown().await;
     }
     pub async fn set_model(&mut self, model: &str) -> Result<(), AcpError> {
@@ -183,6 +185,50 @@ impl AcpInstance {
         saved_session: Option<&str>,
         discovery: bool,
     ) -> Result<AcpSession, AcpError> {
+        self.start_peer_with_policy(
+            peer,
+            cwd,
+            saved_session,
+            discovery,
+            crate::acp_client_callbacks::policy(&json!("approval-required"), cwd),
+        )
+        .await
+    }
+    pub(crate) async fn start_peer_with_policy(
+        &self,
+        peer: ProcessPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        discovery: bool,
+        policy: Value,
+    ) -> Result<AcpSession, AcpError> {
+        // A local agentId never selects registry-only exceptions.
+        let agent_id = if self.config.source == AcpRegistrySettingsSource::Registry {
+            self.config.agent_id.as_str()
+        } else {
+            ""
+        };
+        self.start_resolved_peer(peer, cwd, saved_session, discovery, agent_id, policy)
+            .await
+    }
+    pub(crate) async fn start_resolved_peer(
+        &self,
+        peer: ProcessPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        discovery: bool,
+        registry_agent_id: &str,
+        policy: Value,
+    ) -> Result<AcpSession, AcpError> {
+        let services = crate::acp_client_callbacks::Services::new(
+            registry_agent_id,
+            cwd,
+            self.environment
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+            policy,
+        );
         let peer = Arc::new(peer);
         // Source AcpSessionRuntime uses an unbounded event queue, including load
         // replay received before setup finishes. Do not deadlock setup on a cap.
@@ -226,11 +272,22 @@ impl AcpInstance {
                 ..Default::default()
             },
         );
+        services.register(&client);
+        let update_services = services.clone();
         let updates = events.clone();
         client
             .handle_session_update(Arc::new(move |update| {
                 let updates = updates.clone();
+                let services = update_services.clone();
                 Box::pin(async move {
+                    let update = serde_json::from_value(
+                        services.resolve_update(serde_json::to_value(update).unwrap()),
+                    )
+                    .map_err(|error| {
+                        AcpError::Transport(format!(
+                            "Invalid embedded ACP terminal update: {error}"
+                        ))
+                    })?;
                     updates
                         .send(SessionEvent::Update(update))
                         .map_err(|_| AcpError::Closed)
@@ -271,7 +328,10 @@ impl AcpInstance {
                     title: Optional::Value("T3 Code".into()),
                     meta: Optional::Missing,
                 }),
-                client_capabilities: Some(ClientCapabilities::default()),
+                client_capabilities: Some(ClientCapabilities {
+                    terminal: services.has_terminals().then_some(true),
+                    ..Default::default()
+                }),
                 ..Default::default()
             })
             .await?;
@@ -326,6 +386,7 @@ impl AcpInstance {
             setup,
             events: receiver,
             peer: peer.as_ref().clone(),
+            services,
         })
     }
     pub async fn discover(&self, cwd: &Path) -> Result<Value, AcpError> {
@@ -585,5 +646,83 @@ mod tests {
             }
             reaped(&mut events).await;
         }
+    }
+    #[tokio::test]
+    async fn resolved_devin_process_callbacks_require_grant_and_render_owned_terminal_output() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let cwd = tempfile::tempdir().unwrap();
+            let mut instance = instance(2);
+            instance
+                .environment
+                .insert("T3_CALLBACK_ENV".into(), "session".into());
+            let mut options = instance.process_options(cwd.path()).unwrap();
+            options.args = vec![
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/acp-client-terminals-provider.py")
+                    .to_string_lossy()
+                    .into_owned(),
+            ];
+            let peer = ProcessPeer::spawn(options).unwrap();
+            let mut session = instance
+                .start_resolved_peer(
+                    peer,
+                    cwd.path(),
+                    None,
+                    false,
+                    "devin",
+                    crate::acp_client_callbacks::policy(&json!("approval-required"), cwd.path()),
+                )
+                .await
+                .unwrap();
+            session.services.set_turn(
+                crate::acp_client_callbacks::policy(&json!("approval-required"), cwd.path()),
+                "turn-one".into(),
+            );
+            let client = session.client.clone();
+            let input = prompt(&session, "execute");
+            let prompt_task = tokio::spawn(async move { client.prompt_typed(input).await });
+            let mut rendered = false;
+            while !rendered {
+                match session.events.recv().await.unwrap() {
+                    SessionEvent::Permission {
+                        request,
+                        response,
+                        written,
+                        context,
+                    } => {
+                        assert_eq!(serde_json::to_value(context.wire_id).unwrap(), json!(0));
+                        session
+                            .services
+                            .record_approval(&serde_json::to_value(&request).unwrap(), "accept");
+                        response
+                            .send(permission_response(&request, "accept"))
+                            .unwrap();
+                        written.await.unwrap().unwrap();
+                    }
+                    SessionEvent::Update(update) => {
+                        let value = serde_json::to_value(update).unwrap();
+                        if value["update"]["toolCallId"] == "terminal-tool" {
+                            assert_eq!(
+                                value["update"]["content"][0],
+                                json!({"type":"content","content":{"type":"text","text":"SESSION"}})
+                            );
+                            rendered = true;
+                        }
+                    }
+                    SessionEvent::Terminated(error) => panic!("provider terminated: {error}"),
+                }
+            }
+            assert_eq!(prompt_task.await.unwrap().unwrap().stop_reason, "end_turn");
+            assert_eq!(
+                session
+                    .services
+                    .embedded_commands("devin-session", "terminal-tool"),
+                vec!["printf '%s' \"$T3_CALLBACK_ENV\" | tr a-z A-Z"]
+            );
+            session.services.settle();
+            session.shutdown().await;
+        })
+        .await
+        .expect("bidirectional callback milestones");
     }
 }

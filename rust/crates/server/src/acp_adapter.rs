@@ -496,6 +496,7 @@ struct Callback {
     written: oneshot::Receiver<Result<(), AcpError>>,
 }
 struct Actor {
+    cwd: std::path::PathBuf,
     store: Store,
     thread_id: String,
     session_id: String,
@@ -572,7 +573,13 @@ impl Actor {
         // shutdown path waits for its reap before releasing the runtime lease.
         *pending_peer = Some(peer.clone());
         let session = instance
-            .start_peer(peer, &cwd, saved, false)
+            .start_peer_with_policy(
+                peer,
+                &cwd,
+                saved,
+                false,
+                crate::acp_client_callbacks::policy(&view["thread"]["runtimeMode"], &cwd),
+            )
             .await
             .map_err(error)?;
         let session_id = uuid::Uuid::new_v4().to_string();
@@ -635,6 +642,7 @@ impl Actor {
             )])
         })?;
         Ok(Self {
+            cwd,
             store,
             thread_id: thread_id.into(),
             session_id,
@@ -678,6 +686,10 @@ impl Actor {
                     .ok_or_else(|| error("The live ACP callback no longer exists."))?;
                 let response = permission_response(
                     &callback.request,
+                    effect.request["decision"].as_str().unwrap_or("cancel"),
+                );
+                self.session.services.record_approval(
+                    &serde_json::to_value(&callback.request).unwrap(),
                     effect.request["decision"].as_str().unwrap_or("cancel"),
                 );
                 callback
@@ -750,6 +762,17 @@ impl Actor {
             .unwrap()
             .to_owned();
         let provider_turn_id = uuid::Uuid::new_v4().to_string();
+        self.session.services.set_turn(
+            crate::acp_client_callbacks::policy(
+                &view["thread"]["runtimeMode"],
+                std::path::Path::new(
+                    view["thread"]["worktreePath"]
+                        .as_str()
+                        .unwrap_or_else(|| self.cwd.to_str().unwrap()),
+                ),
+            ),
+            provider_turn_id.clone(),
+        );
         let native_turn_id = format!("{}:turn:{}", self.session.setup.session_id, run["ordinal"]);
         let now = at(Utc::now());
         commit(&self.store, &self.thread_id, |view| {
@@ -1010,7 +1033,13 @@ impl Actor {
                 .find(|entry| entry["type"] == "diff" && entry["patch"]["text"].is_string())
                 .and_then(|entry| entry["patch"]["text"].as_str().map(ToOwned::to_owned))
                 .or_else(|| output.and_then(crate::acp_tools::output_text));
-            if let Some(identity) = crate::acp_mcp_tools::identity(native, &[]) {
+            if let Some(identity) = crate::acp_mcp_tools::identity(
+                native,
+                &self
+                    .session
+                    .services
+                    .embedded_commands(&self.session.setup.session_id, &id),
+            ) {
                 item["type"] = json!("dynamic_tool");
                 item["title"] = Value::Null;
                 let output_record = output.filter(|value| value.is_object());
@@ -1297,16 +1326,17 @@ impl Actor {
             let _ = response.send(permission_response(&request, "cancel"));
             return Ok(());
         }
-        let view = projection(&self.store, &self.thread_id)?;
         let native = serde_json::to_value(&request).unwrap();
         let kind = native["toolCall"]["kind"].as_str().unwrap_or("other");
-        let auto = matches!(kind, "read" | "search" | "think")
-            || matches!(
-                view["thread"]["runtimeMode"].as_str(),
-                Some("full-access" | "auto")
-            )
-            || (view["thread"]["runtimeMode"] == "auto-accept-edits"
-                && matches!(kind, "edit" | "delete" | "move"));
+        let disposition = self.session.services.permission(&native);
+        if disposition == crate::acp_client_policy::Disposition::Deny {
+            let _ = response.send(permission_response(&request, "cancel"));
+            return written
+                .await
+                .map_err(|_| error("ACP acknowledgement lost."))?
+                .map_err(error);
+        }
+        let auto = disposition == crate::acp_client_policy::Disposition::Allow;
         if auto {
             let mut result = permission_response(&request, "accept").map_err(error)?;
             if result.as_value()["outcome"]["outcome"] == "cancelled" {
@@ -1386,6 +1416,7 @@ impl Actor {
             )?,
         };
         self.active_run = None;
+        self.session.services.settle();
         self.callbacks.clear();
         Ok(())
     }
