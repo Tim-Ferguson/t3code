@@ -2,7 +2,7 @@ use crate::{AcpError, Peer, PeerEvent, RequestId, RpcError, normalize, schema};
 use futures_util::{FutureExt, future::BoxFuture};
 use serde_json::{Value, json};
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
     panic::AssertUnwindSafe,
     sync::{
         Arc, Mutex,
@@ -86,6 +86,7 @@ enum NotificationJob {
     Incoming {
         method: String,
         params: Value,
+        complete: oneshot::Sender<()>,
     },
     Register {
         method: String,
@@ -104,7 +105,6 @@ struct State {
     unknown_request: Mutex<Option<RequestHandler>>,
     notifications: Mutex<HashMap<String, Registration>>,
     unknown_notification: Mutex<Option<NotificationHandler>>,
-    recent: Mutex<VecDeque<Notification>>,
     raw_notifications: Arc<crate::notifications::NotificationQueue>,
     completions: Mutex<HashMap<String, Completion>>,
     next_token: AtomicU64,
@@ -190,6 +190,7 @@ impl Client {
         role: Role,
         options: ClientOptions,
     ) -> Self {
+        peer.enable_ordered_ingress();
         let incoming = peer.subscribe();
         let (events, _) = broadcast::channel(32);
         let (closed_signal, _) = watch::channel(None);
@@ -204,7 +205,6 @@ impl Client {
             unknown_request: Mutex::new(None),
             notifications: Mutex::new(HashMap::new()),
             unknown_notification: Mutex::new(None),
-            recent: Mutex::new(VecDeque::new()),
             raw_notifications: Arc::new(crate::notifications::NotificationQueue::default()),
             completions: Mutex::new(HashMap::new()),
             next_token: AtomicU64::new(1),
@@ -231,16 +231,6 @@ impl Client {
     /// Stream.fromQueue rather than creating independent subscriptions.
     pub fn notifications(&self) -> crate::NotificationStream {
         crate::NotificationStream(self.0.state.raw_notifications.clone())
-    }
-    pub fn recent_notifications(&self) -> Vec<Notification> {
-        self.0
-            .state
-            .recent
-            .lock()
-            .unwrap()
-            .iter()
-            .cloned()
-            .collect()
     }
     pub fn shutdown(&self) {
         self.0.state.terminate(AcpError::Closed);
@@ -922,7 +912,11 @@ async fn dispatch(
     callbacks.spawn(async move {
         while let Some(job) = jobs.recv().await {
             match job {
-                NotificationJob::Incoming { method, params } => {
+                NotificationJob::Incoming {
+                    method,
+                    params,
+                    complete,
+                } => {
                     let original_method = method.clone();
                     match incoming_notification(&worker_state, method, params) {
                         Ok((handlers, value, notification)) => {
@@ -950,15 +944,10 @@ async fn dispatch(
                             worker_state.raw_notifications.offer(raw);
                             complete_prompt(&worker_state, &notification);
                             run_notifications(&handlers, value).await;
-                            let mut recent = worker_state.recent.lock().unwrap();
-                            if recent.len() == 32 {
-                                recent.pop_front();
-                            }
-                            recent.push_back(notification.clone());
-                            drop(recent);
                             let _ = worker_state
                                 .events
                                 .send(ClientEvent::Notification(notification));
+                            let _ = complete.send(());
                         }
                         Err(error) => {
                             worker_state.terminate(error);
@@ -998,8 +987,20 @@ async fn dispatch(
             _=state.termination.notified()=>break,
             _=callbacks.join_next(),if !callbacks.is_empty()=>{},
             event=incoming.recv(),if !input_finished=>match event{
+                Ok(PeerEvent::IngressBarrier{acknowledgement})=>{acknowledgement.acknowledge();},
                 Ok(PeerEvent::Request{id,method,params})=>{callbacks.spawn(incoming_request(peer.clone(),state.clone(),id,method,params));},
-                Ok(PeerEvent::Notification{method,params})=>{let _=state.notification_jobs.send(NotificationJob::Incoming{method,params});},
+                Ok(PeerEvent::Notification{method,params})=>{
+                    let (complete, finished)=oneshot::channel();
+                    if state.notification_jobs.send(NotificationJob::Incoming{method,params,complete}).is_err() { break; }
+                    // The source reader awaits handlers before routing any later
+                    // ingress, including callbacks, replies and input termination.
+                    let mut closed=state.closed_signal.subscribe();
+                    if closed.borrow().is_some() { break; }
+                    tokio::select! {
+                        _=finished=>{},
+                        _=closed.changed()=>break,
+                    }
+                },
                 Ok(PeerEvent::Closed(error))=>{input_finished=true;let _=state.notification_jobs.send(NotificationJob::Terminal(error));},
                 Err(error)=>{input_finished=true;let _=state.notification_jobs.send(NotificationJob::Terminal(AcpError::Transport(format!("incoming continuity lost: {error}"))));},
             }

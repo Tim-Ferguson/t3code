@@ -2,7 +2,7 @@ use futures_util::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};
 use std::time::Duration;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, watch};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -247,8 +247,36 @@ pub enum AcpError {
     #[error("ACP client was closed")]
     Closed,
 }
+/// A transport releases a correlated reply only after the client has consumed
+/// this barrier in wire order. It also gates pending failures from input end.
+#[derive(Debug, Clone)]
+pub struct IngressAcknowledgement(watch::Sender<bool>);
+impl Default for IngressAcknowledgement {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl IngressAcknowledgement {
+    pub fn new() -> Self {
+        Self(watch::channel(false).0)
+    }
+    pub fn acknowledge(&self) {
+        self.0.send_replace(true);
+    }
+    pub async fn wait(&self) {
+        let mut acknowledged = self.0.subscribe();
+        while !*acknowledged.borrow_and_update() {
+            if acknowledged.changed().await.is_err() {
+                break;
+            }
+        }
+    }
+}
 #[derive(Debug, Clone)]
 pub enum PeerEvent {
+    IngressBarrier {
+        acknowledgement: IngressAcknowledgement,
+    },
     Notification {
         method: String,
         params: Value,
@@ -264,6 +292,11 @@ pub enum PeerEvent {
 /// completion, remove canceled request waiters, and propagate terminal errors.
 /// Subscribe before initialization so no callback or update is lost.
 pub trait Peer: Send + Sync + 'static {
+    /// Called before subscribing or issuing requests. Ordered transports emit
+    /// barriers before correlated replies and terminal pending failures, then
+    /// await them before returning request results. The default preserves
+    /// compatibility for simple peers that already sequence their own ingress.
+    fn enable_ordered_ingress(&self) {}
     fn request<'a>(
         &'a self,
         method: &'a str,

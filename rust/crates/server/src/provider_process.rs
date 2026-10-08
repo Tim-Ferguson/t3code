@@ -8,7 +8,7 @@ use std::{
     process::Stdio,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
@@ -60,6 +60,9 @@ pub enum ProcessError {
 }
 #[derive(Debug, Clone)]
 pub enum ProcessEvent {
+    IngressBarrier {
+        acknowledgement: t3_acp::IngressAcknowledgement,
+    },
     Notification {
         method: String,
         params: Value,
@@ -78,7 +81,11 @@ pub struct ProcessOptions {
     pub cwd: PathBuf,
     pub environment: HashMap<String, String>,
 }
-type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<Result<Value, ProcessError>>>>>;
+struct PendingReply {
+    result: Result<Value, ProcessError>,
+    acknowledgement: Option<t3_acp::IngressAcknowledgement>,
+}
+type Pending = Arc<Mutex<HashMap<u64, oneshot::Sender<PendingReply>>>>;
 struct Outgoing {
     value: Value,
     written: oneshot::Sender<Result<(), ProcessError>>,
@@ -86,6 +93,7 @@ struct Outgoing {
 struct Inner {
     outbound: mpsc::Sender<Outgoing>,
     json_rpc: bool,
+    ordered_ingress: Arc<AtomicBool>,
     pending: Pending,
     next_id: AtomicU64,
     permits: Arc<Semaphore>,
@@ -140,9 +148,11 @@ impl ProviderProcess {
         let (shutdown, mut stopping) = watch::channel(false);
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
         let closed = Arc::new(Mutex::new(None));
+        let ordered_ingress = Arc::new(AtomicBool::new(false));
         let inner = Arc::new(Inner {
             outbound,
             json_rpc,
+            ordered_ingress: ordered_ingress.clone(),
             pending: pending.clone(),
             next_id: AtomicU64::new(1),
             permits: Arc::new(Semaphore::new(MAX_PENDING)),
@@ -199,16 +209,28 @@ impl ProviderProcess {
                 }
             });
             let mut reader = BufReader::new(stdout);
-            let failure = loop {
+            let (failure, input_failure) = loop {
                 tokio::select! {
-                    _ = stopping.changed() => { let _=child.kill().await; break ProcessError::Closed("client was released".into()); }
-                    Some(error) = errors.recv() => break error,
+                    _ = stopping.changed() => { let _=child.kill().await; break (ProcessError::Closed("client was released".into()), false); }
+                    Some(error) = errors.recv() => break (error, false),
                     line = bounded_line(&mut reader) => {
                         match line {
                             Ok(Some(line)) => {
-                                let value = match serde_json::from_slice::<Value>(&line) { Ok(value) => value, Err(error) => break ProcessError::Protocol(error.to_string()) };
-                                if json_rpc && value["jsonrpc"]!="2.0" {break ProcessError::Protocol("Expected JSON-RPC version 2.0.".into());}
-                                if let Err(error) = dispatch_message(value, &pending, &events, json_rpc) { break error; }
+                                let value = match serde_json::from_slice::<Value>(&line) { Ok(value) => value, Err(error) => break (ProcessError::Protocol(error.to_string()), true) };
+                                if json_rpc && value["jsonrpc"]!="2.0" {break (ProcessError::Protocol("Expected JSON-RPC version 2.0.".into()), true);}
+                                let acknowledgement = match dispatch_message(value, &pending, &events, json_rpc, ordered_ingress.load(Ordering::Acquire)) {
+                                    Ok(acknowledgement) => acknowledgement,
+                                    Err(error) => break (error, true),
+                                };
+                                if let Some(acknowledgement) = acknowledgement {
+                                    // Backpressure belongs at the owned reader: a held
+                                    // notification must not fill a lossy broadcast queue.
+                                    tokio::select! {
+                                        _=acknowledgement.wait()=>{},
+                                        _=stopping.changed()=>break (ProcessError::Closed("client was released".into()), false),
+                                        Some(error)=errors.recv()=>break (error, false),
+                                    }
+                                }
                             }
                             Ok(None) => {
                                 // EOF may precede process exit; never wait indefinitely for an
@@ -216,16 +238,27 @@ impl ProviderProcess {
                                 let status = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
                                 let details = String::from_utf8_lossy(&diagnostic.lock().unwrap()).into_owned();
                                 let code = status.as_ref().ok().and_then(|status|status.as_ref().ok()).and_then(|status|status.code());
-                                break ProcessError::Exited{code,pid,message:format!("{status:?} {details}")};
+                                break (ProcessError::Exited{code,pid,message:format!("{status:?} {details}")}, true);
                             }
-                            Err(error) => break error,
+                            Err(error) => break (error, true),
                         }
                     }
                 }
             };
+            let acknowledgement =
+                (json_rpc && input_failure && ordered_ingress.load(Ordering::Acquire)).then(|| {
+                    let acknowledgement = t3_acp::IngressAcknowledgement::new();
+                    let _ = events.send(ProcessEvent::IngressBarrier {
+                        acknowledgement: acknowledgement.clone(),
+                    });
+                    acknowledgement
+                });
             *closed.lock().unwrap() = Some(failure.clone());
             for (_, waiter) in pending.lock().unwrap().drain() {
-                let _ = waiter.send(Err(failure.clone()));
+                let _ = waiter.send(PendingReply {
+                    result: Err(failure.clone()),
+                    acknowledgement: acknowledgement.clone(),
+                });
             }
             writer.abort();
             let _ = child.kill().await;
@@ -247,6 +280,11 @@ impl ProviderProcess {
             receiver
         } else {
             self.0.events.subscribe()
+        }
+    }
+    pub fn enable_ordered_ingress(&self) {
+        if self.0.json_rpc {
+            self.0.ordered_ingress.store(true, Ordering::Release);
         }
     }
     pub async fn request(
@@ -280,32 +318,35 @@ impl ProviderProcess {
             };
             self.send(json!({"id":id,"method":method,"params":params}))
                 .await?;
-            response
+            let reply = response
                 .await
-                .map_err(|_| ProcessError::Closed("response channel closed".into()))?
-                .map_err(|error| match error {
-                    ProcessError::EffectCause {
-                        request_id, cause, ..
-                    } => ProcessError::EffectCause {
-                        method: method.into(),
-                        request_id,
-                        cause,
-                    },
-                    ProcessError::JsonRpcRemote {
-                        request_id,
-                        code,
-                        message,
-                        data,
-                        ..
-                    } => ProcessError::JsonRpcRemote {
-                        method: method.into(),
-                        request_id,
-                        code,
-                        message,
-                        data,
-                    },
-                    other => other,
-                })
+                .map_err(|_| ProcessError::Closed("response channel closed".into()))?;
+            if let Some(acknowledgement) = reply.acknowledgement {
+                acknowledgement.wait().await;
+            }
+            reply.result.map_err(|error| match error {
+                ProcessError::EffectCause {
+                    request_id, cause, ..
+                } => ProcessError::EffectCause {
+                    method: method.into(),
+                    request_id,
+                    cause,
+                },
+                ProcessError::JsonRpcRemote {
+                    request_id,
+                    code,
+                    message,
+                    data,
+                    ..
+                } => ProcessError::JsonRpcRemote {
+                    method: method.into(),
+                    request_id,
+                    code,
+                    message,
+                    data,
+                },
+                other => other,
+            })
         };
         tokio::time::timeout(timeout, operation)
             .await
@@ -446,7 +487,8 @@ fn dispatch_message(
     pending: &Pending,
     events: &broadcast::Sender<ProcessEvent>,
     json_rpc: bool,
-) -> Result<(), ProcessError> {
+    ordered_ingress: bool,
+) -> Result<Option<t3_acp::IngressAcknowledgement>, ProcessError> {
     if json_rpc {
         let object = value
             .as_object()
@@ -505,7 +547,14 @@ fn dispatch_message(
             },
         };
         let _ = events.send(event);
-        return Ok(());
+        let acknowledgement = (json_rpc && ordered_ingress).then(|| {
+            let acknowledgement = t3_acp::IngressAcknowledgement::new();
+            let _ = events.send(ProcessEvent::IngressBarrier {
+                acknowledgement: acknowledgement.clone(),
+            });
+            acknowledgement
+        });
+        return Ok(acknowledgement);
     }
     let id = value["id"].as_u64().or_else(|| {
         if json_rpc {
@@ -521,7 +570,7 @@ fn dispatch_message(
     // IDs. Raw Codex retains its historical numeric-string compatibility.
     let Some(id) = id else {
         return if json_rpc {
-            Ok(())
+            Ok(None)
         } else {
             Err(ProcessError::Protocol("response has no request id".into()))
         };
@@ -565,9 +614,20 @@ fn dispatch_message(
     };
     // Late responses to a timed-out/cancelled request are intentionally ignored.
     if let Some(waiter) = pending.lock().unwrap().remove(&id) {
-        let _ = waiter.send(result);
+        let acknowledgement = (json_rpc && ordered_ingress).then(|| {
+            let acknowledgement = t3_acp::IngressAcknowledgement::new();
+            let _ = events.send(ProcessEvent::IngressBarrier {
+                acknowledgement: acknowledgement.clone(),
+            });
+            acknowledgement
+        });
+        let _ = waiter.send(PendingReply {
+            result,
+            acknowledgement: acknowledgement.clone(),
+        });
+        return Ok(acknowledgement);
     }
-    Ok(())
+    Ok(None)
 }
 
 #[cfg(test)]

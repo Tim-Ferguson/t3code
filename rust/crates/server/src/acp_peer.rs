@@ -36,6 +36,9 @@ impl ProcessPeer {
         let forwarding = tokio::spawn(async move {
             loop {
                 let event = match incoming.recv().await {
+                    Ok(ProcessEvent::IngressBarrier { acknowledgement }) => {
+                        PeerEvent::IngressBarrier { acknowledgement }
+                    }
                     Ok(ProcessEvent::Notification { method, params }) => {
                         PeerEvent::Notification { method, params }
                     }
@@ -117,6 +120,9 @@ fn error(cause: ProcessError) -> AcpError {
     }
 }
 impl Peer for ProcessPeer {
+    fn enable_ordered_ingress(&self) {
+        self.0.process.enable_ordered_ingress();
+    }
     fn request<'a>(
         &'a self,
         method: &'a str,
@@ -411,6 +417,293 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
         assert!(matches!(
             peer.notify("late", json!({})).await,
             Err(AcpError::ProcessExited { code: Some(6), .. })
+        ));
+    }
+    fn ordered_fixture(body: &str) -> (tempfile::TempDir, ProcessPeer, t3_acp::Client) {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("ordered-acp.py");
+        std::fs::write(&path, body).unwrap();
+        let peer = ProcessPeer::spawn(ProcessOptions {
+            binary: "python3".into(),
+            args: vec![path.to_string_lossy().into()],
+            cwd: directory.path().into(),
+            environment: Default::default(),
+        })
+        .unwrap();
+        let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(10));
+        (directory, peer, client)
+    }
+    async fn held_notification_barrier(
+        events: &mut broadcast::Receiver<ProcessEvent>,
+    ) -> t3_acp::IngressAcknowledgement {
+        tokio::time::timeout(Duration::from_secs(3),async {
+            loop {
+                if matches!(events.recv().await.unwrap(),ProcessEvent::Notification{method,..} if method=="x/gate") {
+                    let ProcessEvent::IngressBarrier{acknowledgement}=events.recv().await.unwrap() else { panic!("missing ordered notification acknowledgement"); };
+                    return acknowledgement;
+                }
+            }
+        }).await.unwrap()
+    }
+    #[tokio::test]
+    async fn ordered_actual_child_holds_mixed_request_reply_and_exit_after_notification() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::sync::{mpsc, oneshot};
+        for next in ["request", "response", "termination"] {
+            let script = format!(
+                r#"import sys,json
+request=json.loads(sys.stdin.readline())
+note={{'jsonrpc':'2.0','method':'x/gate','params':{{}}}}
+next='{next}'
+frames=[note]
+if next=='request': frames.append({{'jsonrpc':'2.0','id':7,'method':'x/callback','params':{{}}}})
+if next=='response': frames.append({{'jsonrpc':'2.0','id':request['id'],'result':{{'ok':True}}}})
+print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
+if next=='termination': sys.exit(7)
+if next=='request':
+ reply=json.loads(sys.stdin.readline())
+ assert reply['id']==7 and reply['result']=={{'ok':True}}
+ print(json.dumps({{'jsonrpc':'2.0','id':request['id'],'result':{{'ok':True}}}}),flush=True)
+"#
+            );
+            let (_directory, peer, client) = ordered_fixture(&script);
+            let mut process_events = peer.0.process.subscribe();
+            let (entered, mut handled) = mpsc::unbounded_channel();
+            let (release, held) = oneshot::channel();
+            let held = Arc::new(Mutex::new(Some(held)));
+            client.handle_unknown_notification(Arc::new(move |_| {
+                let entered = entered.clone();
+                let held = held.lock().unwrap().take().unwrap();
+                Box::pin(async move {
+                    entered.send(()).unwrap();
+                    held.await.unwrap();
+                    Ok(())
+                })
+            }));
+            let called = Arc::new(AtomicUsize::new(0));
+            let observed = called.clone();
+            client.handle_request(
+                "x/callback",
+                Arc::new(move |_, _| {
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    Box::pin(async { Ok(json!({"ok":true})) })
+                }),
+            );
+            let caller = client.clone();
+            let pending =
+                tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
+            tokio::time::timeout(Duration::from_secs(3), handled.recv())
+                .await
+                .unwrap()
+                .unwrap();
+            let barrier = held_notification_barrier(&mut process_events).await;
+            {
+                let acknowledged = barrier.wait();
+                tokio::pin!(acknowledged);
+                assert!(futures_util::poll!(acknowledged.as_mut()).is_pending());
+            }
+            assert!(!pending.is_finished());
+            assert_eq!(called.load(Ordering::SeqCst), 0);
+            release.send(()).unwrap();
+            let result = tokio::time::timeout(Duration::from_secs(3), pending)
+                .await
+                .unwrap()
+                .unwrap();
+            if next == "termination" {
+                assert!(
+                    matches!(result, Err(AcpError::ProcessExited { code: Some(7), .. })),
+                    "{result:?}"
+                );
+            } else {
+                assert_eq!(result.unwrap(), json!({"ok":true}));
+            }
+            assert_eq!(
+                called.load(Ordering::SeqCst),
+                usize::from(next == "request")
+            );
+        }
+    }
+    #[tokio::test]
+    async fn ordered_actual_child_backpressures_more_than_broadcast_capacity_without_lag() {
+        use tokio::sync::{mpsc, oneshot};
+        let (_directory, peer, client) = ordered_fixture(
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+for index in range(2049):
+ print(json.dumps({'jsonrpc':'2.0','method':'x/gate','params':{'index':index}}),flush=True)
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'count':2048}}),flush=True)
+"#,
+        );
+        let mut process_events = peer.0.process.subscribe();
+        let (seen, mut values) = mpsc::unbounded_channel();
+        let (release, held) = oneshot::channel();
+        let held = Arc::new(Mutex::new(Some(held)));
+        client.handle_unknown_notification(Arc::new(move |value| {
+            let seen = seen.clone();
+            let held = held.lock().unwrap().take();
+            Box::pin(async move {
+                seen.send(value["index"].as_u64().unwrap()).unwrap();
+                if let Some(held) = held {
+                    held.await.unwrap();
+                }
+                Ok(())
+            })
+        }));
+        let caller = client.clone();
+        let pending = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), values.recv())
+                .await
+                .unwrap(),
+            Some(0)
+        );
+        let barrier = held_notification_barrier(&mut process_events).await;
+        {
+            let acknowledged = barrier.wait();
+            tokio::pin!(acknowledged);
+            assert!(futures_util::poll!(acknowledged.as_mut()).is_pending());
+        }
+        release.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(10), async {
+            for index in 1..=2048 {
+                assert_eq!(values.recv().await, Some(index));
+            }
+            assert_eq!(pending.await.unwrap().unwrap(), json!({"count":2048}));
+        })
+        .await
+        .unwrap();
+        let raw = client.notifications();
+        for index in 2017..=2048 {
+            let Some(t3_acp::IncomingNotification::ExtNotification { params, .. }) = raw.try_recv()
+            else {
+                panic!("missing retained notification");
+            };
+            assert_eq!(params["index"], index);
+        }
+        assert!(raw.try_recv().is_none());
+    }
+    #[tokio::test]
+    async fn ordered_actual_child_preserves_pre_admitted_core_callback_concurrency() {
+        use tokio::sync::{mpsc, oneshot};
+        let (_directory, _peer, client) = ordered_fixture(
+            r#"import sys,json
+request=json.loads(sys.stdin.readline())
+frames=[{'jsonrpc':'2.0','id':7,'method':'fs/read_text_file','params':{'sessionId':'s','path':'/test'}},{'jsonrpc':'2.0','method':'x/gate','params':{}}]
+print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
+reply=json.loads(sys.stdin.readline())
+assert reply['id']==7 and reply['result']=={'content':'done'}
+print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'done':True}}),flush=True)
+"#,
+        );
+        let (callback_entered, mut callbacks) = mpsc::unbounded_channel();
+        let (finish_callback, callback_gate) = oneshot::channel();
+        let callback_gate = Arc::new(Mutex::new(Some(callback_gate)));
+        client.handle_request(
+            "fs/read_text_file",
+            Arc::new(move |_, _| {
+                let callback_entered = callback_entered.clone();
+                let held = callback_gate.lock().unwrap().take().unwrap();
+                Box::pin(async move {
+                    callback_entered.send(()).unwrap();
+                    held.await.unwrap();
+                    Ok(json!({"content":"done"}))
+                })
+            }),
+        );
+        let (notification_entered, mut notifications) = mpsc::unbounded_channel();
+        let (finish_notification, notification_gate) = oneshot::channel();
+        let notification_gate = Arc::new(Mutex::new(Some(notification_gate)));
+        client.handle_unknown_notification(Arc::new(move |_| {
+            let notification_entered = notification_entered.clone();
+            let held = notification_gate.lock().unwrap().take().unwrap();
+            Box::pin(async move {
+                notification_entered.send(()).unwrap();
+                held.await.unwrap();
+                Ok(())
+            })
+        }));
+        let mut events = client.subscribe();
+        let caller = client.clone();
+        let pending = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
+        tokio::time::timeout(Duration::from_secs(3), callbacks.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(3), notifications.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        finish_callback.send(()).unwrap();
+        tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                if let t3_acp::ClientEvent::ResponseAcknowledged { request_id } =
+                    events.recv().await.unwrap()
+                {
+                    assert_eq!(request_id, "$t3:jsonrpc:number:7");
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert!(!pending.is_finished());
+        finish_notification.send(()).unwrap();
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), pending)
+                .await
+                .unwrap()
+                .unwrap()
+                .unwrap(),
+            json!({"done":true})
+        );
+    }
+    #[tokio::test]
+    async fn dropping_ordered_connection_cancels_ack_wait_and_reaps_owned_child() {
+        use tokio::sync::{mpsc, oneshot};
+        let (_directory, peer, client) = ordered_fixture(
+            r#"import sys,json,threading
+request=json.loads(sys.stdin.readline())
+print(json.dumps({'jsonrpc':'2.0','method':'x/gate','params':{}}),flush=True)
+threading.Event().wait()
+"#,
+        );
+        let mut process_events = peer.0.process.subscribe();
+        let (entered, mut handled) = mpsc::unbounded_channel();
+        let (_release, held) = oneshot::channel::<()>();
+        let held = Arc::new(Mutex::new(Some(held)));
+        client.handle_unknown_notification(Arc::new(move |_| {
+            let entered = entered.clone();
+            let held = held.lock().unwrap().take().unwrap();
+            Box::pin(async move {
+                entered.send(()).unwrap();
+                let _ = held.await;
+                Ok(())
+            })
+        }));
+        let caller = client.clone();
+        let pending = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
+        tokio::time::timeout(Duration::from_secs(3), handled.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        let _unreleased_barrier = held_notification_barrier(&mut process_events).await;
+        client.shutdown();
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(3), pending)
+                .await
+                .unwrap()
+                .unwrap(),
+            Err(AcpError::Closed)
+        ));
+        drop(client);
+        drop(peer);
+        // Closed is published only after the owner kills and waits for its child.
+        assert!(matches!(
+            tokio::time::timeout(Duration::from_secs(3), process_events.recv())
+                .await
+                .unwrap()
+                .unwrap(),
+            ProcessEvent::Closed(ProcessError::Closed(_))
         ));
     }
 }

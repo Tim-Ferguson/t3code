@@ -195,6 +195,7 @@ async fn actor(
             incoming=async{runtime.as_mut().unwrap().connection.events.recv().await},if runtime.is_some()=>{
                 let runtime=runtime.as_mut().unwrap();
                 match incoming {
+                    Ok(ProcessEvent::IngressBarrier{acknowledgement})=>{acknowledgement.acknowledge();},
                     Ok(ProcessEvent::Notification{method,params})=>{if let Err(error)=runtime.notification(&method,&params){work.close();report(fail_run(&runtime.store,&runtime.thread_id,runtime.active_run.as_deref(),&error.to_string()),"provider failure");break;}},
                     Ok(ProcessEvent::Request{id,method,params})=>{if let Err(error)=runtime.request(id.clone(),&method,&params){let _=runtime.connection.process.respond(id,Err(ProcessError::Protocol(error.to_string()))).await;}},
                     Ok(ProcessEvent::Closed(error))=>{work.close();report(fail_run(&runtime.store,&runtime.thread_id,runtime.active_run.as_deref(),&error.to_string()),"provider failure");break;},

@@ -17,7 +17,25 @@ use tokio::sync::{broadcast, mpsc, oneshot};
 struct Call {
     method: String,
     params: Value,
-    reply: Option<oneshot::Sender<Result<Value, AcpError>>>,
+    reply: Option<Reply>,
+}
+struct Reply {
+    sender: oneshot::Sender<(Result<Value, AcpError>, t3_acp::IngressAcknowledgement)>,
+    ingress: broadcast::Sender<PeerEvent>,
+}
+impl Reply {
+    fn send(self, result: Result<Value, AcpError>) -> Result<(), Result<Value, AcpError>> {
+        let acknowledgement = t3_acp::IngressAcknowledgement::new();
+        let _ = self.ingress.send(PeerEvent::IngressBarrier {
+            acknowledgement: acknowledgement.clone(),
+        });
+        self.sender
+            .send((result, acknowledgement))
+            .map_err(|(result, _)| result)
+    }
+    fn is_closed(&self) -> bool {
+        self.sender.is_closed()
+    }
 }
 struct Response {
     id: RequestId,
@@ -46,10 +64,15 @@ impl Peer for FakePeer {
                 .send(Call {
                     method: method.into(),
                     params,
-                    reply: Some(sender),
+                    reply: Some(Reply {
+                        sender,
+                        ingress: self.events.clone(),
+                    }),
                 })
                 .unwrap();
-            receiver.await.map_err(|_| AcpError::Closed)?
+            let (result, acknowledgement) = receiver.await.map_err(|_| AcpError::Closed)?;
+            acknowledgement.wait().await;
+            result
         })
     }
     fn notify<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<(), AcpError>> {
@@ -538,7 +561,15 @@ async fn recent_raw_stream_is_bounded_while_late_handler_replays_all_core_update
         h.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":index.to_string()}}));
         notification(&mut events).await;
     }
-    assert_eq!(h.client.recent_notifications().len(), 32);
+    let stream = h.client.notifications();
+    for index in 32..64 {
+        let Some(t3_acp::IncomingNotification::SessionUpdate { params, .. }) = stream.try_recv()
+        else {
+            panic!("missing raw update");
+        };
+        assert_eq!(params["update"]["content"]["text"], index.to_string());
+    }
+    assert!(stream.try_recv().is_none());
     let seen = Arc::new(Mutex::new(Vec::new()));
     let observed = seen.clone();
     h.client
@@ -633,7 +664,7 @@ async fn process_exit_details_fail_waiting_prompt_and_are_retained_for_future_op
     ));
 }
 #[tokio::test]
-async fn deferred_notification_handlers_keep_chunks_and_idle_ordered_while_requests_progress() {
+async fn deferred_notification_handlers_hold_later_requests_chunks_and_idle_in_wire_order() {
     let mut h = Harness::new();
     h.initialize(Generation::V2, 2).await;
     let client = h.client.clone();
@@ -679,10 +710,11 @@ async fn deferred_notification_handlers_keep_chunks_and_idle_ordered_while_reque
         method: "x/barrier".into(),
         params: json!({}),
     });
-    assert_eq!(h.response().await.result.unwrap()["ready"], true);
+    assert!(h.responses.try_recv().is_err());
     assert!(!prompt_result.is_finished());
     assert_eq!(*values.lock().unwrap(), vec![json!("one")]);
     release.send(()).unwrap();
+    assert_eq!(h.response().await.result.unwrap()["ready"], true);
     for _ in 0..3 {
         notification(&mut events).await;
     }
@@ -747,10 +779,11 @@ async fn handler_registration_replay_cannot_be_overtaken_by_new_incoming_updates
         method: "x/barrier".into(),
         params: json!({}),
     });
-    h.response().await;
+    assert!(h.responses.try_recv().is_err());
     assert_eq!(*values.lock().unwrap(), vec![json!("old")]);
     release.send(()).unwrap();
     registration.await.unwrap();
+    h.response().await;
     for _ in 0..2 {
         notification(&mut events).await;
     }
@@ -991,4 +1024,155 @@ async fn transform_defect_terminates_pending_and_future_calls_with_private_trans
     assert_eq!(cause["message"], "normalizer bug");
     assert!(h.client.raw_notify("x/future", json!({})).await.is_err());
     assert_eq!(h.client.notifications().try_recv(), None);
+}
+
+#[tokio::test]
+async fn gated_notification_holds_mixed_ingress_like_actual_original_protocol() {
+    // Original protocol source probe: notification+request, notification+reply,
+    // and notification+EOF all report beforeRelease=false, afterRelease=true.
+    for next in ["request", "response", "termination"] {
+        let mut h = Harness::new();
+        let (entered, mut started) = mpsc::unbounded_channel();
+        let (release, held) = oneshot::channel();
+        let held = Arc::new(Mutex::new(Some(held)));
+        h.client.handle_unknown_notification(Arc::new(move |_| {
+            let entered = entered.clone();
+            let held = held.lock().unwrap().take();
+            Box::pin(async move {
+                entered.send(()).unwrap();
+                if let Some(held) = held {
+                    held.await.unwrap();
+                }
+                Ok(())
+            })
+        }));
+        h.client.handle_request(
+            "x/callback",
+            Arc::new(|_, _| Box::pin(async { Ok(json!({"ok":true})) })),
+        );
+        let pending = if next != "request" {
+            let client = h.client.clone();
+            Some(tokio::spawn(async move {
+                client.raw_request("x/pending", json!({})).await
+            }))
+        } else {
+            None
+        };
+        let call = if pending.is_some() {
+            Some(h.call().await)
+        } else {
+            None
+        };
+        h.event(PeerEvent::Notification {
+            method: "x/gate".into(),
+            params: json!({}),
+        });
+        match next {
+            "request" => h.event(PeerEvent::Request {
+                id: RequestId::Number(7.into()),
+                method: "x/callback".into(),
+                params: json!({}),
+            }),
+            "response" => call
+                .unwrap()
+                .reply
+                .unwrap()
+                .send(Ok(json!({"ok":true})))
+                .unwrap(),
+            "termination" => {
+                // Retain the pending transport reply until the input termination
+                // barrier is consumed, as a real ordered transport does.
+                let _pending_transport = call;
+                h.event(PeerEvent::Closed(AcpError::Closed));
+                started.recv().await.unwrap();
+                assert!(!pending.as_ref().unwrap().is_finished());
+                release.send(()).unwrap();
+                assert!(matches!(
+                    tokio::time::timeout(Duration::from_secs(2), pending.unwrap())
+                        .await
+                        .unwrap()
+                        .unwrap(),
+                    Err(AcpError::Closed)
+                ));
+                continue;
+            }
+            _ => unreachable!(),
+        }
+        tokio::time::timeout(Duration::from_secs(2), started.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(h.responses.try_recv().is_err());
+        if let Some(pending) = &pending {
+            assert!(!pending.is_finished());
+        }
+        release.send(()).unwrap();
+        if let Some(pending) = pending {
+            assert_eq!(
+                tokio::time::timeout(Duration::from_secs(2), pending)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap(),
+                json!({"ok":true})
+            );
+        } else {
+            assert_eq!(h.response().await.result.unwrap(), json!({"ok":true}));
+        }
+    }
+}
+
+#[tokio::test]
+async fn core_request_admitted_before_notification_can_finish_while_reader_is_gated() {
+    let mut h = Harness::new();
+    let (callback_started, mut callbacks) = mpsc::unbounded_channel();
+    let (finish_callback, callback_gate) = oneshot::channel();
+    let callback_gate = Arc::new(Mutex::new(Some(callback_gate)));
+    h.client.handle_request(
+        "fs/read_text_file",
+        Arc::new(move |_, _| {
+            let started = callback_started.clone();
+            let gate = callback_gate.lock().unwrap().take().unwrap();
+            Box::pin(async move {
+                started.send(()).unwrap();
+                gate.await.unwrap();
+                Ok(json!({"content":"done"}))
+            })
+        }),
+    );
+    let (notification_started, mut notifications) = mpsc::unbounded_channel();
+    let (finish_notification, notification_gate) = oneshot::channel();
+    let notification_gate = Arc::new(Mutex::new(Some(notification_gate)));
+    h.client.handle_unknown_notification(Arc::new(move |_| {
+        let started = notification_started.clone();
+        let gate = notification_gate.lock().unwrap().take().unwrap();
+        Box::pin(async move {
+            started.send(()).unwrap();
+            gate.await.unwrap();
+            Ok(())
+        })
+    }));
+    h.event(PeerEvent::Request {
+        id: RequestId::Number(7.into()),
+        method: "fs/read_text_file".into(),
+        params: json!({"sessionId":"s","path":"/test"}),
+    });
+    tokio::time::timeout(Duration::from_secs(2), callbacks.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    h.event(PeerEvent::Notification {
+        method: "x/gate".into(),
+        params: json!({}),
+    });
+    tokio::time::timeout(Duration::from_secs(2), notifications.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    finish_callback.send(()).unwrap();
+    assert_eq!(
+        h.response().await.result.unwrap(),
+        json!({"content":"done"})
+    );
+    finish_notification.send(()).unwrap();
 }
