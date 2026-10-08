@@ -11,6 +11,20 @@ pub struct ThreadState {
 }
 
 impl ThreadState {
+    /// A socket snapshot or another history page can change the cursor while
+    /// an HTTP page is in flight. Only the page owning this cursor may merge.
+    pub fn merge_history_for_cursor(
+        &mut self,
+        request_cursor: &str,
+        page: &Value,
+    ) -> Result<bool, &'static str> {
+        if self.history_cursor.as_deref() != Some(request_cursor) {
+            return Ok(false);
+        }
+        self.merge_history(page)?;
+        Ok(true)
+    }
+
     pub fn apply(&mut self, item: &Value) -> Result<bool, &'static str> {
         match item["kind"].as_str() {
             Some("synchronized") => {
@@ -21,13 +35,28 @@ impl ThreadState {
                 if !item["projection"]["thread"]["id"].is_string() {
                     return Err("snapshot has no thread");
                 }
-                self.sequence = item["snapshotSequence"]
+                let sequence = item["snapshotSequence"]
                     .as_u64()
                     .ok_or("missing snapshot sequence")?;
+                let cursor = match item.get("historyCursor") {
+                    None | Some(Value::Null) => None,
+                    Some(Value::String(cursor)) => Some(cursor.clone()),
+                    _ => return Err("invalid history cursor"),
+                };
+                let has_more = match item.get("hasMoreHistory") {
+                    None => false,
+                    Some(Value::Bool(value)) => *value,
+                    _ => return Err("invalid history state"),
+                };
+                let watermark = match item.get("latestLocalTurnOrdinal") {
+                    None | Some(Value::Null) => None,
+                    Some(value) => Some(value.as_u64().ok_or("invalid turn watermark")?),
+                };
+                self.sequence = sequence;
                 self.projection = Some(item["projection"].clone());
-                self.history_cursor = item["historyCursor"].as_str().map(str::to_owned);
-                self.has_more_history = item["hasMoreHistory"].as_bool().unwrap_or(false);
-                self.latest_local_turn_ordinal = item["latestLocalTurnOrdinal"].as_u64();
+                self.history_cursor = cursor;
+                self.has_more_history = has_more;
+                self.latest_local_turn_ordinal = watermark;
                 self.synchronized = false;
                 Ok(true)
             }
@@ -57,15 +86,28 @@ impl ThreadState {
     /// Pages are chronological and may overlap with live updates. Current
     /// entities win over stale page rows, and positions remain contiguous.
     pub fn merge_history(&mut self, page: &Value) -> Result<(), &'static str> {
+        // Reject malformed pages before updating rows or resume metadata.
+        let has_more = page["hasMoreHistory"]
+            .as_bool()
+            .ok_or("missing history state")?;
+        let cursor = match page.get("nextCursor") {
+            Some(Value::Null) => None,
+            Some(Value::String(cursor)) => Some(cursor.clone()),
+            _ => return Err("invalid history cursor"),
+        };
+        let incoming = page["items"].as_array().ok_or("missing history items")?;
+        if incoming
+            .iter()
+            .any(|row| !row["sourceItemId"].is_string() || !row["sourceThreadId"].is_string())
+        {
+            return Err("invalid history item identity");
+        }
         let projection = self.projection.as_mut().ok_or("thread not loaded")?;
         let current = projection["visibleTurnItems"]
             .as_array()
             .cloned()
             .unwrap_or_default();
-        let mut rows = page["items"]
-            .as_array()
-            .ok_or("missing history items")?
-            .clone();
+        let mut rows = incoming.clone();
         rows.retain(|row| {
             !current.iter().any(|existing| {
                 existing["sourceItemId"] == row["sourceItemId"]
@@ -75,10 +117,8 @@ impl ThreadState {
         rows.extend(current);
         renumber(&mut rows);
         projection["visibleTurnItems"] = Value::Array(rows);
-        self.history_cursor = page["nextCursor"].as_str().map(str::to_owned);
-        self.has_more_history = page["hasMoreHistory"]
-            .as_bool()
-            .ok_or("missing history state")?;
+        self.history_cursor = cursor;
+        self.has_more_history = has_more;
         Ok(())
     }
 }

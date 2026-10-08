@@ -1,12 +1,572 @@
-//! UI entry while the shared client port is validated. This is not a parity-complete client.
+mod runtime;
 use dioxus::prelude::*;
+use runtime::{UiModel, UiModelStoreExt, View};
+use serde_json::{Value, json};
+use t3_client::{connection::ConnectionStatus, rpc::RequestKind};
+
+const STYLES: &str = include_str!("../assets/app.css");
 
 #[component]
 pub fn App() -> Element {
-    rsx! {
-        main {
-            h1 { "T3 Code" }
-            p { "The Rust UI migration is in progress. The shared client state is implemented; application surfaces are still being ported." }
+    let state = use_store(UiModel::default);
+    let transport = use_hook(runtime::TransportHandle::default);
+    let startup_transport = transport.clone();
+    use_future(move || {
+        let transport = startup_transport.clone();
+        async move {
+            runtime::connect(transport, state, runtime::default_address(), String::new()).await;
         }
+    });
+    rsx! { Application { state, transport } }
+}
+
+#[component]
+fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<RenderProbe>() {
+        probe.application.set(probe.application.get() + 1);
+    }
+    let mut address = use_signal(runtime::default_address);
+    let mut token = use_signal(String::new);
+    let mut add_project = use_signal(|| false);
+    let mut project_title = use_signal(String::new);
+    let mut project_path = use_signal(String::new);
+    let mut chosen_model = use_signal(String::new);
+    let shell = state.shell();
+    let snapshot = shell.read();
+    let projects = snapshot
+        .snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.projects.clone())
+        .unwrap_or_default();
+    let threads = snapshot
+        .snapshot
+        .as_ref()
+        .map(|snapshot| snapshot.threads.clone())
+        .unwrap_or_default();
+    drop(snapshot);
+    let active_id = state.active_thread().read().clone();
+    let active = threads
+        .iter()
+        .find(|thread| Some(thread.id.as_str()) == active_id.as_deref())
+        .cloned();
+    let connected = *state.status().read() == ConnectionStatus::Connected;
+    let can_operate = connected
+        && state
+            .destination()
+            .read()
+            .as_ref()
+            .is_some_and(|destination| {
+                state.environments().read().allows(
+                    destination,
+                    t3_contracts::AuthEnvironmentScope::OrchestrationOperate,
+                )
+            });
+    let config = state.config().read().clone();
+    let options = state.peek().model_options();
+    let title = active
+        .as_ref()
+        .map(|thread| thread.title.clone())
+        .unwrap_or_default();
+    let view = state.view().read().clone();
+    let theme = if *state.dark().read() {
+        "dark"
+    } else {
+        "light"
+    };
+    let layout_class = if *state.sidebar_open().read() {
+        "app sidebar-open"
+    } else {
+        "app"
+    };
+    let status_label = match &*state.status().read() {
+        ConnectionStatus::Connected => "Connected",
+        ConnectionStatus::Connecting => "Connecting…",
+        ConnectionStatus::Blocked(_) => "Connection needs attention",
+        ConnectionStatus::Interrupted(_) => "Disconnected",
+        ConnectionStatus::Disconnected => "Disconnected",
+    };
+    let error = state.error().read().clone();
+    let selected_project = state.selected_project().read().clone();
+    rsx! {
+        style { "{STYLES}" }
+        div { class: "{layout_class}", "data-theme": theme,
+            aside { class: "sidebar", "aria-label": "Main sidebar",
+                header { class: "brand", Wordmark {} span { "Code" } }
+                nav { class: "sidebar-actions",
+                    button { onclick: move |_| { state.view().set(View::Chat); state.active_thread().set(None); }, "＋ New thread" }
+                    button { onclick: move |_| add_project.set(true), "＋ Add project" }
+                }
+                div { class: "project-list",
+                    for project in projects.iter() {
+                        div { class: "project-group", key: "{project.id}",
+                            button { class: "project-heading", title: "{project.workspace_root}", onclick: { let id = project.id.to_string(); move |_| { state.selected_project().set(Some(id.clone())); state.active_thread().set(None); state.view().set(View::Chat); } },
+                                span { class: "project-icon", "◇" } "{project.title}"
+                            }
+                            for thread in threads.iter().filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none()) {
+                                button { key: "{thread.id}", class: if active.as_ref().is_some_and(|active| active.id == thread.id) { "thread-row selected" } else { "thread-row" },
+                                    onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| runtime::select_thread(&transport, state, id.clone()) },
+                                    span { class: if thread.status.is_active() { "status-dot busy" } else { "status-dot" } }
+                                    span { class: "thread-title", "{thread.title}" }
+                                    if thread.pending_runtime_request.is_some() { span { class: "attention", title: "Needs your input", "!" } }
+                                }
+                            }
+                        }
+                    }
+                }
+                footer { class: "sidebar-footer",
+                    button { onclick: move |_| state.view().set(View::Connections), span { class: if connected { "status-dot online" } else { "status-dot" } } "{status_label}" }
+                    button { onclick: move |_| state.view().set(View::Providers), "⚙ Settings" }
+                }
+            }
+            main { class: "workspace",
+                header { class: "workspace-header",
+                    button { class: "icon-button", "aria-label": "Toggle main sidebar", onclick: move |_| { let open=state.peek().sidebar_open; state.sidebar_open().set(!open); }, "☰" }
+                    span { class: "workspace-title", "{title}" }
+                    if let Some(active_thread) = active.clone() {
+                        if active_thread.branch.is_some() { span { class: "branch-label", "⑂ {active_thread.branch.as_ref().unwrap()}" } }
+                        button { class: "icon-button", title: "Archive thread", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=active_thread.id.to_string(); move |_| { runtime::command(&transport,state,"thread.archive",json!({"threadId":id})); } }, "Archive" }
+                    }
+                }
+                if let Some(error) = error {
+                    div { class: "error-banner", role: "alert", span { "{error}" } button { "aria-label": "Dismiss error", onclick: move |_| state.error().set(None), "×" } }
+                }
+                match view {
+                    View::Connections => rsx! {
+                        section { class: "settings-page", h1 { "Connections" } p { "Connect to a T3 Code server to work on your projects from this device." }
+                            form { onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); chosen_model.set(String::new()); let transport=transport.clone(); let address=address(); let token=token(); spawn(async move { runtime::connect(transport,state,address,token).await; }); } },
+                                label { r#for: "server-address", "Server address" }
+                                input { id: "server-address", r#type: "url", required: true, placeholder: "https://your-server", value: "{address}", oninput: move |event| address.set(event.value()) }
+                                label { r#for: "access-token", "Access token" }
+                                input { id: "access-token", r#type: "password", autocomplete: "off", placeholder: "Optional for a paired browser", value: "{token}", oninput: move |event| token.set(event.value()) }
+                                button { class: "primary", r#type: "submit", "Connect" }
+                            }
+                            p { class: "muted", "{status_label}" }
+                        }
+                    },
+                    View::Providers => rsx! {
+                        section { class: "settings-page", div { class: "settings-tabs", button { class: "selected", "Providers" } button { onclick: move |_| state.view().set(View::Appearance), "Appearance" } button { onclick: move |_| state.view().set(View::Connections), "Connections" } }
+                            h1 { "Providers" } p { "Agent runtimes available on this environment." }
+                            for provider in config["providers"].as_array().into_iter().flatten() {
+                                article { class: "provider-row",
+                                    h2 { {provider["displayName"].as_str().or_else(|| provider["driver"].as_str()).unwrap_or("Provider")} }
+                                    span { class: "muted", {provider["message"].as_str().unwrap_or("")} }
+                                    span { {provider["status"].as_str().unwrap_or("Unknown")} }
+                                }
+                            }
+                            if !connected { p { "Connect to your server to see its providers." } }
+                        }
+                    },
+                    View::Appearance => rsx! {
+                        section { class: "settings-page", div { class: "settings-tabs", button { onclick: move |_| state.view().set(View::Providers), "Providers" } button { class: "selected", "Appearance" } button { onclick: move |_| state.view().set(View::Connections), "Connections" } }
+                            h1 { "Appearance" } label { "Theme" }
+                            select { value: theme, onchange: move |event| state.dark().set(event.value()=="dark"), option { value: "light", "Light" } option { value: "dark", "Dark" } }
+                        }
+                    },
+                    View::Chat => rsx! {
+                        if active.is_none() {
+                            section { class: "empty-state",
+                                h1 { "What should we work on?" }
+                                if projects.is_empty() { p { "Add a project to start your first thread." } button { class: "primary", onclick: move |_| add_project.set(true), "＋ Add project" } }
+                                else {
+                                    p { "Start a new thread in your project." }
+                                    div { class: "new-thread-controls",
+                                        select { "aria-label": "Project", value: selected_project.clone().unwrap_or_else(|| projects[0].id.to_string()), onchange: move |event| state.selected_project().set(Some(event.value())),
+                                            for project in &projects { option { value: "{project.id}", "{project.title}" } }
+                                        }
+                                        select { "aria-label": "Model", value: "{chosen_model}", onchange: move |event| chosen_model.set(event.value()),
+                                            if options.is_empty() { option { value: "", "No models available" } }
+                                            for (instance,slug,label) in &options { option { value: "{instance}/{slug}", "{label}" } }
+                                        }
+                                        button { class: "primary", disabled: !can_operate || options.is_empty(), onclick: { let transport=transport.clone(); let projects=projects.clone(); let options=options.clone(); move |_| {
+                                            let project=state.peek().selected_project.clone().unwrap_or_else(||projects[0].id.to_string());
+                                            let chosen=chosen_model();
+                                            let (instance,slug,_)=options.iter().find(|(instance,slug,_)|format!("{instance}/{slug}")==chosen).unwrap_or(&options[0]);
+                                            runtime::request(&transport,state,"orchestration.launchThread",json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":"New thread","modelSelection":{"instanceId":instance,"model":slug},"runtimeMode":"approval-required","interactionMode":"default","creationSource":runtime::creation_source(),"workspaceStrategy":{"type":"root"}}),RequestKind::Unary);
+                                        } }, "New thread" }
+                                    }
+                                }
+                            }
+                        } else {
+                            ThreadTimeline { state, transport: transport.clone(), thread_id: active.as_ref().unwrap().id.to_string(), can_operate }
+                            Composer { state, transport: transport.clone(), thread: active.as_ref().unwrap().clone(), can_operate }
+                        }
+                    },
+                }
+            }
+            if add_project() {
+                div { class: "modal-backdrop", div { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "add-project-heading",
+                    h2 { id: "add-project-heading", "Add project" }
+                    form { onsubmit: { let transport=transport.clone(); move |event| {
+                        event.prevent_default();
+                        if runtime::request(&transport,state,"projects.mutate",json!({"type":"project.create","commandId":uuid::Uuid::new_v4().to_string(),"projectId":uuid::Uuid::new_v4().to_string(),"title":project_title(),"workspaceRoot":project_path()}),RequestKind::Unary).is_some() { add_project.set(false); }
+                    } },
+                        label { r#for: "project-title", "Name" } input { id: "project-title", required: true, value: "{project_title}", oninput: move |event|project_title.set(event.value()) }
+                        label { r#for: "project-path", "Project directory on the server" } input { id: "project-path", required: true, placeholder: "/path/to/project", value: "{project_path}", oninput: move |event|project_path.set(event.value()) }
+                        div { class: "dialog-actions", button { r#type: "button", onclick: move |_|add_project.set(false), "Cancel" } button { class: "primary", r#type: "submit", disabled: !can_operate, "Add project" } }
+                    }
+                } }
+            }
+        }
+    }
+}
+
+#[component]
+fn ThreadTimeline(
+    state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    thread_id: String,
+    can_operate: bool,
+) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<RenderProbe>() {
+        probe.timeline.set(probe.timeline.get() + 1);
+    }
+    let thread = state.thread();
+    let mut history_loading = use_signal(|| None::<String>);
+    let mut history_error = use_signal(|| None::<(String, String)>);
+    let domain = thread.read();
+    let projection = domain.projection.as_ref();
+    let pending = projection
+        .map(t3_client::requests::pending_requests)
+        .unwrap_or_default();
+    let rows: Vec<_> = projection
+        .and_then(|projection| projection["visibleTurnItems"].as_array())
+        .into_iter()
+        .flatten()
+        .map(|row| {
+            (
+                format!("{}:{}", row["sourceThreadId"], row["sourceItemId"]),
+                row,
+            )
+        })
+        .collect();
+    rsx! {
+        div { class: "timeline", "aria-label": "Conversation",
+            if projection.is_some() {
+                if domain.has_more_history || history_error.read().as_ref().is_some_and(|(id,_)|id==&thread_id) {
+                    button { class:"load-earlier",disabled:history_loading.read().as_ref()==Some(&thread_id),onclick:{let transport=transport.clone();let thread_id=thread_id.clone();move |_|{
+                        if history_loading.peek().as_ref()==Some(&thread_id){return;}
+                        history_loading.set(Some(thread_id.clone()));history_error.set(None);
+                        let transport=transport.clone();let thread_id=thread_id.clone();spawn(async move{
+                            let result=runtime::load_earlier(transport,state).await;
+                            if history_loading.peek().as_ref()==Some(&thread_id){history_loading.set(None);if let Err(error)=result{history_error.set(Some((thread_id,error)));}}
+                        });
+                    }},if history_loading.read().as_ref()==Some(&thread_id){"Loading earlier messages…"}else{"Load earlier messages"} }
+                    if let Some((id,error))=&*history_error.read(){if id==&thread_id {p {class:"history-error",role:"alert","{error}"}}}
+                }
+                for (key,row) in rows { TimelineItem { key: "{key}", item: row["item"].clone() } }
+                for approval in pending.approvals.iter() { ApprovalCard { key: "{approval.id}", approval:approval.clone(), state, transport:transport.clone(),thread_id:thread_id.clone(),can_operate } }
+                for request in pending.user_inputs.iter() { UserInputCard { key: "{request.id}", request:request.clone(),state,transport:transport.clone(),thread_id:thread_id.clone(),can_operate } }
+            } else { p { class: "muted", "Loading thread…" } }
+        }
+    }
+}
+
+#[component]
+fn ApprovalCard(
+    approval: t3_client::requests::PendingApproval,
+    state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    thread_id: String,
+    can_operate: bool,
+) -> Element {
+    let options: Vec<_> = approval
+        .options
+        .iter()
+        .filter_map(|option| {
+            Some((
+                option["decision"].as_str()?.to_owned(),
+                option["label"].as_str()?.to_owned(),
+                option["warning"].as_str().map(str::to_owned),
+            ))
+        })
+        .collect();
+    rsx! {
+        section { class:"approval-card", "aria-label":"Approval required",
+            h3 { "Approval required" }
+            if let Some(app)=&approval.app_name { p { "{app}" } }
+            if let Some(detail)=&approval.detail { pre { "{detail}" } }
+            if !approval.live { p { class:"muted", "This request can no longer be answered." } }
+            for (decision,label,warning) in options {
+                div { class:"approval-option",
+                    button { disabled:!can_operate || !approval.live, onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=approval.id.clone();move |_|{runtime::command(&transport,state,"runtime-request.respond",json!({"threadId":thread_id,"requestId":id,"decision":decision}));}}, "{label}" }
+                    if let Some(warning)=warning { span { class:"approval-warning", "{warning}" } }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn UserInputCard(
+    request: t3_client::requests::PendingUserInput,
+    state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    thread_id: String,
+    can_operate: bool,
+) -> Element {
+    let answers =
+        use_signal(std::collections::BTreeMap::<String, t3_client::requests::DraftAnswer>::new);
+    let ready = t3_client::requests::build_answers(&request.questions, &answers.read()).is_some();
+    let can_respond = can_operate && request.response_capability != "not_resumable";
+    let questions: Vec<_> = request
+        .questions
+        .iter()
+        .map(|question| {
+            (
+                question["id"].as_str().unwrap_or("").to_owned(),
+                question.clone(),
+            )
+        })
+        .collect();
+    rsx! {
+        form { class:"approval-card user-input", onsubmit:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();let questions=request.questions.clone();move |event|{event.prevent_default();if let Some(answers)=t3_client::requests::build_answers(&questions,&answers.peek()){runtime::command(&transport,state,"runtime-request.respond",json!({"threadId":thread_id,"requestId":id,"answers":answers}));}}},
+            h3 { "Your input is needed" }
+            for (id,question) in questions { UserQuestion { key:"{id}", question,answers,state,disabled:!can_respond } }
+            button { class:"primary",r#type:"submit",disabled:!can_respond || !ready,"Submit answers" }
+            if request.dismissible { button { r#type:"button",disabled:!can_operate,onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();move |_|{runtime::command(&transport,state,"thread.user-input.dismiss",json!({"threadId":thread_id,"requestId":id}));}},"Dismiss" } }
+        }
+    }
+}
+
+#[component]
+fn UserQuestion(
+    question: Value,
+    mut answers: Signal<std::collections::BTreeMap<String, t3_client::requests::DraftAnswer>>,
+    state: Store<UiModel>,
+    disabled: bool,
+) -> Element {
+    let id = question["id"].as_str().unwrap_or("").to_owned();
+    let draft = answers.read().get(&id).cloned().unwrap_or_default();
+    let options: Vec<_> = question["options"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|option| {
+            Some((
+                option["value"]
+                    .as_str()
+                    .or_else(|| option["label"].as_str())?
+                    .to_owned(),
+                option["label"].as_str()?.to_owned(),
+                option["description"].as_str().unwrap_or("").to_owned(),
+            ))
+        })
+        .collect();
+    rsx! {
+        fieldset { disabled,
+            legend { {question["header"].as_str().unwrap_or("Question")} }
+            p { {question["question"].as_str().unwrap_or("")} }
+            for (value,label,description) in options {
+                label { class:"question-option",
+                    input { r#type:if question["multiSelect"]==true {"checkbox"} else {"radio"},name:"{id}",checked:draft.selected.contains(&value),onchange:{let question=question.clone();let id=id.clone();move |_| {
+                        let displaced={let mut drafts=answers.write();t3_client::requests::toggle_option(&question,drafts.entry(id.clone()).or_default(),value.clone())};
+                        if !displaced.is_empty(){let mut prompt=state.draft();let current=prompt.peek().clone();prompt.set(if current.trim().is_empty(){displaced}else{format!("{}\n\n{}",current.trim_end(),displaced)});}
+                    }} }
+                    span { "{label}" small { "{description}" } }
+                }
+            }
+            if question["allowCustomAnswer"]!=false { textarea { "aria-label":"Custom answer",placeholder:"Your answer",value:"{draft.custom}",oninput:{let id=id.clone();move |event|t3_client::requests::set_custom_answer(answers.write().entry(id.clone()).or_default(),event.value())} } }
+        }
+    }
+}
+
+#[component]
+fn Composer(
+    state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    thread: t3_contracts::ThreadShell,
+    can_operate: bool,
+) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<RenderProbe>() {
+        probe.composer.set(probe.composer.get() + 1);
+    }
+    let draft = state.draft().read().clone();
+    let pending = state.pending_message().read().is_some();
+    rsx! {
+        form { class: "composer", onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); runtime::send_message(&transport,state); } },
+            textarea { "aria-label": "Message", placeholder: "Ask anything, or describe what to build…", value: "{draft}", oninput: move |event| state.draft().set(event.value()) }
+            div { class: "composer-toolbar",
+                span { class: "muted", "{thread.model_selection.instance_id} · {thread.model_selection.model}" }
+                if thread.status.is_active() {
+                    button { r#type: "button", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::command(&transport,state,"thread.stop",json!({"threadId":id})); } }, "Stop" }
+                }
+                button { class: "primary", r#type: "submit", disabled: !can_operate || pending || draft.trim().is_empty(), if pending { "Sending…" } else { "Send ↑" } }
+            }
+        }
+    }
+}
+
+#[component]
+fn Wordmark() -> Element {
+    rsx! { svg { view_box: "15.5309 37 94.3941 56.96", width: "25", height: "16", "aria-label": "T3",
+        path { d: "M33.4509 93V47.56H15.5309V37H64.3309V47.56H46.4109V93H33.4509ZM86.7253 93.96C82.832 93.96 78.9653 93.4533 75.1253 92.44C71.2853 91.3733 68.032 89.88 65.3653 87.96L70.4053 78.04C72.5386 79.5867 75.0186 80.8133 77.8453 81.72C80.672 82.6267 83.5253 83.08 86.4053 83.08C89.6586 83.08 92.2186 82.44 94.0853 81.16C95.952 79.88 96.8853 78.12 96.8853 75.88C96.8853 73.7467 96.0586 72.0667 94.4053 70.84C92.752 69.6133 90.0853 69 86.4053 69H80.4853V60.44L96.0853 42.76L97.5253 47.4H68.1653V37H107.365V45.4L91.8453 63.08L85.2853 59.32H89.0453C95.9253 59.32 101.125 60.8667 104.645 63.96C108.165 67.0533 109.925 71.0267 109.925 75.88C109.925 79.0267 109.099 81.9867 107.445 84.76C105.792 87.48 103.259 89.6933 99.8453 91.4C96.432 93.1067 92.0586 93.96 86.7253 93.96Z", fill: "currentColor" }
+    } }
+}
+
+#[component]
+fn Message(role: String, text: String) -> Element {
+    let html = safe_markdown(&text);
+    rsx! { article { class: if role=="user" { "message user" } else { "message assistant" }, div { class: "markdown", dangerous_inner_html: html } } }
+}
+
+#[component]
+fn TimelineItem(item: Value) -> Element {
+    let kind = item["type"].as_str().unwrap_or("activity");
+    let text = item["text"]
+        .as_str()
+        .or_else(|| item["message"]["text"].as_str())
+        .unwrap_or("")
+        .to_owned();
+    if matches!(
+        kind,
+        "assistant_message" | "user_message" | "assistant_text"
+    ) {
+        rsx! { Message { role: (if kind=="user_message" { "user" } else { "assistant" }).to_owned(), text } }
+    } else {
+        let label = kind.replace('_', " ");
+        rsx! { details { class: "tool-activity", summary { "{label}" } if !text.is_empty() { pre { "{text}" } } } }
+    }
+}
+
+/// Raw HTML and unsafe link/image schemes cannot cross into the webview. Rich
+/// media and trusted provider directives get their own adapters in later batches.
+fn safe_markdown(text: &str) -> String {
+    use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+    let events = Parser::new_ext(text, Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH).map(
+        |event| match event {
+            Event::Html(raw) | Event::InlineHtml(raw) => Event::Text(raw),
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                title,
+                id,
+            }) if !safe_url(&dest_url) => Event::Start(Tag::Link {
+                link_type,
+                dest_url: "#".into(),
+                title,
+                id,
+            }),
+            Event::Start(Tag::Image {
+                link_type,
+                dest_url,
+                title,
+                id,
+            }) if !safe_url(&dest_url) => Event::Start(Tag::Image {
+                link_type,
+                dest_url: "".into(),
+                title,
+                id,
+            }),
+            Event::End(TagEnd::Image) => Event::End(TagEnd::Image),
+            event => event,
+        },
+    );
+    let mut html = String::new();
+    pulldown_cmark::html::push_html(&mut html, events);
+    html
+}
+fn safe_url(url: &str) -> bool {
+    let url = url.trim().to_ascii_lowercase();
+    !url.contains(':')
+        || url.starts_with("https://")
+        || url.starts_with("http://")
+        || url.starts_with("mailto:")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn remote_markdown_cannot_execute_html_or_script_links() {
+        let html = safe_markdown(
+            "<script>alert(1)</script>\n\n[bad](javascript:alert%281%29)\n\n**Safe**",
+        );
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains("href=\"javascript:"));
+        assert!(html.contains("<strong>Safe</strong>"));
+    }
+}
+
+#[cfg(test)]
+#[derive(Clone, Default)]
+struct RenderProbe {
+    application: std::rc::Rc<std::cell::Cell<usize>>,
+    composer: std::rc::Rc<std::cell::Cell<usize>>,
+    timeline: std::rc::Rc<std::cell::Cell<usize>>,
+}
+
+#[cfg(test)]
+mod reactive_tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+    #[derive(Clone)]
+    struct Harness {
+        state: Rc<RefCell<Option<Store<UiModel>>>>,
+        probe: RenderProbe,
+    }
+    fn large_model() -> UiModel {
+        let mut model = UiModel::default();
+        let thread: t3_contracts::ThreadShell=serde_json::from_value(json!({
+            "createdBy":"user","creationSource":"web","id":"thread","projectId":"p0","title":"Work",
+            "providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"model"},
+            "runtimeMode":"approval-required","interactionMode":"default","branch":null,"worktreePath":null,
+            "lineage":{"parentThreadId":null,"relationshipToParent":null,"rootThreadId":"thread"},
+            "forkedFrom":null,"activeProviderThreadId":null,"latestRunId":null,"activeRunId":null,"status":"idle",
+            "pendingRuntimeRequest":null,"latestVisibleMessage":null,"latestUserMessageAt":null,
+            "hasActionableProposedPlan":false,"itemCount":2000,"visibleItemCount":2000,
+            "createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z","archivedAt":null,
+            "settledOverride":null,"settledAt":null,"deletedAt":null
+        })).unwrap();
+        let projects=(0..1000).map(|index|serde_json::from_value(json!({"id":format!("p{index}"),"title":format!("Project {index}"),"workspaceRoot":format!("/projects/{index}"),"defaultModelSelection":null,"scripts":[],"createdAt":"now","updatedAt":"now"})).unwrap()).collect();
+        model.shell.snapshot = Some(t3_contracts::ShellSnapshot {
+            schema_version: 2,
+            snapshot_sequence: 1,
+            projects,
+            threads: vec![thread],
+            archived_threads: vec![],
+        });
+        model.active_thread = Some("thread".into());
+        let rows:Vec<_>=(0..2000).map(|index|json!({"sourceThreadId":"thread","sourceItemId":format!("item{index}"),"position":index,"item":{"id":format!("item{index}"),"type":"assistant_message","text":"A long conversation that should never be cloned or rendered again merely because the user types a character."}})).collect();
+        model.thread.projection =
+            Some(json!({"thread":{"id":"thread"},"visibleTurnItems":rows,"runtimeRequests":[]}));
+        model
+    }
+    fn harness(props: Harness) -> Element {
+        use_context_provider(|| props.probe.clone());
+        let state = use_store(large_model);
+        *props.state.borrow_mut() = Some(state);
+        let transport = use_hook(runtime::TransportHandle::default);
+        rsx! { Application { state, transport } }
+    }
+    #[test]
+    fn typing_in_large_conversation_updates_composer_without_rebuilding_shell_or_history() {
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe: RenderProbe::default(),
+        };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let root_renders = props.probe.application.get();
+        let timeline_renders = props.probe.timeline.get();
+        let composer_renders = props.probe.composer.get();
+        assert_eq!(timeline_renders, 1);
+        let state = props.state.borrow().unwrap();
+        for text in ["h", "he", "hel", "hello"] {
+            state.draft().set(text.to_owned());
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+        assert_eq!(props.probe.application.get(), root_renders);
+        assert_eq!(props.probe.timeline.get(), timeline_renders);
+        assert_eq!(props.probe.composer.get(), composer_renders + 4);
+        assert_eq!(
+            state.thread().peek().projection.as_ref().unwrap()["visibleTurnItems"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2000
+        );
     }
 }

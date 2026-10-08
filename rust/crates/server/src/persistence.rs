@@ -16,6 +16,8 @@ pub enum StoreError {
     Json(#[from] serde_json::Error),
     #[error("Database lock was poisoned")]
     Poisoned,
+    #[error("Invalid command: {0}")]
+    InvalidCommand(String),
     #[error("Effect {0} is not owned by this worker")]
     LeaseLost(String),
     #[error("Projection {kind}/{id} has invalid state: {detail}")]
@@ -106,6 +108,29 @@ pub enum Decision {
 }
 
 impl Store {
+    /// Read a consistent view while command planning and commits are excluded.
+    pub fn read<R>(
+        &self,
+        read: impl FnOnce(&Connection) -> Result<R, StoreError>,
+    ) -> Result<R, StoreError> {
+        let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
+        let transaction =
+            connection.transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)?;
+        let result = read(&transaction)?;
+        transaction.commit()?;
+        Ok(result)
+    }
+    pub fn transaction<R>(
+        &self,
+        write: impl FnOnce(&Transaction<'_>) -> Result<R, StoreError>,
+    ) -> Result<R, StoreError> {
+        let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
+        let transaction =
+            connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let result = write(&transaction)?;
+        transaction.commit()?;
+        Ok(result)
+    }
     pub fn open(path: impl AsRef<Path>) -> Result<Self, StoreError> {
         Self::from_connection(Connection::open(path)?)
     }
@@ -181,6 +206,14 @@ impl Store {
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         if let Some(receipt) = read_receipt(&transaction, command_id)? {
+            if receipt.aggregate_kind != kind
+                || receipt.aggregate_id != aggregate_id
+                || receipt.command_type != command_type
+            {
+                return Err(StoreError::InvalidCommand(
+                    "Command ID belongs to a different command.".into(),
+                ));
+            }
             return Ok(receipt);
         }
         let mut stored = Vec::new();
@@ -257,12 +290,31 @@ impl Store {
         now: DateTime<Utc>,
         lease: chrono::Duration,
     ) -> Result<Option<Effect>, StoreError> {
+        self.claim_effect_with_options(owner, now, lease, false)
+    }
+
+    pub fn claim_effect_with_options(
+        &self,
+        owner: &str,
+        now: DateTime<Utc>,
+        lease: chrono::Duration,
+        exclude_restart_continuations: bool,
+    ) -> Result<Option<Effect>, StoreError> {
         let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let id: Option<String> = transaction.query_row("SELECT id FROM rust_effect_outbox WHERE status IN ('pending','failed') AND available_at<=?1 ORDER BY available_at,created_at,id LIMIT 1",[now.to_rfc3339()],|row| row.get(0)).optional()?;
+        let id: Option<String> = transaction.query_row("SELECT candidate.id FROM rust_effect_outbox AS candidate
+            WHERE candidate.status='pending' AND candidate.available_at<=?1
+            AND (?2=0 OR json_extract(candidate.request_json,'$.type')!='provider-runtime.continue')
+            AND NOT EXISTS (SELECT 1 FROM rust_effect_outbox AS active
+                WHERE active.thread_id=candidate.thread_id
+                AND (active.status='running' OR (active.status='pending' AND active.rowid<candidate.rowid
+                     AND (?2=0 OR json_extract(active.request_json,'$.type')!='provider-runtime.continue')))
+                AND ((json_extract(candidate.request_json,'$.type')='thread-title.generate' AND json_extract(active.request_json,'$.type')='thread-title.generate')
+                  OR (json_extract(candidate.request_json,'$.type')!='thread-title.generate' AND json_extract(active.request_json,'$.type')!='thread-title.generate')))
+            ORDER BY candidate.available_at,candidate.created_at,candidate.id LIMIT 1",params![now.to_rfc3339(),exclude_restart_continuations],|row| row.get(0)).optional()?;
         let Some(id) = id else { return Ok(None) };
-        transaction.execute("UPDATE rust_effect_outbox SET status='running',attempt_count=attempt_count+1,lease_owner=?1,lease_expires_at=?2,updated_at=?3 WHERE id=?4",params![owner,(now+lease).to_rfc3339(),now.to_rfc3339(),id])?;
+        transaction.execute("UPDATE rust_effect_outbox SET status='running',attempt_count=attempt_count+1,lease_owner=?1,lease_expires_at=?2,updated_at=?3,last_error=NULL WHERE id=?4",params![owner,(now+lease.max(chrono::Duration::milliseconds(1))).to_rfc3339(),now.to_rfc3339(),id])?;
         let effect = read_effect(&transaction, &id)?;
         transaction.commit()?;
         Ok(effect)
@@ -279,7 +331,14 @@ impl Store {
         let connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         let (status, error) = match outcome {
             Ok(()) => ("succeeded", None),
-            Err(error) => ("failed", Some(error)),
+            Err(error) => (
+                if retry_at.is_some() {
+                    "pending"
+                } else {
+                    "failed"
+                },
+                Some(error),
+            ),
         };
         let affected = connection.execute("UPDATE rust_effect_outbox SET status=?1,last_error=?2,available_at=?3,updated_at=?4,lease_owner=NULL,lease_expires_at=NULL WHERE id=?5 AND status='running' AND lease_owner=?6",params![status,error,retry_at.unwrap_or(now).to_rfc3339(),now.to_rfc3339(),id,owner])?;
         if affected == 0 {
@@ -502,6 +561,8 @@ mod tests {
     #[test]
     fn exclusive_leases_reject_stale_owners_and_recover_by_effect_policy() {
         let store = Store::memory().unwrap();
+        let mut other_thread = effect("b-process", "provider-turn.start");
+        other_thread.thread_id = "thread:2".into();
         store
             .dispatch(
                 "command:1",
@@ -512,10 +573,7 @@ mod tests {
                 |_| {
                     Ok(Decision::Accepted {
                         events: vec![event()],
-                        effects: vec![
-                            effect("a-safe", "checkpoint.capture"),
-                            effect("b-process", "provider-turn.start"),
-                        ],
+                        effects: vec![effect("a-safe", "checkpoint.capture"), other_thread],
                     })
                 },
                 |_, _| Ok(()),
@@ -573,5 +631,322 @@ mod tests {
             store.effect(&claimed.id).unwrap().unwrap().status,
             "succeeded"
         );
+    }
+
+    #[test]
+    fn terminal_failure_is_not_reclaimed_and_retry_backoff_blocks_later_work() {
+        let store = Store::memory().unwrap();
+        store
+            .dispatch(
+                "command:1",
+                "thread",
+                "thread:1",
+                "test",
+                now(),
+                |_| {
+                    Ok(Decision::Accepted {
+                        events: vec![],
+                        effects: vec![
+                            effect("rollback", "provider-thread.rollback"),
+                            effect("start", "provider-turn.start"),
+                        ],
+                    })
+                },
+                |_, _| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(
+            store
+                .claim_effect("a", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .unwrap()
+                .id,
+            "rollback"
+        );
+        assert!(
+            store
+                .claim_effect("b", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .is_none()
+        );
+        store
+            .finish_effect(
+                "rollback",
+                "a",
+                now(),
+                Err("temporarily unavailable"),
+                Some(now() + chrono::Duration::seconds(20)),
+            )
+            .unwrap();
+        assert!(
+            store
+                .claim_effect(
+                    "b",
+                    now() + chrono::Duration::seconds(10),
+                    chrono::Duration::seconds(30)
+                )
+                .unwrap()
+                .is_none()
+        );
+        let retried = store
+            .claim_effect(
+                "b",
+                now() + chrono::Duration::seconds(20),
+                chrono::Duration::seconds(30),
+            )
+            .unwrap()
+            .unwrap();
+        assert_eq!(retried.id, "rollback");
+        assert_eq!(retried.attempt_count, 2);
+        assert!(retried.last_error.is_none());
+        store
+            .finish_effect(
+                "rollback",
+                "b",
+                now() + chrono::Duration::seconds(21),
+                Err("terminal failure"),
+                None,
+            )
+            .unwrap();
+        assert_eq!(
+            store
+                .claim_effect(
+                    "c",
+                    now() + chrono::Duration::seconds(22),
+                    chrono::Duration::seconds(30)
+                )
+                .unwrap()
+                .unwrap()
+                .id,
+            "start"
+        );
+        store
+            .finish_effect(
+                "start",
+                "c",
+                now() + chrono::Duration::seconds(23),
+                Ok(()),
+                None,
+            )
+            .unwrap();
+        assert!(
+            store
+                .claim_effect(
+                    "d",
+                    now() + chrono::Duration::days(1),
+                    chrono::Duration::seconds(30)
+                )
+                .unwrap()
+                .is_none()
+        );
+        assert_eq!(store.effect("rollback").unwrap().unwrap().status, "failed");
+    }
+
+    #[test]
+    fn title_and_critical_work_have_independent_serial_lanes() {
+        let store = Store::memory().unwrap();
+        store
+            .dispatch(
+                "command:1",
+                "thread",
+                "thread:1",
+                "test",
+                now(),
+                |_| {
+                    Ok(Decision::Accepted {
+                        events: vec![],
+                        effects: vec![
+                            effect("title-1", "thread-title.generate"),
+                            effect("critical-1", "provider-turn.start"),
+                            effect("title-2", "thread-title.generate"),
+                            effect("critical-2", "checkpoint.capture"),
+                        ],
+                    })
+                },
+                |_, _| Ok(()),
+            )
+            .unwrap();
+        let first = store
+            .claim_effect("a", now(), chrono::Duration::seconds(30))
+            .unwrap()
+            .unwrap();
+        let second = store
+            .claim_effect("b", now(), chrono::Duration::seconds(30))
+            .unwrap()
+            .unwrap();
+        let claimed = [first.id.as_str(), second.id.as_str()];
+        assert!(claimed.contains(&"title-1"));
+        assert!(claimed.contains(&"critical-1"));
+        assert!(
+            store
+                .claim_effect("c", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .is_none()
+        );
+        let critical_owner = if first.id == "critical-1" { "a" } else { "b" };
+        store
+            .finish_effect("critical-1", critical_owner, now(), Ok(()), None)
+            .unwrap();
+        assert_eq!(
+            store
+                .claim_effect("c", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .unwrap()
+                .id,
+            "critical-2"
+        );
+        let title_owner = if first.id == "title-1" { "a" } else { "b" };
+        store
+            .finish_effect("title-1", title_owner, now(), Ok(()), None)
+            .unwrap();
+        assert_eq!(
+            store
+                .claim_effect("d", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .unwrap()
+                .id,
+            "title-2"
+        );
+    }
+
+    #[test]
+    fn skipping_restart_continuations_does_not_block_later_lifecycle_work() {
+        let store = Store::memory().unwrap();
+        store
+            .dispatch(
+                "command:1",
+                "thread",
+                "thread:1",
+                "test",
+                now(),
+                |_| {
+                    Ok(Decision::Accepted {
+                        events: vec![],
+                        effects: vec![
+                            effect("continue", "provider-runtime.continue"),
+                            effect("cleanup", "terminal.cleanup"),
+                        ],
+                    })
+                },
+                |_, _| Ok(()),
+            )
+            .unwrap();
+        assert_eq!(
+            store
+                .claim_effect_with_options("a", now(), chrono::Duration::seconds(30), true)
+                .unwrap()
+                .unwrap()
+                .id,
+            "cleanup"
+        );
+        assert!(
+            store
+                .claim_effect("b", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .is_none()
+        );
+        store
+            .finish_effect("cleanup", "a", now(), Ok(()), None)
+            .unwrap();
+        assert_eq!(
+            store
+                .claim_effect("b", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .unwrap()
+                .id,
+            "continue"
+        );
+    }
+
+    #[test]
+    fn independent_connections_claim_distinct_threads_but_serialize_same_thread() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state.sqlite");
+        let first = Store::open(&path).unwrap();
+        let second = Store::open(&path).unwrap();
+        let mut other = effect("thread-two", "checkpoint.capture");
+        other.thread_id = "thread:2".into();
+        first
+            .dispatch(
+                "command:1",
+                "thread",
+                "thread:1",
+                "test",
+                now(),
+                |_| {
+                    Ok(Decision::Accepted {
+                        events: vec![],
+                        effects: vec![
+                            effect("thread-one-a", "checkpoint.capture"),
+                            effect("thread-one-b", "provider-turn.start"),
+                            other,
+                        ],
+                    })
+                },
+                |_, _| Ok(()),
+            )
+            .unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let claims = std::thread::scope(|scope| {
+            let gate = barrier.clone();
+            let one_store = first.clone();
+            let one = scope.spawn(move || {
+                gate.wait();
+                one_store
+                    .claim_effect("worker-a", now(), chrono::Duration::seconds(30))
+                    .unwrap()
+                    .unwrap()
+            });
+            let gate = barrier.clone();
+            let two = scope.spawn(move || {
+                gate.wait();
+                second
+                    .claim_effect("worker-b", now(), chrono::Duration::seconds(30))
+                    .unwrap()
+                    .unwrap()
+            });
+            [one.join().unwrap(), two.join().unwrap()]
+        });
+        assert_ne!(claims[0].thread_id, claims[1].thread_id);
+        assert!(
+            first
+                .claim_effect("worker-c", now(), chrono::Duration::seconds(30))
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn multi_read_view_keeps_sequence_and_projection_on_one_sqlite_snapshot() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("state.sqlite");
+        let reader = Store::open(&path).unwrap();
+        let writer = Store::open(&path).unwrap();
+        reader
+            .read(|connection| {
+                assert_eq!(latest(connection)?, 0);
+                writer.dispatch(
+                    "command:1",
+                    "thread",
+                    "thread:1",
+                    "thread.create",
+                    now(),
+                    |_| {
+                        Ok(Decision::Accepted {
+                            events: vec![event()],
+                            effects: vec![],
+                        })
+                    },
+                    |transaction, event| {
+                        write_projection(transaction, "thread", "thread:1", &event.event.payload)
+                    },
+                )?;
+                assert!(read_projection(connection, "thread", "thread:1")?.is_none());
+                assert_eq!(latest(connection)?, 0);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(reader.latest_sequence().unwrap(), 1);
+        assert!(reader.projection("thread", "thread:1").unwrap().is_some());
     }
 }

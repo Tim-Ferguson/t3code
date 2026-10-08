@@ -110,8 +110,12 @@ impl RpcSession {
         };
         let mut events = Vec::new();
         let mut outgoing = Vec::new();
+        let frames = frames
+            .into_iter()
+            .map(serde_json::from_value::<RpcServerMessage>)
+            .collect::<Result<Vec<_>, _>>()?;
         for frame in frames {
-            match serde_json::from_value::<RpcServerMessage>(frame)? {
+            match frame {
                 RpcServerMessage::Pong => events.push(RpcEvent::Pong),
                 RpcServerMessage::Defect { defect } => events.push(RpcEvent::Defect(defect)),
                 RpcServerMessage::ClientProtocolError { error } => {

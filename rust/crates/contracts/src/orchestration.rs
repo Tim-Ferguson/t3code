@@ -107,7 +107,7 @@ pub struct AppThread {
     pub active_provider_thread_id: Option<ProviderThreadId>,
     pub lineage: ThreadLineage,
     #[serde(deserialize_with = "deserialize_required_nullable")]
-    pub forked_from: Option<Value>,
+    pub forked_from: Option<ThreadForkSource>,
     pub created_at: UtcDateTime,
     pub updated_at: UtcDateTime,
     #[serde(deserialize_with = "deserialize_required_nullable")]
@@ -122,6 +122,110 @@ pub struct AppThread {
     pub deleted_at: Option<UtcDateTime>,
     #[serde(flatten)]
     pub extra: ExtraFields,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub linked_pull_request: Option<Option<ThreadLinkedPullRequest>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub pull_requests: Option<Option<Vec<ThreadPullRequestLink>>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub branch_pull_request: Option<Option<ThreadLinkedPullRequest>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub history_origin: Option<Option<ThreadHistoryOrigin>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub unsettled_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub snoozed_until: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub snoozed_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub limit_recovery: Option<Option<LimitRecovery>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub pinned_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub auto_settle_disabled_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub pin_order_key: Option<Option<TrimmedNonEmptyString>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub active_order_key: Option<Option<TrimmedNonEmptyString>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub title_regeneration: Option<Option<TitleRegeneration>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub rollback_request_id: Option<Option<CommandId>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub rollback_failure: Option<Option<RollbackFailure>>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -164,7 +268,7 @@ pub struct ThreadShell {
     pub worktree_path: Option<TrimmedNonEmptyString>,
     pub lineage: ThreadLineage,
     #[serde(deserialize_with = "deserialize_required_nullable")]
-    pub forked_from: Option<Value>,
+    pub forked_from: Option<ThreadForkSource>,
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub active_provider_thread_id: Option<ProviderThreadId>,
     #[serde(deserialize_with = "deserialize_required_nullable")]
@@ -179,9 +283,9 @@ pub struct ThreadShell {
     #[serde(deserialize_with = "deserialize_required_nullable")]
     pub latest_user_message_at: Option<UtcDateTime>,
     pub has_actionable_proposed_plan: bool,
-    #[serde(default)]
-    pub pending_background_tasks: Vec<Value>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "crate::provider::deserialize_default_vec")]
+    pub pending_background_tasks: Vec<PendingBackgroundTask>,
+    #[serde(default, deserialize_with = "crate::provider::deserialize_default_vec")]
     pub provider_instance_history: Vec<ProviderInstanceId>,
     pub item_count: u64,
     pub visible_item_count: u64,
@@ -197,6 +301,173 @@ pub struct ThreadShell {
     pub deleted_at: Option<UtcDateTime>,
     #[serde(flatten)]
     pub extra: ExtraFields,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub linked_pull_request: Option<Option<ThreadLinkedPullRequest>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub pull_requests: Option<Option<Vec<ThreadPullRequestLink>>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub branch_pull_request: Option<Option<ThreadLinkedPullRequest>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub history_origin: Option<Option<ThreadHistoryOrigin>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub unsettled_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub snoozed_until: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub snoozed_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub limit_recovery: Option<Option<LimitRecovery>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub pinned_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub auto_settle_disabled_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub pin_order_key: Option<Option<TrimmedNonEmptyString>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub active_order_key: Option<Option<TrimmedNonEmptyString>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub title_regeneration: Option<Option<TitleRegeneration>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub latest_run_requested_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub latest_run_started_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub latest_run_completed_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub activity_run_started_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub activity_run_status: Option<Option<ActivityRunStatus>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub last_error: Option<Option<String>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub last_error_class: Option<Option<ProviderFailureClass>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub usage_limit_reset_at: Option<Option<IsoDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub latest_user_authored_message_at: Option<Option<UtcDateTime>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub goal: Option<Option<ProviderGoal>>,
+
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub last_visited_at: Option<Option<UtcDateTime>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

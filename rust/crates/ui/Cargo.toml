@@ -14,6 +14,7 @@ mobile = ["dioxus/mobile"]
 t3-client.workspace = true
 t3-contracts.workspace = true
 serde_json.workspace = true
+dioxus-stores = "0.7"
 dioxus = { workspace = true, features = ["document", "asset"] }
 ewebsock = { version = "0.8", features = ["tls"] }
 futures-channel = "0.3"

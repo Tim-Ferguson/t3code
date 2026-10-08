@@ -24,6 +24,46 @@ impl ProjectCommand {
     pub fn from_json(input: Value) -> Result<Self, serde_json::Error> {
         serde_json::from_value(input)
     }
+    fn normalized(&self) -> Result<Self, StoreError> {
+        let mut command = self.clone();
+        command.command_id = t3_contracts::CommandId::new(&command.command_id)
+            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?
+            .into_string();
+        command.project_id = t3_contracts::ProjectId::new(&command.project_id)
+            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?
+            .into_string();
+        for field in ["title", "workspaceRoot", "faviconPath"] {
+            if let Some(value) = command.fields.get(field).cloned() {
+                if value.is_null() && field == "faviconPath" {
+                    continue;
+                }
+                let value = value.as_str().ok_or_else(|| {
+                    StoreError::InvalidCommand(format!("{field} must be a string"))
+                })?;
+                command.fields.insert(
+                    field.into(),
+                    json!(
+                        t3_contracts::TrimmedNonEmptyString::new(value)
+                            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?
+                            .as_str()
+                    ),
+                );
+            }
+        }
+        if let Some(selection) = command
+            .fields
+            .get("defaultModelSelection")
+            .cloned()
+            .filter(|selection| !selection.is_null())
+        {
+            let selection: t3_contracts::ModelSelection = serde_json::from_value(selection)?;
+            command.fields.insert(
+                "defaultModelSelection".into(),
+                serde_json::to_value(selection)?,
+            );
+        }
+        Ok(command)
+    }
 }
 
 #[derive(Clone)]
@@ -40,6 +80,8 @@ impl ProjectService {
         command: &ProjectCommand,
         now: DateTime<Utc>,
     ) -> Result<Receipt, StoreError> {
+        let normalized = command.normalized()?;
+        let command = &normalized;
         self.store.dispatch(
             &command.command_id,
             "project",
@@ -73,6 +115,42 @@ impl ProjectService {
             },
             reduce_project_event,
         )
+    }
+
+    pub fn mutate(&self, input: Value, now: DateTime<Utc>) -> Result<Value, StoreError> {
+        let mut command = ProjectCommand::from_json(input)?.normalized()?;
+        if command.command_type == "project.update" {
+            command.command_type = "project.meta.update".into();
+        }
+        if command.command_type == "project.delete"
+            && self.store.projections("thread")?.iter().any(|projection| {
+                projection["thread"]["projectId"] == command.project_id
+                    && projection["thread"]["deletedAt"].is_null()
+            })
+        {
+            return Err(StoreError::InvalidCommand(
+                "Project has threads; native project cascade deletion is not yet ported.".into(),
+            ));
+        }
+        if command.fields.get("createWorkspaceRootIfMissing") == Some(&json!(true)) {
+            return Err(StoreError::InvalidCommand(
+                "Native workspace creation is not yet ported.".into(),
+            ));
+        }
+        let receipt = self.dispatch(&command, now)?;
+        if receipt.status == "rejected" {
+            return Err(StoreError::InvalidCommand(
+                receipt.error.unwrap_or(Value::Null).to_string(),
+            ));
+        }
+        let row = self
+            .store
+            .projection("project", &command.project_id)?
+            .ok_or_else(|| StoreError::InvalidCommand("Committed project is missing.".into()))?;
+        let deleted = row["deletedAt"].clone();
+        let mut project = to_shell(row);
+        project["deletedAt"] = deleted;
+        Ok(project)
     }
 
     pub fn list(&self) -> Result<Vec<Value>, StoreError> {

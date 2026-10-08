@@ -54,6 +54,17 @@ impl EnvironmentEndpoint {
         }
         url
     }
+
+    pub fn thread_history(&self, thread_id: &str, cursor: &str) -> Url {
+        let mut url = self.http("api/orchestration/threads/");
+        url.path_segments_mut()
+            .expect("http endpoint")
+            .pop_if_empty()
+            .push(thread_id)
+            .push("history");
+        url.query_pairs_mut().append_pair("cursor", cursor);
+        url
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

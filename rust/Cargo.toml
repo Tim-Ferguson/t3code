@@ -22,6 +22,12 @@ chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures-util = "0.3"
+hmac = "0.12"
+sha2 = "0.10"
+base64 = "0.22"
+rand = "0.9"
+tower = { version = "0.5", features = ["util"] }
+tokio-tungstenite = "0.28"
 dioxus = { version = "0.7", default-features = false, features = [
   "macro",
   "html",
