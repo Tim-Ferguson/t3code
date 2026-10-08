@@ -475,16 +475,25 @@ pub fn model_selections_equal(left: &ModelSelection, right: &ModelSelection) -> 
     if left.instance_id != right.instance_id || left.model != right.model {
         return false;
     }
-    let mut left = left.options.clone().unwrap_or_default();
-    let mut right = right.options.clone().unwrap_or_default();
-    // Comparing counts rather than a map retains duplicate option multiplicity.
-    while let Some(value) = left.pop() {
-        let Some(index) = right.iter().position(|candidate| candidate == &value) else {
-            return false;
-        };
-        right.swap_remove(index);
+    fn canonical(selection: &ModelSelection) -> Vec<(&str, u8, &str)> {
+        let mut values: Vec<_> = selection
+            .options
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|o| {
+                let (kind, value) = match &o.value {
+                    ProviderOptionSelectionValue::String(value) => (0, value.as_str()),
+                    ProviderOptionSelectionValue::Boolean(false) => (1, "false"),
+                    ProviderOptionSelectionValue::Boolean(true) => (1, "true"),
+                };
+                (o.id.as_str(), kind, value)
+            })
+            .collect();
+        values.sort_unstable();
+        values
     }
-    right.is_empty()
+    canonical(left) == canonical(right)
 }
 
 pub const RUNTIME_MODES: [RuntimeMode; 4] = [

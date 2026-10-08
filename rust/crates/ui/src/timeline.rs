@@ -151,13 +151,13 @@ pub(crate) fn TimelineItem(
                 }
                 if let Some(output)=output.filter(|_|kind!="web_search"){pre {class:"tool-output","{output}"}}
                 if omitted {
-                    button {disabled:loading.read().as_ref()==Some(&cache_key),onclick:{let transport=transport.clone();move |_|{
+                    button {"aria-label":"Load full output",disabled:loading.read().as_ref()==Some(&cache_key),onclick:{let transport=transport.clone();move |_|{
                         if loading.peek().as_ref()==Some(&cache_key_for_click){return;}
                         let revision=revision_for_click.clone();let key=cache_key_for_click.clone();loading.set(Some(key.clone()));error.set(None);
                         let owner=runtime::response_owner(&transport,state);
                         let transport=transport.clone();let thread_id=source_thread_id.clone();let item_id=source_item_id.clone();let projected=request_item.clone();
                         spawn(async move {
-                            let result=runtime::request_value(transport.clone(),state,"orchestration.getTurnItem",json!({"threadId":thread_id,"itemId":item_id,"revision":revision})).await;
+                            let result=runtime::request_value(transport.clone(),state,"orchestration.getTurnItem",json!({"threadId":thread_id,"itemId":item_id,"revision":revision})).await.and_then(|value|serde_json::from_value::<t3_contracts::GetTurnItemResult>(value).and_then(serde_json::to_value).map_err(|error|format!("Invalid full output: {error}")));
                             if owner.is_none() || owner!=runtime::response_owner(&transport,state){return;}
                             if loading.peek().as_ref()!=Some(&key){return;}loading.set(None);
                             match result {

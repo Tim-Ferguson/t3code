@@ -119,7 +119,19 @@ pub enum Decision {
         events: Vec<Event>,
         effects: Vec<NewEffect>,
     },
+    /// Related launch commands share one commit. Their immutable receipts use
+    /// the last event carrying each derived command id, so public replay cannot
+    /// accidentally schedule the initial message or release a second time.
+    AcceptedBatch {
+        events: Vec<Event>,
+        effects: Vec<NewEffect>,
+        commands: Vec<AcceptedCommand>,
+    },
     Rejected(Value),
+}
+pub struct AcceptedCommand {
+    pub command_id: String,
+    pub command_type: String,
 }
 
 impl Store {
@@ -309,33 +321,92 @@ impl Store {
             return Ok((receipt, true));
         }
         let mut stored = Vec::new();
-        let (status, error) = match decide(&transaction, &aggregate_id)? {
-            Decision::Rejected(error) => ("rejected", Some(error)),
-            Decision::Accepted { events, effects } => {
-                for event in events {
-                    transaction.execute("INSERT INTO rust_application_events(event_id,aggregate_kind,aggregate_id,command_id,event_type,occurred_at,event_json) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                        params![event.event_id,event.aggregate_kind,event.aggregate_id,event.command_id,event.event_type,event.occurred_at,serde_json::to_string(&event)?])?;
-                    let event = StoredEvent {
-                        sequence: transaction.last_insert_rowid() as u64,
-                        event,
-                    };
-                    reduce(&transaction, &event)?;
-                    stored.push(event);
-                }
-                for effect in effects {
-                    transaction.execute("INSERT OR IGNORE INTO rust_effect_outbox(id,command_id,thread_id,request_json,status,available_at,created_at,updated_at) VALUES(?1,?2,?3,?4,'pending',?5,?6,?6)",
-                        params![effect.id,effect.command_id,effect.thread_id,serde_json::to_string(&effect.request)?,effect.available_at,now.to_rfc3339()])?;
-                }
-                ("accepted", None)
-            }
+        let (events, effects, commands, status, error) = match decide(&transaction, &aggregate_id)?
+        {
+            Decision::Rejected(error) => (vec![], vec![], vec![], "rejected", Some(error)),
+            Decision::Accepted { events, effects } => (events, effects, vec![], "accepted", None),
+            Decision::AcceptedBatch {
+                events,
+                effects,
+                commands,
+            } => (events, effects, commands, "accepted", None),
         };
+        let mut command_ids = std::collections::HashSet::new();
+        command_ids.insert(command_id.to_owned());
+        for command in &commands {
+            if !command_ids.insert(command.command_id.clone())
+                || read_receipt(&transaction, &command.command_id)?.is_some()
+            {
+                return Err(StoreError::InvalidCommand(
+                    "A derived launch command id is already in use.".into(),
+                ));
+            }
+            if !events
+                .iter()
+                .any(|event| event.command_id.as_deref() == Some(&command.command_id))
+            {
+                return Err(StoreError::InvalidCommand(
+                    "A batch command requires a corresponding event.".into(),
+                ));
+            }
+        }
+        for event in events {
+            transaction.execute("INSERT INTO rust_application_events(event_id,aggregate_kind,aggregate_id,command_id,event_type,occurred_at,event_json) VALUES(?1,?2,?3,?4,?5,?6,?7)",
+                        params![event.event_id,event.aggregate_kind,event.aggregate_id,event.command_id,event.event_type,event.occurred_at,serde_json::to_string(&event)?])?;
+            let event = StoredEvent {
+                sequence: transaction.last_insert_rowid() as u64,
+                event,
+            };
+            reduce(&transaction, &event)?;
+            stored.push(event);
+        }
+        for effect in effects {
+            transaction.execute("INSERT OR IGNORE INTO rust_effect_outbox(id,command_id,thread_id,request_json,status,available_at,created_at,updated_at) VALUES(?1,?2,?3,?4,'pending',?5,?6,?6)",
+                        params![effect.id,effect.command_id,effect.thread_id,serde_json::to_string(&effect.request)?,effect.available_at,now.to_rfc3339()])?;
+        }
+        let primary_sequence = if commands.is_empty() {
+            latest(&transaction)?
+        } else {
+            stored
+                .iter()
+                .rev()
+                .find(|event| event.event.command_id.as_deref() == Some(command_id))
+                .ok_or_else(|| {
+                    StoreError::InvalidCommand(
+                        "A batch primary command requires a corresponding event.".into(),
+                    )
+                })?
+                .sequence
+        };
+        for command in commands {
+            let sequence = stored
+                .iter()
+                .rev()
+                .find(|event| event.event.command_id.as_deref() == Some(&command.command_id))
+                .unwrap()
+                .sequence;
+            let receipt = Receipt {
+                command_id: command.command_id.clone(),
+                aggregate_kind: kind.into(),
+                aggregate_id: aggregate_id.clone(),
+                command_type: command.command_type,
+                accepted_at: now.to_rfc3339(),
+                result_sequence: sequence,
+                status: "accepted".into(),
+                error: None,
+            };
+            transaction.execute(
+                "INSERT INTO rust_command_receipts(command_id,receipt_json) VALUES(?1,?2)",
+                params![command.command_id, serde_json::to_string(&receipt)?],
+            )?;
+        }
         let receipt = Receipt {
             command_id: command_id.into(),
             aggregate_kind: kind.into(),
             aggregate_id: aggregate_id.into(),
             command_type: command_type.into(),
             accepted_at: now.to_rfc3339(),
-            result_sequence: latest(&transaction)?,
+            result_sequence: primary_sequence,
             status: status.into(),
             error,
         };

@@ -1,0 +1,1175 @@
+[
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_concat": [
+          " \t\r\n\n  first\t line  \r\n",
+          {
+            "_repeat": ["x\n", 10000]
+          }
+        ]
+      }
+    },
+    "sha256": "0dbef7e25ab89612ed6cc11201ed52c69fb44637d9d5544921f491aea4a02cd1"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_repeat": [" \n", 10000]
+      }
+    },
+    "sha256": "1af8fdf3db54a27c0c6dfdf16aecdd9cdffba713a3a1a535841ec4b446a5dc05"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_concat": [
+          {
+            "_repeat": ["a", 160]
+          },
+          "\n",
+          {
+            "_repeat": ["x", 20000]
+          }
+        ]
+      }
+    },
+    "sha256": "17571e4387f3990db1f016f0237872b53f38c7996342e9f1d73c6b02d9061f13"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_concat": [
+          {
+            "_repeat": ["a", 161]
+          },
+          "\n",
+          {
+            "_repeat": ["x", 20000]
+          }
+        ]
+      }
+    },
+    "sha256": "3c2e840e5f7b47444903aec9e45c53b8ff1b3158bd867ee989fad876672a0a88"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_concat": [
+          {
+            "_repeat": ["a", 159]
+          },
+          "\t b",
+          {
+            "_repeat": ["x", 20000]
+          }
+        ]
+      }
+    },
+    "sha256": "3c2e840e5f7b47444903aec9e45c53b8ff1b3158bd867ee989fad876672a0a88"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_concat": [
+          "  café  😀 \t\r\n",
+          {
+            "_repeat": ["x", 20000]
+          }
+        ]
+      }
+    },
+    "sha256": "b74ff10ad0bcd441b799ea9c1b1729493ac367092275b620d76db7b5935bce50"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_concat": [
+          "﻿ firstline\n",
+          {
+            "_repeat": ["x", 20000]
+          }
+        ]
+      }
+    },
+    "sha256": "1fc0c142cf6baa0b389f85a8a7cc0b16972a2867c260efd74cd5a555071cbfdf"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_repeat": ["\"", 8191]
+      }
+    },
+    "sha256": "b2a6c39358cd237d328cd955ae79790484b92dcfbe4f9d563018634e268b26ed"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "_repeat": ["\"", 8192]
+      }
+    },
+    "sha256": "2c213c1aec5a6941ae2fd31d245725fffd9abc1071ed84412d1bdf2c0c854e19"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "text": {
+          "_repeat": ["x", 100000]
+        }
+      }
+    },
+    "sha256": "9477eeeaffd9a8f9d61e7514014edf4bde82654b0df41a4606ea795a3c8e24a3"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": null
+    },
+    "sha256": "8cf10abf39d2c4b515f33494b66acf5184e8a1b74a7b975e8b3c30974814c388"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": ""
+    },
+    "sha256": "8cf10abf39d2c4b515f33494b66acf5184e8a1b74a7b975e8b3c30974814c388"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": "﻿"
+    },
+    "sha256": "8cf10abf39d2c4b515f33494b66acf5184e8a1b74a7b975e8b3c30974814c388"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": ""
+    },
+    "sha256": "469ac63b65797e0144fd51354ede280fab8a29b5139b0c923cbb0a90816260a4"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "ok": true
+      }
+    },
+    "sha256": "469ac63b65797e0144fd51354ede280fab8a29b5139b0c923cbb0a90816260a4"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "data": "private-image"
+      }
+    },
+    "sha256": "469ac63b65797e0144fd51354ede280fab8a29b5139b0c923cbb0a90816260a4"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "threadId": "thread-1",
+        "messageId": "message-1",
+        "response": "private"
+      }
+    },
+    "sha256": "05cd04c59d94da79791f7064dd8a95c21f8d69bd87bbee484807160741863e05"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "structuredContent": {
+          "threadId": "first"
+        },
+        "content": "ignored"
+      }
+    },
+    "sha256": "b33c45f925e2339d07a573b2dce31844cbcae78579723b7b904df75ebc26481f"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": [
+        {
+          "text": "{\"threadId\":\"first\"}"
+        },
+        {
+          "text": "{\"threadId\":\"second\",\"isError\":true}"
+        }
+      ]
+    },
+    "sha256": "810a186d7ebe3646614453027febfea966b5b7dfbcaa4ba648c6dd6b2748c3b7"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "isError": true,
+        "content": {
+          "_repeat": ["x", 20000]
+        }
+      }
+    },
+    "sha256": "cb0b64a20f764012253903e9bf872bc6c8cf20120798fe823422e496e469ad13"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "error": {
+          "message": "private"
+        },
+        "structuredContent": {
+          "threadId": "id"
+        }
+      }
+    },
+    "sha256": "9c972203282f64b31bb1ac5108e737050f87b833908da9dfb08f01eecf378121"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "threadId": "wrong",
+        "status": "rolled_back",
+        "threads": [
+          {
+            "threadId": "known"
+          },
+          {}
+        ]
+      }
+    },
+    "sha256": "469ac63b65797e0144fd51354ede280fab8a29b5139b0c923cbb0a90816260a4"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "threads": []
+      }
+    },
+    "sha256": "26d63d6d48f97f929be76f7033b445df7032c50227b72c7771ded7fb1c2113a0"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "thread": {
+          "threadId": "nested"
+        },
+        "taskId": "task",
+        "scheduledTaskId": "scheduled"
+      }
+    },
+    "sha256": "0ec3e676e97d76964e326dbd790168b12f26a4065058ebe7f300b5cb53592ca0"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "htmlRender": {
+          "attachmentId": "page",
+          "title": "﻿ Page ",
+          "height": 4000,
+          "heights": [
+            [500, 100],
+            [320, 45]
+          ]
+        }
+      }
+    },
+    "sha256": "b4091f50e4aab64c180cc7c778c5f93d93ddef29afad65e73862f83bd320be4b"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {
+        "pr": 42
+      },
+      "output": {
+        "t3McpApp": {
+          "attachmentId": "app",
+          "server": "server",
+          "tool": "tool",
+          "resourceUri": "ui://page",
+          "csp": {
+            "connectDomains": ["https://example.com", "invalid"],
+            "frameDomains": ["wss://*.example.com:123"]
+          },
+          "permissions": {
+            "camera": {},
+            "unknown": {}
+          },
+          "prefersBorder": false
+        }
+      }
+    },
+    "sha256": "ed87524a72ed6493b55ac3013ca0ee510cdb25b14e0a75d798cd8aa6f400bd77"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "FILE NOT FOUND",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "No files found",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "ENOENT",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "No such file or directory",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "CommandNotFoundException",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "command not found",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "Cannot find path 'a' because it does not exist",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "The term 'example' is not recognized",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "<exited with exit code 12>",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exited with exit code 2",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit with exit code 8",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code: 5",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code 0",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code 2abc",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code2",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code::2",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code : 2",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit code : : 2",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit with exit code :2abc",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "exit with exit code 2abc",
+      "exitCode": 0
+    },
+    "sha256": "bc01c2d472e86aa06c0cbd1065f86f0d14b923efa49c0b671ea944d8c7db9d8c"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "﻿",
+      "exitCode": 0
+    },
+    "sha256": "f91f4a8e15c7cec3258266e1f235c97419d82c0d541154ea4077299c4cfa4cc8"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": "echo",
+      "output": "ordinary output",
+      "exitCode": 0
+    },
+    "sha256": "2cbf5dca23389608740863d921d60dea522df15aa51f65e1b9af4c9074278426"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "subagent",
+      "prompt": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32767]
+          },
+          "😀",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "progress": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32767]
+          },
+          "😀",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "result": null
+    },
+    "sha256": "09e613cff8853f06f7f285ae14f938c28fd8cdd806b77f33ed7b71816ccf4bfd"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "subagent",
+      "prompt": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32767]
+          },
+          "😀",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "progress": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32767]
+          },
+          "😀",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "result": null
+    },
+    "sha256": "1bb7ce1f6ddc94795cdf7f8660c224e3cdb868f6621dead42aaac7d4e3ce3d59"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "subagent",
+      "prompt": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32765]
+          },
+          "�",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "progress": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32765]
+          },
+          "�",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "result": null
+    },
+    "sha256": "d845981e11126c1cf9868495166f91c9cb47355afcae02c4d57d718bad279ec5"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "subagent",
+      "prompt": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32765]
+          },
+          "�",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "progress": {
+        "_concat": [
+          {
+            "_repeat": ["a", 32765]
+          },
+          "�",
+          {
+            "_repeat": ["x", 100000]
+          }
+        ]
+      },
+      "result": null
+    },
+    "sha256": "caf2064e8212b9aadad1eec3791d9150d9d7cd813688f5f1b552141e6cc988d6"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "subagent",
+      "prompt": {
+        "_repeat": ["🧰", 100000]
+      },
+      "progress": {
+        "_repeat": ["🧰", 100000]
+      },
+      "result": null
+    },
+    "sha256": "a1177df83261c0668a216d1918ae05ee99540211efeaf32d0088125852a0e8af"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "subagent",
+      "prompt": {
+        "_repeat": ["🧰", 100000]
+      },
+      "progress": {
+        "_repeat": ["🧰", 100000]
+      },
+      "result": null
+    },
+    "sha256": "54f4c33990760023630d836fd2780ba484ec27c9c128b56aa4603ef4ddf20336"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "handoff",
+      "summary": "private",
+      "contextHandoffId": "h"
+    },
+    "sha256": "abc9bf1e9c826683884db0f9dea2b71f9a1c00634e1b1a7722fd0daafa49bdfb"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "file_change",
+      "status": "completed",
+      "diffStr": {
+        "_repeat": ["x", 40000]
+      },
+      "oldStr": "private",
+      "newStr": "private"
+    },
+    "sha256": "c035de5a401bcfa75049ce5b791d0865e4090d181fb9db4595f9e0ba23af1d41"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "file_change",
+      "status": "failed",
+      "diffStr": {
+        "_repeat": ["x", 40000]
+      },
+      "oldStr": "private",
+      "newStr": "private"
+    },
+    "sha256": "3720ca5bbc3c60a966c92714dd43b8d558b2ed616d0dc261e24022d47308e848"
+  },
+  {
+    "method": "wire",
+    "input": {
+      "type": "command_execution",
+      "input": {
+        "_repeat": ["😀", 100000]
+      },
+      "output": {
+        "_repeat": ["🧰", 100000]
+      }
+    },
+    "sha256": "ecf51c2556652ccc9a30e441cb518f218a33929c2ce74da696fadb3f21363d4c"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "handoff",
+      "summary": "private",
+      "contextHandoffId": "h"
+    },
+    "sha256": "abc9bf1e9c826683884db0f9dea2b71f9a1c00634e1b1a7722fd0daafa49bdfb"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "file_change",
+      "status": "completed",
+      "diffStr": {
+        "_repeat": ["x", 40000]
+      },
+      "oldStr": "private",
+      "newStr": "private"
+    },
+    "sha256": "c035de5a401bcfa75049ce5b791d0865e4090d181fb9db4595f9e0ba23af1d41"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "file_change",
+      "status": "failed",
+      "diffStr": {
+        "_repeat": ["x", 40000]
+      },
+      "oldStr": "private",
+      "newStr": "private"
+    },
+    "sha256": "3720ca5bbc3c60a966c92714dd43b8d558b2ed616d0dc261e24022d47308e848"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "command_execution",
+      "input": {
+        "_repeat": ["😀", 100000]
+      },
+      "output": {
+        "_repeat": ["🧰", 100000]
+      }
+    },
+    "sha256": "5222595c93a52677261acfce3cfadd612f44ed9ee338b0bbecbfe84e62951621"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "mimeType": "image/png",
+            "data": "private-image"
+          }
+        ]
+      }
+    },
+    "sha256": "1f53e9d394adc26b52e2a6bfc28cb1092bdb9436ec2bea740b14d79dce426380"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "image/png",
+              "data": "private-image"
+            }
+          }
+        ]
+      }
+    },
+    "sha256": "1f53e9d394adc26b52e2a6bfc28cb1092bdb9436ec2bea740b14d79dce426380"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "mimeType": "image/jpeg",
+            "data": "private-image"
+          }
+        ]
+      }
+    },
+    "sha256": "d3a519862562c27f0c850bdd9cdf8ee6eeddab7ac6accf54d3b94136533d6ff9"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "image/jpeg",
+              "data": "private-image"
+            }
+          }
+        ]
+      }
+    },
+    "sha256": "d3a519862562c27f0c850bdd9cdf8ee6eeddab7ac6accf54d3b94136533d6ff9"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "mimeType": "image/webp",
+            "data": "private-image"
+          }
+        ]
+      }
+    },
+    "sha256": "992717e8daf55f12437e18da032c4c377c303fdb372109f647502a2b4c5bd06c"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "image/webp",
+              "data": "private-image"
+            }
+          }
+        ]
+      }
+    },
+    "sha256": "992717e8daf55f12437e18da032c4c377c303fdb372109f647502a2b4c5bd06c"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "mimeType": "image/gif",
+            "data": "private-image"
+          }
+        ]
+      }
+    },
+    "sha256": "919b1ec3a471709180882a93153b9c6fbd9f3dd4d14876e9d5e8e2e7cdd8a55f"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "image/gif",
+              "data": "private-image"
+            }
+          }
+        ]
+      }
+    },
+    "sha256": "919b1ec3a471709180882a93153b9c6fbd9f3dd4d14876e9d5e8e2e7cdd8a55f"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "mimeType": "image/svg+xml",
+            "data": "private-image"
+          }
+        ]
+      }
+    },
+    "sha256": "c9d66f8dfdc1722755bafe5e3c251381e7d204f3894da1f17d9f06cff3362368"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "image/svg+xml",
+              "data": "private-image"
+            }
+          }
+        ]
+      }
+    },
+    "sha256": "c9d66f8dfdc1722755bafe5e3c251381e7d204f3894da1f17d9f06cff3362368"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "mimeType": "IMAGE/PNG",
+            "data": "private-image"
+          }
+        ]
+      }
+    },
+    "sha256": "1f53e9d394adc26b52e2a6bfc28cb1092bdb9436ec2bea740b14d79dce426380"
+  },
+  {
+    "method": "detail",
+    "input": {
+      "type": "dynamic_tool",
+      "input": {},
+      "output": {
+        "content": [
+          {
+            "type": "text",
+            "text": {
+              "_repeat": ["x", 300000]
+            }
+          },
+          {
+            "type": "image",
+            "source": {
+              "type": "base64",
+              "media_type": "IMAGE/PNG",
+              "data": "private-image"
+            }
+          }
+        ]
+      }
+    },
+    "sha256": "1f53e9d394adc26b52e2a6bfc28cb1092bdb9436ec2bea740b14d79dce426380"
+  },
+  {
+    "method": "handoff",
+    "input": {
+      "id": "handoff",
+      "history": ["private"],
+      "delivery": {
+        "private": true
+      },
+      "summaryText": "private",
+      "status": "ready"
+    },
+    "sha256": "04aa1124acee37ea74b300c38db1ec60ca29d6eea03aaa1a5936a71c4f5ffc52"
+  }
+]

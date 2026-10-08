@@ -1,11 +1,8 @@
 // Ported behavioral cases from shared/model, web modelSelection/providerModels,
 // composerProviderState, and mobile thread-settings-options tests.
-#[allow(dead_code)]
-#[path = "../src/models.rs"]
-mod models;
-use models::*;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use t3_client::models::*;
 use t3_contracts::*;
 fn decode<T: DeserializeOwned>(value: Value) -> T {
     serde_json::from_value(value).unwrap()

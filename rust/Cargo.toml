@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/contracts", "crates/server", "crates/client", "crates/ui"]
+members = ["crates/contracts", "crates/server", "crates/client", "crates/ui", "crates/acp"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,8 +11,9 @@ rust-version = "1.89"
 [workspace.dependencies]
 t3-contracts = { path = "crates/contracts" }
 t3-client = { path = "crates/client" }
+t3-acp = { path = "crates/acp" }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
 thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 axum = { version = "0.8", features = ["ws"] }
@@ -23,6 +24,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 futures-util = "0.3"
 fs2 = "0.4"
+libc = "0.2"
 hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.22"

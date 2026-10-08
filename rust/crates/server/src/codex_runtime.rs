@@ -762,7 +762,7 @@ fn terminal(
         let mut run = find(projection, "runs", &json!(run_id))?.clone();
         if !matches!(
             run["status"].as_str(),
-            Some("starting" | "running" | "waiting")
+            Some("preparing" | "queued" | "starting" | "running" | "waiting")
         ) {
             return Ok(vec![]);
         }
@@ -1014,7 +1014,7 @@ pub(crate) fn recover(
             let id = run["id"].as_str().unwrap();
             if matches!(
                 run["status"].as_str(),
-                Some("starting" | "running" | "waiting")
+                Some("preparing" | "queued" | "starting" | "running" | "waiting")
             ) {
                 terminal(store, thread_id, Some(id), "cancelled", None)?;
             }

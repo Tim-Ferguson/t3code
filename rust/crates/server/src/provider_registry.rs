@@ -27,6 +27,7 @@ pub fn derive_instance_configs(settings: &ServerSettings) -> ProviderInstanceCon
 pub struct ProviderRegistry {
     codex: Arc<HashMap<String, CodexInstance>>,
     snapshots: Arc<Vec<Value>>,
+    settings: Arc<ServerSettings>,
 }
 impl ProviderRegistry {
     pub async fn discover(settings: &ServerSettings, cwd: &Path) -> Result<Self, ProcessError> {
@@ -112,10 +113,14 @@ impl ProviderRegistry {
         Ok(Self {
             codex: Arc::new(codex),
             snapshots: Arc::new(snapshots),
+            settings: Arc::new(settings.clone()),
         })
     }
     pub fn snapshots(&self) -> &[Value] {
         &self.snapshots
+    }
+    pub(crate) fn settings(&self) -> &ServerSettings {
+        &self.settings
     }
     pub fn codex(&self, instance_id: &str) -> Result<CodexInstance, ProcessError> {
         let instance = self

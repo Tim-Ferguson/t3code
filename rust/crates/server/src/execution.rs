@@ -109,6 +109,7 @@ impl ExecutionService {
                     }
                     "run.interrupt" => plan_interrupt(&command, &projection, now),
                     "runtime-request.respond" => plan_response(&command, &projection, now),
+                    "prepared-run.release" => plan_release(&command, &projection, now),
                     _ => Err(StoreError::InvalidCommand(format!(
                         "Native provider command {kind} is not yet available."
                     ))),
@@ -156,7 +157,7 @@ fn plan_interrupt(
         .ok_or_else(|| StoreError::InvalidCommand("Run not found.".into()))?;
     if !matches!(
         run["status"].as_str(),
-        Some("starting" | "running" | "waiting")
+        Some("preparing" | "starting" | "running" | "waiting")
     ) {
         return Err(StoreError::InvalidCommand(
             "Run is no longer active.".into(),
@@ -198,6 +199,32 @@ fn plan_interrupt(
         }
     }
     if attempt["providerTurnId"].is_null() {
+        for preparation in projection["turnItems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|item| {
+                item["runId"] == run["id"]
+                    && item["type"] == "command_execution"
+                    && item["input"] == "Preparing workspace"
+                    && matches!(
+                        item["status"].as_str(),
+                        Some("running" | "pending" | "waiting")
+                    )
+            })
+        {
+            let mut preparation = preparation.clone();
+            preparation["status"] = json!("interrupted");
+            preparation["completedAt"] = json!(timestamp);
+            preparation["updatedAt"] = json!(timestamp);
+            events.push(event(
+                thread_id,
+                command_id,
+                "turn-item.updated",
+                checked::<t3_contracts::TurnItem>(preparation)?,
+                now,
+            ));
+        }
         let mut run = run.clone();
         run["status"] = json!("interrupted");
         run["completedAt"] = json!(timestamp);
@@ -401,10 +428,16 @@ pub fn plan_message(
             "Native deferred delivery is not yet available.".into(),
         ));
     }
-    if command["dispatchMode"]["type"] != "start_immediately" {
+    let deferred = command["dispatchMode"]["type"] == "defer_start";
+    if !deferred && command["dispatchMode"]["type"] != "start_immediately" {
         return Err(StoreError::InvalidCommand(
             "Native queue, steering and prepared-message orchestration is not yet available."
                 .into(),
+        ));
+    }
+    if deferred && command["dispatchMode"]["workspaceStrategy"]["type"] == "worktree" {
+        return Err(StoreError::InvalidCommand(
+            "Native Git worktree preparation is not yet available.".into(),
         ));
     }
     if !command["attachments"].as_array().is_some_and(Vec::is_empty)
@@ -433,11 +466,6 @@ pub fn plan_message(
     {
         return Err(StoreError::InvalidCommand(
             "Message id already exists.".into(),
-        ));
-    }
-    if command["text"].as_str().unwrap().trim().is_empty() {
-        return Err(StoreError::InvalidCommand(
-            "Message text cannot be empty.".into(),
         ));
     }
     let thread_id = command["threadId"].as_str().unwrap();
@@ -474,6 +502,18 @@ pub fn plan_message(
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let mut events = vec![];
+    if model != &projection["thread"]["modelSelection"] {
+        let mut thread = projection["thread"].clone();
+        thread["modelSelection"] = model.clone();
+        thread["updatedAt"] = json!(timestamp);
+        events.push(event(
+            thread_id,
+            command_id,
+            "thread.model-selection-updated",
+            thread,
+            now,
+        ));
+    }
     if existing_provider_thread.is_none() {
         let provider_thread = checked::<t3_contracts::ProviderThread>(
             json!({"id":provider_thread_id,"driver":"codex","providerInstanceId":model["instanceId"],"providerSessionId":null,"appThreadId":thread_id,"ownerNodeId":null,"nativeThreadRef":null,"nativeConversationHeadRef":null,"status":"not_loaded","firstRunOrdinal":ordinal,"lastRunOrdinal":ordinal,"handoffIds":[],"forkedFrom":null,"pendingBackgroundTasks":[],"createdAt":timestamp,"updatedAt":timestamp}),
@@ -486,9 +526,13 @@ pub fn plan_message(
             now,
         ));
     }
-    let run = checked::<t3_contracts::Run>(
-        json!({"id":run_id,"threadId":thread_id,"ordinal":ordinal,"providerInstanceId":model["instanceId"],"modelSelection":model,"providerThreadId":provider_thread_id,"userMessageId":command["messageId"],"rootNodeId":node_id,"activeAttemptId":attempt_id,"status":"starting","requestedAt":timestamp,"startedAt":null,"completedAt":null,"checkpointId":null,"contextHandoffId":null}),
-    )?;
+    let mut run = json!({"id":run_id,"threadId":thread_id,"ordinal":ordinal,"providerInstanceId":model["instanceId"],"modelSelection":model,"providerThreadId":provider_thread_id,"userMessageId":command["messageId"],"rootNodeId":node_id,"activeAttemptId":attempt_id,"status":if deferred{"preparing"}else{"starting"},"requestedAt":timestamp,"startedAt":null,"completedAt":null,"checkpointId":null,"contextHandoffId":null});
+    if deferred {
+        if let Some(strategy) = command["dispatchMode"].get("workspaceStrategy") {
+            run["workspacePreparation"] = strategy.clone();
+        }
+    }
+    let run = checked::<t3_contracts::Run>(run)?;
     let attempt = checked::<t3_contracts::RunAttempt>(
         json!({"id":attempt_id,"runId":run_id,"attemptOrdinal":1,"rootNodeId":node_id,"providerInstanceId":model["instanceId"],"providerThreadId":provider_thread_id,"providerTurnId":null,"reason":"initial","status":"pending","startedAt":null,"completedAt":null}),
     )?;
@@ -510,15 +554,92 @@ pub fn plan_message(
     ] {
         events.push(event(thread_id, command_id, kind, payload, now));
     }
+    if deferred {
+        let item = checked::<t3_contracts::TurnItem>(
+            json!({"id":format!("workspace-preparation:{run_id}"),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().len()+1,"status":"running","title":"Preparing workspace","startedAt":timestamp,"completedAt":null,"updatedAt":timestamp,"type":"command_execution","input":"Preparing workspace"}),
+        )?;
+        events.push(event(thread_id, command_id, "turn-item.updated", item, now));
+    }
     Ok(Decision::Accepted {
         events,
-        effects: vec![NewEffect {
-            id: format!("effect:{command_id}:provider-turn.start:{run_id}"),
-            command_id: command_id.into(),
-            thread_id: thread_id.into(),
-            request: json!({"type":"provider-turn.start","runId":run_id}),
-            available_at: timestamp,
-        }],
+        effects: if deferred {
+            vec![]
+        } else {
+            vec![NewEffect {
+                id: format!("effect:{command_id}:provider-turn.start:{run_id}"),
+                command_id: command_id.into(),
+                thread_id: thread_id.into(),
+                request: json!({"type":"provider-turn.start","runId":run_id}),
+                available_at: timestamp,
+            }]
+        },
+    })
+}
+
+pub(crate) fn plan_release(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+) -> Result<Decision, StoreError> {
+    let run = projection["runs"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|run| run["id"] == command["runId"] && run["status"] == "preparing")
+        .ok_or_else(|| {
+            StoreError::InvalidCommand("Run is not awaiting workspace preparation.".into())
+        })?;
+    if run["workspacePreparation"]["type"] == "worktree" {
+        return Err(StoreError::InvalidCommand(
+            "Native Git worktree preparation is not yet available.".into(),
+        ));
+    }
+    let mut item = projection["turnItems"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| {
+            item["runId"] == run["id"]
+                && item["type"] == "command_execution"
+                && item["input"] == "Preparing workspace"
+        })
+        .cloned()
+        .ok_or_else(|| {
+            StoreError::InvalidCommand("Workspace preparation activity is missing.".into())
+        })?;
+    let timestamp = at(now);
+    item["status"] = json!("completed");
+    item["title"] = json!("Workspace ready");
+    item["output"] = json!("Workspace preparation completed.");
+    item["exitCode"] = json!(0);
+    item["completedAt"] = json!(timestamp);
+    item["updatedAt"] = json!(timestamp);
+    let mut run = run.clone();
+    run["status"] = json!("starting");
+    let thread_id = command["threadId"].as_str().unwrap();
+    let command_id = command["commandId"].as_str().unwrap();
+    Ok(Decision::Accepted {
+        events: vec![
+            event(
+                thread_id,
+                command_id,
+                "turn-item.updated",
+                checked::<t3_contracts::TurnItem>(item)?,
+                now,
+            ),
+            event(
+                thread_id,
+                command_id,
+                "run.updated",
+                checked::<t3_contracts::Run>(run)?,
+                now,
+            ),
+        ],
+        effects: vec![effect(
+            command,
+            json!({"type":"provider-turn.start","runId":command["runId"]}),
+            now,
+        )],
     })
 }
 
@@ -534,6 +655,109 @@ mod tests {
     }
     fn message(thread: &str, id: &str, text: &str) -> Value {
         json!({"type":"message.dispatch","commandId":id,"threadId":thread,"messageId":format!("message:{id}"),"text":text,"attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})
+    }
+    #[test]
+    fn prepared_message_has_no_provider_effect_until_release_and_stop_blocks_later_release() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::memory().unwrap();
+        project(&store, directory.path());
+        let id = launch(&store, "launch");
+        let mut command = message(&id, "prepared", "Prepare first");
+        command["dispatchMode"] = json!({"type":"defer_start","workspaceStrategy":{"type":"root"}});
+        store
+            .dispatch(
+                "prepared",
+                "thread",
+                &id,
+                "message.dispatch",
+                Utc::now(),
+                |transaction| {
+                    plan_message(
+                        &command,
+                        &read_projection(transaction, "thread", &id)?.unwrap(),
+                        Utc::now(),
+                    )
+                },
+                thread::reduce,
+            )
+            .unwrap();
+        let projection = store.projection("thread", &id).unwrap().unwrap();
+        assert_eq!(projection["runs"][0]["status"], "preparing");
+        assert_eq!(projection["turnItems"][1]["status"], "running");
+        assert!(
+            store
+                .claim_effect("worker", Utc::now(), chrono::Duration::minutes(1))
+                .unwrap()
+                .is_none()
+        );
+        let release = json!({"type":"prepared-run.release","commandId":"release","threadId":id,"runId":projection["runs"][0]["id"]});
+        let receipt = store
+            .dispatch(
+                "release",
+                "thread",
+                &id,
+                "prepared-run.release",
+                Utc::now(),
+                |transaction| {
+                    plan_release(
+                        &release,
+                        &read_projection(transaction, "thread", &id)?.unwrap(),
+                        Utc::now(),
+                    )
+                },
+                thread::reduce,
+            )
+            .unwrap();
+        assert_eq!(receipt.status, "accepted");
+        let claimed = store
+            .claim_effect("worker", Utc::now(), chrono::Duration::minutes(1))
+            .unwrap()
+            .unwrap();
+        assert_eq!(claimed.command_id, "release");
+        assert_eq!(claimed.request["runId"], projection["runs"][0]["id"]);
+        let second = launch(&store, "second");
+        let mut command = message(&second, "stopped-prepared", "Do not start");
+        command["dispatchMode"] = json!({"type":"defer_start","workspaceStrategy":{"type":"root"}});
+        store
+            .dispatch(
+                "stopped-prepared",
+                "thread",
+                &second,
+                "message.dispatch",
+                Utc::now(),
+                |transaction| {
+                    plan_message(
+                        &command,
+                        &read_projection(transaction, "thread", &second)?.unwrap(),
+                        Utc::now(),
+                    )
+                },
+                thread::reduce,
+            )
+            .unwrap();
+        let projection = store.projection("thread", &second).unwrap().unwrap();
+        let stop = json!({"type":"run.interrupt","commandId":"stop-prepared","threadId":second,"runId":projection["runs"][0]["id"]});
+        store
+            .dispatch(
+                "stop-prepared",
+                "thread",
+                &second,
+                "run.interrupt",
+                Utc::now(),
+                |transaction| {
+                    plan_interrupt(
+                        &stop,
+                        &read_projection(transaction, "thread", &second)?.unwrap(),
+                        Utc::now(),
+                    )
+                },
+                thread::reduce,
+            )
+            .unwrap();
+        let stopped = store.projection("thread", &second).unwrap().unwrap();
+        assert_eq!(stopped["runs"][0]["status"], "interrupted");
+        assert_eq!(stopped["turnItems"][1]["status"], "interrupted");
+        assert!(plan_release(&json!({"type":"prepared-run.release","commandId":"late-release","threadId":second,"runId":projection["runs"][0]["id"]}),&stopped,Utc::now()).is_err());
     }
     #[test]
     fn startup_cancels_pending_and_claimed_process_work_without_replay() {

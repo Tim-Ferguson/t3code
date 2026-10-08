@@ -30,6 +30,21 @@ pub struct PendingMessage {
     pub thread_id: String,
     pub text: String,
 }
+#[derive(Debug, Clone)]
+pub struct PendingLaunch {
+    pub destination: EnvironmentId,
+    pub project_id: String,
+    pub text: String,
+    pub active_thread: Option<String>,
+    pub choices: NewThreadChoices,
+}
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct NewThreadChoices {
+    pub model_selection: Option<t3_contracts::ModelSelection>,
+    pub runtime_mode: Option<t3_contracts::RuntimeMode>,
+    pub environment_mode: Option<t3_contracts::ThreadEnvMode>,
+    pub base_ref: String,
+}
 
 #[derive(Debug, Clone, Default, Store)]
 pub struct UiModel {
@@ -39,48 +54,46 @@ pub struct UiModel {
     pub active_thread: Option<String>,
     pub selected_project: Option<String>,
     pub config: Value,
+    pub typed_config: Option<t3_contracts::ServerConfig>,
+    pub client_settings: t3_contracts::ClientSettings,
+    pub client_settings_error: Option<String>,
+    pub sticky_models: std::collections::BTreeMap<EnvironmentId, t3_contracts::ModelSelection>,
     pub grants: SessionGrantInput,
     pub destination: Option<EnvironmentId>,
     pub environments: EnvironmentCatalog,
     pub error: Option<String>,
     pub draft: String,
     pub pending_messages: std::collections::BTreeMap<String, PendingMessage>,
+    pub new_thread_drafts: std::collections::BTreeMap<(EnvironmentId, String), String>,
+    pub new_thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
+    pub pending_launches: std::collections::BTreeMap<String, PendingLaunch>,
     pub view: View,
     pub dark: bool,
     pub sidebar_open: bool,
 }
 impl UiModel {
+    #[cfg(test)]
     pub fn model_options(&self) -> Vec<(String, String, String)> {
-        self.config["providers"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter(|provider| {
-                provider["enabled"].as_bool() == Some(true)
-                    && provider["installed"].as_bool() == Some(true)
-                    && provider["availability"] != "unavailable"
+        self.typed_config
+            .as_ref()
+            .map(|config| {
+                t3_client::new_thread::available_models(
+                    config,
+                    &self.client_settings,
+                    ui_surface(),
+                    None,
+                )
+                .into_iter()
+                .map(|row| {
+                    (
+                        row.instance_id.to_string(),
+                        row.model.slug,
+                        format!("{} · {}", row.provider_label, row.model.name),
+                    )
+                })
+                .collect()
             })
-            .flat_map(|provider| {
-                let instance = provider["instanceId"].as_str().unwrap_or("").to_owned();
-                let label = provider["displayName"]
-                    .as_str()
-                    .or_else(|| provider["driver"].as_str())
-                    .unwrap_or(&instance)
-                    .to_owned();
-                provider["models"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .filter_map(move |model| {
-                        let slug = model["slug"].as_str()?;
-                        Some((
-                            instance.clone(),
-                            slug.to_owned(),
-                            format!("{} · {}", label, model["name"].as_str().unwrap_or(slug)),
-                        ))
-                    })
-            })
-            .collect()
+            .unwrap_or_default()
     }
 }
 
@@ -299,14 +312,25 @@ pub fn forget_environment(
         model.active_thread = None;
         model.selected_project = None;
         model.config = Value::Null;
+        model.typed_config = None;
         model.draft.clear();
         model.pending_messages.clear();
+        model.pending_launches.clear();
         model.grants = SessionGrantInput::default();
         model.error = None;
         model.status = ConnectionStatus::Disconnected;
         model.view = View::Connections;
     }
     state.environments().write().forget(destination);
+    state.sticky_models().write().remove(destination);
+    state
+        .new_thread_drafts()
+        .write()
+        .retain(|(owner, _), _| owner != destination);
+    state
+        .new_thread_choices()
+        .write()
+        .retain(|(owner, _), _| owner != destination);
 }
 
 fn cancel_thread_subscription(handle: &TransportHandle) {
@@ -381,20 +405,84 @@ pub fn command(
     )
 }
 
+pub fn ui_surface() -> t3_client::new_thread::Surface {
+    if cfg!(feature = "mobile") {
+        t3_client::new_thread::Surface::Mobile
+    } else {
+        t3_client::new_thread::Surface::Web
+    }
+}
+
 pub fn launch_thread(
     handle: &TransportHandle,
     state: Store<UiModel>,
     project: &str,
-    instance: &str,
-    model: &str,
+    selection: &t3_contracts::ModelSelection,
+    mode: t3_contracts::RuntimeMode,
+    workspace: t3_contracts::ThreadLaunchWorkspaceStrategy,
+    initial_text: Option<&str>,
 ) -> Option<String> {
-    request(
+    let owned = state.peek();
+    let destination = owned.destination.clone()?;
+    let active_thread = owned.active_thread.clone();
+    let choices = owned
+        .new_thread_choices
+        .get(&(destination.clone(), project.into()))
+        .cloned()
+        .unwrap_or_default();
+    if owned
+        .pending_launches
+        .values()
+        .any(|pending| pending.destination == destination && pending.project_id == project)
+    {
+        return None;
+    }
+    let config = owned.typed_config.as_ref()?;
+    let normalized =
+        t3_client::new_thread::launch_selection(config, &owned.client_settings, selection, mode);
+    let Some((selection, mode)) = normalized else {
+        drop(owned);
+        fail(
+            state,
+            "Selected provider is unavailable on this environment.",
+        );
+        return None;
+    };
+    drop(owned);
+    let mut input = json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":"New thread","generateTitle":false,"modelSelection":selection,"runtimeMode":mode,"interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":workspace});
+    let text = initial_text.filter(|text| !text.trim().is_empty());
+    if let Some(text) = text {
+        input["initialMessage"] =
+            json!({"messageId":uuid::Uuid::new_v4().to_string(),"text":text,"attachments":[]});
+    }
+    // Validate the complete wire shape before creating a correlated mutation.
+    let input = match serde_json::from_value::<t3_contracts::ThreadLaunchInput>(input)
+        .and_then(serde_json::to_value)
+    {
+        Ok(input) => input,
+        Err(error) => {
+            fail(state, error.to_string());
+            return None;
+        }
+    };
+    let id = request(
         handle,
         state,
         "orchestration.launchThread",
-        json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":"New thread","modelSelection":{"instanceId":instance,"model":model},"runtimeMode":"approval-required","interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":{"type":"root"}}),
+        input,
         RequestKind::Unary,
-    )
+    )?;
+    state.pending_launches().write().insert(
+        id.clone(),
+        PendingLaunch {
+            destination,
+            project_id: project.into(),
+            text: text.unwrap_or_default().into(),
+            active_thread,
+            choices,
+        },
+    );
+    Some(id)
 }
 
 pub fn stop_thread(handle: &TransportHandle, state: Store<UiModel>, thread_id: &str) {
@@ -617,7 +705,9 @@ pub async fn load_earlier(handle: TransportHandle, state: Store<UiModel>) -> Res
         return Ok(());
     }
     drop(model);
-    let page = result?;
+    let page = serde_json::from_value::<t3_contracts::ThreadHistoryPage>(result?)
+        .and_then(serde_json::to_value)
+        .map_err(|error| format!("Invalid thread history: {error}"))?;
     state
         .thread()
         .write()
@@ -650,6 +740,7 @@ fn interrupt_connection(handle: &TransportHandle, state: Store<UiModel>, reason:
         .status()
         .set(ConnectionStatus::Interrupted(reason.to_owned()));
     state.pending_messages().write().clear();
+    state.pending_launches().write().clear();
 }
 
 /// A bootstrap credential is exchanged once; it never becomes an ordinary
@@ -765,10 +856,12 @@ fn reset_for_connect(handle: &TransportHandle, mut state: Store<UiModel>) {
         model.active_thread = None;
         model.selected_project = None;
         model.config = Value::Null;
+        model.typed_config = None;
         model.draft.clear();
         model.status = ConnectionStatus::Connecting;
         model.error = None;
         model.pending_messages.clear();
+        model.pending_launches.clear();
         model.grants = SessionGrantInput::default();
     }
 }
@@ -1076,10 +1169,19 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                     }
                     return;
                 }
+                let typed =
+                    serde_json::from_value(value.clone()).expect("configuration validated above");
+                state.typed_config().set(Some(typed));
                 state.config().set(value);
             } else if method == "orchestration.launchThread" {
-                if let Some(thread_id) = value["threadId"].as_str() {
-                    select_thread(handle, state, thread_id.to_owned());
+                match serde_json::from_value::<t3_contracts::ThreadLaunchResult>(value) {
+                    Ok(receipt) => {
+                        finish_pending_launch(handle, state, &id, Some(receipt.thread_id.as_str()))
+                    }
+                    Err(error) => {
+                        state.pending_launches().write().remove(&id);
+                        fail(state, format!("Invalid thread launch receipt: {error}"));
+                    }
                 }
             }
             finish_pending_message(state, &id, true);
@@ -1089,10 +1191,61 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                 let _ = waiter.send(Err(rpc_error_message(&cause)));
             }
             finish_pending_message(state, &id, false);
+            state.pending_launches().write().remove(&id);
             fail(state, rpc_error_message(&cause));
         }
         RpcEvent::Defect(error) => fail(state, rpc_error_message(&error)),
         _ => {}
+    }
+}
+
+fn finish_pending_launch(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    id: &str,
+    thread_id: Option<&str>,
+) {
+    let pending = state.pending_launches().write().remove(id);
+    let Some(pending) = pending else {
+        return;
+    };
+    let Some(thread_id) = thread_id else {
+        fail(
+            state,
+            "The server returned an invalid thread launch receipt.",
+        );
+        return;
+    };
+    let key = (pending.destination.clone(), pending.project_id.clone());
+    let unchanged_text = state
+        .new_thread_drafts()
+        .peek()
+        .get(&key)
+        .map(String::as_str)
+        .unwrap_or_default()
+        == pending.text;
+    let unchanged_choices = state
+        .new_thread_choices()
+        .peek()
+        .get(&key)
+        .cloned()
+        .unwrap_or_default()
+        == pending.choices;
+    if unchanged_text && unchanged_choices {
+        state.new_thread_drafts().write().remove(&key);
+        state.new_thread_choices().write().remove(&key);
+    }
+    let current = {
+        let model = state.peek();
+        model.destination.as_ref() == Some(&pending.destination)
+            && model.active_thread == pending.active_thread
+            && model
+                .selected_project
+                .as_deref()
+                .is_none_or(|project| project == pending.project_id)
+    };
+    if current {
+        select_thread(handle, state, thread_id.to_owned());
     }
 }
 
@@ -1296,6 +1449,191 @@ mod tests {
         );
         finish_pending_message(state, "confirmed-current", true);
         assert!(state.draft().peek().is_empty());
+    }
+
+    #[test]
+    fn launch_receipts_keep_edited_drafts_and_do_not_navigate_another_destination() {
+        let props = ReceiptHarness(Rc::new(RefCell::new(None)));
+        let mut dom = VirtualDom::new_with_props(receipt_harness, props.clone());
+        dom.rebuild_in_place();
+        let mut state = props.0.borrow().unwrap();
+        let a = EnvironmentId::new("environment-a").unwrap();
+        let b = EnvironmentId::new("environment-b").unwrap();
+        let key = (a.clone(), "same-project".into());
+        {
+            let mut model = state.write();
+            model.destination = Some(b);
+            model.active_thread = Some("current-thread".into());
+            model
+                .new_thread_drafts
+                .insert(key.clone(), "edited while pending".into());
+            model.pending_launches.insert(
+                "old-launch".into(),
+                PendingLaunch {
+                    destination: a.clone(),
+                    project_id: "same-project".into(),
+                    text: "original".into(),
+                    active_thread: None,
+                    choices: NewThreadChoices::default(),
+                },
+            );
+        }
+        finish_pending_launch(
+            &TransportHandle::default(),
+            state,
+            "old-launch",
+            Some("launched-thread"),
+        );
+        assert_eq!(
+            state
+                .new_thread_drafts()
+                .peek()
+                .get(&key)
+                .map(String::as_str),
+            Some("edited while pending")
+        );
+        assert_eq!(
+            state.active_thread().peek().as_deref(),
+            Some("current-thread")
+        );
+        state.pending_launches().write().insert(
+            "confirmed".into(),
+            PendingLaunch {
+                destination: a,
+                project_id: "same-project".into(),
+                text: "edited while pending".into(),
+                active_thread: None,
+                choices: NewThreadChoices::default(),
+            },
+        );
+        finish_pending_launch(
+            &TransportHandle::default(),
+            state,
+            "confirmed",
+            Some("launched-thread"),
+        );
+        assert!(!state.new_thread_drafts().peek().contains_key(&key));
+        assert_eq!(
+            state.active_thread().peek().as_deref(),
+            Some("current-thread")
+        );
+        // Opening another thread on the same environment is also navigation,
+        // even when project and thread identifiers are otherwise identical.
+        state.destination().set(Some(key.0.clone()));
+        state.pending_launches().write().insert(
+            "navigated".into(),
+            PendingLaunch {
+                destination: key.0.clone(),
+                project_id: key.1.clone(),
+                text: String::new(),
+                active_thread: None,
+                choices: NewThreadChoices::default(),
+            },
+        );
+        finish_pending_launch(
+            &TransportHandle::default(),
+            state,
+            "navigated",
+            Some("launched-thread"),
+        );
+        assert_eq!(
+            state.active_thread().peek().as_deref(),
+            Some("current-thread")
+        );
+        state
+            .new_thread_drafts()
+            .write()
+            .insert(key.clone(), "retain after malformed receipt".into());
+        state.pending_launches().write().insert(
+            "malformed".into(),
+            PendingLaunch {
+                destination: key.0.clone(),
+                project_id: key.1.clone(),
+                text: "retain after malformed receipt".into(),
+                active_thread: None,
+                choices: NewThreadChoices::default(),
+            },
+        );
+        apply_rpc_event(
+            &TransportHandle::default(),
+            state,
+            RpcEvent::Complete {
+                id: "malformed".into(),
+                method: "orchestration.launchThread".into(),
+                value: json!({"threadId":"thread","projection":{},"resumed":false}),
+            },
+        );
+        assert_eq!(
+            state
+                .new_thread_drafts()
+                .peek()
+                .get(&key)
+                .map(String::as_str),
+            Some("retain after malformed receipt")
+        );
+        assert!(!state.pending_launches().peek().contains_key("malformed"));
+        assert!(
+            state
+                .error()
+                .peek()
+                .as_ref()
+                .unwrap()
+                .starts_with("Invalid thread launch receipt")
+        );
+    }
+
+    #[test]
+    fn launch_receipt_does_not_clear_edited_permissions_with_unchanged_prompt() {
+        let props = ReceiptHarness(Rc::new(RefCell::new(None)));
+        let mut dom = VirtualDom::new_with_props(receipt_harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.0.borrow().unwrap();
+        let key = (
+            EnvironmentId::new("environment").unwrap(),
+            "project".to_owned(),
+        );
+        state
+            .new_thread_drafts()
+            .write()
+            .insert(key.clone(), "same prompt".into());
+        state.new_thread_choices().write().insert(
+            key.clone(),
+            NewThreadChoices {
+                runtime_mode: Some(t3_contracts::RuntimeMode::ApprovalRequired),
+                ..Default::default()
+            },
+        );
+        state.pending_launches().write().insert(
+            "launch".into(),
+            PendingLaunch {
+                destination: key.0.clone(),
+                project_id: key.1.clone(),
+                text: "same prompt".into(),
+                active_thread: None,
+                choices: NewThreadChoices {
+                    runtime_mode: Some(t3_contracts::RuntimeMode::FullAccess),
+                    ..Default::default()
+                },
+            },
+        );
+        finish_pending_launch(&TransportHandle::default(), state, "launch", Some("thread"));
+        assert_eq!(
+            state
+                .new_thread_drafts()
+                .peek()
+                .get(&key)
+                .map(String::as_str),
+            Some("same prompt")
+        );
+        assert_eq!(
+            state
+                .new_thread_choices()
+                .peek()
+                .get(&key)
+                .unwrap()
+                .runtime_mode,
+            Some(t3_contracts::RuntimeMode::ApprovalRequired)
+        );
     }
 
     #[test]

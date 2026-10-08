@@ -889,7 +889,7 @@ fn deserialize_turn_item_array<'de, D: serde::Deserializer<'de>>(
     decode_forward_union_array(Value::deserialize(d)?, "type", KNOWN_TURN_ITEM_TYPES)
         .map_err(serde::de::Error::custom)
 }
-fn deserialize_projected_turn_item_array<'de, D: serde::Deserializer<'de>>(
+pub(crate) fn deserialize_projected_turn_item_array<'de, D: serde::Deserializer<'de>>(
     d: D,
 ) -> Result<Vec<ProjectedTurnItem>, D::Error> {
     #[derive(Deserialize)]
@@ -901,7 +901,17 @@ fn deserialize_projected_turn_item_array<'de, D: serde::Deserializer<'de>>(
         source_item_id: TurnItemId,
         item: Value,
     }
-    let rows = Vec::<Wire>::deserialize(d)?;
+    let rows = Vec::<Value>::deserialize(d)?
+        .into_iter()
+        .map(|value| {
+            if !value.is_object() {
+                return Err(serde::de::Error::custom(
+                    "expected a projected timeline row object",
+                ));
+            }
+            serde_json::from_value::<Wire>(value).map_err(serde::de::Error::custom)
+        })
+        .collect::<Result<Vec<_>, D::Error>>()?;
     rows.into_iter()
         .filter(|row| {
             row.item

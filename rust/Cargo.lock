@@ -5162,6 +5162,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "t3-acp"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+]
+
+[[package]]
 name = "t3-client"
 version = "0.1.0"
 dependencies = [
@@ -5193,11 +5205,13 @@ dependencies = [
  "fs2",
  "futures-util",
  "hmac",
+ "libc",
  "rand 0.9.5",
  "rusqlite",
  "serde",
  "serde_json",
  "sha2",
+ "t3-acp",
  "t3-contracts",
  "tempfile",
  "thiserror 2.0.21",
@@ -5217,6 +5231,7 @@ dependencies = [
  "axum",
  "chrono",
  "dioxus",
+ "dioxus-html",
  "dioxus-stores",
  "ewebsock",
  "futures-channel",

@@ -79,6 +79,9 @@ for line in sys.stdin:
     request_id = message.get("id")
     method = message.get("method")
     params = message.get("params") or {}
+    if os.environ.get("FIXTURE_RPC_RECORD") and method:
+        with open(os.environ["FIXTURE_RPC_RECORD"], "a", encoding="utf-8") as record:
+            record.write(json.dumps({"method": method, "params": params}) + "\n")
     if method is None:
         pending = requests.pop(request_id, None)
         if pending:

@@ -7,7 +7,9 @@ rust-version.workspace = true
 
 [dependencies]
 fs2.workspace = true
+libc.workspace = true
 t3-contracts.workspace = true
+t3-acp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

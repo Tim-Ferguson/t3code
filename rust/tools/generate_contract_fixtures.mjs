@@ -34,6 +34,8 @@ const files = [
   "composerContext",
   "providerRuntime",
   "providerPolicy",
+  "filesystem",
+  "terminal",
 ];
 const rustNames = new Set(
   [
@@ -47,9 +49,22 @@ const rustNames = new Set(
     "messages",
     "execution",
     "turn_items",
+    "history",
+    "filesystem",
+    "terminal",
+    "provider_runtime",
   ].flatMap((f) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + f + ".rs", "utf8").matchAll(
+        /pub (?:struct|enum|type) (\w+)/g,
+      ),
+    ].map((m) => m[1]),
+  ),
+);
+const strictObjectTypes = new Set(
+  ["history", "filesystem", "terminal", "provider_runtime"].flatMap((file) =>
+    [
+      ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
         /pub (?:struct|enum|type) (\w+)/g,
       ),
     ].map((m) => m[1]),
@@ -110,6 +125,10 @@ function codecCases(name, schema, schemaDoc, initial) {
   if (!test(initial, "baseline")) {
     fixtures.pop();
     return false;
+  }
+  if (strictObjectTypes.has(name) && schemaDoc.schema.type === "object") {
+    test([], "object rejects empty array");
+    test(Object.values(initial), "object rejects positional array");
   }
   test({ ...initial, ignoredFutureField: { hello: true } }, "unknown field");
   if (schemaDoc.schema.type === "array") {
@@ -208,6 +227,68 @@ function codecCases(name, schema, schemaDoc, initial) {
       "invalid projection envelope still fails for unknown item",
     );
   }
+  if (["TerminalOpenInput", "TerminalAttachInput", "TerminalRestartInput"].includes(name)) {
+    const keep128 = Object.fromEntries(Array.from({ length: 128 }, (_, i) => ["KEY_" + i, ""]));
+    for (const env of [
+      { "INVALID-NAME": 42 },
+      { " NAME": "x" },
+      { ["N".repeat(129)]: false },
+      { KEY: "😀".repeat(4096) },
+      { KEY: "😀".repeat(4097) },
+      keep128,
+      { ...keep128, KEY_OVERFLOW: "" },
+      { ...keep128, "INVALID-NAME": 42 },
+      Object.fromEntries(Array.from({ length: 129 }, (_, i) => ["INVALID-" + i, 42])),
+    ])
+      test({ ...clone(initial), env }, "terminal env filtering/value/count boundary");
+  }
+  if (name === "TerminalWriteInput") {
+    for (const data of ["", "\r\n\u001b[31m😀", "😀".repeat(32768), "😀".repeat(32769)])
+      test({ ...clone(initial), data }, "raw terminal write UTF16 boundary");
+  }
+  if (name === "ProjectSearchContentsInput") {
+    for (const query of ["", "  ", " foo ", "😀".repeat(128), "😀".repeat(129)])
+      test({ ...clone(initial), query }, "untrimmed content query UTF16 boundary");
+  }
+  if (name === "RuntimeEventRawSource") {
+    for (const source of [
+      "acp..extension",
+      "acp.custom-driver.extension",
+      "acp.future/命名.extension",
+      "acp.\n.extension",
+      "acp.extension",
+      "acp.custom.extension.extra",
+      " codex.eventmsg ",
+      "future.notification",
+    ])
+      test(source, "ACP template delimiters and extension compatibility");
+  }
+  if (name === "ThreadHistoryPage") {
+    const row = {
+      position: 1,
+      visibility: "local",
+      sourceThreadId: "thread",
+      sourceItemId: "item",
+      item: { type: "future_item" },
+    };
+    test({ ...clone(initial), items: [row] }, "unknown projected timeline type omitted");
+    test(
+      { ...clone(initial), items: [{ ...row, position: -1 }] },
+      "unknown item retains strict envelope validation",
+    );
+    test(
+      { ...clone(initial), items: [{ ...row, item: { type: "assistant_message" } }] },
+      "known malformed item rejects page",
+    );
+    test(
+      { ...clone(initial), items: [{ ...row, item: { type: 42 } }] },
+      "non-string item tag rejected",
+    );
+    test(
+      { ...clone(initial), items: [[1, "local", "thread", "item", { type: "future_item" }]] },
+      "projected envelope rejects positional array",
+    );
+  }
   if (name === "ThreadStreamItem") {
     test(
       { kind: "event", sequence: 1, event: { type: "future.event" } },
@@ -271,6 +352,56 @@ for (const file of files) {
   }
 }
 const orch = await import(pathToFileURL(root + "/packages/contracts/src/orchestrationV2.ts"));
+const runtime = await import(pathToFileURL(root + "/packages/contracts/src/providerRuntime.ts"));
+const runtimeMembers = runtime.ProviderRuntimeEventV2.members;
+const runtimePayloads = {};
+const runtimeSource = readFileSync(root + "/packages/contracts/src/providerRuntime.ts", "utf8");
+function addRuntimeCodec(name, schema) {
+  if (!rustNames.has(name)) return;
+  const doc = Schema.toJsonSchemaDocument(schema);
+  if (codecCases(name, schema, doc, seed(doc.schema, doc.definitions))) mapping[name] = name;
+  else skipped.push("providerRuntime." + name);
+}
+function unwrapRuntimeOptional(schema) {
+  return schema.schema.members.find((member) => member.ast._tag !== "Undefined");
+}
+for (const match of runtimeSource.matchAll(
+  /const (ProviderRuntime\w+Event) = Schema.Struct\(\{[\s\S]*?\btype:\s*(\w+),\s*payload:\s*(\w+),/g,
+)) {
+  const [, name, tagName, payloadName] = match;
+  const tagMarker = "const " + tagName + ' = Schema.Literal("';
+  const tagIndex = runtimeSource.indexOf(tagMarker);
+  if (tagIndex < 0) throw new Error("Missing runtime tag declaration " + tagName);
+  const tag = runtimeSource.slice(tagIndex + tagMarker.length).split('"')[0];
+  const member = runtimeMembers.find((member) => member.fields.type.literal === tag);
+  if (!member) throw new Error("Missing runtime event member for " + name);
+  addRuntimeCodec(name, member);
+  runtimePayloads[payloadName] = member.fields.payload;
+}
+for (const [name, schema] of Object.entries(runtimePayloads)) addRuntimeCodec(name, schema);
+const baseFields = { ...runtimeMembers[0].fields };
+delete baseFields.type;
+delete baseFields.payload;
+addRuntimeCodec("ProviderRuntimeEventBase", Schema.Struct(baseFields));
+const refs = unwrapRuntimeOptional(baseFields.providerRefs);
+const planStep = runtimePayloads.TurnPlanUpdatedPayload.fields.plan.value;
+for (const [name, schema] of Object.entries({
+  ProviderRefs: refs,
+  RuntimeEventRawSource: runtime.RuntimeEventRaw.fields.source,
+  RuntimeSessionState: runtimePayloads.SessionStateChangedPayload.fields.state,
+  RuntimeThreadState: runtimePayloads.ThreadStateChangedPayload.fields.state,
+  RuntimeTurnState: runtimePayloads.TurnCompletedPayload.fields.state,
+  RuntimePlanStep: planStep,
+  RuntimePlanStepStatus: planStep.fields.status,
+  RuntimeItemStatus: unwrapRuntimeOptional(runtime.ItemLifecyclePayload.fields.status),
+  RuntimeContentStreamKind: runtimePayloads.ContentDeltaPayload.fields.streamKind,
+  RuntimeSessionExitKind: unwrapRuntimeOptional(
+    runtimePayloads.SessionExitedPayload.fields.exitKind,
+  ),
+  RuntimeErrorClass: unwrapRuntimeOptional(runtimePayloads.RuntimeErrorPayload.fields.class),
+  RuntimeUserInputQuestionOption: runtime.UserInputQuestion.fields.options.value,
+}))
+  addRuntimeCodec(name, schema);
 const mapped = {
   ProviderRef: "OrchestrationV2ProviderRef",
   ProviderThreadNativeMetadata: "OrchestrationV2ProviderThreadNativeMetadata",
@@ -283,6 +414,14 @@ const mapped = {
   ThreadProjection: "OrchestrationV2ThreadProjection",
   DomainEvent: "OrchestrationV2DomainEvent",
   ThreadStreamItem: "OrchestrationV2ThreadStreamItem",
+  ThreadDetailSnapshot: "OrchestrationV2ThreadDetailSnapshot",
+  ThreadBoundedSnapshot: "OrchestrationV2ThreadBoundedSnapshot",
+  ThreadHistoryPage: "OrchestrationV2ThreadHistoryPage",
+  GetTurnItemInput: "OrchestrationV2GetTurnItemInput",
+  GetTurnItemResult: "OrchestrationV2GetTurnItemResult",
+  GetThreadProjectionInput: "OrchestrationV2GetThreadProjectionInput",
+  SubscribeThreadInput: "OrchestrationV2SubscribeThreadInput",
+  SubscribeShellInput: "OrchestrationV2SubscribeShellInput",
 };
 const executionNames = new Set(
   ["execution", "turn_items"].flatMap((file) =>
@@ -308,6 +447,15 @@ for (const [rust, source] of Object.entries(mapped)) {
     initial = { runId: "run", resetAt: "time", autoResume: false };
   if (codecCases(rust, s, doc, initial)) mapping[rust] = rust;
   else skipped.push(source);
+}
+const http = await import(pathToFileURL(root + "/packages/contracts/src/environmentHttp.ts"));
+const historyEndpoint = http.EnvironmentHttpApi.groups.orchestration.endpoints.threadHistoryPage;
+for (const [name, s] of [
+  ["EnvironmentOrchestrationThreadSnapshotParams", historyEndpoint.params],
+  ["EnvironmentOrchestrationThreadHistoryQuery", historyEndpoint.query],
+]) {
+  const doc = Schema.toJsonSchemaDocument(s);
+  if (codecCases(name, s, doc, seed(doc.schema, doc.definitions))) mapping[name] = name;
 }
 const doc = Schema.toJsonSchemaDocument(orch.OrchestrationV2Command);
 const tags = [

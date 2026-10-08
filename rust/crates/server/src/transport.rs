@@ -88,6 +88,14 @@ pub fn router(state: ApiState) -> Router {
             "/api/orchestration/threads/{threadId}",
             get(thread_snapshot),
         )
+        .route(
+            "/api/orchestration/threads/{threadId}/bounded",
+            get(thread_bounded_snapshot),
+        )
+        .route(
+            "/api/orchestration/threads/{threadId}/history",
+            get(thread_history),
+        )
         .route("/ws", get(upgrade))
         .fallback(get(static_asset))
         .layer(axum::middleware::map_response(no_cache))
@@ -422,9 +430,53 @@ async fn thread_snapshot(
 ) -> Result<Json<Value>, ApiError> {
     let session = authenticate(&state, &headers)?;
     require(&session, AuthEnvironmentScope::OrchestrationRead)?;
-    read_thread_snapshot(&state.store, &id)
+    crate::history::HistoryService::new(state.store)
+        .snapshot(&id, false)
         .map(Json)
-        .map_err(internal)
+        .map_err(history_error)
+}
+fn history_error(error: StoreError) -> ApiError {
+    if matches!(&error,StoreError::InvalidCommand(message) if message=="Thread not found.") {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(
+                json!({"_tag":"EnvironmentNotFoundError","code":"not_found","reason":"thread_not_found","traceId":"unavailable"}),
+            ),
+        );
+    }
+    if matches!(&error,StoreError::InvalidCommand(message) if message=="Invalid thread history cursor.")
+    {
+        return invalid_request("invalid_history_cursor");
+    }
+    internal(error)
+}
+async fn thread_bounded_snapshot(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::OrchestrationRead)?;
+    crate::history::HistoryService::new(state.store)
+        .snapshot(&id, true)
+        .map(Json)
+        .map_err(history_error)
+}
+async fn thread_history(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::OrchestrationRead)?;
+    let query: t3_contracts::EnvironmentOrchestrationThreadHistoryQuery =
+        serde_json::from_value(json!(query))
+            .map_err(|_| invalid_request("invalid_history_cursor"))?;
+    crate::history::HistoryService::new(state.store)
+        .page(&id, query.cursor.as_str())
+        .map(Json)
+        .map_err(history_error)
 }
 fn read_thread_snapshot(store: &Store, id: &str) -> Result<Value, StoreError> {
     store.read(|connection| {
@@ -519,7 +571,10 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                                 let id=request.id.clone();let(ack,acknowledged)=mpsc::channel(1);let state=state.clone();let output=outgoing.clone();
                                 let finished=finished.clone();let completed_id=id.clone();let task=tokio::spawn(async move {stream(request,state,session,output,acknowledged).await;let _=finished.send(completed_id).await;});subscriptions.insert(id,Subscription{ack,task});
                             }else{
-                                let result=unary(&state,&request);
+                                let result=if matches!(request.tag.as_str(),"projects.readFile"|"projects.writeFile") {
+                                    let state=state.clone();let request=request.clone();
+                                    tokio::task::spawn_blocking(move||unary(&state,&request)).await.unwrap_or_else(|error|Err(json!({"_tag":"NativeServiceError","message":error.to_string()})))
+                                }else{unary(&state,&request)};
                                 if request.is_notification!=Some(true){let response=match result{Ok(value)=>RpcServerMessage::Exit{request_id:request.id,exit:RpcExit::Success{value}},Err(error)=>failure(request.id,error)};if outgoing.send(response).await.is_err(){break;}}
                             }
                         },
@@ -561,7 +616,10 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
     match request.tag.as_str(){
         "server.probe"=>Ok(json!({})),
         "server.getConfig"=>state.config.clone().ok_or_else(||json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"Native configuration service is not yet available."})),
-        "orchestration.launchThread"=>crate::launch::ThreadLaunchService::new(state.store.clone()).launch(request.payload.clone(),Utc::now()).map_err(error),
+        "orchestration.launchThread"=>{
+            let service=match &state.providers{Some(providers)=>crate::launch::ThreadLaunchService::with_providers(state.store.clone(),providers.clone()),None=>crate::launch::ThreadLaunchService::new(state.store.clone())};
+            service.launch(request.payload.clone(),Utc::now()).map_err(error)
+        },
         "orchestration.dispatchCommand"=>{
             let receipt=if request.payload["type"].as_str().is_some_and(|kind|kind.starts_with("thread.")) {ThreadService::new(state.store.clone()).dispatch(&request.payload,Utc::now()).map_err(error)?}else{state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?.dispatch(&request.payload,Utc::now()).map_err(error)?};
             if receipt.status=="rejected"{return Err(json!({"_tag":"OrchestrationV2DispatchCommandError","commandId":receipt.command_id,"commandType":receipt.command_type,"message":"Command rejected.","detail":receipt.error.unwrap_or(Value::Null).to_string()}));}
@@ -569,13 +627,22 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
         },
         "orchestration.getThreadProjection"=>{
             let id=request.payload["threadId"].as_str().ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":"","message":"threadId is required."}))?;
-            ThreadService::new(state.store.clone()).projection(id).map_err(error)?.ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":id,"message":"Thread does not exist."}))
+            ThreadService::new(state.store.clone()).projection(id).map_err(error)?.map(|value|crate::wire_projection::projection(&value)).ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":id,"message":"Thread does not exist."}))
         },
+        "orchestration.getTurnItem"=>crate::history::HistoryService::new(state.store.clone()).detail(request.payload.clone()).map_err(error),
         "orchestration.getArchivedShellSnapshot"=>{
             let mut snapshot=ThreadService::new(state.store.clone()).shell_snapshot().map_err(error)?;
             snapshot["threads"]=snapshot["archivedThreads"].take();snapshot.as_object_mut().unwrap().remove("archivedThreads");Ok(snapshot)
         },
         "projects.mutate"=>ProjectService::new(state.store.clone()).mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":error.to_string()})),
+        "projects.readFile"=>{
+            let input:t3_contracts::ProjectReadFileInput=serde_json::from_value(request.payload.clone()).map_err(|error|json!({"_tag":"ProjectReadFileError","message":error.to_string()}))?;
+            crate::workspace_files::read_file(&input).map_err(|error|error.rpc_error(false,input.cwd.as_str(),input.relative_path.0.as_str()))
+        },
+        "projects.writeFile"=>{
+            let input:t3_contracts::ProjectWriteFileInput=serde_json::from_value(request.payload.clone()).map_err(|error|json!({"_tag":"ProjectWriteFileError","message":error.to_string()}))?;
+            crate::workspace_files::write_file(&input).map_err(|error|error.rpc_error(true,input.cwd.as_str(),input.relative_path.0.as_str()))
+        },
         _=>Err(json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"This method has not yet been ported."})),
     }
 }
@@ -657,7 +724,18 @@ async fn stream_inner(
         }
     } else {
         let value = if is_thread {
-            json!({"kind":"snapshot","snapshotSequence":through,"projection":snapshot["projection"]})
+            let projection = crate::wire_projection::projection(&snapshot["projection"]);
+            if request.payload["acceptBoundedSnapshot"] == true {
+                let mut bounded = crate::history::bounded_projection(
+                    &projection,
+                    through,
+                    crate::history::PagePolicy::default(),
+                );
+                bounded["kind"] = json!("snapshot");
+                bounded
+            } else {
+                json!({"kind":"snapshot","snapshotSequence":through,"projection":projection})
+            }
         } else if archive {
             let mut snapshot = snapshot.clone();
             snapshot["threads"] = snapshot["archivedThreads"].take();
@@ -704,7 +782,7 @@ fn stream_item(
     thread_id: Option<&str>,
 ) -> Result<Option<Value>, Value> {
     if is_thread {
-        return Ok((event.event.aggregate_kind=="thread"&&Some(event.event.aggregate_id.as_str())==thread_id).then(||json!({"kind":"event","sequence":event.sequence,"event":crate::thread::wire_event(event)})));
+        return Ok((event.event.aggregate_kind=="thread"&&Some(event.event.aggregate_id.as_str())==thread_id).then(||json!({"kind":"event","sequence":event.sequence,"event":crate::wire_projection::domain_event(crate::thread::wire_event(event))})));
     }
     if event.event.aggregate_kind == "project" {
         if archive {
@@ -979,6 +1057,99 @@ mod tests {
         .await;
         assert_eq!(snapshot["snapshotSequence"], 0);
         assert_eq!(snapshot["projects"], json!([]));
+    }
+
+    #[tokio::test]
+    async fn persisted_history_http_routes_enforce_grants_and_map_cursor_and_missing_thread_errors()
+    {
+        let state = state();
+        let directory = tempfile::tempdir().unwrap();
+        ProjectService::new(state.store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":directory.path()}),Utc::now()).unwrap();
+        crate::launch::ThreadLaunchService::new(state.store.clone()).launch(json!({"commandId":"launch","threadId":"thread","projectId":"project","title":"Thread","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"approval-required","interactionMode":"default","workspaceStrategy":{"type":"root"}}),Utc::now()).unwrap();
+        let access = token(&state, vec![AuthEnvironmentScope::OrchestrationRead]);
+        let unrelated = token(&state, vec![AuthEnvironmentScope::TerminalRead]);
+        let app = router(state.clone());
+        let cursor = base64::Engine::encode(
+            &base64::engine::general_purpose::URL_SAFE_NO_PAD,
+            r#"{"v":1,"seq":0,"st":"thread","si":"none","p":0}"#,
+        );
+        for (uri, token, status) in [
+            (
+                "/api/orchestration/threads/thread/bounded".to_owned(),
+                None,
+                StatusCode::UNAUTHORIZED,
+            ),
+            (
+                "/api/orchestration/threads/thread/bounded".to_owned(),
+                Some(&unrelated),
+                StatusCode::FORBIDDEN,
+            ),
+            (
+                "/api/orchestration/threads/thread/history?cursor=invalid".to_owned(),
+                Some(&access),
+                StatusCode::BAD_REQUEST,
+            ),
+            (
+                format!("/api/orchestration/threads/missing/history?cursor={cursor}"),
+                Some(&access),
+                StatusCode::NOT_FOUND,
+            ),
+        ] {
+            let mut request = Request::builder()
+                .uri(uri)
+                .header("x-t3-orchestration-protocol", "2");
+            if let Some(token) = token {
+                request = request.header(header::AUTHORIZATION, format!("Bearer {token}"));
+            }
+            let response = app
+                .clone()
+                .oneshot(request.body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), status);
+        }
+        let request = |uri: String| {
+            Request::builder()
+                .uri(uri)
+                .header("x-t3-orchestration-protocol", "2")
+                .header(header::AUTHORIZATION, format!("Bearer {access}"))
+                .body(Body::empty())
+                .unwrap()
+        };
+        let bounded = json_body(
+            app.clone()
+                .oneshot(request("/api/orchestration/threads/thread/bounded".into()))
+                .await
+                .unwrap(),
+        )
+        .await;
+        serde_json::from_value::<t3_contracts::ThreadBoundedSnapshot>(bounded.clone()).unwrap();
+        assert_eq!(bounded["hasMoreHistory"], false);
+        assert_eq!(bounded["historyCursor"], Value::Null);
+        let page = json_body(
+            app.oneshot(request(format!(
+                "/api/orchestration/threads/thread/history?cursor={cursor}"
+            )))
+            .await
+            .unwrap(),
+        )
+        .await;
+        serde_json::from_value::<t3_contracts::ThreadHistoryPage>(page.clone()).unwrap();
+        assert_eq!(page["items"], json!([]));
+        let result = unary(
+            &state,
+            &RpcRequest {
+                id: RpcRequestId::String("detail".into()),
+                tag: "orchestration.getTurnItem".into(),
+                payload: json!({"threadId":"thread","itemId":"missing","revision":"ignored"}),
+                headers: vec![],
+                trace_id: None,
+                span_id: None,
+                sampled: None,
+                is_notification: None,
+            },
+        );
+        assert_eq!(result.unwrap()["item"], Value::Null);
     }
 
     #[tokio::test]

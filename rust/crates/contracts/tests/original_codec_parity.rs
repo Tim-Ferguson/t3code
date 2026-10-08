@@ -417,8 +417,77 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "SshDeviceHostConfigs" => {
                 checked_roundtrip::<SshDeviceHostConfigs>(fixture.input.clone())
             }
+            "ProjectContentMatch" => {
+                checked_roundtrip::<ProjectContentMatch>(fixture.input.clone())
+            }
+            "ProjectContentMatchRange" => {
+                checked_roundtrip::<ProjectContentMatchRange>(fixture.input.clone())
+            }
+            "ProjectCreateNewInput" => {
+                checked_roundtrip::<ProjectCreateNewInput>(fixture.input.clone())
+            }
+            "ProjectCreateNewResult" => {
+                checked_roundtrip::<ProjectCreateNewResult>(fixture.input.clone())
+            }
+            "ProjectEnsureScratchResult" => {
+                checked_roundtrip::<ProjectEnsureScratchResult>(fixture.input.clone())
+            }
+            "ProjectEntriesFailure" => {
+                checked_roundtrip::<ProjectEntriesFailure>(fixture.input.clone())
+            }
+            "ProjectEntry" => checked_roundtrip::<ProjectEntry>(fixture.input.clone()),
+            "ProjectEntryKind" => checked_roundtrip::<ProjectEntryKind>(fixture.input.clone()),
+            "ProjectFileFailure" => checked_roundtrip::<ProjectFileFailure>(fixture.input.clone()),
+            "ProjectFileOperation" => {
+                checked_roundtrip::<ProjectFileOperation>(fixture.input.clone())
+            }
+            "ProjectListEntriesError" => {
+                checked_roundtrip::<ProjectListEntriesError>(fixture.input.clone())
+            }
+            "ProjectListEntriesInput" => {
+                checked_roundtrip::<ProjectListEntriesInput>(fixture.input.clone())
+            }
+            "ProjectListEntriesResult" => {
+                checked_roundtrip::<ProjectListEntriesResult>(fixture.input.clone())
+            }
+            "ProjectReadFileError" => {
+                checked_roundtrip::<ProjectReadFileError>(fixture.input.clone())
+            }
+            "ProjectReadFileInput" => {
+                checked_roundtrip::<ProjectReadFileInput>(fixture.input.clone())
+            }
+            "ProjectReadFileResult" => {
+                checked_roundtrip::<ProjectReadFileResult>(fixture.input.clone())
+            }
             "ProjectScript" => checked_roundtrip::<ProjectScript>(fixture.input.clone()),
             "ProjectScriptIcon" => checked_roundtrip::<ProjectScriptIcon>(fixture.input.clone()),
+            "ProjectSearchContentsError" => {
+                checked_roundtrip::<ProjectSearchContentsError>(fixture.input.clone())
+            }
+            "ProjectSearchContentsInput" => {
+                checked_roundtrip::<ProjectSearchContentsInput>(fixture.input.clone())
+            }
+            "ProjectSearchContentsResult" => {
+                checked_roundtrip::<ProjectSearchContentsResult>(fixture.input.clone())
+            }
+            "ProjectSearchEntriesError" => {
+                checked_roundtrip::<ProjectSearchEntriesError>(fixture.input.clone())
+            }
+            "ProjectSearchEntriesInput" => {
+                checked_roundtrip::<ProjectSearchEntriesInput>(fixture.input.clone())
+            }
+            "ProjectSearchEntriesResult" => {
+                checked_roundtrip::<ProjectSearchEntriesResult>(fixture.input.clone())
+            }
+            "ProjectWriteFileError" => {
+                checked_roundtrip::<ProjectWriteFileError>(fixture.input.clone())
+            }
+            "ProjectWriteFileInput" => {
+                checked_roundtrip::<ProjectWriteFileInput>(fixture.input.clone())
+            }
+            "ProjectWriteFileResult" => {
+                checked_roundtrip::<ProjectWriteFileResult>(fixture.input.clone())
+            }
             "KeybindingRule" => checked_roundtrip::<KeybindingRule>(fixture.input.clone()),
             "KeybindingShortcut" => checked_roundtrip::<KeybindingShortcut>(fixture.input.clone()),
             "KeybindingWhenNode" => checked_roundtrip::<KeybindingWhenNode>(fixture.input.clone()),
@@ -512,6 +581,28 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "UnknownContextRecord" => {
                 checked_roundtrip::<UnknownContextRecord>(fixture.input.clone())
             }
+            "CanonicalItemType" => checked_roundtrip::<CanonicalItemType>(fixture.input.clone()),
+            "CanonicalRequestType" => {
+                checked_roundtrip::<CanonicalRequestType>(fixture.input.clone())
+            }
+            "ItemLifecyclePayload" => {
+                checked_roundtrip::<ItemLifecyclePayload>(fixture.input.clone())
+            }
+            "ProviderRuntimeEvent" => {
+                checked_roundtrip::<ProviderRuntimeEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeEventV2" => {
+                checked_roundtrip::<ProviderRuntimeEventV2>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnStatus" => {
+                checked_roundtrip::<ProviderRuntimeTurnStatus>(fixture.input.clone())
+            }
+            "RuntimeEventRaw" => checked_roundtrip::<RuntimeEventRaw>(fixture.input.clone()),
+            "RuntimeTaskStatus" => checked_roundtrip::<RuntimeTaskStatus>(fixture.input.clone()),
+            "RuntimeTaskUsage" => checked_roundtrip::<RuntimeTaskUsage>(fixture.input.clone()),
+            "TaskAgentLinkage" => checked_roundtrip::<TaskAgentLinkage>(fixture.input.clone()),
+            "TaskRunHandles" => checked_roundtrip::<TaskRunHandles>(fixture.input.clone()),
+            "TaskWorkflowPhase" => checked_roundtrip::<TaskWorkflowPhase>(fixture.input.clone()),
             "ThreadTokenUsageSnapshot" => {
                 checked_roundtrip::<ThreadTokenUsageSnapshot>(fixture.input.clone())
             }
@@ -523,7 +614,14 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "ToolActivitySurface" => {
                 checked_roundtrip::<ToolActivitySurface>(fixture.input.clone())
             }
+            "ToolLifecycleItemType" => {
+                checked_roundtrip::<ToolLifecycleItemType>(fixture.input.clone())
+            }
             "TurnTokenUsage" => checked_roundtrip::<TurnTokenUsage>(fixture.input.clone()),
+            "UserInputQuestion" => checked_roundtrip::<UserInputQuestion>(fixture.input.clone()),
+            "UserInputRequestedPayload" => {
+                checked_roundtrip::<UserInputRequestedPayload>(fixture.input.clone())
+            }
             "ProviderApprovalDecision" => {
                 checked_roundtrip::<ProviderApprovalDecision>(fixture.input.clone())
             }
@@ -552,6 +650,377 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "UserInputAttachments" => {
                 checked_roundtrip::<UserInputAttachments>(fixture.input.clone())
             }
+            "FilesystemBrowseEntry" => {
+                checked_roundtrip::<FilesystemBrowseEntry>(fixture.input.clone())
+            }
+            "FilesystemBrowseError" => {
+                checked_roundtrip::<FilesystemBrowseError>(fixture.input.clone())
+            }
+            "FilesystemBrowseFailure" => {
+                checked_roundtrip::<FilesystemBrowseFailure>(fixture.input.clone())
+            }
+            "FilesystemBrowseInput" => {
+                checked_roundtrip::<FilesystemBrowseInput>(fixture.input.clone())
+            }
+            "FilesystemBrowseResult" => {
+                checked_roundtrip::<FilesystemBrowseResult>(fixture.input.clone())
+            }
+            "TerminalAttachInput" => {
+                checked_roundtrip::<TerminalAttachInput>(fixture.input.clone())
+            }
+            "TerminalAttachStreamEvent" => {
+                checked_roundtrip::<TerminalAttachStreamEvent>(fixture.input.clone())
+            }
+            "TerminalClearInput" => checked_roundtrip::<TerminalClearInput>(fixture.input.clone()),
+            "TerminalCloseInput" => checked_roundtrip::<TerminalCloseInput>(fixture.input.clone()),
+            "TerminalCwdError" => checked_roundtrip::<TerminalCwdError>(fixture.input.clone()),
+            "TerminalCwdNotDirectoryError" => {
+                checked_roundtrip::<TerminalCwdNotDirectoryError>(fixture.input.clone())
+            }
+            "TerminalCwdNotFoundError" => {
+                checked_roundtrip::<TerminalCwdNotFoundError>(fixture.input.clone())
+            }
+            "TerminalCwdStatError" => {
+                checked_roundtrip::<TerminalCwdStatError>(fixture.input.clone())
+            }
+            "TerminalError" => checked_roundtrip::<TerminalError>(fixture.input.clone()),
+            "TerminalEvent" => checked_roundtrip::<TerminalEvent>(fixture.input.clone()),
+            "TerminalHistoryError" => {
+                checked_roundtrip::<TerminalHistoryError>(fixture.input.clone())
+            }
+            "TerminalMetadataStreamEvent" => {
+                checked_roundtrip::<TerminalMetadataStreamEvent>(fixture.input.clone())
+            }
+            "TerminalNotRunningError" => {
+                checked_roundtrip::<TerminalNotRunningError>(fixture.input.clone())
+            }
+            "TerminalObserveInput" => {
+                checked_roundtrip::<TerminalObserveInput>(fixture.input.clone())
+            }
+            "TerminalOpenInput" => checked_roundtrip::<TerminalOpenInput>(fixture.input.clone()),
+            "TerminalProviderEnvironmentError" => {
+                checked_roundtrip::<TerminalProviderEnvironmentError>(fixture.input.clone())
+            }
+            "TerminalProviderInstanceNotFoundError" => {
+                checked_roundtrip::<TerminalProviderInstanceNotFoundError>(fixture.input.clone())
+            }
+            "TerminalResizeError" => {
+                checked_roundtrip::<TerminalResizeError>(fixture.input.clone())
+            }
+            "TerminalResizeInput" => {
+                checked_roundtrip::<TerminalResizeInput>(fixture.input.clone())
+            }
+            "TerminalRestartInput" => {
+                checked_roundtrip::<TerminalRestartInput>(fixture.input.clone())
+            }
+            "TerminalSessionLookupError" => {
+                checked_roundtrip::<TerminalSessionLookupError>(fixture.input.clone())
+            }
+            "TerminalSessionSnapshot" => {
+                checked_roundtrip::<TerminalSessionSnapshot>(fixture.input.clone())
+            }
+            "TerminalSessionStatus" => {
+                checked_roundtrip::<TerminalSessionStatus>(fixture.input.clone())
+            }
+            "TerminalSummary" => checked_roundtrip::<TerminalSummary>(fixture.input.clone()),
+            "TerminalThreadInput" => {
+                checked_roundtrip::<TerminalThreadInput>(fixture.input.clone())
+            }
+            "TerminalWriteError" => checked_roundtrip::<TerminalWriteError>(fixture.input.clone()),
+            "TerminalWriteInput" => checked_roundtrip::<TerminalWriteInput>(fixture.input.clone()),
+            "ProviderRuntimeSessionStartedEvent" => {
+                checked_roundtrip::<ProviderRuntimeSessionStartedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeSessionConfiguredEvent" => {
+                checked_roundtrip::<ProviderRuntimeSessionConfiguredEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeSessionStateChangedEvent" => {
+                checked_roundtrip::<ProviderRuntimeSessionStateChangedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeSessionExitedEvent" => {
+                checked_roundtrip::<ProviderRuntimeSessionExitedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeThreadStartedEvent" => {
+                checked_roundtrip::<ProviderRuntimeThreadStartedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeThreadStateChangedEvent" => {
+                checked_roundtrip::<ProviderRuntimeThreadStateChangedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeThreadMetadataUpdatedEvent" => checked_roundtrip::<
+                ProviderRuntimeThreadMetadataUpdatedEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeThreadTokenUsageUpdatedEvent" => checked_roundtrip::<
+                ProviderRuntimeThreadTokenUsageUpdatedEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeThreadRealtimeStartedEvent" => checked_roundtrip::<
+                ProviderRuntimeThreadRealtimeStartedEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeThreadRealtimeItemAddedEvent" => checked_roundtrip::<
+                ProviderRuntimeThreadRealtimeItemAddedEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeThreadRealtimeAudioDeltaEvent" => checked_roundtrip::<
+                ProviderRuntimeThreadRealtimeAudioDeltaEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeThreadRealtimeErrorEvent" => {
+                checked_roundtrip::<ProviderRuntimeThreadRealtimeErrorEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeThreadRealtimeClosedEvent" => {
+                checked_roundtrip::<ProviderRuntimeThreadRealtimeClosedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnStartedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTurnStartedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnCompletedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTurnCompletedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnAbortedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTurnAbortedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnPlanUpdatedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTurnPlanUpdatedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnProposedDeltaEvent" => {
+                checked_roundtrip::<ProviderRuntimeTurnProposedDeltaEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTurnProposedCompletedEvent" => checked_roundtrip::<
+                ProviderRuntimeTurnProposedCompletedEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeTurnDiffUpdatedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTurnDiffUpdatedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeItemStartedEvent" => {
+                checked_roundtrip::<ProviderRuntimeItemStartedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeItemUpdatedEvent" => {
+                checked_roundtrip::<ProviderRuntimeItemUpdatedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeItemCompletedEvent" => {
+                checked_roundtrip::<ProviderRuntimeItemCompletedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeContentDeltaEvent" => {
+                checked_roundtrip::<ProviderRuntimeContentDeltaEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeRequestOpenedEvent" => {
+                checked_roundtrip::<ProviderRuntimeRequestOpenedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeRequestResolvedEvent" => {
+                checked_roundtrip::<ProviderRuntimeRequestResolvedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeUserInputRequestedEvent" => {
+                checked_roundtrip::<ProviderRuntimeUserInputRequestedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeUserInputResolvedEvent" => {
+                checked_roundtrip::<ProviderRuntimeUserInputResolvedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTaskStartedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTaskStartedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTaskProgressEvent" => {
+                checked_roundtrip::<ProviderRuntimeTaskProgressEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTaskUpdatedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTaskUpdatedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeTaskCompletedEvent" => {
+                checked_roundtrip::<ProviderRuntimeTaskCompletedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeHookStartedEvent" => {
+                checked_roundtrip::<ProviderRuntimeHookStartedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeHookProgressEvent" => {
+                checked_roundtrip::<ProviderRuntimeHookProgressEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeHookCompletedEvent" => {
+                checked_roundtrip::<ProviderRuntimeHookCompletedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeToolProgressEvent" => {
+                checked_roundtrip::<ProviderRuntimeToolProgressEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeToolSummaryEvent" => {
+                checked_roundtrip::<ProviderRuntimeToolSummaryEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeAuthStatusEvent" => {
+                checked_roundtrip::<ProviderRuntimeAuthStatusEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeAccountUpdatedEvent" => {
+                checked_roundtrip::<ProviderRuntimeAccountUpdatedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeAccountRateLimitsUpdatedEvent" => checked_roundtrip::<
+                ProviderRuntimeAccountRateLimitsUpdatedEvent,
+            >(fixture.input.clone()),
+            "ProviderRuntimeMcpStatusUpdatedEvent" => {
+                checked_roundtrip::<ProviderRuntimeMcpStatusUpdatedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeMcpOauthCompletedEvent" => {
+                checked_roundtrip::<ProviderRuntimeMcpOauthCompletedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeModelReroutedEvent" => {
+                checked_roundtrip::<ProviderRuntimeModelReroutedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeConfigWarningEvent" => {
+                checked_roundtrip::<ProviderRuntimeConfigWarningEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeDeprecationNoticeEvent" => {
+                checked_roundtrip::<ProviderRuntimeDeprecationNoticeEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeFilesPersistedEvent" => {
+                checked_roundtrip::<ProviderRuntimeFilesPersistedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeToolDeniedEvent" => {
+                checked_roundtrip::<ProviderRuntimeToolDeniedEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeWarningEvent" => {
+                checked_roundtrip::<ProviderRuntimeWarningEvent>(fixture.input.clone())
+            }
+            "ProviderRuntimeErrorEvent" => {
+                checked_roundtrip::<ProviderRuntimeErrorEvent>(fixture.input.clone())
+            }
+            "SessionStartedPayload" => {
+                checked_roundtrip::<SessionStartedPayload>(fixture.input.clone())
+            }
+            "SessionConfiguredPayload" => {
+                checked_roundtrip::<SessionConfiguredPayload>(fixture.input.clone())
+            }
+            "SessionStateChangedPayload" => {
+                checked_roundtrip::<SessionStateChangedPayload>(fixture.input.clone())
+            }
+            "SessionExitedPayload" => {
+                checked_roundtrip::<SessionExitedPayload>(fixture.input.clone())
+            }
+            "ThreadStartedPayload" => {
+                checked_roundtrip::<ThreadStartedPayload>(fixture.input.clone())
+            }
+            "ThreadStateChangedPayload" => {
+                checked_roundtrip::<ThreadStateChangedPayload>(fixture.input.clone())
+            }
+            "ThreadMetadataUpdatedPayload" => {
+                checked_roundtrip::<ThreadMetadataUpdatedPayload>(fixture.input.clone())
+            }
+            "ThreadTokenUsageUpdatedPayload" => {
+                checked_roundtrip::<ThreadTokenUsageUpdatedPayload>(fixture.input.clone())
+            }
+            "ThreadRealtimeStartedPayload" => {
+                checked_roundtrip::<ThreadRealtimeStartedPayload>(fixture.input.clone())
+            }
+            "ThreadRealtimeItemAddedPayload" => {
+                checked_roundtrip::<ThreadRealtimeItemAddedPayload>(fixture.input.clone())
+            }
+            "ThreadRealtimeAudioDeltaPayload" => {
+                checked_roundtrip::<ThreadRealtimeAudioDeltaPayload>(fixture.input.clone())
+            }
+            "ThreadRealtimeErrorPayload" => {
+                checked_roundtrip::<ThreadRealtimeErrorPayload>(fixture.input.clone())
+            }
+            "ThreadRealtimeClosedPayload" => {
+                checked_roundtrip::<ThreadRealtimeClosedPayload>(fixture.input.clone())
+            }
+            "TurnStartedPayload" => checked_roundtrip::<TurnStartedPayload>(fixture.input.clone()),
+            "TurnCompletedPayload" => {
+                checked_roundtrip::<TurnCompletedPayload>(fixture.input.clone())
+            }
+            "TurnAbortedPayload" => checked_roundtrip::<TurnAbortedPayload>(fixture.input.clone()),
+            "TurnPlanUpdatedPayload" => {
+                checked_roundtrip::<TurnPlanUpdatedPayload>(fixture.input.clone())
+            }
+            "TurnProposedDeltaPayload" => {
+                checked_roundtrip::<TurnProposedDeltaPayload>(fixture.input.clone())
+            }
+            "TurnProposedCompletedPayload" => {
+                checked_roundtrip::<TurnProposedCompletedPayload>(fixture.input.clone())
+            }
+            "TurnDiffUpdatedPayload" => {
+                checked_roundtrip::<TurnDiffUpdatedPayload>(fixture.input.clone())
+            }
+            "ContentDeltaPayload" => {
+                checked_roundtrip::<ContentDeltaPayload>(fixture.input.clone())
+            }
+            "RequestOpenedPayload" => {
+                checked_roundtrip::<RequestOpenedPayload>(fixture.input.clone())
+            }
+            "RequestResolvedPayload" => {
+                checked_roundtrip::<RequestResolvedPayload>(fixture.input.clone())
+            }
+            "UserInputResolvedPayload" => {
+                checked_roundtrip::<UserInputResolvedPayload>(fixture.input.clone())
+            }
+            "TaskStartedPayload" => checked_roundtrip::<TaskStartedPayload>(fixture.input.clone()),
+            "TaskProgressPayload" => {
+                checked_roundtrip::<TaskProgressPayload>(fixture.input.clone())
+            }
+            "TaskUpdatedPayload" => checked_roundtrip::<TaskUpdatedPayload>(fixture.input.clone()),
+            "TaskCompletedPayload" => {
+                checked_roundtrip::<TaskCompletedPayload>(fixture.input.clone())
+            }
+            "HookStartedPayload" => checked_roundtrip::<HookStartedPayload>(fixture.input.clone()),
+            "HookProgressPayload" => {
+                checked_roundtrip::<HookProgressPayload>(fixture.input.clone())
+            }
+            "HookCompletedPayload" => {
+                checked_roundtrip::<HookCompletedPayload>(fixture.input.clone())
+            }
+            "ToolProgressPayload" => {
+                checked_roundtrip::<ToolProgressPayload>(fixture.input.clone())
+            }
+            "ToolSummaryPayload" => checked_roundtrip::<ToolSummaryPayload>(fixture.input.clone()),
+            "AuthStatusPayload" => checked_roundtrip::<AuthStatusPayload>(fixture.input.clone()),
+            "AccountUpdatedPayload" => {
+                checked_roundtrip::<AccountUpdatedPayload>(fixture.input.clone())
+            }
+            "AccountRateLimitsUpdatedPayload" => {
+                checked_roundtrip::<AccountRateLimitsUpdatedPayload>(fixture.input.clone())
+            }
+            "McpStatusUpdatedPayload" => {
+                checked_roundtrip::<McpStatusUpdatedPayload>(fixture.input.clone())
+            }
+            "McpOauthCompletedPayload" => {
+                checked_roundtrip::<McpOauthCompletedPayload>(fixture.input.clone())
+            }
+            "ModelReroutedPayload" => {
+                checked_roundtrip::<ModelReroutedPayload>(fixture.input.clone())
+            }
+            "ConfigWarningPayload" => {
+                checked_roundtrip::<ConfigWarningPayload>(fixture.input.clone())
+            }
+            "DeprecationNoticePayload" => {
+                checked_roundtrip::<DeprecationNoticePayload>(fixture.input.clone())
+            }
+            "FilesPersistedPayload" => {
+                checked_roundtrip::<FilesPersistedPayload>(fixture.input.clone())
+            }
+            "ToolDeniedPayload" => checked_roundtrip::<ToolDeniedPayload>(fixture.input.clone()),
+            "RuntimeWarningPayload" => {
+                checked_roundtrip::<RuntimeWarningPayload>(fixture.input.clone())
+            }
+            "RuntimeErrorPayload" => {
+                checked_roundtrip::<RuntimeErrorPayload>(fixture.input.clone())
+            }
+            "ProviderRuntimeEventBase" => {
+                checked_roundtrip::<ProviderRuntimeEventBase>(fixture.input.clone())
+            }
+            "ProviderRefs" => checked_roundtrip::<ProviderRefs>(fixture.input.clone()),
+            "RuntimeEventRawSource" => {
+                checked_roundtrip::<RuntimeEventRawSource>(fixture.input.clone())
+            }
+            "RuntimeSessionState" => {
+                checked_roundtrip::<RuntimeSessionState>(fixture.input.clone())
+            }
+            "RuntimeThreadState" => checked_roundtrip::<RuntimeThreadState>(fixture.input.clone()),
+            "RuntimeTurnState" => checked_roundtrip::<RuntimeTurnState>(fixture.input.clone()),
+            "RuntimePlanStep" => checked_roundtrip::<RuntimePlanStep>(fixture.input.clone()),
+            "RuntimePlanStepStatus" => {
+                checked_roundtrip::<RuntimePlanStepStatus>(fixture.input.clone())
+            }
+            "RuntimeItemStatus" => checked_roundtrip::<RuntimeItemStatus>(fixture.input.clone()),
+            "RuntimeContentStreamKind" => {
+                checked_roundtrip::<RuntimeContentStreamKind>(fixture.input.clone())
+            }
+            "RuntimeSessionExitKind" => {
+                checked_roundtrip::<RuntimeSessionExitKind>(fixture.input.clone())
+            }
+            "RuntimeErrorClass" => checked_roundtrip::<RuntimeErrorClass>(fixture.input.clone()),
+            "RuntimeUserInputQuestionOption" => {
+                checked_roundtrip::<RuntimeUserInputQuestionOption>(fixture.input.clone())
+            }
             "ProviderRef" => checked_roundtrip::<ProviderRef>(fixture.input.clone()),
             "ProviderThreadNativeMetadata" => {
                 checked_roundtrip::<ProviderThreadNativeMetadata>(fixture.input.clone())
@@ -573,6 +1042,24 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "ThreadProjection" => checked_roundtrip::<ThreadProjection>(fixture.input.clone()),
             "DomainEvent" => checked_roundtrip::<DomainEvent>(fixture.input.clone()),
             "ThreadStreamItem" => checked_roundtrip::<ThreadStreamItem>(fixture.input.clone()),
+            "ThreadDetailSnapshot" => {
+                checked_roundtrip::<ThreadDetailSnapshot>(fixture.input.clone())
+            }
+            "ThreadBoundedSnapshot" => {
+                checked_roundtrip::<ThreadBoundedSnapshot>(fixture.input.clone())
+            }
+            "ThreadHistoryPage" => checked_roundtrip::<ThreadHistoryPage>(fixture.input.clone()),
+            "GetTurnItemInput" => checked_roundtrip::<GetTurnItemInput>(fixture.input.clone()),
+            "GetTurnItemResult" => checked_roundtrip::<GetTurnItemResult>(fixture.input.clone()),
+            "GetThreadProjectionInput" => {
+                checked_roundtrip::<GetThreadProjectionInput>(fixture.input.clone())
+            }
+            "SubscribeThreadInput" => {
+                checked_roundtrip::<SubscribeThreadInput>(fixture.input.clone())
+            }
+            "SubscribeShellInput" => {
+                checked_roundtrip::<SubscribeShellInput>(fixture.input.clone())
+            }
             "SessionCapabilities" => {
                 checked_roundtrip::<SessionCapabilities>(fixture.input.clone())
             }
@@ -682,6 +1169,12 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "UserInputQuestionV2" => {
                 checked_roundtrip::<UserInputQuestionV2>(fixture.input.clone())
             }
+            "EnvironmentOrchestrationThreadSnapshotParams" => checked_roundtrip::<
+                EnvironmentOrchestrationThreadSnapshotParams,
+            >(fixture.input.clone()),
+            "EnvironmentOrchestrationThreadHistoryQuery" => checked_roundtrip::<
+                EnvironmentOrchestrationThreadHistoryQuery,
+            >(fixture.input.clone()),
             "ThreadCommand" => checked_roundtrip::<ThreadCommand>(fixture.input.clone()),
             "ProviderCommand" => checked_roundtrip::<ProviderCommand>(fixture.input.clone()),
             // END ORIGINAL CODEC DISPATCH

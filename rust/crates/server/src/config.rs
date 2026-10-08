@@ -56,7 +56,7 @@ impl NativeConfig {
         tokio::fs::create_dir_all(&logs).await?;
         // Advertise only installed native services. The editor, OTLP, workspace
         // management and history paging ports are not yet exposed by this build.
-        let snapshot = json!({"environment":environment,"auth":auth,"cwd":cwd,"keybindingsConfigPath":state_dir.join("keybindings.json"),"keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":providers.snapshots(),"availableEditors":[],"remoteOpenTargets":[],"directEndpoints":[],"observability":{"logsDirectoryPath":logs,"localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false,"otlpLogsEnabled":false},"settings":redact_settings(&settings),"shellResumeCompletionMarker":true,"threadResumeCompletionMarker":true,"threadSnapshotPagination":false});
+        let snapshot = json!({"environment":environment,"auth":auth,"cwd":cwd,"keybindingsConfigPath":state_dir.join("keybindings.json"),"keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":providers.snapshots(),"availableEditors":[],"remoteOpenTargets":[],"directEndpoints":[],"observability":{"logsDirectoryPath":logs,"localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false,"otlpLogsEnabled":false},"settings":redact_settings(&settings),"shellResumeCompletionMarker":true,"threadResumeCompletionMarker":true,"threadSnapshotPagination":true});
         let typed: t3_contracts::ServerConfig = serde_json::from_value(snapshot)?;
         Ok(Self {
             settings,

@@ -474,13 +474,36 @@ pub fn plan(
                 "thread.interaction-mode-updated"
             }
             "thread.runtime-mode.set" => {
-                if !array(projection, "providerSessions").is_empty() {
-                    return Err(unsupported("provider runtime mode switching"));
+                if array(projection, "providerSessions").iter().any(|session| {
+                    !matches!(session["status"].as_str(), Some("stopped" | "error"))
+                        && session["capabilities"]["sessions"]["supportsRuntimeModeSwitchInSession"]
+                            != true
+                }) {
+                    return Err(unsupported("provider detach for runtime mode switching"));
                 }
                 serde_json::from_value::<t3_contracts::RuntimeMode>(command["runtimeMode"].clone())
                     .map_err(|error| reject(error.to_string()))?;
                 thread["runtimeMode"] = command["runtimeMode"].clone();
                 "thread.runtime-mode-updated"
+            }
+            "thread.model-selection.set" => {
+                let selection: t3_contracts::ModelSelection =
+                    serde_json::from_value(command["modelSelection"].clone())
+                        .map_err(|error| reject(error.to_string()))?;
+                let selection =
+                    serde_json::to_value(selection).map_err(|error| reject(error.to_string()))?;
+                if selection["instanceId"] != thread["providerInstanceId"] {
+                    return Err(unsupported("provider switching via handoff"));
+                }
+                if array(projection, "providerSessions").iter().any(|session| {
+                    !matches!(session["status"].as_str(), Some("stopped" | "error"))
+                        && session["capabilities"]["sessions"]["supportsModelSwitchInSession"]
+                            != true
+                }) {
+                    return Err(unsupported("provider detach for model switching"));
+                }
+                thread["modelSelection"] = selection;
+                "thread.model-selection-updated"
             }
             _ => return Err(unsupported(kind)),
         };
@@ -506,6 +529,24 @@ pub fn plan(
 
 pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
     let event = &stored.event;
+    let projection = projection_after(
+        read_projection(transaction, "thread", &event.aggregate_id)?,
+        event,
+    )?;
+    if event.event_type == "run.updated"
+        && matches!(
+            event.payload["status"].as_str(),
+            Some("interrupted" | "cancelled" | "failed")
+        )
+    {
+        transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
+    }
+    write_projection(transaction, "thread", &event.aggregate_id, &projection)
+}
+pub(crate) fn projection_after(
+    projection: Option<Value>,
+    event: &Event,
+) -> Result<Value, StoreError> {
     let mut projection = if event.event_type == "thread.created" {
         let mut projection = json!({"thread":event.payload,"updatedAt":event.occurred_at});
         for field in [
@@ -530,12 +571,10 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
         }
         projection
     } else {
-        read_projection(transaction, "thread", &event.aggregate_id)?.ok_or_else(|| {
-            StoreError::InvalidProjection {
-                kind: "thread".into(),
-                id: event.aggregate_id.clone(),
-                detail: "missing thread".into(),
-            }
+        projection.ok_or_else(|| StoreError::InvalidProjection {
+            kind: "thread".into(),
+            id: event.aggregate_id.clone(),
+            detail: "missing thread".into(),
         })?
     };
     let field = match event.event_type.as_str() {
@@ -550,14 +589,6 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
         "turn-item.updated" => Some("turnItems"),
         _ => None,
     };
-    if event.event_type == "run.updated"
-        && matches!(
-            event.payload["status"].as_str(),
-            Some("interrupted" | "cancelled" | "failed")
-        )
-    {
-        transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
-    }
     if let Some(field) = field {
         let rows =
             projection[field]
@@ -597,7 +628,7 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
     ) {
         projection["updatedAt"] = json!(event.occurred_at);
     }
-    write_projection(transaction, "thread", &event.aggregate_id, &projection)
+    Ok(projection)
 }
 
 pub fn shell(projection: &Value) -> Value {
@@ -654,6 +685,47 @@ mod tests {
             command[key] = value.clone();
         }
         command
+    }
+
+    #[test]
+    fn model_and_runtime_changes_persist_with_live_codex_session_for_the_next_turn() {
+        let mut current = projection();
+        current["providerSessions"] = json!([{"status":"ready","capabilities":{"sessions":{"supportsModelSwitchInSession":true,"supportsRuntimeModeSwitchInSession":true}}}]);
+        let runtime = plan(
+            &command(
+                "thread.runtime-mode.set",
+                json!({"runtimeMode":"full-access"}),
+            ),
+            Some(&current),
+            None,
+            now(),
+        )
+        .unwrap();
+        assert_eq!(runtime[0].event_type, "thread.runtime-mode-updated");
+        current["thread"] = runtime[0].payload.clone();
+        let model=plan(&command("thread.model-selection.set",json!({"modelSelection":{"instanceId":"codex","model":"fixture-model","options":[{"id":"reasoningEffort","value":"low"},{"id":"serviceTier","value":"fast"}]}})),Some(&current),None,now()).unwrap();
+        assert_eq!(model[0].event_type, "thread.model-selection-updated");
+        assert_eq!(model[0].payload["runtimeMode"], "full-access");
+        assert_eq!(
+            model[0].payload["modelSelection"]["options"][0]["value"],
+            "low"
+        );
+        let switch = command(
+            "thread.model-selection.set",
+            json!({"modelSelection":{"instanceId":"claude-code","model":"opus"}}),
+        );
+        assert!(plan(&switch, Some(&current), None, now()).is_err());
+        current["providerSessions"][0]["capabilities"]["sessions"]["supportsRuntimeModeSwitchInSession"] =
+            json!(false);
+        assert!(
+            plan(
+                &command("thread.runtime-mode.set", json!({"runtimeMode":"auto"})),
+                Some(&current),
+                None,
+                now()
+            )
+            .is_err()
+        );
     }
 
     #[test]
