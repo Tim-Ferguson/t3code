@@ -40,6 +40,9 @@ async fn settled(
     }
 }
 async fn exercise(driver: &str, scenario: &str) {
+    exercise_with_device(driver, scenario, None).await;
+}
+async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>) {
     let root = tempfile::tempdir().unwrap();
     let cwd = std::fs::canonicalize(root.path()).unwrap();
     let socket_path = cwd.join("mcp.sock");
@@ -52,13 +55,25 @@ async fn exercise(driver: &str, scenario: &str) {
         std::fs::write(&codex_binary,format!("#!/bin/sh\n[ \"$1\" = app-server ] || exit 2\nexec python3 '{}' codex '{scenario}'\n",fixture.display())).unwrap();
         std::fs::set_permissions(&codex_binary, std::fs::Permissions::from_mode(0o700)).unwrap();
     }
-    let instance = if driver == "acp" { "agent" } else { "codex" };
-    let config = if driver == "acp" {
+    let instance = if driver.starts_with("acp") {
+        "agent"
+    } else {
+        "codex"
+    };
+    let config = if driver.starts_with("acp") {
         json!({"driver":"acpRegistry","config":{"source":"local","commandPath":"python3","commandArgs":[fixture,driver,scenario]},"environment":[{"name":"MCP_SIGNAL","value":socket_path}]})
     } else {
         json!({"driver":"codex","config":{"binaryPath":codex_binary},"environment":[{"name":"MCP_SIGNAL","value":socket_path}]})
     };
-    let settings=serde_json::from_value(json!({"enableAgentBrowserAccess":false,"enableAgentDeviceAccess":false,"providerInstances":{"codex":{"driver":"codex","enabled":false},instance:config}})).unwrap();
+    let mut config = config;
+    if let Some(device) = device {
+        config["environment"].as_array_mut().unwrap().extend([
+            json!({"name":"MCP_EXPECT_DEVICE","value":device.to_string()}),
+            json!({"name":"MCP_DEVICE_DIR","value":cwd.join("scoped-device/bin")}),
+            json!({"name":"MCP_PROVIDER_KEY","value":"preserved"}),
+        ]);
+    }
+    let settings=serde_json::from_value(json!({"enableAgentBrowserAccess":false,"enableAgentDeviceAccess":device.unwrap_or(false),"providerInstances":{"codex":{"driver":"codex","enabled":false},instance:config}})).unwrap();
     let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
     assert_eq!(
         providers
@@ -84,13 +99,59 @@ async fn exercise(driver: &str, scenario: &str) {
         Arc::new(|| Utc::now().timestamp_millis()),
         10000,
     );
-    let sessions = ProviderMcpSessions::new(
+    let environment = device.map(|_| {
+        indexmap::IndexMap::from([
+            (
+                "PATH".into(),
+                cwd.join("scoped-device/bin").to_string_lossy().into_owned(),
+            ),
+            ("PATH_SEPARATOR".into(), ":".into()),
+            ("MCP_SCOPED_DEVICE_MARKER".into(), "granted".into()),
+        ])
+    });
+    let sessions = ProviderMcpSessions::new_with_device_environment(
         registry.clone(),
         std::path::PathBuf::from(env!("CARGO_BIN_EXE_t3-server")),
+        environment,
     );
     providers.set_mcp_sessions(sessions.clone());
     let http = McpHttpService::new(registry.clone(), None);
-    let router = http.router();
+    let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let captured = requests.clone();
+    let (http_held, mut http_admitted) = tokio::sync::mpsc::unbounded_channel();
+    let release_http = Arc::new(tokio::sync::Notify::new());
+    let release = release_http.clone();
+    let hold_http = scenario == "hold-http";
+    let hold_once = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let router = http.router().layer(axum::middleware::from_fn(
+        move |request: axum::extract::Request, next: axum::middleware::Next| {
+            let captured = captured.clone();
+            let http_held = http_held.clone();
+            let release = release.clone();
+            let hold_once = hold_once.clone();
+            async move {
+                captured
+                    .lock()
+                    .unwrap()
+                    .push((request.method().clone(), request.headers().clone()));
+                let request = if hold_http && request.method() == axum::http::Method::POST {
+                    let (parts, body) = request.into_parts();
+                    let bytes = axum::body::to_bytes(body, 16 * 1024 * 1024).await.unwrap();
+                    let value: Value = serde_json::from_slice(&bytes).unwrap();
+                    if value["method"] == "tools/list"
+                        && hold_once.swap(false, std::sync::atomic::Ordering::SeqCst)
+                    {
+                        http_held.send(()).unwrap();
+                        release.notified().await;
+                    }
+                    axum::extract::Request::from_parts(parts, axum::body::Body::from(bytes))
+                } else {
+                    request
+                };
+                next.run(request).await
+            }
+        },
+    ));
     let server = tokio::spawn(async move { axum::serve(listener, router).await.unwrap() });
     let thread=ThreadLaunchService::with_providers(store.clone(),providers.clone()).launch(json!({"commandId":"launch","projectId":"project","title":"MCP fixture","modelSelection":{"instanceId":instance,"model":"fixture-model"},"runtimeMode":"approval-required","interactionMode":"default","workspaceStrategy":{"type":"root"}}),Utc::now()).unwrap()["threadId"].as_str().unwrap().to_owned();
     let execution = ExecutionService::start(store.clone(), providers.clone());
@@ -101,12 +162,30 @@ async fn exercise(driver: &str, scenario: &str) {
     dispatch("first");
     let configured = signal(&socket, "configured").await;
     let pid = configured["pid"].as_i64().unwrap() as i32;
-    let authorization = configured["authorization"].as_str().unwrap().to_owned();
-    if scenario == "normal" {
+    let authorization = configured["authorization"]
+        .as_str()
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            requests
+                .lock()
+                .unwrap()
+                .iter()
+                .find_map(|(_, headers)| {
+                    headers
+                        .get("authorization")
+                        .map(|value| value.to_str().unwrap().to_owned())
+                })
+                .unwrap()
+        });
+    if matches!(scenario, "normal" | "prompt-retry") {
         let first = signal(&socket, "prompt").await;
         assert_eq!(
             settled(&store, &mut events, &thread, 1).await["status"],
-            "completed"
+            if scenario == "prompt-retry" {
+                "failed"
+            } else {
+                "completed"
+            }
         );
         let original = registry
             .resolve(authorization.strip_prefix("Bearer ").unwrap())
@@ -121,6 +200,15 @@ async fn exercise(driver: &str, scenario: &str) {
             settled(&store, &mut events, &thread, 2).await["status"],
             "completed"
         );
+        if scenario == "prompt-retry" {
+            dispatch("third");
+            let third = signal(&socket, "prompt").await;
+            assert_eq!(
+                settled(&store, &mut events, &thread, 3).await["status"],
+                "completed"
+            );
+            assert_eq!(second["pid"], third["pid"]);
+        }
         assert_eq!(first["pid"], second["pid"]);
         assert_eq!(first["hash"], second["hash"]);
         assert_eq!(
@@ -136,6 +224,9 @@ async fn exercise(driver: &str, scenario: &str) {
             "failed"
         );
     } else {
+        if scenario == "hold-http" {
+            http_admitted.recv().await.unwrap();
+        }
         let view = store.projection("thread", &thread).unwrap().unwrap();
         let run = &view["runs"][0];
         execution.dispatch(&json!({"type":"run.interrupt","commandId":"interrupt","threadId":thread,"runId":run["id"]}),Utc::now()).unwrap();
@@ -144,7 +235,7 @@ async fn exercise(driver: &str, scenario: &str) {
             "interrupted"
         );
     }
-    if scenario == "normal" {
+    if matches!(scenario, "normal" | "prompt-retry") {
         execution.shutdown().await;
     } else {
         // Failed/interrupted startup itself closes the actor. Observe its
@@ -165,11 +256,28 @@ async fn exercise(driver: &str, scenario: &str) {
         .await
         .unwrap();
     assert_eq!(response.status().as_u16(), 401);
+    if driver == "acp-negotiated" {
+        let requests = requests.lock().unwrap();
+        assert!(
+            requests
+                .iter()
+                .filter(|(method, _)| *method == axum::http::Method::POST)
+                .count()
+                >= 3
+        );
+        assert!(
+            requests
+                .iter()
+                .any(|(method, headers)| *method == axum::http::Method::DELETE
+                    && headers.get("mcp-session-id").is_some())
+        );
+    }
     assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
     assert_eq!(
         std::io::Error::last_os_error().raw_os_error(),
         Some(libc::ESRCH)
     );
+    release_http.notify_one();
     execution.shutdown().await;
     http.shutdown().await;
     server.abort();
@@ -194,6 +302,41 @@ async fn failed_and_interrupted_provider_startup_revoke_mcp_after_owned_child_cl
             }
         }
     })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn negotiated_acp_callbacks_call_authenticated_mcp_and_cleanup_failed_setup() {
+    tokio::time::timeout(Duration::from_secs(20), async {
+        for scenario in ["normal", "fail-startup", "hold-startup", "hold-http"] {
+            exercise("acp-negotiated", scenario).await;
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn optional_device_environment_and_capability_gated_context_reach_actual_provider_processes()
+{
+    tokio::time::timeout(Duration::from_secs(20), async {
+        for driver in ["acp", "codex"] {
+            for granted in [false, true] {
+                exercise_with_device(driver, "normal", Some(granted)).await;
+            }
+        }
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn acp_failed_prompt_retries_instructions_then_success_reuses_instruction_state() {
+    tokio::time::timeout(
+        Duration::from_secs(20),
+        exercise("acp-negotiated", "prompt-retry"),
+    )
     .await
     .unwrap();
 }

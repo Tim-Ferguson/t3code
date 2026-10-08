@@ -29,6 +29,9 @@ pub struct ProviderSessionConfig {
     pub authorization_header: String,
     pub browser_tools_available: bool,
     pub capabilities: IndexSet<McpCapability>,
+    /// Optional scoped CLI environment; the default issuer does not invent a
+    /// global device daemon target or broaden a thread's capability grant.
+    pub agent_device_environment: Option<indexmap::IndexMap<String, String>>,
 }
 impl std::fmt::Debug for ProviderSessionConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -144,6 +147,7 @@ impl McpSessionRegistry {
             authorization_header: format!("Bearer {raw_token}"),
             browser_tools_available: capabilities.contains(&McpCapability::Preview),
             capabilities,
+            agent_device_environment: None,
         })
     }
     pub fn resolve(&self, raw_token: &str) -> Option<InvocationScope> {

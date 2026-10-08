@@ -720,6 +720,9 @@ struct Actor {
     text_segments: HashMap<&'static str, u64>,
     tools: HashMap<String, crate::acp_tools::ToolState>,
     tool_emission: HashMap<String, (Option<usize>, usize)>,
+    instructions: Option<crate::provider_instructions::AcpState>,
+    pending_instructions: Option<crate::provider_instructions::AcpState>,
+    has_mcp: bool,
 }
 impl Drop for Actor {
     fn drop(&mut self) {
@@ -802,14 +805,17 @@ impl Actor {
         let item_identity_v2 = saved.is_none()
             || saved_thread
                 .is_some_and(|thread| thread["nativeMetadata"]["itemIdentityVersion"] == 2);
-        let peer = crate::acp_peer::ProcessPeer::spawn(
-            instance.resolve_process(&cwd).await.map_err(error)?,
-        )
-        .map_err(error)?;
+        let mut process = instance.resolve_process(&cwd).await.map_err(error)?;
+        if let Some(mcp) = mcp {
+            mcp.apply_acp_environment(&mut process.environment);
+        }
+        let mut callback_instance = instance.clone();
+        callback_instance.environment = process.environment.clone();
+        let peer = crate::acp_peer::ProcessPeer::spawn(process).map_err(error)?;
         // Retain the process outside this cancellable setup future. The actor
         // shutdown path waits for its reap before releasing the runtime lease.
         *pending_peer = Some(peer.clone());
-        let services = instance.services_for(
+        let services = callback_instance.services_for(
             &cwd,
             crate::acp_client_callbacks::policy(&view["thread"]["runtimeMode"], &cwd),
         );
@@ -901,6 +907,9 @@ impl Actor {
             text_segments: HashMap::new(),
             tools: HashMap::new(),
             tool_emission: HashMap::new(),
+            instructions: None,
+            pending_instructions: None,
+            has_mcp: mcp.is_some(),
         })
     }
     async fn effect(&mut self, effect: &crate::persistence::Effect) -> Result<(), StoreError> {
@@ -1007,6 +1016,18 @@ impl Actor {
             .as_str()
             .unwrap()
             .to_owned();
+        let instruction_state = crate::provider_instructions::AcpState {
+            plan: view["thread"]["interactionMode"] == "plan",
+            mcp: self.has_mcp,
+        };
+        let prompt_text =
+            crate::provider_instructions::acp_prompt(&text, instruction_state, self.instructions);
+        let runtime_context = crate::provider_instructions::runtime(
+            "acpRegistry",
+            selection["model"].as_str().unwrap(),
+            None,
+            None,
+        );
         let provider_turn_id = uuid::Uuid::new_v4().to_string();
         self.session.services.set_turn(
             crate::acp_client_callbacks::policy(
@@ -1059,6 +1080,7 @@ impl Actor {
                 ("node.updated", node),
             ])
         })?;
+        self.pending_instructions = (prompt_text != text).then_some(instruction_state);
         self.active_run = Some(run_id.into());
         self.text_segments.clear();
         self.tools.clear();
@@ -1070,7 +1092,9 @@ impl Actor {
                 .prompt_typed(PromptRequest {
                     session_id,
                     prompt: vec![
-                        serde_json::from_value(json!({"type":"text","text":text})).unwrap(),
+                        serde_json::from_value(json!({"type":"text","text":prompt_text})).unwrap(),
+                        serde_json::from_value(json!({"type":"text","text":runtime_context}))
+                            .unwrap(),
                     ],
                     meta: Optional::Missing,
                 })
@@ -1639,7 +1663,11 @@ impl Actor {
         Ok(())
     }
     fn finish(&mut self, result: Result<PromptResponse, AcpError>) -> Result<(), StoreError> {
+        let pending_instructions = self.pending_instructions.take();
         if result.is_ok() {
+            if let Some(instructions) = pending_instructions {
+                self.instructions = Some(instructions);
+            }
             self.close_text_streams()?;
         }
         match result {

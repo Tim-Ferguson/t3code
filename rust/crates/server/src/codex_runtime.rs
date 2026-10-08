@@ -529,12 +529,14 @@ impl Actor {
         if !cwd.is_dir() {
             return Err("Workspace root is not a directory.".into());
         }
-        let process = crate::provider_process::ProviderProcess::spawn(
-            instance
-                .process_options(&cwd)
-                .map_err(|error| error.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
+        let mut process = instance
+            .process_options(&cwd)
+            .map_err(|error| error.to_string())?;
+        if let Some(mcp) = mcp {
+            mcp.apply_device_environment(&mut process.environment);
+        }
+        let process = crate::provider_process::ProviderProcess::spawn(process)
+            .map_err(|error| error.to_string())?;
         *pending_process = Some(process.clone());
         let connection = CodexInstance::initialize_process(process)
             .await
@@ -674,7 +676,7 @@ impl Actor {
         })
         .map_err(|error| error.to_string())?;
         self.active_run = Some(run_id.into());
-        let params = turn_params(
+        let mut params = turn_params(
             &self.native_thread_id.clone().unwrap(),
             &projection["thread"],
             model,
@@ -682,6 +684,18 @@ impl Actor {
             message["text"].as_str().unwrap(),
         )
         .map_err(|error| error.to_string())?;
+        if let Some(mcp) = &self.mcp {
+            let effort = model_option(model, "reasoningEffort").unwrap_or("medium");
+            let plan = projection["thread"]["interactionMode"] == "plan";
+            params["additionalContext"] = crate::provider_instructions::codex_context(
+                model["model"].as_str().unwrap(),
+                effort,
+                mcp.browser_tools_available,
+                mcp.capabilities
+                    .contains(&crate::mcp_invocation::McpCapability::Device),
+            );
+            params["collaborationMode"] = json!({"mode":if plan {"plan"} else {"default"},"settings":{"model":model["model"],"reasoning_effort":effort,"developer_instructions":crate::provider_instructions::codex_mode(plan)}});
+        }
         let response = self
             .connection
             .process

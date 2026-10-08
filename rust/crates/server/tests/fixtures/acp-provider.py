@@ -117,6 +117,8 @@ for line in sys.stdin:
         assert params["sessionId"] == session_id and params["prompt"][0]["type"] == "text", params
         pending = request
         text = params["prompt"][0]["text"]
+        if text.startswith("<t3_code_instructions>"):
+            text = text.split("<user_request>\n",1)[1].rsplit("\n</user_request>",1)[0]
         if text == "hold":
             update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "waiting"}})
         else:

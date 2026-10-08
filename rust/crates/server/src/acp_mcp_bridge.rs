@@ -93,31 +93,7 @@ impl HttpBridge {
                 future.await
             }
         };
-        if response
-            .headers()
-            .get("content-type")
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or("")
-            .contains("text/event-stream")
-        {
-            let mut stream = response.bytes_stream();
-            let mut parser = SseParser::default();
-            while let Some(chunk) = stream.next().await {
-                for data in parser.feed(&chunk.map_err(|error| error.without_url().to_string())?) {
-                    emit(serde_json::from_str(&data).map_err(|error| error.to_string())?).await?;
-                }
-            }
-        } else {
-            let bytes = response
-                .bytes()
-                .await
-                .map_err(|error| error.without_url().to_string())?;
-            let text = String::from_utf8_lossy(&bytes);
-            let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
-            if !t3_contracts::trim_wire_string(text).is_empty() {
-                emit(serde_json::from_str(text).map_err(|error| error.to_string())?).await?;
-            }
-        }
+        response_payloads(response, &mut emit).await?;
         Ok(())
     }
     pub async fn call(&self, tool: String, arguments: Value) -> Result<Value, String> {
@@ -156,6 +132,46 @@ impl HttpBridge {
         .await?;
         Ok(std::mem::take(&mut *output.lock().unwrap()))
     }
+}
+/// Shared opaque HTTP MCP JSON/SSE decoder. Each transport retains its own
+/// protocol-version publication ordering around this decoder.
+pub(crate) async fn response_payloads<F, Fut>(
+    response: reqwest::Response,
+    mut emit: F,
+) -> Result<(), String>
+where
+    F: FnMut(Value) -> Fut,
+    Fut: std::future::Future<Output = Result<(), String>>,
+{
+    if matches!(response.status().as_u16(), 202 | 204) {
+        return Ok(());
+    }
+    if response
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .contains("text/event-stream")
+    {
+        let mut stream = response.bytes_stream();
+        let mut parser = SseParser::default();
+        while let Some(chunk) = stream.next().await {
+            for data in parser.feed(&chunk.map_err(|error| error.without_url().to_string())?) {
+                emit(serde_json::from_str(&data).map_err(|error| error.to_string())?).await?;
+            }
+        }
+    } else {
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|error| error.without_url().to_string())?;
+        let text = String::from_utf8_lossy(&bytes);
+        let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
+        if !t3_contracts::trim_wire_string(text).is_empty() {
+            emit(serde_json::from_str(text).map_err(|error| error.to_string())?).await?;
+        }
+    }
+    Ok(())
 }
 #[derive(Default)]
 struct SseParser {

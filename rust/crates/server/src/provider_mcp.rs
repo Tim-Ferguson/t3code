@@ -19,6 +19,7 @@ struct Inner {
     registry: McpSessionRegistry,
     bridge: PathBuf,
     slots: Mutex<HashMap<ThreadId, Slot>>,
+    device_environment: Option<indexmap::IndexMap<String, String>>,
 }
 #[derive(Clone)]
 pub struct ProviderMcpSessions(Arc<Inner>);
@@ -28,10 +29,20 @@ pub(crate) struct CredentialLease {
 }
 impl ProviderMcpSessions {
     pub fn new(registry: McpSessionRegistry, bridge_command: PathBuf) -> Self {
+        Self::new_with_device_environment(registry, bridge_command, None)
+    }
+    /// The source accepts an optional already-scoped device CLI environment.
+    /// Normal startup leaves it absent; device_open supplies explicit targets.
+    pub fn new_with_device_environment(
+        registry: McpSessionRegistry,
+        bridge_command: PathBuf,
+        environment: Option<indexmap::IndexMap<String, String>>,
+    ) -> Self {
         Self(Arc::new(Inner {
             registry,
             bridge: bridge_command,
             slots: Default::default(),
+            device_environment: environment,
         }))
     }
     pub(crate) fn reserve(
@@ -70,7 +81,7 @@ impl ProviderMcpSessions {
         if device {
             capabilities.insert(McpCapability::Device);
         }
-        let config = self
+        let mut config = self
             .0
             .registry
             .issue(CredentialRequest {
@@ -80,6 +91,9 @@ impl ProviderMcpSessions {
                 capabilities: Some(capabilities),
             })
             .map_err(|error| format!("Could not issue provider MCP credential: {error}"))?;
+        if device {
+            config.agent_device_environment = self.0.device_environment.clone();
+        }
         slots.insert(
             thread,
             Slot {
@@ -103,6 +117,37 @@ impl ProviderMcpSessions {
     }
 }
 impl CredentialLease {
+    pub(crate) fn apply_acp_environment(&self, environment: &mut HashMap<String, String>) {
+        self.apply_device_environment(environment);
+        environment.insert("T3_ACP_MCP_ENDPOINT".into(), self.config.endpoint.clone());
+        environment.insert(
+            "T3_ACP_MCP_AUTHORIZATION".into(),
+            self.config.authorization_header.clone(),
+        );
+        // The source standalone fallback invokes the current executable. This
+        // native runner accepts acp-mcp-call directly, without Node or a JS entrypoint.
+        environment.insert(
+            "T3_ACP_MCP_NODE".into(),
+            self.owner.bridge.to_string_lossy().into_owned(),
+        );
+        environment.remove("T3_ACP_MCP_ENTRYPOINT");
+    }
+    pub(crate) fn apply_device_environment(&self, environment: &mut HashMap<String, String>) {
+        if self.config.agent_device_environment.is_none() {
+            return;
+        }
+        // ProviderProcess inherits the host environment; include inherited PATH
+        // in the merge only when the provider supplied neither spelling.
+        if !environment.contains_key("PATH") && !environment.contains_key("Path") {
+            if let Ok(path) = std::env::var("PATH") {
+                environment.insert("PATH".into(), path);
+            }
+        }
+        crate::provider_instructions::device_environment(
+            environment,
+            self.config.agent_device_environment.as_ref(),
+        );
+    }
     pub(crate) fn touch(&self) {
         self.owner.registry.touch(&self.config.thread_id);
     }

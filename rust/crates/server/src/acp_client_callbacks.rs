@@ -16,6 +16,7 @@ pub(crate) struct Services {
     terminals: Option<Terminals>,
     environment: IndexMap<String, String>,
     embedded: Arc<Mutex<IndexMap<(String, String), Vec<String>>>>,
+    mcp: Arc<Mutex<Option<crate::acp_mcp_callback::Bridge>>>,
 }
 struct Context {
     latest: Value,
@@ -44,6 +45,7 @@ impl Services {
             terminals,
             environment,
             embedded: Arc::new(Mutex::new(IndexMap::new())),
+            mcp: Default::default(),
         }
     }
     #[cfg(test)]
@@ -55,6 +57,9 @@ impl Services {
     }
     pub(crate) fn has_terminals(&self) -> bool {
         self.terminals.is_some()
+    }
+    pub(crate) fn set_mcp(&self, bridge: crate::acp_mcp_callback::Bridge) {
+        *self.mcp.lock().unwrap() = Some(bridge);
     }
     pub(crate) fn set_turn(&self, policy: Value, turn_key: String) {
         let mut context = self.policy.lock().unwrap();
@@ -203,6 +208,10 @@ impl Services {
             .collect()
     }
     pub(crate) async fn shutdown(&self) {
+        let mcp = self.mcp.lock().unwrap().clone();
+        if let Some(mcp) = mcp {
+            mcp.dispose().await;
+        }
         if let Some(terminals) = &self.terminals {
             terminals.shutdown().await;
         }

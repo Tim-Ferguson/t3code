@@ -395,7 +395,31 @@ impl AcpInstance {
             let mut initialized = self
                 .initialize_only(peer, false, services, None, None)
                 .await?;
-            initialized.mcp_servers = vec![mcp.stdio_server()];
+            if initialized
+                .initialize
+                .agent_capabilities
+                .as_ref()
+                .and_then(|capabilities| capabilities.mcp_capabilities.as_ref())
+                .and_then(|capabilities| capabilities.acp)
+                == Some(true)
+            {
+                let bridge = crate::acp_mcp_callback::Bridge::new(
+                    mcp.config.endpoint.clone(),
+                    mcp.config.authorization_header.clone(),
+                );
+                // Services is also retained by the actor before cancellable
+                // startup, so failed/canceled session creation awaits disposal.
+                retained.set_mcp(bridge.clone());
+                bridge.register(&initialized.client).await;
+                initialized.mcp_servers = vec![McpServer::V2(
+                    serde_json::from_value(
+                        json!({"type":"acp","name":"t3-code","serverId":"t3-code"}),
+                    )
+                    .expect("literal negotiated MCP server"),
+                )];
+            } else {
+                initialized.mcp_servers = vec![mcp.stdio_server()];
+            }
             self.finish_initialized(initialized, cwd, saved_session, false, true)
                 .await
         }
