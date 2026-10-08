@@ -346,6 +346,7 @@ struct Harness {
 }
 fn harness(props: Harness) -> Element {
     let state = use_store(|| props.initial.clone());
+    crate::themes::use_themes(state);
     *props.state.borrow_mut() = Some(state);
     let transport = props.transport.clone();
     use_future(move || {
@@ -404,6 +405,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         background: None,
         device_hosts: None,
         devices: None,
+        provider_auth: None,
     };
     api
 }
@@ -1438,6 +1440,23 @@ fn form_control_event(dom: &mut VirtualDom, label: &str, value: &str, event: &st
     );
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
 }
+fn blur_control(dom: &mut VirtualDom, label: &str, render: bool) {
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    dom.runtime().handle_event(
+        "blur",
+        dioxus::dioxus_core::Event::new(
+            Rc::new(dioxus_html::PlatformEventData::new(Box::new(
+                dioxus_html::SerializedFocusData::default(),
+            ))) as Rc<dyn std::any::Any>,
+            true,
+        ),
+        element,
+    );
+    if render {
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    }
+}
 pub(crate) fn click_control(dom: &mut VirtualDom, label: &str) {
     dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
     let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
@@ -1521,6 +1540,7 @@ struct ControlsHarness {
 }
 fn controls_harness(props: ControlsHarness) -> Element {
     let state = use_store(|| props.initial.clone());
+    crate::themes::use_themes(state);
     *props.state.borrow_mut() = Some(state);
     rsx! {crate::Application {state,transport:props.transport}}
 }
@@ -1947,4 +1967,588 @@ fn existing_thread_choices_restore_and_remain_owned_by_destination_and_thread() 
         control(&dom, "Message").unwrap().1.as_deref(),
         Some("Owned existing text")
     );
+}
+
+async fn provider_settings_fixture(
+    directory: &tempfile::TempDir,
+) -> (ApiState, t3_server::server_settings::SettingsService) {
+    use t3_server::{
+        server_secret_store::ServerSecretStore,
+        server_settings::{SettingsOptions, SettingsService},
+    };
+    let mut api = api_fixture(directory, "provider-settings-ui");
+    let path = directory.path().join("settings.json");
+    let mut value = serde_json::to_value(t3_contracts::ServerSettings::default()).unwrap();
+    for (_, provider) in value["providers"].as_object_mut().unwrap() {
+        provider["enabled"] = json!(false);
+    }
+    value["providerInstances"] = json!({
+        "work_local":{"driver":"acpRegistry","displayName":"Work","enabled":false,"config":{"source":"local","commandPath":"fixture-command","opaque":{"items":[1,2]}}},
+        "other_local":{"driver":"acpRegistry","displayName":"Other","enabled":false,"config":{"source":"local","commandPath":"other-command","opaque":{"retain":true}}}
+    });
+    std::fs::write(&path, serde_json::to_vec(&value).unwrap()).unwrap();
+    let mut options = SettingsOptions::file(
+        path,
+        ServerSecretStore::open(directory.path().join("secrets")).unwrap(),
+    );
+    options.watch = false;
+    let service = SettingsService::start(options).await.unwrap();
+    api.config.as_mut().unwrap()["settings"] =
+        serde_json::to_value(service.snapshot().await.unwrap()).unwrap();
+    api.settings = Some(service.clone());
+    (api, service)
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn native_provider_settings_controls_mutate_one_instance_and_preserve_unknown_config() {
+    let directory = tempfile::tempdir().unwrap();
+    let (api, service) = provider_settings_fixture(&directory).await;
+    let credential = api
+        .auth
+        .create_pairing_credential(
+            &[
+                AuthEnvironmentScope::OrchestrationRead,
+                AuthEnvironmentScope::ProvidersManage,
+            ],
+            chrono::Utc::now(),
+            chrono::Duration::minutes(1),
+        )
+        .unwrap();
+    let (address, server) = start_fixture(api).await;
+    let props = Harness {
+        state: Rc::new(RefCell::new(None)),
+        transport: TransportHandle::default(),
+        address,
+        credential,
+        initial: UiModel::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    drive_until(&mut dom, state, "provider-settings-config", || {
+        state.peek().typed_config.is_some()
+    })
+    .await;
+    state.view().set(View::Providers);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    click_control(&mut dom, "Select provider Work");
+    assert_eq!(
+        control(&dom, "Executable").unwrap().1.as_deref(),
+        Some("fixture-command")
+    );
+    input_control(&mut dom, "Executable", "updated-command");
+    assert_eq!(
+        serde_json::to_value(service.snapshot().await.unwrap()).unwrap()["providerInstances"]["work_local"]
+            ["config"]["commandPath"],
+        "fixture-command",
+        "typing stays local until source blur commit"
+    );
+    blur_control(&mut dom, "Executable", true);
+    drive_until(&mut dom,state,"provider-settings-committed",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="updated-command").await;
+    let stored = serde_json::to_value(service.snapshot().await.unwrap()).unwrap();
+    assert_eq!(
+        stored["providerInstances"]["work_local"]["config"]["opaque"],
+        json!({"items":[1,2]})
+    );
+    assert_eq!(
+        stored["providerInstances"]["other_local"]["config"],
+        json!({"source":"local","commandPath":"other-command","opaque":{"retain":true}})
+    );
+    assert!(control(&dom, "Executable").is_some());
+    let destination = state.destination().peek().clone().unwrap();
+    let saved = state.environments().peek().records[&destination]
+        .session
+        .clone();
+    {
+        let mut environments_field = state.environments();
+        let mut environments = environments_field.write();
+        let session = &mut environments.records.get_mut(&destination).unwrap().session;
+        session.scopes = Some(vec![AuthEnvironmentScope::OrchestrationRead]);
+        // Current servers return granular permissions; those are authoritative
+        // over legacy scopes, so revoke the actual grant rather than its alias.
+        session.permissions = Some(vec![AuthEnvironmentScope::OrchestrationRead]);
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(
+        control_attribute(&dom, "Executable", "disabled")
+            .unwrap()
+            .1
+            .as_deref(),
+        Some("true")
+    );
+    input_control(&mut dom, "Executable", "must-not-persist");
+    blur_control(&mut dom, "Executable", true);
+    assert_eq!(
+        serde_json::to_value(service.snapshot().await.unwrap()).unwrap()["providerInstances"]["work_local"]
+            ["config"]["commandPath"],
+        "updated-command",
+        "destination manage grant is authoritative even for synthetic disabled-field events"
+    );
+    assert!(!rendered_text(&dom).contains("Saving provider settings"));
+    state
+        .environments()
+        .write()
+        .records
+        .get_mut(&destination)
+        .unwrap()
+        .session = saved;
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    click_control(&mut dom, "Delete instance");
+    drive_until(&mut dom, state, "provider-instance-remove", || {
+        state.config().peek()["settings"]["providerInstances"]
+            .get("work_local")
+            .is_none()
+    })
+    .await;
+    assert!(
+        serde_json::to_value(service.snapshot().await.unwrap()).unwrap()["providerInstances"]
+            .get("other_local")
+            .is_some()
+    );
+    drop(dom);
+    server.abort();
+    let _ = server.await;
+    service.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn native_provider_settings_same_destination_replacement_before_first_poll_releases_saving() {
+    let directory = tempfile::tempdir().unwrap();
+    let (api, service) = provider_settings_fixture(&directory).await;
+    let credential = api
+        .auth
+        .create_pairing_credential(
+            &[
+                AuthEnvironmentScope::OrchestrationRead,
+                AuthEnvironmentScope::ProvidersManage,
+            ],
+            chrono::Utc::now(),
+            chrono::Duration::minutes(1),
+        )
+        .unwrap();
+    let (address, server) = start_fixture(api).await;
+    let props = Harness {
+        state: Rc::new(RefCell::new(None)),
+        transport: TransportHandle::default(),
+        address,
+        credential,
+        initial: UiModel::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    drive_until(&mut dom, state, "provider-settings-config", || {
+        state.peek().typed_config.is_some()
+    })
+    .await;
+    state.view().set(View::Providers);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    click_control(&mut dom, "Select provider Work");
+    input_control(&mut dom, "Executable", "never-send-old-edit");
+    blur_control(&mut dom, "Executable", false);
+    props.transport.borrow_mut().socket_generation += 1;
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!rendered_text(&dom).contains("Saving provider settings"));
+    assert_ne!(
+        control_attribute(&dom, "Executable", "disabled")
+            .unwrap()
+            .1
+            .as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        serde_json::to_value(service.snapshot().await.unwrap()).unwrap()["providerInstances"]["work_local"]
+            ["config"]["commandPath"],
+        "fixture-command"
+    );
+    input_control(&mut dom, "Executable", "new-connection-edit");
+    blur_control(&mut dom, "Executable", true);
+    drive_until(&mut dom,state,"provider-settings-new-owner",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="new-connection-edit").await;
+    drop(dom);
+    server.abort();
+    let _ = server.await;
+    service.shutdown().await;
+}
+
+struct HeldProviderSettingsWrite {
+    armed: std::sync::atomic::AtomicBool,
+    entered: std::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
+    released: std::sync::Mutex<bool>,
+    wake: std::sync::Condvar,
+}
+impl t3_server::server_settings::SettingsWriter for HeldProviderSettingsWrite {
+    fn write(&self, path: &std::path::Path, contents: &str) -> std::io::Result<()> {
+        use t3_server::server_settings::SettingsWriter;
+        t3_server::server_settings::AtomicSettingsWriter.write(path, contents)?;
+        if self.armed.swap(false, std::sync::atomic::Ordering::SeqCst) {
+            if let Some(entered) = self.entered.lock().unwrap().take() {
+                let _ = entered.send(());
+            }
+            let held = self.released.lock().unwrap();
+            drop(self.wake.wait_while(held, |released| !*released).unwrap());
+        }
+        Ok(())
+    }
+}
+struct ReleaseProviderWrite(std::sync::Arc<HeldProviderSettingsWrite>);
+impl Drop for ReleaseProviderWrite {
+    fn drop(&mut self) {
+        *self.0.released.lock().unwrap() = true;
+        self.0.wake.notify_all();
+    }
+}
+#[tokio::test(flavor = "current_thread")]
+async fn native_provider_settings_same_destination_replacement_during_receipt_releases_saving() {
+    use t3_server::{
+        server_secret_store::ServerSecretStore,
+        server_settings::{SettingsOptions, SettingsService},
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let (mut api, old) = provider_settings_fixture(&directory).await;
+    old.shutdown().await;
+    let (entered, mut milestone) = tokio::sync::oneshot::channel();
+    let writer = std::sync::Arc::new(HeldProviderSettingsWrite {
+        armed: false.into(),
+        entered: std::sync::Mutex::new(Some(entered)),
+        released: std::sync::Mutex::new(false),
+        wake: std::sync::Condvar::new(),
+    });
+    let release = ReleaseProviderWrite(writer.clone());
+    let mut options = SettingsOptions::file(
+        directory.path().join("settings.json"),
+        ServerSecretStore::open(directory.path().join("secrets")).unwrap(),
+    );
+    options.watch = false;
+    options.writer = writer.clone();
+    let service = SettingsService::start(options).await.unwrap();
+    api.settings = Some(service.clone());
+    let credential = api
+        .auth
+        .create_pairing_credential(
+            &[
+                AuthEnvironmentScope::OrchestrationRead,
+                AuthEnvironmentScope::ProvidersManage,
+            ],
+            chrono::Utc::now(),
+            chrono::Duration::minutes(1),
+        )
+        .unwrap();
+    let (address, server) = start_fixture(api).await;
+    let props = Harness {
+        state: Rc::new(RefCell::new(None)),
+        transport: TransportHandle::default(),
+        address,
+        credential,
+        initial: UiModel::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    drive_until(&mut dom, state, "provider-settings-config", || {
+        state.peek().typed_config.is_some()
+    })
+    .await;
+    state.view().set(View::Providers);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    click_control(&mut dom, "Select provider Work");
+    input_control(&mut dom, "Executable", "committed-old-connection");
+    writer
+        .armed
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    blur_control(&mut dom, "Executable", true);
+    tokio::time::timeout(std::time::Duration::from_secs(8),async {
+        loop {
+            tokio::select! {
+                result=&mut milestone=>{result.unwrap();break;},
+                _=dom.wait_for_work()=>dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations),
+            }
+        }
+    }).await.expect("actual durable write accepted with receipt held");
+    assert!(rendered_text(&dom).contains("Saving provider settings"));
+    {
+        let mut transport = props.transport.borrow_mut();
+        transport.socket_generation += 1;
+        transport.fail_waiters();
+    }
+    tokio::time::timeout(std::time::Duration::from_secs(8), async {
+        loop {
+            if !rendered_text(&dom).contains("Saving provider settings") {
+                break;
+            }
+            dom.wait_for_work().await;
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+    })
+    .await
+    .expect("old owner cancellation releases mounted controls");
+    assert_eq!(
+        control_attribute(&dom, "Executable", "disabled")
+            .unwrap()
+            .1
+            .as_deref(),
+        Some("false")
+    );
+    assert_eq!(
+        state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"],
+        "fixture-command",
+        "old receipt does not paint new connection state"
+    );
+    assert!(!rendered_text(&dom).contains("Connection closed before the server replied"));
+    drop(release);
+    let stored = serde_json::to_value(service.snapshot().await.unwrap()).unwrap();
+    assert_eq!(
+        stored["providerInstances"]["work_local"]["config"]["commandPath"],
+        "committed-old-connection",
+        "accepted server mutation remains durable independently of client owner"
+    );
+    input_control(&mut dom, "Executable", "new-owner-after-receipt");
+    blur_control(&mut dom, "Executable", true);
+    drive_until(&mut dom,state,"provider-settings-new-owner-after-receipt",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="new-owner-after-receipt").await;
+    drop(dom);
+    server.abort();
+    let _ = server.await;
+    service.shutdown().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn native_provider_settings_subscription_refreshes_delayed_registry_and_fences_invalid_or_replaced_delivery()
+ {
+    let directory = tempfile::tempdir().unwrap();
+    let (mut api, service) = provider_settings_fixture(&directory).await;
+    let missing = directory.path().join("missing-codex-fixture");
+    let mut settings = serde_json::to_value(service.snapshot().await.unwrap()).unwrap();
+    settings["providerInstances"]["codex"] = json!({"driver":"codex","enabled":true,"displayName":"Live status","config":{"binaryPath":missing}});
+    service
+        .update(
+            serde_json::from_value(json!({"providerInstances":settings["providerInstances"]}))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let native = t3_server::config::NativeConfig::from_settings(
+        service.snapshot().await.unwrap(),
+        directory.path(),
+        directory.path(),
+        &api.environment,
+        &api.auth.descriptor(),
+    )
+    .await
+    .unwrap();
+    let old_snapshot = native.snapshot.clone();
+    let registry = native.providers.clone();
+    api.providers = Some(native.providers);
+    api.config = Some(native.snapshot);
+    let credential = api
+        .auth
+        .create_pairing_credential(
+            &[
+                AuthEnvironmentScope::OrchestrationRead,
+                AuthEnvironmentScope::ProvidersManage,
+            ],
+            chrono::Utc::now(),
+            chrono::Duration::minutes(1),
+        )
+        .unwrap();
+    let (address, server) = start_fixture(api).await;
+    let props = Harness {
+        state: Rc::new(RefCell::new(None)),
+        transport: TransportHandle::default(),
+        address,
+        credential,
+        initial: UiModel::default(),
+    };
+    let mut dom = VirtualDom::new_with_props(harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    drive_until(&mut dom, state, "live-config-initial", || {
+        live_config_active(&props.transport, state)
+    })
+    .await;
+    let status = || {
+        state.config().peek()["providers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|provider| provider["instanceId"] == "codex")
+            .unwrap()["status"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    };
+    assert_eq!(status(), "error");
+    state.view().set(View::Providers);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    click_control(&mut dom, "Select provider Live status");
+    let binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../server/tests/fixtures/codex-provider.py")
+        .canonicalize()
+        .unwrap()
+        .to_string_lossy()
+        .into_owned();
+    input_control(&mut dom, "Binary path", &binary);
+    blur_control(&mut dom, "Binary path", true);
+    drive_until(
+        &mut dom,
+        state,
+        "live-config-settings-before-discovery",
+        || {
+            state.config().peek()["settings"]["providerInstances"]["codex"]["config"]["binaryPath"]
+                == binary
+        },
+    )
+    .await;
+    assert_eq!(
+        status(),
+        "error",
+        "the durable setting receipt precedes actual provider discovery"
+    );
+    // Drive the actual registry only after the saved settings are visible. The
+    // stream's debounced status must update this already mounted panel, without
+    // another getConfig, navigation or reload.
+    registry
+        .reconfigure(&service.snapshot().await.unwrap(), directory.path())
+        .await
+        .unwrap();
+    drive_until(
+        &mut dom,
+        state,
+        "live-config-delayed-provider-ready",
+        || status() == "ready",
+    )
+    .await;
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let visible = rendered_text(&dom);
+    assert!(visible.contains("ready"));
+    assert!(!visible.contains("This provider has not been checked."));
+    assert!(!visible.contains("provider probe failed"));
+    apply_rpc_event(
+        &props.transport,
+        state,
+        RpcEvent::Complete {
+            id: "late-unary".into(),
+            method: "server.getConfig".into(),
+            value: old_snapshot,
+        },
+    );
+    assert_eq!(
+        status(),
+        "ready",
+        "a late unary snapshot cannot roll back the live stream"
+    );
+    let before = state.config().peek().clone();
+    let id = props.transport.borrow().config_request_id.clone().unwrap();
+    let mut altered = before["settings"].clone();
+    altered["responseStreamingMode"] = json!("paragraph");
+    let malformed = json!({"version":1,"type":"settingsUpdated","payload":{"settings":{"providers":{"codex":{"enabled":"invalid"}}}}});
+    assert!(
+        serde_json::from_value::<t3_contracts::ServerConfigStreamEvent>(malformed.clone()).is_err()
+    );
+    apply_rpc_event(
+        &props.transport,
+        state,
+        RpcEvent::Values {
+            id,
+            method: "subscribeServerConfig".into(),
+            values: vec![
+                json!({"version":1,"type":"settingsUpdated","payload":{"settings":altered}}),
+                malformed,
+            ],
+        },
+    );
+    drive_until(&mut dom, state, "live-config-malformed-chunk", || {
+        props.transport.borrow().config_subscription.is_none()
+    })
+    .await;
+    assert_eq!(
+        *state.config().peek(),
+        before,
+        "malformed complete chunk must not apply its valid prefix"
+    );
+    assert!(
+        state
+            .error()
+            .peek()
+            .as_ref()
+            .is_some_and(|message| message.starts_with("Invalid server configuration update:"))
+    );
+    dom.in_scope(ScopeId::APP, || {
+        start_config_subscription(&props.transport, state)
+    });
+    drive_until(&mut dom, state, "live-config-resubscribe", || {
+        live_config_active(&props.transport, state)
+    })
+    .await;
+    let id = props.transport.borrow().config_request_id.clone().unwrap();
+    apply_rpc_event(
+        &props.transport,
+        state,
+        RpcEvent::Values {
+            id,
+            method: "subscribeServerConfig".into(),
+            values: vec![
+                json!({"version":1,"type":"settingsUpdated","payload":{"settings":altered}}),
+            ],
+        },
+    );
+    // A chunk is admitted but not polled. Replacing the same destination's
+    // socket must fence it, and the old guard must not clear the new owner.
+    {
+        let mut transport = props.transport.borrow_mut();
+        transport.socket_generation += 1;
+        transport.fail_waiters();
+    }
+    dom.in_scope(ScopeId::APP, || {
+        start_config_subscription(&props.transport, state)
+    });
+    drive_until(&mut dom, state, "live-config-replacement", || {
+        live_config_active(&props.transport, state)
+    })
+    .await;
+    assert_eq!(
+        state.config().peek()["settings"]["responseStreamingMode"],
+        before["settings"]["responseStreamingMode"]
+    );
+    assert_eq!(
+        props.transport.borrow().config_subscription,
+        connection_owner(&props.transport, state)
+    );
+    let before = state.config().peek().clone();
+    let mut wrong = before.clone();
+    wrong["environment"]["environmentId"] = json!("another-environment");
+    let id = props.transport.borrow().config_request_id.clone().unwrap();
+    apply_rpc_event(
+        &props.transport,
+        state,
+        RpcEvent::Values {
+            id,
+            method: "subscribeServerConfig".into(),
+            values: vec![
+                json!({"version":1,"type":"providerStatuses","payload":{"providers":[]}}),
+                json!({"version":1,"type":"snapshot","config":wrong}),
+            ],
+        },
+    );
+    drive_until(&mut dom, state, "live-config-identity-blocked", || {
+        matches!(*state.status().peek(), ConnectionStatus::Blocked(_))
+    })
+    .await;
+    assert_eq!(
+        *state.config().peek(),
+        before,
+        "identity failure must not apply a preceding valid update"
+    );
+    assert!(props.transport.borrow().sender.is_none());
+    assert!(request(&props.transport,state,"server.updateSettings",json!({"patch":{},"providerInstanceMutation":{"operation":"remove","instanceId":"codex"}}),RequestKind::Unary).is_none());
+    assert!(
+        service
+            .snapshot()
+            .await
+            .unwrap()
+            .provider_instances
+            .contains_key(&"codex".parse().unwrap())
+    );
+    drop(dom);
+    server.abort();
+    let _ = server.await;
+    service.shutdown().await;
 }

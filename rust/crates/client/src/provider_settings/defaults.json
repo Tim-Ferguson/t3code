@@ -1,0 +1,37 @@
+{
+  "codex": {
+    "enabled": true,
+    "binaryPath": "codex",
+    "homePath": "",
+    "shadowHomePath": "",
+    "launchArgs": "",
+    "customModels": []
+  },
+  "claudeAgent": {
+    "enabled": true,
+    "binaryPath": "claude",
+    "homePath": "",
+    "customModels": [],
+    "launchArgs": "",
+    "autoCompactWindow": ""
+  },
+  "cursor": { "enabled": false, "customModels": [] },
+  "grok": { "enabled": false, "binaryPath": "grok", "customModels": [] },
+  "pi": { "enabled": false, "binaryPath": "pi", "launchArgs": "", "customModels": [] },
+  "opencode": {
+    "enabled": false,
+    "binaryPath": "opencode",
+    "serverUrl": "",
+    "serverPassword": "",
+    "customModels": []
+  },
+  "antigravity": {
+    "enabled": false,
+    "authMethod": "oauth-personal",
+    "apiKey": "",
+    "gcpProject": "",
+    "gcpLocation": "",
+    "binaryPath": "",
+    "customModels": []
+  }
+}

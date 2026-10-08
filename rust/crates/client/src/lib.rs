@@ -6,6 +6,7 @@ pub mod drafts;
 pub mod environments;
 pub mod models;
 pub mod new_thread;
+pub mod provider_settings;
 pub mod requests;
 pub mod rpc;
 pub mod shell;

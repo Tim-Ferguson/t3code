@@ -1,0 +1,22 @@
+[
+  { "value": "codex", "label": "Codex" },
+  { "value": "claudeAgent", "label": "Claude" },
+  {
+    "value": "cursor",
+    "label": "Cursor",
+    "environmentFields": [
+      {
+        "name": "CURSOR_API_KEY",
+        "label": "Cursor API key",
+        "description": "Optional. Overrides browser sign-in for this provider.",
+        "placeholder": "Paste API key",
+        "sensitive": true
+      }
+    ]
+  },
+  { "value": "grok", "label": "Grok" },
+  { "value": "opencode", "label": "OpenCode" },
+  { "value": "antigravity", "label": "Antigravity" },
+  { "value": "pi", "label": "Pi" },
+  { "value": "acpRegistry", "label": "ACP Registry", "hasDefaultInstance": false }
+]

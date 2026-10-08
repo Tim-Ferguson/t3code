@@ -1,0 +1,226 @@
+{
+  "codex": [
+    {
+      "key": "binaryPath",
+      "control": "text",
+      "label": "Binary path",
+      "description": "Path to the Codex binary used by this instance.",
+      "placeholder": "codex",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "homePath",
+      "control": "text",
+      "label": "CODEX_HOME path",
+      "description": "Custom Codex home and config directory.",
+      "placeholder": "~/.codex",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "shadowHomePath",
+      "control": "text",
+      "label": "Shadow home path",
+      "description": "Account-specific Codex home. Keeps auth.json separate while sharing state from CODEX_HOME.",
+      "placeholder": "~/.codex-t3/personal",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "launchArgs",
+      "control": "text",
+      "label": "Launch arguments",
+      "description": "Additional CLI arguments passed to codex app-server on session start.",
+      "clearWhenEmpty": "omit"
+    }
+  ],
+  "claudeAgent": [
+    {
+      "key": "binaryPath",
+      "control": "text",
+      "label": "Binary path",
+      "description": "Path to the Claude binary used by this instance.",
+      "placeholder": "claude",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "homePath",
+      "control": "text",
+      "label": "CLAUDE_CONFIG_DIR path",
+      "description": "Custom Claude home and config directory. Keeps .claude.json and .claude separate.",
+      "placeholder": "~/.claude",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "autoCompactWindow",
+      "control": "text",
+      "label": "Auto-compact after",
+      "description": "Compact after 100,000 to 1,000,000 tokens. Leave empty to use Claude's default.",
+      "placeholder": "e.g. 300000",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "launchArgs",
+      "control": "text",
+      "label": "Launch arguments",
+      "description": "Additional CLI arguments passed on session start.",
+      "placeholder": "e.g. --chrome",
+      "clearWhenEmpty": "omit"
+    }
+  ],
+  "cursor": [],
+  "grok": [
+    {
+      "key": "binaryPath",
+      "control": "text",
+      "label": "Binary path",
+      "description": "Path to the Grok CLI binary.",
+      "placeholder": "grok",
+      "clearWhenEmpty": "omit"
+    }
+  ],
+  "opencode": [
+    {
+      "key": "binaryPath",
+      "control": "text",
+      "label": "Binary path",
+      "description": "Path to the OpenCode binary.",
+      "placeholder": "opencode",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "serverUrl",
+      "control": "text",
+      "label": "Server URL",
+      "description": "Leave blank to let T3 Code spawn the server when needed.",
+      "placeholder": "http://127.0.0.1:4096",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "serverPassword",
+      "control": "password",
+      "label": "Server password",
+      "description": "Stored in plain text on disk.",
+      "placeholder": "Optional",
+      "clearWhenEmpty": "omit"
+    }
+  ],
+  "antigravity": [
+    {
+      "key": "authMethod",
+      "control": "select",
+      "label": "Sign-in method",
+      "description": "Google accounts use your subscription; API keys and Agent Platform bill usage.",
+      "clearWhenEmpty": "omit",
+      "options": [
+        { "value": "oauth-personal", "label": "Google account" },
+        { "value": "oauth-business", "label": "Gemini Enterprise" },
+        { "value": "gemini-api-key", "label": "Gemini API key" },
+        { "value": "agent-platform", "label": "Agent Platform (Vertex AI)" }
+      ]
+    },
+    {
+      "key": "apiKey",
+      "control": "password",
+      "label": "API key",
+      "description": "Gemini or Vertex AI express key. Stored in plain text.",
+      "placeholder": "Optional",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "gcpProject",
+      "control": "text",
+      "label": "GCP project",
+      "description": "Required for Gemini Enterprise. Agent Platform uses it when no API key is set.",
+      "placeholder": "my-project-id",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "gcpLocation",
+      "control": "text",
+      "label": "GCP location",
+      "description": "Region for Gemini Enterprise or Agent Platform.",
+      "placeholder": "us-central1",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "binaryPath",
+      "control": "text",
+      "label": "Binary path",
+      "description": "Custom ACP executable. Leave empty to select automatically.",
+      "placeholder": "Automatic",
+      "clearWhenEmpty": "persist"
+    }
+  ],
+  "pi": [
+    {
+      "key": "binaryPath",
+      "control": "text",
+      "label": "Binary path",
+      "description": "Path to the Pi coding agent binary.",
+      "placeholder": "pi",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "launchArgs",
+      "control": "text",
+      "label": "Launch arguments",
+      "description": "Additional CLI arguments passed to pi --mode rpc on session start.",
+      "clearWhenEmpty": "omit"
+    }
+  ],
+  "acpRegistry": [
+    {
+      "key": "source",
+      "control": "select",
+      "label": "ACP source",
+      "clearWhenEmpty": "omit",
+      "options": [
+        { "value": "registry", "label": "ACP Registry" },
+        { "value": "local", "label": "Local command" }
+      ]
+    },
+    {
+      "key": "agentId",
+      "control": "text",
+      "label": "Registry agent ID",
+      "description": "Agent identifier from the official ACP Registry, for example 'devin'.",
+      "placeholder": "devin",
+      "clearWhenEmpty": "persist"
+    },
+    {
+      "key": "commandPath",
+      "control": "text",
+      "label": "Executable override",
+      "description": "Executable on this environment. For registry agents, this overrides the distribution executable while keeping its arguments and environment.",
+      "placeholder": "Registry default",
+      "clearWhenEmpty": "omit"
+    },
+    {
+      "key": "authMethodId",
+      "control": "text",
+      "label": "Authentication method",
+      "description": "Optional ACP authentication method ID. By default, the first agent-managed method is selected.",
+      "placeholder": "auto",
+      "clearWhenEmpty": "omit"
+    }
+  ],
+  "acpLocal": [
+    {
+      "key": "source",
+      "control": "select",
+      "label": "ACP source",
+      "clearWhenEmpty": "omit",
+      "options": [
+        { "value": "registry", "label": "ACP Registry" },
+        { "value": "local", "label": "Local command" }
+      ]
+    },
+    {
+      "key": "commandPath",
+      "control": "text",
+      "label": "Executable",
+      "description": "Executable name or path on this environment.",
+      "placeholder": "e.g. dsh",
+      "clearWhenEmpty": "omit"
+    }
+  ]
+}

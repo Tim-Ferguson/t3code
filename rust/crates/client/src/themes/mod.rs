@@ -1,6 +1,6 @@
 //! Original theme catalog and storage policy. Palette data comes from the source shared package.
-pub mod color;
 pub mod collections;
+pub mod color;
 pub mod editor;
 pub mod environment;
 pub mod import;

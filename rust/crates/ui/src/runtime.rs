@@ -116,6 +116,9 @@ pub struct Transport {
     unary_waiters:
         std::collections::BTreeMap<String, futures_channel::oneshot::Sender<Result<Value, String>>>,
     stream_waiters: std::collections::BTreeMap<String, StreamWaiter>,
+    config_subscription: Option<ConnectionOwner>,
+    config_request_id: Option<String>,
+    live_config_owner: Option<ConnectionOwner>,
 }
 struct StreamWaiter {
     sender: futures_channel::mpsc::Sender<Vec<Value>>,
@@ -229,6 +232,32 @@ pub fn request(
 fn required_scopes(method: &str, payload: &Value) -> Result<Vec<AuthEnvironmentScope>, String> {
     let mut scopes =
         client_rpc_required_scopes(method, Some(payload)).map_err(|error| error.to_string())?;
+    if method == "server.updateSettings" {
+        // RpcAuthorization uses the decoded patch rather than the method's
+        // fallback scope. Provider-only atomic mutations need manage access;
+        // a nonempty patch keeps its independently required settings grants.
+        let input: t3_contracts::UpdateServerSettingsInput =
+            serde_json::from_value(payload.clone()).map_err(|error| error.to_string())?;
+        let mut settings_scopes = input.patch.required_scopes();
+        if input.provider_instance_mutation.is_some() {
+            if serde_json::to_value(&input.patch)
+                .map_err(|error| error.to_string())?
+                .as_object()
+                .is_some_and(|patch| patch.is_empty())
+            {
+                settings_scopes.clear();
+            }
+            if !settings_scopes.contains(&AuthEnvironmentScope::ProvidersManage) {
+                settings_scopes.push(AuthEnvironmentScope::ProvidersManage);
+            }
+        }
+        for scope in settings_scopes {
+            if !scopes.contains(&scope) {
+                scopes.push(scope);
+            }
+        }
+        return Ok(scopes);
+    }
     let server_scope = rpc_required_scope(method).map_err(|error| error.to_string())?;
     if !scopes.contains(&server_scope) {
         scopes.push(server_scope);
@@ -395,6 +424,172 @@ pub fn request_stream(
             generation,
         },
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectionOwner {
+    generation: u64,
+    socket_generation: u64,
+    destination: EnvironmentId,
+}
+pub fn connection_owner(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+) -> Option<ConnectionOwner> {
+    let transport = handle.borrow();
+    let destination = state.destination().peek().clone()?;
+    (transport.destination.as_ref() == Some(&destination)).then_some(ConnectionOwner {
+        generation: transport.generation,
+        socket_generation: transport.socket_generation,
+        destination,
+    })
+}
+
+pub fn live_config_active(handle: &TransportHandle, state: Store<UiModel>) -> bool {
+    let owner = connection_owner(handle, state);
+    let transport = handle.borrow();
+    owner.is_some()
+        && transport.config_subscription == owner
+        && transport.live_config_owner == owner
+}
+
+struct ConfigStreamGuard {
+    handle: TransportHandle,
+    owner: ConnectionOwner,
+    id: String,
+}
+impl Drop for ConfigStreamGuard {
+    fn drop(&mut self) {
+        let mut transport = self.handle.borrow_mut();
+        if transport.config_subscription.as_ref() == Some(&self.owner)
+            && transport.config_request_id.as_ref() == Some(&self.id)
+        {
+            transport.config_subscription = None;
+            transport.config_request_id = None;
+            if transport.live_config_owner.as_ref() == Some(&self.owner) {
+                transport.live_config_owner = None;
+            }
+        }
+    }
+}
+
+fn start_config_subscription(handle: &TransportHandle, state: Store<UiModel>) {
+    let Some(owner) = connection_owner(handle, state) else {
+        return;
+    };
+    if handle.borrow().config_subscription.as_ref() == Some(&owner) {
+        return;
+    }
+    let Ok(mut wire) = request_stream(
+        handle,
+        state,
+        "subscribeServerConfig",
+        json!({"environmentThemes":true,"usageLimitSources":true}),
+    ) else {
+        return;
+    };
+    handle.borrow_mut().config_subscription = Some(owner.clone());
+    let id = wire._guard.id.clone();
+    handle.borrow_mut().config_request_id = Some(id.clone());
+    let guard = ConfigStreamGuard {
+        handle: handle.clone(),
+        owner,
+        id,
+    };
+    spawn(async move {
+        while let Some(values) = wire.next().await {
+            if connection_owner(&guard.handle, state).as_ref() != Some(&guard.owner) {
+                return;
+            }
+            let values = match values {
+                Ok(values) => values,
+                Err(error) => {
+                    if *state.status().peek() == ConnectionStatus::Connected {
+                        fail(state, error);
+                    }
+                    return;
+                }
+            };
+            let events = match values
+                .into_iter()
+                .map(serde_json::from_value::<t3_contracts::ServerConfigStreamEvent>)
+                .collect::<Result<Vec<_>, _>>()
+            {
+                Ok(events) => events,
+                Err(error) => {
+                    fail(
+                        state,
+                        format!("Invalid server configuration update: {error}"),
+                    );
+                    return;
+                }
+            };
+            let mut candidate = state.typed_config().peek().clone();
+            for event in events {
+                if let Err(error) = project_config(&mut candidate, event, &guard.owner.destination)
+                {
+                    state.status().set(ConnectionStatus::Blocked(error.clone()));
+                    fail(state, error);
+                    if let Some(mut sender) = guard.handle.borrow_mut().sender.take() {
+                        sender.close();
+                    }
+                    return;
+                }
+            }
+            if let Some(config) = candidate {
+                let value = serde_json::to_value(&config).expect("validated configuration");
+                guard.handle.borrow_mut().live_config_owner = Some(guard.owner.clone());
+                state.typed_config().set(Some(config));
+                state.config().set(value);
+            }
+        }
+    });
+}
+
+fn project_config(
+    current: &mut Option<t3_contracts::ServerConfig>,
+    event: t3_contracts::ServerConfigStreamEvent,
+    destination: &EnvironmentId,
+) -> Result<(), String> {
+    use t3_contracts::ServerConfigStreamEvent as Event;
+    match event {
+        Event::Snapshot { mut config, .. } => {
+            if &config.environment.environment_id != destination {
+                return Err("Server identity changed during configuration subscription".into());
+            }
+            if let Some(previous) = current.as_ref() {
+                if config.environment.capabilities.environment_themes == Some(true) {
+                    config.environment_themes = previous.environment_themes.clone();
+                }
+                if config.environment.capabilities.usage_limit_sources == Some(true) {
+                    config.usage_limit_sources = previous.usage_limit_sources.clone();
+                }
+            }
+            *current = Some(config);
+        }
+        event => {
+            if let Some(config) = current.as_mut() {
+                match event {
+                    Event::ProviderStatuses { payload, .. } => config.providers = payload.providers,
+                    Event::SettingsUpdated { payload, .. } => config.settings = payload.settings,
+                    Event::KeybindingsUpdated { payload, .. } => {
+                        config.keybindings = payload.keybindings;
+                        config.issues = payload.issues;
+                    }
+                    Event::EnvironmentThemesUpdated { payload, .. } => {
+                        config.environment_themes =
+                            (!payload.themes.is_empty()).then_some(Some(payload.themes))
+                    }
+                    Event::UsageLimitSourcesUpdated { payload, .. } => {
+                        config.usage_limit_sources =
+                            (!payload.sources.0.is_empty()).then_some(Some(payload.sources))
+                    }
+                    Event::Snapshot { .. } => unreachable!(),
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -1338,6 +1533,7 @@ async fn connect_once(
                         json!({}),
                         RequestKind::Unary,
                     );
+                    start_config_subscription(&handle, state);
                     // Old server identities may be cached in the screen during
                     // reconnect; until persistent cache validation is ported,
                     // request an authoritative shell rather than resuming it.
@@ -1500,6 +1696,12 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                     }
                     return;
                 }
+                // A unary refresh can finish after a newer streamed registry
+                // update. Once live projection owns this socket, only that
+                // ordered subscription may replace the config.
+                if live_config_active(handle, state) {
+                    return;
+                }
                 let typed =
                     serde_json::from_value(value.clone()).expect("configuration validated above");
                 state.typed_config().set(Some(typed));
@@ -1517,9 +1719,25 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             }
             finish_pending_message(state, &id, true);
         }
-        RpcEvent::Failed { id, cause, .. } => {
+        RpcEvent::Failed { id, method, cause } => {
+            let optional_config = method == "subscribeServerConfig"
+                && handle.borrow().live_config_owner.is_none()
+                && has_rpc_error_tag(
+                    &cause,
+                    &[
+                        "NativeServiceUnavailableError",
+                        "NativeMethodUnsupportedError",
+                    ],
+                );
             if let Some(waiter) = handle.borrow_mut().stream_waiters.remove(&id) {
-                *waiter.failure.borrow_mut() = Some(rpc_error_message(&cause));
+                if !optional_config {
+                    *waiter.failure.borrow_mut() = Some(rpc_error_message(&cause));
+                }
+            }
+            // The config consumer owns its epoch's errors. Optional legacy
+            // services retain the already requested unary bootstrap snapshot.
+            if method == "subscribeServerConfig" {
+                return;
             }
             if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
                 let _ = waiter.send(Err(rpc_error_message(&cause)));
@@ -1674,9 +1892,40 @@ fn rpc_error_message(value: &Value) -> String {
     "The server could not complete this request.".into()
 }
 
+fn has_rpc_error_tag(value: &Value, tags: &[&str]) -> bool {
+    value["_tag"]
+        .as_str()
+        .is_some_and(|tag| tags.contains(&tag))
+        || value
+            .as_array()
+            .is_some_and(|values| values.iter().any(|value| has_rpc_error_tag(value, tags)))
+        || value
+            .get("error")
+            .is_some_and(|value| has_rpc_error_tag(value, tags))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn provider_settings_authorization_matches_original_decoded_patch_and_atomic_mutation() {
+        for (index, line) in include_str!("settings_rpc_scope_fixtures.jsonl")
+            .lines()
+            .enumerate()
+        {
+            let row: Value = serde_json::from_str(line).unwrap();
+            let result = required_scopes("server.updateSettings", &row["input"]);
+            if row["rejected"] == true {
+                assert!(result.is_err(), "source-rejected authorization row {index}");
+            } else {
+                assert_eq!(
+                    serde_json::to_value(result.unwrap()).unwrap(),
+                    row["expected"],
+                    "authorization row {index}"
+                );
+            }
+        }
+    }
     #[derive(Clone)]
     struct ReceiptHarness(std::rc::Rc<RefCell<Option<Store<UiModel>>>>);
     fn receipt_harness(props: ReceiptHarness) -> Element {

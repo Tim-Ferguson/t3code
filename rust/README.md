@@ -65,8 +65,10 @@ now publishes live client leases and desktop power changes through scoped RPCs;
 disconnect removes only that connection's leases. Importing the original database
 layout and periodic provider, VCS, usage and Git consumers remain pending.
 Device-host settings resolve SSH aliases without connecting, exclude only self
-targets, and preserve proxies, forwarded ports and unresolved entries. Full device
-services, hub connections, SSH bootstrap and device RPCs remain unfinished.
+targets, and preserve proxies, forwarded ports and unresolved entries. Local device
+state and session lifecycle, consent configuration and agent-daemon bootstrap,
+reuse and shutdown are implemented. Authenticated provider/toolkit injection,
+the Rust agent CLI launcher and remote SSH hosts remain unfinished.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and
@@ -79,7 +81,14 @@ project validation, and effect leases.
 The UI implements the project/thread sidebar, conversation and composer,
 approval and user-input responses, earlier-history loading, command output,
 file changes, plans and search activities, remote server connections, provider
-listing, and theme selection. Pairing credentials exchange into bearer sessions;
+settings, and theme selection. Provider settings expose source-derived fields,
+enabled controls and per-instance removal/reset through atomic server mutations.
+Provider-only edits require the destination's `providers:manage` permission; mixed
+patches retain their additional settings permissions. Tests cover opaque config
+and sibling preservation, grant revocation and replacement connections while
+edits are pending. Instance creation, provider authentication controls, command
+argument editing and complete provider/model preferences remain unfinished.
+Pairing credentials exchange into bearer sessions;
 saved connections can be forgotten. The desktop UI defaults to the Rust server's
 port 3774, with `T3_SERVER_URL` available for another existing server. Mobile
 starts with a remote address form; native connection forms accept pairing
@@ -121,9 +130,13 @@ Configured Codex instances support text turns, streamed messages/tools, live
 approvals and input, and interruption. Native local ACP v1/v2 instances support
 negotiated sessions, saved-session replay, assistant/reasoning text, plans, tools
 and MCP presentation, live approvals, client filesystem and owned terminal
-callbacks, model/config changes, interruption and durable recovery. Registry raw
-binaries can be installed; other distributions, full registry/authentication and
-coordinator policy, MCP injection, handoff and checkpoint parity remain incomplete.
+callbacks, model/config changes, interruption and durable recovery. Registry raw,
+archive, npm and uv distributions can be installed. Scoped ACP authentication RPCs
+support browser, environment-credential and owned-terminal interactions, with
+owner privacy, cancellation and logout cleanup. UI authentication controls,
+provider-health confirmation refresh, complete registry management/profile
+transfer, other provider authentication, coordinator policy, MCP injection,
+handoff and checkpoint parity remain incomplete.
 Other provider adapters, complete orchestration and filesystem/terminal services,
 desktop/mobile native
 integrations, and most interface features still require implementation. Thread creation requires a compatible server with configured

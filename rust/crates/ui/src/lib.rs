@@ -4,14 +4,15 @@ mod draft_storage;
 mod font_service;
 mod model_controls;
 mod new_thread;
+mod provider_settings;
 mod runtime;
 mod scroll_state;
 mod terminal_bridge;
 mod terminal_pane;
 mod terminal_stream;
 mod theme_download;
-mod theme_library;
 mod theme_inspector;
+mod theme_library;
 mod theme_search;
 mod themes;
 mod thread_controls;
@@ -92,7 +93,6 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     t3_contracts::AuthEnvironmentScope::OrchestrationOperate,
                 )
             });
-    let config = state.config().read().clone();
     let title = active
         .as_ref()
         .map(|thread| thread.title.clone())
@@ -223,19 +223,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             }
                         }
                     },
-                    View::Providers => rsx! {
-                        section { class: "settings-page", div { class: "settings-tabs", button { class: "selected", "Providers" } button { onclick: move |_| state.view().set(View::Appearance), "Appearance" } button { onclick: move |_| state.view().set(View::Connections), "Connections" } }
-                            h1 { "Providers" } p { "Agent runtimes available on this environment." }
-                            for provider in config["providers"].as_array().into_iter().flatten() {
-                                article { class: "provider-row",
-                                    h2 { {provider["displayName"].as_str().or_else(|| provider["driver"].as_str()).unwrap_or("Provider")} }
-                                    span { class: "muted", {provider["message"].as_str().unwrap_or("")} }
-                                    span { {provider["status"].as_str().unwrap_or("Unknown")} }
-                                }
-                            }
-                            if !connected { p { "Connect to your server to see its providers." } }
-                        }
-                    },
+                    View::Providers => rsx! {provider_settings::Providers {state,transport:transport.clone()}},
                     View::Appearance => rsx! {
                         section { class: "settings-page", div { class: "settings-tabs", button { onclick: move |_| state.view().set(View::Providers), "Providers" } button { class: "selected", "Appearance" } button { onclick: move |_| state.view().set(View::Connections), "Connections" } }
                             h1 { "Appearance" }

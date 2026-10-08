@@ -1241,10 +1241,18 @@ select:focus-visible {
   z-index: 110;
 }
 .theme-editor-color-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 230px);
   align-items: center;
   gap: 8px;
   margin-block: 8px;
+}
+.theme-editor-color-row input {
+  width: 100%;
+  max-width: 100%;
+}
+.theme-editor-color-row button {
+  overflow-wrap: anywhere;
 }
 .theme-editor-color-row button {
   flex: 1;
@@ -1333,4 +1341,81 @@ html[data-theme-token-probe] *::after {
 
 #theme-inspector-hover[data-placement="below"] [data-theme-inspector-hover-label] {
   top: calc(100% + 0.35rem);
+}
+
+.provider-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+.provider-instance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.provider-instance-list button {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  gap: 4px;
+}
+.provider-instance-list .selected {
+  background: var(--accent);
+  border-color: var(--ring);
+}
+.provider-editor {
+  min-width: 0;
+}
+.provider-editor header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.provider-editor h2 {
+  margin: 0;
+}
+.provider-editor header label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.provider-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 240px);
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  align-items: center;
+}
+.provider-field p {
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.provider-field input:not([type="checkbox"]),
+.provider-field textarea,
+.provider-field select {
+  min-width: 0;
+  width: 100%;
+  padding: 7px 8px;
+}
+.provider-editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-block: 16px;
+}
+@media (max-width: 650px) {
+  .provider-settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .provider-instance-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .provider-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
 }
