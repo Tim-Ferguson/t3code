@@ -53,6 +53,7 @@ const rustNames = new Set(
     "filesystem",
     "terminal",
     "provider_runtime",
+    "preview",
   ].flatMap((f) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + f + ".rs", "utf8").matchAll(
@@ -62,7 +63,7 @@ const rustNames = new Set(
   ),
 );
 const strictObjectTypes = new Set(
-  ["history", "filesystem", "terminal", "provider_runtime"].flatMap((file) =>
+  ["history", "filesystem", "terminal", "provider_runtime", "preview"].flatMap((file) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
         /pub (?:struct|enum|type) (\w+)/g,
@@ -352,6 +353,15 @@ for (const file of files) {
   }
 }
 const orch = await import(pathToFileURL(root + "/packages/contracts/src/orchestrationV2.ts"));
+const ipc = await import(pathToFileURL(root + "/packages/contracts/src/IPC.ts"));
+for (const [schemaName, schema] of Object.entries(ipc)) {
+  let name = schemaName.replace(/Schema$/, "");
+  if (name === "PreviewAnnotationStyleChange") name = "PreviewAnnotationCaptureStyleChange";
+  if (!rustNames.has(name) || !Schema.isSchema(schema)) continue;
+  const doc = Schema.toJsonSchemaDocument(schema);
+  if (codecCases(name, schema, doc, seed(doc.schema, doc.definitions))) mapping[name] = name;
+  else skipped.push("IPC." + schemaName);
+}
 const runtime = await import(pathToFileURL(root + "/packages/contracts/src/providerRuntime.ts"));
 const runtimeMembers = runtime.ProviderRuntimeEventV2.members;
 const runtimePayloads = {};

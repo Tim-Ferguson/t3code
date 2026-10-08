@@ -728,6 +728,39 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             }
             "TerminalWriteError" => checked_roundtrip::<TerminalWriteError>(fixture.input.clone()),
             "TerminalWriteInput" => checked_roundtrip::<TerminalWriteInput>(fixture.input.clone()),
+            "PickedElementPayload" => {
+                checked_roundtrip::<PickedElementPayload>(fixture.input.clone())
+            }
+            "PickedElementStackFrame" => {
+                checked_roundtrip::<PickedElementStackFrame>(fixture.input.clone())
+            }
+            "PreviewAnnotationElementTarget" => {
+                checked_roundtrip::<PreviewAnnotationElementTarget>(fixture.input.clone())
+            }
+            "PreviewAnnotationPayload" => {
+                checked_roundtrip::<PreviewAnnotationPayload>(fixture.input.clone())
+            }
+            "PreviewAnnotationPoint" => {
+                checked_roundtrip::<PreviewAnnotationPoint>(fixture.input.clone())
+            }
+            "PreviewAnnotationRect" => {
+                checked_roundtrip::<PreviewAnnotationRect>(fixture.input.clone())
+            }
+            "PreviewAnnotationRegionTarget" => {
+                checked_roundtrip::<PreviewAnnotationRegionTarget>(fixture.input.clone())
+            }
+            "PreviewAnnotationScreenshot" => {
+                checked_roundtrip::<PreviewAnnotationScreenshot>(fixture.input.clone())
+            }
+            "PreviewAnnotationStrokeTarget" => {
+                checked_roundtrip::<PreviewAnnotationStrokeTarget>(fixture.input.clone())
+            }
+            "PreviewAnnotationCaptureStyleChange" => {
+                checked_roundtrip::<PreviewAnnotationCaptureStyleChange>(fixture.input.clone())
+            }
+            "PreviewAnnotationSubmission" => {
+                checked_roundtrip::<PreviewAnnotationSubmission>(fixture.input.clone())
+            }
             "ProviderRuntimeSessionStartedEvent" => {
                 checked_roundtrip::<ProviderRuntimeSessionStartedEvent>(fixture.input.clone())
             }

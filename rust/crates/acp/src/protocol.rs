@@ -21,7 +21,7 @@ impl RequestId {
         }
     }
 }
-fn js_number(number: &Number) -> String {
+pub(crate) fn js_number(number: &Number) -> String {
     let n = number.as_f64().expect("finite JSON number");
     if n == 0.0 {
         return "0".into();
@@ -71,6 +71,8 @@ impl RpcError {
 }
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum AcpError {
+    #[error(transparent)]
+    Failure(std::sync::Arc<crate::errors::Failure>),
     #[error(transparent)]
     Request(#[from] RpcError),
     #[error(transparent)]

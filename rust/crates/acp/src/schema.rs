@@ -11,6 +11,71 @@ pub struct SchemaError {
     pub schema: String,
     pub path: String,
     pub expected: String,
+    pub issue: ValidationIssue,
+    pub cause: Value,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidationIssue {
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub path: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub issues: Vec<ValidationIssue>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueDiagnostics {
+    pub issue_count: usize,
+    pub issue_kinds: Vec<String>,
+    pub maximum_path_depth: usize,
+}
+impl ValidationIssue {
+    fn leaf(kind: &str) -> Self {
+        Self {
+            kind: kind.into(),
+            path: Vec::new(),
+            issues: Vec::new(),
+        }
+    }
+    fn children(kind: &str, issues: Vec<Self>) -> Self {
+        Self {
+            kind: kind.into(),
+            path: Vec::new(),
+            issues,
+        }
+    }
+    fn pointer(key: String, issue: Self) -> Self {
+        Self {
+            kind: "Pointer".into(),
+            path: vec![key],
+            issues: vec![issue],
+        }
+    }
+    pub fn diagnostics(&self) -> IssueDiagnostics {
+        fn visit(issue: &ValidationIssue, depth: usize, out: &mut IssueDiagnostics) {
+            out.issue_count += 1;
+            if !out.issue_kinds.contains(&issue.kind) {
+                out.issue_kinds.push(issue.kind.clone());
+            }
+            out.maximum_path_depth = out.maximum_path_depth.max(depth);
+            let child_depth = depth
+                + if issue.kind == "Pointer" {
+                    issue.path.len()
+                } else {
+                    0
+                };
+            for child in &issue.issues {
+                visit(child, child_depth, out);
+            }
+        }
+        let mut out = IssueDiagnostics {
+            issue_count: 0,
+            issue_kinds: Vec::new(),
+            maximum_path_depth: 0,
+        };
+        visit(self, 0, &mut out);
+        out
+    }
 }
 pub trait SchemaName {
     const NAME: &'static str;
@@ -118,12 +183,16 @@ pub fn decode(schema: &str, value: Value) -> Result<Value, SchemaError> {
             schema: schema.into(),
             path: "$".into(),
             expected: "a known ACP schema".into(),
+            issue: ValidationIssue::leaf("InvalidType"),
+            cause: value,
         });
     };
     check(id, &value, "$", 0).map_err(|(path, expected)| SchemaError {
         schema: schema.into(),
         path,
         expected,
+        issue: collect_issue(id, &value, 0).unwrap_or_else(|| ValidationIssue::leaf("InvalidType")),
+        cause: value.clone(),
     })
 }
 fn check(id: usize, value: &Value, path: &str, depth: usize) -> Result<Value, (String, String)> {
@@ -254,4 +323,125 @@ fn literal_gate(id: usize, value: &Value) -> Option<bool> {
         }
         _ => None,
     }
+}
+
+// Effect's default parser reports the first field/array failure, with Composite
+// and Pointer wrappers. Union diagnostics include only type/sentinel candidates.
+// This runs only on failure, leaving successful hot-path decoding unchanged.
+fn eligible(id: usize, value: &Value) -> bool {
+    let n = &table().nodes[id];
+    match n.kind.as_str() {
+        // Effect deliberately treats suspended union members as unknown during
+        // candidate selection, then validates the suspended AST normally.
+        "Suspend" => true,
+        "String" => value.is_string(),
+        "Number" => value.is_number(),
+        "Boolean" => value.is_boolean(),
+        "Null" => value.is_null(),
+        "Literal" => n.value.as_ref() == Some(value),
+        "Json" => true,
+        "Never" => false,
+        "Arrays" => value.is_array(),
+        "Objects" => value.as_object().is_some_and(|o| {
+            n.fields.iter().filter(|f| !f.optional).all(|f| {
+                let field = &table().nodes[f.node];
+                if field.kind == "Literal" {
+                    o.get(&f.name) == field.value.as_ref()
+                } else {
+                    true
+                }
+            })
+        }),
+        "Union" => n.members.iter().any(|m| eligible(*m, value)),
+        _ => false,
+    }
+}
+fn collect_issue(id: usize, value: &Value, depth: usize) -> Option<ValidationIssue> {
+    if depth > 256 {
+        return Some(ValidationIssue::leaf("Forbidden"));
+    }
+    if check(id, value, "$", depth).is_ok() {
+        return None;
+    }
+    let n = &table().nodes[id];
+    let issue = match n.kind.as_str() {
+        "Suspend" => return collect_issue(n.target.unwrap(), value, depth + 1),
+        "Union" => ValidationIssue::children(
+            "AnyOf",
+            n.members
+                .iter()
+                .filter(|m| eligible(**m, value))
+                .filter_map(|m| collect_issue(*m, value, depth + 1))
+                .collect(),
+        ),
+        "Objects" => {
+            let Some(values) = value.as_object() else {
+                return Some(ValidationIssue::leaf("InvalidType"));
+            };
+            for field in &n.fields {
+                let issue = match values.get(&field.name) {
+                    Some(v) => collect_issue(field.node, v, depth + 1),
+                    None if !field.optional => Some(ValidationIssue::leaf("MissingKey")),
+                    None => None,
+                };
+                if let Some(issue) = issue {
+                    return Some(ValidationIssue::children(
+                        "Composite",
+                        vec![ValidationIssue::pointer(field.name.clone(), issue)],
+                    ));
+                }
+            }
+            for (key, v) in values {
+                if n.fields.iter().any(|f| f.name == *key) {
+                    continue;
+                }
+                for index in &n.index {
+                    if check(index.key, &Value::String(key.clone()), "$", depth + 1).is_ok() {
+                        if let Some(issue) = collect_issue(index.value, v, depth + 1) {
+                            return Some(ValidationIssue::children(
+                                "Composite",
+                                vec![ValidationIssue::pointer(key.clone(), issue)],
+                            ));
+                        }
+                    }
+                }
+            }
+            ValidationIssue::children(
+                "Composite",
+                vec![ValidationIssue::children(
+                    "Filter",
+                    vec![ValidationIssue::leaf("InvalidValue")],
+                )],
+            )
+        }
+        "Arrays" => {
+            let Some(values) = value.as_array() else {
+                return Some(ValidationIssue::leaf("InvalidType"));
+            };
+            for (index, v) in values.iter().enumerate() {
+                if let Some(issue) = collect_issue(n.item.unwrap(), v, depth + 1) {
+                    return Some(ValidationIssue::children(
+                        "Composite",
+                        vec![ValidationIssue::pointer(index.to_string(), issue)],
+                    ));
+                }
+            }
+            ValidationIssue::children(
+                "Composite",
+                vec![ValidationIssue::children(
+                    "Filter",
+                    vec![ValidationIssue::leaf("InvalidValue")],
+                )],
+            )
+        }
+        _ if eligible(id, value) => ValidationIssue::children(
+            "Composite",
+            vec![ValidationIssue::children(
+                "Filter",
+                vec![ValidationIssue::leaf("InvalidValue")],
+            )],
+        ),
+        _ => ValidationIssue::leaf("InvalidType"),
+    };
+    Some(issue)
 }

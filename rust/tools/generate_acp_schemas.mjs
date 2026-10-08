@@ -10,6 +10,7 @@ import * as Schema from "../../packages/effect-acp/node_modules/effect/dist/Sche
 import * as V1 from "../../packages/effect-acp/src/_generated/schema-v1.gen.ts";
 import * as V2 from "../../packages/effect-acp/src/schema.ts";
 import * as Compat from "../../packages/effect-acp/src/compat.ts";
+import * as Errors from "../../packages/effect-acp/src/errors.ts";
 
 const out = new URL("../crates/acp/", import.meta.url);
 fs.mkdirSync(new URL("src/", out), { recursive: true });
@@ -205,8 +206,13 @@ for (const [key, id] of Object.entries(roots)) {
       const decoded = Schema.decodeUnknownSync(schema)(input);
       const output = Schema.encodeSync(schema)(decoded);
       cases.push({ schema: key, input, valid: true, output });
-    } catch {
-      cases.push({ schema: key, input, valid: false });
+    } catch (cause) {
+      cases.push({
+        schema: key,
+        input,
+        valid: false,
+        diagnostics: Errors.AcpRequestError.invalidExtensionPayload("fixture", cause).data,
+      });
     }
   }
 }
@@ -454,8 +460,13 @@ try {
     try {
       const decoded = Schema.decodeUnknownSync(schema)(input);
       cases.push({ schema: name, input, valid: true, output: Schema.encodeSync(schema)(decoded) });
-    } catch {
-      cases.push({ schema: name, input, valid: false });
+    } catch (cause) {
+      cases.push({
+        schema: name,
+        input,
+        valid: false,
+        diagnostics: Errors.AcpRequestError.invalidExtensionPayload("fixture", cause).data,
+      });
     }
   };
   boundaryCase("v2.ResumeSessionRequest", { sessionId: "s", cwd: "/workspace", mcpServers: null });

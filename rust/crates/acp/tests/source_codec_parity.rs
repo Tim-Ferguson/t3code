@@ -9,6 +9,8 @@ struct Case {
     valid: bool,
     #[serde(default)]
     output: Value,
+    #[serde(default)]
+    diagnostics: Option<t3_acp::schema::IssueDiagnostics>,
 }
 #[test]
 fn all_pinned_acp_codecs_match_original_effect_decode_and_encode() {
@@ -67,4 +69,34 @@ fn numeric_request_identity_matches_original_javascript_number_rendering() {
             case["wire"]
         );
     }
+}
+#[test]
+fn validation_issue_diagnostics_match_original_effect_failure_tree() {
+    let bytes = include_bytes!("fixtures/source-codecs.jsonl.gz");
+    let reader = BufReader::new(GzDecoder::new(&bytes[..]));
+    let mut mismatches = Vec::new();
+    for (index, line) in reader.lines().enumerate() {
+        let case: Case = serde_json::from_str(&line.unwrap()).unwrap();
+        if let Some(expected) = case.diagnostics {
+            let error = t3_acp::schema::decode(&case.schema, case.input).unwrap_err();
+            let actual = error.issue.diagnostics();
+            if actual != expected {
+                mismatches.push(format!(
+                    "{index} {} {:?} expected{:?} actual{:?}",
+                    case.schema, error.path, expected, actual
+                ));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "{} diagnostic mismatches:\n{}",
+        mismatches.len(),
+        mismatches
+            .iter()
+            .take(20)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
 }

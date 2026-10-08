@@ -20,6 +20,11 @@ pub enum Generation {
     V1,
     V2,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Role {
+    Client,
+    Agent,
+}
 #[derive(Debug, Clone)]
 pub struct RequestContext {
     pub request_id: String,
@@ -34,6 +39,7 @@ pub enum Notification {
 }
 #[derive(Debug, Clone)]
 pub enum ClientEvent {
+    RequestHandlerFailed { request_id: String, error: AcpError },
     Notification(Notification),
     ResponseAcknowledged { request_id: String },
     ResponseFailed { request_id: String, error: AcpError },
@@ -82,9 +88,11 @@ enum NotificationJob {
     Terminal(AcpError),
 }
 struct State {
+    role: Role,
     generation: Mutex<Option<Generation>>,
     closed: Mutex<Option<AcpError>>,
     requests: Mutex<HashMap<String, RequestHandler>>,
+    extensions: Mutex<HashMap<String, RequestHandler>>,
     unknown_request: Mutex<Option<RequestHandler>>,
     notifications: Mutex<HashMap<String, Registration>>,
     unknown_notification: Mutex<Option<NotificationHandler>>,
@@ -155,14 +163,19 @@ impl Client {
     /// The timeout is caller policy; the ACP protocol itself specifies none.
     /// This constructor subscribes before any initialization write.
     pub fn new(peer: Arc<dyn Peer>, request_timeout: Duration) -> Self {
+        Self::with_role(peer, request_timeout, Role::Client)
+    }
+    pub(crate) fn with_role(peer: Arc<dyn Peer>, request_timeout: Duration, role: Role) -> Self {
         let incoming = peer.subscribe();
         let (events, _) = broadcast::channel(32);
         let (closed_signal, _) = watch::channel(None);
         let (notification_jobs, jobs) = mpsc::unbounded_channel();
         let state = Arc::new(State {
+            role,
             generation: Mutex::new(None),
             closed: Mutex::new(None),
             requests: Mutex::new(HashMap::new()),
+            extensions: Mutex::new(HashMap::new()),
             unknown_request: Mutex::new(None),
             notifications: Mutex::new(HashMap::new()),
             unknown_notification: Mutex::new(None),
@@ -211,6 +224,17 @@ impl Client {
             .lock()
             .unwrap()
             .insert(method.into(), handler);
+    }
+    pub(crate) fn handle_extension_request(&self, method: &str, handler: RequestHandler) {
+        self.0
+            .state
+            .extensions
+            .lock()
+            .unwrap()
+            .insert(method.into(), handler);
+    }
+    pub(crate) fn handler_events(&self) -> broadcast::Sender<ClientEvent> {
+        self.0.state.events.clone()
     }
     pub fn handle_unknown_request(&self, handler: RequestHandler) {
         *self.0.state.unknown_request.lock().unwrap() = Some(handler);
@@ -508,6 +532,37 @@ fn request_spec(method: &str) -> Option<(&'static [&'static str], &'static [&'st
         _ => return None,
     })
 }
+fn inbound_spec(
+    role: Role,
+    method: &str,
+) -> Option<(&'static [&'static str], &'static [&'static str])> {
+    if role == Role::Client {
+        return request_spec(method);
+    }
+    Some(match method {
+        "initialize" => (&["v2.InitializeRequest"], &["v2.InitializeResponse"]),
+        "auth/login" => (&["v2.LoginAuthRequest"], &["v2.LoginAuthResponse"]),
+        "auth/logout" => (&["v2.LogoutAuthRequest"], &["v2.LogoutAuthResponse"]),
+        "session/new" => (&["v2.NewSessionRequest"], &["v2.NewSessionResponse"]),
+        "session/list" => (&["v2.ListSessionsRequest"], &["v2.ListSessionsResponse"]),
+        "session/fork" => (&["v2.ForkSessionRequest"], &["v2.ForkSessionResponse"]),
+        "session/resume" => (&["v2.ResumeSessionRequest"], &["v2.ResumeSessionResponse"]),
+        "session/close" => (&["v2.CloseSessionRequest"], &["v2.CloseSessionResponse"]),
+        "session/delete" => (&["v2.DeleteSessionRequest"], &["v2.DeleteSessionResponse"]),
+        "providers/list" => (&["v2.ListProvidersRequest"], &["v2.ListProvidersResponse"]),
+        "providers/set" => (&["v2.SetProviderRequest"], &["v2.SetProviderResponse"]),
+        "providers/disable" => (
+            &["v2.DisableProviderRequest"],
+            &["v2.DisableProviderResponse"],
+        ),
+        "session/set_config_option" => (
+            &["v2.SetSessionConfigOptionRequest"],
+            &["v2.SetSessionConfigOptionResponse"],
+        ),
+        "session/prompt" => (&["v2.PromptRequest"], &["v2.PromptResponse"]),
+        _ => return None,
+    })
+}
 async fn incoming_request(
     peer: Arc<dyn Peer>,
     state: Arc<State>,
@@ -521,28 +576,44 @@ async fn incoming_request(
         method: method.clone(),
         wire_id: id.clone(),
     };
-    let handler = state
-        .requests
-        .lock()
-        .unwrap()
-        .get(&method)
-        .cloned()
-        .or_else(|| {
-            if request_spec(&method).is_none() {
-                state.unknown_request.lock().unwrap().clone()
+    let spec = inbound_spec(state.role, &method);
+    let handler = if spec.is_none() {
+        state.extensions.lock().unwrap().get(&method).cloned()
+    } else {
+        None
+    }
+    .or_else(|| {
+        let handlers = state.requests.lock().unwrap();
+        if state.role == Role::Agent && method == "session/resume" {
+            let load = params.pointer("/replayFrom/type").and_then(Value::as_str) == Some("start");
+            let (primary, fallback) = if load {
+                ("session/load", "session/resume")
             } else {
-                None
-            }
-        });
+                ("session/resume", "session/load")
+            };
+            handlers
+                .get(primary)
+                .or_else(|| handlers.get(fallback))
+                .cloned()
+        } else {
+            handlers.get(&method).cloned()
+        }
+    })
+    .or_else(|| {
+        if spec.is_none() {
+            state.unknown_request.lock().unwrap().clone()
+        } else {
+            None
+        }
+    });
     let result = async {
-        let spec = request_spec(&method);
         let mut params = match spec {
             Some((request, _)) => {
                 decode_any(request, params).map_err(|_| RpcError::invalid_params())?
             }
             None => params,
         };
-        if method == "session/request_permission" {
+        if state.role == Role::Client && method == "session/request_permission" {
             params = normalize::permission(params, &identity);
         }
         let handler = handler.ok_or_else(|| RpcError::method_not_found(&method))?;
@@ -556,10 +627,12 @@ async fn incoming_request(
             }
             None => response,
         };
-        if matches!(
-            method.as_str(),
-            "session/elicitation" | "_session/elicitation"
-        ) {
+        if state.role == Role::Client
+            && matches!(
+                method.as_str(),
+                "session/elicitation" | "_session/elicitation"
+            )
+        {
             let mut action = response;
             let meta = action.as_object_mut().unwrap().remove("_meta");
             let mut response = json!({"action":action});
@@ -606,7 +679,11 @@ fn incoming_notification(
                 params,
             )?;
             let v1 = *state.generation.lock().unwrap() == Some(Generation::V1);
-            let value = normalize::notification(value, v1);
+            let value = if state.role == Role::Client {
+                normalize::notification(value, v1)
+            } else {
+                value
+            };
             if value
                 .pointer("/update/sessionUpdate")
                 .and_then(Value::as_str)
@@ -640,21 +717,14 @@ fn incoming_notification(
                 value,
             )
         }
-        _ => {
-            let params = if method == "mcp/message" {
-                schema::decode("v2.MessageMcpNotification", params)?
-            } else {
-                params
-            };
-            (
-                method.clone(),
-                Notification::Extension {
-                    method,
-                    params: params.clone(),
-                },
-                params,
-            )
-        }
+        _ => (
+            method.clone(),
+            Notification::Extension {
+                method,
+                params: params.clone(),
+            },
+            params,
+        ),
     };
     let handlers = {
         let mut registrations = state.notifications.lock().unwrap();
