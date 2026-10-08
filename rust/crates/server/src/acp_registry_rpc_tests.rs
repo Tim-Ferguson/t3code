@@ -57,7 +57,7 @@ async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payl
         let manager=token(vec![AuthEnvironmentScope::ProvidersManage]);
         let state=ApiState{
             store,auth,environment:json!({"environmentId":"registry-fixture","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
-            config:None,settings:None,device_hosts:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
+            config:None,settings:None,device_hosts:None,devices:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
         };
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address=listener.local_addr().unwrap();
@@ -112,7 +112,7 @@ async fn registry_search_and_uninstall_effect_socket_preserve_scope_decode_refer
         let token=|scopes|auth.issue_session("fixture","bearer-access-token",scopes,json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap().1;
         let reader_token=token(vec![AuthEnvironmentScope::OrchestrationRead]);
         let manager_token=token(vec![AuthEnvironmentScope::OrchestrationRead,AuthEnvironmentScope::ProvidersManage]);
-        let state=ApiState{store,auth,environment:json!({"environmentId":"registry-control","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),config:None,settings:Some(service.clone()),device_hosts:None,background:None,cors_origins:None,assets:None,providers:Some(providers),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None};
+        let state=ApiState{store,auth,environment:json!({"environmentId":"registry-control","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),config:None,settings:Some(service.clone()),device_hosts:None,devices:None,background:None,cors_origins:None,assets:None,providers:Some(providers),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None};
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();
         let (stop,stopped)=tokio::sync::oneshot::channel();let mut tasks=tokio::task::JoinSet::new();
         tasks.spawn(async move{axum::serve(listener,router(state)).with_graceful_shutdown(async{let _=stopped.await;}).await.unwrap();});
@@ -174,7 +174,7 @@ async fn registry_url_consent_socket_gates_and_validates_before_settling_real_pr
         let manager=token(vec![AuthEnvironmentScope::ProvidersManage]);
         let state=ApiState{
             store,auth,environment:json!({"environmentId":"registry-fixture","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
-            config:None,settings:None,device_hosts:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
+            config:None,settings:None,device_hosts:None,devices:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
         };
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address=listener.local_addr().unwrap();

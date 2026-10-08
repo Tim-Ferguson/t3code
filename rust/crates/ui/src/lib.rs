@@ -11,6 +11,7 @@ mod terminal_pane;
 mod terminal_stream;
 mod theme_download;
 mod theme_library;
+mod theme_inspector;
 mod theme_search;
 mod themes;
 mod thread_controls;

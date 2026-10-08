@@ -403,6 +403,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         host_resources: None,
         background: None,
         device_hosts: None,
+        devices: None,
     };
     api
 }

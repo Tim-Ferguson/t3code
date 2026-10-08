@@ -1,5 +1,7 @@
 //! Native backend services. Services own behavior; transports only decode and dispatch.
 pub mod acp_adapter;
+pub mod acp_auth;
+pub mod acp_authentication_state;
 pub mod acp_client_policy;
 pub mod acp_coordinator;
 pub mod acp_mcp_tools;
@@ -16,6 +18,7 @@ pub mod history;
 pub mod launch;
 pub mod persistence;
 pub mod project;
+pub mod provider_auth_flow;
 pub mod provider_process;
 pub mod provider_registry;
 pub mod thread;
@@ -107,4 +110,11 @@ pub mod device_platform;
 pub mod local_device_host;
 
 pub mod device_commands;
+pub mod device_detail;
+pub mod device_hub_proxy;
 pub mod device_service;
+
+#[cfg(all(test, unix))]
+mod device_rpc_tests;
+
+pub mod device_actions;

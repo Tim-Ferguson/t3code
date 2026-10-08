@@ -23,3 +23,6 @@ pub mod surface_policy;
 
 #[cfg(target_arch = "wasm32")]
 pub mod appearance;
+
+#[cfg(target_arch = "wasm32")]
+pub mod inspector;

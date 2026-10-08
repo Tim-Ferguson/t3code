@@ -313,3 +313,17 @@ pub fn appearance_apply_fonts(raw: &str) -> Result<()> {
     }
     Ok(())
 }
+
+/// Uses the WebView's actual locale, including Turkish/Lithuanian special casing.
+#[wasm_bindgen]
+pub fn appearance_collection_labels(raw: &str, locale: Option<String>) -> Result<String> {
+    let labels: Vec<String> =
+        serde_json::from_str(raw).map_err(|cause| JsValue::from_str(&cause.to_string()))?;
+    let labels = t3_client::themes::collections::variant_labels(&labels, |word| {
+        js_sys::JsString::from(word)
+            .to_locale_lower_case(locale.as_deref())
+            .as_string()
+            .unwrap_or_default()
+    });
+    Ok(serde_json::to_string(&labels).unwrap())
+}

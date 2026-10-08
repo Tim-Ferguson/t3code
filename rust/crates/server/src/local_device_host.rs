@@ -40,6 +40,16 @@ impl DeviceHostReady {
         args: Vec<String>,
         timeout: Duration,
     ) -> crate::device_commands::HostCommandOutput {
+        self.run_command_with_stdin(command, args, timeout, None)
+            .await
+    }
+    pub async fn run_command_with_stdin(
+        &self,
+        command: &str,
+        args: Vec<String>,
+        timeout: Duration,
+        stdin: Option<Vec<u8>>,
+    ) -> crate::device_commands::HostCommandOutput {
         let command = if command == "emulator" {
             self.environment.get("ANDROID_HOME").map(|root| {
                 PathBuf::from(root).join("emulator").join(if cfg!(windows) {
@@ -54,7 +64,7 @@ impl DeviceHostReady {
         .or_else(|| crate::acp_registry_spawn::resolve_executable(command, &self.environment))
         .unwrap_or_else(|| command.into());
         self.commands
-            .run(command, args, self.environment.clone(), timeout)
+            .run_with_stdin(command, args, self.environment.clone(), timeout, stdin)
             .await
     }
 }
@@ -262,10 +272,11 @@ impl LocalDeviceHost {
             let _ = (&mut job.handle).await;
             cleanup.pop();
         }
-        let mut state = self.0.state.lock().unwrap();
-        state.generation += 1;
-        state.ready = None;
-        drop(state);
+        {
+            let mut state = self.0.state.lock().unwrap();
+            state.generation += 1;
+            state.ready = None;
+        }
         let _ = tokio::fs::remove_file(
             self.0
                 .options

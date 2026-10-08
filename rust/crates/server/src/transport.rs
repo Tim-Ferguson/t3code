@@ -45,6 +45,7 @@ pub struct ApiState {
     pub host_resources: Option<crate::host_resources::HostResources>,
     pub background: Option<crate::background_policy::BackgroundPolicy>,
     pub device_hosts: Option<crate::device_host_resolver::DeviceHostResolver>,
+    pub devices: Option<crate::device_service::DeviceService>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -103,6 +104,10 @@ pub fn router(state: ApiState) -> Router {
         .route(
             "/api/orchestration/threads/{threadId}/history",
             get(thread_history),
+        )
+        .route(
+            "/api/device-hub/{*path}",
+            axum::routing::any(crate::device_hub_proxy::handle),
         )
         .route("/ws", get(upgrade))
         .fallback(get(static_asset))
@@ -233,7 +238,8 @@ async fn cors(
 async fn no_cache(mut response: Response) -> Response {
     response
         .headers_mut()
-        .insert(header::CACHE_CONTROL, "no-store".parse().unwrap());
+        .entry(header::CACHE_CONTROL)
+        .or_insert_with(|| "no-store".parse().unwrap());
     response
         .headers_mut()
         .insert(header::PRAGMA, "no-cache".parse().unwrap());
@@ -290,6 +296,22 @@ fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Session, ApiErr
         }
     }
     Err(unauthorized())
+}
+pub(crate) fn authenticate_media_request(
+    state: &ApiState,
+    headers: &HeaderMap,
+    ticket: Option<&str>,
+    scope: AuthEnvironmentScope,
+) -> Result<(), Response> {
+    let session = match ticket.filter(|ticket| !ticket.trim().is_empty()) {
+        Some(ticket) => state
+            .auth
+            .verify_websocket_ticket(ticket, Utc::now())
+            .map_err(|_| unauthorized()),
+        None => authenticate(state, headers),
+    }
+    .map_err(IntoResponse::into_response)?;
+    require(&session, scope).map_err(IntoResponse::into_response)
 }
 fn require(session: &Session, scope: AuthEnvironmentScope) -> Result<(), ApiError> {
     if session.scopes.contains(&scope) {
@@ -615,9 +637,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeDeviceState") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -882,6 +904,18 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
     if request.tag.starts_with("terminal.") {
         return terminal_rpc(&state, &request).await;
     }
+    if matches!(
+        request.tag.as_str(),
+        "device.list"
+            | "device.configure"
+            | "device.open"
+            | "device.close"
+            | "device.shutdown"
+            | "device.detail"
+            | "device.action"
+    ) {
+        return device_rpc(&state, &request).await;
+    }
     if request.tag == "filesystem.browse"
         || matches!(
             request.tag.as_str(),
@@ -946,6 +980,21 @@ fn require_scope(
     }
 }
 fn authorize_request(session: &Session, request: &RpcRequest) -> Result<(), Value> {
+    if request.tag == "device.list" {
+        let input: t3_contracts::DeviceListInput = device_decode(request)?;
+        return require_scope(
+            session,
+            &request.tag,
+            if input.update_tool.flatten().is_some()
+                || (input.inspect_only.flatten() != Some(true)
+                    && input.retry_host_id.flatten().is_some())
+            {
+                AuthEnvironmentScope::OrchestrationOperate
+            } else {
+                AuthEnvironmentScope::OrchestrationRead
+            },
+        );
+    }
     if request.tag != "server.updateSettings" {
         return authorize_rpc(session, &request.tag);
     }
@@ -1113,6 +1162,83 @@ async fn resource_telemetry_stream(
             authorize_rpc(&active,&request.tag)?;
             let typed: t3_contracts::ResourceTelemetrySnapshot=serde_json::from_value(next).map_err(|error|json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
             let sent=tokio::select! {biased;_=service.closed()=>return Ok(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(typed).unwrap()])=>sent};
+            if !sent{return Ok(());}
+            match subscription.recv().await {Some(value)=>next=value,None=>return Ok(())}
+        }
+    }.await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+fn device_decode<T: serde::de::DeserializeOwned>(request: &RpcRequest) -> Result<T, Value> {
+    serde_json::from_value(request.payload.clone())
+        .map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))
+}
+async fn device_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
+    let service=state.devices.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Device service is not configured."}))?;
+    let result = match request.tag.as_str() {
+        "device.list" => {
+            let input: t3_contracts::DeviceListInput = device_decode(request)?;
+            let value = if let Some(tool) = input.update_tool.flatten() {
+                service.update_tool(tool).await
+            } else if input.inspect_only.flatten() == Some(true) {
+                Ok(service.inspect().await)
+            } else if let Some(host) = input.retry_host_id.flatten() {
+                service.retry_host(host).await
+            } else {
+                service.list().await
+            };
+            value.map(|value| serde_json::to_value(value).unwrap())
+        }
+        "device.configure" => service
+            .configure(device_decode(request)?)
+            .await
+            .map(|value| serde_json::to_value(value).unwrap()),
+        "device.open" => service
+            .open(device_decode(request)?)
+            .await
+            .map(|value| serde_json::to_value(value).unwrap()),
+        "device.detail" => service
+            .detail(device_decode(request)?)
+            .await
+            .map(|value| serde_json::to_value(value).unwrap()),
+        "device.action" => service
+            .action(device_decode(request)?)
+            .await
+            .map(|value| serde_json::to_value(value).unwrap()),
+        "device.close" => service
+            .close(device_decode(request)?)
+            .await
+            .map(|()| Value::Null),
+        "device.shutdown" => service
+            .shutdown_device(device_decode(request)?)
+            .await
+            .map(|()| Value::Null),
+        _ => unreachable!(),
+    };
+    result.map_err(|error| serde_json::to_value(error).unwrap())
+}
+async fn device_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result=async {
+        let _:t3_contracts::GetServerSettingsInput=device_decode(&request)?;
+        let service=state.devices.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Device service is not configured."}))?;
+        let mut subscription=service.subscribe();let mut next=subscription.snapshot.clone();
+        loop {
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            let sent=tokio::select! {biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(next).unwrap()])=>sent};
             if !sent{return Ok(());}
             match subscription.recv().await {Some(value)=>next=value,None=>return Ok(())}
         }
@@ -2456,6 +2582,7 @@ mod tests {
             host_resources: None,
             background: None,
             device_hosts: None,
+            devices: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

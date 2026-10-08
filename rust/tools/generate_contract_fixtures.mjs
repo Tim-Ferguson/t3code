@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 const fixtures = [],
   mapping = {};
+let generatingProviderSetup = false;
 const files = [
   "auth",
   "providerInstance",
@@ -25,6 +26,7 @@ const files = [
   "server",
   "providerUsageLimits",
   "acpRegistry",
+  "providerSetup",
   "settings",
   "device",
   "project",
@@ -55,6 +57,7 @@ const rustNames = new Set(
     "provider_runtime",
     "preview",
     "acp_registry",
+    "provider_setup",
   ].flatMap((f) =>
     [
       ...readFileSync(root + "/rust/crates/contracts/src/" + f + ".rs", "utf8").matchAll(
@@ -64,13 +67,20 @@ const rustNames = new Set(
   ),
 );
 const strictObjectTypes = new Set(
-  ["history", "filesystem", "terminal", "provider_runtime", "preview", "acp_registry"].flatMap(
-    (file) =>
-      [
-        ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
-          /pub (?:struct|enum|type) (\w+)/g,
-        ),
-      ].map((m) => m[1]),
+  [
+    "history",
+    "filesystem",
+    "terminal",
+    "provider_runtime",
+    "preview",
+    "acp_registry",
+    "provider_setup",
+  ].flatMap((file) =>
+    [
+      ...readFileSync(root + "/rust/crates/contracts/src/" + file + ".rs", "utf8").matchAll(
+        /pub (?:struct|enum|type) (\w+)/g,
+      ),
+    ].map((m) => m[1]),
   ),
 );
 strictObjectTypes.add("AcpRegistryUrlAuthAction");
@@ -81,6 +91,7 @@ function seed(s, defs, key = "", depth = 0) {
   if (/ModelSelection$/.test(key) || key === "modelSelection")
     return { instanceId: "codex", model: "gpt-6-astra" };
   if (key === "mimeType") return "image/png";
+  if (key === "clientId" && generatingProviderSetup) return "oaiapp_fixture";
   if (key === "canvas" || key === "accent") return "#123abc";
   if (key === "autoCompactWindow") return "300000";
   if (s.const !== undefined) return s.const;
@@ -361,10 +372,102 @@ function codecCases(name, schema, schemaDoc, initial) {
         "transformed/bounded header record " + JSON.stringify(headers).slice(0, 100),
       );
   }
+  if (name === "ProviderAuthInteraction") {
+    for (const input of [
+      {
+        type: "browser",
+        id: "browser",
+        url: " https://example.test/auth ",
+        requiresConsent: true,
+        acceptsCallback: false,
+      },
+      {
+        type: "deviceCode",
+        id: "code",
+        url: "https://example.test/auth",
+        userCode: " sample-code ",
+      },
+      { type: "terminal", id: "terminal", output: " raw\n", outputOffset: 1.0 },
+      {
+        type: "credentials",
+        id: "credentials",
+        fields: [{ name: " token ", label: " API token ", secret: true }],
+      },
+      { type: "terminal", id: "terminal", output: "", outputOffset: 9007199254740992 },
+    ])
+      test(input, "auth interaction variant boundary");
+  }
+  if (name === "ProviderAuthResponse") {
+    for (const values of [
+      { "": "x" },
+      { " a ": "first", a: "last" },
+      { a: "first", " a ": "last" },
+      Object.fromEntries(Array.from({ length: 17 }, (_, i) => ["name" + i, "x"])),
+      Object.fromEntries(Array.from({ length: 17 }, (_, i) => [" ".repeat(i) + "same", "x"])),
+    ])
+      test(
+        { type: "credentials", values },
+        "credential record admission and transformed cardinality",
+      );
+    for (const size of [
+      undefined,
+      null,
+      { cols: 1, rows: 200 },
+      { cols: 500, rows: 1 },
+      { cols: 501, rows: 1 },
+      { cols: 1.5, rows: 2 },
+      { cols: 1, rows: 201 },
+    ])
+      test(
+        { type: "terminal", data: " ", ...(size === undefined ? {} : { size }) },
+        "terminal dimensions optional and boundary",
+      );
+  }
+  if (name === "ProviderAuthState") {
+    for (const interaction of [
+      undefined,
+      null,
+      { type: "future", id: "future" },
+      { type: "browser", id: "x" },
+    ])
+      test(
+        { ...clone(initial), ...(interaction === undefined ? {} : { interaction }) },
+        "forward authentication interaction",
+      );
+    for (const methods of [
+      null,
+      [{ id: "x", name: "x", description: null, type: "future" }],
+      Array(33).fill({ id: "x", name: "x", description: null, type: "agent" }),
+      Array(33).fill({ type: "future" }),
+    ])
+      test({ ...clone(initial), methods }, "authentication methods filtered then bounded");
+  }
+  if (name === "ChatGptReconnectProfile") {
+    for (const clientId of [
+      "oaiapp_a",
+      "oaiapp_é",
+      "oaiapp_x\n",
+      "oaiapp_x\r\n",
+      "oaiapp_x\n\n",
+      "oaiapp_x\u2028",
+      "oaiapp_x-",
+    ])
+      test({ ...clone(initial), clientId }, "registration ID exact source regex");
+    for (const redirectUri of [
+      "http://127.0.0.1:1/auth/callback",
+      "http://localhost:99999/auth/callback",
+      "http://localhost:01/auth/callback",
+      "http://localhost:1/auth/callback\n",
+      "http://localhost:1/auth/callback\r\n",
+      "https://localhost:1/auth/callback",
+    ])
+      test({ ...clone(initial), redirectUri }, "registration redirect exact source regex");
+  }
   return true;
 }
 const skipped = [];
 for (const file of files) {
+  generatingProviderSetup = file === "providerSetup";
   const mod = await import(pathToFileURL(root + "/packages/contracts/src/" + file + ".ts"));
   for (const [name, s] of Object.entries(mod)) {
     if (!rustNames.has(name) || !Schema.isSchema(s)) continue;
@@ -376,6 +479,7 @@ for (const file of files) {
     else skipped.push(file + "." + name);
   }
 }
+generatingProviderSetup = false;
 const orch = await import(pathToFileURL(root + "/packages/contracts/src/orchestrationV2.ts"));
 const ipc = await import(pathToFileURL(root + "/packages/contracts/src/IPC.ts"));
 for (const [schemaName, schema] of Object.entries(ipc)) {

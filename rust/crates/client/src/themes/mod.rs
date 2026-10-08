@@ -1,8 +1,10 @@
 //! Original theme catalog and storage policy. Palette data comes from the source shared package.
 pub mod color;
+pub mod collections;
 pub mod editor;
 pub mod environment;
 pub mod import;
+pub mod inspector;
 mod jsonc;
 pub mod library;
 pub mod openvsx;

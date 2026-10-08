@@ -140,10 +140,14 @@ transactions preserve mixed selections and report failed writes. Open VSX search
 package import validate licenses, checksums, archive bounds and theme includes;
 collection updates require confirmation and compare fresh saved state after the
 download. Closing a download cancels its body without changing the library.
-Complete library grouping and the advanced inspector remain unfinished, as do
-unpaired UTF-16 string boundaries and JSONC nesting beyond the current safe parser
-bound. Live environment theme publication depends on the unfinished backend theme
-store. Native/mobile interaction and full visual fidelity remain unverified.
+Collection cards retain the selected variant through package updates and removals.
+The global editor supports grouped advanced fields, search, usage highlighting and
+interface inspection, with cleanup on close. Integrated browser checks cover these
+flows; the source color picker, movable/minimized editor and complete visual fidelity
+remain unfinished, including responsive color-field sizing. Unpaired UTF-16 string
+boundaries and JSONC nesting beyond the current safe parser bound remain gaps.
+Live environment theme publication depends on the unfinished backend theme store.
+Native/mobile interaction remains unverified.
 
 The intended UI targets are Dioxus WebAssembly web plus native desktop/mobile
 builds sharing the Rust component and client layers. The WASM target check,

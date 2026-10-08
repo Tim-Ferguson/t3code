@@ -47,6 +47,35 @@ pub struct AcpSession {
     commands: watch::Receiver<Option<crate::acp_coordinator::AvailableCommands>>,
     pub(crate) services: crate::acp_client_callbacks::Services,
 }
+pub(crate) type AuthElicitation = Arc<
+    dyn Fn(
+            t3_acp::v2::CreateElicitationRequest,
+            RequestContext,
+        ) -> futures_util::future::BoxFuture<
+            'static,
+            Result<t3_acp::v2::CreateElicitationResponse, AcpError>,
+        > + Send
+        + Sync,
+>;
+pub(crate) struct InitializedPeer {
+    pub(crate) client: Client,
+    pub(crate) initialize: InitializeResponse,
+    receiver: mpsc::UnboundedReceiver<SessionEvent>,
+    peer: Arc<ProcessPeer>,
+    services: crate::acp_client_callbacks::Services,
+    live_setup: Arc<Mutex<Value>>,
+    startup: Arc<Mutex<StartupMetadata>>,
+    command_sender: watch::Sender<Option<crate::acp_coordinator::AvailableCommands>>,
+    command_receiver: watch::Receiver<Option<crate::acp_coordinator::AvailableCommands>>,
+    startup_events: mpsc::UnboundedSender<SessionEvent>,
+}
+impl InitializedPeer {
+    pub(crate) async fn shutdown(&self) {
+        self.services.shutdown().await;
+        self.client.shutdown();
+        self.peer.shutdown().await;
+    }
+}
 #[derive(Default)]
 struct StartupMetadata {
     root: Option<String>,
@@ -381,6 +410,20 @@ impl AcpInstance {
         discovery: bool,
         services: crate::acp_client_callbacks::Services,
     ) -> Result<AcpSession, AcpError> {
+        let initialized = self
+            .initialize_only(peer, discovery, services, None, None)
+            .await?;
+        self.finish_initialized(initialized, cwd, saved_session, discovery, true)
+            .await
+    }
+    pub(crate) async fn initialize_only(
+        &self,
+        peer: ProcessPeer,
+        discovery: bool,
+        services: crate::acp_client_callbacks::Services,
+        elicitation: Option<AuthElicitation>,
+        initialize_request: Option<InitializeRequest>,
+    ) -> Result<InitializedPeer, AcpError> {
         let peer = Arc::new(peer);
         // Source AcpSessionRuntime uses an unbounded event queue, including load
         // replay received before setup finishes. Do not deadlock setup on a cap.
@@ -546,10 +589,13 @@ impl AcpInstance {
                     .map_err(|error| AcpError::Transport(error.to_string()))
             })
         }));
+        if let Some(elicitation) = elicitation {
+            client.handle_elicitation(elicitation);
+        }
         // Capabilities describe only handlers implemented by this bridge. File,
         // terminal, elicitation and MCP callback support are added with services.
         let initialize = client
-            .initialize_typed(InitializeRequest {
+            .initialize_typed(initialize_request.unwrap_or_else(|| InitializeRequest {
                 client_info: Optional::Value(Implementation {
                     name: "t3-code".into(),
                     version: env!("CARGO_PKG_VERSION").into(),
@@ -564,9 +610,42 @@ impl AcpInstance {
                     ..Default::default()
                 }),
                 ..Default::default()
-            })
+            }))
             .await?;
-        if !self.config.auth_method_id.as_str().is_empty() {
+        Ok(InitializedPeer {
+            client,
+            initialize,
+            receiver,
+            peer,
+            services,
+            live_setup,
+            startup,
+            command_sender,
+            command_receiver,
+            startup_events,
+        })
+    }
+    pub(crate) async fn finish_initialized(
+        &self,
+        initialized: InitializedPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        discovery: bool,
+        authenticate_configured: bool,
+    ) -> Result<AcpSession, AcpError> {
+        let InitializedPeer {
+            client,
+            initialize,
+            receiver,
+            peer,
+            services,
+            live_setup,
+            startup,
+            command_sender,
+            command_receiver,
+            startup_events,
+        } = initialized;
+        if authenticate_configured && !self.config.auth_method_id.as_str().is_empty() {
             let request = serde_json::from_value(json!({"methodId":self.config.auth_method_id}))
                 .map_err(|error| {
                     AcpError::Transport(format!("Invalid authentication request: {error}"))

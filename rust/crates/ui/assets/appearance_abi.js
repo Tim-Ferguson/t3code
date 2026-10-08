@@ -14,6 +14,9 @@ try {
         case "probe":
           value = JSON.parse(module.appearance_probe_font(command.family));
           break;
+        case "collection-labels":
+          value = JSON.parse(module.appearance_collection_labels(JSON.stringify(command.labels)));
+          break;
         case "permission":
           value = await module.appearance_font_permission();
           break;

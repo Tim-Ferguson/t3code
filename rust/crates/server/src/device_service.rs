@@ -3,6 +3,7 @@ use crate::{
     local_device_host::{DeviceHostReady, DevicePhase, LocalDeviceHost},
     server_settings::SettingsService,
 };
+use futures_util::future::BoxFuture;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::{
@@ -711,6 +712,153 @@ impl DeviceService {
             )
         })
     }
+    async fn resolve_device(
+        &self,
+        host_id: Option<&DeviceHostId>,
+        device_id: &DeviceId,
+    ) -> Result<(DeviceHostReady, DeviceSummary), DeviceError> {
+        self.resolve_host(host_id)?;
+        let ready = self.readiness(host_id).await?;
+        let find = |state: DeviceServiceState| {
+            state
+                .devices
+                .into_iter()
+                .find(|device| device.host_id == local() && &device.id == device_id)
+        };
+        let device = match find(self.snapshot()) {
+            Some(device) => Some(device),
+            None => find(self.refresh(&ready).await?),
+        }
+        .ok_or_else(|| not_found(local(), device_id.clone()))?;
+        Ok((ready, device))
+    }
+    fn action_helpers(ready: &DeviceHostReady) -> crate::device_actions::Helpers {
+        crate::device_actions::Helpers {
+            node_path: ready.node_path.to_string_lossy().into_owned(),
+            serve_sim_ax_settings: ready
+                .serve_sim_ax_settings
+                .as_ref()
+                .map(|path| path.to_string_lossy().into_owned()),
+            serve_sim_cli: ready
+                .serve_sim_cli
+                .as_ref()
+                .map(|path| path.to_string_lossy().into_owned()),
+        }
+    }
+    fn action_runner(
+        ready: DeviceHostReady,
+    ) -> impl Fn(
+        crate::device_actions::ActionCommand,
+    ) -> BoxFuture<'static, crate::device_commands::HostCommandOutput>
+    + Send
+    + Sync {
+        move |command| {
+            let ready = ready.clone();
+            Box::pin(async move {
+                ready
+                    .run_command_with_stdin(
+                        &command.command,
+                        command.args,
+                        Duration::from_secs(20),
+                        command.stdin.map(String::into_bytes),
+                    )
+                    .await
+            })
+        }
+    }
+    /// Media routes inspect an existing endpoint and never install or start tools.
+    pub fn current_readiness(&self, host_id: Option<&DeviceHostId>) -> Option<DeviceHostReady> {
+        self.resolve_host(host_id).ok()?;
+        self.0.host.current()
+    }
+    pub async fn screenshot(
+        &self,
+        host_id: Option<&DeviceHostId>,
+        device_id: &DeviceId,
+    ) -> Result<(DeviceSummary, Vec<u8>), DeviceError> {
+        let (ready, device) = self.resolve_device(host_id, device_id).await?;
+        let prefix = if device.platform == DevicePlatform::Ios {
+            "serve-sim"
+        } else {
+            "serve-emu"
+        };
+        let encoded_id = device
+            .id
+            .as_str()
+            .bytes()
+            .map(|byte| {
+                if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
+                    char::from(byte).to_string()
+                } else {
+                    format!("%{byte:02X}")
+                }
+            })
+            .collect::<String>();
+        let capture = async {
+            self.0
+                .client
+                .post(format!(
+                    "{}/vendor/{prefix}/api/screenshot?device={encoded_id}",
+                    ready.origin
+                ))
+                .timeout(Duration::from_secs(20))
+                .send()
+                .await?
+                .error_for_status()?
+                .bytes()
+                .await
+                .map(|bytes| bytes.to_vec())
+        };
+        let png = tokio::select! {
+            biased;
+            _ = self.closed() => Err(operation_error("screenshot", DeviceOperationFailureReason::RequestFailed, json!("Device service is shutting down."))),
+            result = tokio::time::timeout(Duration::from_secs(20), capture) => match result {
+                Ok(result) => result.map_err(|error| operation_error("screenshot", DeviceOperationFailureReason::RequestFailed, json!(error.to_string()))),
+                Err(error) => Err(operation_error("screenshot", DeviceOperationFailureReason::RequestFailed, json!(error.to_string()))),
+            },
+        }?;
+        Ok((device, png))
+    }
+    pub async fn detail(&self, input: DeviceDetailInput) -> Result<DeviceDetail, DeviceError> {
+        let (ready, device) = self
+            .resolve_device(
+                input.host_id.as_ref().and_then(Option::as_ref),
+                &input.device_id,
+            )
+            .await?;
+        let (settings, foreground_app) = crate::device_detail::read_detail(
+            device.platform,
+            device.id.as_str(),
+            &Self::action_helpers(&ready),
+            &Self::action_runner(ready),
+        )
+        .await;
+        Ok(DeviceDetail {
+            host_id: local(),
+            device_id: device.id,
+            settings,
+            foreground_app,
+            read_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+        })
+    }
+    pub async fn action(&self, input: DeviceActionInput) -> Result<DeviceDetail, DeviceError> {
+        let value = serde_json::to_value(&input).expect("typed device action");
+        let device_id: DeviceId =
+            serde_json::from_value(value["deviceId"].clone()).expect("device action ID");
+        let (ready, device) = self.resolve_device(input.host_id(), &device_id).await?;
+        crate::device_actions::run_action(
+            device.platform,
+            &input,
+            &Self::action_helpers(&ready),
+            &Self::action_runner(ready),
+        )
+        .await?;
+        self.detail(DeviceDetailInput {
+            host_id: Some(Some(local())),
+            device_id: device.id,
+        })
+        .await
+    }
     pub async fn close(&self, input: DeviceCloseInput) -> Result<(), DeviceError> {
         let host = input.host_id.flatten();
         let device = input.device_id.flatten();
@@ -832,7 +980,7 @@ fn error_message(error: &DeviceError) -> String {
 }
 
 #[cfg(all(test, unix))]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
         device_toolchain::{DEVICE_HUB_VERSION, DeviceToolchain, ToolchainOptions},
@@ -841,13 +989,13 @@ mod tests {
         server_settings::SettingsOptions,
     };
     use std::{os::unix::fs::PermissionsExt, path::Path};
-    struct Fixture {
-        service: DeviceService,
-        settings: SettingsService,
-        socket: tokio::net::UnixDatagram,
+    pub(crate) struct Fixture {
+        pub(crate) service: DeviceService,
+        pub(crate) settings: SettingsService,
+        pub(crate) socket: tokio::net::UnixDatagram,
         profile: std::path::PathBuf,
     }
-    async fn fixture(root: &Path) -> Fixture {
+    pub(crate) async fn fixture(root: &Path) -> Fixture {
         let tools = DeviceToolchain::new(ToolchainOptions::new(root.into()));
         let paths = tools.paths(DeviceToolKind::Hub);
         tokio::fs::create_dir_all(paths.entry_path.parent().unwrap())
@@ -862,6 +1010,22 @@ mod tests {
         tokio::fs::write(paths.sentinel_path, format!("{DEVICE_HUB_VERSION}\n"))
             .await
             .unwrap();
+        let ax = paths
+            .install_dir
+            .join("node_modules/expo-device-hub/vendor/serve-sim/dist/simax/serve-sim-ax-settings");
+        tokio::fs::create_dir_all(ax.parent().unwrap())
+            .await
+            .unwrap();
+        tokio::fs::write(ax, b"fixture helper").await.unwrap();
+        let compressed_data = root.join("compressed.jsonl");
+        tokio::fs::write(
+            &compressed_data,
+            include_str!("../tests/fixtures/device-proxy-compression.jsonl"),
+        )
+        .await
+        .unwrap();
+        let command_data = root.join("commands.json");
+        tokio::fs::write(&command_data, b"{}").await.unwrap();
         let socket_path = root.join("events.sock");
         let socket = tokio::net::UnixDatagram::bind(&socket_path).unwrap();
         let profile = root.join("profile.json");
@@ -869,7 +1033,7 @@ mod tests {
         let bin = root.join("bin");
         tokio::fs::create_dir_all(&bin).await.unwrap();
         let xcrun = bin.join("xcrun");
-        tokio::fs::write(&xcrun, b"#!/bin/sh\nexit 0\n")
+        tokio::fs::write(&xcrun, include_str!("../tests/fixtures/device-command.py"))
             .await
             .unwrap();
         tokio::fs::set_permissions(xcrun, std::fs::Permissions::from_mode(0o755))
@@ -882,6 +1046,8 @@ mod tests {
             ("HOME", root.join("home")),
             ("PATH", bin),
             ("FIXTURE_PROFILE", profile.clone()),
+            ("FIXTURE_COMMAND_DATA", command_data),
+            ("FIXTURE_COMPRESSED_DATA", compressed_data),
             ("FIXTURE_MILESTONES", socket_path),
         ]
         .into_iter()
@@ -933,6 +1099,68 @@ mod tests {
             )
             .await
             .unwrap();
+    }
+    #[tokio::test]
+    async fn screenshot_posts_both_vendor_routes_encodes_device_id_and_cancels_held_body() {
+        tokio::time::timeout(Duration::from_secs(15), async {
+            let root = tempfile::tempdir().unwrap();
+            let fixture = fixture(root.path()).await;
+            assert!(fixture.service.current_readiness(None).is_none());
+            enable(&fixture).await;
+            let ios = DeviceId::new("fixture-ios").unwrap();
+            let (device, png) = fixture.service.screenshot(None, &ios).await.unwrap();
+            assert_eq!(device.id, ios);
+            assert_eq!(png, b"\x89PNG\r\n\x1a\nfixture screenshot");
+            let android=DeviceId::new("fixture /?&👋").unwrap();
+            tokio::fs::write(&fixture.profile,serde_json::to_vec(&json!({"androidId":android})).unwrap()).await.unwrap();
+            let (device,png)=fixture.service.screenshot(None,&android).await.unwrap();
+            assert_eq!(device.platform,DevicePlatform::Android);assert_eq!(device.id,android);assert_eq!(png,b"\x89PNG\r\n\x1a\nfixture screenshot");
+            let route = "/vendor/serve-emu/api/screenshot?device=fixture%20%2F%3F%26%F0%9F%91%8B";
+            tokio::fs::write(&fixture.profile,serde_json::to_vec(&json!({"androidId":android,"bodyHeld":route})).unwrap()).await.unwrap();
+            let request = tokio::spawn({let service=fixture.service.clone();async move {service.screenshot(None,&android).await}});
+            let pid=path(&fixture.socket,route).await;
+            fixture.service.shutdown().await;
+            assert!(matches!(request.await.unwrap(), Err(DeviceError::DeviceOperationError(error)) if error.operation=="screenshot" && error.reason==DeviceOperationFailureReason::RequestFailed));
+            reaped(pid);assert!(fixture.service.current_readiness(None).is_none());
+            fixture.settings.shutdown().await;
+        }).await.unwrap();
+    }
+    #[tokio::test]
+    async fn screenshot_deadline_covers_body_after_headers_and_reaps_host_on_shutdown() {
+        let root = tempfile::tempdir().unwrap();
+        let fixture = fixture(root.path()).await;
+        enable(&fixture).await;
+        fixture.service.list().await.unwrap();
+        let route = "/vendor/serve-sim/api/screenshot?device=fixture-ios";
+        tokio::fs::write(
+            &fixture.profile,
+            serde_json::to_vec(&json!({"bodyHeld":route})).unwrap(),
+        )
+        .await
+        .unwrap();
+        let request = tokio::spawn({
+            let service = fixture.service.clone();
+            async move {
+                service
+                    .screenshot(None, &DeviceId::new("fixture-ios").unwrap())
+                    .await
+            }
+        });
+        let pid = path(&fixture.socket, route).await;
+        tokio::time::pause();
+        tokio::time::advance(Duration::from_secs(20)).await;
+        tokio::time::resume();
+        let result = tokio::time::timeout(Duration::from_secs(5), request).await;
+        fixture.service.shutdown().await;
+        let error = result
+            .expect("screenshot deadline must finish after clock advance")
+            .unwrap()
+            .unwrap_err();
+        assert!(
+            matches!(error,DeviceError::DeviceOperationError(error) if error.operation=="screenshot" && error.reason==DeviceOperationFailureReason::RequestFailed)
+        );
+        reaped(pid);
+        fixture.settings.shutdown().await;
     }
     #[tokio::test]
     async fn consent_discovery_boot_and_shared_sessions_use_owned_hub() {

@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use tokio::{
-    io::{AsyncRead, AsyncReadExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt},
     sync::{oneshot, watch},
     task::JoinHandle,
 };
@@ -98,6 +98,7 @@ pub struct NativeProcessTable(Arc<Inner>);
 #[derive(Clone)]
 struct CommandSpec {
     environment: Option<crate::terminal_environment::Environment>,
+    stdin: Option<Vec<u8>>,
     command: PathBuf,
     args: Vec<String>,
     label: &'static str,
@@ -132,6 +133,7 @@ impl NativeProcessTable {
         } else { vec!["-eo", "pid=,ppid=,comm="] }.into_iter().map(String::from).collect();
         Self::with_spec(CommandSpec {
             environment: None,
+            stdin: None,
             command,
             args,
             label: if windows { "powershell" } else { "ps" },
@@ -163,6 +165,7 @@ impl NativeProcessTable {
     ) -> Self {
         Self::with_spec(CommandSpec {
             environment: None,
+            stdin: None,
             command,
             args,
             label,
@@ -187,6 +190,20 @@ impl NativeProcessTable {
     ) -> Self {
         let mut source = Self::command(command, args, label, timeout, max_bytes);
         Arc::get_mut(&mut source.0).unwrap().spec.environment = Some(environment);
+        source
+    }
+    pub fn command_with_environment_and_stdin(
+        command: PathBuf,
+        args: Vec<String>,
+        label: &'static str,
+        timeout: Duration,
+        max_bytes: usize,
+        environment: crate::terminal_environment::Environment,
+        stdin: Option<Vec<u8>>,
+    ) -> Self {
+        let mut source =
+            Self::command_with_environment(command, args, label, timeout, max_bytes, environment);
+        Arc::get_mut(&mut source.0).unwrap().spec.stdin = stdin;
         source
     }
     pub async fn snapshot(&self) -> Result<ProcessTable, InspectionError> {
@@ -283,7 +300,11 @@ async fn run(
         spec.environment.as_ref(),
     );
     let mut child = builder
-        .stdin(Stdio::null())
+        .stdin(if spec.stdin.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
@@ -298,11 +319,21 @@ async fn run(
     }
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
+    let input = spec.stdin;
+    let stdin = child.stdin.take();
+    let write_input = async move {
+        if let (Some(input), Some(mut stdin)) = (input, stdin) {
+            stdin.write_all(&input).await?;
+            stdin.shutdown().await?;
+        }
+        Ok::<(), std::io::Error>(())
+    };
     let complete = async {
         tokio::try_join!(
             child.wait(),
             collect(stdout, spec.max_bytes),
-            collect(stderr, spec.max_bytes)
+            collect(stderr, spec.max_bytes),
+            write_input
         )
     };
     let outcome = tokio::select! {
@@ -311,7 +342,7 @@ async fn run(
         outcome = tokio::time::timeout(spec.timeout, complete) => match outcome {
             Err(_) => Err(InspectionError { command: spec.label, cause: None, exit_code: None, timed_out: true, stdout_truncated: false }),
             Ok(Err(cause)) => Err(InspectionError::source(spec.label, cause)),
-            Ok(Ok((status,(stdout,stdout_truncated),(stderr,stderr_truncated))))=>Ok(CommandOutput{stdout,stderr,exit_code:status.code(),stdout_truncated,stderr_truncated}),
+            Ok(Ok((status,(stdout,stdout_truncated),(stderr,stderr_truncated),())))=>Ok(CommandOutput{stdout,stderr,exit_code:status.code(),stdout_truncated,stderr_truncated}),
         }
     };
     if outcome.is_err() {
@@ -341,6 +372,7 @@ mod tests {
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
         NativeProcessTable::with_spec(CommandSpec {
             environment: None,
+            stdin: None,
             command: script,
             args: vec![],
             label: "ps",

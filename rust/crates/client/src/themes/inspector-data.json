@@ -1,0 +1,265 @@
+{
+  "utilities": {
+    "background": "canvas",
+    "foreground": "text",
+    "card": "surface",
+    "card-foreground": "text",
+    "popover": "surfaceOverlay",
+    "popover-foreground": "text",
+    "surface-raised": "surfaceRaised",
+    "primary": "messageAction",
+    "primary-foreground": "messageActionForeground",
+    "secondary": "secondary",
+    "secondary-foreground": "secondaryForeground",
+    "muted": "muted",
+    "muted-foreground": "mutedForeground",
+    "placeholder": "placeholder",
+    "secondary-label": "secondaryLabel",
+    "icon-muted": "iconMuted",
+    "accent": "accentSurface",
+    "accent-foreground": "accentSurfaceForeground",
+    "destructive": "error",
+    "destructive-foreground": "errorForeground",
+    "error": "error",
+    "error-foreground": "errorForeground",
+    "error-surface": "errorSurface",
+    "warning": "warning",
+    "warning-foreground": "warningForeground",
+    "warning-surface": "warningSurface",
+    "update": "update",
+    "update-foreground": "updateForeground",
+    "update-surface": "updateSurface",
+    "message": "messageSurface",
+    "message-foreground": "messageForeground",
+    "message-action": "messageAction",
+    "message-action-foreground": "messageActionForeground",
+    "message-action-hover": "messageActionHover",
+    "sidebar": "sidebar",
+    "sidebar-foreground": "sidebarForeground",
+    "sidebar-muted-foreground": "sidebarMutedForeground",
+    "sidebar-control-surface": "sidebarControlSurface",
+    "sidebar-row-hover": "sidebarRowHover",
+    "sidebar-row-active": "sidebarRowActive",
+    "sidebar-row-selected": "sidebarRowSelected",
+    "sidebar-border": "sidebarBorder",
+    "border": "border",
+    "input": "input",
+    "ring": "focus"
+  },
+  "groups": [
+    {
+      "id": "foundation",
+      "title": "Foundation",
+      "families": [
+        {
+          "id": "background",
+          "label": "Background",
+          "role": "canvas",
+          "roles": ["canvas", "chrome", "toolbar"]
+        },
+        { "id": "surface", "label": "Surface", "role": "surface", "roles": ["surface"] },
+        {
+          "id": "raised-surface",
+          "label": "Raised surface",
+          "role": "surfaceRaised",
+          "roles": ["surfaceRaised"]
+        },
+        {
+          "id": "overlay",
+          "label": "Overlay",
+          "role": "surfaceOverlay",
+          "roles": ["surfaceOverlay"]
+        },
+        {
+          "id": "text",
+          "label": "Text",
+          "role": "text",
+          "roles": ["text", "toolbarForeground", "toolbarControlForeground"]
+        },
+        {
+          "id": "muted-text",
+          "label": "Muted text",
+          "role": "mutedForeground",
+          "roles": [
+            "textMuted",
+            "mutedForeground",
+            "placeholder",
+            "secondaryLabel",
+            "iconMuted",
+            "sidebarMutedForeground"
+          ]
+        },
+        {
+          "id": "border",
+          "label": "Border",
+          "role": "border",
+          "roles": ["border", "toolbarBorder", "sidebarBorder"]
+        },
+        { "id": "input", "label": "Input", "role": "input", "roles": ["input"] }
+      ]
+    },
+    {
+      "id": "brand-content",
+      "title": "Brand & content",
+      "families": [
+        {
+          "id": "subtle-surface",
+          "label": "Subtle surface",
+          "role": "secondary",
+          "roles": ["secondary", "secondaryForeground", "muted", "toolbarControl"]
+        },
+        {
+          "id": "highlight-surface",
+          "label": "Highlight surface",
+          "role": "accentSurface",
+          "roles": ["accentSurface", "accentSurfaceForeground", "toolbarControlHover"]
+        },
+        {
+          "id": "accent",
+          "label": "Accent",
+          "role": "accent",
+          "roles": [
+            "accent",
+            "accentForeground",
+            "focus",
+            "update",
+            "updateForeground",
+            "updateSurface",
+            "terminalCursor"
+          ]
+        },
+        {
+          "id": "action",
+          "label": "Action",
+          "role": "messageAction",
+          "roles": ["messageAction", "messageActionForeground", "messageActionHover"]
+        },
+        {
+          "id": "message-surface",
+          "label": "Message surface",
+          "role": "messageSurface",
+          "roles": ["messageSurface", "messageForeground"]
+        },
+        {
+          "id": "code-surface",
+          "label": "Code surface",
+          "role": "codeBackground",
+          "roles": ["codeBackground", "codeForeground"]
+        }
+      ]
+    },
+    {
+      "id": "context",
+      "title": "Context",
+      "families": [
+        {
+          "id": "sidebar-background",
+          "label": "Sidebar background",
+          "role": "sidebar",
+          "roles": ["sidebar", "sidebarForeground"]
+        },
+        {
+          "id": "sidebar-controls",
+          "label": "Sidebar controls",
+          "role": "sidebarControlSurface",
+          "roles": ["sidebarControlSurface"]
+        },
+        {
+          "id": "sidebar-selection",
+          "label": "Sidebar selection",
+          "role": "sidebarRowSelected",
+          "roles": ["sidebarRowHover", "sidebarRowActive", "sidebarRowSelected"]
+        },
+        {
+          "id": "terminal-background",
+          "label": "Terminal background",
+          "role": "terminalBackground",
+          "roles": [
+            "terminalBackground",
+            "terminalForeground",
+            "terminalSelection",
+            "terminalScrollbar",
+            "terminalScrollbarHover"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "status",
+      "title": "Status",
+      "families": [
+        {
+          "id": "error",
+          "label": "Error",
+          "role": "error",
+          "roles": ["error", "errorForeground", "errorSurface"]
+        },
+        {
+          "id": "warning",
+          "label": "Warning",
+          "role": "warning",
+          "roles": ["warning", "warningForeground", "warningSurface"]
+        }
+      ]
+    }
+  ],
+  "labels": {
+    "canvas": "Background",
+    "chrome": "Chrome",
+    "toolbar": "Toolbar background",
+    "toolbarForeground": "Toolbar text",
+    "toolbarBorder": "Toolbar border",
+    "toolbarControl": "Toolbar control",
+    "toolbarControlForeground": "Toolbar control text",
+    "toolbarControlHover": "Toolbar control hover",
+    "surface": "Surface",
+    "surfaceRaised": "Surface Raised",
+    "surfaceOverlay": "Surface Overlay",
+    "text": "Text",
+    "textMuted": "Text Muted",
+    "border": "Border",
+    "input": "Input",
+    "focus": "Focus",
+    "accent": "Accent color",
+    "accentForeground": "Accent Foreground",
+    "secondary": "Secondary",
+    "secondaryForeground": "Secondary Foreground",
+    "muted": "Muted",
+    "mutedForeground": "Muted Foreground",
+    "placeholder": "Placeholder",
+    "secondaryLabel": "Secondary Label",
+    "iconMuted": "Icon Muted",
+    "error": "Error",
+    "errorForeground": "Error text",
+    "errorSurface": "Error background",
+    "warning": "Warning",
+    "warningForeground": "Warning text",
+    "warningSurface": "Warning background",
+    "update": "Update",
+    "updateForeground": "Update text",
+    "updateSurface": "Update background",
+    "accentSurface": "Accent Surface",
+    "accentSurfaceForeground": "Accent Surface Foreground",
+    "messageSurface": "Message Surface",
+    "messageForeground": "Message Foreground",
+    "messageAction": "Message Action",
+    "messageActionForeground": "Message Action Foreground",
+    "messageActionHover": "Message Action Hover",
+    "codeBackground": "Code Background",
+    "codeForeground": "Code Foreground",
+    "sidebar": "Sidebar",
+    "sidebarForeground": "Sidebar Foreground",
+    "sidebarMutedForeground": "Sidebar Muted Foreground",
+    "sidebarControlSurface": "Sidebar Control Surface",
+    "sidebarRowHover": "Sidebar Row Hover",
+    "sidebarRowActive": "Sidebar Row Active",
+    "sidebarRowSelected": "Sidebar Row Selected",
+    "sidebarBorder": "Sidebar Border",
+    "terminalBackground": "Terminal Background",
+    "terminalForeground": "Terminal Foreground",
+    "terminalCursor": "Terminal Cursor",
+    "terminalSelection": "Terminal Selection",
+    "terminalScrollbar": "Terminal Scrollbar",
+    "terminalScrollbarHover": "Terminal Scrollbar Hover"
+  }
+}

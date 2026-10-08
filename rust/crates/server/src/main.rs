@@ -739,6 +739,24 @@ async fn run(
         None
     };
     let device_hosts = t3_server::device_host_resolver::DeviceHostResolver::new(Default::default());
+    let devices = if let Some(settings) = &settings_service {
+        let tools = t3_server::device_toolchain::DeviceToolchain::new(
+            t3_server::device_toolchain::ToolchainOptions::new(state_dir.clone()),
+        );
+        let host = t3_server::local_device_host::LocalDeviceHost::new(
+            t3_server::local_device_host::LocalDeviceHostOptions::host(state_dir.clone()),
+            tools,
+        );
+        Some(
+            t3_server::device_service::DeviceService::new(settings.clone(), host)
+                .await
+                .map_err(|error| {
+                    std::io::Error::other(serde_json::to_value(error).unwrap().to_string())
+                })?,
+        )
+    } else {
+        None
+    };
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -756,6 +774,7 @@ async fn run(
         host_resources: Some(host_resources.clone()),
         background: background.clone(),
         device_hosts: Some(device_hosts.clone()),
+        devices: devices.clone(),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -768,6 +787,9 @@ async fn run(
         background.shutdown().await;
     }
     device_hosts.shutdown().await;
+    if let Some(devices) = devices {
+        devices.shutdown().await;
+    }
     host_resources.shutdown().await;
     if let Some(runtime) = settings_runtime {
         runtime.shutdown().await;

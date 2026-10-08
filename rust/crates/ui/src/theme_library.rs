@@ -2,7 +2,9 @@
 use crate::themes::Themes;
 use dioxus::html::FileData;
 use dioxus::prelude::*;
-use t3_client::themes::{Appearance, Colors, Definition, import, library, vivid};
+use t3_client::themes::{
+    Appearance, Colors, Definition, collections, import, inspector, library, vivid,
+};
 #[derive(Clone, PartialEq)]
 pub struct EditorSession {
     pub editing_theme_id: Option<String>,
@@ -94,7 +96,7 @@ pub fn ThemeLibrary() -> Element {
         .builtin
         .iter()
         .cloned()
-        .map(|t| (t, false, false))
+        .map(|t| (format!("builtin:{}", t.id), vec![t], false, false))
         .collect();
     cards.extend(
         catalog
@@ -102,9 +104,13 @@ pub fn ThemeLibrary() -> Element {
             .iter()
             .filter(|t| !catalog.custom.iter().any(|c| c.id == t.id))
             .cloned()
-            .map(|t| (t, false, true)),
+            .map(|t| (format!("environment:{}", t.id), vec![t], false, true)),
     );
-    cards.extend(catalog.custom.iter().cloned().map(|t| (t, true, false)));
+    cards.extend(
+        collections::groups(&catalog.custom)
+            .into_iter()
+            .map(|(id, themes)| (id, themes, true, false)),
+    );
     rsx! {
         section {class:"theme-library","aria-label":"Theme library",
             div {class:"theme-library-heading",h3 {"Themes"}
@@ -119,34 +125,18 @@ pub fn ThemeLibrary() -> Element {
             }}
             if let Some(message)=error.read().as_ref(){p {role:"alert",class:"error-banner","{message}"}}
             div {class:"theme-library-grid",
-                for (theme,custom,environment) in cards {
-                    {
-                        let use_service=service.clone();let export_service=service.clone();let name=theme.label.clone();let id=theme.id.clone();let use_id=id.clone();let use_modes=theme.modes();let duplicate=theme.clone();let edit=theme.clone();let duplicate_service=service.clone();let edit_service=service.clone();let export=theme.clone();let delete=id.clone();let removal_theme=theme.clone();let removal_service=service.clone();
-                        let colors=theme.colors(mode).unwrap_or(&theme.colors);let style=format!("background:{};color:{};border-color:{}",colors["canvas"],colors["text"],colors["border"]);
-                        rsx!{article {key:"{id}",class:"theme-library-card",style,
-                            div {class:"theme-card-preview",span {class:"theme-preview-sidebar",style:format!("background:{}",colors["sidebar"])},span {style:format!("background:{}",colors["surfaceRaised"]),"Aa"},span {style:format!("background:{}",colors["accent"])," "}}
-                            h4 {"{name}"}
-                            if environment {small {"Environment"}}
-                            div {class:"theme-card-actions",
-                                button {onclick:move |_|{if use_modes.len()==1{drop(use_service.choice(crate::themes::Choice::AssignHalf(use_modes[0],Some(use_id.clone()))))}else{use_service.change(t3_client::themes::storage::Action::Theme(use_id.clone()))}},"Use"}
-                                button {disabled:unavailable,onclick:move |_|open_editor(duplicate_service.clone(),None,Some(duplicate.id.clone()),Some(format!("{} copy",duplicate.label)),mode),"Duplicate"}
-                                if custom {
-                                    button {onclick:move |_|open_editor(edit_service.clone(),Some(edit.id.clone()),None,None,mode),"Edit"}
-                                    button {onclick:move |_|match library::export(&export_service.catalog.peek(),&export){Ok(text)=>exported.set(Some(text)),Err(cause)=>error.set(Some(cause))},"Download"}
-                                    button {disabled:*pending.read(),onclick:move |_|{
-                                        let members:Vec<_>=if let Some(collection)=&removal_theme.collection {let catalog=removal_service.catalog.peek();catalog.custom.iter().filter(|t|t.collection.as_ref().and_then(|v|v.get("id"))==collection.get("id")).cloned().collect()}else{vec![removal_theme.clone()]};
-                                        selected_removals.set(if members.len()>1{vec![]}else{vec![delete.clone()]});removal.set(Some(members));
-                                    },"Remove"}
-                                }
-                            }
-                        }}
+                for (id,themes,custom,environment) in cards {
+                    ThemeCollectionCard {key:"{id}",themes,custom,environment,disabled:unavailable||*pending.read(),
+                        onexport:move |text|exported.set(Some(text)),onerror:move |cause|error.set(Some(cause)),
+                        onremove:move |members:Vec<Definition>|{selected_removals.set(if members.len()>1{vec![]}else{members.iter().map(|t|t.id.clone()).collect()});removal.set(Some(members));}
                     }
                 }
             }
         }
         if let Some(members)=removal.read().clone(){
             div {class:"theme-dialog",role:"dialog","aria-label":"Remove themes",h3 {"Remove theme"}p {"Choose the themes to remove. This cannot be undone."}
-                for theme in members {label {key:"{theme.id}",input {r#type:"checkbox",checked:selected_removals.read().contains(&theme.id),onchange:move|event|{let mut ids=selected_removals.write();if event.checked(){if !ids.contains(&theme.id){ids.push(theme.id.clone());}}else{ids.retain(|id|id!=&theme.id);}}},"{theme.label}"}}
+                if members.len()>1 {button {onclick:{let ids:Vec<_>=members.iter().map(|t|t.id.clone()).collect();move |_|selected_removals.set(ids.clone())},"Select all"}button {onclick:move |_|selected_removals.set(vec![]),"Clear selection"}}
+                for theme in members {label {key:"{theme.id}",input {r#type:"checkbox","aria-label":format!("Remove {}",theme.label),checked:selected_removals.read().contains(&theme.id),onchange:move|event|{let mut ids=selected_removals.write();if event.checked(){if !ids.contains(&theme.id){ids.push(theme.id.clone());}}else{ids.retain(|id|id!=&theme.id);}}},"{theme.label}"}}
                 button {"aria-label":"Confirm remove themes",disabled:*pending.read()||selected_removals.read().is_empty(),onclick:{let service=service.clone();move |_|{let save=service.remove_themes(selected_removals.peek().clone());pending.set(true);spawn(async move{let result=save.await;pending.set(false);match result{Ok(_)=>removal.set(None),Err(cause)=>error.set(Some(cause))}});}},"Remove"}
                 button {disabled:*pending.read(),onclick:move|_|removal.set(None),"Cancel"}
             }
@@ -155,6 +145,150 @@ pub fn ThemeLibrary() -> Element {
         if let Some(text)=exported.read().clone(){div {class:"theme-dialog",role:"dialog","aria-label":"Download theme",h3 {"Download theme"}textarea {readonly:true,value:text.clone()}a {download:"theme.json",href:format!("data:application/json;charset=utf-8,{}",urlencoding(&text)),"Download JSON"}button {onclick:move |_|exported.set(None),"Close"}}}
     }
 }
+#[component]
+fn ThemeCollectionCard(
+    themes: Vec<Definition>,
+    custom: bool,
+    environment: bool,
+    disabled: bool,
+    onexport: EventHandler<String>,
+    onerror: EventHandler<String>,
+    onremove: EventHandler<Vec<Definition>>,
+) -> Element {
+    let service = use_context::<Themes>();
+    let fonts = try_consume_context::<crate::font_service::Fonts>();
+    let active = |id: &str| {
+        let catalog = service.catalog.peek();
+        let snapshot = service.snapshot.peek();
+        [Appearance::Light, Appearance::Dark]
+            .into_iter()
+            .any(|mode| catalog.half(&snapshot.theme, snapshot.theme_halves.as_ref(), mode) == id)
+    };
+    let mut selected = use_signal(|| collections::initial_index(&themes, active));
+    let input: Vec<_> = themes.iter().map(|t| t.label.clone()).collect();
+    let mut shortened = use_signal(|| None::<(Vec<String>, Vec<String>)>);
+    let mut epoch = use_signal(|| 0u64);
+    use_effect(use_reactive((&input,), move |(input,)| {
+        let Some(fonts) = fonts.clone() else { return };
+        if !*fonts.ready.read() {
+            return;
+        }
+        let request = epoch.peek().wrapping_add(1);
+        epoch.set(request);
+        spawn(async move {
+            if let Ok(value) = fonts
+                .request(serde_json::json!({"type":"collection-labels","labels":input}))
+                .await
+            {
+                if *epoch.peek() == request {
+                    if let Ok(labels) = serde_json::from_value(value) {
+                        shortened.set(Some((input, labels)));
+                    }
+                }
+            }
+        });
+    }));
+    let index = collections::safe_index(*selected.read(), themes.len());
+    use_effect(use_reactive((&index,), move |(index,)| {
+        if let Some(index) = index {
+            if *selected.peek() != index {
+                selected.set(index);
+            }
+        }
+    }));
+    let Some(index) = index else { return rsx! {} };
+    let theme = themes[index].clone();
+    let snapshot = service.snapshot.read();
+    let catalog = service.catalog.read();
+    let active_ids: [String; 2] = [Appearance::Light, Appearance::Dark].map(|mode| {
+        catalog
+            .half(&snapshot.theme, snapshot.theme_halves.as_ref(), mode)
+            .to_owned()
+    });
+    let active_modes = |id: &str| {
+        [Appearance::Light, Appearance::Dark]
+            .into_iter()
+            .zip(&active_ids)
+            .filter_map(|(mode, active)| (active == id).then_some(mode))
+            .collect::<Vec<_>>()
+    };
+    let mode = snapshot.resolved_theme;
+    drop(snapshot);
+    drop(catalog);
+    let label = theme
+        .collection
+        .as_ref()
+        .and_then(|c| c["label"].as_str())
+        .unwrap_or(&theme.label)
+        .to_owned();
+    let collection = custom && themes.len() > 1;
+    let name = if collection {
+        label.clone()
+    } else {
+        theme.label.clone()
+    };
+    let use_label = if collection {
+        format!("Use {label}, {} variant", theme.label)
+    } else {
+        format!("Use {} theme", theme.label)
+    };
+    let colors = theme.colors(mode).unwrap_or(&theme.colors);
+    let style = format!(
+        "background:{};color:{};border-color:{}",
+        colors["canvas"], colors["text"], colors["border"]
+    );
+    let choices: Vec<_> = themes
+        .iter()
+        .enumerate()
+        .flat_map(|(i, theme)| {
+            theme
+                .modes()
+                .into_iter()
+                .map(move |mode| (i, mode, theme.clone()))
+        })
+        .collect();
+    let labels = shortened
+        .read()
+        .as_ref()
+        .filter(|(original, _)| *original == input)
+        .map(|(_, labels)| labels.clone())
+        .unwrap_or(input);
+    let use_service = service.clone();
+    let use_theme = theme.clone();
+    let defaults = collections::defaults(&themes);
+    let duplicate = theme.clone();
+    let duplicate_service = service.clone();
+    let edit = theme.clone();
+    let edit_service = service.clone();
+    let export = theme.clone();
+    let export_service = service.clone();
+    rsx! {article {class:"theme-library-card",style,"data-theme-variant":theme.id.clone(),
+        div {class:"theme-card-preview",span {class:"theme-preview-sidebar",style:format!("background:{}",colors["sidebar"])},span {style:format!("background:{}",colors["surfaceRaised"]),"Aa"},span {style:format!("background:{}",colors["accent"])," "}}
+        h4 {"{name}"}
+        if environment {small {"Environment"}}
+        if collection {small {"{theme.label}"}}
+        div {class:"theme-card-modes",
+            for (i,mode,variant) in choices {
+                {let active=active_modes(&variant.id).contains(&mode);let label=&labels[i];let choice=service.clone();let id=variant.id.clone();
+                    rsx! {button {key:"{id}:{mode.key()}","aria-label":format!("Use {label} for {} mode{}",mode.key(),if active{", currently active"}else{""}),"aria-pressed":active,disabled,onclick:move |_|{selected.set(i);drop(choice.choice(crate::themes::Choice::AssignHalf(mode,Some(id.clone()))));},"{label} · {mode.key()}"}}
+                }
+            }
+        }
+        div {class:"theme-card-actions",
+            button {"aria-label":use_label,disabled,onclick:move |_|{
+                if collection{for (mode,id) in &defaults {drop(use_service.choice(crate::themes::Choice::AssignHalf(*mode,Some(id.clone()))));}selected.set(0);}
+                else{let modes=use_theme.modes();if modes.len()==1{drop(use_service.choice(crate::themes::Choice::AssignHalf(modes[0],Some(use_theme.id.clone()))));}else{use_service.change(t3_client::themes::storage::Action::Theme(use_theme.id.clone()));}}
+            },"Use"}
+            button {"aria-label":format!("Duplicate {}",theme.label),disabled,onclick:move |_|open_editor(duplicate_service.clone(),None,Some(duplicate.id.clone()),Some(format!("{} copy",duplicate.label)),mode),"Duplicate"}
+            if custom {
+                button {"aria-label":format!("Edit {}",theme.label),disabled,onclick:move |_|open_editor(edit_service.clone(),Some(edit.id.clone()),None,None,mode),"Edit"}
+                button {"aria-label":format!("Download {}",theme.label),onclick:move |_|match library::export(&export_service.catalog.peek(),&export){Ok(text)=>onexport.call(text),Err(cause)=>onerror.call(cause)},"Download"}
+                button {"aria-label":if collection{format!("Remove themes from {label}")}else{format!("Remove {}",theme.label)},disabled,onclick:move |_|onremove.call(themes.clone()),"Remove"}
+            }
+        }
+    }}
+}
+
 fn urlencoding(text: &str) -> String {
     text.bytes()
         .map(|b| {
@@ -340,6 +474,20 @@ fn ThemeEditor(edit: Editing, onclose: EventHandler<()>) -> Element {
     });
     let mut error = use_signal(|| None::<String>);
     let mut pending = use_signal(|| false);
+    let mut selected_role = use_signal(|| None::<String>);
+    let mut armed = use_signal(|| false);
+    let mut role_query = use_signal(String::new);
+    let mut usage_count = use_signal(|| None::<usize>);
+    crate::theme_inspector::use_inspector(
+        selected_role,
+        armed,
+        advanced,
+        role_query,
+        usage_count,
+        error,
+        colors,
+        mode,
+    );
     let merge_service = service.clone();
     let editing_id = edit.existing.then(|| edit.theme.id.clone());
     use_effect(move || {
@@ -365,10 +513,22 @@ fn ThemeEditor(edit: Editing, onclose: EventHandler<()>) -> Element {
     use_drop(move || restore.preview(None));
     let active = *mode.read();
     let current = colors.read()[&active].clone();
-    let roles = if *advanced.read() {
-        catalog.data.roles.clone()
+    let groups = if *advanced.read() {
+        inspector::filtered_groups(&role_query.read())
     } else {
-        vec!["canvas".into(), "accent".into()]
+        vec![inspector::Group {
+            id: "simple".into(),
+            title: String::new(),
+            families: ["canvas", "accent"]
+                .into_iter()
+                .map(|role| inspector::Family {
+                    id: role.into(),
+                    label: inspector::label(role),
+                    role: role.into(),
+                    roles: vec![role.into()],
+                })
+                .collect(),
+        }]
     };
     let original = edit.theme.clone();
     let target = t3_client::themes::editor::merge_target(
@@ -383,12 +543,13 @@ fn ThemeEditor(edit: Editing, onclose: EventHandler<()>) -> Element {
     } else {
         vec![]
     };
-    rsx! {div {class:"theme-editor",role:"dialog","aria-label":"Theme editor",
-        header {h3 {if edit.existing {"Edit theme"}else{"Create theme"}}button {disabled:*pending.read(),onclick:move |_|onclose.call(()),"Close"}}
+    rsx! {div {class:"theme-editor","data-theme-editor-panel":"",role:"dialog","aria-label":"Theme editor",
+        header {h3 {if edit.existing {"Edit theme"}else{"Create theme"}}button {"aria-label":"Close theme editor",disabled:*pending.read(),onclick:move |_|onclose.call(()),"Close"}}
         label {"Theme name"}input {"aria-label":"Theme name",value:name.read().clone(),oninput:move |event|name.set(event.value())}
         div {class:"theme-editor-modes",for appearance in [Appearance::Light,Appearance::Dark]{button {disabled:(edit.existing&&original.colors(appearance).is_none())||(!edit.existing&&target.as_ref().is_some_and(|t|t.colors(appearance).is_some())),"aria-pressed":*mode.read()==appearance,onclick:move |_|mode.set(appearance),"{appearance.key()}"}}}
         label {input {r#type:"checkbox",checked:*advanced.read(),onchange:move |event|{
             let checked=event.checked();advanced.set(checked);
+            if !checked&&selected_role.peek().as_ref().is_some_and(|role|!["canvas","accent"].contains(&role.as_str())){selected_role.set(None);usage_count.set(None);}
             if !checked&&*regenerate.peek(){
                 let modes=if editable.len()>1{editable.clone()}else{vec![*mode.peek()]};
                 let catalog=advanced_service.catalog.peek();
@@ -396,13 +557,30 @@ fn ThemeEditor(edit: Editing, onclose: EventHandler<()>) -> Element {
                 regenerate.set(false);
             }
         }}"Advanced"}
-        div {class:"theme-editor-colors",for role in roles {
-            {let value=current[&role].clone();let label=role.clone();let color_service=service.clone();rsx!{label {key:"{role}","{label}",input {"aria-label":"Theme color {label}",value,oninput:move |event|{
-                let active=*mode.peek();let catalog=color_service.catalog.peek();let current=colors.peek()[&active].clone();let value=event.value();
-                let next=if *advanced.peek(){regenerate.set(true);vivid::update(active,&current,&role,&value)}else{let mut seeds=current;seeds.insert(role.clone(),value.clone());if t3_client::themes::color::canonical(&value).is_some(){dirty.write().insert(active);managed(&catalog,active,&seeds)}else{seeds}};
-                colors.write().insert(active,next);
-            }}}}}
-        }}
+        div {class:"theme-editor-inspector-controls",
+            button {"aria-label":"Inspect theme colors","aria-pressed":*armed.read(),onclick:move |_|{let next=!*armed.peek();armed.set(next);},if *armed.read(){"Inspecting…"}else{"Inspect interface"}}
+            if selected_role.read().is_some() {button {"aria-label":"Clear theme inspection",onclick:move |_|{selected_role.set(None);armed.set(false);usage_count.set(None);},"Clear selection"}}
+            if let Some(count)=*usage_count.read(){span {role:"status","{count} matching elements"}}
+        }
+        if *advanced.read(){input {"aria-label":"Search theme colors",placeholder:"Search colors…",value:role_query.read().clone(),oninput:move |event|role_query.set(event.value())}}
+        div {class:"theme-editor-colors",for group in groups {
+            section {key:"{group.id}",if !group.title.is_empty(){h4 {"{group.title}"}}
+                for family in group.families {
+                    {let role=family.role;let label=family.label;let value=current[&role].clone();let select=role.clone();let color_service=service.clone();rsx!{
+                        div {key:"{role}",class:"theme-editor-color-row","data-theme-color-role":role.clone(),
+                            button {"aria-label":format!("Highlight {label}"),"aria-pressed":selected_role.read().as_deref()==Some(role.as_str()),onclick:move |_|{let next=if selected_role.peek().as_deref()==Some(select.as_str()){None}else{Some(select.clone())};selected_role.set(next);},"{label}"}
+                            input {"aria-label":"Theme color {role}",value,onfocus:{let role=role.clone();move |_|selected_role.set(Some(role.clone()))},oninput:move |event|{
+                                let active=*mode.peek();let catalog=color_service.catalog.peek();let current=colors.peek()[&active].clone();let value=event.value();
+                                let next=if *advanced.peek(){regenerate.set(true);vivid::update(active,&current,&role,&value)}else{let mut seeds=current;seeds.insert(role.clone(),value.clone());if t3_client::themes::color::canonical(&value).is_some(){dirty.write().insert(active);managed(&catalog,active,&seeds)}else{seeds}};
+                                colors.write().insert(active,next);
+                            }}
+                        }
+                    }}
+                }
+            }
+        }
+        if *advanced.read()&&inspector::filtered_groups(&role_query.read()).is_empty(){p {"No matches."}}
+        }
         if let Some(cause)=error.read().as_ref(){p {role:"alert",class:"error-banner","{cause}"}}
         button {"aria-label":"Save theme",disabled:*pending.read(),onclick:move |_|{
             if !*advanced.peek(){let modes=dirty.peek().clone();let catalog=service.catalog.peek();for mode in modes{let next=managed(&catalog,mode,&colors.peek()[&mode]);colors.write().insert(mode,next);}}

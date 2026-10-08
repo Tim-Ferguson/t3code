@@ -337,7 +337,7 @@ pub screenshot:DeviceScreenshotData,
 #[serde(untagged)]
 pub enum DevicePushPayload {
     Text(String),
-    Object(BTreeMap<String, serde_json::Value>),
+    Object(serde_json::Map<String, serde_json::Value>),
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]

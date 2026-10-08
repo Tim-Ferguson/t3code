@@ -435,6 +435,58 @@ fn expanded_rust_codecs_match_original_json_wire_codecs() {
             "AcpRegistryUrlAuthAction" => {
                 checked_roundtrip::<AcpRegistryUrlAuthAction>(fixture.input.clone())
             }
+            "ChatGptHandoffInput" => {
+                checked_roundtrip::<ChatGptHandoffInput>(fixture.input.clone())
+            }
+            "ChatGptHandoffState" => {
+                checked_roundtrip::<ChatGptHandoffState>(fixture.input.clone())
+            }
+            "ChatGptImportProfileInput" => {
+                checked_roundtrip::<ChatGptImportProfileInput>(fixture.input.clone())
+            }
+            "ChatGptReconnectProfile" => {
+                checked_roundtrip::<ChatGptReconnectProfile>(fixture.input.clone())
+            }
+            "ChatGptReconnectProfileInput" => {
+                checked_roundtrip::<ChatGptReconnectProfileInput>(fixture.input.clone())
+            }
+            "ChatGptTransferredProfile" => {
+                checked_roundtrip::<ChatGptTransferredProfile>(fixture.input.clone())
+            }
+            "CodexAuthCallbackInput" => {
+                checked_roundtrip::<CodexAuthCallbackInput>(fixture.input.clone())
+            }
+            "CodexAuthCallbackState" => {
+                checked_roundtrip::<CodexAuthCallbackState>(fixture.input.clone())
+            }
+            "ProviderAuthCancelInput" => {
+                checked_roundtrip::<ProviderAuthCancelInput>(fixture.input.clone())
+            }
+            "ProviderAuthCompleteInput" => {
+                checked_roundtrip::<ProviderAuthCompleteInput>(fixture.input.clone())
+            }
+            "ProviderAuthInteraction" => {
+                checked_roundtrip::<ProviderAuthInteraction>(fixture.input.clone())
+            }
+            "ProviderAuthMethod" => checked_roundtrip::<ProviderAuthMethod>(fixture.input.clone()),
+            "ProviderAuthRespondInput" => {
+                checked_roundtrip::<ProviderAuthRespondInput>(fixture.input.clone())
+            }
+            "ProviderAuthResponse" => {
+                checked_roundtrip::<ProviderAuthResponse>(fixture.input.clone())
+            }
+            "ProviderAuthStartInput" => {
+                checked_roundtrip::<ProviderAuthStartInput>(fixture.input.clone())
+            }
+            "ProviderAuthState" => checked_roundtrip::<ProviderAuthState>(fixture.input.clone()),
+            "ProviderInstallCancelInput" => {
+                checked_roundtrip::<ProviderInstallCancelInput>(fixture.input.clone())
+            }
+            "ProviderInstallState" => {
+                checked_roundtrip::<ProviderInstallState>(fixture.input.clone())
+            }
+            "ProviderSetupError" => checked_roundtrip::<ProviderSetupError>(fixture.input.clone()),
+            "ProviderSetupInput" => checked_roundtrip::<ProviderSetupInput>(fixture.input.clone()),
             "AcpRegistryDistributionPreference" => {
                 checked_roundtrip::<AcpRegistryDistributionPreference>(fixture.input.clone())
             }

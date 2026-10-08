@@ -64,6 +64,8 @@ pub use desktop_bootstrap::*;
 
 pub mod acp_registry;
 pub use acp_registry::*;
+pub mod provider_setup;
+pub use provider_setup::*;
 
 pub mod settings_rpc;
 pub use settings_rpc::*;

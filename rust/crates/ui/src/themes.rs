@@ -1161,8 +1161,18 @@ mod tests {
         theme_reads: usize,
         applied: Vec<Value>,
         disposed: bool,
+        inspector_events: VecDeque<Value>,
+        inspector_waker: Option<Waker>,
+        inspector_commands: Vec<Value>,
+        inspector_receipt: Option<(Value, futures_channel::oneshot::Sender<Value>)>,
     }
     impl Browser {
+        fn inspector_event(&mut self, event: Value) {
+            self.inspector_events.push_back(event);
+            if let Some(waker) = self.inspector_waker.take() {
+                waker.wake();
+            }
+        }
         fn event(&mut self, event: Value) {
             self.events.push_back(event);
             if let Some(waker) = self.waker.take() {
@@ -1261,12 +1271,57 @@ mod tests {
             Poll::Pending
         }
     }
+    struct InspectorBridge(Rc<RefCell<Browser>>);
+    impl document::Evaluator for InspectorBridge {
+        fn send(&self, command: Value) -> Result<(), document::EvalError> {
+            let mut browser = self.0.borrow_mut();
+            browser.inspector_commands.push(command.clone());
+            if browser
+                .inspector_receipt
+                .as_ref()
+                .is_some_and(|(expected, _)| *expected == command)
+            {
+                let (_, reply) = browser.inspector_receipt.take().unwrap();
+                let _ = reply.send(command);
+            }
+            Ok(())
+        }
+        fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Result<Value, document::EvalError>> {
+            let mut browser = self.0.borrow_mut();
+            if let Some(event) = browser.inspector_events.pop_front() {
+                Poll::Ready(Ok(event))
+            } else {
+                browser.inspector_waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+        fn poll_join(&mut self, _: &mut Context<'_>) -> Poll<Result<Value, document::EvalError>> {
+            Poll::Pending
+        }
+    }
     struct Document {
         owner: dioxus::signals::Owner,
         browser: Rc<RefCell<Browser>>,
     }
     impl document::Document for Document {
         fn eval(&self, script: String) -> document::Eval {
+            if script.contains("Rust owns probing, hover") {
+                self.browser
+                    .borrow_mut()
+                    .inspector_event(json!({"type":"ready"}));
+                return document::Eval::new(
+                    self.owner
+                        .insert(Box::new(InspectorBridge(self.browser.clone()))
+                            as Box<dyn document::Evaluator>),
+                );
+            }
+            if script.contains("window.__t3RustThemeInspectors?.get") {
+                return document::Eval::new(
+                    self.owner
+                        .insert(Box::new(InspectorBridge(self.browser.clone()))
+                            as Box<dyn document::Evaluator>),
+                );
+            }
             if script.contains("Browser API transport only") {
                 self.browser
                     .borrow_mut()
@@ -2015,6 +2070,280 @@ mod tests {
             .await
             .unwrap();
         pump(&mut dom, || service.catalog.peek().custom.is_empty()).await;
+    }
+
+    fn inspector_receipt(
+        browser: &Rc<RefCell<Browser>>,
+        expected: Value,
+    ) -> futures_channel::oneshot::Receiver<Value> {
+        let (tx, rx) = futures_channel::oneshot::channel();
+        browser.borrow_mut().inspector_receipt = Some((expected, tx));
+        rx
+    }
+    async fn inspector_admission(
+        dom: &mut VirtualDom,
+        mut receipt: futures_channel::oneshot::Receiver<Value>,
+    ) -> Value {
+        // Effects can complete an external command without making another render
+        // dirty. Observe admission concurrently instead of waiting for UI work alone.
+        let result=tokio::time::timeout(std::time::Duration::from_secs(3),async{loop{dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);tokio::select!{result=&mut receipt=>break result.expect("inspector command should be admitted"),_=dom.wait_for_work()=>{}}}}).await.expect("inspector receipt should settle");
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        result
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_inspector_pick_reveals_family_clears_search_and_survives_navigation_until_editor_close()
+     {
+        use crate::runtime::transport_tests::{
+            click_control, control, input_control, wait_for_rendered_text,
+        };
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || *service.ready.peek()).await;
+        click_control(&mut dom, "Create theme");
+        pump(&mut dom, || !browser.borrow().inspector_commands.is_empty()).await;
+        click_control(&mut dom, "Highlight Background");
+        pump(&mut dom, || {
+            browser
+                .borrow()
+                .inspector_commands
+                .last()
+                .is_some_and(|command| {
+                    command["type"] == "selection"
+                        && !command["roles"].as_array().unwrap().is_empty()
+                })
+        })
+        .await;
+        browser
+            .borrow_mut()
+            .inspector_event(json!({"type":"count","count":3}));
+        wait_for_rendered_text(&mut dom, "3 matching elements").await;
+        click_control(&mut dom, "Inspect theme colors");
+        pump(&mut dom, || {
+            browser
+                .borrow()
+                .inspector_commands
+                .last()
+                .is_some_and(|command| command["armed"] == true)
+        })
+        .await;
+        let terminal_roles = t3_client::themes::inspector::family("terminalForeground")
+            .unwrap()
+            .roles
+            .clone();
+        let receipt = inspector_receipt(
+            &browser,
+            json!({"type":"selection","roles":terminal_roles,"armed":true}),
+        );
+        browser
+            .borrow_mut()
+            .inspector_event(json!({"type":"role","role":"terminalForeground"}));
+        pump(&mut dom, || {
+            browser.borrow().inspector_commands.iter().any(|command| {
+                command["type"] == "reveal" && command["role"] == "terminalBackground"
+            })
+        })
+        .await;
+        assert!(control(&dom, "Theme color terminalBackground").is_some());
+        let admitted = inspector_admission(&mut dom, receipt).await;
+        assert_eq!(admitted["armed"], true);
+        assert_eq!(
+            browser
+                .borrow()
+                .inspector_commands
+                .iter()
+                .find(|command| command["type"] == "reveal")
+                .unwrap()["role"],
+            "terminalBackground"
+        );
+        input_control(&mut dom, "Search theme colors", "raised");
+        assert!(control(&dom, "Theme color surfaceRaised").is_some());
+        assert!(control(&dom, "Theme color terminalBackground").is_none());
+        let text_roles = t3_client::themes::inspector::family("toolbarForeground")
+            .unwrap()
+            .roles
+            .clone();
+        let receipt = inspector_receipt(
+            &browser,
+            json!({"type":"selection","roles":text_roles,"armed":false}),
+        );
+        props.child.borrow().unwrap().set(false);
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        browser
+            .borrow_mut()
+            .inspector_event(json!({"type":"role","role":"toolbarForeground"}));
+        browser
+            .borrow_mut()
+            .inspector_event(json!({"type":"disarmed"}));
+        let admitted = inspector_admission(&mut dom, receipt).await;
+        assert_eq!(admitted["armed"], false);
+        assert_eq!(
+            control(&dom, "Search theme colors").unwrap().1.as_deref(),
+            Some("")
+        );
+        assert!(control(&dom, "Theme color text").is_some());
+        let receipt = inspector_receipt(
+            &browser,
+            json!({"type":"selection","roles":[],"armed":false}),
+        );
+        click_control(&mut dom, "Clear theme inspection");
+        let admitted = inspector_admission(&mut dom, receipt).await;
+        assert!(admitted["roles"].as_array().unwrap().is_empty());
+        click_control(&mut dom, "Close theme editor");
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(service.editor.peek().is_none());
+        assert_eq!(
+            browser.borrow().inspector_commands.last().unwrap()["type"],
+            "dispose"
+        );
+    }
+    fn collection_fixture() -> Vec<Definition> {
+        let catalog = Catalog::default();
+        [
+            ("night", "Pack Night", Appearance::Dark),
+            ("day", "Pack Day", Appearance::Light),
+            ("soft", "Pack Soft", Appearance::Dark),
+        ]
+        .into_iter()
+        .map(|(id, label, appearance)| Definition {
+            id: id.into(),
+            label: label.into(),
+            appearance,
+            colors: catalog.data.standard[&appearance].clone(),
+            variants: None,
+            collection: Some(json!({"id":"pack","label":"Collection Pack"})),
+            managed: Some(true),
+            sidebar_artwork: None,
+        })
+        .collect()
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_collection_defaults_queue_both_halves_and_selected_removal_clamps_after_receipt()
+     {
+        use crate::runtime::transport_tests::{change_control, click_control, control};
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        browser.borrow_mut().saved.insert(
+            themes::CUSTOM_KEY.into(),
+            serde_json::to_string(&collection_fixture()).unwrap(),
+        );
+        browser.borrow_mut().saved.insert(
+            themes::HALVES_KEY.into(),
+            json!({"dark":"soft"}).to_string(),
+        );
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 3 && *service.ready.peek()
+        })
+        .await;
+        assert!(
+            control(&dom, "Edit Pack Soft").is_some(),
+            "first active variant initializes card"
+        );
+        click_control(&mut dom, "Use Collection Pack, Pack Soft variant");
+        pump(&mut dom, || {
+            service.pending.get() == 0
+                && service
+                    .snapshot
+                    .peek()
+                    .theme_halves
+                    .as_ref()
+                    .is_some_and(|halves| {
+                        halves.light.as_deref() == Some("day")
+                            && halves.dark.as_deref() == Some("night")
+                    })
+        })
+        .await;
+        assert_eq!(
+            serde_json::from_str::<Value>(&browser.borrow().saved[themes::HALVES_KEY]).unwrap(),
+            json!({"light":"day","dark":"night"})
+        );
+        assert!(
+            control(&dom, "Edit Pack Night").is_some(),
+            "defaults reset current variant to first"
+        );
+        click_control(&mut dom, "Use Pack Soft for dark mode");
+        pump(&mut dom, || {
+            service.pending.get() == 0
+                && service
+                    .snapshot
+                    .peek()
+                    .theme_halves
+                    .as_ref()
+                    .is_some_and(|halves| halves.dark.as_deref() == Some("soft"))
+        })
+        .await;
+        assert!(control(&dom, "Edit Pack Soft").is_some());
+        click_control(&mut dom, "Remove themes from Collection Pack");
+        change_control(&mut dom, "Remove Pack Soft", "true");
+        browser.borrow_mut().fail_library = true;
+        let raw = browser.borrow().saved[themes::CUSTOM_KEY].clone();
+        click_control(&mut dom, "Confirm remove themes");
+        pump(&mut dom, || {
+            service.pending.get() == 0 && service.error.peek().is_some()
+        })
+        .await;
+        assert_eq!(browser.borrow().saved[themes::CUSTOM_KEY], raw);
+        assert_eq!(service.catalog.peek().custom.len(), 3);
+        browser.borrow_mut().fail_library = false;
+        click_control(&mut dom, "Confirm remove themes");
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 2 && service.pending.get() == 0
+        })
+        .await;
+        assert!(
+            control(&dom, "Edit Pack Day").is_some(),
+            "shrunk collection clamps index2 to1 instead of remounting at active first variant"
+        );
+        assert!(!service.catalog.peek().custom.iter().any(|t| t.id == "soft"));
+    }
+    #[tokio::test(flavor = "current_thread")]
+    async fn mounted_collection_update_retains_index_and_actions_use_the_updated_variant() {
+        use crate::runtime::transport_tests::{click_control, control};
+        let browser = Rc::new(RefCell::new(Browser::default()));
+        browser.borrow_mut().saved.insert(
+            themes::CUSTOM_KEY.into(),
+            serde_json::to_string(&collection_fixture()).unwrap(),
+        );
+        let (mut dom, props) = mounted(browser.clone());
+        let service = props.service.borrow().as_ref().unwrap().clone();
+        pump(&mut dom, || {
+            service.catalog.peek().custom.len() == 3 && *service.ready.peek()
+        })
+        .await;
+        click_control(&mut dom, "Use Pack Soft for dark mode");
+        pump(&mut dom, || service.pending.get() == 0).await;
+        let mut updated = collection_fixture();
+        updated[2].label = "Pack Updated Soft".into();
+        browser.borrow_mut().saved.insert(
+            themes::CUSTOM_KEY.into(),
+            serde_json::to_string(&updated).unwrap(),
+        );
+        browser
+            .borrow_mut()
+            .event(json!({"type":"storage","key":themes::CUSTOM_KEY}));
+        pump(&mut dom, || {
+            service.catalog.peek().custom[2].label == "Pack Updated Soft"
+        })
+        .await;
+        assert!(control(&dom, "Edit Pack Updated Soft").is_some());
+        assert!(control(&dom, "Edit Pack Night").is_none());
+        click_control(&mut dom, "Duplicate Pack Updated Soft");
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!(
+            control(&dom, "Theme name").unwrap().1.as_deref(),
+            Some("Pack Updated Soft copy")
+        );
+        assert_eq!(
+            service
+                .editor
+                .peek()
+                .as_ref()
+                .unwrap()
+                .seed_theme_id
+                .as_deref(),
+            Some("soft")
+        );
     }
     #[derive(Default)]
     struct Downloads {

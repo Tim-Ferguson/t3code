@@ -8,6 +8,7 @@ license.workspace = true
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
+t3-client.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 futures-util.workspace = true
@@ -40,6 +41,12 @@ web-sys = { version = "0.3", features = [
   "TextMetrics",
   "Element",
   "Node",
+  "NodeList",
+  "SvgElement",
+  "MutationRecord",
+  "ScrollIntoViewOptions",
+  "ScrollBehavior",
+  "ScrollLogicalPosition",
   "PointerEvent",
   "DataTransfer",
   "ResizeObserver",
