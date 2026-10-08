@@ -5812,6 +5812,7 @@ name = "t3-client"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "libm",
  "regex",
  "serde",
  "serde_json",

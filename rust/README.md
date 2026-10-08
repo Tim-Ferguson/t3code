@@ -58,9 +58,13 @@ Server settings load through a serialized Rust owner, watch file and symlink
 target changes, and publish live configuration events. Updates move sensitive
 provider variables and tokens into the isolated secret store, with rollback on
 failed persistence. Provider catalogs, new terminal environments and desktop
-power intervals follow settings changes. Load-time legacy project/provider
-history migration, full background policy updates and remote device-host
-resolution remain unfinished; nonempty device-host updates fail explicitly.
+power intervals follow settings changes. Load-time migrations restore historical
+providers while preserving explicit disables, fold available project history once,
+and move inline Bitbucket/GitHub tokens into the secret store. Background policy
+now publishes live client leases and desktop power changes through scoped RPCs;
+disconnect removes only that connection's leases. Importing the original database
+layout and periodic provider, VCS, usage and Git consumers remain pending, as does
+remote device-host resolution; nonempty device-host updates fail explicitly.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and
@@ -113,14 +117,25 @@ unverified or unimplemented.
 The server now has an executable with HTTP authentication and WebSocket transport.
 Configured Codex instances support text turns, streamed messages/tools, live
 approvals and input, and interruption. Native local ACP v1/v2 instances support
-negotiated sessions, saved-session replay, assistant/reasoning text, plans, live
-approvals, interruption and owned child cleanup. ACP registry installation,
-authentication metadata, tools and client filesystem/terminal/MCP callbacks,
-handoff and checkpoint paths remain incomplete. Other provider adapters, complete
-orchestration, filesystem and terminal services, desktop/mobile native
+negotiated sessions, saved-session replay, assistant/reasoning text, plans, tools
+and MCP presentation, live approvals, client filesystem and owned terminal
+callbacks, model/config changes, interruption and durable recovery. Registry raw
+binaries can be installed; other distributions, full registry/authentication and
+coordinator policy, MCP injection, handoff and checkpoint parity remain incomplete.
+Other provider adapters, complete orchestration and filesystem/terminal services,
+desktop/mobile native
 integrations, and most interface features still require implementation. Thread creation requires a compatible server with configured
 providers; unavailable services are shown as errors rather than simulated data.
 Original TypeScript tests passing does not establish Rust feature parity.
+
+Theme controls support persisted mode and mixed palettes, custom JSON import,
+create/edit/duplicate/download, and lossless recovery of unknown library records.
+Color conversion and palette generation pass the same original witnesses on host
+and actual Rust WASM. The App-owned editor retains drafts across navigation; save and removal
+transactions preserve mixed selections and report failed writes. Complete library
+grouping, the advanced inspector and package imports remain unfinished; live environment
+theme publication depends on the unfinished backend theme store. Native/mobile
+interaction and full visual fidelity remain unverified.
 
 The intended UI targets are Dioxus WebAssembly web plus native desktop/mobile
 builds sharing the Rust component and client layers. The WASM target check,

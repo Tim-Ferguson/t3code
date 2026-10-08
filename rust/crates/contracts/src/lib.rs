@@ -67,3 +67,6 @@ pub use acp_registry::*;
 
 pub mod settings_rpc;
 pub use settings_rpc::*;
+
+pub mod background;
+pub use background::*;

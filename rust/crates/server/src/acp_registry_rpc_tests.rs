@@ -47,7 +47,7 @@ async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payl
         let manager=token(vec![AuthEnvironmentScope::ProvidersManage]);
         let state=ApiState{
             store,auth,environment:json!({"environmentId":"registry-fixture","label":"Registry fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}),
-            config:None,settings:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
+            config:None,settings:None,background:None,cors_origins:None,assets:None,providers:Some(providers.clone()),execution:None,workspace:None,terminals:None,discovery:None,resource_telemetry:None,host_resources:None,
         };
         let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address=listener.local_addr().unwrap();

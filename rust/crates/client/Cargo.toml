@@ -12,3 +12,4 @@ thiserror.workspace = true
 url = "2"
 regex.workspace = true
 chrono.workspace = true
+libm = "0.2"

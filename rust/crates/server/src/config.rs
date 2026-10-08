@@ -39,6 +39,7 @@ impl NativeConfig {
         settings_path: Option<&Path>,
         environment: &Value,
         auth: &Value,
+        history: crate::persistence::Store,
     ) -> Result<Self, ConfigError> {
         let path = settings_path
             .map(PathBuf::from)
@@ -47,7 +48,9 @@ impl NativeConfig {
         let secrets = tokio::task::spawn_blocking(move || ServerSecretStore::open(directory))
             .await
             .map_err(std::io::Error::other)??;
-        let service = SettingsService::start(SettingsOptions::file(path, secrets)).await?;
+        let mut options = SettingsOptions::file(path, secrets);
+        options.history = Some(history);
+        let service = SettingsService::start(options).await?;
         let settings = service.snapshot().await?;
         let mut config = Self::from_settings(settings, state_dir, cwd, environment, auth).await?;
         config.settings_service = Some(service);

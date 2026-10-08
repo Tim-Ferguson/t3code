@@ -2127,4 +2127,4 @@ mod tests {
 
 #[cfg(test)]
 #[path = "transport_tests.rs"]
-mod transport_tests;
+pub(crate) mod transport_tests;

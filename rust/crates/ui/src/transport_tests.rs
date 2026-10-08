@@ -401,6 +401,7 @@ fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -> ApiState 
         discovery: None,
         resource_telemetry: None,
         host_resources: None,
+        background: None,
     };
     api
 }
@@ -1339,7 +1340,7 @@ fn completed_runs(state: Store<UiModel>) -> usize {
 // Find the mounted input/button by its accessible label, then feed a platform
 // event through Dioxus's normal listener conversion and reactive scheduler.
 // This verifies actual control state and native RPC behavior, not static markup.
-fn control(
+pub(crate) fn control(
     dom: &VirtualDom,
     label: &str,
 ) -> Option<(dioxus::dioxus_core::ElementId, Option<String>)> {
@@ -1415,10 +1416,10 @@ fn control_attribute(
     }
     find(dom, dom.base_scope().root_node(), label, attribute_name)
 }
-fn change_control(dom: &mut VirtualDom, label: &str, value: &str) {
+pub(crate) fn change_control(dom: &mut VirtualDom, label: &str, value: &str) {
     form_control_event(dom, label, value, "change");
 }
-fn input_control(dom: &mut VirtualDom, label: &str, value: &str) {
+pub(crate) fn input_control(dom: &mut VirtualDom, label: &str, value: &str) {
     form_control_event(dom, label, value, "input");
 }
 fn form_control_event(dom: &mut VirtualDom, label: &str, value: &str, event: &str) {
@@ -1435,7 +1436,7 @@ fn form_control_event(dom: &mut VirtualDom, label: &str, value: &str, event: &st
     );
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
 }
-fn click_control(dom: &mut VirtualDom, label: &str) {
+pub(crate) fn click_control(dom: &mut VirtualDom, label: &str) {
     dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
     let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
     let mouse: dioxus_html::SerializedMouseData = serde_json::from_value(

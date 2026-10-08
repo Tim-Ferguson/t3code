@@ -195,10 +195,21 @@ impl ProviderProcess {
         json_rpc: bool,
         protocol_options: ProtocolOptions,
     ) -> Result<Self, ProcessError> {
-        let mut child = Command::new(options.binary)
-            .args(options.args)
+        let mut builder = if json_rpc && cfg!(windows) {
+            let mut environment: indexmap::IndexMap<String, String> = std::env::vars().collect();
+            environment.extend(options.environment.clone());
+            crate::acp_registry_spawn::command(
+                &options.binary.to_string_lossy(),
+                &options.args,
+                Some(&environment),
+            )
+        } else {
+            let mut builder = Command::new(&options.binary);
+            builder.args(&options.args).envs(&options.environment);
+            builder
+        };
+        let mut child = builder
             .current_dir(options.cwd)
-            .envs(options.environment)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

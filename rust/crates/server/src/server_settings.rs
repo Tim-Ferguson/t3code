@@ -64,6 +64,7 @@ pub struct SettingsOptions {
     pub secrets: Arc<dyn SecretBackend>,
     pub writer: Arc<dyn SettingsWriter>,
     pub watch: bool,
+    pub history: Option<crate::persistence::Store>,
 }
 impl SettingsOptions {
     pub fn file(path: PathBuf, secrets: ServerSecretStore) -> Self {
@@ -72,6 +73,7 @@ impl SettingsOptions {
             secrets: Arc::new(secrets),
             writer: Arc::new(AtomicSettingsWriter),
             watch: true,
+            history: None,
         }
     }
 }
@@ -322,27 +324,76 @@ impl SettingsWatch {
 impl Owner {
     fn load(&mut self) -> Result<&ServerSettings, SettingsError> {
         if self.cached.is_none() {
-            let settings = match std::fs::read(&self.options.path) {
-                Ok(bytes) => match decode_settings(&bytes) {
-                    Ok(settings) => settings,
-                    Err(_) => {
-                        // A malformed hand-edited file is untrusted: use defaults,
-                        // without rewriting it or logging its potentially secret text.
+            let (settings, persisted, trusted) = match std::fs::read(&self.options.path) {
+                Ok(bytes) => {
+                    // The source decodes the small provider envelope independently.
+                    // Successful explicit flags survive unrelated settings errors.
+                    let persisted = decode_persisted_optional_providers(&bytes);
+                    let decoded = decode_settings(&bytes);
+                    let trusted = persisted.is_ok() && decoded.is_ok();
+                    let settings = if trusted {
+                        decoded.unwrap()
+                    } else {
                         tracing::warn!(path=?self.options.path,"failed to decode server settings; using defaults");
                         ServerSettings::default()
-                    }
-                },
+                    };
+                    (settings, persisted.unwrap_or_else(|_| json!({})), trusted)
+                }
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    ServerSettings::default()
+                    (ServerSettings::default(), json!({}), true)
                 }
                 Err(error) => {
                     return Err(SettingsError::new(&self.options.path, "read-file", error));
                 }
             };
-            self.cached = Some(
-                normalize_settings(&settings)
-                    .map_err(|error| SettingsError::new(&self.options.path, "normalize", error))?,
-            );
+            let history = match &self.options.history {
+                Some(store) => {
+                    crate::server_settings_migrations::provider_history(store).map_err(|error| {
+                        SettingsError::new(&self.options.path, "read-provider-history", error)
+                    })?
+                }
+                None => Vec::new(),
+            };
+            let rows = if trusted && !settings.project_settings_folded {
+                match &self.options.history {
+                    Some(store) => crate::server_settings_migrations::legacy_projects(store)
+                        .map_err(|error| {
+                            SettingsError::new(&self.options.path, "read-project-settings", error)
+                        })?,
+                    None => Vec::new(),
+                }
+            } else {
+                Vec::new()
+            };
+            let loaded = crate::server_settings_migrations::restore_used_providers(
+                &settings, &persisted, &history,
+            )
+            .and_then(|settings| crate::server_settings_model::fold_enabled_flags(&settings))
+            .map_err(|error| SettingsError::new(&self.options.path, "normalize", error))?;
+            let migrated = if trusted {
+                crate::server_settings_migrations::fold_legacy_projects(&loaded, &rows)
+                    .and_then(|settings| {
+                        crate::server_settings_migrations::move_inline_tokens(
+                            &settings,
+                            self.options.secrets.as_ref(),
+                        )
+                    })
+                    .map_err(|error| SettingsError::new(&self.options.path, "normalize", error))?
+            } else {
+                loaded.clone()
+            };
+            if migrated != loaded {
+                let sparse = sparse_settings(&migrated)
+                    .map_err(|error| SettingsError::new(&self.options.path, "normalize", error))?;
+                let contents = serde_json::to_string_pretty(&sparse)
+                    .map_err(|error| SettingsError::new(&self.options.path, "normalize", error))?
+                    + "\n";
+                self.options
+                    .writer
+                    .write(&self.options.path, &contents)
+                    .map_err(|error| SettingsError::new(&self.options.path, "write-file", error))?;
+            }
+            self.cached = Some(migrated);
         }
         Ok(self.cached.as_ref().unwrap())
     }
@@ -525,6 +576,9 @@ fn run(
 /// The original loader removes comments and trailing commas while protecting
 /// quoted JSON strings, and migrates the old streaming mode before decoding.
 pub fn decode_settings(bytes: &[u8]) -> Result<ServerSettings, serde_json::Error> {
+    serde_json::from_value(decode_settings_document(bytes)?)
+}
+fn decode_jsonc(bytes: &[u8]) -> Result<Value, serde_json::Error> {
     let raw = String::from_utf8_lossy(bytes);
     static COMMENTS: std::sync::OnceLock<(regex::Regex, regex::Regex, regex::Regex)> =
         std::sync::OnceLock::new();
@@ -553,7 +607,38 @@ pub fn decode_settings(bytes: &[u8]) -> Result<ServerSettings, serde_json::Error
             .as_str()
             .to_owned()
     });
-    let mut value: Value = serde_json::from_str(&normalized)?;
+    serde_json::from_str(&normalized)
+}
+pub(crate) fn decode_persisted_optional_providers(
+    bytes: &[u8],
+) -> Result<Value, serde_json::Error> {
+    let value = decode_jsonc(bytes)?;
+    let invalid = || {
+        <serde_json::Error as serde::de::Error>::custom(
+            "Invalid persisted optional provider settings",
+        )
+    };
+    let object = value.as_object().ok_or_else(invalid)?;
+    let Some(providers) = object.get("providers") else {
+        return Ok(json!({}));
+    };
+    let providers = providers.as_object().ok_or_else(invalid)?;
+    let mut selected = serde_json::Map::new();
+    for driver in ["cursor", "grok", "opencode"] {
+        if let Some(provider) = providers.get(driver) {
+            let provider = provider.as_object().ok_or_else(invalid)?;
+            let fields = if let Some(enabled) = provider.get("enabled") {
+                json!({"enabled":enabled.as_bool().ok_or_else(invalid)?})
+            } else {
+                json!({})
+            };
+            selected.insert(driver.into(), fields);
+        }
+    }
+    Ok(json!({"providers":selected}))
+}
+fn decode_settings_document(bytes: &[u8]) -> Result<Value, serde_json::Error> {
+    let mut value = decode_jsonc(bytes)?;
     // The persisted schema overrides these fields with ordinary defaults and
     // optionalKey, rather than the wire codec's null-to-undefined semantics.
     if value
@@ -590,7 +675,7 @@ pub fn decode_settings(bytes: &[u8]) -> Result<ServerSettings, serde_json::Error
             }
         }
     }
-    serde_json::from_value(value)
+    Ok(value)
 }
 
 #[cfg(test)]
@@ -758,6 +843,7 @@ mod tests {
             secrets: Arc::new(secrets.clone()),
             writer,
             watch: false,
+            history: None,
         })
         .await
         .unwrap();
@@ -818,6 +904,7 @@ mod tests {
             secrets: Arc::new(secrets.clone()),
             writer: writer.clone(),
             watch: false,
+            history: None,
         })
         .await
         .unwrap();

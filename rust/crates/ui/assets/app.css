@@ -1093,3 +1093,103 @@ select:focus-visible {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.theme-library-heading,
+.theme-card-actions,
+.theme-editor header,
+.theme-editor-modes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.theme-library-heading h3,
+.theme-editor header h3 {
+  flex: 1;
+  margin: 8px 0;
+}
+.theme-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 256px), 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+.theme-library-card {
+  padding: 12px;
+  border: 1px solid;
+  border-radius: 10px;
+  min-width: 0;
+}
+.theme-library-card h4 {
+  margin: 8px 0;
+}
+.theme-library-card small {
+  font-size: 11px;
+}
+.theme-card-actions {
+  margin-top: 8px;
+}
+.theme-card-actions button {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+.theme-card-preview {
+  display: flex;
+  gap: 6px;
+  height: 55px;
+  align-items: center;
+}
+.theme-card-preview span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  width: 44px;
+  height: 32px;
+}
+.theme-card-preview .theme-preview-sidebar {
+  height: 55px;
+  width: 28px;
+}
+.theme-dialog,
+.theme-editor {
+  position: fixed;
+  z-index: 50;
+  right: 16px;
+  bottom: 16px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #0004;
+  background: var(--background);
+  color: var(--foreground);
+}
+.theme-dialog textarea {
+  width: 100%;
+  min-height: 180px;
+}
+.theme-dialog button {
+  margin: 8px 6px 0 0;
+}
+.theme-editor label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin: 8px 0;
+}
+.theme-editor input {
+  min-width: 0;
+  width: 230px;
+}
+.theme-editor input[type="checkbox"] {
+  width: auto;
+}
+.theme-editor-colors {
+  max-height: calc(100vh - 320px);
+  overflow: auto;
+  padding-right: 4px;
+}

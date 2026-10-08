@@ -9,6 +9,7 @@ mod scroll_state;
 mod terminal_bridge;
 mod terminal_pane;
 mod terminal_stream;
+mod theme_library;
 mod themes;
 mod thread_controls;
 mod timeline;
@@ -102,7 +103,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let palette = try_consume_context::<themes::Themes>()
         .map(|themes| {
             let snapshot = themes.snapshot.read();
-            let catalog = &themes.catalog;
+            let catalog = themes.catalog.read();
             catalog
                 .definition(catalog.half(
                     &snapshot.theme,
@@ -278,6 +279,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 } }
             }
         }
+        theme_library::ThemeEditorHost {}
     }
 }
 

@@ -43,6 +43,7 @@ pub struct ApiState {
     pub discovery: Option<crate::resource_discovery::PortDiscovery>,
     pub resource_telemetry: Option<crate::resource_telemetry_service::ResourceTelemetry>,
     pub host_resources: Option<crate::host_resources::HostResources>,
+    pub background: Option<crate::background_policy::BackgroundPolicy>,
 }
 
 type ApiError = (StatusCode, Json<Value>);
@@ -545,6 +546,40 @@ struct Subscription {
     task: tokio::task::JoinHandle<()>,
 }
 async fn connection(socket: WebSocket, state: ApiState, session: Session) {
+    static NEXT_CLIENT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let rpc_client = t3_contracts::NonNegativeInt(
+        NEXT_CLIENT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+    );
+    let reported = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    struct Leases {
+        reported: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        policy: Option<crate::background_policy::BackgroundPolicy>,
+        session: t3_contracts::AuthSessionId,
+        rpc: t3_contracts::RpcClientId,
+        active: bool,
+        handle: tokio::runtime::Handle,
+    }
+    impl Drop for Leases {
+        fn drop(&mut self) {
+            if self.active && self.reported.load(std::sync::atomic::Ordering::Acquire) {
+                if let Some(policy) = self.policy.clone() {
+                    let session = self.session.clone();
+                    let rpc = self.rpc;
+                    self.handle.spawn(async move {
+                        policy.remove_rpc_client(&session, &rpc).await;
+                    });
+                }
+            }
+        }
+    }
+    let mut leases = Leases {
+        reported: reported.clone(),
+        policy: state.background.clone(),
+        session: t3_contracts::AuthSessionId::new(&session.session_id).expect("stored session ID"),
+        rpc: rpc_client,
+        active: true,
+        handle: tokio::runtime::Handle::current(),
+    };
     let (mut sink, mut source) = socket.split();
     let (channel, mut output) = mpsc::channel::<Message>(64);
     let outgoing = SocketSender { channel };
@@ -578,14 +613,14 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             if let Err(error)=authorize_request(&session,&request){let _=outgoing.send(failure(request.id,error)).await;continue}
                             generation += 1;
                             let current_generation = generation;
-                            let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry") {
+                            let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
-                                    let result=execute_unary(state,request.clone()).await;
+                                    let result=execute_session_unary(state,request.clone(),&session,rpc_client,&reported).await;
                                     let response=if request.is_notification==Some(true){None}else{Some(match result{Ok(value)=>RpcServerMessage::Exit{request_id:request.id,exit:RpcExit::Success{value}},Err(error)=>failure(request.id,error)})};
                                     let _=finished.send((completed_id,current_generation,response)).await;
                                 });
@@ -605,6 +640,59 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
         let _ = subscription.task.await;
     }
     writer.abort();
+    if reported.load(std::sync::atomic::Ordering::Acquire) {
+        if let Some(policy) = &leases.policy {
+            policy.remove_rpc_client(&leases.session, &leases.rpc).await;
+        }
+    }
+    leases.active = false;
+}
+
+fn background_decode<T: serde::de::DeserializeOwned>(request: &RpcRequest) -> Result<T, Value> {
+    serde_json::from_value(request.payload.clone()).map_err(
+        |_| json!({"_tag":"SchemaDecodeError","message":"Invalid background request payload."}),
+    )
+}
+
+async fn execute_session_unary(
+    state: ApiState,
+    request: RpcRequest,
+    session: &Session,
+    rpc_client: t3_contracts::RpcClientId,
+    reported: &std::sync::atomic::AtomicBool,
+) -> Result<Value, Value> {
+    if matches!(
+        request.tag.as_str(),
+        "server.reportClientActivity"
+            | "server.reportHostPowerState"
+            | "server.getBackgroundPolicy"
+    ) {
+        let service=state.background.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Background policy is not configured."}))?;
+        return match request.tag.as_str() {
+            "server.reportClientActivity" => {
+                let input: t3_contracts::ClientActivityReportInput = background_decode(&request)?;
+                reported.store(true, std::sync::atomic::Ordering::Release);
+                service
+                    .report_client_activity(
+                        t3_contracts::AuthSessionId::new(&session.session_id).unwrap(),
+                        rpc_client,
+                        input,
+                    )
+                    .await;
+                Ok(Value::Null)
+            }
+            "server.reportHostPowerState" => {
+                let input: t3_contracts::HostPowerSnapshot = background_decode(&request)?;
+                service.report_host_power_state(input);
+                Ok(Value::Null)
+            }
+            _ => {
+                let _: t3_contracts::GetServerSettingsInput = background_decode(&request)?;
+                Ok(serde_json::to_value(service.snapshot().await).unwrap())
+            }
+        };
+    }
+    execute_unary(state, request).await
 }
 
 async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Value> {
@@ -1003,6 +1091,35 @@ async fn resource_telemetry_stream(
             let sent=tokio::select! {biased;_=service.closed()=>return Ok(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(typed).unwrap()])=>sent};
             if !sent{return Ok(());}
             match subscription.recv().await {Some(value)=>next=value,None=>return Ok(())}
+        }
+    }.await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+async fn background_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result=async {
+        let _:t3_contracts::GetServerSettingsInput=background_decode(&request)?;
+        let service=state.background.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Background policy is not configured."}))?;
+        let mut subscription=service.subscribe().await;let mut next=subscription.latest.clone();
+        loop {
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            let sent=tokio::select!{biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(next).unwrap()])=>sent};
+            if !sent{return Ok(());}
+            match subscription.recv().await{Some(snapshot)=>next=snapshot,None=>return Ok(())}
         }
     }.await;
     let response = match result {
@@ -2313,6 +2430,7 @@ mod tests {
             discovery: None,
             resource_telemetry: None,
             host_resources: None,
+            background: None,
         }
     }
     fn token(state: &ApiState, scopes: Vec<AuthEnvironmentScope>) -> String {

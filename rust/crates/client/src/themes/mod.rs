@@ -1,5 +1,10 @@
 //! Original theme catalog and storage policy. Palette data comes from the source shared package.
+pub mod color;
+pub mod editor;
+pub mod environment;
+pub mod library;
 pub mod storage;
+pub mod vivid;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;

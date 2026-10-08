@@ -357,12 +357,10 @@ mod tests {
     }
 }
 
-pub fn normalize_settings(settings: &ServerSettings) -> Result<ServerSettings, serde_json::Error> {
-    // Encode/decode performs the same shared contract normalization before the
-    // service folds enabled flags and derives the old project views.
-    let mut value = serde_json::to_value(serde_json::from_value::<ServerSettings>(
-        serde_json::to_value(settings)?,
-    )?)?;
+pub(crate) fn fold_enabled_flags(
+    settings: &ServerSettings,
+) -> Result<ServerSettings, serde_json::Error> {
+    let mut value = serde_json::to_value(settings)?;
     for (_, instance) in value["providerInstances"].as_object_mut().unwrap() {
         let flag = instance
             .get("config")
@@ -377,6 +375,11 @@ pub fn normalize_settings(settings: &ServerSettings) -> Result<ServerSettings, s
                 .remove("enabled");
         }
     }
+    serde_json::from_value(value)
+}
+pub fn normalize_settings(settings: &ServerSettings) -> Result<ServerSettings, serde_json::Error> {
+    let decoded = serde_json::from_value::<ServerSettings>(serde_json::to_value(settings)?)?;
+    let mut value = serde_json::to_value(fold_enabled_flags(&decoded)?)?;
     derive_legacy_project_overrides(&mut value);
     serde_json::from_value(value)
 }

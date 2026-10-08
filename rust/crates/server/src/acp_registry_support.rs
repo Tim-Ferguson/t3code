@@ -1,4 +1,6 @@
 //! Server-owned ACP catalog and managed provider executables.
+use crate::acp_registry_archives::{self, ArchiveKind};
+use crate::acp_registry_packages::{self, Distribution, PackageInstaller, Receipt};
 use crate::provider_process::ProcessOptions;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
@@ -44,6 +46,33 @@ pub struct PackageTarget {
     pub package: String,
     pub args: Vec<String>,
     pub environment: IndexMap<String, String>,
+}
+#[derive(Clone, Copy)]
+enum SelectedDistribution<'a> {
+    Binary(&'a BinaryTarget),
+    Npm(&'a PackageTarget),
+    Uv(&'a PackageTarget),
+}
+impl<'a> SelectedDistribution<'a> {
+    fn tag(self) -> &'static str {
+        match self {
+            Self::Binary(_) => "binary",
+            Self::Npm(_) => "npx",
+            Self::Uv(_) => "uvx",
+        }
+    }
+    fn args(self) -> &'a [String] {
+        match self {
+            Self::Binary(target) => &target.args,
+            Self::Npm(target) | Self::Uv(target) => &target.args,
+        }
+    }
+    fn environment(self) -> &'a IndexMap<String, String> {
+        match self {
+            Self::Binary(target) => &target.environment,
+            Self::Npm(target) | Self::Uv(target) => &target.environment,
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct Agent {
@@ -316,13 +345,15 @@ struct Inner {
     index: Mutex<Option<Index>>,
     revision: AtomicU64,
     refresh: tokio::sync::Mutex<()>,
-    install: tokio::sync::Mutex<()>,
+    install: Arc<tokio::sync::Mutex<()>>,
     reservations: Mutex<HashMap<String, std::time::Instant>>,
     target: Option<String>,
     #[cfg(test)]
     assets: Mutex<HashMap<String, Vec<u8>>>,
     #[cfg(test)]
     downloads: AtomicU64,
+    #[cfg(test)]
+    archive_environment: Mutex<Option<IndexMap<String, String>>>,
 }
 impl Catalog {
     pub fn new(cache_dir: PathBuf, tools_dir: PathBuf) -> Result<Self, RegistryError> {
@@ -347,13 +378,15 @@ impl Catalog {
             index: Mutex::new(None),
             revision: AtomicU64::new(0),
             refresh: tokio::sync::Mutex::new(()),
-            install: tokio::sync::Mutex::new(()),
+            install: Arc::new(tokio::sync::Mutex::new(())),
             reservations: Mutex::new(HashMap::new()),
             target: host_target(),
             #[cfg(test)]
             assets: Mutex::new(HashMap::new()),
             #[cfg(test)]
             downloads: AtomicU64::new(0),
+            #[cfg(test)]
+            archive_environment: Mutex::new(None),
         })))
     }
     async fn disk_cached(&self) -> Result<Index, RegistryError> {
@@ -538,29 +571,131 @@ impl Catalog {
             )
         })?
     }
+    fn distribution<'a>(
+        &self,
+        agent: &'a Agent,
+        preference: AcpRegistryDistributionPreference,
+    ) -> Result<SelectedDistribution<'a>, RegistryError> {
+        let binary = self
+            .0
+            .target
+            .as_ref()
+            .and_then(|target| agent.binaries.get(target));
+        if matches!(
+            preference,
+            AcpRegistryDistributionPreference::Auto | AcpRegistryDistributionPreference::Binary
+        ) {
+            if let Some(target) = binary {
+                return Ok(SelectedDistribution::Binary(target));
+            }
+        }
+        if matches!(
+            preference,
+            AcpRegistryDistributionPreference::Auto | AcpRegistryDistributionPreference::Npx
+        ) {
+            if let Some(target) = &agent.npx {
+                return Ok(SelectedDistribution::Npm(target));
+            }
+        }
+        if matches!(
+            preference,
+            AcpRegistryDistributionPreference::Auto | AcpRegistryDistributionPreference::Uvx
+        ) {
+            if let Some(target) = &agent.uvx {
+                return Ok(SelectedDistribution::Uv(target));
+            }
+        }
+        Err(error(
+            if self.0.target.is_none() {
+                "unsupported_platform"
+            } else {
+                "unsupported_distribution"
+            },
+            "No compatible ACP Registry distribution matches this platform and preference.",
+        ))
+    }
+    #[cfg(test)]
     fn binary<'a>(
         &self,
         agent: &'a Agent,
         preference: AcpRegistryDistributionPreference,
     ) -> Result<&'a BinaryTarget, RegistryError> {
-        match preference {
-            AcpRegistryDistributionPreference::Auto | AcpRegistryDistributionPreference::Binary => {
-                self.0
-                    .target
-                    .as_ref()
-                    .and_then(|target| agent.binaries.get(target))
-                    .ok_or_else(|| {
-                        error(
-                            "unsupported_distribution",
-                            "No native binary distribution matches this platform.",
-                        )
-                    })
-            }
+        match self.distribution(agent, preference)? {
+            SelectedDistribution::Binary(target) => Ok(target),
             _ => Err(error(
                 "unsupported_distribution",
-                "Managed npm/uv installation is not yet available in this native build.",
+                "Requested distribution is not a binary.",
             )),
         }
+    }
+    fn host_environment(&self) -> IndexMap<String, String> {
+        #[cfg(test)]
+        if let Some(environment) = self.0.archive_environment.lock().unwrap().clone() {
+            return environment;
+        }
+        std::env::vars().collect()
+    }
+    async fn install_package_locked(
+        &self,
+        agent: &Agent,
+        target: &PackageTarget,
+        distribution: Distribution,
+        environment: IndexMap<String, String>,
+        admission: Arc<dyn Send + Sync>,
+    ) -> Result<Receipt, RegistryError> {
+        let root = self
+            .0
+            .tools_dir
+            .join(&agent.id)
+            .join(encode_version(&agent.version));
+        let receipts = self.0.cache_dir.join("package-installs");
+        let resolve = Arc::new(|command: &str, environment: &IndexMap<String, String>| {
+            if !command.contains('/')
+                && !command.contains('\\')
+                && !has_environment_path(environment.keys().map(String::as_str))
+            {
+                return None;
+            }
+            executable(
+                command,
+                &environment
+                    .iter()
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect(),
+            )
+        });
+        PackageInstaller {
+            agent,
+            distribution,
+            spec: &target.package,
+            agent_root: &root,
+            receipts: &receipts,
+            environment,
+            resolve,
+            installation: admission,
+        }
+        .ensure()
+        .await
+    }
+    async fn install_package(
+        &self,
+        agent: &Agent,
+        target: &PackageTarget,
+        distribution: Distribution,
+        environment: &HashMap<String, String>,
+    ) -> Result<Receipt, RegistryError> {
+        let admission = Arc::new(self.0.install.clone().lock_owned().await);
+        self.install_package_locked(
+            agent,
+            target,
+            distribution,
+            environment
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect(),
+            admission,
+        )
+        .await
     }
     pub async fn prepare(
         &self,
@@ -577,14 +712,38 @@ impl Catalog {
                     "ACP Registry does not contain the requested agent.",
                 )
             })?;
-        let target = self.binary(agent, AcpRegistryDistributionPreference::Auto)?;
-        let _permit = self.0.install.lock().await;
-        self.install_binary_locked(agent, target).await?;
-        self.0.reservations.lock().unwrap().insert(
-            agent.id.clone(),
-            std::time::Instant::now() + Duration::from_secs(30),
-        );
-        serde_json::from_value(json!({"agentId":agent.id,"version":agent.version,"distribution":"binary","prepared":true})).map_err(|e| error("install_failed",e))
+        let distribution = self.distribution(agent, AcpRegistryDistributionPreference::Auto)?;
+        let permit = Arc::new(self.0.install.clone().lock_owned().await);
+        match distribution {
+            SelectedDistribution::Binary(target) => {
+                self.install_binary_locked(agent, target, permit).await?;
+                self.0.reservations.lock().unwrap().insert(
+                    agent.id.clone(),
+                    std::time::Instant::now() + Duration::from_secs(30),
+                );
+            }
+            SelectedDistribution::Npm(target) => {
+                self.install_package_locked(
+                    agent,
+                    target,
+                    Distribution::Npm,
+                    self.host_environment(),
+                    permit,
+                )
+                .await?;
+            }
+            SelectedDistribution::Uv(target) => {
+                self.install_package_locked(
+                    agent,
+                    target,
+                    Distribution::Uv,
+                    self.host_environment(),
+                    permit,
+                )
+                .await?;
+            }
+        }
+        serde_json::from_value(json!({"agentId":agent.id,"version":agent.version,"distribution":distribution.tag(),"prepared":true})).map_err(|cause|error("install_failed",cause))
     }
     pub async fn resolve(
         &self,
@@ -613,27 +772,58 @@ impl Catalog {
                     format!("ACP Registry agent '{id}' was not found."),
                 )
             })?;
-        let target = self.binary(agent, settings.distribution)?;
-        let binary = if settings.command_path.as_str().is_empty() {
-            self.install_binary(agent, target).await?
+        let distribution = self.distribution(agent, settings.distribution)?;
+        let (binary, bin_directory) = if !settings.command_path.as_str().is_empty() {
+            (
+                executable(settings.command_path.as_str(), environment).ok_or_else(|| {
+                    error(
+                        "runner_unavailable",
+                        "Registry command override is unavailable on this instance's PATH.",
+                    )
+                })?,
+                None,
+            )
         } else {
-            executable(settings.command_path.as_str(), environment).ok_or_else(|| {
-                error(
-                    "runner_unavailable",
-                    "Registry command override is unavailable on this instance's PATH.",
-                )
-            })?
+            match distribution {
+                SelectedDistribution::Binary(target) => {
+                    (self.install_binary(agent, target).await?, None)
+                }
+                SelectedDistribution::Npm(target) => {
+                    let receipt = self
+                        .install_package(agent, target, Distribution::Npm, environment)
+                        .await?;
+                    (
+                        PathBuf::from(receipt.executable_path),
+                        Some(PathBuf::from(receipt.bin_directory)),
+                    )
+                }
+                SelectedDistribution::Uv(target) => {
+                    let receipt = self
+                        .install_package(agent, target, Distribution::Uv, environment)
+                        .await?;
+                    (
+                        PathBuf::from(receipt.executable_path),
+                        Some(PathBuf::from(receipt.bin_directory)),
+                    )
+                }
+            }
         };
         let mut environment = environment.clone();
         environment.extend(
-            target
-                .environment
+            distribution
+                .environment()
                 .iter()
                 .map(|(key, value)| (key.clone(), value.clone())),
         );
+        if let Some(bin) = bin_directory {
+            environment =
+                acp_registry_packages::preferred_path(&environment.into_iter().collect(), &bin)
+                    .into_iter()
+                    .collect();
+        }
         Ok(ProcessOptions {
             binary,
-            args: target.args.clone(),
+            args: distribution.args().to_vec(),
             cwd: cwd.into(),
             environment,
         })
@@ -659,8 +849,8 @@ impl Catalog {
         else {
             return Ok(json!({"status":"not_found","agentId":settings.agent_id}));
         };
-        let target = match self.binary(agent, settings.distribution) {
-            Ok(target) => target,
+        let distribution = match self.distribution(agent, settings.distribution) {
+            Ok(distribution) => distribution,
             Err(_) => {
                 return Ok(
                     json!({"status":"unsupported","agentId":agent.id,"version":agent.version}),
@@ -669,22 +859,46 @@ impl Catalog {
         };
         if !settings.command_path.as_str().is_empty() {
             return Ok(
-                json!({"status":if executable(settings.command_path.as_str(),environment).is_some(){"ready"}else{"missing_runner"},"agentId":agent.id,"version":null,"distribution":"binary"}),
+                json!({"status":if executable(settings.command_path.as_str(),environment).is_some(){"ready"}else{"missing_runner"},"agentId":agent.id,"version":null,"distribution":distribution.tag()}),
             );
         }
-        let _permit = self.0.install.lock().await;
-        self.0.reservations.lock().unwrap().remove(&agent.id);
-        let (root, path) = self.paths(agent, target)?;
-        let status = if path.exists() {
-            validate_executable(&root, &path)?;
-            true
-        } else {
-            false
-        };
-        let status = if status { "ready" } else { "unprepared" };
-        Ok(
-            json!({"status":status,"agentId":agent.id,"version":agent.version,"distribution":"binary"}),
-        )
+        let documentation = agent.website.as_ref().or(agent.repository.as_ref());
+        match distribution {
+            SelectedDistribution::Binary(target) => {
+                let _permit = self.0.install.lock().await;
+                self.0.reservations.lock().unwrap().remove(&agent.id);
+                let (root, path) = self.paths(agent, target)?;
+                let ready = if path.exists() {
+                    validate_executable(&root, &path)?;
+                    true
+                } else {
+                    false
+                };
+                let mut value = json!({"status":if ready{"ready"}else{"unprepared"},"agentId":agent.id,"version":agent.version,"distribution":"binary"});
+                if let Some(documentation) = documentation {
+                    value["documentationUrl"] = json!(documentation);
+                }
+                Ok(value)
+            }
+            SelectedDistribution::Npm(_) | SelectedDistribution::Uv(_) => {
+                let runner = if matches!(distribution, SelectedDistribution::Npm(_)) {
+                    "npm"
+                } else {
+                    "uv"
+                };
+                let ready = has_environment_path(environment.keys().map(String::as_str))
+                    && executable(runner, environment).is_some();
+                let mut value = json!({"status":if ready{"ready"}else{"missing_runner"},"agentId":agent.id,"version":agent.version,"distribution":distribution.tag()});
+                if ready {
+                    if let Some(documentation) = documentation {
+                        value["documentationUrl"] = json!(documentation);
+                    }
+                } else {
+                    value["runner"] = json!(runner);
+                }
+                Ok(value)
+            }
+        }
     }
     fn paths(
         &self,
@@ -719,8 +933,8 @@ impl Catalog {
         agent: &Agent,
         target: &BinaryTarget,
     ) -> Result<PathBuf, RegistryError> {
-        let _permit = self.0.install.lock().await;
-        let result = self.install_binary_locked(agent, target).await?;
+        let permit = Arc::new(self.0.install.clone().lock_owned().await);
+        let result = self.install_binary_locked(agent, target, permit).await?;
         self.0.reservations.lock().unwrap().remove(&agent.id);
         Ok(result)
     }
@@ -728,6 +942,7 @@ impl Catalog {
         &self,
         agent: &Agent,
         target: &BinaryTarget,
+        admission: Arc<dyn Send + Sync>,
     ) -> Result<PathBuf, RegistryError> {
         let (root, path) = self.paths(agent, target)?;
         if tokio::fs::try_exists(&path).await.unwrap_or(false) {
@@ -746,12 +961,14 @@ impl Catalog {
         let cleanup = Arc::new(Temporary {
             path: parent.join(format!(".{}-install-{}", agent.id, uuid::Uuid::new_v4())),
             _lock: lock,
+            _admission: admission,
             #[cfg(test)]
             disposed: Mutex::new(None),
         });
         let temporary = &cleanup.path;
         mutate_install(cleanup.clone(), |root| std::fs::create_dir_all(root)).await?;
-        let archive = temporary.join("archive");
+        let kind = ArchiveKind::from_url(&target.archive)?;
+        let archive = temporary.join(kind.file_name());
         let actual = self
             .download_file(&target.archive, &archive, cleanup.clone())
             .await?;
@@ -763,26 +980,56 @@ impl Catalog {
                 ));
             }
         }
-        let url = url::Url::parse(&target.archive).unwrap();
-        let lower = url.path().to_ascii_lowercase();
-        if lower.ends_with(".zip")
-            || lower.ends_with(".tgz")
-            || lower.ends_with(".tar.gz")
-            || lower.ends_with(".tbz2")
-            || lower.ends_with(".tar.bz2")
-        {
-            return Err(error(
-                "archive_invalid",
-                "Archive extraction is not yet available in this native build.",
-            ));
-        }
         let relative = path.strip_prefix(&root).unwrap();
         let extracted = temporary.join("extracted");
         let executable = extracted.join(relative);
+        let destination = extracted.clone();
+        mutate_install(cleanup.clone(), move |_| {
+            std::fs::create_dir_all(destination)
+        })
+        .await?;
+        if kind == ArchiveKind::Raw {
+            let staged = executable.clone();
+            mutate_install(cleanup.clone(), move |_| {
+                std::fs::create_dir_all(staged.parent().unwrap())?;
+                std::fs::rename(archive, &staged)
+            })
+            .await?;
+        } else {
+            #[cfg(not(test))]
+            acp_registry_archives::extract(
+                kind,
+                &archive,
+                &extracted,
+                cfg!(windows),
+                cleanup.clone(),
+            )
+            .await?;
+            #[cfg(test)]
+            {
+                let environment = self.0.archive_environment.lock().unwrap().clone();
+                acp_registry_archives::extract_with_environment(
+                    kind,
+                    &archive,
+                    &extracted,
+                    cfg!(windows),
+                    cleanup.clone(),
+                    environment,
+                )
+                .await?;
+            }
+        }
+        if !executable.exists() {
+            return Err(error(
+                "archive_invalid",
+                format!(
+                    "ACP Registry archive for {} did not contain '{}'.",
+                    agent.id, target.command
+                ),
+            ));
+        }
         let staged = executable.clone();
         mutate_install(cleanup.clone(), move |_| {
-            std::fs::create_dir_all(staged.parent().unwrap())?;
-            std::fs::rename(archive, &staged)?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -813,6 +1060,7 @@ impl Drop for CacheTemporary {
 struct Temporary {
     path: PathBuf,
     _lock: Arc<InstallLock>,
+    _admission: Arc<dyn Send + Sync>,
     #[cfg(test)]
     disposed: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
 }
@@ -852,22 +1100,7 @@ where
         .map_err(|e| error("install_failed", e))
 }
 fn command_parts(command: &str) -> Option<Vec<String>> {
-    let command = t3_contracts::trim_wire_string(command).replace('\\', "/");
-    let command = command.strip_prefix("./").unwrap_or(&command);
-    let parts = command
-        .split('/')
-        .filter(|part| !part.is_empty())
-        .map(ToOwned::to_owned)
-        .collect::<Vec<_>>();
-    if parts.is_empty()
-        || command.starts_with('/')
-        || (command.as_bytes().get(1) == Some(&b':') && command.as_bytes()[0].is_ascii_alphabetic())
-        || parts.iter().any(|part| part == "." || part == "..")
-    {
-        None
-    } else {
-        Some(parts)
-    }
+    acp_registry_archives::command_parts(command)
 }
 fn executable_file(path: &Path) -> bool {
     let Ok(info) = std::fs::metadata(path) else {
@@ -894,6 +1127,11 @@ fn validate_executable(root: &Path, path: &Path) -> Result<PathBuf, RegistryErro
     }
     Ok(path)
 }
+fn has_environment_path<'a>(keys: impl Iterator<Item = &'a str>) -> bool {
+    keys.into_iter()
+        .any(|key| key == "PATH" || (cfg!(windows) && matches!(key, "Path" | "path")))
+}
+
 fn executable(command: &str, environment: &HashMap<String, String>) -> Option<PathBuf> {
     let expanded;
     let command = if command == "~" || command.starts_with("~/") || command.starts_with("~\\") {
@@ -907,17 +1145,9 @@ fn executable(command: &str, environment: &HashMap<String, String>) -> Option<Pa
     } else {
         command
     };
-    let path = Path::new(command);
-    if path.is_absolute() || command.contains(std::path::MAIN_SEPARATOR) {
-        return executable_file(path).then(|| path.to_owned());
-    }
-    let paths = environment
-        .get("PATH")
-        .cloned()
-        .or_else(|| std::env::var("PATH").ok())?;
-    std::env::split_paths(&paths)
-        .map(|dir| dir.join(command))
-        .find(|path| executable_file(path))
+    let mut effective: indexmap::IndexMap<String, String> = std::env::vars().collect();
+    effective.extend(environment.clone());
+    crate::acp_registry_spawn::resolve_executable(command, &effective)
 }
 fn local_process(
     settings: &AcpRegistrySettings,
@@ -936,6 +1166,13 @@ fn local_process(
             "Local ACP executable is unavailable on this environment's PATH.",
         )
     })?;
+    #[cfg(windows)]
+    if crate::acp_registry_spawn::is_batch(&binary.to_string_lossy()) {
+        return Err(error(
+            "runner_unavailable",
+            "Local ACP commands launch without a shell. Configure the underlying executable and pass the script path as an argument.",
+        ));
+    }
     Ok(ProcessOptions {
         binary,
         args: settings.command_args.clone(),
@@ -1043,6 +1280,295 @@ pub(crate) fn fixture_catalog(directory: &Path, scenario: &str) -> (Catalog, Acp
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    fn package_fixture(
+        directory: &Path,
+        uv: bool,
+    ) -> (Catalog, AcpRegistrySettings, HashMap<String, String>) {
+        use std::os::unix::fs::PermissionsExt;
+        let (catalog, _) = fixture_catalog(directory, "normal");
+        let binary = catalog.0.assets.lock().unwrap()["https://fixture.invalid/agent.py"].clone();
+        let source = directory.join("fixture-provider.py");
+        std::fs::write(&source, binary).unwrap();
+        let commands = directory.join("commands");
+        std::fs::create_dir(&commands).unwrap();
+        let manager = commands.join(if uv { "uv" } else { "npm" });
+        let mut code = b"#!/usr/bin/env python3\n".to_vec();
+        code.extend_from_slice(include_bytes!("../tests/fixtures/acp-registry-manager.py"));
+        std::fs::write(&manager, code).unwrap();
+        std::fs::set_permissions(&manager, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut environment = std::env::vars().collect::<IndexMap<_, _>>();
+        environment.insert(
+            "PATH".into(),
+            format!(
+                "{}:{}",
+                commands.display(),
+                environment.get("PATH").unwrap()
+            ),
+        );
+        environment.insert(
+            "REGISTRY_PROVIDER_SOURCE".into(),
+            source.to_str().unwrap().into(),
+        );
+        environment.insert(
+            "REGISTRY_MANAGER_LOG".into(),
+            directory.join("manager.log").to_str().unwrap().into(),
+        );
+        *catalog.0.archive_environment.lock().unwrap() = Some(environment.clone());
+        let mut assets = catalog.0.assets.lock().unwrap();
+        let mut registry: Value = serde_json::from_slice(&assets[&catalog.0.url]).unwrap();
+        registry["agents"][0]["distribution"] = json!({if uv{"uvx"}else{"npx"}:{"package":if uv{"fixture-acp==1.2.3"}else{"fixture-acp@1.2.3"},"args":["2","normal"],"env":{"ACP_FIXTURE_RECIPE":"recipe"}}});
+        assets.insert(
+            catalog.0.url.clone(),
+            serde_json::to_vec(&registry).unwrap(),
+        );
+        drop(assets);
+        let settings=serde_json::from_value(json!({"source":"registry","agentId":"devin","distribution":"auto","commandArgs":["must-not-be-forwarded"]})).unwrap();
+        (catalog, settings, environment.into_iter().collect())
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn catalog_prepares_npm_and_uv_then_launches_managed_providers_with_recipe_and_path() {
+        tokio::time::timeout(Duration::from_secs(20), async {
+            for uv in [false, true] {
+                let directory = tempfile::tempdir().unwrap();
+                let (catalog, settings, environment) = package_fixture(directory.path(), uv);
+                assert!(catalog.inspection(&settings, &environment).await.is_err());
+                assert_eq!(catalog.0.downloads.load(Ordering::Relaxed), 0);
+                catalog.refresh().await.unwrap();
+                assert_eq!(
+                    catalog.inspection(&settings, &environment).await.unwrap()["status"],
+                    "ready"
+                );
+                assert!(
+                    !catalog.0.tools_dir.exists(),
+                    "cold package inspection does not install"
+                );
+                let prepared = catalog
+                    .prepare(&serde_json::from_value(json!({"agentId":"devin"})).unwrap())
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    serde_json::to_value(prepared).unwrap()["distribution"],
+                    if uv { "uvx" } else { "npx" }
+                );
+                let process = catalog
+                    .resolve(&settings, directory.path(), &environment)
+                    .await
+                    .unwrap();
+                assert_eq!(process.args, ["2", "normal"]);
+                assert_eq!(process.environment["ACP_FIXTURE_RECIPE"], "recipe");
+                assert_eq!(
+                    process.environment["PATH"].split(':').next().unwrap(),
+                    process.binary.parent().unwrap().to_str().unwrap()
+                );
+                let peer = crate::acp_peer::ProcessPeer::spawn(process).unwrap();
+                let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(3));
+                let initialized = client
+                    .initialize(
+                        json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}),
+                    )
+                    .await
+                    .unwrap();
+                client.shutdown();
+                peer.shutdown().await;
+                assert_eq!(initialized["agentInfo"]["name"], "fixture");
+                let calls = std::fs::read_to_string(directory.path().join("manager.log")).unwrap();
+                let installs = calls
+                    .lines()
+                    .map(|line| serde_json::from_str::<Value>(line).unwrap())
+                    .filter(|row| row["args"][if uv { 1 } else { 0 }] == "install")
+                    .count();
+                assert_eq!(installs, 1);
+            }
+        })
+        .await
+        .unwrap();
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn canceled_catalog_package_manager_retains_real_admission_until_reap_then_retry_installs()
+     {
+        tokio::time::timeout(Duration::from_secs(20), async {
+            for uv in [false, true] {
+                let directory = tempfile::tempdir().unwrap();
+                let (catalog, settings, mut environment) = package_fixture(directory.path(), uv);
+                let socket = directory.path().join("started.sock");
+                let receiver = tokio::net::UnixDatagram::bind(&socket).unwrap();
+                environment.insert("REGISTRY_MANAGER_HOLD".into(), "1".into());
+                environment.insert(
+                    "REGISTRY_COMMAND_STARTED".into(),
+                    socket.to_str().unwrap().into(),
+                );
+                let pending_catalog = catalog.clone();
+                let pending_settings = settings.clone();
+                let pending_environment = environment.clone();
+                let cwd = directory.path().to_owned();
+                let pending = tokio::spawn(async move {
+                    pending_catalog
+                        .resolve(&pending_settings, &cwd, &pending_environment)
+                        .await
+                });
+                let mut bytes = [0; 64];
+                let count = receiver.recv(&mut bytes).await.unwrap();
+                let pid = std::str::from_utf8(&bytes[..count])
+                    .unwrap()
+                    .parse::<i32>()
+                    .unwrap();
+                assert!(catalog.0.install.try_lock().is_err());
+                pending.abort();
+                assert!(pending.await.unwrap_err().is_cancelled());
+                let admission = catalog.0.install.clone().lock_owned().await;
+                assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
+                assert_eq!(
+                    std::io::Error::last_os_error().raw_os_error(),
+                    Some(libc::ESRCH)
+                );
+                assert!(
+                    !catalog.0.cache_dir.join("package-installs").exists(),
+                    "cancelled manager did not publish a receipt"
+                );
+                environment.remove("REGISTRY_MANAGER_HOLD");
+                drop(admission);
+                let process = catalog
+                    .resolve(&settings, directory.path(), &environment)
+                    .await
+                    .unwrap();
+                assert!(process.binary.is_file());
+                assert_eq!(
+                    std::fs::read_dir(catalog.0.cache_dir.join("package-installs"))
+                        .unwrap()
+                        .count(),
+                    1
+                );
+            }
+        })
+        .await
+        .unwrap();
+    }
+    async fn archive_fixture(directory: &Path, kind: &str) -> (Catalog, AcpRegistrySettings) {
+        let (catalog, settings) = fixture_catalog(directory, "normal");
+        let binary = catalog.0.assets.lock().unwrap()["https://fixture.invalid/agent.py"].clone();
+        let raw = directory.join("fixture-agent.py");
+        std::fs::write(&raw, binary).unwrap();
+        let extension = match kind {
+            "gz" => "tar.gz",
+            "bz2" => "tar.bz2",
+            _ => "zip",
+        };
+        let archive = directory.join(format!("fixture.{extension}"));
+        let script = "import io,sys,tarfile,zipfile\ndata=open(sys.argv[1],'rb').read()\nif sys.argv[3]=='zip':\n with zipfile.ZipFile(sys.argv[2],'w') as archive: archive.writestr('bin/agent',data)\nelse:\n with tarfile.open(sys.argv[2],'w:'+sys.argv[3]) as archive:\n  entry=tarfile.TarInfo('bin/agent');entry.size=len(data);archive.addfile(entry,io.BytesIO(data))";
+        let mut build = crate::acp_registry_commands::RunningCommand::start(
+            crate::acp_registry_commands::CommandOptions {
+                command: "python3".into(),
+                arguments: vec![
+                    "-c".into(),
+                    script.into(),
+                    raw.to_str().unwrap().into(),
+                    archive.to_str().unwrap().into(),
+                    kind.into(),
+                ],
+                cwd: None,
+                environment: None,
+                timeout: None,
+                truncated_output_reason: "archive_invalid",
+            },
+            Arc::new(()),
+        )
+        .unwrap();
+        build.wait().await.unwrap();
+        let bytes = std::fs::read(archive).unwrap();
+        let url = format!("https://fixture.invalid/agent.{extension}");
+        let mut assets = catalog.0.assets.lock().unwrap();
+        let mut registry: Value = serde_json::from_slice(&assets[&catalog.0.url]).unwrap();
+        let recipe = &mut registry["agents"][0]["distribution"]["binary"]
+            [catalog.0.target.as_ref().unwrap()];
+        recipe["archive"] = json!(url);
+        recipe["sha256"] = json!(format!("{:x}", Sha256::digest(&bytes)));
+        assets.insert(
+            catalog.0.url.clone(),
+            serde_json::to_vec(&registry).unwrap(),
+        );
+        assets.insert(url, bytes);
+        drop(assets);
+        (catalog, settings)
+    }
+    #[tokio::test]
+    async fn catalog_prepares_archives_then_resolves_and_initializes_the_managed_provider() {
+        tokio::time::timeout(Duration::from_secs(20), async {
+            for kind in ["gz", "bz2", "zip"] {
+                let directory = tempfile::tempdir().unwrap();
+                let (catalog, settings) = archive_fixture(directory.path(), kind).await;
+                let prepared = catalog
+                    .prepare(&serde_json::from_value(json!({"agentId":"devin"})).unwrap())
+                    .await
+                    .unwrap();
+                assert_eq!(
+                    serde_json::to_value(prepared).unwrap()["distribution"],
+                    "binary"
+                );
+                let environment = std::env::vars().collect();
+                assert_eq!(
+                    catalog.inspection(&settings, &environment).await.unwrap()["status"],
+                    "ready"
+                );
+                let process = catalog
+                    .resolve(&settings, directory.path(), &environment)
+                    .await
+                    .unwrap();
+                let peer = crate::acp_peer::ProcessPeer::spawn(process).unwrap();
+                let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(3));
+                let response = client
+                    .initialize(
+                        json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}),
+                    )
+                    .await
+                    .unwrap();
+                client.shutdown();
+                peer.shutdown().await;
+                assert_eq!(response["agentInfo"]["name"], "fixture");
+            }
+        })
+        .await
+        .unwrap();
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn canceled_catalog_extractor_holds_real_admission_until_reap_and_allows_clean_retry() {
+        tokio::time::timeout(Duration::from_secs(15),async {
+            use std::os::unix::fs::PermissionsExt;
+            let directory=tempfile::tempdir().unwrap();
+            let (catalog,settings)=archive_fixture(directory.path(),"gz").await;
+            let commands=directory.path().join("commands");std::fs::create_dir(&commands).unwrap();
+            let wrapper=commands.join("tar");
+            std::fs::write(&wrapper,"#!/usr/bin/env python3\nimport os,signal,socket\ns=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)\ns.sendto(str(os.getpid()).encode(),os.environ['REGISTRY_COMMAND_STARTED'])\nwhile True: signal.pause()\n").unwrap();
+            std::fs::set_permissions(&wrapper,std::fs::Permissions::from_mode(0o755)).unwrap();
+            let socket=directory.path().join("started.sock");
+            let receiver=tokio::net::UnixDatagram::bind(&socket).unwrap();
+            let mut environment=std::env::vars().collect::<IndexMap<_,_>>();
+            environment.insert("PATH".into(),format!("{}:{}",commands.display(),environment.get("PATH").unwrap()));
+            environment.insert("REGISTRY_COMMAND_STARTED".into(),socket.to_str().unwrap().into());
+            *catalog.0.archive_environment.lock().unwrap()=Some(environment);
+            let pending_catalog=catalog.clone();let pending_settings=settings.clone();let cwd=directory.path().to_owned();
+            let pending=tokio::spawn(async move{pending_catalog.resolve(&pending_settings,&cwd,&std::env::vars().collect()).await});
+            let mut buffer=[0;64];let count=receiver.recv(&mut buffer).await.unwrap();
+            let pid=std::str::from_utf8(&buffer[..count]).unwrap().parse::<i32>().unwrap();
+            assert!(catalog.0.install.try_lock().is_err());
+            pending.abort();assert!(pending.await.unwrap_err().is_cancelled());
+            // This real catalog permit is released only after the extractor's
+            // cleanup guard has removed its temporary tree and OS lock.
+            let admission=catalog.0.install.clone().lock_owned().await;
+            assert_eq!(unsafe{libc::kill(pid,0)},-1);
+            assert_eq!(std::io::Error::last_os_error().raw_os_error(),Some(libc::ESRCH));
+            let index=catalog.cached().await.unwrap();let agent=&index.agents[0];let target=catalog.binary(agent,settings.distribution).unwrap();
+            let (root,_)=catalog.paths(agent,target).unwrap();assert!(!root.exists());assert!(!root.with_extension("lock").exists());
+            assert!(std::fs::read_dir(root.parent().unwrap()).unwrap().all(|entry|!entry.unwrap().file_name().to_string_lossy().contains("install-")));
+            *catalog.0.archive_environment.lock().unwrap()=None;
+            drop(admission);
+            let retry=catalog.resolve(&settings,directory.path(),&std::env::vars().collect()).await.unwrap();
+            assert!(retry.binary.is_file());
+        }).await.unwrap();
+    }
     #[tokio::test]
     async fn cancelled_lock_admission_drops_unclaimed_owned_guard_after_os_create_finishes() {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -1094,6 +1620,7 @@ mod tests {
             let cleanup = Arc::new(Temporary {
                 path: path.clone(),
                 _lock: Arc::new(lock),
+                _admission: Arc::new(()),
                 disposed: Mutex::new(Some(removed)),
             });
             let (created, creation) = tokio::sync::oneshot::channel();

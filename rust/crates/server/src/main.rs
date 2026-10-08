@@ -636,6 +636,7 @@ async fn run(
         options.settings.as_deref(),
         &environment,
         &auth.descriptor(),
+        store.clone(),
     )
     .await?;
     if config.is_none() {
@@ -715,6 +716,18 @@ async fn run(
     } else {
         None
     };
+    let background = if let Some(service) = &settings_service {
+        Some(
+            t3_server::background_policy::BackgroundPolicy::start(
+                service.clone(),
+                desktop.clone(),
+                std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
+            )
+            .await?,
+        )
+    } else {
+        None
+    };
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -730,6 +743,7 @@ async fn run(
         discovery: Some(discovery.clone()),
         resource_telemetry: Some(resources.clone()),
         host_resources: Some(host_resources.clone()),
+        background: background.clone(),
     };
     let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
@@ -738,6 +752,9 @@ async fn run(
             let _ = tokio::signal::ctrl_c().await;
         })
         .await?;
+    if let Some(background) = background {
+        background.shutdown().await;
+    }
     host_resources.shutdown().await;
     if let Some(runtime) = settings_runtime {
         runtime.shutdown().await;
