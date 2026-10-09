@@ -101,7 +101,7 @@ async fn scenario() {
     let exit = rpc(&mut denied, 1, "review.getDiffPreview", json!({"cwd":cwd})).await;
     assert_eq!(error_of(&exit)["_tag"], "EnvironmentAuthorizationError");
     assert_eq!(error_of(&exit)["requiredPermission"], "filesystem:read");
-    let exit = rpc(&mut denied, 2, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"working-tree","changeType":"change","baseRef":null,"oldPath":"a.txt","newPath":"a.txt"})).await;
+    let exit = rpc(&mut denied, 2, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"working-tree","changeType":"change","baseRef":null,"headRef":null,"oldPath":"a.txt","newPath":"a.txt"})).await;
     assert_eq!(error_of(&exit)["requiredPermission"], "filesystem:read");
 
     // Both diff scopes of a checkout: what is uncommitted, and what the branch changes.
@@ -124,15 +124,15 @@ async fn scenario() {
     assert_eq!(other.as_deref().unwrap_or(""), "", "only the named source is read: {single}");
 
     // The unchanged lines of a file, old side from git and new side from disk.
-    let contents = success(&rpc(&mut socket, 5, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"working-tree","changeType":"change","baseRef":null,"oldPath":"a.txt","newPath":"a.txt"})).await).clone();
+    let contents = success(&rpc(&mut socket, 5, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"working-tree","changeType":"change","baseRef":null,"headRef":null,"oldPath":"a.txt","newPath":"a.txt"})).await).clone();
     assert_eq!(contents, json!({"oldContents":"one\ntwo\nthree\n","newContents":"one\nTWO\nthree\n"}));
-    let contents = success(&rpc(&mut socket, 6, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"branch-range","changeType":"new","baseRef":"main","oldPath":"b.txt","newPath":"b.txt"})).await).clone();
+    let contents = success(&rpc(&mut socket, 6, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"branch-range","changeType":"new","baseRef":"main","headRef":null,"oldPath":"b.txt","newPath":"b.txt"})).await).clone();
     assert_eq!(contents, json!({"oldContents":"","newContents":"new\n"}));
 
     // A directory the server does not serve is refused before git is asked anything.
     for (id, tag, payload) in [
         (7, "review.getDiffPreview", json!({"cwd":outside.to_string_lossy()})),
-        (8, "review.getDiffFileContents", json!({"cwd":outside.to_string_lossy(),"sourceKind":"working-tree","changeType":"change","baseRef":null,"oldPath":"secret.txt","newPath":"secret.txt"})),
+        (8, "review.getDiffFileContents", json!({"cwd":outside.to_string_lossy(),"sourceKind":"working-tree","changeType":"change","baseRef":null,"headRef":null,"oldPath":"secret.txt","newPath":"secret.txt"})),
         // A way around by walking back out of the workspace.
         (9, "review.getDiffPreview", json!({"cwd":format!("{}/../../elsewhere", repo.display())})),
         (10, "review.getDiffPreview", json!({"cwd":"/"})),
@@ -145,7 +145,7 @@ async fn scenario() {
 
     // A path inside the checkout that leads out of it is refused before it is read.
     for (id, new_path) in [(11, "../../elsewhere/secret.txt"), (12, "link.txt"), (13, "/etc/hosts")] {
-        let exit = rpc(&mut socket, id, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"working-tree","changeType":"new","baseRef":null,"oldPath":"a.txt","newPath":new_path})).await;
+        let exit = rpc(&mut socket, id, "review.getDiffFileContents", json!({"cwd":cwd,"sourceKind":"working-tree","changeType":"new","baseRef":null,"headRef":null,"oldPath":"a.txt","newPath":new_path})).await;
         let error = error_of(&exit);
         assert_eq!(error["_tag"], "GitCommandError", "{new_path}: {exit}");
         assert!(error["detail"].as_str().unwrap().contains("resolves outside the review workspace"), "{new_path}: {error}");
@@ -157,7 +157,7 @@ async fn scenario() {
     let plain = workspace.join("plain").to_string_lossy().into_owned();
     let empty = success(&rpc(&mut socket, 14, "review.getDiffPreview", json!({"cwd":plain})).await).clone();
     assert_eq!(empty["sources"], json!([]));
-    let exit = rpc(&mut socket, 15, "review.getDiffFileContents", json!({"cwd":plain,"sourceKind":"working-tree","changeType":"change","baseRef":null,"oldPath":"a.txt","newPath":"a.txt"})).await;
+    let exit = rpc(&mut socket, 15, "review.getDiffFileContents", json!({"cwd":plain,"sourceKind":"working-tree","changeType":"change","baseRef":null,"headRef":null,"oldPath":"a.txt","newPath":"a.txt"})).await;
     assert_eq!(error_of(&exit)["_tag"], "VcsUnsupportedOperationError");
     assert_eq!(error_of(&exit)["detail"], "Unchanged diff expansion currently requires a Git repository.");
 

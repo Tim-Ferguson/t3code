@@ -71,6 +71,15 @@ fn is_js(path: &Path) -> bool {
     path.extension().is_some_and(|extension| extension == "js")
 }
 
+/// The script path of an `orchestration.getWorkflowScript` payload. `threadId` only scopes the request.
+pub(crate) fn decode_request(payload: &serde_json::Value) -> Result<&str, serde_json::Value> {
+    let (thread, path) = (payload["threadId"].as_str().filter(|text| !text.is_empty()), payload["scriptPath"].as_str().filter(|text| !text.is_empty() && *text == t3_contracts::trim_wire_string(text)));
+    match (thread, path) {
+        (Some(_), Some(path)) => Ok(path),
+        _ => Err(serde_json::json!({"_tag":"RpcServerError","reason":"Decode","message":"threadId and scriptPath are required."})),
+    }
+}
+
 /// Reads `requested` if it is a script inside `root`.
 pub fn read(root: Option<&Path>, requested: &str) -> Result<Value, ScriptError> {
     let fail = |reason: Reason, path: &str| ScriptError { reason, script_path: path.to_owned() };

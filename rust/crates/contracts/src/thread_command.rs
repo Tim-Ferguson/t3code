@@ -701,6 +701,10 @@ pub enum ThreadCommand {
     InteractionModeSet(ThreadInteractionModeCommand),
     #[serde(rename = "thread.model-selection.set")]
     ModelSelectionSet(ThreadModelSelectionCommand),
+    /// `provider.switch`: choose another provider instance for the thread; its next message hands the
+    /// conversation over. Unlike the selection command it always reports a provider switch.
+    #[serde(rename = "provider.switch")]
+    ProviderSwitch(ThreadModelSelectionCommand),
     #[serde(rename = "thread.fork")]
     Fork(ThreadForkCommand),
     #[serde(rename = "thread.merge_back")]
@@ -764,7 +768,7 @@ impl ThreadCommand {
             Self::PullRequestWatch(c) => &c.command_id,
             Self::RuntimeModeSet(c) => &c.command_id,
             Self::InteractionModeSet(c) => &c.command_id,
-            Self::ModelSelectionSet(c) => &c.command_id,
+            Self::ModelSelectionSet(c) | Self::ProviderSwitch(c) => &c.command_id,
             Self::Fork(c) => &c.command_id,
             Self::MergeBack(c) => &c.command_id,
         }
@@ -791,7 +795,7 @@ impl ThreadCommand {
             Self::PullRequestWatch(c) => &c.thread_id,
             Self::RuntimeModeSet(c) => &c.thread_id,
             Self::InteractionModeSet(c) => &c.thread_id,
-            Self::ModelSelectionSet(c) => &c.thread_id,
+            Self::ModelSelectionSet(c) | Self::ProviderSwitch(c) => &c.thread_id,
             // The thread a fork or a merge-back writes to: the new thread, or the one merged into.
             Self::Fork(c) => &c.target_thread_id,
             Self::MergeBack(c) => &c.target_thread_id,

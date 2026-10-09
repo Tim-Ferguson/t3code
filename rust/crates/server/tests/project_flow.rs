@@ -79,7 +79,7 @@ fn scratch_and_new_projects_over_the_socket() {
             (14, "projects.createNew", json!({"name":5})),
             (15, "projects.createNew", Value::Null),
             (16, "projects.ensureScratch", Value::Null),
-            (17, "projects.ensureScratch", json!("x")),
+            // (A struct with no fields takes anything but null, a string included: `Predicate.isNotNullish`.)
         ] {
             let exit = rpc(&mut operator, id, tag, payload.clone()).await;
             defect(&exit);
@@ -90,10 +90,11 @@ fn scratch_and_new_projects_over_the_socket() {
         let names = std::fs::read_dir(h.base.join("projects")).unwrap().count();
         assert_eq!(names, 3);
 
-        // projects.list/add/remove are named in WS_METHODS but have no RPC in the original.
+        // projects.list/add/remove are named in WS_METHODS but have no RPC in the original, whose server answers an
+        // unknown tag with a defect.
         for (id, tag) in [(20, "projects.list"), (21, "projects.add"), (22, "projects.remove")] {
             let exit = rpc(&mut operator, id, tag, json!({})).await;
-            assert_eq!(failure(&exit)["_tag"], "NativeMethodUnsupportedError", "{exit}");
+            assert_eq!(defect(&exit), &json!(format!("Unknown request tag: {tag}")), "{exit}");
         }
 
         // A connection without orchestration:operate is refused before anything is made.

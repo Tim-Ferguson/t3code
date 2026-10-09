@@ -218,7 +218,11 @@ async fn a_quiet_provider_process_is_released_after_the_idle_window_and_the_next
 async fn a_running_turn_keeps_its_process_however_long_it_takes() {
     let mut harness = harness().await;
     harness.send("[hold] work for a long time").await;
-    harness.until("the run to start", |view| view["runs"][0]["status"].as_str().filter(|status| *status == "running").map(|_| ())).await;
+    harness.until("the run to be running with its first words persisted", |view| {
+        let running = view["runs"][0]["status"] == "running";
+        (running && view["turnItems"].as_array().unwrap().iter().any(|item| item["type"] == "assistant_message")).then_some(())
+    })
+    .await;
     harness.pass(31).await;
     harness.pass(31).await;
     assert_eq!(harness.view()["runs"][0]["status"], "running");

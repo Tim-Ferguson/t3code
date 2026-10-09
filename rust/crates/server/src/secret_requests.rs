@@ -325,11 +325,8 @@ impl SecretRequests {
     }
 }
 
-/// Decode, one answer, the original's error envelope.
-pub async fn command(store: &Store, tag: &str, payload: Value) -> Result<Value, Value> {
-    if tag != "secrets.answerRequest" {
-        return Err(json!({"_tag":"NativeMethodUnsupportedError","method":tag}));
-    }
+/// The thread, the turn item and the answer of a `secrets.answerRequest` payload.
+fn decode_request(payload: &Value) -> Result<(&str, &str, &Value), Value> {
     let decode = |message: &str| json!({"_tag":"SchemaDecodeError","message":message});
     let thread = payload["threadId"].as_str().filter(|id| !t3_contracts::trim_wire_string(id).is_empty()).ok_or_else(|| decode("threadId is required."))?;
     let item = payload["turnItemId"].as_str().filter(|id| !t3_contracts::trim_wire_string(id).is_empty()).ok_or_else(|| decode("turnItemId is required."))?;
@@ -339,6 +336,18 @@ pub async fn command(store: &Store, tag: &str, payload: Value) -> Result<Value, 
         Some("decline") => {}
         _ => return Err(decode("answer must save a non-empty secret or decline.")),
     }
+    Ok((thread, item, answer))
+}
+pub(crate) fn decode_answer(payload: &Value) -> Result<(), Value> {
+    decode_request(payload).map(|_| ())
+}
+
+/// Decode, one answer, the original's error envelope.
+pub async fn command(store: &Store, tag: &str, payload: Value) -> Result<Value, Value> {
+    if tag != "secrets.answerRequest" {
+        return Err(json!({"_tag":"NativeMethodUnsupportedError","method":tag}));
+    }
+    let (thread, item, answer) = decode_request(&payload)?;
     let service = SecretRequests::for_store(store).ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Secret storage is not configured."}))?;
     let (thread, item, answer) = (thread.to_owned(), item.to_owned(), answer.clone());
     // The answer is trimmed like every wire string before it is kept.

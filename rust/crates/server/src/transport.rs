@@ -525,6 +525,8 @@ fn read_thread_snapshot(store: &Store, id: &str) -> Result<Value, StoreError> {
         )?;
         let projection = read_projection(connection, "thread", id)?
             .ok_or_else(|| StoreError::InvalidCommand(format!("Thread {id} does not exist.")))?;
+        // A fork's inherited history is its source's as it is now.
+        let projection = crate::thread_fork::refreshed(projection, &|source| read_projection(connection, "thread", source).ok().flatten());
         Ok(json!({"snapshotSequence":sequence,"projection":projection}))
     })
 }
@@ -638,11 +640,17 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                         RpcClientMessage::Eof=>{},
                         RpcClientMessage::Ack{request_id}=>{if let Some(ack)=subscriptions.get(&request_id).and_then(|task|task.ack.as_ref()){let _=ack.try_send(());}},
                         RpcClientMessage::Interrupt{request_id}=>{if let Some(stream)=subscriptions.remove(&request_id){stream.task.abort();let _=outgoing.send(RpcServerMessage::Exit{request_id,exit:RpcExit::Failure{cause:vec![RpcCause::Interrupt{fiber_id:None}]}}).await;}},
-                        RpcClientMessage::Request{request}=>{
+                        RpcClientMessage::Request{mut request}=>{
                             if let Some(previous)=subscriptions.remove(&request.id){previous.task.abort();}
                             let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))).await;continue}};
+                            // A method the original's group does not have is a defect there, before anything else is looked at.
+                            if t3_contracts::rpc_required_scope(&request.tag).is_err(){let _=outgoing.send(failure(request.id,json!({"_tag":"SchemaDecodeError","message":format!("Unknown request tag: {}",request.tag)}))).await;continue}
+                            // The original decodes first, then authorizes. Here the scope is checked first, so a caller without it learns
+                            // nothing of the schema; only a method whose scope depends on its payload is decoded before it.
+                            let payload_scoped=matches!(request.tag.as_str(),"device.list"|"server.updateSettings");
+                            if payload_scoped{if let Err(error)=admit_payload(&mut request){let _=outgoing.send(failure(request.id,error)).await;continue}}
                             if let Err(error)=authorize_request(&session,&request){let _=outgoing.send(failure(request.id,error)).await;continue}
-                            if let Some(error)=crate::rpc_admission::refuse(&request.tag,&request.payload){let _=outgoing.send(failure(request.id,error)).await;continue}
+                            if !payload_scoped{if let Err(error)=admit_payload(&mut request){let _=outgoing.send(failure(request.id,error)).await;continue}}
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
@@ -1037,6 +1045,15 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
     result
 }
 
+/// Decodes the payload as the original does, and replaces it with the decoded value: what the handler acts on is what the original's
+/// handler would have been given, not the bytes the client sent.
+fn admit_payload(request: &mut RpcRequest) -> Result<(), Value> {
+    if let Some(decoded) = crate::rpc_admission::admit(&request.tag, &request.payload)? {
+        request.payload = decoded;
+    }
+    Ok(())
+}
+
 fn failure(id: RpcRequestId, error: Value) -> RpcServerMessage {
     RpcServerMessage::Exit {
         request_id: id,
@@ -1129,7 +1146,7 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
             // Every refusal reaches the client as the original's `OrchestrationV2DispatchCommandError`.
             let refused=|error:StoreError|crate::dispatch_error::dispatch(&request.payload,&error);
             let now=Utc::now();
-            let receipt=if request.payload["type"].as_str().is_some_and(|kind|kind.starts_with("thread.")) {ThreadService::new(state.store.clone()).dispatch(&request.payload,now).map_err(refused)?}else{let execution=state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?;crate::attachment_claims::dispatch_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,&request.payload,|command|crate::answer_attachments::respond_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,command,|command|execution.dispatch(command,now)).map_err(|failure|match failure{crate::attachment_claims::ClaimedDispatchError::Store(error)=>error,crate::attachment_claims::ClaimedDispatchError::Claim(message)=>StoreError::InvalidCommand(message)})).map_err(|failure|failure.dispatch_wire(&request.payload,refused))?};
+            let receipt=if request.payload["type"].as_str().is_some_and(crate::dispatch_decode::routes_to_thread_service) {ThreadService::new(state.store.clone()).dispatch(&request.payload,now).map_err(refused)?}else{let execution=state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?;crate::attachment_claims::dispatch_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,&request.payload,|command|crate::answer_attachments::respond_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,command,|command|execution.dispatch(command,now)).map_err(|failure|match failure{crate::attachment_claims::ClaimedDispatchError::Store(error)=>error,crate::attachment_claims::ClaimedDispatchError::Claim(message)=>StoreError::InvalidCommand(message)})).map_err(|failure|failure.dispatch_wire(&request.payload,refused))?};
             if receipt.status=="rejected"{return Err(crate::dispatch_error::rejected(&receipt,receipt.accepted_at==now.to_rfc3339()));}
             Ok(json!({"sequence":receipt.result_sequence}))
         },
@@ -1314,8 +1331,8 @@ async fn project_clone_stream(
     mut ack: mpsc::Receiver<()>,
 ) {
     let result = async {
-        if !request.payload.is_object() {
-            return Err(json!({"_tag":"SchemaDecodeError","message":"Expected an object."}));
+        if request.payload.is_null() {
+            return Err(json!({"_tag":"SchemaDecodeError","message":"Expected object | array"}));
         }
         let mut changes = crate::project_clone::of(&state.store).subscribe();
         loop {

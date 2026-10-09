@@ -23,14 +23,18 @@ pub(crate) fn decode_create_new(payload: Value) -> Result<ProjectCreateNewInput,
     serde_json::from_value::<ProjectCreateNewInput>(payload).map_err(decode_failure)
 }
 
+/// `projects.ensureScratch` takes a struct with no fields: anything but null decodes.
+pub(crate) fn decode_ensure_scratch(payload: &Value) -> Result<(), Value> {
+    if payload.is_null() { Err(decode_failure("Expected object | array")) } else { Ok(()) }
+}
+
 pub async fn command(store: &Store, tag: &str, payload: Value) -> Result<Value, Value> {
-    // Both payloads are structs: anything that is not an object fails the decode.
-    if !payload.is_object() {
-        return Err(decode_failure("Expected an object."));
-    }
     let create = match tag {
         "projects.createNew" => Some(decode_create_new(payload)?),
-        "projects.ensureScratch" => None,
+        "projects.ensureScratch" => {
+            decode_ensure_scratch(&payload)?;
+            None
+        }
         _ => return Err(json!({"_tag":"NativeMethodUnsupportedError","method":tag})),
     };
     let folders = ManagedProjectFolders::for_store(store).ok_or_else(|| {

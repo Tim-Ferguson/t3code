@@ -7,7 +7,7 @@ use rpc_support::*;
 use serde_json::{Value, json};
 
 fn create(thread: &str, project: &str) -> Value {
-    json!({"type":"thread.create","commandId":format!("create:{thread}"),"threadId":thread,"projectId":project,"title":"Thread","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null})
+    json!({"type":"thread.create","createdBy":"user","creationSource":"web","commandId":format!("create:{thread}"),"threadId":thread,"projectId":project,"title":"Thread","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null})
 }
 
 #[test]

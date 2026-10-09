@@ -16,6 +16,8 @@ pub(crate) enum Js {
     Null,
     Bool(bool),
     Num(Number),
+    /// NaN and the infinities, which a JSON number cannot be but the JSON codec reads from "NaN", "Infinity" and "-Infinity".
+    NonFinite(f64),
     Str(String),
     Arr(Vec<Js>),
     Obj(Vec<(String, Js)>),
@@ -38,6 +40,7 @@ impl Js {
             Js::Undefined | Js::Null => Value::Null,
             Js::Bool(flag) => Value::Bool(*flag),
             Js::Num(number) => Value::Number(number.clone()),
+            Js::NonFinite(number) => Value::String(if number.is_nan() { "NaN" } else if *number > 0.0 { "Infinity" } else { "-Infinity" }.into()),
             Js::Str(text) => Value::String(text.clone()),
             Js::Arr(items) => Value::Array(items.iter().map(Js::to_json).collect()),
             Js::Obj(entries) => Value::Object(entries.iter().filter(|(_, found)| *found != Js::Undefined).map(|(key, found)| (key.clone(), found.to_json())).collect()),
@@ -58,7 +61,7 @@ impl Js {
             Js::Undefined => "undefined",
             Js::Null => "null",
             Js::Bool(_) => "boolean",
-            Js::Num(_) => "number",
+            Js::Num(_) | Js::NonFinite(_) => "number",
             Js::Str(_) => "string",
             Js::Arr(_) => "array",
             Js::Obj(_) => "object",
@@ -113,6 +116,10 @@ enum Tag {
     Undefined,
     Never,
     Unknown,
+    /// A Duration, a DateTime or JSON itself: whatever the encoding link made always passes it.
+    Declaration,
+    /// A recursive schema's way back to a node.
+    Suspend,
 }
 #[derive(Deserialize)]
 struct Node {
@@ -143,6 +150,11 @@ struct Node {
     suffix: String,
     #[serde(default)]
     middle: usize,
+    #[serde(default)]
+    target: usize,
+    /// Built on the first union parse of this node.
+    #[serde(skip)]
+    plan: OnceLock<Plan>,
 }
 #[derive(Deserialize)]
 struct Prop {
@@ -179,8 +191,25 @@ struct Sentinel {
 #[derive(Deserialize)]
 struct Link {
     to: usize,
-    #[serde(rename = "fn")]
+    #[serde(rename = "fn", default)]
     function: Option<String>,
+    /// `withDecodingDefault`: a missing or undefined value becomes this.
+    #[serde(default)]
+    default: Option<DefaultValue>,
+    /// `catchDecoding` turns a failure into `undefined` ("catch"); "identity" leaves it as it is.
+    #[serde(default)]
+    middleware: Option<String>,
+    /// A transformation that ignores its input: its one result, `undefined` when it has no `value`.
+    #[serde(default)]
+    constant: Option<DefaultValue>,
+    /// A field kept when the schema at this node accepts it, `undefined` otherwise (`ForwardCompatibleOptional`).
+    #[serde(default)]
+    tolerant: Option<usize>,
+}
+#[derive(Deserialize)]
+struct DefaultValue {
+    #[serde(default)]
+    value: Option<Value>,
 }
 #[derive(Deserialize, Default)]
 #[serde(default)]
@@ -194,6 +223,12 @@ struct Check {
     max_length: Option<usize>,
     #[serde(rename = "minLength")]
     min_length: Option<usize>,
+    /// Strings a function over a set closes over, which it refuses.
+    rejects: Option<Vec<String>>,
+    #[serde(rename = "maxProperties")]
+    max_properties: Option<usize>,
+    #[serde(rename = "minProperties")]
+    min_properties: Option<usize>,
     int: bool,
     finite: bool,
     trimmed: bool,
@@ -206,7 +241,7 @@ struct Check {
     pattern: Option<String>,
     flags: Option<String>,
     #[serde(skip)]
-    regex: OnceLock<Option<regex::Regex>>,
+    regex: OnceLock<Option<Pattern>>,
 }
 
 pub(crate) fn schemas() -> &'static Schemas {
@@ -225,7 +260,7 @@ pub(crate) fn unrunnable_patterns() -> Vec<String> {
     fn walk(checks: &[Check], bad: &mut Vec<String>) {
         for check in checks {
             if let Some(pattern) = &check.pattern {
-                if regex::Regex::new(&translate(pattern, check.flags.as_deref().unwrap_or_default())).is_err() {
+                if Pattern::compile(pattern, check.flags.as_deref().unwrap_or_default()).is_none() {
                     bad.push(pattern.clone());
                 }
             }
@@ -285,45 +320,107 @@ impl Schemas {
     pub(crate) fn covers_rpc(&self, method: &str) -> bool {
         self.rpc.contains_key(method)
     }
-    /// The original's decoding of a WebSocket RPC payload, for a method listed in the schemas.
+    /// The original's decoding of a WebSocket RPC payload, for a method listed in the schemas. The RPC server decodes with the
+    /// library's defaults, which stop at the first issue of a struct or an array.
     pub(crate) fn decode_rpc(&self, method: &str, input: &Js) -> Option<Result<Js, Issue>> {
         let root = *self.rpc.get(method)?;
-        Some(Parser { schemas: self, all: true }.parse(root, Some(input)).map(|decoded| decoded.unwrap_or(Js::Undefined)))
+        Some(Parser::new(self, false).parse(root, Some(input)).map(|decoded| decoded.unwrap_or(Js::Undefined)))
     }
     /// Decodes `input` for `tool`, returning the value its handler receives. `all` reports every
     /// issue, as the toolkit's registration does; otherwise the first.
     pub(crate) fn decode(&self, tool: &str, input: &Js, all: bool) -> Result<Js, Issue> {
         let root = self.tools[tool];
-        Ok(Parser { schemas: self, all }.parse(root, Some(input))?.unwrap_or(Js::Undefined))
+        Ok(Parser::new(self, all).parse(root, Some(input))?.unwrap_or(Js::Undefined))
     }
 }
+
+/// The deepest nesting of schema nodes the interpreter follows and the most nodes it visits for one payload. The original's
+/// parser is bounded by the engine's stack; here an adversarial payload is refused instead of exhausting this one. A payload
+/// the transport parsed is at most 128 JSON levels deep (the parser's own limit), which a recursive schema follows in about 4
+/// nodes per level pair.
+const MAX_DEPTH: usize = 512;
+const MAX_VISITS: usize = 1_000_000;
 
 struct Parser<'a> {
     schemas: &'a Schemas,
     all: bool,
+    depth: std::cell::Cell<usize>,
+    visits: std::cell::Cell<usize>,
 }
 
-impl Parser<'_> {
+impl<'a> Parser<'a> {
+    fn new(schemas: &'a Schemas, all: bool) -> Self {
+        Parser { schemas, all, depth: std::cell::Cell::new(0), visits: std::cell::Cell::new(0) }
+    }
     fn mismatch(&self, node: &Node) -> Issue {
         Issue::Leaf(format!("Expected {}", node.expected))
     }
     /// A missing input is neither a failure nor a value; everything else is parsed through the
     /// encoded side, the transformations, then the node itself and its checks.
     fn parse(&self, id: usize, input: Option<&Js>) -> Parsed {
+        let (depth, visits) = (self.depth.get() + 1, self.visits.get() + 1);
+        if depth > MAX_DEPTH {
+            return Err(Issue::Leaf("Maximum call stack size exceeded".into()));
+        }
+        if visits > MAX_VISITS {
+            return Err(Issue::Leaf("The payload is too large to decode".into()));
+        }
+        self.depth.set(depth);
+        self.visits.set(visits);
+        let parsed = self.parse_node(id, input);
+        self.depth.set(depth - 1);
+        parsed
+    }
+    fn parse_node(&self, id: usize, input: Option<&Js>) -> Parsed {
         let node = &self.schemas.nodes[id];
-        let Some(input) = input else { return Ok(None) };
-        let mut value = input.clone();
-        if let Some(last) = node.encoding.last() {
-            value = self.parse(last.to, Some(&value))?.unwrap_or(Js::Undefined);
-            for position in (0..node.encoding.len()).rev() {
-                if let Some(hash) = &node.encoding[position].function {
-                    value = functions::transform(hash, value).map_err(|expected| Issue::Leaf(format!("Expected {expected}")))?;
-                }
-                if position != 0 {
-                    value = self.parse(node.encoding[position - 1].to, Some(&value))?.unwrap_or(Js::Undefined);
-                }
+        let Some(last) = node.encoding.last() else {
+            let Some(input) = input else { return Ok(None) };
+            return self.finish(node, input.clone());
+        };
+        // The library parses the encoded side, then each link's transformation, parsing the next link's side after it.
+        let mut result = self.parse(last.to, input);
+        for position in (0..node.encoding.len()).rev() {
+            result = self.transform(&node.encoding[position], result);
+            if position != 0 {
+                result = match result {
+                    Ok(found) => self.parse(node.encoding[position - 1].to, found.as_ref()),
+                    failed => failed,
+                };
             }
         }
+        match result? {
+            Some(value) => self.finish(node, value),
+            None => Ok(None),
+        }
+    }
+    /// One link's transformation of what the side before it parsed to. A failure passes through unless the link catches it.
+    fn transform(&self, link: &Link, result: Parsed) -> Parsed {
+        if link.middleware.as_deref() == Some("catch") {
+            return Ok(result.unwrap_or(Some(Js::Undefined)));
+        }
+        let value = result?;
+        if let Some(default) = &link.default {
+            return Ok(Some(match value {
+                Some(found) if found != Js::Undefined => found,
+                _ => Js::from_json(default.value.as_ref().unwrap_or(&Value::Null)),
+            }));
+        }
+        if let Some(constant) = &link.constant {
+            return Ok(value.map(|_| constant.value.as_ref().map_or(Js::Undefined, Js::from_json)));
+        }
+        if let Some(member) = link.tolerant {
+            return Ok(match value {
+                Some(raw) => Some(if self.parse(member, Some(&raw)).is_ok() { raw } else { Js::Undefined }),
+                None => None,
+            });
+        }
+        match (&link.function, value) {
+            (Some(hash), Some(value)) => functions::transform(hash, value).map(Some).map_err(|expected| Issue::Leaf(format!("Expected {expected}"))),
+            (_, value) => Ok(value),
+        }
+    }
+    /// The node's own shape, then its checks.
+    fn finish(&self, node: &Node, value: Js) -> Parsed {
         let value = self.local(node, value)?;
         let mut issues = Vec::new();
         self.collect(&node.checks, &value, &mut issues);
@@ -333,13 +430,14 @@ impl Parser<'_> {
     fn local(&self, node: &Node, value: Js) -> Result<Js, Issue> {
         let fits = match node.t {
             Tag::String => matches!(value, Js::Str(_)),
-            Tag::Number => matches!(value, Js::Num(_)),
+            Tag::Number => matches!(value, Js::Num(_) | Js::NonFinite(_)),
             Tag::Boolean => matches!(value, Js::Bool(_)),
             Tag::Null => value == Js::Null,
             Tag::Undefined => value == Js::Undefined,
             Tag::Literal => value.is_literal(node.literal.as_ref().unwrap_or(&Value::Null)),
-            Tag::Unknown => true,
+            Tag::Unknown | Tag::Declaration => true,
             Tag::Never => false,
+            Tag::Suspend => return Ok(self.parse(node.target, Some(&value))?.unwrap_or(Js::Undefined)),
             Tag::TemplateLiteral => return self.template(node, value),
             Tag::Objects => return self.objects(node, value),
             Tag::Arrays => return self.arrays(node, value),
@@ -348,12 +446,32 @@ impl Parser<'_> {
         if fits { Ok(value) } else { Err(self.mismatch(node)) }
     }
 
-    /// A prefix, one part and a suffix: the part is read from what lies between them.
+    /// A prefix, one part and a suffix: the part is read from what lies between them, as the element of the tuple the
+    /// library parses a template literal as. Anything but a string is not one, and a string that is not cut by the
+    /// prefix and suffix does not match the parts.
     fn template(&self, node: &Node, value: Js) -> Result<Js, Issue> {
-        let Js::Str(text) = &value else { return Err(self.mismatch(node)) };
-        let Some(between) = text.strip_prefix(node.prefix.as_str()).and_then(|rest| rest.strip_suffix(node.suffix.as_str())) else { return Err(self.mismatch(node)) };
-        self.parse(node.middle, Some(&Js::Str(between.to_owned())))?;
+        let Js::Str(text) = &value else { return Err(Issue::Leaf("Expected string".into())) };
+        let Some(between) = text.strip_prefix(node.prefix.as_str()).and_then(|rest| rest.strip_suffix(node.suffix.as_str())) else { return Err(Issue::Leaf("Expected a string matching template literal parts".into())) };
+        self.parse(node.middle, Some(&Js::Str(between.to_owned()))).map_err(|issue| Issue::Pointer(Key::Index(1), Box::new(issue)))?;
         Ok(value)
+    }
+    /// Whether the key is one the index signature reads at all: the library takes the keys that pass the checks of the
+    /// parameter's encoded side (or fit its template, or one of its union members) and leaves the others alone.
+    fn key_selected(&self, id: usize, key: &str) -> bool {
+        let mut node = &self.schemas.nodes[id];
+        while let Some(last) = node.encoding.last() {
+            node = &self.schemas.nodes[last.to];
+        }
+        match node.t {
+            Tag::String => {
+                let mut issues = Vec::new();
+                self.collect(&node.checks, &Js::Str(key.to_owned()), &mut issues);
+                issues.is_empty()
+            }
+            Tag::TemplateLiteral => key.strip_prefix(node.prefix.as_str()).is_some_and(|rest| rest.strip_suffix(node.suffix.as_str()).is_some()),
+            Tag::Union => node.types.iter().any(|member| self.key_selected(*member, key)),
+            _ => false,
+        }
     }
 
     fn objects(&self, node: &Node, input: Js) -> Result<Js, Issue> {
@@ -385,6 +503,9 @@ impl Parser<'_> {
                 key.t == Tag::String && key.checks.is_empty() && key.encoding.is_empty()
             };
             for (key, found) in js_keys(record) {
+                if !plain_key && !self.key_selected(index.key, key) {
+                    continue;
+                }
                 let named = if plain_key {
                     Js::Str(key.clone())
                 } else {
@@ -453,7 +574,7 @@ impl Parser<'_> {
     }
 
     fn union(&self, node: &Node, input: Js) -> Result<Js, Issue> {
-        let candidates = candidates(node, &input);
+        let candidates = node.plan.get_or_init(|| Plan::build(node)).select(&input);
         if candidates.is_empty() {
             return Err(self.mismatch(node));
         }
@@ -495,10 +616,17 @@ impl Check {
         };
         let number = match value {
             Js::Num(number) => number.as_f64(),
+            Js::NonFinite(number) => Some(*number),
+            _ => None,
+        };
+        // `Reflect.ownKeys`: an array counts its length too.
+        let properties = match value {
+            Js::Obj(entries) => Some(entries.len()),
+            Js::Arr(items) => Some(items.len() + 1),
             _ => None,
         };
         let holds = if let Some(hash) = &self.function {
-            match functions::filter(hash, value) {
+            match functions::filter(hash, value, self.rejects.as_deref()) {
                 Outcome::Pass => true,
                 Outcome::Message(message) => return Some(message),
                 Outcome::Fail => false,
@@ -507,6 +635,10 @@ impl Check {
             length.is_some_and(|length| length <= max)
         } else if let Some(min) = self.min_length {
             length.is_some_and(|length| length >= min)
+        } else if let Some(max) = self.max_properties {
+            properties.is_some_and(|count| count <= max)
+        } else if let Some(min) = self.min_properties {
+            properties.is_some_and(|count| count >= min)
         } else if self.int {
             number.is_some_and(|number| number.is_finite() && number.fract() == 0.0 && number.abs() <= 9007199254740991.0)
         } else if self.finite {
@@ -514,7 +646,7 @@ impl Check {
         } else if self.trimmed {
             matches!(value, Js::Str(text) if trim(text) == text)
         } else if let Some(pattern) = &self.pattern {
-            let regex = self.regex.get_or_init(|| regex::Regex::new(&translate(pattern, self.flags.as_deref().unwrap_or_default())).ok());
+            let regex = self.regex.get_or_init(|| Pattern::compile(pattern, self.flags.as_deref().unwrap_or_default()));
             matches!(value, Js::Str(text) if regex.as_ref().expect("a pattern the port can run").is_match(text))
         } else if let (Some(min), Some(max)) = (self.minimum, self.maximum) {
             number.is_some_and(|number| number >= min && number <= max)
@@ -537,8 +669,52 @@ pub(crate) fn trim(text: &str) -> &str {
     t3_contracts::trim_wire_string(text)
 }
 
-/// A JavaScript pattern as the regex crate reads it: `\d` is ASCII only there, and `i` is a flag.
+/// A pattern the schemas check: a regular expression, or one led by a negative lookahead (`^(?!(?:a|b)$)`), which the regex
+/// crate has no syntax for. Both are matched as the engine would, unanchored unless the pattern anchors itself.
+enum Pattern {
+    Plain(regex::Regex),
+    /// `^(?!not)rest`: neither alternative reads past the start, so the two halves are tested apart.
+    Lead { not: regex::Regex, rest: Option<regex::Regex> },
+}
+impl Pattern {
+    fn compile(source: &str, flags: &str) -> Option<Pattern> {
+        let Some(after) = source.strip_prefix("^(?!") else { return regex::Regex::new(&translate(source, flags)).ok().map(Pattern::Plain) };
+        let mut depth = 1;
+        let mut end = None;
+        let mut escaped = false;
+        for (at, c) in after.char_indices() {
+            match c {
+                _ if escaped => escaped = false,
+                '\\' => escaped = true,
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(at);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let end = end?;
+        let not = regex::Regex::new(&format!("^{}", translate(&after[..end], flags))).ok()?;
+        let rest = &after[end + 1..];
+        let rest = if rest.is_empty() { None } else { Some(regex::Regex::new(&format!("^{}", translate(rest, flags))).ok()?) };
+        Some(Pattern::Lead { not, rest })
+    }
+    fn is_match(&self, text: &str) -> bool {
+        match self {
+            Pattern::Plain(regex) => regex.is_match(text),
+            Pattern::Lead { not, rest } => !not.is_match(text) && rest.as_ref().is_none_or(|rest| rest.is_match(text)),
+        }
+    }
+}
+
+/// A JavaScript pattern as the regex crate reads it: `\d`, `\w`, `\s` and `\b` mean the ASCII (or JavaScript's own) sets
+/// there, `.` stops at the four line terminators, and `i` is a flag.
 fn translate(source: &str, flags: &str) -> String {
+    const SPACE: &str = "\\t\\n\\x0B\\x0C\\r \\u{a0}\\u{1680}\\u{2000}-\\u{200a}\\u{2028}\\u{2029}\\u{202f}\\u{205f}\\u{3000}\\u{feff}";
     let mut out = String::new();
     if flags.contains('i') {
         out.push_str("(?i)");
@@ -548,13 +724,20 @@ fn translate(source: &str, flags: &str) -> String {
         match c {
             '\\' => match chars.next() {
                 Some('d') => out.push_str(if in_class { "0-9" } else { "[0-9]" }),
-                Some(escaped @ ('w' | 's' | 'b' | 'D' | 'W' | 'S' | 'B')) => panic!("\\{escaped} differs between JavaScript and the regex crate"),
+                Some('D') => out.push_str(if in_class { "[^0-9]" } else { "[^0-9]" }),
+                Some('w') => out.push_str(if in_class { "A-Za-z0-9_" } else { "[A-Za-z0-9_]" }),
+                Some('W') => out.push_str("[^A-Za-z0-9_]"),
+                Some('s') => if in_class { out.push_str(SPACE) } else { out.push_str(&format!("[{SPACE}]")) },
+                Some('S') => out.push_str(&format!("[^{SPACE}]")),
+                Some('b') if !in_class => out.push_str("(?-u:\\b)"),
+                Some('B') => out.push_str("(?-u:\\B)"),
                 Some(escaped) => {
                     out.push('\\');
                     out.push(escaped);
                 }
                 None => out.push('\\'),
             },
+            '.' if !in_class => out.push_str("[^\\n\\r\\u{2028}\\u{2029}]"),
             '[' => {
                 in_class = true;
                 out.push(c);
@@ -569,123 +752,136 @@ fn translate(source: &str, flags: &str) -> String {
     out
 }
 
-/// The members of a union worth trying for `input`, in order: the library's `getCandidateIndex`.
-fn candidates(node: &Node, input: &Js) -> Vec<usize> {
-    let runtime = input.runtime_type();
-    let mut literal_of: HashMap<usize, &Value> = HashMap::new();
-    let mut literals: Vec<(&Value, Vec<usize>)> = Vec::new();
-    let mut only_literals = true;
-    // key -> (literal -> members, members that own the key)
-    let mut by_sentinel: Vec<(&Value, Vec<(&Value, Vec<usize>)>, Vec<usize>)> = Vec::new();
-    let mut sentinel_members = 0;
-    let mut otherwise: Option<HashMap<&str, Vec<usize>>> = None;
-    for (position, member) in node.members.iter().enumerate() {
-        if member.never {
-            continue;
-        }
-        if let Some(literal) = &member.literal {
-            literal_of.insert(position, literal);
-            match literals.iter_mut().find(|(found, _)| *found == literal) {
-                Some((_, members)) => members.push(position),
-                None => literals.push((literal, vec![position])),
-            }
-        } else {
-            only_literals = false;
-        }
-        if member.sentinels.is_empty() {
-            for ty in &member.types {
-                otherwise.get_or_insert_with(HashMap::new).entry(ty.as_str()).or_default().push(position);
-            }
-        } else {
-            sentinel_members += 1;
-            for sentinel in &member.sentinels {
-                let entry = match by_sentinel.iter().position(|(key, _, _)| *key == &sentinel.key) {
-                    Some(found) => &mut by_sentinel[found],
-                    None => {
-                        by_sentinel.push((&sentinel.key, Vec::new(), Vec::new()));
-                        by_sentinel.last_mut().expect("just pushed")
-                    }
-                };
-                if !entry.2.contains(&position) {
-                    entry.2.push(position);
-                }
-                match entry.1.iter_mut().find(|(found, _)| *found == &sentinel.literal) {
-                    Some((_, members)) => {
-                        if !members.contains(&position) {
-                            members.push(position)
-                        }
-                    }
-                    None => entry.1.push((&sentinel.literal, vec![position])),
-                }
-            }
-        }
-    }
-    let fallback = |ty: &str| otherwise.as_ref().and_then(|found| found.get(ty)).cloned().unwrap_or_default();
-    // `key in input` and `input[key]` on an object or an array.
-    let read = |key: &Value| -> Option<&Js> {
-        match (input, key) {
-            (Js::Obj(_), Value::String(name)) => input.get(name),
-            (Js::Arr(items), Value::Number(index)) => index.as_u64().and_then(|index| items.get(index as usize)),
-            _ => None,
-        }
-    };
-    let matching = |by_value: &[(&Value, Vec<usize>)], value: &Js| by_value.iter().find(|(literal, _)| value.is_literal(literal)).map(|(_, members)| members.clone());
-    let object_like = matches!(input, Js::Obj(_) | Js::Arr(_));
-    if only_literals && !literals.is_empty() {
-        literals.iter().find(|(literal, _)| input.is_literal(literal)).map(|(_, members)| members.clone()).unwrap_or_default()
-    } else if by_sentinel.len() == 1 && otherwise.is_none() {
-        if !object_like {
-            return Vec::new();
-        }
-        match read(by_sentinel[0].0) {
-            Some(value) if *value != Js::Undefined => matching(&by_sentinel[0].1, value).unwrap_or_default(),
-            _ => Vec::new(),
-        }
-    } else if !by_sentinel.is_empty() {
-        if !object_like {
-            return fallback(runtime);
-        }
-        let mut selected: Vec<usize> = fallback(runtime);
-        // A key every discriminated member owns seeds the selection; prefer the one with the most values.
-        let mut common: Option<usize> = None;
-        for (position, entry) in by_sentinel.iter().enumerate() {
-            if entry.2.len() == sentinel_members && common.is_none_or(|best| entry.1.len() > by_sentinel[best].1.len()) {
-                common = Some(position);
-            }
-        }
-        let mut direct = None;
-        if let Some(position) = common {
-            if let Some(value) = read(by_sentinel[position].0) {
-                // `input[key]` of a present key, undefined included, selects by that value.
-                match matching(&by_sentinel[position].1, value) {
-                    Some(members) => selected.extend(members),
-                    None => return fallback(runtime),
-                }
-                direct = Some(position);
-            }
-        }
-        if direct.is_none() {
-            for entry in &by_sentinel {
-                if let Some(value) = read(entry.0) {
-                    if let Some(members) = matching(&entry.1, value) {
-                        selected.extend(members);
-                    }
-                }
-            }
-        }
-        for (position, entry) in by_sentinel.iter().enumerate() {
-            if Some(position) == direct {
+/// What a union reads of its members before looking at an input, built once: the library's `getCandidateIndex`.
+#[derive(Default)]
+struct Plan {
+    literal_of: HashMap<usize, Value>,
+    literals: Vec<(Value, Vec<usize>)>,
+    only_literals: bool,
+    /// key -> (literal -> members, members that own the key)
+    by_sentinel: Vec<(Value, Vec<(Value, Vec<usize>)>, Vec<usize>)>,
+    /// A key every discriminated member owns, the one with the most values: it seeds the selection.
+    common: Option<usize>,
+    /// Members without a sentinel, by the runtime type they accept.
+    otherwise: Option<HashMap<String, Vec<usize>>>,
+}
+
+impl Plan {
+    fn build(node: &Node) -> Plan {
+        let mut plan = Plan { only_literals: true, ..Plan::default() };
+        let mut sentinel_members = 0;
+        for (position, member) in node.members.iter().enumerate() {
+            if member.never {
                 continue;
             }
-            if let Some(value) = read(entry.0) {
-                let matched = matching(&entry.1, value).unwrap_or_default();
-                selected.retain(|member| !entry.2.contains(member) || matched.contains(member));
+            if let Some(literal) = &member.literal {
+                plan.literal_of.insert(position, literal.clone());
+                match plan.literals.iter_mut().find(|(found, _)| found == literal) {
+                    Some((_, members)) => members.push(position),
+                    None => plan.literals.push((literal.clone(), vec![position])),
+                }
+            } else {
+                plan.only_literals = false;
+            }
+            if member.sentinels.is_empty() {
+                for ty in &member.types {
+                    plan.otherwise.get_or_insert_with(HashMap::new).entry(ty.clone()).or_default().push(position);
+                }
+            } else {
+                sentinel_members += 1;
+                for sentinel in &member.sentinels {
+                    let entry = match plan.by_sentinel.iter().position(|(key, _, _)| *key == sentinel.key) {
+                        Some(found) => &mut plan.by_sentinel[found],
+                        None => {
+                            plan.by_sentinel.push((sentinel.key.clone(), Vec::new(), Vec::new()));
+                            plan.by_sentinel.last_mut().expect("just pushed")
+                        }
+                    };
+                    if !entry.2.contains(&position) {
+                        entry.2.push(position);
+                    }
+                    match entry.1.iter_mut().find(|(found, _)| *found == sentinel.literal) {
+                        Some((_, members)) => {
+                            if !members.contains(&position) {
+                                members.push(position)
+                            }
+                        }
+                        None => entry.1.push((sentinel.literal.clone(), vec![position])),
+                    }
+                }
             }
         }
-        selected.sort_unstable();
-        selected.dedup();
-        selected
-    } else {
-        fallback(runtime).into_iter().filter(|member| literal_of.get(member).is_none_or(|literal| input.is_literal(literal))).collect()
+        for (position, entry) in plan.by_sentinel.iter().enumerate() {
+            if entry.2.len() == sentinel_members && plan.common.is_none_or(|best| entry.1.len() > plan.by_sentinel[best].1.len()) {
+                plan.common = Some(position);
+            }
+        }
+        plan
+    }
+
+    /// The members of the union worth trying for `input`, in order.
+    fn select(&self, input: &Js) -> Vec<usize> {
+        let runtime = input.runtime_type();
+        let fallback = |ty: &str| self.otherwise.as_ref().and_then(|found| found.get(ty)).cloned().unwrap_or_default();
+        // `key in input` and `input[key]` on an object or an array.
+        let read = |key: &Value| -> Option<&Js> {
+            match (input, key) {
+                (Js::Obj(_), Value::String(name)) => input.get(name),
+                (Js::Arr(items), Value::Number(index)) => index.as_u64().and_then(|index| items.get(index as usize)),
+                _ => None,
+            }
+        };
+        let matching = |by_value: &[(Value, Vec<usize>)], value: &Js| by_value.iter().find(|(literal, _)| value.is_literal(literal)).map(|(_, members)| members.clone());
+        let object_like = matches!(input, Js::Obj(_) | Js::Arr(_));
+        if self.only_literals && !self.literals.is_empty() {
+            self.literals.iter().find(|(literal, _)| input.is_literal(literal)).map(|(_, members)| members.clone()).unwrap_or_default()
+        } else if self.by_sentinel.len() == 1 && self.otherwise.is_none() {
+            if !object_like {
+                return Vec::new();
+            }
+            match read(&self.by_sentinel[0].0) {
+                Some(value) if *value != Js::Undefined => matching(&self.by_sentinel[0].1, value).unwrap_or_default(),
+                _ => Vec::new(),
+            }
+        } else if !self.by_sentinel.is_empty() {
+            if !object_like {
+                return fallback(runtime);
+            }
+            let mut selected: Vec<usize> = fallback(runtime);
+            let mut direct = None;
+            if let Some(position) = self.common {
+                if let Some(value) = read(&self.by_sentinel[position].0) {
+                    // `input[key]` of a present key, undefined included, selects by that value.
+                    match matching(&self.by_sentinel[position].1, value) {
+                        Some(members) => selected.extend(members),
+                        None => return fallback(runtime),
+                    }
+                    direct = Some(position);
+                }
+            }
+            if direct.is_none() {
+                for entry in &self.by_sentinel {
+                    if let Some(value) = read(&entry.0) {
+                        if let Some(members) = matching(&entry.1, value) {
+                            selected.extend(members);
+                        }
+                    }
+                }
+            }
+            for (position, entry) in self.by_sentinel.iter().enumerate() {
+                if Some(position) == direct {
+                    continue;
+                }
+                if let Some(value) = read(&entry.0) {
+                    let matched = matching(&entry.1, value).unwrap_or_default();
+                    selected.retain(|member| !entry.2.contains(member) || matched.contains(member));
+                }
+            }
+            selected.sort_unstable();
+            selected.dedup();
+            selected
+        } else {
+            fallback(runtime).into_iter().filter(|member| self.literal_of.get(member).is_none_or(|literal| input.is_literal(literal))).collect()
+        }
     }
 }

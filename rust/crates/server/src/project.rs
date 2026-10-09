@@ -24,7 +24,7 @@ impl ProjectCommand {
     pub fn from_json(input: Value) -> Result<Self, serde_json::Error> {
         serde_json::from_value(input)
     }
-    fn normalized(&self) -> Result<Self, StoreError> {
+    pub(crate) fn normalized(&self) -> Result<Self, StoreError> {
         let mut command = self.clone();
         command.command_id = t3_contracts::CommandId::new(&command.command_id)
             .map_err(|error| StoreError::InvalidCommand(error.to_string()))?

@@ -36,6 +36,37 @@ fn required_text<'a>(payload: &'a Value, key: &str) -> Result<&'a str, Value> {
     payload[key].as_str().filter(|text| !t3_contracts::trim_wire_string(text).is_empty()).ok_or_else(|| decode_error(&format!("{key} must be a non-empty string.")))
 }
 
+/// The checks each of these methods makes of its payload before it looks anything up, in the order it makes them.
+pub(crate) fn decode(tag: &str, payload: &Value) -> Result<(), Value> {
+    required_text(payload, "threadId")?;
+    match tag {
+        "provider.uploadFeedback" => match payload.get("reason") {
+            None | Some(Value::Null) => Ok(()),
+            Some(Value::String(reason)) if !t3_contracts::trim_wire_string(reason).is_empty() => Ok(()),
+            Some(_) => Err(decode_error("reason must be a non-empty string.")),
+        },
+        "mcpApps.updateModelContext" => {
+            required_text(payload, "itemId")?;
+            required_text(payload, "conversationThreadId")?;
+            if payload.get("content").is_some_and(|content| !content.is_array()) || payload.get("structuredContent").is_some_and(|content| !content.is_object()) {
+                return Err(decode_error("content must be an array and structuredContent an object."));
+            }
+            Ok(())
+        }
+        _ => {
+            required_text(payload, "itemId")?;
+            match tag {
+                "mcpApps.toolInfo" => required_text(payload, "name").map(|_| ()),
+                "mcpApps.readResource" => required_text(payload, "uri").map(|_| ()),
+                _ => {
+                    required_text(payload, "name")?;
+                    if payload["arguments"].is_object() { Ok(()) } else { Err(decode_error("arguments must be an object.")) }
+                }
+            }
+        }
+    }
+}
+
 // ---- reading the pieces of an app ------------------------------------------------------------
 
 /// `mcpAppToolCallableByApp`: `_meta.ui.visibility` lets an app call the tool. The spec defaults

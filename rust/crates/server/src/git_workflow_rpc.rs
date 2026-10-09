@@ -51,12 +51,26 @@ fn trimmed(value: &str, field: &str) -> Result<String, Value> {
     if text.is_empty() { Err(decode_failure(format!("Expected a non-empty string for {field}."))) } else { Ok(text.to_string()) }
 }
 
+/// The working directory and the reference of a `git.resolvePullRequest` payload, trimmed.
+fn decode_reference(payload: Value) -> Result<(String, String), Value> {
+    let input: RefInput = serde_json::from_value(payload).map_err(decode_failure)?;
+    Ok((trimmed(&input.cwd, "cwd")?, trimmed(&input.reference, "reference")?))
+}
+pub(crate) fn decode_ref(payload: Value) -> Result<(), Value> {
+    decode_reference(payload).map(|_| ())
+}
+pub(crate) fn decode_prepare(payload: Value) -> Result<(), Value> {
+    let input: PrepareInput = serde_json::from_value(payload).map_err(decode_failure)?;
+    trimmed(&input.cwd, "cwd")?;
+    trimmed(&input.reference, "reference")?;
+    Ok(())
+}
+
 pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Value, Value> {
     let env = pull_request_rpc::env(state);
     match tag {
         "git.resolvePullRequest" => {
-            let input: RefInput = serde_json::from_value(payload).map_err(decode_failure)?;
-            let (cwd, reference) = (trimmed(&input.cwd, "cwd")?, trimmed(&input.reference, "reference")?);
+            let (cwd, reference) = decode_reference(payload)?;
             Box::pin(git_workflow::resolve_pull_request(&env, &cwd, &reference)).await.map_err(|error| error.wire())
         }
         "git.preparePullRequestThread" => {

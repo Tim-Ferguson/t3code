@@ -706,7 +706,7 @@ pub fn plan(
                 thread["runtimeMode"] = command["runtimeMode"].clone();
                 "thread.runtime-mode-updated"
             }
-            "thread.model-selection.set" => {
+            "thread.model-selection.set" | "provider.switch" => {
                 let selection: t3_contracts::ModelSelection =
                     serde_json::from_value(command["modelSelection"].clone())
                         .map_err(|error| reject(error.to_string()))?;
@@ -728,7 +728,7 @@ pub fn plan(
                     return Err(reject(reason));
                 }
                 thread["modelSelection"] = selection;
-                if switching { "thread.provider-switched" } else { "thread.model-selection-updated" }
+                if switching || kind == "provider.switch" { "thread.provider-switched" } else { "thread.model-selection-updated" }
             }
             _ => return Err(unsupported(kind)),
         };
@@ -825,7 +825,7 @@ pub fn plan(
         Some("Workspace changed.")
     } else if kind == "thread.runtime-mode.set" {
         Some("Runtime mode changed.")
-    } else if kind == "thread.model-selection.set" && command["modelSelection"]["instanceId"] != projection.unwrap()["thread"]["providerInstanceId"] {
+    } else if matches!(kind, "thread.model-selection.set" | "provider.switch") && command["modelSelection"]["instanceId"] != projection.unwrap()["thread"]["providerInstanceId"] {
         Some("Provider switched.")
     } else {
         None
@@ -839,7 +839,7 @@ pub fn plan(
                     || crate::provider_selection_transition::needs_runtime_detach(session)
             })
             // A provider switch keeps what the target provider already holds.
-            .filter(|session| kind != "thread.model-selection.set" || session["providerInstanceId"] != command["modelSelection"]["instanceId"])
+            .filter(|session| !matches!(kind, "thread.model-selection.set" | "provider.switch") || session["providerInstanceId"] != command["modelSelection"]["instanceId"])
         {
             events.push(Event {
                 event_id: uuid::Uuid::new_v4().to_string(),

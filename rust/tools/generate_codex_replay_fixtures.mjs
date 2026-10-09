@@ -91,11 +91,9 @@ const normalize = (projection) => ({
   providerThread: projection.providerThreads.map((thread) => thread.status),
 });
 
-// Registered scenarios whose behaviour needs orchestration the Rust port does not have.
-const EXCLUDED = {
-  thread_rollback_after_restart:
-    "advances the test clock past the session idle timeout so the provider session is reopened (a second initialize and thread/resume mid-rollback); the port has no idle session expiry to drive",
-};
+// Registered scenarios whose behaviour needs orchestration the Rust port does not have. Empty now that
+// the port releases an idle provider session on an injectable clock (`thread_rollback_after_restart`).
+const EXCLUDED = {};
 // Recordings no registered scenario replays; each is driven by a dedicated test of the original.
 // `delegated_task_status` is driven over MCP by `tests/codex_delegated_replay.rs`. The fork and
 // merge-back recordings are replayed as `forks` (fork_scenarios.mjs).

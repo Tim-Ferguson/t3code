@@ -507,6 +507,24 @@ impl ProviderRegistry {
     pub fn driver(&self, instance_id: &str) -> Result<&'static str, ProcessError> {
         state_driver(&self.state.read().unwrap(), instance_id)
     }
+    /// `ProviderContinuationIdentity.continuationKey`: instances of one driver with the same key keep one
+    /// native conversation, as two accounts that share a Claude home do. Without a key of its own an
+    /// instance's is its identity, so it continues with nobody else.
+    pub fn continuation_key(&self, instance_id: &str) -> Option<String> {
+        let state = self.state.read().unwrap();
+        let driver = state_driver(&state, instance_id).ok()?;
+        let snapshot = state.snapshots.iter().find(|snapshot| snapshot["instanceId"] == instance_id)?;
+        Some(snapshot["continuation"]["groupKey"].as_str().map_or_else(|| format!("{driver}:instance:{instance_id}"), str::to_owned))
+    }
+    /// Whether a thread whose native conversation belongs to `from` continues it under `to`
+    /// (`ProviderSessionTransitionPolicy`: `restart_and_resume` for a changed instance): the same
+    /// driver, the same continuation key, and a target that is enabled.
+    pub fn continues_across(&self, from: &str, to: &str) -> bool {
+        let state = self.state.read().unwrap();
+        let (Ok(a), Ok(b)) = (state_driver(&state, from), state_driver(&state, to)) else { return false };
+        drop(state);
+        a == b && self.continuation_key(from).is_some_and(|key| Some(key) == self.continuation_key(to)) && self.snapshots().iter().any(|snapshot| snapshot["instanceId"] == to && snapshot["enabled"] == true)
+    }
     /// Credential setup is available before readiness and while disabled. Capture
     /// configuration and its factory instance under the same registry read lock.
     pub(crate) fn acp_auth_entry(

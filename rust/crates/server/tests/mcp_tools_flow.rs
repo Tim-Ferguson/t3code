@@ -264,7 +264,9 @@ async fn a_delegated_task_runs_in_a_child_thread_and_its_completion_wakes_the_pa
     let parent_view = h.view(&parent);
     assert!(parent_view["contextTransfers"].as_array().unwrap().iter().any(|transfer| transfer["type"] == "subagent_result" && transfer["sourceThreadId"] == child.as_str()));
     assert!(parent_view["turnItems"].as_array().unwrap().iter().any(|item| item["type"] == "subagent" && item["status"] == "completed"));
-    // The wake waits behind the parent's active turn, and says which task finished.
+    // The wake waits behind the parent's active turn, and says which task finished. It is queued by the
+    // completion listener after the result lands, so its arrival is the milestone to wait for.
+    h.until(&parent, |view| (wake_messages(view).len() == 1).then_some(())).await;
     let wakes = wake_messages(&h.view(&parent));
     assert_eq!(wakes.len(), 1);
     assert_eq!(wakes[0]["text"], format!("Delegated task {task_id} reached a terminal state. Use task_status with taskId {task_id} to read the result."));
@@ -304,6 +306,7 @@ async fn reading_a_result_cancels_its_queued_wake_and_a_failed_child_is_reported
     h.until(&child, |view| view["runs"].as_array().is_some_and(|runs| runs.iter().any(|run| run["status"] == "running")).then_some(())).await;
     h.execution.dispatch(&json!({"type":"run.interrupt","commandId":"stop-child","threadId":child,"runId":h.view(&child)["runs"][0]["id"]}), Utc::now()).unwrap();
     h.until(&parent, |view| (subagent(view)["status"] == "interrupted").then_some(())).await;
+    h.until(&parent, |view| (wake_messages(view).len() == 1).then_some(())).await;
     let wakes = wake_messages(&h.view(&parent));
     assert_eq!(wakes.len(), 1);
     assert_eq!(h.view(&parent)["runs"][1]["status"], "queued");

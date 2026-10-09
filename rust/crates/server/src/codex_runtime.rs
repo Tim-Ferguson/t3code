@@ -379,7 +379,6 @@ pub fn start(
                             captured_controls.lock().unwrap().remove(&actor_id);
                         });
                     }
-                    eprintln!("IDLEDEBUG dispatch touch {} {}", effect.request["type"], idle_release.now_ms());
                     idle.touch(&effect.thread_id, idle_release.now_ms());
                     let work = Work {
                         effect: effect.clone(),
@@ -415,7 +414,7 @@ pub fn start(
                 Err(error) => tracing::error!(%error,"Native effect claim failed"),
             }
             let expiry = idle_release.expiry(&idle);
-            tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, batch=committed.recv()=>{match batch{Ok(batch)=>{let now=idle_release.now_ms();for stored in &batch{if stored.event.aggregate_kind=="thread"{eprintln!("IDLEDEBUG touch {} {} seq {}",stored.event.event_type,now,stored.sequence);idle.touch_if_tracked(&stored.event.aggregate_id,now);}idle_release.saw(stored.sequence);}},Err(_)=>{if let Ok(latest)=store.latest_sequence(){idle_release.saw(latest);}}}}, _=scan.tick()=>{}, _=expiry=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}finished_effects.send_modify(|count|*count+=1);}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
+            tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, batch=committed.recv()=>{match batch{Ok(batch)=>{let now=idle_release.now_ms();for stored in &batch{if stored.event.aggregate_kind=="thread"{idle.touch_if_tracked(&stored.event.aggregate_id,now);}idle_release.saw(stored.sequence);}},Err(_)=>{if let Ok(latest)=store.latest_sequence(){idle_release.saw(latest);}}}}, _=scan.tick()=>{}, _=expiry=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}finished_effects.send_modify(|count|*count+=1);}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
         }
         for actor in actor_controls.lock().unwrap().values() {
             actor.stop.send_replace(true);

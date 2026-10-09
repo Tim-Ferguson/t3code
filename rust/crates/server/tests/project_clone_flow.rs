@@ -152,7 +152,7 @@ fn a_tracked_clone_reports_cancels_retries_and_completes() {
         let duplicate = rpc(&mut operator, 17, "projectClone.start", start_input("p-slow", &remote, &h.base.join("elsewhere"))).await;
         assert_eq!(failure(&duplicate)["detail"], "A clone into this destination is already in progress.");
         assert!(h.store.projection("project", "p-other").unwrap().is_none());
-        let launch = rpc(&mut operator, 12, "orchestration.launchThread", json!({"commandId":"launch-1","projectId":"p-slow"})).await;
+        let launch = rpc(&mut operator, 12, "orchestration.launchThread", json!({"commandId":"launch-1","projectId":"p-slow","title":"T","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"full-access","interactionMode":"default","workspaceStrategy":{"type":"root"}})).await;
         assert_eq!(failure(&launch)["_tag"], "OrchestrationV2ThreadLaunchError");
         assert_eq!(failure(&launch)["message"], "The repository is still being cloned.");
         assert_eq!(success(&rpc(&mut operator, 13, "projectClone.cancel", json!({"projectId":"p-slow"})).await), &json!({"applied":true}));
@@ -161,7 +161,7 @@ fn a_tracked_clone_reports_cancels_retries_and_completes() {
         // No partial checkout is left, and the workspace root itself stays.
         assert!(slow.is_dir());
         assert_eq!(std::fs::read_dir(&slow).unwrap().count(), 0);
-        let launch = rpc(&mut operator, 14, "orchestration.launchThread", json!({"commandId":"launch-2","projectId":"p-slow"})).await;
+        let launch = rpc(&mut operator, 14, "orchestration.launchThread", json!({"commandId":"launch-2","projectId":"p-slow","title":"T","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"full-access","interactionMode":"default","workspaceStrategy":{"type":"root"}})).await;
         assert_eq!(failure(&launch)["message"], "The repository was not cloned. Retry the clone first.");
 
         // Retrying the cancelled clone runs it again; deleting the project ends it for good.

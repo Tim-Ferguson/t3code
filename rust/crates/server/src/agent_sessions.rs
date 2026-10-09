@@ -846,6 +846,14 @@ async fn settings(state: &ApiState) -> Result<Value, Value> {
     }
 }
 
+/// The project an import is for.
+fn decode_project(payload: &Value) -> Result<&str, Value> {
+    payload["projectId"].as_str().filter(|id| !id.trim().is_empty()).ok_or_else(|| json!({"_tag":"SchemaDecodeError","message":"agentSessions.import needs a projectId."}))
+}
+pub(crate) fn decode_import(payload: &Value) -> Result<(), Value> {
+    decode_project(payload).map(|_| ())
+}
+
 pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Value, Value> {
     let settings = settings(state).await?;
     let host = Host::of(state.store.state_dir());
@@ -855,7 +863,7 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
             tokio::task::spawn_blocking(move || scan(&settings, &store, &host)).await.map_err(|error| scan_error("read-projects", error))?
         }
         "agentSessions.import" => {
-            let Some(project_id) = payload["projectId"].as_str().filter(|id| !id.trim().is_empty()) else { return Err(json!({"_tag":"SchemaDecodeError","message":"agentSessions.import needs a projectId."})) };
+            let project_id = decode_project(&payload)?;
             let store = state.store.clone();
             let project_id = project_id.to_owned();
             let expected = payload["expectedWorkspaceRoot"].as_str().map(str::to_owned);

@@ -88,7 +88,9 @@ async fn fixture(environment: &[(&str, &str)]) -> Fixture {
     let mut provider_environment = vec![json!({"name":"FIXTURE_RPC_RECORD","value":record})];
     provider_environment.extend(environment.iter().map(|(name, value)| json!({"name":name,"value":value})));
     let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
-        "claudeAgent":{"driver":"claudeAgent","enabled":true,"config":{"binaryPath":claude_shim(&cwd),"homePath":cwd.join("claude-home")},"environment":[{"name":"CLAUDE_FIXTURE_SCENARIO","value":"turn"}]},
+        "claudeAgent":{"driver":"claudeAgent","enabled":true,"config":{"binaryPath":claude_shim(&cwd),"homePath":cwd.join("claude-home")},"environment":[{"name":"CLAUDE_FIXTURE_SCENARIO","value":"turn"},{"name":"CLAUDE_FIXTURE_LOG","value":cwd.join("claude-launches.jsonl")}]},
+        "claude-b":{"driver":"claudeAgent","enabled":true,"config":{"binaryPath":claude_shim(&cwd),"homePath":cwd.join("claude-home")},"environment":[{"name":"CLAUDE_FIXTURE_SCENARIO","value":"turn"},{"name":"CLAUDE_FIXTURE_LOG","value":cwd.join("claude-b-launches.jsonl")}]},
+        "claude-c":{"driver":"claudeAgent","enabled":true,"config":{"binaryPath":claude_shim(&cwd),"homePath":cwd.join("claude-c-home")},"environment":[{"name":"CLAUDE_FIXTURE_SCENARIO","value":"turn"},{"name":"CLAUDE_FIXTURE_LOG","value":cwd.join("claude-c-launches.jsonl")}]},
         "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":binary,"homePath":cwd.join("codex-home")},"environment":provider_environment},
         "local-agent":{"driver":"acpRegistry","enabled":true,"config":{"enabled":true,"source":"local","commandPath":"python3","commandArgs":[acp,"2","normal",acp_prompts]}},
         "codex-b":{"driver":"codex","enabled":true,"config":{"binaryPath":binary,"homePath":cwd.join("codex-b-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":record_b}]}}}))
@@ -155,7 +157,12 @@ impl Fixture {
         connect(self.address, token).await
     }
     /// One command over the operator's socket; the exit as the client sees it.
-    async fn exit(&mut self, command: Value) -> Value {
+    async fn exit(&mut self, mut command: Value) -> Value {
+        // A client names who made a fork or a merge-back and where from.
+        if matches!(command["type"].as_str(), Some("thread.fork" | "thread.merge_back")) {
+            command["createdBy"] = json!("user");
+            command["creationSource"] = json!("web");
+        }
         self.next += 1;
         let id = self.next;
         rpc(self.socket.as_mut().unwrap(), id, "orchestration.dispatchCommand", command).await
@@ -605,6 +612,47 @@ async fn a_message_to_another_provider_hands_the_conversation_over_and_back() {
     fixture.finish().await;
 }
 
+fn launches(fixture: &Fixture, file: &str) -> Vec<Vec<String>> {
+    std::fs::read_to_string(fixture.directory.path().join(file)).unwrap_or_default().lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()).filter_map(|entry| entry["launch"].as_array().map(|args| args.iter().map(|arg| arg.as_str().unwrap().to_owned()).collect())).filter(|args: &Vec<String>| !args.contains(&"--no-session-persistence".to_string())).collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn accounts_that_share_a_claude_home_continue_one_native_conversation_without_a_handoff() {
+    let mut fixture = fixture(&[]).await;
+    fixture.say("source", "alpha").await;
+    let send = |id: &str, text: &str, instance: &str| json!({"type":"message.dispatch","commandId":id,"threadId":"source","messageId":id,"text":text,"attachments":[],"modelSelection":{"instanceId":instance,"model":"claude-sonnet-4-6"},"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}});
+    // Codex to Claude is a different provider: a handoff.
+    fixture.command(send("to-claude", "beta", "claudeAgent")).await;
+    let view = fixture.settled("source", 2).await;
+    assert_eq!(view["contextHandoffs"].as_array().unwrap().len(), 1);
+    let claude_thread = view["providerThreads"].as_array().unwrap().iter().find(|thread| thread["providerInstanceId"] == "claudeAgent").unwrap().clone();
+    let native = claude_thread["nativeThreadRef"]["nativeId"].as_str().unwrap().to_owned();
+
+    // The same Claude home under another account: the native conversation goes on, nobody is briefed.
+    fixture.command(send("to-b", "gamma", "claude-b")).await;
+    let view = fixture.settled("source", 3).await;
+    assert_eq!(view["thread"]["providerInstanceId"], "claude-b");
+    assert_eq!(view["contextHandoffs"].as_array().unwrap().len(), 1, "no second handoff");
+    assert_eq!(view["providerThreads"].as_array().unwrap().len(), 2, "no provider thread of its own");
+    assert_eq!(view["runs"][2]["providerThreadId"], claude_thread["id"]);
+    assert!(view["runs"][2]["contextHandoffId"].is_null());
+    assert!(view["contextTransfers"].as_array().unwrap().iter().filter(|transfer| transfer["type"] == "provider_handoff").count() == 1);
+    let b = launches(&fixture, "claude-b-launches.jsonl");
+    assert_eq!(b.len(), 1, "{b:?}");
+    assert!(b[0].contains(&format!("--resume={native}")), "{:?}", b[0]);
+    // Only the session the conversation left was released, and it says why.
+    let detached: Vec<Value> = fixture.store.events(0, None, Some("thread"), Some("source"), 10_000).unwrap().into_iter().filter(|event| event.event.event_type == "provider-session.detached" && event.event.command_id.as_deref() == Some("to-b")).map(|event| event.event.payload).collect();
+    assert_eq!(detached.len(), 1, "{detached:?}");
+    assert_eq!(detached[0]["reason"], "Provider account changed; continuing the native thread.");
+
+    // Another Claude home is another history: that is a handoff to a provider thread of its own.
+    fixture.command(send("to-c", "delta", "claude-c")).await;
+    let view = fixture.settled("source", 4).await;
+    assert_eq!(view["contextHandoffs"].as_array().unwrap().len(), 2);
+    assert_eq!(view["providerThreads"].as_array().unwrap().len(), 3);
+    fixture.finish().await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn selecting_another_provider_then_sending_hands_over_and_a_busy_thread_refuses() {
     let mut fixture = fixture(&[]).await;
@@ -632,6 +680,27 @@ async fn selecting_another_provider_then_sending_hands_over_and_a_busy_thread_re
     // The interrupted run is part of the conversation the new provider is given.
     let text = fixture.requests_in(&fixture.record_b.clone(), "thread/inject_items")[0]["items"].to_string();
     assert!(text.contains("alpha") && text.contains("busy [hold]"), "{text}");
+    fixture.finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_provider_switch_command_chooses_the_provider_and_the_next_message_hands_over() {
+    let mut fixture = fixture(&[]).await;
+    fixture.say("source", "alpha").await;
+    let other = json!({"instanceId":"codex-b","model":"fixture-model"});
+    fixture.command(json!({"type":"provider.switch","commandId":"switch","threadId":"source","modelSelection":other})).await;
+    let chosen = fixture.view("source");
+    assert_eq!((chosen["thread"]["providerInstanceId"].as_str(), chosen["thread"]["modelSelection"].clone()), (Some("codex-b"), other.clone()));
+    let kinds: Vec<String> = fixture.store.events(0, None, Some("thread"), Some("source"), 10_000).unwrap().into_iter().filter(|event| event.event.command_id.as_deref() == Some("switch")).map(|event| event.event.event_type).collect();
+    assert_eq!(kinds[0], "thread.provider-switched");
+    // Naming the provider it already has is still a switch, not a model change.
+    fixture.command(json!({"type":"provider.switch","commandId":"again","threadId":"source","modelSelection":other})).await;
+    let kinds: Vec<String> = fixture.store.events(0, None, Some("thread"), Some("source"), 10_000).unwrap().into_iter().filter(|event| event.event.command_id.as_deref() == Some("again")).map(|event| event.event.event_type).collect();
+    assert_eq!(kinds[0], "thread.provider-switched");
+    fixture.say("source", "gamma").await;
+    let view = fixture.view("source");
+    assert_eq!(view["contextHandoffs"].as_array().unwrap().len(), 1);
+    assert_eq!(view["runs"][1]["providerInstanceId"], "codex-b");
     fixture.finish().await;
 }
 

@@ -382,8 +382,8 @@ impl RefreshSubscription {
 }
 
 pub fn open_refreshes(payload: &Value) -> Result<RefreshSubscription, Value> {
-    if !payload.is_object() {
-        return Err(decode_failure("Expected an object."));
+    if payload.is_null() {
+        return Err(decode_failure("Expected object | array"));
     }
     Ok(RefreshSubscription { receiver: PullRequestService::shared().subscribe_refreshes(), first: true })
 }

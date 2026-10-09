@@ -530,11 +530,8 @@ pub async fn open_in_editor(editor: String, cwd: String, reveal: bool) -> Result
 
 pub const METHODS: [&str; 1] = ["shell.openInEditor"];
 
-/// Decode, one launch, the original's error envelopes.
-pub async fn command(tag: &str, payload: Value) -> Result<Value, Value> {
-    if tag != "shell.openInEditor" {
-        return Err(json!({"_tag":"NativeMethodUnsupportedError","method":tag}));
-    }
+/// The working directory (trimmed), the editor and whether to reveal instead of open, from a `shell.openInEditor` payload.
+fn decode_launch(payload: &Value) -> Result<(&str, &str, bool), Value> {
     let decode = |message: &str| json!({"_tag":"SchemaDecodeError","message":message});
     let cwd = payload["cwd"].as_str().map(t3_contracts::trim_wire_string).filter(|cwd| !cwd.is_empty()).ok_or_else(|| decode("cwd must be a non-empty string."))?;
     let editor = payload["editor"].as_str().filter(|id| EDITORS.iter().any(|editor| editor.id == *id)).ok_or_else(|| decode("editor must name a known editor."))?;
@@ -543,5 +540,17 @@ pub async fn command(tag: &str, payload: Value) -> Result<Value, Value> {
         Some(Value::Bool(reveal)) => *reveal,
         Some(_) => return Err(decode("reveal must be a boolean.")),
     };
+    Ok((cwd, editor, reveal))
+}
+pub(crate) fn decode_open(payload: &Value) -> Result<(), Value> {
+    decode_launch(payload).map(|_| ())
+}
+
+/// Decode, one launch, the original's error envelopes.
+pub async fn command(tag: &str, payload: Value) -> Result<Value, Value> {
+    if tag != "shell.openInEditor" {
+        return Err(json!({"_tag":"NativeMethodUnsupportedError","method":tag}));
+    }
+    let (cwd, editor, reveal) = decode_launch(&payload)?;
     open_in_editor(editor.to_owned(), cwd.to_owned(), reveal).await.map(|()| Value::Null).map_err(|error| error.wire())
 }

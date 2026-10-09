@@ -261,6 +261,25 @@ pub(crate) fn visible_with_inherited(projection: &Value, source: &Value, local: 
     visible
 }
 
+/// A fork read now: the history it inherits is its source's as it is now, not as it was when the fork's
+/// last event was reduced. The original reads a fork's visible items from its source's rows every time
+/// (`buildVisibleTurnItems` in the projection read), so a command that ended or a rollback in the source
+/// shows in the fork's next snapshot or page; events already delivered are not rewritten. `read` returns a
+/// thread's stored projection; a source that is itself a fork is refreshed first.
+pub(crate) fn refreshed(projection: Value, read: &dyn Fn(&str) -> Option<Value>) -> Value {
+    refresh(projection, read, 0)
+}
+fn refresh(mut projection: Value, read: &dyn Fn(&str) -> Option<Value>, depth: usize) -> Value {
+    if projection["thread"]["forkedFrom"]["type"] != "run" || depth > 32 {
+        return projection;
+    }
+    let Some(source) = projection["thread"]["forkedFrom"]["threadId"].as_str().and_then(read) else { return projection };
+    let source = refresh(source, read, depth + 1);
+    let local: Vec<Value> = rows(&projection, "visibleTurnItems").iter().filter(|row| row["visibility"] == "local").cloned().collect();
+    projection["visibleTurnItems"] = Value::Array(visible_with_inherited(&projection, &source, local));
+    projection
+}
+
 /// A thread's own conversation, in the order it was written (`activeLocalTurnItems`): what
 /// `item_visible` lets through, numbered from zero.
 pub(crate) fn local_visible_rows(projection: &Value) -> Vec<Value> {
@@ -338,5 +357,25 @@ mod tests {
         let shape: Vec<String> = visible.iter().map(|row| format!("{}:{}", row["visibility"].as_str().unwrap(), row["item"]["id"].as_str().unwrap())).collect();
         assert_eq!(shape, ["inherited:u1", "synthetic:turn-item:fork:fork", "local:own"]);
         assert_eq!(visible[2]["position"], 2);
+    }
+
+    #[test]
+    fn a_fork_read_later_shows_its_source_as_it_is_now() {
+        let mut source = json!({"thread":thread("source"),"runs":[{"id":"r1","ordinal":1,"status":"completed"}],"attempts":[],"turnItems":[
+            {"id":"c1","threadId":"source","runId":"r1","type":"command_execution","status":"running","ordinal":1}],"visibleTurnItems":[]});
+        let mut fork = json!({"thread":thread("fork")});
+        fork["thread"]["forkedFrom"] = json!({"type":"run","threadId":"source","runId":"r1"});
+        fork["visibleTurnItems"] = json!(visible_with_inherited(&fork, &source, vec![json!({"sourceThreadId":"fork","sourceItemId":"own","item":{"id":"own","threadId":"fork","type":"user_message"}})]));
+        assert_eq!(fork["visibleTurnItems"][0]["item"]["status"], "running");
+        // The source's command ends after the fork was made, and its run is rolled back to nothing later.
+        source["turnItems"][0]["status"] = json!("completed");
+        let sources = std::collections::HashMap::from([("source".to_owned(), source)]);
+        let now = refreshed(fork.clone(), &|id| sources.get(id).cloned());
+        let shape: Vec<String> = now["visibleTurnItems"].as_array().unwrap().iter().map(|row| format!("{}:{}:{}", row["visibility"].as_str().unwrap(), row["item"]["id"].as_str().unwrap(), row["item"]["status"].as_str().unwrap_or(""))).collect();
+        assert_eq!(shape, ["inherited:c1:completed", "synthetic:turn-item:fork:fork:completed", "local:own:"]);
+        // A thread that is not a fork, or whose source is gone, is read as stored.
+        assert_eq!(refreshed(fork.clone(), &|_| None), fork);
+        let plain = json!({"thread":thread("plain"),"visibleTurnItems":[]});
+        assert_eq!(refreshed(plain.clone(), &|_| panic!("a plain thread reads nothing")), plain);
     }
 }

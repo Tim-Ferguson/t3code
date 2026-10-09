@@ -40,8 +40,9 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
     let registry = SourceControlRegistry::new(host(state));
     match tag {
         "server.discoverSourceControl" => {
-            if !payload.is_object() {
-                return Err(json!({"_tag":"SchemaDecodeError","message":"Expected an object."}));
+            // A struct with no fields: anything but null (an array included) decodes.
+            if payload.is_null() {
+                return Err(json!({"_tag":"SchemaDecodeError","message":"Expected object | array"}));
             }
             Ok(encode(&Box::pin(registry.discover()).await))
         }

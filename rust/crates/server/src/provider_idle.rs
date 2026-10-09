@@ -192,7 +192,6 @@ pub(crate) async fn release_due(
 ) {
     let settings = idle.settings();
     let now = settings.clock.now_ms();
-    eprintln!("IDLEDEBUG release_due now={now} tracked={:?}", tracker.threads.iter().map(|(t, e)| (t.clone(), e.since_ms)).collect::<Vec<_>>());
     for thread in tracker.due(now, settings.timeout_ms) {
         let live = actors.get(&thread).is_some_and(|actor| !actor.is_closed());
         if !live {

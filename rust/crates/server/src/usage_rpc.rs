@@ -16,15 +16,28 @@ fn state_dir(state: &ApiState) -> Result<std::path::PathBuf, Value> {
     state.store.state_dir().map(std::path::Path::to_path_buf).ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Usage needs a state directory."}))
 }
 
+/// A usage window: both days as YYYY-MM-DD, a time zone, and a resolution that is `day` or `hour` when there is one.
+pub(crate) fn decode_summary(payload: &Value) -> Result<(), Value> {
+    if !day(&payload["sinceDay"]) || !day(&payload["untilDay"]) || payload["timeZone"].as_str().is_none_or(|zone| zone.trim().is_empty()) {
+        return Err(decode_error("A usage window needs sinceDay and untilDay as YYYY-MM-DD and a non-empty timeZone."));
+    }
+    if !payload["resolution"].is_null() && !matches!(payload["resolution"].as_str(), Some("day" | "hour")) {
+        return Err(decode_error("resolution must be \"day\" or \"hour\"."));
+    }
+    Ok(())
+}
+/// A reset credit is spent on an instance, or on a usage limit source (which this server answers for itself).
+pub(crate) fn decode_reset_credit(payload: &Value) -> Result<(), Value> {
+    if payload.get("sourceId").is_some() || payload["instanceId"].as_str().is_some_and(|id| !id.is_empty()) {
+        return Ok(());
+    }
+    Err(decode_error("provider.consumeResetCredit needs an instanceId or a sourceId."))
+}
+
 pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Value, Value> {
     match tag {
         "server.getUsageSummary" => {
-            if !day(&payload["sinceDay"]) || !day(&payload["untilDay"]) || payload["timeZone"].as_str().is_none_or(|zone| zone.trim().is_empty()) {
-                return Err(decode_error("A usage window needs sinceDay and untilDay as YYYY-MM-DD and a non-empty timeZone."));
-            }
-            if !payload["resolution"].is_null() && !matches!(payload["resolution"].as_str(), Some("day" | "hour")) {
-                return Err(decode_error("resolution must be \"day\" or \"hour\"."));
-            }
+            decode_summary(&payload)?;
             let settings = settings(state).await;
             usage_service::of(&state_dir(state)?).read_summary(&payload, &settings).await.map_err(|error| error.wire())
         }

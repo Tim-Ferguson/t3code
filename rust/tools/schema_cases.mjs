@@ -11,9 +11,12 @@ import * as Schema from "../../apps/server/node_modules/effect/dist/Schema.js";
 
 const encodedSide = (ast) =>
   ast.encoding ? encodedSide(ast.encoding[ast.encoding.length - 1].to) : ast;
+// A WebSocket payload is decoded through the JSON codec; the MCP tools' parameters are not.
+let codec = false;
 const decodes = (ast, value) => {
   try {
-    Schema.decodeUnknownSync(Schema.make(ast))(value);
+    const schema = Schema.make(ast);
+    Schema.decodeUnknownSync(codec ? Schema.toCodecJson(schema) : schema)(value);
     return true;
   } catch {
     return false;
@@ -35,14 +38,37 @@ const stringPool = [
   "a_b",
   "0",
   "pending-00000000-0000-4000-8000-000000000000-txt",
+  "2024-01-15",
+  "2024-01-15T00:00:00.000Z",
+  "a.png",
+  "data:image/png;base64,AAAA",
+  "oaiapp_x",
+  "http://localhost:3000/auth/callback",
 ];
 const numberPool = [1, 60000, 1000, 100, 0, 10, 5, 3, 1440];
 
 // A plain input the node accepts, or undefined when none is found.
-const sample = (ast) => {
+const sampled = new Map();
+const sample = (ast, depth = 0) => {
+  // A recursive schema is sampled to a few levels; its empty case is what ends it.
+  if (depth > 6) return undefined;
+  if (sampled.has(ast)) return sampled.get(ast);
+  const found = sampleUncached(ast, depth);
+  sampled.set(ast, found);
+  return found;
+};
+const sampleUncached = (ast, depth) => {
   const side = encodedSide(ast);
   const tries = [];
   switch (side._tag) {
+    case "Suspend": {
+      const inner = sample(side.thunk(), depth + 1);
+      if (inner !== undefined) tries.push(inner);
+      break;
+    }
+    case "Declaration":
+      tries.push("2024-01-01T00:00:00.000Z", 60000, "x");
+      break;
     case "String":
     case "TemplateLiteral":
       tries.push(...stringPool, "cmd+k", "mod+k");
@@ -64,7 +90,7 @@ const sample = (ast) => {
       break;
     case "Union":
       for (const member of side.types) {
-        const value = sample(member);
+        const value = sample(member, depth + 1);
         if (value !== undefined) tries.push(value);
       }
       break;
@@ -72,7 +98,7 @@ const sample = (ast) => {
       const out = {};
       for (const property of side.propertySignatures) {
         if (property.type.context?.isOptional) continue;
-        const value = sample(property.type);
+        const value = sample(property.type, depth + 1);
         if (value === undefined && !decodes(property.type, undefined)) return undefined;
         if (value !== undefined) out[property.name] = value;
       }
@@ -86,6 +112,7 @@ const sample = (ast) => {
         for (const name of names) {
           const value = sample(
             side.propertySignatures.find((property) => property.name === name).type,
+            depth + 1,
           );
           if (value !== undefined) next[name] = value;
         }
@@ -96,7 +123,9 @@ const sample = (ast) => {
       break;
     }
     case "Arrays":
-      tries.push(side.rest.length ? [sample(side.rest[0])].filter((x) => x !== undefined) : []);
+      tries.push(
+        side.rest.length ? [sample(side.rest[0], depth + 1)].filter((x) => x !== undefined) : [],
+      );
       break;
     default:
       return undefined;
@@ -122,6 +151,12 @@ const wrong = [
   [1],
   { unexpected: 1 },
   "x".repeat(300),
+  "NaN",
+  "Infinity",
+  "-Infinity",
+  -0,
+  1e21,
+  0.1,
 ];
 const bounds = (ast) => {
   const values = [];
@@ -313,12 +348,16 @@ const visit = (ast, rebuild, depth) => {
     }
     if (depth < 6) visit(side.rest[0], (value) => rebuild([value]), depth + 1);
   }
+  // A recursive schema: the node it leads back to.
+  if (side._tag === "Suspend" && depth < 6) visit(side.thunk(), rebuild, depth + 1);
   // Union slots: every member on its own.
   if (side._tag === "Union" && depth < 6)
     for (const member of side.types) visit(member, rebuild, depth + 1);
 };
 
-export const casesFor = (ast) => {
+export const casesFor = (ast, options = {}) => {
+  codec = options.codec === true;
+  sampled.clear();
   cases.length = 0;
   for (const value of [{}, null, [], false, 0, "", "x", { unknown: true }]) add(value);
   const good = sample(ast) ?? {};

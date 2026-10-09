@@ -188,6 +188,13 @@ impl ExecutionService {
                             .providers
                             .driver(model["instanceId"].as_str().unwrap())
                             .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
+                        // Another instance of the same provider continues the native conversation as it is
+                        // (`canResumeAcrossInstances`); only this planner may say so, never the client.
+                        let mut command = command.clone();
+                        let active = projection["providerThreads"].as_array().into_iter().flatten().find(|row| row["id"] == projection["thread"]["activeProviderThreadId"]);
+                        if active.is_some_and(|row| row["providerInstanceId"] != model["instanceId"] && !row["nativeThreadRef"].is_null() && self.providers.continues_across(row["providerInstanceId"].as_str().unwrap_or(""), model["instanceId"].as_str().unwrap_or(""))) {
+                            command["resumeAcrossInstances"] = json!(true);
+                        }
                         plan_message_in_transaction(&command, &projection, transaction, now, driver)
                     }
                     "checkpoint.rollback" => {
@@ -781,6 +788,9 @@ fn plan_message_delivery(
         .iter()
         .find(|row| row["id"] == projection["thread"]["activeProviderThreadId"])
         .is_some_and(|row| row["providerInstanceId"] != model["instanceId"]);
+    // Accounts that share a native conversation continue it: no handoff, the same provider thread.
+    let resume_across = provider_switch && command["resumeAcrossInstances"] == true;
+    let handoff_switch = provider_switch && !resume_across;
     if (instance_changed || provider_switch)
         && (matches!(command["dispatchMode"]["type"].as_str(), Some("steer_active" | "restart_active"))
             || runs.iter().any(|run| crate::message_queue::blocking(run)))
@@ -864,7 +874,9 @@ fn plan_message_delivery(
         .max()
         .unwrap_or(0)
         + 1;
-    let existing_provider_thread = if provider_switch {
+    let existing_provider_thread = if resume_across {
+        projection["providerThreads"].as_array().unwrap().iter().find(|row| row["id"] == projection["thread"]["activeProviderThreadId"])
+    } else if handoff_switch {
         // Switching back to a provider the thread already ran on continues that provider thread
         // (`rootProviderThreadsForProvider`: the thread's own, newest run first).
         projection["providerThreads"]
@@ -913,20 +925,23 @@ fn plan_message_delivery(
     // The sessions of the provider the thread leaves are released; the new provider starts its own.
     let mut released = vec![];
     if provider_switch {
-        for session in projection["providerSessions"].as_array().unwrap().iter().filter(|session| !matches!(session["status"].as_str(), Some("stopped" | "error")) && session["providerInstanceId"] != model["instanceId"]) {
+        let detail = if resume_across { "Provider account changed; continuing the native thread." } else { "Provider switched." };
+        // Continuing the native thread releases only the session it ran in; a switch releases every other provider's.
+        let active_session = existing_provider_thread.filter(|_| resume_across).map(|row| row["providerSessionId"].clone());
+        for session in projection["providerSessions"].as_array().unwrap().iter().filter(|session| !matches!(session["status"].as_str(), Some("stopped" | "error")) && match &active_session { Some(id) => session["id"] == *id, None => session["providerInstanceId"] != model["instanceId"] }) {
             events.push(Event {
                 event_id: uuid::Uuid::new_v4().to_string(),
                 aggregate_kind: "thread".into(), aggregate_id: thread_id.into(), occurred_at: timestamp.clone(),
                 command_id: Some(command_id.into()), causation_event_id: None,
                 correlation_id: Some(command_id.into()), event_type: "provider-session.detached".into(),
-                payload: json!({"providerSessionId":session["id"],"detachedAt":timestamp,"reason":"Provider switched."}),
+                payload: json!({"providerSessionId":session["id"],"detachedAt":timestamp,"reason":detail}),
                 metadata: json!({}),
             });
             released.push(NewEffect {
                 id: format!("effect:{command_id}:provider-session.detach:{}", session["id"].as_str().unwrap_or("")),
                 command_id: command_id.into(),
                 thread_id: thread_id.into(),
-                request: json!({"type":"provider-session.detach","providerSessionId":session["id"],"detail":"Provider switched."}),
+                request: json!({"type":"provider-session.detach","providerSessionId":session["id"],"detail":detail}),
                 available_at: timestamp.clone(),
             });
         }
@@ -934,7 +949,7 @@ fn plan_message_delivery(
     // A fork's first run and the first run after a merge-back carry the transfer they wait on.
     let next_item_ordinal = projection["turnItems"].as_array().unwrap().iter().filter_map(|item| item["ordinal"].as_u64()).max().map_or(0, |ordinal| ordinal + 1);
     let transfer = crate::context_transfer::resolve(&crate::context_transfer::Planning {
-        switch: provider_switch.then_some(crate::context_transfer::Switch { target_provider_thread: existing_provider_thread }),
+        switch: handoff_switch.then_some(crate::context_transfer::Switch { target_provider_thread: existing_provider_thread }),
         command,
         projection,
         transaction,
