@@ -764,6 +764,38 @@ pub fn short_timestamp(iso: &str, offset_minutes: i32) -> String {
     format!("{hour}:{:02} {}", local.minute(), if local.hour() < 12 { "AM" } else { "PM" })
 }
 
+/// `formatDayAwareTimestamp` for the default 12-hour clock: the time today, `yesterday at …`, or
+/// the numeric date and time, with the year once the calendar year differs. `offset_minutes` is the
+/// viewer's zone east of UTC; boundaries are local calendar days.
+pub fn day_aware_timestamp(iso: &str, offset_minutes: i32, now: chrono::DateTime<chrono::Utc>) -> String {
+    use chrono::{Datelike, Duration};
+    let time = short_timestamp(iso, offset_minutes);
+    let Ok(at) = chrono::DateTime::parse_from_rfc3339(iso) else { return String::new() };
+    let shift = Duration::minutes(offset_minutes as i64);
+    let (local, here) = (at.with_timezone(&chrono::Utc) + shift, now + shift);
+    match (here.date_naive() - local.date_naive()).num_days() {
+        ..=0 => time,
+        1 => format!("yesterday at {time}"),
+        _ if local.year() == here.year() => format!("{}/{} {time}", local.month(), local.day()),
+        _ => format!("{}/{}/{} {time}", local.month(), local.day(), local.year()),
+    }
+}
+/// `formatChatTimestampTooltip`: `12:04 PM, 4th June 2026`.
+pub fn timestamp_tooltip(iso: &str, offset_minutes: i32) -> String {
+    use chrono::{Datelike, Duration};
+    let Ok(at) = chrono::DateTime::parse_from_rfc3339(iso) else { return String::new() };
+    let local = at.with_timezone(&chrono::Utc) + Duration::minutes(offset_minutes as i64);
+    let day = local.day();
+    let suffix = match (day % 100, day % 10) {
+        (11..=13, _) => "th",
+        (_, 1) => "st",
+        (_, 2) => "nd",
+        (_, 3) => "rd",
+        _ => "th",
+    };
+    format!("{}, {day}{suffix} {} {}", short_timestamp(iso, offset_minutes), local.format("%B"), local.year())
+}
+
 #[cfg(test)]
 mod notification_tests {
     use super::*;
@@ -795,5 +827,19 @@ mod notification_tests {
         assert_eq!(short_timestamp("2026-10-01T00:05:00Z", 0), "12:05 AM");
         assert_eq!(short_timestamp("2026-10-01T23:30:00Z", 120), "1:30 AM");
         assert_eq!(short_timestamp("nonsense", 0), "");
+    }
+
+    #[test]
+    fn a_footer_time_names_the_day_once_it_is_not_today() {
+        let now = chrono::DateTime::parse_from_rfc3339("2026-10-09T12:00:00Z").unwrap().with_timezone(&chrono::Utc);
+        assert_eq!(day_aware_timestamp("2026-10-09T08:05:00Z", 0, now), "8:05 AM");
+        assert_eq!(day_aware_timestamp("2026-10-08T23:59:00Z", 0, now), "yesterday at 11:59 PM");
+        assert_eq!(day_aware_timestamp("2026-08-13T15:30:00Z", 0, now), "8/13 3:30 PM");
+        assert_eq!(day_aware_timestamp("2025-08-13T15:30:00Z", 0, now), "8/13/2025 3:30 PM");
+        // Days are the viewer's, not UTC's.
+        assert_eq!(day_aware_timestamp("2026-10-08T23:30:00Z", 120, now), "1:30 AM");
+        assert_eq!(timestamp_tooltip("2026-06-04T12:04:00Z", 0), "12:04 PM, 4th June 2026");
+        assert_eq!(timestamp_tooltip("2026-06-22T00:04:00Z", 0), "12:04 AM, 22nd June 2026");
+        assert_eq!(timestamp_tooltip("2026-06-11T00:04:00Z", 0), "12:04 AM, 11th June 2026");
     }
 }

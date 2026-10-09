@@ -26,12 +26,20 @@ pub(crate) struct Disclosures {
     pub runs: Signal<BTreeSet<String>>,
     pub attempts: Signal<BTreeSet<String>>,
     pub groups: Signal<BTreeSet<String>>,
+    /// How many members of an opened group are built, for the groups that outgrew `FIRST_MEMBERS`.
+    pub shown: Signal<std::collections::BTreeMap<String, usize>>,
 }
 impl Disclosures {
     pub(crate) fn new() -> Self {
-        Self { runs: use_signal(BTreeSet::new), attempts: use_signal(BTreeSet::new), groups: use_signal(BTreeSet::new) }
+        Self { runs: use_signal(BTreeSet::new), attempts: use_signal(BTreeSet::new), groups: use_signal(BTreeSet::new), shown: use_signal(Default::default) }
     }
 }
+
+/// An opened group builds this many of its calls, and this many more each time the reader asks.
+/// Measured on a turn of 3,000 calls (`a_thread_of_thousands_of_items_builds_rows_by_what_is_open`):
+/// opening its one group built 3,000 rows, where every fold and group of an ordinary thread builds
+/// a few dozen. The rest are one button away, appended below so the scroll position holds.
+pub(crate) const MEMBER_PAGE: usize = 200;
 
 fn toggle(mut set: Signal<BTreeSet<String>>, id: &str) {
     set.with_mut(|set| {
@@ -58,6 +66,7 @@ fn glyph(kind: SummaryKind, surface: Option<&str>) -> &'static str {
         SummaryKind::Action(GroupAction::Device) => "▢",
         SummaryKind::Action(GroupAction::Search | GroupAction::CodeSearch) => "⌕",
         SummaryKind::Action(GroupAction::Other) => "⚙",
+        SummaryKind::PullRequest | SummaryKind::Action(GroupAction::LinkPr | GroupAction::UnlinkPr | GroupAction::WatchPr | GroupAction::UnwatchPr | GroupAction::ListPrs) => "⇄",
         SummaryKind::Reasoning => "…",
         SummaryKind::AgentTool => "◈",
         SummaryKind::ToneTool => "ϟ",
@@ -174,29 +183,40 @@ impl Rows<'_> {
             TimelineItem { environment_key:self.environment_key.to_owned(),item:row["item"].clone(),state:self.state,transport:self.transport.clone(),
                 source_thread_id:row["sourceThreadId"].as_str().unwrap_or(self.thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned(),
                 rewind:(self.edit_target)(self.offers,self.thread_id,row),
-                active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None } }
+                active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None },visibility:row["visibility"].as_str().unwrap_or("local").to_owned() }
         }}
     }
     fn members(&self, group: &str, members: &[usize]) -> Element {
         let marker = format!("members:{group}");
+        let limit = self.disclosures.shown.read().get(group).copied().unwrap_or(MEMBER_PAGE).max(MEMBER_PAGE);
+        let hidden = members.len().saturating_sub(limit);
+        let mut shown = self.disclosures.shown;
+        let key = group.to_owned();
         rsx! { div { key:"{marker}",class:"work-members","data-timeline-row":"{marker}",
-            for &member in members {{ let row = &self.items[self.entries[member].row]; let key = self.key(row); rsx!{ div { key:"{key}",class:"work-member",
+            for &member in members.iter().take(limit) {{ let row = &self.items[self.entries[member].row]; let key = self.key(row); rsx!{ div { key:"{key}",class:"work-member",
                 TimelineItem { environment_key:self.environment_key.to_owned(),item:row["item"].clone(),state:self.state,transport:self.transport.clone(),
                     source_thread_id:row["sourceThreadId"].as_str().unwrap_or(self.thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned(),
-                    rewind:None,active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None } }
+                    rewind:None,active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None },visibility:row["visibility"].as_str().unwrap_or("local").to_owned() }
             }} }}
+            if hidden > 0 {button {class:"work-more",r#type:"button","aria-label":"Show more calls",onclick:move |_| shown.with_mut(|map| {let next = map.get(&key).copied().unwrap_or(MEMBER_PAGE) + MEMBER_PAGE;map.insert(key.clone(), next);}),"Show {hidden.min(MEMBER_PAGE)} more ({hidden} hidden)"}}
         }}
     }
 
     pub(crate) fn render(&self, rows: &[Row]) -> Vec<Element> {
-        let Disclosures { runs, attempts, groups } = self.disclosures;
+        let Disclosures { runs, attempts, groups, .. } = self.disclosures;
         let mut out = Vec::with_capacity(rows.len());
         for row in rows {
             let element = match row {
                 Row::Entry { entry } | Row::Single { entry, .. } | Row::Compaction { entry, .. } => self.item(self.entries[*entry].row, ""),
                 Row::Item { row } => self.item(*row, ""),
                 Row::Created { entry } => self.item(self.entries[*entry].row, "summary:"),
-                Row::Footer { .. } => continue,
+                Row::Footer { message } => {
+                    let item = &self.items[self.entries[*message].row]["item"];
+                    let marker = format!("assistant-meta:{}", item["messageId"].as_str().or_else(|| item["id"].as_str()).unwrap_or_default());
+                    rsx! { div { key:"{marker}",class:"assistant-footer-row","data-timeline-row":"{marker}",
+                        item_cards::AssistantFooter {text:item["text"].as_str().unwrap_or_default().to_owned(),status:item["status"].as_str().unwrap_or_default().to_owned(),updated_at:item["updatedAt"].as_str().unwrap_or_default().to_owned(),streaming:item["streaming"] == true}
+                    }}
+                }
                 Row::Subagents { entries } => {
                     let first = self.items[self.entries[entries[0]].row]["sourceItemId"].as_str().unwrap_or_default().to_owned();
                     let marker = format!("subagents:{first}");

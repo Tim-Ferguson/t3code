@@ -73,6 +73,7 @@ pub(crate) struct Runner {
     themes: Option<Themes>,
     editing: Signal<Option<crate::composer_panels::EditingRun>>,
     picker: crate::model_picker::PickerCtl,
+    last_editor: crate::open_in::Last,
 }
 
 /// The queued message being edited in the composer, shared so a shortcut can start the edit.
@@ -185,6 +186,9 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                     set.insert("diff.toggle".into());
                 }
                 set.extend(["composer.mode", "composer.effort"].map(String::from));
+                if allows(state, AuthEnvironmentScope::OrchestrationOperate) && !crate::open_in::available(state).is_empty() && crate::open_in::thread_cwd(state).is_some() {
+                    set.insert("editor.openFavorite".into());
+                }
                 if allows(state, AuthEnvironmentScope::OrchestrationOperate) {
                     set.insert("modelPicker.toggle".into());
                     if *picker.open.read() {
@@ -246,7 +250,9 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
     let keys = Keys { rules, runnable, available, context, platform };
     let editing = use_signal(|| None::<crate::composer_panels::EditingRun>);
     use_context_provider(|| QueueEdit(editing));
-    let runner = Runner { keys, state, transport, catalog, themes, editing, picker };
+    let last_editor = crate::open_in::use_last();
+    use_context_provider(|| last_editor);
+    let runner = Runner { keys, state, transport, catalog, themes, editing, picker, last_editor };
     use_context_provider(|| keys);
     use_context_provider(|| runner.clone());
 
@@ -390,6 +396,12 @@ impl Runner {
             "chat.new" | "chat.newLocal" => runtime::new_thread(&self.transport, state, None),
             "chat.newWithoutProject" => project_create::start_scratch(&self.transport, state),
             "diff.toggle" => crate::diff_panel::toggle(state),
+            "editor.openFavorite" => {
+                let last = self.last_editor.0.peek().clone();
+                if let (Some(editor), Some(cwd)) = (crate::open_in::favorite(state, last.as_deref()), crate::open_in::thread_cwd(state)) {
+                    crate::open_in::open(&self.transport, state, Signal::new(false), self.last_editor.0, cwd, editor, false);
+                }
+            }
             "terminal.toggle" => {
                 if let (Some(catalog), Some(key)) = (&self.catalog, pane_key(state)) {
                     catalog.toggle(&key);

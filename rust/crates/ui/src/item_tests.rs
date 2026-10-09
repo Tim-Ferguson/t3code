@@ -8,6 +8,7 @@ use crate::diff_panel::Gate;
 use crate::runtime::diff_tests::{Fixture, Harness, open_thread, rendered_text, seed, until};
 use crate::runtime::transport_tests::{click_control, control, control_attribute, input_control};
 use std::{cell::RefCell, rc::Rc};
+use t3_server::secret_requests::SecretRequests;
 
 fn state_of(props: &Synth) -> Store<UiModel> {
     props.state.borrow().unwrap()
@@ -907,13 +908,270 @@ async fn a_report_of_finished_background_work_reads_as_the_work_and_a_subagent_r
     let (mut dom, state) = synth(items, SETTLED(), json!({"subagents":[agent]}));
     let _ = &mut dom;
     let shown = text(&dom);
+    let arrived = t3_client::timeline_items::short_timestamp("2026-01-01T15:07:00Z", scheduled_tasks_page::zone(chrono::Utc::now().timestamp_millis()));
     assert!(shown.contains("Command \"sleep 600\" finished"), "{shown}");
     // The subagent the parent knows is its own row, worded by the report (a failure), stamped when it arrived.
-    assert!(shown.contains("Review src/math.ts") && shown.contains("Failed") && shown.contains("3:07 PM"), "{shown}");
+    assert!(shown.contains("Review src/math.ts") && shown.contains("Failed") && shown.contains(&arrived), "{shown}");
     assert!(control(&dom, "Open Review src/math.ts").is_some());
     // One it has no record of is a plain row that still opens the thread.
     assert!(shown.contains("Subagent \"Lost\" finished") && control(&dom, "Open subagent thread").is_some(), "{shown}");
     // A tool the provider declined to run says how.
     assert!(shown.contains("denied"), "{shown}");
     let _ = state;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_settled_answer_has_a_footer_with_copy_and_time_and_a_running_turn_has_none() {
+    let items = json!([user("u", "Hi"), assistant("a", "All done."), command("c", "ls", "completed")]);
+    let done = json!([{"id":"run-1","status":"completed","ordinal":1,"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:00:30Z"}]);
+    let (dom, _) = synth(items, done, json!({}));
+    let shown = text(&dom);
+    let arrived = t3_client::timeline_items::day_aware_timestamp("2026-01-01T00:00:00Z", scheduled_tasks_page::zone(chrono::Utc::now().timestamp_millis()), chrono::Utc::now());
+    assert!(control(&dom, "Copy message").is_some(), "{shown}");
+    assert!(shown.contains(&arrived), "{shown} should name {arrived}");
+    assert!(shown.find("All done.") < shown.find(&arrived), "the footer is under the answer: {shown}");
+
+    // While the turn runs there is no footer, and a streaming answer cannot be copied.
+    let running = json!([{"id":"run-1","status":"running","ordinal":1,"startedAt":"2026-01-01T00:00:00Z"}]);
+    let (dom, _) = synth(json!([user("u", "Hi"), assistant("a", "Partial")]), running, json!({}));
+    assert!(control(&dom, "Copy message").is_none(), "{}", text(&dom));
+}
+
+/// Submits the form with this accessible label, as the browser would, with these fields.
+fn submit_form(dom: &mut VirtualDom, label: &str, fields: &[(&str, &str)]) {
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing form {label}"));
+    let values = fields.iter().map(|(name, value)| dioxus_html::SerializedFormObject { key: (*name).to_owned(), text: Some((*value).to_owned()), file: None }).collect();
+    let data = dioxus_html::SerializedFormData::new(String::new(), values);
+    dom.runtime().handle_event("submit", dioxus::dioxus_core::Event::new(Rc::new(dioxus_html::PlatformEventData::new(Box::new(data))) as Rc<dyn std::any::Any>, true), element);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_secret_request_is_answered_from_its_card_and_the_value_is_never_shown_or_kept() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    // The request is what an agent's `request_secret` leaves in the thread: a live run and a pending card.
+    let mut thread = fixture.store.projection("thread", "thread-a").unwrap().unwrap();
+    thread["runs"] = json!([{"id":"run-live","threadId":"thread-a","ordinal":1,"providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"fixture-model"},"providerThreadId":null,"userMessageId":"m","rootNodeId":"node","activeAttemptId":null,"status":"running","requestedAt":"2026-01-01T00:00:00.000Z","startedAt":"2026-01-01T00:00:00.000Z","completedAt":null,"checkpointId":null,"contextHandoffId":null}]);
+    let card = json!({"id":"ask","threadId":"thread-a","runId":"run-live","nodeId":"node","providerThreadId":null,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":1,"status":"waiting","title":"npm token","startedAt":"2026-01-01T00:00:00.000Z","completedAt":null,"updatedAt":"2026-01-01T00:00:00.000Z","type":"secret_request","label":"npm token","reason":"Needed to publish","secretStatus":"pending"});
+    thread["turnItems"] = json!([card]);
+    thread["visibleTurnItems"] = json!([{"sourceThreadId":"thread-a","sourceItemId":"ask","position":0,"visibility":"local","item":card}]);
+    fixture.store.transaction(|transaction| t3_server::persistence::write_projection(transaction, "thread", "thread-a", &thread)).unwrap();
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    until(&mut dom, "the card", |dom| control(dom, "Secret request").is_some()).await;
+    let shown = rendered_text(&dom);
+    assert!(shown.contains("npm token") && shown.contains("Needed to publish") && shown.contains("Stored securely, never shown to the agent"), "{shown}");
+    // Nothing to save until there is text.
+    assert_eq!(control_attribute(&dom, "Save securely", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+    input_control(&mut dom, "npm token", "  hunter2  ");
+    assert_ne!(control_attribute(&dom, "Save securely", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+
+    submit_form(&mut dom, "Secret request", &[("secret", "  hunter2  ")]);
+    // From the click until the server answers, the card answers nothing again.
+    assert_eq!(control_attribute(&dom, "Save securely", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+    until(&mut dom, "the answered line", |dom| rendered_text(dom).contains("npm token \u{b7} Saved securely and kept private")).await;
+    assert!(control(&dom, "Secret request").is_none(), "the form is gone once answered");
+    // The value is in no row, no state the page holds, and the server's projection has only the status.
+    assert!(!rendered_text(&dom).contains("hunter2"));
+    assert!(!projection(state).to_string().contains("hunter2"));
+    let kept = SecretRequests::for_store(&fixture.store).unwrap().saved_ref("thread-a", "ask");
+    assert!(kept.is_some_and(|reference| reference.starts_with("secret-ref:")));
+    fixture.finish(dom).await;
+}
+
+/// How many rows a thread of thousands of items builds: when it mounts, when its biggest fold is
+/// opened, and when that fold's biggest group is. (Scrolling builds none: every row a fold or a
+/// group shows already exists.) The numbers are what the decision about windowing rests on.
+#[tokio::test(flavor = "current_thread")]
+async fn a_thread_of_thousands_of_items_builds_rows_by_what_is_open() {
+    // 120 settled turns of a message, 22 tool calls and an answer: 2,880 items.
+    let mut items = vec![];
+    let mut runs = vec![];
+    for turn in 0..120 {
+        let run = format!("run-{turn}");
+        let tag = |mut item: Value| {
+            item["runId"] = json!(run);
+            item
+        };
+        items.push(tag(user(&format!("u{turn}"), "Do the thing")));
+        for call in 0..22 {
+            items.push(tag(command(&format!("c{turn}-{call}"), &format!("step {call}"), "completed")));
+        }
+        items.push(tag(assistant(&format!("a{turn}"), "Done.")));
+        runs.push(json!({"id":run,"status":"completed","ordinal":turn + 1,"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:01:00Z"}));
+    }
+    let started = std::time::Instant::now();
+    let (mut dom, props) = synth(json!(items), json!(runs), json!({}));
+    let mounted = (props.probe.item.get(), started.elapsed());
+    eprintln!("MEASURE mount of 120 turns / {} items: {} rows built in {:?}", items.len(), mounted.0, mounted.1);
+    assert!(mounted.0 < 400, "settled turns fold, so only their messages are built: {}", mounted.0);
+
+    let before = props.probe.item.get();
+    let started = std::time::Instant::now();
+    click_control(&mut dom, "Worked for*");
+    eprintln!("MEASURE opening one fold: {} rows built in {:?}", props.probe.item.get() - before, started.elapsed());
+
+    // One long turn: 3,000 calls in a single group, the worst case for a list inside an open group.
+    let mut items = vec![user("u", "Run the suite")];
+    items.extend((0..3000).map(|call| command(&format!("c{call}"), &format!("step {call}"), "completed")));
+    items.push(assistant("a", "Done."));
+    let (mut dom, props) = synth(json!(items), SETTLED_WITH_END(), json!({}));
+    let mounted = props.probe.item.get();
+    let started = std::time::Instant::now();
+    click_control(&mut dom, "Worked for*");
+    let fold = (props.probe.item.get() - mounted, started.elapsed());
+    eprintln!("MEASURE opening the fold of a 3,000 call turn: {} rows built in {:?}", fold.0, fold.1);
+    let before = props.probe.item.get();
+    let started = std::time::Instant::now();
+    click_control(&mut dom, "Ran 3000 commands");
+    let opened = props.probe.item.get() - before;
+    eprintln!("MEASURE opening its 3,000 call group: {opened} rows built in {:?}", started.elapsed());
+    // Only the first page of the group is built; the rest is asked for, and appended below.
+    assert_eq!(opened, work_rows::MEMBER_PAGE);
+    assert!(text(&dom).contains("step 0") && !text(&dom).contains("step 200") && text(&dom).contains("Show 200 more (2800 hidden)"), "{}", text(&dom).len());
+    click_control(&mut dom, "Show more calls");
+    assert_eq!(props.probe.item.get() - before, 2 * work_rows::MEMBER_PAGE, "asking builds the next page, not the rest");
+    assert!(text(&dom).contains("step 399") && !text(&dom).contains("step 400") && text(&dom).contains("(2600 hidden)"));
+}
+const SETTLED_WITH_END: fn() -> Value = || json!([{"id":"run-1","status":"completed","ordinal":1,"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:01:00Z"}]);
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_thread_is_renamed_in_place_and_a_new_thread_starts_on_its_branch() {
+    use crate::runtime::keys_tests::key_on;
+    use dioxus::prelude::Key;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"threadId":"on-branch","projectId":"project","title":"Feature work","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":"feature-x","worktreePath":null}))).unwrap();
+    until(&mut dom, "the branch thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.iter().any(|t| t.id.as_str() == "on-branch"))).await;
+    let title = |state: Store<UiModel>| thread_shell(state, "on-branch").title;
+
+    // Escape leaves the title alone, and an empty one is refused.
+    key_on(&mut dom, "Thread Feature work", Key::ContextMenu);
+    click_control(&mut dom, "Rename thread");
+    input_control(&mut dom, "Thread title", "Not this");
+    key_on(&mut dom, "Thread title", Key::Escape);
+    assert!(control(&dom, "Thread title").is_none() && title(state) == "Feature work");
+    key_on(&mut dom, "Thread Feature work", Key::ContextMenu);
+    click_control(&mut dom, "Rename thread");
+    input_control(&mut dom, "Thread title", "   ");
+    key_on(&mut dom, "Thread title", Key::Enter);
+    assert!(rendered_text(&dom).contains("Thread title cannot be empty") && title(state) == "Feature work");
+
+    // Enter sends one rename, and the row says the new title once the server has.
+    key_on(&mut dom, "Thread Feature work", Key::ContextMenu);
+    click_control(&mut dom, "Rename thread");
+    input_control(&mut dom, "Thread title", "  Renamed work  ");
+    key_on(&mut dom, "Thread title", Key::Enter);
+    until(&mut dom, "the new title", |_| title(state) == "Renamed work").await;
+    until(&mut dom, "the row", |dom| control(dom, "Thread Renamed work").is_some()).await;
+
+    // The menu offers a new thread on the thread's branch, and the new-thread form starts there.
+    key_on(&mut dom, "Thread Renamed work", Key::ContextMenu);
+    assert!(control(&dom, "New thread on feature-x").is_some());
+    click_control(&mut dom, "New thread on feature-x");
+    assert!(state.peek().active_thread.is_none(), "a draft, not an existing thread");
+    let choices = state.peek().new_thread_choices.clone();
+    assert!(choices.values().any(|choice| choice.base_ref == "feature-x"), "{:?}", choices.len());
+    fixture.finish(dom).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_snoozed_row_wakes_when_its_time_passes_with_one_timer_and_nothing_else_changing() {
+    let (mut dom, props) = synth(json!([]), SETTLED(), json!({}));
+    let state = state_of(&props);
+    let wake = chrono::Utc::now() + chrono::Duration::milliseconds(2000);
+    {
+        let mut shell = state.shell();
+        let mut shell = shell.write();
+        let thread = &mut shell.snapshot.as_mut().unwrap().threads[0];
+        thread.snoozed_until = Some(Some(serde_json::from_value(json!(wake.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))).unwrap()));
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("Snoozed \u{b7} "), "{}", text(&dom));
+    let before = (props.probe.application.get(), props.probe.sidebar_row.get());
+    // Nothing is sent to the page and no event arrives: the row changes because its time has come.
+    until(&mut dom, "the wake", |dom| !rendered_text(dom).contains("Snoozed")).await;
+    // It woke on its timer and no one has visited since, so the row says so.
+    assert!(text(&dom).contains("Woke"), "{}", text(&dom));
+    let after = (props.probe.application.get(), props.probe.sidebar_row.get());
+    assert!(after.0 <= before.0 + 2 && after.1 <= before.1 + 2, "one timer fires once: {before:?} then {after:?}");
+}
+
+/// A 1x1 PNG.
+const PIXEL: &[u8] = &[
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4, 0x89, 0x00, 0x00, 0x00, 0x0d, 0x49,
+    0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0xf0, 0x1f, 0x00, 0x05, 0x00, 0x01, 0xff, 0x89, 0x99, 0x3d, 0x1d, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
+];
+
+#[tokio::test(flavor = "current_thread")]
+async fn an_image_a_tool_viewed_is_shown_from_a_signed_url_only_while_its_row_is_open() {
+    let fixture = Fixture::start(false).await;
+    std::fs::write(fixture.workspace.join("pic.png"), PIXEL).unwrap();
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    let mut thread = fixture.store.projection("thread", "thread-a").unwrap().unwrap();
+    thread["runs"] = json!([{"id":"run-live","threadId":"thread-a","ordinal":1,"providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"fixture-model"},"providerThreadId":null,"userMessageId":"m","rootNodeId":"node","activeAttemptId":null,"status":"running","requestedAt":"2026-01-01T00:00:00.000Z","startedAt":"2026-01-01T00:00:00.000Z","completedAt":null,"checkpointId":null,"contextHandoffId":null}]);
+    let tool = json!({"id":"look","threadId":"thread-a","runId":"run-live","nodeId":"node","providerThreadId":null,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":1,"status":"completed","title":"Look at the logo","startedAt":"2026-01-01T00:00:00.000Z","completedAt":"2026-01-01T00:00:01.000Z","updatedAt":"2026-01-01T00:00:01.000Z","type":"dynamic_tool","toolName":"view_image","input":{"path":"pic.png"},"output":null,"viewedImagePath":"pic.png"});
+    thread["turnItems"] = json!([tool]);
+    thread["visibleTurnItems"] = json!([{"sourceThreadId":"thread-a","sourceItemId":"look","position":0,"visibility":"local","item":tool}]);
+    fixture.store.transaction(|transaction| t3_server::persistence::write_projection(transaction, "thread", "thread-a", &thread)).unwrap();
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    // The running turn's one call is its live line; opening it lists the call, and opening that shows what it did.
+    until(&mut dom, "the live line", |dom| control(dom, "Read pic.png").is_some()).await;
+    click_control(&mut dom, "Read pic.png");
+    until(&mut dom, "the call", |dom| control(dom, "Look at the logo").is_some()).await;
+    assert!(control(&dom, "Viewed image pic.png").is_none(), "nothing is loaded for a closed row");
+    click_control(&mut dom, "Look at the logo");
+    until(&mut dom, "the image", |dom| control_attribute(dom, "Viewed image pic.png", "src").is_some_and(|(_, src)| src.is_some())).await;
+    let src = control_attribute(&dom, "Viewed image pic.png", "src").and_then(|(_, src)| src).unwrap();
+    assert!(src.starts_with(&fixture.address) && src.contains("/api/assets/"), "resolved against the connected environment: {src}");
+    let served = reqwest::get(&src).await.unwrap();
+    assert_eq!(served.status(), 200);
+    assert_eq!(served.bytes().await.unwrap().as_ref(), PIXEL);
+    click_control(&mut dom, "Look at the logo");
+    assert!(control(&dom, "Viewed image pic.png").is_none(), "closing drops the picture");
+    fixture.finish(dom).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_open_in_button_offers_what_the_server_offers_and_is_disabled_without_the_operate_grant() {
+    use crate::runtime::keys_tests::key_on;
+    use dioxus::prelude::Key;
+    // Whatever editors this machine has, the server is made to offer exactly these (and nothing is
+    // launched). The config is set last, with no wait after it, so a later push cannot undo it.
+    fn offer(state: Store<UiModel>, dom: &mut VirtualDom, editors: Vec<t3_contracts::EditorId>) {
+        let mut config = state.typed_config();
+        config.write().as_mut().unwrap().available_editors = t3_contracts::ForwardCompatibleArray(editors);
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    }
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    offer(state, &mut dom, vec![t3_contracts::EditorId::Zed, t3_contracts::EditorId::FileManager]);
+    assert!(control(&dom, "Open in Zed").is_some(), "the first offered editor is the main button");
+    assert!(control(&dom, "Zed").is_none() && control(&dom, "Reveal in file manager").is_none(), "the menu is closed");
+    click_control(&mut dom, "Choose editor");
+    assert!(control(&dom, "Zed").is_some() && control(&dom, "Reveal in file manager").is_some() && control(&dom, "Cursor").is_none());
+    key_on(&mut dom, "Choose editor", Key::Escape);
+    assert!(control(&dom, "Zed").is_none(), "Escape closes the menu");
+    // Without the operate grant the buttons are there and disabled, with the reason in a title.
+    let (mut reader, props) = fixture.client(Gate::default(), &[t3_contracts::AuthEnvironmentScope::OrchestrationRead]);
+    let read_state = seed_free(&mut reader, &props).await;
+    open_thread(&mut reader, &props, read_state, "thread-a").await;
+    offer(read_state, &mut reader, vec![t3_contracts::EditorId::Zed]);
+    assert_eq!(control_attribute(&reader, "Open in Zed", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+    drop(reader);
+    fixture.finish(dom).await;
+}
+async fn seed_free(dom: &mut VirtualDom, props: &Harness) -> Store<UiModel> {
+    let state = props.state.borrow().unwrap();
+    until(dom, "shell", |_| state.peek().shell.synchronized && state.peek().typed_config.is_some()).await;
+    until(dom, "threads", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.len() == 2)).await;
+    state
 }

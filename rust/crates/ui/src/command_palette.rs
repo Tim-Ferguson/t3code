@@ -209,9 +209,10 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         let pick: Vec<Item> = projects.iter().map(|project| Item::action(&format!("new-thread-in:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string())).collect();
         actions.push(Item::submenu("action:new-thread-in", "New thread in...", &["new thread", "project", "pick", "choose", "select"], vec![Group::new("projects", "Projects", pick)]));
     }
-    let entries: [(&str, &str, &[&str], &str); 17] = [
+    let entries: [(&str, &str, &[&str], &str); 18] = [
         ("action:new-thread-without-project", "New thread without a project", &["new thread", "no project", "without project", "none", "chat"], "chat.newWithoutProject"),
         ("action:toggle-diff", "Toggle diff panel", &["diff", "changes", "files changed", "review"], "diff.toggle"),
+        ("action:open-in-editor", "Open in editor", &["editor", "open", "vscode", "cursor", "zed", "ide", "folder"], "editor.openFavorite"),
         ("action:toggle-terminal", "Toggle terminal", &["terminal", "shell", "console"], "terminal.toggle"),
         ("action:switch-branch", "Switch branch", &["branch", "git", "checkout", "worktree"], "composer.branch"),
         ("action:stop-turn", "Interrupt running turn", &["stop", "interrupt", "cancel", "abort"], "thread.stop"),

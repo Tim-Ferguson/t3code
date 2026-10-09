@@ -1,0 +1,311 @@
+// Runs the original's shell-command reading over a corpus of commands, for the Rust tests in
+// t3-client (`tests/command_label_parity.rs`). The corpus is hand-written shapes (wrappers,
+// quoting, heredocs, PowerShell, aliases) and generated recombinations of their parts, so the
+// ported scanner is checked on inputs nobody thought of. The original's file is converted to a
+// plain module unchanged (types stripped) and driven directly:
+//   packages/client-runtime/src/work-log/commandLabel.ts   commandProgramName, commandDisplayText
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
+import { tmpdir } from "node:os";
+import * as NodePath from "node:path";
+import { pathToFileURL } from "node:url";
+
+const source = readFileSync(
+  new URL("../../packages/client-runtime/src/work-log/commandLabel.ts", import.meta.url),
+  "utf8",
+);
+const scratch = mkdtempSync(NodePath.join(tmpdir(), "t3-command-label-"));
+const file = NodePath.join(scratch, "commandLabel.mjs");
+writeFileSync(file, stripTypeScriptTypes(source));
+const label = await import(pathToFileURL(file).href);
+rmSync(scratch, { recursive: true, force: true });
+
+const shapes = [
+  "npm test",
+  "  npm   run build  ",
+  "/usr/bin/git status",
+  "C:\\Program Files\\Git\\bin\\git.exe status",
+  ".\\scripts\\build.ps1 -Fast",
+  "..\\tools\\run.exe",
+  "%USERPROFILE%\\bin\\tool.exe arg",
+  "$env:HOME\\bin\\tool arg",
+  "bash -lc 'npm test'",
+  'bash -lc "npm test && npm run lint"',
+  "/bin/zsh -c 'cd src && cargo build'",
+  "sh -c 'echo hi' extra",
+  'bash.exe -c "dir"',
+  "bash -o pipefail -c 'make'",
+  "bash --rcfile x -c 'make'",
+  "bash script.sh",
+  'bash -lc "echo \\"quoted\\""',
+  'bash -lc "echo \\',
+  "bash -lc 'unterminated",
+  "env FOO=1 BAR=2 node index.js",
+  "env -i node x.js",
+  "env -u FOO node x.js",
+  "env -S 'node --inspect x.js'",
+  "env --split-string='node x.js'",
+  "env --chdir=/tmp ls",
+  "env -iu FOO ls",
+  "sudo -n apt-get update",
+  "sudo -u root -- systemctl restart x",
+  "sudo test -f x && sudo rm x",
+  "sudo -E env PATH=x make",
+  "FOO=1 BAR=2 cargo test",
+  "FOO=1",
+  "FOO=1; cargo test",
+  "export FOO=1 && cargo test",
+  "cd src && npm test",
+  "cd src; ls -la",
+  "cd /tmp || exit 1",
+  "set -e\nnpm test",
+  "if [ -f x ]; then echo y; fi",
+  "if true; then cargo build; fi",
+  "for f in *.rs; do rustfmt $f; done",
+  "while read l; do echo $l; done < file",
+  "case $x in a) echo;; esac",
+  "[[ -f x ]] && echo yes",
+  "[ -f x ] && cargo build",
+  "! grep foo bar",
+  "time cargo build",
+  "time -p cargo build",
+  "nocorrect noglob ls",
+  "command -v git",
+  "command -p ls",
+  "command -x ls",
+  "builtin cd /tmp",
+  "builtin -x",
+  "exec node x.js",
+  "exec -a name node x.js",
+  "exec -c env",
+  "nohup node x.js &",
+  "nohup -- node x.js",
+  "timeout 5 sleep 10",
+  "timeout 1.5s ls",
+  "timeout abc ls",
+  "gtimeout 10m make",
+  "arch -arm64 brew install x",
+  "arch -arch x86_64 ls",
+  "script -q /dev/null make",
+  "bundle exec rspec",
+  "bundle install",
+  "# comment\nnpm test",
+  "# only a comment",
+  "npm test # trailing",
+  "echo 'a # b' | wc -c",
+  "cat <<EOF\nhello\nEOF",
+  "cat <<'EOF' | sh\necho hi\nEOF",
+  "cat <<-EOF\n\thello\n\tEOF\necho done",
+  "python - <<'PY'\nprint(1)\nPY",
+  "cat <<EOF && echo ok\nbody\nEOF",
+  "cat <<EOF\nnever closed",
+  'cat << "A B"\nx\nA B',
+  "git status 2>&1 | head",
+  "ls > out.txt",
+  "> out.txt echo hi",
+  "2>/dev/null ls",
+  "ls &> all.txt",
+  "cmd1 &>> log; cmd2",
+  "echo a >&2",
+  "ls >| f",
+  "{ ls; }",
+  "(cd x && make)",
+  "$(which node) x.js",
+  "`which node` x.js",
+  "${EDITOR:-vi} file",
+  "$TOOL arg",
+  "SSH=(ssh -o X)\n$SSH host",
+  "TOOL=/path/to/tool; $TOOL --flag",
+  "TOOL=/path/to/tool\nunset TOOL\n$TOOL",
+  "A=ssh; B=$A; $B host",
+  "foo() { echo hi; }; foo",
+  "function foo { echo; }",
+  "foo=bar",
+  '"my program" arg',
+  "'./my prog' arg",
+  '"/path with space/prog" arg',
+  '"prog" arg',
+  "line one \\\ncontinued",
+  "ls \\\r\n  -la",
+  "echo $(date +%s) done",
+  "echo ${HOME} and ${A:-${B}}",
+  "echo `date` x",
+  'echo "$(date)"',
+  "git log --format='%H %s' | head -5",
+  "a && b",
+  "a || b",
+  "a | b",
+  "a & b",
+  "a ; b",
+  "a\nb",
+  "a |& b",
+  "false || cargo build",
+  "false && cargo build",
+  "true && cargo build",
+  ": && cargo build",
+  ". ./env.sh && cargo build",
+  "source env.sh; cargo build",
+  "alias ll='ls -l'; ll",
+  'eval "$(ssh-agent)"',
+  "exit 1",
+  "return",
+  "unset FOO",
+  "declare -x FOO=1; cargo test",
+  "pushd src; make",
+  "echo hi",
+  "printf '%s' x",
+  "git",
+  "",
+  "   ",
+  "\t\n",
+  '"',
+  "'",
+  "\\",
+  "\u001b[31mred\u001b[0m",
+  "echo \u007f del",
+  "echo a\u0007b\tc\nd\r\ne",
+  "echo ünïcode ✓",
+  "echo 😀 emoji; ls",
+  // PowerShell and Windows.
+  'powershell -Command "Get-ChildItem"',
+  'powershell.exe -NoProfile -Command "npm test"',
+  "pwsh -NoLogo -NoProfile -c 'git status'",
+  "pwsh -File build.ps1",
+  'pwsh -File "C:\\x\\build.ps1"',
+  "pwsh -EncodedCommand AAAA",
+  'pwsh -ExecutionPolicy Bypass -Command "dotnet build"',
+  "pwsh -WindowStyle Hidden script.ps1",
+  "pwsh script.ps1",
+  "cmd /c dir",
+  'cmd.exe /C "npm test"',
+  "cmd /k echo hi",
+  'cmd /c "cd x && make"',
+  "cmd /d",
+  "Get-ChildItem -Recurse",
+  "& 'C:\\Program Files\\x\\tool.exe' --flag",
+  '& "C:\\x\\tool.exe"',
+  "& tool.exe",
+  "&",
+  "& 'unterminated",
+  "$x = Get-Content f",
+  "$x = 5",
+  "$x = & 'C:\\a\\b.exe'",
+  "$env:FOO = 'bar'; npm test",
+  "$env:FOO='bar'\nnpm test",
+  "$env:FOO = 'bar'",
+  "$h = @{ a = 1; b = 2 }",
+  "$a = @(1,2,3); Get-Date",
+  "$a = [ordered]@{ a = 1 }",
+  "$r = (Get-Date).Year",
+  "$r = if ($x) { 1 }",
+  "Set-Location C:\\x; npm test",
+  "Push-Location x; Get-Date; Pop-Location",
+  "Start-Process -FilePath 'tool.exe' -ArgumentList 'a'",
+  "Start-Process tool.exe -Wait -NoNewWindow",
+  "Start-Process -Verb RunAs tool.exe",
+  "Start-Process -Foo bar",
+  "Start-Process",
+  "foreach ($f in $files) { Write-Host $f }",
+  "if ($x) { Write-Host 1 }",
+  "function Foo { 1 }",
+  "try { 1 } catch { 2 }",
+  "@'\nhere string\n'@\nGet-Date",
+  '@"\nhere\n"@\nGet-Date',
+  "'a;b' | Out-Null",
+  'Write-Output "a; b"; Get-Date',
+  "cargo test -- --nocapture",
+  'git commit -m "fix: a && b"',
+  'grep -r "foo|bar" src | head',
+  "find . -name '*.rs' -exec rm {} \;",
+  "xargs -I{} echo {}",
+  "docker run --rm -it image sh -c 'ls'",
+  "ssh host 'cd x; ls'",
+  "kubectl get pods -n x | grep y",
+  "curl -s https://x.test/a?b=1&c=2 | jq .",
+  "echo $((1 + 2))",
+  "echo $(( (1 + 2) * 3 ))",
+  "(( x++ ))",
+  "ls;;",
+  ";;",
+  "&&",
+  "|| x",
+  'echo "unterminated',
+  "echo 'a'\"b\"c",
+  "a=1 b=2 c=3",
+  'a="x y" ls',
+  "a='x y' b=z",
+  "X=1 env Y=2 ls",
+  "sudo env X=1 ls",
+  "sudo -u",
+  "env -u",
+  "sudo -nE ls",
+  "sudo -nu root ls",
+  "sudo --user=root ls",
+  "sudo --nope ls",
+  "env --unset=FOO ls",
+];
+
+// Recombinations: shapes joined by separators, wrapped, and wrapped again.
+let seed = 20261011;
+const random = () => {
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  return seed / 2 ** 32;
+};
+const pick = (list) => list[Math.floor(random() * list.length)];
+const quoteWith = (text) => {
+  const q = pick(["'", '"']);
+  return q === "'"
+    ? `'${text.replaceAll("'", "'\\''")}'`
+    : `"${text.replaceAll(/(["\\$`])/gu, "\\$1")}"`;
+};
+const separators = [" && ", " || ", "; ", "\n", " | ", " & ", " |& ", ";\n", "  \n  "];
+const wrappers = [
+  (c) => `bash -lc ${quoteWith(c)}`,
+  (c) => `/bin/sh -c ${quoteWith(c)}`,
+  (c) => `zsh -c ${quoteWith(c)}`,
+  (c) => `sudo ${c}`,
+  (c) => `env FOO=1 ${c}`,
+  (c) => `time ${c}`,
+  (c) => `nohup ${c}`,
+  (c) => `timeout 5 ${c}`,
+  (c) => `command ${c}`,
+  (c) => `exec ${c}`,
+  (c) => `FOO=1 ${c}`,
+  (c) => `# note\n${c}`,
+  (c) => `cd x && ${c}`,
+  (c) => `pwsh -Command ${quoteWith(c)}`,
+  (c) => `cmd /c ${quoteWith(c)}`,
+  (c) => `${c} > out.log 2>&1`,
+  (c) => `${c} # trailing`,
+  (c) => `cat <<EOF | ${c}\nbody\nEOF`,
+  (c) => `{ ${c}; }`,
+  (c) => `(${c})`,
+  (c) => `"${c.replaceAll('"', "")}"`,
+];
+const corpus = new Set(shapes);
+for (let index = 0; index < 2600; index += 1) {
+  let command = pick(shapes);
+  const steps = Math.floor(random() * 4);
+  for (let step = 0; step < steps; step += 1) {
+    if (random() < 0.5) command = pick(wrappers)(command);
+    else
+      command =
+        random() < 0.5
+          ? `${command}${pick(separators)}${pick(shapes)}`
+          : `${pick(shapes)}${pick(separators)}${command}`;
+  }
+  // Truncations exercise every unterminated state.
+  if (random() < 0.12) command = command.slice(0, Math.floor(random() * command.length));
+  corpus.add(command);
+}
+
+const rows = [...corpus].map((command) => ({
+  command,
+  program: label.commandProgramName(command),
+  display: label.commandDisplayText(command),
+}));
+writeFileSync(
+  new URL("../crates/client/tests/fixtures/command-label.jsonl", import.meta.url),
+  `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+);
+console.log(`wrote ${rows.length} commands`);

@@ -96,6 +96,8 @@ pub(crate) struct Fixture {
     pub(crate) workspace: PathBuf,
     auth: t3_server::auth::AuthService,
     pub(crate) address: String,
+    /// The server's own store, for a test that must put a record where only the server writes one.
+    pub(crate) store: t3_server::persistence::Store,
     /// Stops the server, the execution service and the settings owner (whose worker runs on the
     /// runtime's blocking pool, which a runtime cannot be dropped without), awaited or dropped.
     server: crate::runtime::fixture_server::Server,
@@ -163,8 +165,9 @@ impl Fixture {
         api.execution = Some(execution);
         api.workspace = Some(t3_server::workspace_entries::WorkspaceEntries::new(root.clone(), workspace.clone()));
         let auth = api.auth.clone();
+        let store = api.store.clone();
         let (address, server) = start_fixture(api).await;
-        Self { directory, workspace, auth, address, server }
+        Self { directory, workspace, auth, address, store, server }
     }
 
     pub(crate) fn operator(&self, gate: Gate) -> (VirtualDom, Harness) {

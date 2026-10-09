@@ -2,10 +2,8 @@
 //! turns and superseded attempts folded behind one line, the live activity row of a running turn.
 //! Port of `deriveMessagesTimelineRows` (`MessagesTimeline.logic.ts`), the work entries of
 //! `session-logic.ts` and `packages/client-runtime/src/work-log/presentation.ts`.
-//! Left out, and named where it would sit: T3 MCP tool names and their summaries
-//! (`resolveT3McpToolDefinition`), the shell-command parser behind `commandDisplayText` and
-//! `commandProgramName` (a command is shown whole, and named by its first word), published HTML
-//! pages and MCP apps, the worktree-setup card and the assistant footer that follows a turn.
+//! T3 Code's own tools are named and summarised by `t3_tools`, and a shell command is read by
+//! `command_label`. Left out, and named where it would sit: published HTML pages and MCP apps.
 use regex::Regex;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -95,6 +93,18 @@ pub struct Work {
     /// Nested under another item (a subagent's or a tool's own error), so it does not fail the run.
     nested: bool,
     dynamic_title: Option<String>,
+    /// The call, when it is one of T3 Code's own tools (`resolveT3McpToolDefinition`).
+    t3: Option<T3Call>,
+}
+/// What a T3 tool call keeps for its words and its group summary.
+#[derive(Debug, Clone, PartialEq)]
+struct T3Call {
+    tool: &'static crate::t3_tools::Tool,
+    /// `toolData`, where the row finds the call's arguments (`arguments`, `input` or `rawInput`).
+    data: Value,
+    input: Value,
+    output: Value,
+    output_failed: bool,
 }
 
 fn trimmed(value: &Value) -> Option<String> {
@@ -232,6 +242,11 @@ fn tool_icon(value: &Value) -> Option<ToolIcon> {
         _ => None,
     }
 }
+/// `workEntryViewedImagePath` for the image a tool row shows when it is opened: the path the call
+/// viewed, when it is one line and names an image.
+pub fn viewed_image_path(item: &Value) -> Option<String> {
+    trimmed(&item["viewedImagePath"]).filter(|path| path.len() <= 4096 && !path.contains(['\r', '\n']) && is_image_path(path))
+}
 fn is_image_path(path: &str) -> bool {
     let lower = path.to_lowercase();
     [".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"].iter().any(|extension| lower.ends_with(extension))
@@ -326,6 +341,7 @@ impl Work {
             retrying: kind == "error" && item.get("retry").is_some_and(Value::is_object),
             nested: item["parentItemId"].is_string(),
             dynamic_title: if kind == "dynamic_tool" { dynamic_tool_title(tool_name.as_deref(), &item["input"]) } else { None },
+            t3: None,
         };
         let tool_data = if kind == "dynamic_tool" { serde_json::json!({"input": item["input"], "output": item["output"]}) } else { item.clone() };
         match kind {
@@ -404,6 +420,24 @@ impl Work {
             "notification" => work.label = item["summary"].as_str().unwrap_or_default().to_owned(),
             other => work.label = title.unwrap_or_else(|| other.replace('_', " ")),
         }
+        // `workEntryToolName`: structured identity wins, including when it names a foreign server.
+        let identity = if kind == "dynamic_tool" && tool_name.as_deref().is_some_and(|name| !name.is_empty()) {
+            tool_name.clone()
+        } else if let (Some(server), Some(tool)) = (tool_data["server"].as_str(), tool_data["tool"].as_str()) {
+            Some(format!("{server}.{tool}"))
+        } else if let Some(name) = tool_data["toolName"].as_str() {
+            Some(name.to_owned())
+        } else if crate::t3_tools::resolve(work.tool_title.as_deref()).is_some() {
+            work.tool_title.clone()
+        } else {
+            Some(work.label.clone())
+        };
+        if let Some(tool) = crate::t3_tools::resolve(identity.as_deref()) {
+            let first = |keys: &[&str]| keys.iter().map(|key| &tool_data[*key]).find(|value| !value.is_null()).cloned().unwrap_or(Value::Null);
+            let (input, output) = if kind == "dynamic_tool" { (item["input"].clone(), item["output"].clone()) } else { (first(&["arguments", "input", "rawInput"]), first(&["output", "result", "rawOutput", "content"])) };
+            let output_failed = crate::t3_tools::result_indicates_failure(&output);
+            work.t3 = Some(T3Call { tool, data: tool_data.clone(), input, output, output_failed });
+        }
         // What `workEntryReadRawPaths` and `workEntryDisplayLabel` read from the call's data.
         work.read_paths = if !work.changed_files.is_empty() {
             work.changed_files.clone()
@@ -422,11 +456,29 @@ impl Work {
             command_failure = item["outputIndicatesFailure"] == true || item["exitCode"].as_i64().is_some_and(|code| code != 0) || item["output"].as_str().is_some_and(|output| output_indicates_failure(&output.chars().take(32_768).collect::<String>()));
         }
         let detail_failure = work.detail.as_deref().is_some_and(|detail| !detail.is_empty() && output_indicates_failure(detail));
+        let t3_failure = work.t3.as_ref().is_some_and(|call| call.output_failed);
         work.command_failure = command_failure;
-        work.display_failure = work.tone == Tone::Error || work.status == Status::Failed || (tool_like && (command_failure || detail_failure));
+        work.display_failure = work.tone == Tone::Error || work.status == Status::Failed || (tool_like && (t3_failure || command_failure || detail_failure));
         work
     }
 
+    /// `resolveWorkEntryToolPresentation`: the words, icon and pull request action of a T3 tool call,
+    /// at `status` (a result that reads as a failure makes it failed whatever the provider said).
+    pub fn t3_words(&self, status: Status) -> Option<crate::t3_tools::Words> {
+        let call = self.t3.as_ref()?;
+        let lifecycle = if call.output_failed {
+            "failed"
+        } else {
+            match status {
+                Status::InProgress => "inProgress",
+                Status::Completed => "completed",
+                Status::Failed => "failed",
+                Status::Stopped => "stopped",
+                Status::Idle => "idle",
+            }
+        };
+        Some(crate::t3_tools::words(call.tool, Some(lifecycle), &call.data))
+    }
     /// `workLogEntryIsToolLike` of `session-logic.ts`.
     pub fn is_tool_like(&self) -> bool {
         matches!(self.tone, Tone::Tool | Tone::Thinking | Tone::Error) || self.command.is_some()
@@ -514,6 +566,11 @@ pub enum GroupAction {
     Search,
     Other,
     Update,
+    LinkPr,
+    UnlinkPr,
+    WatchPr,
+    UnwatchPr,
+    ListPrs,
 }
 fn local_code_search(work: &Work) -> bool {
     static GREP: OnceLock<Regex> = OnceLock::new();
@@ -528,6 +585,21 @@ pub fn normalize_compact_label(value: &str) -> String {
 pub fn group_action(work: &Work) -> GroupAction {
     if work.item_type == "thread_created" {
         return GroupAction::ThreadCreate;
+    }
+    if let Some(words) = work.t3_words(work.status) {
+        match words.action {
+            Some("link-pr") => return GroupAction::LinkPr,
+            Some("unlink-pr") => return GroupAction::UnlinkPr,
+            Some("watch-pr") => return GroupAction::WatchPr,
+            Some("unwatch-pr") => return GroupAction::UnwatchPr,
+            Some("list-prs") => return GroupAction::ListPrs,
+            _ => {}
+        }
+        match words.icon {
+            "browser" => return GroupAction::Browser,
+            "device" => return GroupAction::Device,
+            _ => {}
+        }
     }
     if work.viewed_image_path.is_some() {
         return GroupAction::Read;
@@ -594,6 +666,11 @@ fn action_label(action: GroupAction, count: usize) -> String {
         GroupAction::CodeSearch => format!("Searched code {}", plural(count, "time", "times")),
         GroupAction::Other => format!("Used {}", plural(count, "tool", "tools")),
         GroupAction::Update => format!("Received {}", plural(count, "update", "updates")),
+        GroupAction::LinkPr => format!("Linked {}", plural(count, "pull request", "pull requests")),
+        GroupAction::UnlinkPr => format!("Unlinked {}", plural(count, "pull request", "pull requests")),
+        GroupAction::WatchPr => format!("Watching {}", plural(count, "pull request", "pull requests")),
+        GroupAction::UnwatchPr => format!("Stopped watching {}", plural(count, "pull request", "pull requests")),
+        GroupAction::ListPrs => if count == 1 { "Checked linked pull requests".to_owned() } else { format!("Checked linked pull requests {count} times") },
     }
 }
 fn action_priority(action: GroupAction) -> u8 {
@@ -603,16 +680,36 @@ fn action_priority(action: GroupAction) -> u8 {
         _ => 1,
     }
 }
+/// The name a group action goes by in the original, for the actions a T3 tool's summary also names.
+fn group_action_name(action: GroupAction) -> Option<&'static str> {
+    Some(match action {
+        GroupAction::Browser => "browser",
+        GroupAction::Device => "device",
+        GroupAction::LinkPr => "link-pr",
+        GroupAction::UnlinkPr => "unlink-pr",
+        GroupAction::WatchPr => "watch-pr",
+        GroupAction::UnwatchPr => "unwatch-pr",
+        GroupAction::ListPrs => "list-prs",
+        _ => return None,
+    })
+}
 /// `summarizeToolGroup`: at most two action categories, every other call counted in a remainder.
 pub fn summarize_group(entries: &[&Work]) -> (String, bool) {
     let tools: Vec<&Work> = entries.iter().copied().filter(|entry| entry.item_type != "reasoning").collect();
     if !entries.is_empty() && tools.is_empty() {
         return (if entries.len() == 1 { "Thought".into() } else { format!("Thought (×{})", entries.len()) }, false);
     }
-    let mut groups: Vec<(GroupAction, Vec<&Work>)> = vec![];
+    // A group is a T3 tool's summary action when it is one of T3 Code's own tools, else the call's action.
+    #[derive(PartialEq)]
+    enum Key {
+        Action(GroupAction),
+        T3(&'static str),
+    }
+    let mut groups: Vec<(Key, GroupAction, Vec<&Work>)> = vec![];
     let mut sources: Vec<&ToolSource> = vec![];
     for entry in &tools {
-        if let Some(source) = &entry.tool_source {
+        let t3_action = entry.t3.as_ref().map(|call| call.tool.summary_action.as_str());
+        if let (Some(source), None) = (&entry.tool_source, t3_action) {
             // A later call from the same source replaces the earlier one's description in place.
             match sources.iter().position(|known| known.key == source.key) {
                 Some(position) => sources[position] = source,
@@ -621,12 +718,40 @@ pub fn summarize_group(entries: &[&Work]) -> (String, bool) {
             continue;
         }
         let action = group_action(entry);
-        match groups.iter_mut().find(|(known, _)| *known == action) {
-            Some((_, members)) => members.push(entry),
-            None => groups.push((action, vec![entry])),
+        // The original keys a group by the name of the action, and a browser or pull request tool's summary action is also its group action.
+        let key = match t3_action {
+            Some(name) => Key::T3(name),
+            None => Key::Action(action),
+        };
+        let same = |known: &Key| match (known, &key) {
+            (Key::T3(a), Key::T3(b)) => a == b,
+            (Key::Action(a), Key::Action(b)) => a == b,
+            (Key::T3(name), Key::Action(action)) | (Key::Action(action), Key::T3(name)) => group_action_name(*action) == Some(*name),
+        };
+        match groups.iter_mut().find(|(known, ..)| same(known)) {
+            Some((_, _, members)) => members.push(entry),
+            None => groups.push((key, action, vec![entry])),
         }
     }
-    let summaries: Vec<(usize, usize, u8, String, usize)> = groups.iter().enumerate().map(|(index, (action, members))| (index, members.len(), action_priority(*action), action_label(*action, action_count(*action, members)), members.iter().filter(|member| member.display_failure()).count())).collect();
+    let summaries: Vec<(usize, usize, u8, String, usize)> = groups
+        .iter()
+        .enumerate()
+        .map(|(index, (key, action, members))| match key {
+            Key::T3(name) => {
+                let calls: Vec<crate::t3_tools::Call> = members
+                    .iter()
+                    .map(|member| {
+                        let call = member.t3.as_ref().expect("a T3 group holds T3 calls");
+                        let outcome = if member.status == Status::Failed || member.tone == Tone::Error { "failed" } else if member.status == Status::Completed { "completed" } else { "unfinished" };
+                        crate::t3_tools::Call { input: &call.input, output: &call.output, outcome }
+                    })
+                    .collect();
+                let (label, failed) = crate::t3_tools::summarize_calls(name, &calls);
+                (index, members.len(), crate::t3_tools::action_priority(name), label, failed)
+            }
+            Key::Action(_) => (index, members.len(), action_priority(*action), action_label(*action, action_count(*action, members)), members.iter().filter(|member| member.display_failure()).count()),
+        })
+        .collect();
     let mut selected: Vec<_> = summaries.iter().collect();
     selected.sort_by_key(|(index, _, priority, _, _)| (*priority, *index));
     selected.truncate(2);
@@ -643,7 +768,7 @@ pub fn summarize_group(entries: &[&Work]) -> (String, bool) {
         let integrations = sources.iter().all(|source| source.kind == "integration");
         labels.insert(0, format!("Used {formatted}{}", if integrations { if sources.len() == 1 { " integration" } else { " integrations" } } else { "" }));
     }
-    let sourced = tools.iter().filter(|entry| entry.tool_source.is_some()).count();
+    let sourced = tools.iter().filter(|entry| entry.tool_source.is_some() && entry.t3.is_none()).count();
     let remaining = tools.len() as isize - sourced as isize - selected.iter().map(|(_, count, ..)| *count as isize).sum::<isize>();
     if remaining > 0 {
         labels.push(format!("Performed {remaining} other {}", if remaining == 1 { "action" } else { "actions" }));
@@ -660,6 +785,8 @@ pub fn summarize_group(entries: &[&Work]) -> (String, bool) {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SummaryKind {
+    /// Every call is one of T3 Code's pull request tools.
+    PullRequest,
     Action(GroupAction),
     Reasoning,
     DynamicTool,
@@ -673,6 +800,9 @@ pub fn summary_kind(entries: &[&Work]) -> SummaryKind {
     let tools: Vec<&Work> = entries.iter().copied().filter(|entry| entry.item_type != "reasoning").collect();
     if !entries.is_empty() && tools.is_empty() {
         return SummaryKind::Reasoning;
+    }
+    if !tools.is_empty() && tools.iter().all(|entry| entry.t3_words(entry.status).is_some_and(|words| words.icon == "pull-request")) {
+        return SummaryKind::PullRequest;
     }
     let actions: HashSet<GroupAction> = tools.iter().map(|entry| group_action(entry)).collect();
     if actions.len() != 1 {
@@ -700,20 +830,13 @@ pub fn summary_kind(entries: &[&Work]) -> SummaryKind {
     }
 }
 
-/// `commandDisplayText` without the shell-wrapper parser: control characters made visible.
+/// `commandDisplayText`: a plain `sh -c` wrapper removed and control characters made visible.
 pub fn command_display_text(command: &str) -> String {
-    command.trim().chars().map(|c| match c {
-        '\u{7f}' => '\u{2421}',
-        c if matches!(c, '\u{0}'..='\u{8}' | '\u{b}' | '\u{c}' | '\u{e}'..='\u{1f}') => char::from_u32(0x2400 + c as u32).unwrap_or(c),
-        c => c,
-    }).collect()
+    crate::command_label::display_text(command)
 }
-/// `commandProgramName` without the shell parser: the first word's file name.
+/// `commandProgramName`: the program a command runs, if it names one.
 pub fn command_program_name(command: &str) -> Option<String> {
-    let word = command.split_whitespace().next()?;
-    let name = word.rsplit(['/', '\\']).next().unwrap_or(word);
-    let name = name.strip_suffix(".exe").unwrap_or(name);
-    (!name.is_empty()).then(|| name.to_owned())
+    crate::command_label::program_name(command)
 }
 
 /// `workEntryDisplayLabel`.
@@ -723,6 +846,9 @@ pub fn display_label(work: &Work) -> String {
     }
     if work.item_type == "reasoning" || work.tone == Tone::Thinking {
         return work.detail.as_deref().map(first_line_trim).filter(|thought| !thought.is_empty()).unwrap_or_else(|| work.label.clone());
+    }
+    if let Some(words) = work.t3_words(work.status) {
+        return words.display_name;
     }
     if let Some(command) = work.command.as_deref().filter(|command| !command.trim().is_empty()) {
         return command_display_text(command);
@@ -771,6 +897,9 @@ pub fn live_label(work: &Work, active: bool) -> String {
     if work.item_type == "reasoning" {
         return work.detail.as_deref().map(first_line_trim).filter(|thought| !thought.is_empty()).unwrap_or_else(|| if status == Status::InProgress { "Thinking".into() } else { "Thought".into() });
     }
+    if let Some(words) = work.t3_words(status) {
+        return words.display_name;
+    }
     if let Some(command) = work.command.as_deref().map(str::trim).filter(|command| !command.is_empty()) {
         let verb = match status {
             Status::InProgress => "Running",
@@ -786,6 +915,9 @@ pub fn live_label(work: &Work, active: bool) -> String {
 pub fn single_call_label(work: &Work) -> String {
     if work.item_type == "reasoning" {
         return work.detail.as_deref().map(first_line_trim).filter(|thought| !thought.is_empty()).unwrap_or_else(|| "Thought".into());
+    }
+    if let Some(words) = work.t3_words(work.status) {
+        return words.display_name;
     }
     if let Some(title) = dynamic_title(work) {
         return title;
@@ -962,8 +1094,8 @@ pub enum Row {
     Item { row: usize },
     /// A thread the turn created, shown again below the turn's final answer.
     Created { entry: usize },
-    /// Where the footer of a final answer sits once tool calls follow it. Nothing is drawn for it;
-    /// it ends a run of work, which is what "continues" reads.
+    /// The meta line of a settled response's final answer (status, copy, time), under it or below the
+    /// tool calls that follow it. It ends a run of work, which is what "continues" reads.
     Footer { message: usize },
 }
 
@@ -1515,12 +1647,18 @@ impl GroupAction {
             GroupAction::Search => "search",
             GroupAction::Other => "other",
             GroupAction::Update => "update",
+            GroupAction::LinkPr => "link-pr",
+            GroupAction::UnlinkPr => "unlink-pr",
+            GroupAction::WatchPr => "watch-pr",
+            GroupAction::UnwatchPr => "unwatch-pr",
+            GroupAction::ListPrs => "list-prs",
         }
     }
 }
 impl SummaryKind {
     pub fn as_str(self) -> &'static str {
         match self {
+            SummaryKind::PullRequest => "pull-request",
             SummaryKind::Action(action) => action.as_str(),
             SummaryKind::Reasoning => "reasoning",
             SummaryKind::DynamicTool => "dynamic-tool",
@@ -1562,16 +1700,22 @@ fn is_active_response_runs(active: &HashSet<String>, runless: bool) -> impl Fn(&
     }
 }
 
-/// When a settled turn ends with tool calls after its final text, text and tools are one visual
-/// response: the footer moves below the tools (`attachTrailingToolGroupsToAssistant`).
+/// The footer of each settled response's final answer (`showAssistantMeta`): right under it, or,
+/// when the turn ends with tool calls after its final text, below the tools so text and tools are
+/// one visual response (`attachTrailingToolGroupsToAssistant`).
 fn attach_trailing_tool_groups(rows: &mut Vec<Row>, entries: &[Entry], terminal: &HashSet<usize>, active: &impl Fn(&Option<String>) -> bool) {
     let mut footers: Vec<(usize, usize)> = vec![];
     for (position, row) in rows.iter().enumerate() {
         let Row::Entry { entry: message } = row else { continue };
-        let Kind::Message { role_user: false, run_id: Some(run), .. } = &entries[*message].kind else { continue };
-        if !terminal.contains(message) || active(&Some(run.clone())) {
+        let Kind::Message { role_user: false, run_id, .. } = &entries[*message].kind else { continue };
+        if !terminal.contains(message) || active(run_id) {
             continue;
         }
+        // A response without a run keeps its footer right under it.
+        let Some(run) = run_id else {
+            footers.push((position, *message));
+            continue;
+        };
         let (mut last, mut has_group) = (None, false);
         for (index, candidate) in rows.iter().enumerate().skip(position + 1) {
             match candidate {
@@ -1601,9 +1745,7 @@ fn attach_trailing_tool_groups(rows: &mut Vec<Row>, entries: &[Entry], terminal:
                 Row::Entry { .. } | Row::Single { .. } | Row::Toggle { .. } | Row::Created { .. } | Row::Members { .. } | Row::Live { .. } | Row::Thinking { .. } | Row::Working { .. } | Row::TurnFold { .. } | Row::AttemptFold { .. } | Row::Compaction { .. } | Row::Subagents { .. } | Row::Item { .. } | Row::Footer { .. } => {}
             }
         }
-        if let Some(last) = last {
-            footers.push((last, *message));
-        }
+        footers.push((last.unwrap_or(position), *message));
     }
     for (offset, (after, message)) in footers.into_iter().enumerate() {
         rows.insert(after + 1 + offset, Row::Footer { message });

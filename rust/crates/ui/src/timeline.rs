@@ -19,6 +19,9 @@ pub(crate) fn TimelineItem(
     rewind: Option<t3_client::rollback::Target>,
     /// The run still going, given only to rows whose work is in progress (so a run starting does not rebuild finished rows).
     active_run: Option<String>,
+    /// `local`, or `inherited` for a row a fork carries from its source thread.
+    #[props(default = "local".to_owned())]
+    visibility: String,
 ) -> Element {
     #[cfg(test)]
     if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
@@ -73,6 +76,7 @@ pub(crate) fn TimelineItem(
         "compaction" => return rsx! {crate::item_cards::Compaction {item:effective.clone()}},
         "error" => return rsx! {crate::item_cards::ErrorRow {item:effective.clone()}},
         "run_interrupt_request" | "run_interrupt_result" => return rsx! {crate::item_cards::RunNotice {item:effective.clone()}},
+        "secret_request" => return rsx! {crate::secret_card::SecretRequestCard {item:effective.clone(),visibility:visibility.clone(),state,transport:transport.clone()}},
         "notification" => return rsx! {crate::item_cards::Notification {item:effective.clone(),state,transport:transport.clone()}},
         "system_notice" => {
             let message = effective["message"].as_str().or_else(|| effective["detail"].as_str()).or_else(|| effective["title"].as_str()).unwrap_or_default().to_owned();
@@ -117,6 +121,7 @@ pub(crate) fn TimelineItem(
                     _=>rsx!{},
                 }
                 if let Some(output)=output.filter(|_|kind!="web_search"){pre {class:"tool-output","{output}"}}
+                if let Some(path)=crate::file_preview::viewed_path(&effective) {crate::file_preview::WorkspaceImage {key:"{path}",state,transport:transport.clone(),environment_key:environment_key.clone(),thread_id:source_thread_id.clone(),path}}
                 if omitted {
                     button {"aria-label":"Load full output",disabled:loading.read().as_ref()==Some(&cache_key),onclick:{let transport=transport.clone();move |_|{
                         if loading.peek().as_ref()==Some(&cache_key_for_click){return;}

@@ -21,6 +21,7 @@ mod pull_request_files;
 mod diff_panel;
 mod review_diff;
 mod draft_storage;
+mod file_preview;
 mod font_service;
 mod keybinding_page;
 mod keys;
@@ -29,6 +30,7 @@ mod model_controls;
 mod model_picker;
 mod new_thread;
 mod notice;
+mod open_in;
 mod plan_save;
 mod project_create;
 mod provider_auth;
@@ -38,6 +40,7 @@ mod rollback;
 mod runtime;
 mod scheduled_tasks_page;
 mod scroll_state;
+mod secret_card;
 mod sidebar_rows;
 mod search;
 mod settings_common;
@@ -125,6 +128,23 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         .unwrap_or_default();
     drop(snapshot);
     let row_caps = sidebar_rows::caps(state);
+    // A snoozed row wakes when its time passes with nothing else changing. One timer is set for the
+    // earliest wake time (never a clock that ticks), and the sidebar is built again when it fires.
+    let mut wake_tick = use_signal(|| 0u64);
+    let next_wake = use_memo(move || {
+        let _ = wake_tick();
+        let now = chrono::Utc::now();
+        state.shell().read().snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().filter_map(|thread| t3_client::sidebar::snoozed_until(thread, now)).min())
+    });
+    use_resource(move || async move {
+        let Some(at) = next_wake() else { return };
+        // A long snooze waits in day-long steps; the margin keeps the row from waking a moment early.
+        let wait = (at - chrono::Utc::now()).num_milliseconds().clamp(0, 86_400_000) as u64 + 50;
+        runtime::delay(wait).await;
+        let next = *wake_tick.peek() + 1;
+        wake_tick.set(next);
+    });
+    let _ = wake_tick();
     let now = chrono::Utc::now();
     let active_id = state.active_thread().read().clone();
     let active = threads
@@ -229,7 +249,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     for project in projects.iter() {
                         div { class: "project-group", key: "{project.id}",
                             button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
-                                span { class: "project-icon", "◇" } "{project.title}"
+                                file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string() } "{project.title}"
                             }
                             button { class: "project-remove", "aria-label": "Remove project {project.title}", title: "Remove project", disabled: !can_operate, onclick: { let id = project.id.to_string(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" }
                             for thread in sidebar_rows::rows(&threads, &project.id, now) {
@@ -256,7 +276,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             let project_cwd = projects.iter().find(|project| project.id == active_thread.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
                             let worktree = active_thread.worktree_path.as_ref().map(ToString::to_string);
                             let cwd = worktree.clone().unwrap_or_else(|| project_cwd.clone());
-                            rsx! { if !cwd.is_empty() { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
+                            rsx! { if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
                         }
                         diff_panel::Toggle { state, environment_key: environment_key.clone(), thread_id: active_thread.id.to_string() }
                         {
@@ -332,9 +352,6 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         } else {
                             for current in [active.as_ref().unwrap().clone()] {
                                 ThreadTimeline { key:"{timeline_key}",state, transport: transport.clone(),environment_key:environment_key.clone(), thread_id: current.id.to_string(), can_operate }
-                            }
-                            for current in [active.as_ref().unwrap().clone()] {
-                                worktree_setup::Card {key:"setup:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
                             }
                             for current in [active.as_ref().unwrap().clone()] {
                                 worktree_setup::RetryBar {key:"retry:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
@@ -462,7 +479,10 @@ fn ThreadTimeline(
         active_turn_started_at: working_since.as_deref().or(runless.as_deref()),
     });
     t3_client::timeline_rows::place_left_out(&mut derived, &entries, items);
-    let rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, projection: projection.unwrap_or(&Value::Null), items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target }.render(&derived);
+    let mut rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, projection: projection.unwrap_or(&Value::Null), items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target }.render(&derived);
+    // The worktree setup sits under the message that started the thread, or at the end before any.
+    let setup_at = derived.iter().position(|row| matches!(row, t3_client::timeline_rows::Row::Entry { entry } if matches!(entries[*entry].kind, t3_client::timeline_rows::Kind::Message { role_user: true, .. }))).map_or(rendered.len(), |first| first + 1).min(rendered.len());
+    rendered.insert(setup_at, rsx! { worktree_setup::Card {key:"setup:{thread_id}",state,transport:transport.clone(),thread_id:thread_id.clone(),turn_live:latest_run.as_ref().is_some_and(|run| run.started_at.is_some())} });
     rsx! {
         div { class: "timeline", id:scrolling.id.clone(), tabindex:"0", "aria-label": "Conversation", onmounted:move |_|mount_scroll.mount(),
             if projection.is_some() {

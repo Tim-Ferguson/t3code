@@ -198,6 +198,14 @@ pub fn pin_key(thread: &ThreadShell) -> (String, i64) {
 pub fn snoozed_until(thread: &ThreadShell, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
     thread.snoozed_until.flatten().map(|at| at.0).filter(|wake| *wake > now)
 }
+/// `threadWokeAt` for a snooze that ended on its timer: when the thread woke, or none while it is
+/// still snoozed or never was. The "Woke" mark stays until the thread is visited after that time,
+/// or it is settled (`isWoke` of `Sidebar.tsx`). A thread that raised its hand early is not read.
+pub fn woke_at(thread: &ThreadShell, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    let wake = thread.snoozed_until.flatten().map(|at| at.0).filter(|wake| *wake <= now)?;
+    let visited_since = thread.last_visited_at.flatten().is_some_and(|visited| visited.0 >= wake);
+    (!visited_since && thread.settled_override != Some(t3_contracts::SettledOverride::Settled)).then_some(wake)
+}
 /// `snoozeWakeLabel`: "2h", "18h", "3d"; minutes round up so a snooze never reads "0m".
 pub fn wake_label(until: &str, now: DateTime<Utc>) -> String {
     let Ok(wake) = DateTime::parse_from_rfc3339(until) else { return "now".into() };
@@ -246,4 +254,37 @@ pub fn snooze_presets(now: DateTime<Utc>, offset_minutes: i32) -> Vec<SnoozePres
     }
     let _ = local.hour();
     presets
+}
+
+#[cfg(test)]
+mod woke_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn thread(extra: serde_json::Value) -> ThreadShell {
+        let mut base = json!({"createdBy":"user","creationSource":"web","id":"t","projectId":"p","title":"T","providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"approval-required","interactionMode":"default","branch":null,"worktreePath":null,"lineage":{"parentThreadId":null,"relationshipToParent":null,"rootThreadId":"t"},"forkedFrom":null,"activeProviderThreadId":null,"latestRunId":null,"activeRunId":null,"status":"idle","pendingRuntimeRequest":null,"latestVisibleMessage":null,"latestUserMessageAt":null,"hasActionableProposedPlan":false,"itemCount":1,"visibleItemCount":1,"pendingBackgroundTasks":[],"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z","archivedAt":null,"settledOverride":null,"settledAt":null,"deletedAt":null});
+        for (key, value) in extra.as_object().unwrap() {
+            base[key] = value.clone();
+        }
+        serde_json::from_value(base).unwrap()
+    }
+    fn at(text: &str) -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339(text).unwrap().with_timezone(&Utc)
+    }
+
+    #[test]
+    fn a_thread_wakes_once_its_timer_has_passed_until_it_is_visited_or_settled() {
+        let now = at("2026-01-02T12:00:00Z");
+        // Still snoozed, or never snoozed: not woke.
+        assert_eq!(woke_at(&thread(json!({"snoozedUntil":"2026-01-02T13:00:00Z"})), now), None);
+        assert_eq!(woke_at(&thread(json!({})), now), None);
+        // The timer passed.
+        let woke = thread(json!({"snoozedUntil":"2026-01-02T09:00:00Z"}));
+        assert_eq!(woke_at(&woke, now), Some(at("2026-01-02T09:00:00Z")));
+        // A visit before the wake does not clear it; one after does.
+        assert!(woke_at(&thread(json!({"snoozedUntil":"2026-01-02T09:00:00Z","lastVisitedAt":"2026-01-02T08:00:00Z"})), now).is_some());
+        assert_eq!(woke_at(&thread(json!({"snoozedUntil":"2026-01-02T09:00:00Z","lastVisitedAt":"2026-01-02T09:30:00Z"})), now), None);
+        // Settling the thread ends it.
+        assert_eq!(woke_at(&thread(json!({"snoozedUntil":"2026-01-02T09:00:00Z","settledOverride":"settled"})), now), None);
+    }
 }

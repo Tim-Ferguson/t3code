@@ -91,6 +91,34 @@ pub(crate) fn status_word(item: &Value, live: Live) -> Option<&'static str> {
     }
 }
 
+/// The meta line under a settled response's final answer (`AssistantMessageMeta`): the item's
+/// status when it is not simply done, a copy button while there is text to copy, and when the
+/// answer was last written. The time is the answer's last update; nothing here ticks.
+#[component]
+pub(crate) fn AssistantFooter(text: String, status: String, updated_at: String, streaming: bool) -> Element {
+    let mut copied = use_signal(|| false);
+    let offset = crate::scheduled_tasks_page::zone(chrono::Utc::now().timestamp_millis());
+    let time = words::day_aware_timestamp(&updated_at, offset, chrono::Utc::now());
+    let tooltip = words::timestamp_tooltip(&updated_at, offset);
+    let can_copy = !streaming && !text.trim().is_empty();
+    rsx! {div {class:"assistant-footer","data-item-type":"assistant_footer",
+        if status != "completed" && !status.is_empty() {span {class:"badge mono",title:"Item status","{status}"}}
+        if can_copy {button {class:"icon-button",r#type:"button","aria-label":if copied() {"Copied"} else {"Copy message"},title:"Copy message",
+            onclick:move |_| {
+                let text = text.clone();
+                spawn(async move {
+                    if crate::settings_common::copy_text(&text).await {
+                        copied.set(true);
+                        runtime::delay(1500).await;
+                        copied.set(false);
+                    }
+                });
+            },
+            if copied() {"✓"} else {"⧉"}}}
+        if !streaming && !time.is_empty() {time {class:"muted",title:"{tooltip}",datetime:"{updated_at}","{time}"}}
+    }}
+}
+
 /// A report that background work finished: the work's own glyph, what happened, and when. A report
 /// about a subagent the parent knows is drawn as that subagent instead (`subagent_rows`).
 #[component]

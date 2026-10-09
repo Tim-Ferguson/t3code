@@ -1,0 +1,579 @@
+[
+  {
+    "id": "link_pull_request",
+    "displayName": "Link a pull request",
+    "labels": ["Link", "Linking", "Linked", "a pull request"],
+    "icon": "pull-request",
+    "summaryAction": "link-pr"
+  },
+  {
+    "id": "unlink_pull_request",
+    "displayName": "Unlink a pull request",
+    "labels": ["Unlink", "Unlinking", "Unlinked", "a pull request"],
+    "icon": "pull-request",
+    "summaryAction": "unlink-pr"
+  },
+  {
+    "id": "list_thread_pull_requests",
+    "displayName": "Check linked pull requests",
+    "labels": ["Check", "Checking", "Checked", "linked pull requests"],
+    "icon": "pull-request",
+    "summaryAction": "list-prs"
+  },
+  {
+    "id": "watch_pull_request",
+    "displayName": "Watch a pull request",
+    "labels": ["Watch", "Watching", "Watching", "a pull request"],
+    "icon": "pull-request",
+    "summaryAction": "watch-pr"
+  },
+  {
+    "id": "unwatch_pull_request",
+    "displayName": "Stop watching a pull request",
+    "labels": ["Stop watching", "Stopping watching", "Stopped watching", "a pull request"],
+    "icon": "pull-request",
+    "summaryAction": "unwatch-pr"
+  },
+  {
+    "id": "orchestrator_capabilities",
+    "displayName": "Get orchestration capabilities",
+    "labels": ["Get", "Getting", "Got", "orchestration capabilities"],
+    "icon": "t3-code",
+    "summaryAction": "capabilities"
+  },
+  {
+    "id": "delegate_task",
+    "displayName": "Delegate a child task",
+    "labels": ["Delegate", "Delegating", "Delegated", "a child task"],
+    "icon": "t3-code",
+    "summaryAction": "delegate"
+  },
+  {
+    "id": "task_status",
+    "displayName": "Get delegated task status",
+    "labels": ["Get", "Getting", "Got", "delegated task status"],
+    "icon": "t3-code",
+    "summaryAction": "task-status"
+  },
+  {
+    "id": "task_cancel",
+    "displayName": "Cancel delegated task",
+    "labels": ["Cancel", "Canceling", "Requested cancellation of", "delegated task"],
+    "icon": "t3-code",
+    "summaryAction": "task-cancel"
+  },
+  {
+    "id": "schedule_task",
+    "displayName": "Schedule a recurring task",
+    "labels": ["Schedule", "Scheduling", "Scheduled", "a recurring task"],
+    "icon": "t3-code",
+    "summaryAction": "schedule-create"
+  },
+  {
+    "id": "list_scheduled_tasks",
+    "displayName": "List scheduled tasks",
+    "labels": ["List", "Listing", "Listed", "scheduled tasks"],
+    "icon": "t3-code",
+    "summaryAction": "schedule-list"
+  },
+  {
+    "id": "update_scheduled_task",
+    "displayName": "Update a scheduled task",
+    "labels": ["Update", "Updating", "Updated", "a scheduled task"],
+    "icon": "t3-code",
+    "summaryAction": "schedule-update"
+  },
+  {
+    "id": "delete_scheduled_task",
+    "displayName": "Delete a scheduled task",
+    "labels": ["Delete", "Deleting", "Requested deletion of", "a scheduled task"],
+    "icon": "t3-code",
+    "summaryAction": "schedule-delete"
+  },
+  {
+    "id": "request_secret",
+    "displayName": "Ask for a secret",
+    "labels": ["Ask for", "Asking for", "Asked for", "a secret"],
+    "icon": "t3-code",
+    "summaryAction": "secret-request"
+  },
+  {
+    "id": "create_threads",
+    "displayName": "Create T3 threads",
+    "labels": ["Create", "Creating", "Created", "T3 threads"],
+    "icon": "t3-code",
+    "summaryAction": "thread-create"
+  },
+  {
+    "id": "t3_thread_start",
+    "displayName": "Start a T3 thread",
+    "labels": ["Start", "Starting", "Started", "a T3 thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-create"
+  },
+  {
+    "id": "t3_thread_list",
+    "displayName": "List T3 threads",
+    "labels": ["List", "Listing", "Listed", "T3 threads"],
+    "icon": "t3-code",
+    "summaryAction": "thread-list"
+  },
+  {
+    "id": "t3_thread_read",
+    "displayName": "Read a T3 thread",
+    "labels": ["Read", "Reading", "Read", "a T3 thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-read"
+  },
+  {
+    "id": "t3_thread_send",
+    "displayName": "Send to a T3 thread",
+    "labels": ["Send", "Sending", "Sent", "to a T3 thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-send"
+  },
+  {
+    "id": "t3_thread_wait",
+    "displayName": "Wait for a T3 thread",
+    "labels": ["Wait", "Waiting", "Waited", "for a T3 thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-wait"
+  },
+  {
+    "id": "t3_thread_interrupt",
+    "displayName": "Interrupt a T3 thread",
+    "labels": ["Interrupt", "Interrupting", "Requested an interrupt of", "a T3 thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-interrupt"
+  },
+  {
+    "id": "t3_worktree_handoff",
+    "displayName": "Hand off thread to a git worktree",
+    "labels": ["Hand off", "Handing off", "Handed off", "thread to a git worktree"],
+    "icon": "t3-code",
+    "summaryAction": "worktree-handoff"
+  },
+  {
+    "id": "t3_worktree_status",
+    "displayName": "Get thread worktree status",
+    "labels": ["Get", "Getting", "Got", "thread worktree status"],
+    "icon": "t3-code",
+    "summaryAction": "worktree-status"
+  },
+  {
+    "id": "preview_status",
+    "displayName": "Get preview browser status",
+    "labels": ["Get", "Getting", "Got", "preview browser status"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_open",
+    "displayName": "Open a page in the preview browser",
+    "labels": ["Open", "Opening", "Opened", "a page in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_navigate",
+    "displayName": "Navigate the preview browser",
+    "labels": ["Navigate", "Navigating", "Navigated", "the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_dialog",
+    "displayName": "Respond to a preview browser dialog",
+    "labels": ["Respond", "Responding", "Responded", "to a preview browser dialog"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_snapshot",
+    "displayName": "Snapshot the preview page",
+    "labels": [
+      "Take a snapshot of",
+      "Taking a snapshot of",
+      "Took a snapshot of",
+      "the preview page"
+    ],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_click",
+    "displayName": "Click in the preview browser",
+    "labels": ["Click", "Clicking", "Clicked", "in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_press",
+    "displayName": "Press a key in the preview browser",
+    "labels": ["Press", "Pressing", "Pressed", "a key in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_type",
+    "displayName": "Type in the preview browser",
+    "labels": ["Type", "Typing", "Typed", "in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_hover",
+    "displayName": "Hover in the preview browser",
+    "labels": ["Hover", "Hovering", "Hovered", "in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_select",
+    "displayName": "Choose an option in the preview browser",
+    "labels": ["Choose", "Choosing", "Chose", "an option in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_drag",
+    "displayName": "Drag in the preview browser",
+    "labels": ["Drag", "Dragging", "Dragged", "in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_upload",
+    "displayName": "Upload files to the preview browser",
+    "labels": ["Upload", "Uploading", "Uploaded", "files to the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_scroll",
+    "displayName": "Scroll the preview browser",
+    "labels": ["Scroll", "Scrolling", "Scrolled", "the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_resize",
+    "displayName": "Resize the preview browser",
+    "labels": ["Resize", "Resizing", "Resized", "the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_evaluate",
+    "displayName": "Evaluate script in the preview browser",
+    "labels": ["Evaluate", "Evaluating", "Evaluated", "script in the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_wait_for",
+    "displayName": "Wait for the preview page",
+    "labels": ["Wait", "Waiting", "Waited", "for the preview page"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_set_appearance",
+    "displayName": "Set preview browser appearance",
+    "labels": ["Set", "Setting", "Set", "preview browser appearance"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_recording_start",
+    "displayName": "Start recording the preview browser",
+    "labels": ["Start", "Starting", "Started", "recording the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "preview_recording_stop",
+    "displayName": "Stop recording the preview browser",
+    "labels": ["Stop", "Stopping", "Stopped", "recording the preview browser"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "device_list",
+    "displayName": "List simulators and emulators",
+    "labels": ["List", "Listing", "Listed", "simulators and emulators"],
+    "icon": "device",
+    "summaryAction": "device"
+  },
+  {
+    "id": "device_open",
+    "displayName": "Open a device in the Device panel",
+    "labels": ["Open", "Opening", "Opened", "a device in the Device panel"],
+    "icon": "device",
+    "summaryAction": "device"
+  },
+  {
+    "id": "device_screenshot",
+    "displayName": "Take a screenshot of the device",
+    "labels": [
+      "Take a screenshot of",
+      "Taking a screenshot of",
+      "Took a screenshot of",
+      "the device"
+    ],
+    "icon": "device",
+    "summaryAction": "device"
+  },
+  {
+    "id": "device_close",
+    "displayName": "Close a device",
+    "labels": ["Close", "Closing", "Closed", "a device"],
+    "icon": "device",
+    "summaryAction": "device"
+  },
+  {
+    "id": "run_scheduled_task_now",
+    "displayName": "Run a scheduled task",
+    "labels": ["Run", "Running", "Requested a run of", "a scheduled task"],
+    "icon": "t3-code",
+    "summaryAction": "schedule-run"
+  },
+  {
+    "id": "t3_queue_list",
+    "displayName": "List queued messages",
+    "labels": ["List", "Listing", "Listed", "queued messages"],
+    "icon": "t3-code",
+    "summaryAction": "queue-list"
+  },
+  {
+    "id": "t3_queue_read",
+    "displayName": "Read a queued message",
+    "labels": ["Read", "Reading", "Read", "a queued message"],
+    "icon": "t3-code",
+    "summaryAction": "queue-read"
+  },
+  {
+    "id": "t3_queue_edit",
+    "displayName": "Edit a queued message",
+    "labels": ["Edit", "Editing", "Edited", "a queued message"],
+    "icon": "t3-code",
+    "summaryAction": "queue-edit"
+  },
+  {
+    "id": "t3_queue_cancel",
+    "displayName": "Cancel a queued run",
+    "labels": ["Cancel", "Canceling", "Requested cancellation of", "a queued run"],
+    "icon": "t3-code",
+    "summaryAction": "queue-cancel"
+  },
+  {
+    "id": "t3_queue_reorder",
+    "displayName": "Reorder a queued run",
+    "labels": ["Reorder", "Reordering", "Reordered", "a queued run"],
+    "icon": "t3-code",
+    "summaryAction": "queue-reorder"
+  },
+  {
+    "id": "t3_queue_promote_to_steer",
+    "displayName": "Steer with a queued message",
+    "labels": ["Steer with", "Steering with", "Requested steering with", "a queued message"],
+    "icon": "t3-code",
+    "summaryAction": "queue-steer"
+  },
+  {
+    "id": "t3_pending_request_list",
+    "displayName": "List pending questions",
+    "labels": ["List", "Listing", "Listed", "pending questions"],
+    "icon": "t3-code",
+    "summaryAction": "question-list"
+  },
+  {
+    "id": "t3_pending_request_read",
+    "displayName": "Read pending questions",
+    "labels": ["Read", "Reading", "Read", "pending questions"],
+    "icon": "t3-code",
+    "summaryAction": "question-read"
+  },
+  {
+    "id": "t3_pending_request_respond",
+    "displayName": "Answer pending questions",
+    "labels": ["Answer", "Answering", "Answered", "pending questions"],
+    "icon": "t3-code",
+    "summaryAction": "question-respond"
+  },
+  {
+    "id": "t3_thread_configuration",
+    "displayName": "Read thread configuration",
+    "labels": ["Read", "Reading", "Read", "thread configuration"],
+    "icon": "t3-code",
+    "summaryAction": "thread-configuration"
+  },
+  {
+    "id": "t3_thread_configure",
+    "displayName": "Set thread model",
+    "labels": ["Set", "Setting", "Set", "thread model"],
+    "icon": "t3-code",
+    "summaryAction": "thread-configure"
+  },
+  {
+    "id": "t3_thread_fork",
+    "displayName": "Fork this thread",
+    "labels": ["Fork", "Forking", "Requested a fork of", "this thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-fork"
+  },
+  {
+    "id": "t3_thread_merge_back",
+    "displayName": "Merge thread context",
+    "labels": ["Merge", "Merging", "Requested a merge of", "thread context"],
+    "icon": "t3-code",
+    "summaryAction": "thread-merge"
+  },
+  {
+    "id": "t3_thread_search",
+    "displayName": "Search thread content",
+    "labels": ["Search", "Searching", "Searched", "thread content"],
+    "icon": "t3-code",
+    "summaryAction": "thread-search"
+  },
+  {
+    "id": "t3_thread_transfers",
+    "displayName": "Read thread transfers",
+    "labels": ["Read", "Reading", "Read", "thread transfers"],
+    "icon": "t3-code",
+    "summaryAction": "thread-transfers"
+  },
+  {
+    "id": "t3_thread_organize",
+    "displayName": "Organize a thread",
+    "labels": ["Organize", "Organizing", "Organized", "a thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-organize"
+  },
+  {
+    "id": "t3_thread_update",
+    "displayName": "Update T3 thread metadata",
+    "labels": ["Update", "Updating", "Updated", "T3 thread metadata"],
+    "icon": "t3-code",
+    "summaryAction": "thread-update"
+  },
+  {
+    "id": "t3_worktree_list",
+    "displayName": "List workspace branches",
+    "labels": ["List", "Listing", "Listed", "workspace branches"],
+    "icon": "t3-code",
+    "summaryAction": "worktree-list"
+  },
+  {
+    "id": "t3_preview_list",
+    "displayName": "List preview tabs",
+    "labels": ["List", "Listing", "Listed", "preview tabs"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "t3_preview_close",
+    "displayName": "Close a preview tab",
+    "labels": ["Close", "Closing", "Closed", "a preview tab"],
+    "icon": "browser",
+    "summaryAction": "browser"
+  },
+  {
+    "id": "t3_environment_read",
+    "displayName": "Read environment preferences",
+    "labels": ["Read", "Reading", "Read", "environment preferences"],
+    "icon": "t3-code",
+    "summaryAction": "environment-read"
+  },
+  {
+    "id": "t3_environment_preferences_update",
+    "displayName": "Update environment preferences",
+    "labels": ["Update", "Updating", "Updated", "environment preferences"],
+    "icon": "t3-code",
+    "summaryAction": "environment-update"
+  },
+  {
+    "id": "t3_thread_launch",
+    "displayName": "Launch a project thread",
+    "labels": ["Launch", "Launching", "Launched", "a project thread"],
+    "icon": "t3-code",
+    "summaryAction": "thread-create"
+  },
+  {
+    "id": "t3_project_list",
+    "displayName": "List projects",
+    "labels": ["List", "Listing", "Listed", "projects"],
+    "icon": "t3-code",
+    "summaryAction": "project-list"
+  },
+  {
+    "id": "t3_project_read",
+    "displayName": "Read a project",
+    "labels": ["Read", "Reading", "Read", "a project"],
+    "icon": "t3-code",
+    "summaryAction": "project-read"
+  },
+  {
+    "id": "t3_project_create",
+    "displayName": "Register a project",
+    "labels": ["Register", "Registering", "Registered", "a project"],
+    "icon": "t3-code",
+    "summaryAction": "project-create"
+  },
+  {
+    "id": "t3_project_update",
+    "displayName": "Update a project",
+    "labels": ["Update", "Updating", "Updated", "a project"],
+    "icon": "t3-code",
+    "summaryAction": "project-update"
+  },
+  {
+    "id": "t3_project_delete",
+    "displayName": "Delete a project",
+    "labels": ["Delete", "Deleting", "Deleted", "a project"],
+    "icon": "t3-code",
+    "summaryAction": "project-delete"
+  },
+  {
+    "id": "t3_project_clone",
+    "displayName": "Clone a repository",
+    "labels": ["Clone", "Cloning", "Cloned", "a repository"],
+    "icon": "t3-code",
+    "summaryAction": "project-clone"
+  },
+  {
+    "id": "t3_attachment_prepare_upload",
+    "displayName": "Prepare an attachment upload",
+    "labels": ["Prepare", "Preparing", "Prepared", "an attachment upload"],
+    "icon": "t3-code",
+    "summaryAction": "attachment-prepare"
+  },
+  {
+    "id": "t3_attachment_discard",
+    "displayName": "Discard a pending attachment",
+    "labels": ["Discard", "Discarding", "Discarded", "a pending attachment"],
+    "icon": "t3-code",
+    "summaryAction": "attachment-discard"
+  },
+  {
+    "id": "t3_thread_send_attachments",
+    "displayName": "Send attachments",
+    "labels": ["Send", "Sending", "Sent", "attachments"],
+    "icon": "t3-code",
+    "summaryAction": "attachment-send"
+  },
+  {
+    "id": "html_preview",
+    "displayName": "Preview an HTML page",
+    "labels": ["Preview", "Previewing", "Previewed", "an HTML page"],
+    "icon": "t3-code",
+    "summaryAction": "html-preview"
+  },
+  {
+    "id": "html_render",
+    "displayName": "Render an HTML page",
+    "labels": ["Render", "Rendering", "Rendered", "an HTML page"],
+    "icon": "t3-code",
+    "summaryAction": "html-render"
+  }
+]

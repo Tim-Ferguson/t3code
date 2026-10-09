@@ -33,7 +33,7 @@ fn normalized(entries: &[rows::Entry], derived: &[Row]) -> Vec<Value> {
             Row::Compaction { entry, label, active } => json!({"kind":"compaction","id":entries[*entry].id,"label":label,"active":active}),
             Row::Subagents { entries: members } => json!({"kind":"subagents","ids":members.iter().map(id).collect::<Vec<_>>()}),
             Row::Created { entry } => json!({"kind":"entry","id":format!("summary:{}", entries[*entry].id)}),
-            Row::Footer { .. } => json!({"kind":"footer"}),
+            Row::Footer { message } => json!({"kind":"footer","message":entries[*message].id}),
             Row::Item { .. } => panic!("left-out rows are placed by the caller"),
         })
         .collect()
@@ -66,7 +66,7 @@ fn threads_group_fold_and_go_live_as_the_original_does() {
         let expected_ids: Vec<&str> = row["entries"].as_array().unwrap().iter().map(|entry| entry["id"].as_str().unwrap()).collect();
         let ids: Vec<&str> = entries.iter().map(|entry| entry.id.as_str()).collect();
         assert_eq!(ids, expected_ids, "{}", row["name"]);
-        let got: Vec<Value> = normalized(&entries, &derived).into_iter().filter(|row| row["kind"] != "footer").collect();
+        let got: Vec<Value> = normalized(&entries, &derived);
         let want = row["rows"].as_array().unwrap();
         for (position, (got, want)) in got.iter().zip(want).enumerate() {
             assert_eq!(got, want, "{} row {position}\n got {got:#?}\n want {want:#?}", row["name"]);

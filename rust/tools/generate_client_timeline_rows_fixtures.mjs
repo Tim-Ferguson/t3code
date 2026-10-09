@@ -6,9 +6,12 @@
 //   packages/client-runtime/src/work-log/presentation.ts       tool actions, summaries, failures
 //   packages/client-runtime/src/work-log/toolPresentation.ts   tool surface, icon and source
 //   packages/shared/src/toolActivity.ts                        tool classification and labels
-// What is stood in for, and so is not covered: T3 MCP tool names (`resolveT3McpToolDefinition`
-// answers nothing), the shell parser behind `commandDisplayText` / `commandProgramName` (see the
-// stubs below), published HTML pages and MCP apps, and the worktree-setup card.
+// What is stood in for, and so is not covered: published HTML pages and MCP apps, and the
+// worktree-setup card. T3 Code's own tools and the shell-command parser are the original's.
+//   packages/shared/src/t3McpToolPresentation.ts                T3 tool names and labels
+//   packages/client-runtime/src/t3ToolSummary.ts                T3 tool group summaries
+//   packages/shared/src/changeRequestUrl.ts                     pull request links
+//   packages/client-runtime/src/work-log/commandLabel.ts        the shell-command parser
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { tmpdir } from "node:os";
@@ -31,12 +34,20 @@ const files = {
   presentation: "packages/client-runtime/src/work-log/presentation.ts",
   "tool-presentation": "packages/client-runtime/src/work-log/toolPresentation.ts",
   "tool-activity": "packages/shared/src/toolActivity.ts",
+  "t3-mcp": "packages/shared/src/t3McpToolPresentation.ts",
+  "t3-summary": "packages/client-runtime/src/t3ToolSummary.ts",
+  "change-request": "packages/shared/src/changeRequestUrl.ts",
+  "command-label": "packages/client-runtime/src/work-log/commandLabel.ts",
 };
 const siblings = new Map([
   ["../../session-logic", "session-logic"],
   ["@t3tools/client-runtime/work-log/presentation", "presentation"],
   ["@t3tools/client-runtime/work-log/tool-presentation", "tool-presentation"],
   ["@t3tools/shared/toolActivity", "tool-activity"],
+  ["@t3tools/shared/t3McpToolPresentation", "t3-mcp"],
+  ["@t3tools/client-runtime/t3ToolSummary", "t3-summary"],
+  ["@t3tools/shared/changeRequestUrl", "change-request"],
+  ["@t3tools/client-runtime/work-log/command-label", "command-label"],
 ]);
 
 const toolOutput = read("packages/shared/src/toolOutput.ts");
@@ -46,11 +57,6 @@ const stubs = {
   toolOutputIndicatesFailure: undefined,
   formatDuration: undefined,
   // Not covered, see above.
-  resolveT3McpToolDefinition: () => null,
-  resolveT3McpToolPresentation: () => null,
-  resolveT3McpToolId: () => null,
-  summarizeT3ToolCalls: () => ({ label: "", failedCount: 0 }),
-  t3ToolResultIndicatesFailure: () => false,
   compactDynamicToolOutput: () => undefined,
   htmlRenderFromToolItem: () => undefined,
   mcpAppFromToolItem: () => undefined,
@@ -58,21 +64,6 @@ const stubs = {
   // Paths are shown as the call gave them, with separators made forward slashes (no workspace root is known to the rows).
   formatWorkspaceRelativePath: (path) =>
     path.replaceAll("\\", "/").replace(/^\/([A-Za-z]:)/u, "$1"),
-  // The Rust port shows a command whole and names it by its first word.
-  commandDisplayText: (command) =>
-    command
-      .trim()
-      .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu, (c) =>
-        c === "\u007f" ? "␡" : String.fromCharCode(0x2400 + c.charCodeAt(0)),
-      ),
-  commandProgramName: (command) => {
-    const word = command.trim().split(/\s+/u)[0];
-    const name = word
-      ?.split(/[\\/]/u)
-      .at(-1)
-      ?.replace(/\.exe$/u, "");
-    return name ? name : null;
-  },
   isLiveSubagentTurnItem: (item) =>
     item.type === "subagent" && ["pending", "running", "waiting"].includes(item.status),
   turnItemIsWorkspacePreparation: (item) =>
@@ -261,7 +252,7 @@ function buildThread(spec) {
         make("dynamic_tool", {
           toolName: step.name ?? "Read",
           input: step.input ?? { file_path: "src/b.ts" },
-          output: null,
+          output: step.output === undefined ? null : step.output,
           ...(step.title ? { title: step.title } : {}),
         });
         break;
@@ -408,6 +399,11 @@ const normalize = (rows, entries, latestRunning) => {
         else out.push({ kind: "entry", id: row.id });
         break;
       case "assistant-meta":
+        out.push({ kind: "footer", message: row.message.id });
+        break;
+      case "message":
+        out.push({ kind: "entry", id: row.id });
+        if (row.showAssistantMeta) out.push({ kind: "footer", message: row.message.id });
         break;
       default:
         out.push({ kind: "entry", id: row.id });
@@ -771,6 +767,39 @@ scenario(
 );
 
 // ---- generated threads ------------------------------------------------------------------------------
+const T3_TOOL_NAMES = [
+  "mcp__t3-code__t3_thread_send",
+  "t3-code.t3_thread_read",
+  "mcp__t3-code__delegate_task",
+  "t3_thread_list",
+  "mcp__t3-code__link_pull_request",
+  "t3-code.unlink_pull_request",
+  "mcp__t3-code__watch_pull_request",
+  "mcp__t3-code__list_thread_pull_requests",
+  "mcp__t3-code__preview_click",
+  "t3-code.preview_open",
+  "mcp__t3-code__device_screenshot",
+  "mcp__t3-code__request_secret",
+  "mcp__t3-code__html_render",
+  "mcp__t3-code__create_threads",
+  "mcp__other__t3_thread_send",
+  "t3-code-thread_abc_t3_queue_list",
+];
+const SHELL_COMMANDS = [
+  "bash -lc 'npm test'",
+  '/bin/zsh -lc "cd src && cargo build"',
+  "cd /repo && git status",
+  "FOO=1 node x.js",
+  "env -i make",
+  "sudo apt-get update",
+  "if true; then ls; fi",
+  "echo \u001b[31mred",
+  'powershell -Command "Get-ChildItem"',
+  "cat <<EOF\nbody\nEOF",
+  'bash -lc "unterminated',
+  "# note\nls -la",
+  "timeout 5 sleep 10",
+];
 const toolSteps = () =>
   pick([
     () => ({
@@ -797,6 +826,29 @@ const toolSteps = () =>
         { title: "Open page" },
         {},
       ]),
+    }),
+    () => ({
+      t: "tool",
+      name: pick(T3_TOOL_NAMES),
+      input: pick([
+        { threadId: "thread-a" },
+        { url: "https://github.com/o/r/pull/7" },
+        { number: 12 },
+        { attachments: [{ name: "a" }] },
+        {},
+      ]),
+      output: pick([
+        null,
+        JSON.stringify({ threadId: "thread-a", messageId: "m-1", taskId: "task-1" }),
+        { structuredContent: { threadId: "thread-b" } },
+        { isError: true, content: [{ type: "text", text: "boom" }] },
+        [{ type: "text", text: JSON.stringify({ threads: [{ threadId: "thread-c" }] }) }],
+      ]),
+    }),
+    () => ({
+      t: "command",
+      input: pick(SHELL_COMMANDS),
+      status: pick(["completed", "completed", "running", "failed"]),
     }),
     () => ({
       t: "reasoning",

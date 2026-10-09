@@ -621,3 +621,24 @@ async fn editing_from_a_message_returns_its_attachments_to_the_composer() {
     assert_eq!(state.error().peek().as_deref(), None);
     fixture.finish(dom).await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn long_pasted_text_becomes_a_file_named_for_the_paste_and_short_text_does_not() {
+    let fixture = Fixture::start().await;
+    let (mut dom, props) = fixture.operator();
+    let state = seed(&mut dom, &props, fixture.directory.path()).await;
+    open(&mut dom, &props, state, "thread-a").await;
+    let draft = target(state, "thread-a");
+    let long = "x".repeat(t3_client::text_paste::THRESHOLD_BYTES);
+    dom.in_scope(ScopeId::APP, || crate::attachments::attach_pasted_text(&props.transport, state, &draft, &long));
+    until(&mut dom, "the first paste", |_| all_ready(state, &draft, 1)).await;
+    assert!(control(&dom, "Remove pasted-text.txt").is_some());
+    // A second paste in the same draft keeps a distinct name.
+    dom.in_scope(ScopeId::APP, || crate::attachments::attach_pasted_text(&props.transport, state, &draft, &long));
+    until(&mut dom, "the second paste", |_| all_ready(state, &draft, 2)).await;
+    assert!(control(&dom, "Remove pasted-text-2.txt").is_some());
+    // Below the threshold nothing is attached: the text goes into the box as typed.
+    dom.in_scope(ScopeId::APP, || crate::attachments::attach_pasted_text(&props.transport, state, &draft, "short"));
+    assert_eq!(state.peek().draft_attachments.get(&draft).map_or(0, Vec::len), 2);
+    fixture.finish(dom).await;
+}

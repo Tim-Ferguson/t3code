@@ -43,10 +43,14 @@ pub(crate) struct RowView {
     pub pinned: bool,
     /// "2h" while snoozed.
     pub snoozed: Option<String>,
+    /// When a snooze that ended on its timer woke the thread, until it is visited or dismissed.
+    pub woke_at: Option<String>,
     pub regenerating: bool,
     pub working_since: Option<String>,
     pub branch: Option<String>,
     pub workspace: Option<String>,
+    /// The thread's own worktree, which "New thread on <branch>" reuses.
+    pub worktree: Option<String>,
     pub has_completed_run: bool,
     pub can_snooze: bool,
     pub can_operate: bool,
@@ -81,10 +85,12 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         unread: sidebar::has_unseen_completion(thread),
         pinned: sidebar::is_pinned(thread),
         snoozed: snoozed.map(|wake| sidebar::wake_label(&wake.to_rfc3339(), now)),
+        woke_at: sidebar::woke_at(thread, now).map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
         regenerating: matches!(thread.title_regeneration, Some(Some(_))),
         working_since: working.then(|| thread.activity_run_started_at.flatten().map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))).flatten(),
         branch: thread.branch.as_ref().map(ToString::to_string),
         workspace,
+        worktree: thread.worktree_path.as_ref().map(ToString::to_string),
         has_completed_run: thread.latest_run_id.is_some() && !thread.status.is_active(),
         can_snooze: thread.pending_runtime_request.is_none(),
         can_operate,
@@ -153,6 +159,10 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     }
     let mut menu = use_signal(|| None::<(f64, f64)>);
     let busy = use_signal(|| false);
+    // The title while it is being edited in place, and whether the edit has already been settled
+    // (Enter or Escape is followed by the blur the removed field raises).
+    let mut renaming = use_signal(|| None::<String>);
+    let mut settled = use_signal(|| false);
     let id = view.id.clone();
     let status = view.status.as_str();
     let label = match (&view.pill, view.unread) {
@@ -167,6 +177,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         rsx! {button {class:"menu-item",role:"menuitem",r#type:"button",disabled,"aria-label":"{name}",onclick:move |_| {close(); action();},"{name}"}}
     };
     let can = view.can_operate;
+    let title_now = view.title.clone();
     let (transport_for_menu, view_for_menu) = (transport.clone(), view.clone());
     let items = if menu.read().is_some() {
         let (transport, view) = (transport_for_menu, view_for_menu);
@@ -204,6 +215,15 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
             let command = thread_command.clone();
             entries.push(item((if view.regenerating { "Regenerating\u{2026}" } else { "Regenerate title" }).to_owned(), !can || view.regenerating, Box::new(move || command("thread.metadata.update", json!({"regenerateTitle":true}), "Could not regenerate the title"))));
         }
+        entries.push(item("Rename thread".to_owned(), !can, Box::new(move || {let (mut settled, mut renaming) = (settled, renaming);settled.set(false);renaming.set(Some(title_now.clone()));})));
+        if let Some(branch) = view.branch.clone() {
+            // The branch carries over: the thread's worktree when it has one, else its branch on the checkout.
+            let (transport, project, worktree) = (transport.clone(), view.project_id.clone(), view.worktree.clone());
+            entries.push(item(format!("New thread on {branch}"), false, Box::new(move || {
+                runtime::new_thread(&transport, state, Some(project.clone()));
+                crate::new_thread::apply_prepared(state, &project, &branch, worktree.clone());
+            })));
+        }
         {
             let command = thread_command.clone();
             entries.push(item("Mark unread".to_owned(), !can || !view.has_completed_run, Box::new(move || command("thread.mark-unread", json!({}), "Could not mark the thread unread"))));
@@ -230,8 +250,50 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     } else {
         vec![]
     };
+    // Enter or leaving the field commits, Escape cancels; an empty title is refused and an unchanged one is not sent.
+    let commit = {
+        let (transport, original) = (transport.clone(), view.title.clone());
+        let id = id.clone();
+        use_callback(move |typed: String| {
+            if *settled.peek() {
+                return;
+            }
+            settled.set(true);
+            renaming.set(None);
+            let typed = typed.trim().to_owned();
+            if typed.is_empty() {
+                notice::push(state, Level::Warning, "Thread title cannot be empty", "");
+            } else if typed != original {
+                send(&transport, state, busy, "thread.metadata.update", json!({"threadId":id,"title":typed}), "Could not rename the thread");
+            }
+        })
+    };
+    // A rename in progress when the connection stops allowing it is dropped.
+    if renaming.peek().is_some() && !can {
+        renaming.set(None);
+    }
+    let renamed = renaming.read().clone();
     rsx! {
         div {class:"thread-row-wrap",
+            if let Some(draft) = renamed {
+                div {class:"{class} renaming","data-thread-status":"{status}",
+                    span {class:"status-dot {status}","aria-hidden":"true"}
+                    input {class:"thread-title-input","aria-label":"Thread title",value:"{draft}",
+                        onmounted:move |event| {drop(event.set_focus(true));},
+                        oninput:move |event| renaming.set(Some(event.value())),
+                        onclick:move |event| event.stop_propagation(),
+                        onkeydown:move |event| {
+                            event.stop_propagation();
+                            match event.key() {
+                                Key::Enter => {event.prevent_default();let typed = renaming.peek().clone().unwrap_or_default();commit.call(typed);}
+                                Key::Escape => {event.prevent_default();settled.set(true);renaming.set(None);}
+                                _ => {}
+                            }
+                        },
+                        onblur:move |_| {let typed = renaming.peek().clone().unwrap_or_default();commit.call(typed);},
+                    }
+                }
+            } else {
             button {key:"{view.id}",class:"{class}","aria-label":"Thread {view.title}","data-thread-status":"{status}","aria-busy":"{busy()}","aria-current":if view.selected {"true"} else {"false"},
                 onclick:{let transport=transport.clone();let id=id.clone();move |_| runtime::select_thread(&transport,state,id.clone())},
                 oncontextmenu:move |event| {event.prevent_default();let at=event.client_coordinates();menu.set(Some((at.x,at.y)));},
@@ -241,8 +303,15 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                 if view.regenerating {span {class:"sr-only",role:"status","Regenerating title"}}
                 if view.pinned {span {class:"thread-pin",title:"Pinned","aria-label":"Pinned","\u{25c6}"}}
                 if let Some(wake)=&view.snoozed {span {class:"thread-snooze",title:"Snoozed",{format!("Snoozed \u{b7} {wake}")}}}
+                else if view.woke_at.is_some() {span {class:"thread-woke",title:"Woke",role:"status","\u{23f0} Woke"}}
                 else if let Some(since)=view.working_since.clone() {WorkingFor {since}}
                 else if let Some(label)=label {span {class:if let Some(pill)=&view.pill {format!("thread-pill {}",tone_class(pill.tone))} else {"thread-pill emerald".to_owned()},"{label}"}}
+            }
+            if let Some(woke) = view.woke_at.clone().filter(|_| can) {
+                // Dismissing is a visit at the moment of the wake, as in the original.
+                button {class:"thread-woke-dismiss",r#type:"button","aria-label":"Dismiss Woke notification",title:"Dismiss Woke notification",disabled:busy(),
+                    onclick:{let (transport, id) = (transport.clone(), id.clone());move |_| send(&transport,state,busy,"thread.visit",json!({"threadId":id,"visitedAt":woke}),"Could not dismiss the notification")},"\u{d7}"}
+            }
             }
             if let Some((x,y))=menu() {
                 div {class:"menu-backdrop",onclick:move |_| menu.set(None),oncontextmenu:move |event| {event.prevent_default();menu.set(None);}}

@@ -1,6 +1,7 @@
 //! Worktree setup: the progress card of a thread whose worktree is being prepared (with cancel),
 //! and the retry a failed preparation offers. Port of `WorktreeSetupCard.tsx` and the retry row of
-//! `MessagesTimeline.tsx`.
+//! `MessagesTimeline.tsx`. The card is a row of the timeline, under the message that started the
+//! thread (`ThreadTimeline` places it).
 //!
 //! The server sends the current snapshot (or null) on subscribing, then each change, and keeps
 //! the final state for about thirty seconds. The stream is held only while the card is mounted.
@@ -60,7 +61,7 @@ pub(crate) fn duration(from: &Value, to: &Value) -> Option<String> {
 }
 
 #[component]
-pub(crate) fn Card(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
+pub(crate) fn Card(state: Store<UiModel>, transport: TransportHandle, thread_id: String, /** The thread's latest run has started, so the agent's turn is live. */ turn_live: bool) -> Element {
     let mut snapshot = use_signal(|| None::<Rc<Value>>);
     let mut stale = use_signal(|| false);
     let mut details = use_signal(|| false);
@@ -129,12 +130,18 @@ pub(crate) fn Card(state: Store<UiModel>, transport: TransportHandle, thread_id:
         return rsx! {};
     }
     let running = phase == "running";
+    // Once the agent's own turn is live it owns the working header, and the stage list leaves the
+    // timeline; a failed or cancelled setup stays so its outcome and actions remain reachable.
+    let agent_started = shot["stages"].as_array().into_iter().flatten().any(|stage| stage["id"] == "agent" && stage["status"] == "done");
+    if running && agent_started && turn_live {
+        return rsx! {};
+    }
     let script_name = shot["setupScript"]["name"].as_str().map(str::to_owned);
     let total = duration(&shot["startedAt"], &shot["endedAt"]);
     let stages = shot["stages"].as_array().cloned().unwrap_or_default();
     let tone = match phase.as_str() { "failed" => "failed", "cancelled" => "failed", "done" => "warning", _ => "running" };
     rsx! {
-        section { class: "worktree-setup", "aria-label": "Worktree setup", "data-worktree-setup-phase": "{phase}", "data-tone": "{tone}",
+        section { class: "worktree-setup", "data-timeline-row": "worktree-setup-row", "aria-label": "Worktree setup", "data-worktree-setup-phase": "{phase}", "data-tone": "{tone}",
             header { class: "worktree-setup-header", role: "status",
                 span { "{header_label(&shot)}" }
                 if let Some(total) = total { span { class: "muted", "{total}" } }

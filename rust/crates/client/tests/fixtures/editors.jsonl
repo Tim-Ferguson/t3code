@@ -1,0 +1,300 @@
+{"available":["aqua","vscode-insiders","rider","file-manager","rubymine","goland"],"last":"file-manager","preferred":"file-manager","label":"Open in editor"}
+{"available":["idea","vscode","rider","dataspell","cursor"],"last":"rider","preferred":"rider","label":"Open in Rider"}
+{"available":["idea","goland","antigravity","kiro"],"last":"rider","preferred":"kiro","label":"Open in Kiro"}
+{"available":["phpstorm","goland","pycharm","aqua","vscode-insiders","vscode","kiro"],"last":"kiro","preferred":"kiro","label":"Open in Kiro"}
+{"available":["idea","aqua","pycharm","file-manager"],"last":null,"preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["cursor","kiro","vscode","vscode-insiders","idea","clion"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["dataspell","antigravity","rider","file-manager","goland","vscode","webstorm"],"last":null,"preferred":"vscode","label":"Open in VS Code"}
+{"available":["antigravity","phpstorm","vscode","aqua"],"last":"antigravity","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["webstorm","aqua","clion","zed","vscodium","goland","kiro"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","kiro","vscodium","idea","clion","goland","pycharm","file-manager"],"last":"aqua","preferred":"trae","label":"Open in Trae"}
+{"available":["aqua","cursor","clion","kiro","vscode","idea"],"last":"vscode-insiders","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","idea","aqua","file-manager"],"last":"zed","preferred":"trae","label":"Open in Trae"}
+{"available":["dataspell","vscode","aqua"],"last":"webstorm","preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscode","zed","goland","file-manager","datagrip","webstorm","rubymine","idea","antigravity","vscode-insiders"],"last":"file-manager","preferred":"file-manager","label":"Open in editor"}
+{"available":["cursor","vscode","goland","rubymine","webstorm","file-manager"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["rustrover","trae","zed","datagrip","antigravity","phpstorm"],"last":"phpstorm","preferred":"phpstorm","label":"Open in PhpStorm"}
+{"available":["trae","vscodium","dataspell","rider"],"last":"vscodium","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["zed","antigravity","goland","pycharm","rustrover"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["zed","file-manager","idea","clion","dataspell","rustrover","rubymine","datagrip"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["clion","vscodium"],"last":"phpstorm","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["rustrover","vscode-insiders","datagrip","phpstorm"],"last":"idea","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["vscode","vscode-insiders","vscodium","zed","antigravity","webstorm"],"last":"kiro","preferred":"vscode","label":"Open in VS Code"}
+{"available":["kiro","zed","dataspell","goland"],"last":"datagrip","preferred":"kiro","label":"Open in Kiro"}
+{"available":["pycharm","phpstorm","trae"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["idea","cursor","aqua","antigravity","datagrip"],"last":"trae","preferred":"cursor","label":"Open in Cursor"}
+{"available":["file-manager","pycharm","dataspell","kiro"],"last":"phpstorm","preferred":"kiro","label":"Open in Kiro"}
+{"available":["kiro","aqua","rustrover"],"last":"rubymine","preferred":"kiro","label":"Open in Kiro"}
+{"available":["zed","vscode","trae","goland","aqua","dataspell","pycharm","phpstorm"],"last":"trae","preferred":"trae","label":"Open in Trae"}
+{"available":["rubymine","aqua","webstorm","vscodium","rider","trae"],"last":"clion","preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","datagrip","goland","rustrover","webstorm"],"last":"phpstorm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","antigravity","webstorm","goland","clion"],"last":"rider","preferred":"cursor","label":"Open in Cursor"}
+{"available":["kiro","antigravity","datagrip","rustrover"],"last":"vscode-insiders","preferred":"kiro","label":"Open in Kiro"}
+{"available":["cursor","vscodium","goland","phpstorm","rubymine","rustrover"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","vscode-insiders","idea","clion","dataspell","pycharm"],"last":"trae","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscodium","clion","dataspell","webstorm"],"last":"trae","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["idea","datagrip","webstorm","file-manager","goland","dataspell","trae","kiro","rubymine","phpstorm"],"last":"pycharm","preferred":"trae","label":"Open in Trae"}
+{"available":["datagrip","rustrover"],"last":"clion","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["clion","goland","rustrover"],"last":"trae","preferred":"clion","label":"Open in CLion"}
+{"available":["trae","kiro","vscode-insiders","vscodium","idea","aqua","dataspell"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","vscode","idea","phpstorm","pycharm","rustrover","webstorm"],"last":"file-manager","preferred":"cursor","label":"Open in Cursor"}
+{"available":["rustrover","goland"],"last":"vscode-insiders","preferred":"goland","label":"Open in GoLand"}
+{"available":["antigravity","clion","phpstorm"],"last":null,"preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["trae","zed","phpstorm","rubymine","rustrover"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","trae","vscodium","zed","clion","pycharm","file-manager"],"last":"vscode","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","kiro","vscode-insiders"],"last":"vscodium","preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","vscodium","clion","aqua","goland","webstorm","file-manager"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","vscode","pycharm"],"last":"not-an-editor","preferred":"trae","label":"Open in Trae"}
+{"available":["webstorm","pycharm","aqua","dataspell","rider"],"last":"rustrover","preferred":"aqua","label":"Open in Aqua"}
+{"available":["cursor","trae","kiro","vscode","vscode-insiders","file-manager"],"last":"pycharm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["rider","datagrip","kiro","vscode","rubymine"],"last":"not-an-editor","preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","idea","datagrip","dataspell","file-manager"],"last":"idea","preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["datagrip","vscode-insiders","idea","goland","aqua","pycharm","clion"],"last":"webstorm","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["trae","kiro","aqua","clion","phpstorm","rubymine"],"last":"trae","preferred":"trae","label":"Open in Trae"}
+{"available":["trae","vscode-insiders","file-manager"],"last":"vscode-insiders","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["dataspell","file-manager","datagrip","rubymine","rustrover"],"last":"goland","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["zed","aqua","goland","phpstorm","rider","rubymine"],"last":"rustrover","preferred":"zed","label":"Open in Zed"}
+{"available":["kiro","zed","idea","goland","rustrover"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["kiro","vscode","vscodium","antigravity","clion","phpstorm","pycharm","rubymine","rustrover","file-manager"],"last":"vscode","preferred":"vscode","label":"Open in VS Code"}
+{"available":["aqua","idea","kiro","trae","rider","file-manager"],"last":"not-an-editor","preferred":"trae","label":"Open in Trae"}
+{"available":["antigravity","aqua","datagrip","goland","rider","rustrover","webstorm","file-manager"],"last":null,"preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["vscodium","zed","antigravity","clion","dataspell","phpstorm","rubymine","rustrover"],"last":"cursor","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["cursor","kiro","vscodium","idea","aqua","goland","pycharm","rubymine","rustrover","file-manager"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode","zed","idea","goland"],"last":"vscodium","preferred":"vscode","label":"Open in VS Code"}
+{"available":["file-manager","datagrip","antigravity","phpstorm"],"last":"antigravity","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["rider","clion","vscodium","goland","cursor","datagrip"],"last":"antigravity","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode","vscode-insiders","zed","antigravity","idea","clion","goland","phpstorm","file-manager"],"last":"kiro","preferred":"vscode","label":"Open in VS Code"}
+{"available":["idea","rustrover","antigravity","dataspell","rubymine","trae"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["kiro","vscode","antigravity","pycharm","rider","rubymine"],"last":"aqua","preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode","rider","vscodium","rustrover","webstorm","dataspell","rubymine"],"last":"cursor","preferred":"vscode","label":"Open in VS Code"}
+{"available":["kiro","dataspell","phpstorm","pycharm","rubymine","file-manager"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode-insiders"],"last":"datagrip","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["cursor","trae","idea","phpstorm","webstorm","file-manager"],"last":"zed","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode-insiders","goland","phpstorm","pycharm"],"last":null,"preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["kiro","vscodium","zed","aqua","rider"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["idea","antigravity","rubymine","dataspell","vscode-insiders"],"last":"kiro","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["trae","kiro","vscode-insiders","vscodium","zed","pycharm"],"last":"zed","preferred":"zed","label":"Open in Zed"}
+{"available":["vscode-insiders","vscode","pycharm"],"last":"rustrover","preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscodium","zed","datagrip","dataspell","pycharm","rider","rubymine"],"last":"vscodium","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["goland","webstorm","zed","file-manager","trae"],"last":"goland","preferred":"goland","label":"Open in GoLand"}
+{"available":["dataspell","idea","antigravity","file-manager","zed","rubymine","clion","aqua"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["rustrover","dataspell","datagrip","vscodium","file-manager","trae"],"last":"not-an-editor","preferred":"trae","label":"Open in Trae"}
+{"available":["kiro","rustrover","file-manager"],"last":"phpstorm","preferred":"kiro","label":"Open in Kiro"}
+{"available":["kiro","aqua","goland","rubymine","webstorm","file-manager"],"last":"phpstorm","preferred":"kiro","label":"Open in Kiro"}
+{"available":["clion","datagrip"],"last":"not-an-editor","preferred":"clion","label":"Open in CLion"}
+{"available":["trae","idea","pycharm"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","datagrip"],"last":"vscode-insiders","preferred":"cursor","label":"Open in Cursor"}
+{"available":["pycharm","dataspell","rubymine","antigravity","kiro"],"last":"rustrover","preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","vscode-insiders","aqua","phpstorm","webstorm"],"last":"antigravity","preferred":"trae","label":"Open in Trae"}
+{"available":["vscode-insiders","datagrip","goland"],"last":null,"preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["rubymine","clion","antigravity","aqua","trae","vscodium","dataspell"],"last":"trae","preferred":"trae","label":"Open in Trae"}
+{"available":["vscodium","zed","datagrip","dataspell","rustrover","webstorm"],"last":"antigravity","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["zed","antigravity","rider"],"last":"vscode-insiders","preferred":"zed","label":"Open in Zed"}
+{"available":["rider","vscode-insiders","aqua","vscodium","dataspell","zed","datagrip"],"last":"rider","preferred":"rider","label":"Open in Rider"}
+{"available":["vscode-insiders","zed","antigravity","datagrip","phpstorm","pycharm","rustrover","webstorm"],"last":"datagrip","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["trae","vscode","zed","clion","datagrip","webstorm"],"last":"not-an-editor","preferred":"trae","label":"Open in Trae"}
+{"available":["rustrover","vscode-insiders","webstorm"],"last":"antigravity","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["dataspell","rider"],"last":"vscode","preferred":"dataspell","label":"Open in DataSpell"}
+{"available":["clion","rustrover","vscode","webstorm","kiro","file-manager","datagrip","goland"],"last":"aqua","preferred":"kiro","label":"Open in Kiro"}
+{"available":["idea","goland","rider","rustrover","file-manager"],"last":"clion","preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["pycharm","vscode","idea","datagrip"],"last":"phpstorm","preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscode-insiders","idea","zed","trae","pycharm"],"last":"rider","preferred":"trae","label":"Open in Trae"}
+{"available":["zed","goland","webstorm"],"last":"phpstorm","preferred":"zed","label":"Open in Zed"}
+{"available":["cursor","kiro","zed","idea","aqua","datagrip","rider","webstorm"],"last":"goland","preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","vscode","vscode-insiders","datagrip","phpstorm","rubymine","webstorm","file-manager"],"last":"rubymine","preferred":"rubymine","label":"Open in RubyMine"}
+{"available":["kiro","dataspell","rubymine","rustrover"],"last":"aqua","preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode","zed","antigravity","aqua","goland","pycharm"],"last":"pycharm","preferred":"pycharm","label":"Open in PyCharm"}
+{"available":["phpstorm","aqua","zed","webstorm","datagrip","cursor","trae","kiro"],"last":"antigravity","preferred":"cursor","label":"Open in Cursor"}
+{"available":["phpstorm","goland"],"last":"kiro","preferred":"goland","label":"Open in GoLand"}
+{"available":["clion","idea","vscode","cursor","datagrip"],"last":"aqua","preferred":"cursor","label":"Open in Cursor"}
+{"available":["zed","antigravity","rider","rubymine"],"last":"rubymine","preferred":"rubymine","label":"Open in RubyMine"}
+{"available":["file-manager","pycharm","dataspell","rustrover","zed"],"last":"vscode","preferred":"zed","label":"Open in Zed"}
+{"available":["trae","zed","idea","dataspell","pycharm","rider","file-manager"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["aqua","clion","datagrip","pycharm","rustrover","file-manager"],"last":"rustrover","preferred":"rustrover","label":"Open in RustRover"}
+{"available":["trae","kiro","vscode","datagrip","antigravity","clion"],"last":"rubymine","preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","kiro","vscode","zed","antigravity","idea","datagrip","dataspell","rustrover"],"last":"trae","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","vscodium","datagrip","pycharm"],"last":"idea","preferred":"trae","label":"Open in Trae"}
+{"available":["zed","antigravity","datagrip","phpstorm","pycharm","rubymine","rustrover"],"last":"idea","preferred":"zed","label":"Open in Zed"}
+{"available":["vscode","clion","phpstorm","pycharm","rubymine"],"last":null,"preferred":"vscode","label":"Open in VS Code"}
+{"available":["trae","rider","rubymine","webstorm"],"last":"idea","preferred":"trae","label":"Open in Trae"}
+{"available":["pycharm","trae","file-manager","rubymine","datagrip","vscode"],"last":"goland","preferred":"trae","label":"Open in Trae"}
+{"available":["kiro","clion","trae","rider","vscodium"],"last":"phpstorm","preferred":"trae","label":"Open in Trae"}
+{"available":["vscode-insiders","zed","aqua","rustrover"],"last":"rustrover","preferred":"rustrover","label":"Open in RustRover"}
+{"available":["zed","pycharm","dataspell","kiro","aqua","datagrip","webstorm","goland"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode-insiders","vscodium","clion","phpstorm","rider","webstorm"],"last":"dataspell","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["vscode-insiders","datagrip","rubymine","file-manager","rider"],"last":"dataspell","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["trae","vscode"],"last":"not-an-editor","preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","phpstorm","rubymine","goland","aqua","datagrip","kiro","clion"],"last":"antigravity","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","goland","kiro","zed","aqua","antigravity"],"last":"idea","preferred":"trae","label":"Open in Trae"}
+{"available":["antigravity","vscode-insiders","rider","pycharm","clion","webstorm","vscode","idea","rubymine","datagrip"],"last":"vscode","preferred":"vscode","label":"Open in VS Code"}
+{"available":["kiro","vscode","aqua","datagrip","pycharm","rubymine"],"last":"dataspell","preferred":"kiro","label":"Open in Kiro"}
+{"available":["pycharm","trae","kiro","goland","idea","zed","vscode","phpstorm"],"last":"vscode","preferred":"vscode","label":"Open in VS Code"}
+{"available":["cursor","trae","vscodium","antigravity","clion","datagrip","rider"],"last":"vscodium","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["dataspell","phpstorm","rider"],"last":"goland","preferred":"dataspell","label":"Open in DataSpell"}
+{"available":["cursor","vscode","phpstorm","goland","zed","rustrover","rubymine","datagrip"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscodium","dataspell","goland","rider","webstorm"],"last":"antigravity","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["vscode-insiders"],"last":null,"preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["vscode-insiders","pycharm","webstorm"],"last":"phpstorm","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["kiro","vscode-insiders","vscodium","phpstorm"],"last":"antigravity","preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscodium","rustrover","vscode"],"last":"rubymine","preferred":"vscode","label":"Open in VS Code"}
+{"available":["clion","file-manager","vscodium","datagrip","rider","goland"],"last":"antigravity","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["kiro","clion","datagrip","dataspell"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["dataspell","rider","file-manager"],"last":"idea","preferred":"dataspell","label":"Open in DataSpell"}
+{"available":["clion","trae","goland","datagrip","cursor","zed","rubymine","antigravity"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["antigravity","idea","datagrip","phpstorm"],"last":"rubymine","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["vscode-insiders","zed","vscode","datagrip","pycharm","kiro"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","idea","dataspell","rustrover","webstorm"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["webstorm","rubymine","phpstorm","zed","kiro"],"last":"rider","preferred":"kiro","label":"Open in Kiro"}
+{"available":["kiro","vscodium","datagrip","zed","clion"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode-insiders","idea","aqua","datagrip","dataspell","goland","rustrover","webstorm"],"last":"vscodium","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["antigravity","file-manager","datagrip","dataspell","webstorm"],"last":null,"preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["file-manager","goland","datagrip"],"last":"not-an-editor","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["aqua","zed","webstorm","goland","rider","antigravity","pycharm"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["idea","rubymine","kiro","vscode-insiders","phpstorm","rustrover","webstorm","file-manager"],"last":"not-an-editor","preferred":"kiro","label":"Open in Kiro"}
+{"available":["cursor","kiro","vscode-insiders","vscodium","clion","goland","pycharm","webstorm"],"last":"webstorm","preferred":"webstorm","label":"Open in WebStorm"}
+{"available":["cursor","trae","rustrover","pycharm","vscode-insiders","phpstorm"],"last":"webstorm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","aqua","webstorm","file-manager"],"last":"phpstorm","preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","clion","rubymine","webstorm"],"last":"datagrip","preferred":"cursor","label":"Open in Cursor"}
+{"available":["kiro","antigravity","idea","clion","pycharm"],"last":"antigravity","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["vscode-insiders","idea","rustrover","file-manager"],"last":null,"preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["clion","cursor","webstorm","vscodium","antigravity"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["dataspell","file-manager"],"last":"goland","preferred":"dataspell","label":"Open in DataSpell"}
+{"available":["kiro","datagrip","rider"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["idea","datagrip","file-manager","goland","zed","aqua"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["aqua","clion","pycharm","rider","rustrover"],"last":"vscodium","preferred":"aqua","label":"Open in Aqua"}
+{"available":[],"last":null,"preferred":null,"label":"Open in editor"}
+{"available":["trae","aqua","dataspell","clion","pycharm"],"last":"rider","preferred":"trae","label":"Open in Trae"}
+{"available":["rustrover","file-manager","rubymine","datagrip","aqua","idea"],"last":"phpstorm","preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["rubymine","pycharm","file-manager","vscode-insiders","zed","aqua","goland","dataspell","clion"],"last":"antigravity","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["clion","goland","phpstorm"],"last":"idea","preferred":"clion","label":"Open in CLion"}
+{"available":["phpstorm","kiro","idea","aqua","goland"],"last":"rubymine","preferred":"kiro","label":"Open in Kiro"}
+{"available":["zed","datagrip","dataspell","trae","rider"],"last":"pycharm","preferred":"trae","label":"Open in Trae"}
+{"available":["rustrover","rider","vscodium","rubymine","kiro","clion","file-manager","cursor"],"last":"pycharm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode-insiders","zed","antigravity","rubymine","webstorm","file-manager"],"last":"rubymine","preferred":"rubymine","label":"Open in RubyMine"}
+{"available":["phpstorm","trae","pycharm","datagrip","cursor","zed","file-manager"],"last":"rider","preferred":"cursor","label":"Open in Cursor"}
+{"available":["kiro","vscode","vscodium","aqua","datagrip","goland","pycharm","rider","rubymine"],"last":"rubymine","preferred":"rubymine","label":"Open in RubyMine"}
+{"available":["cursor","rustrover","vscodium","rider","antigravity","datagrip","dataspell"],"last":"phpstorm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode-insiders","rubymine","vscode","idea","cursor","pycharm","clion","rustrover"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","kiro","vscodium","antigravity","phpstorm","pycharm"],"last":"antigravity","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["kiro","vscode","vscode-insiders","idea","aqua","datagrip","pycharm","rider","rubymine","rustrover"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["zed","idea","antigravity","datagrip","vscode-insiders","goland","webstorm","aqua"],"last":null,"preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["cursor","kiro","phpstorm","pycharm"],"last":"dataspell","preferred":"cursor","label":"Open in Cursor"}
+{"available":["datagrip","rubymine","webstorm","file-manager"],"last":"phpstorm","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["vscode-insiders","idea","clion","phpstorm","rustrover"],"last":"trae","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["trae","zed","goland","rider","rubymine"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","vscodium","clion","rider","rustrover"],"last":"trae","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode","rider","rustrover","vscodium"],"last":null,"preferred":"vscode","label":"Open in VS Code"}
+{"available":["goland","phpstorm","rider","idea","zed","vscodium","vscode","rubymine","rustrover","kiro","cursor"],"last":"zed","preferred":"zed","label":"Open in Zed"}
+{"available":["goland"],"last":"kiro","preferred":"goland","label":"Open in GoLand"}
+{"available":["vscode-insiders","antigravity","dataspell","webstorm"],"last":"vscode","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["trae","vscode-insiders","idea","aqua","goland","rubymine"],"last":"kiro","preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","aqua","dataspell","phpstorm"],"last":"vscode-insiders","preferred":"cursor","label":"Open in Cursor"}
+{"available":["kiro","goland","rider","file-manager"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","datagrip"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["goland","phpstorm","datagrip","zed"],"last":"cursor","preferred":"zed","label":"Open in Zed"}
+{"available":["rubymine","pycharm","phpstorm","vscode"],"last":"clion","preferred":"vscode","label":"Open in VS Code"}
+{"available":["idea","goland","phpstorm","rider","rubymine","rustrover","file-manager"],"last":"rubymine","preferred":"rubymine","label":"Open in RubyMine"}
+{"available":["vscode-insiders","goland","phpstorm","webstorm"],"last":"rustrover","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["vscode","vscode-insiders","vscodium","datagrip","phpstorm","pycharm","webstorm"],"last":"phpstorm","preferred":"phpstorm","label":"Open in PhpStorm"}
+{"available":["zed","aqua","dataspell","datagrip"],"last":"phpstorm","preferred":"zed","label":"Open in Zed"}
+{"available":["vscode","zed","antigravity","idea","clion","dataspell","pycharm","rider"],"last":"webstorm","preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscodium","phpstorm"],"last":null,"preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["webstorm","rubymine","aqua"],"last":"aqua","preferred":"aqua","label":"Open in Aqua"}
+{"available":["zed","idea","clion","datagrip","rider","rubymine"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["vscode","vscodium","antigravity","goland","rider","webstorm"],"last":"pycharm","preferred":"vscode","label":"Open in VS Code"}
+{"available":["kiro","vscode-insiders","vscodium"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["kiro","webstorm","clion","rubymine"],"last":"vscode-insiders","preferred":"kiro","label":"Open in Kiro"}
+{"available":["cursor","trae","vscodium","antigravity","aqua","dataspell","pycharm","rider"],"last":"rider","preferred":"rider","label":"Open in Rider"}
+{"available":["rubymine","clion"],"last":"vscodium","preferred":"clion","label":"Open in CLion"}
+{"available":["vscodium","clion","rubymine","rustrover","webstorm"],"last":"rider","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["cursor","vscode","vscodium","antigravity","idea","dataspell","file-manager"],"last":"pycharm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode","zed","antigravity","idea","goland","webstorm"],"last":"trae","preferred":"vscode","label":"Open in VS Code"}
+{"available":["phpstorm","vscode","aqua","kiro","webstorm","clion","rustrover"],"last":"clion","preferred":"clion","label":"Open in CLion"}
+{"available":["vscode-insiders","idea","datagrip","phpstorm","rubymine"],"last":"kiro","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["cursor","vscodium","webstorm"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","vscode-insiders","vscodium"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["trae","zed","rubymine","goland","phpstorm","webstorm","rider"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["clion","rider","rustrover","webstorm","file-manager"],"last":"webstorm","preferred":"webstorm","label":"Open in WebStorm"}
+{"available":["rider","rustrover","clion","idea","pycharm","vscodium"],"last":"cursor","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["vscode","vscodium","idea","dataspell","file-manager"],"last":"zed","preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscode-insiders","trae","phpstorm","zed","goland","webstorm"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["kiro","vscode","idea","aqua","pycharm","file-manager"],"last":"kiro","preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","kiro","vscode-insiders","vscodium","aqua","clion","dataspell","goland","rider"],"last":"antigravity","preferred":"trae","label":"Open in Trae"}
+{"available":["pycharm","vscodium","zed","rider","antigravity","clion"],"last":null,"preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["vscodium","clion","pycharm","cursor","rubymine"],"last":"rustrover","preferred":"cursor","label":"Open in Cursor"}
+{"available":["idea","vscodium","vscode-insiders","trae"],"last":"webstorm","preferred":"trae","label":"Open in Trae"}
+{"available":["rustrover","goland","datagrip","zed","vscodium","file-manager"],"last":"not-an-editor","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["cursor","trae","kiro","idea","aqua","clion"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","vscode","phpstorm","pycharm","rider","rustrover"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["zed","idea","aqua","rider"],"last":"webstorm","preferred":"zed","label":"Open in Zed"}
+{"available":["vscode-insiders","antigravity","aqua","datagrip","goland","phpstorm"],"last":null,"preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["vscode","vscodium","idea","clion","rider","rustrover","webstorm"],"last":"not-an-editor","preferred":"vscode","label":"Open in VS Code"}
+{"available":["cursor","trae","vscode","antigravity","datagrip","phpstorm","webstorm"],"last":"vscode","preferred":"vscode","label":"Open in VS Code"}
+{"available":["cursor","trae","zed","idea","goland"],"last":"clion","preferred":"cursor","label":"Open in Cursor"}
+{"available":["antigravity","cursor","file-manager","kiro","vscode","goland"],"last":"goland","preferred":"goland","label":"Open in GoLand"}
+{"available":["rider","rustrover","rubymine","pycharm","webstorm"],"last":"phpstorm","preferred":"pycharm","label":"Open in PyCharm"}
+{"available":["kiro","vscode","aqua","cursor","idea","dataspell"],"last":"datagrip","preferred":"cursor","label":"Open in Cursor"}
+{"available":["rustrover","clion","aqua","vscodium","cursor"],"last":"pycharm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","zed","aqua","dataspell"],"last":"rustrover","preferred":"cursor","label":"Open in Cursor"}
+{"available":["antigravity","dataspell","pycharm"],"last":"aqua","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["clion","antigravity","rustrover","vscode","pycharm","kiro","webstorm"],"last":null,"preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode-insiders","dataspell","rubymine","trae","datagrip","aqua","webstorm","kiro"],"last":"datagrip","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["zed","antigravity","dataspell","rider"],"last":"datagrip","preferred":"zed","label":"Open in Zed"}
+{"available":["cursor","vscodium","antigravity","clion","datagrip","rustrover","webstorm"],"last":"phpstorm","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode","aqua","datagrip","goland"],"last":"cursor","preferred":"vscode","label":"Open in VS Code"}
+{"available":["idea","zed","vscode"],"last":"dataspell","preferred":"vscode","label":"Open in VS Code"}
+{"available":["goland","vscodium","trae","rustrover","clion","aqua","idea","rubymine"],"last":"dataspell","preferred":"trae","label":"Open in Trae"}
+{"available":["vscode","aqua","pycharm","rider","rubymine"],"last":"rubymine","preferred":"rubymine","label":"Open in RubyMine"}
+{"available":["cursor","trae","vscode","vscodium","file-manager"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["idea","goland","phpstorm"],"last":null,"preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["idea","cursor","file-manager","vscode-insiders","goland"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["vscode","vscodium","antigravity","dataspell","rustrover"],"last":null,"preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscodium","zed","antigravity","goland","webstorm"],"last":"datagrip","preferred":"vscodium","label":"Open in VSCodium"}
+{"available":["vscode","file-manager","trae","vscode-insiders","zed","pycharm"],"last":"cursor","preferred":"trae","label":"Open in Trae"}
+{"available":["vscode-insiders","antigravity","datagrip","rustrover","webstorm"],"last":"idea","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["datagrip","cursor","antigravity","webstorm"],"last":"clion","preferred":"cursor","label":"Open in Cursor"}
+{"available":["zed","clion","goland","phpstorm"],"last":null,"preferred":"zed","label":"Open in Zed"}
+{"available":["vscodium","cursor","zed","file-manager","aqua"],"last":"zed","preferred":"zed","label":"Open in Zed"}
+{"available":["kiro","vscodium","zed","dataspell","rubymine","webstorm"],"last":"idea","preferred":"kiro","label":"Open in Kiro"}
+{"available":["cursor","antigravity","clion","rustrover","file-manager"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["zed","idea","aqua","datagrip","rustrover","file-manager"],"last":"phpstorm","preferred":"zed","label":"Open in Zed"}
+{"available":["pycharm","vscode-insiders"],"last":"not-an-editor","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["cursor","vscodium","idea","rider","file-manager"],"last":"vscode","preferred":"cursor","label":"Open in Cursor"}
+{"available":["kiro","vscodium","zed","dataspell","pycharm","rustrover","webstorm"],"last":"rubymine","preferred":"kiro","label":"Open in Kiro"}
+{"available":["vscode","datagrip","phpstorm","pycharm","webstorm"],"last":"vscode","preferred":"vscode","label":"Open in VS Code"}
+{"available":["vscode-insiders","zed","idea"],"last":"webstorm","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["idea","clion","dataspell","goland","pycharm","rider","webstorm"],"last":"idea","preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["antigravity","idea","phpstorm","rider","clion","kiro"],"last":"kiro","preferred":"kiro","label":"Open in Kiro"}
+{"available":["trae","antigravity","aqua"],"last":null,"preferred":"trae","label":"Open in Trae"}
+{"available":["cursor","trae","vscode-insiders","aqua","rustrover","webstorm","file-manager"],"last":"rubymine","preferred":"cursor","label":"Open in Cursor"}
+{"available":["phpstorm","webstorm","clion","rider","aqua"],"last":"trae","preferred":"aqua","label":"Open in Aqua"}
+{"available":["trae","antigravity","aqua","rustrover"],"last":"vscodium","preferred":"trae","label":"Open in Trae"}
+{"available":["kiro","idea","aqua","clion","rubymine","rustrover","file-manager"],"last":"not-an-editor","preferred":"kiro","label":"Open in Kiro"}
+{"available":["cursor","trae","rubymine","zed","clion","rider"],"last":null,"preferred":"cursor","label":"Open in Cursor"}
+{"available":["rustrover","aqua","vscode-insiders"],"last":"rubymine","preferred":"vscode-insiders","label":"Open in VS Code Insiders"}
+{"available":["antigravity","phpstorm","goland","dataspell"],"last":null,"preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["goland","trae"],"last":"dataspell","preferred":"trae","label":"Open in Trae"}
+{"available":["rustrover","file-manager","goland"],"last":null,"preferred":"goland","label":"Open in GoLand"}
+{"available":["dataspell","datagrip","rustrover","kiro","pycharm"],"last":"goland","preferred":"kiro","label":"Open in Kiro"}
+{"available":["aqua","clion","file-manager"],"last":"rustrover","preferred":"aqua","label":"Open in Aqua"}
+{"available":["kiro","antigravity","idea","pycharm"],"last":"dataspell","preferred":"kiro","label":"Open in Kiro"}
+{"available":["rubymine","webstorm","vscode","cursor","clion"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["cursor","trae","kiro","vscode","vscodium","zed","idea","clion","dataspell","phpstorm","rubymine"],"last":"not-an-editor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["datagrip","goland","webstorm"],"last":"zed","preferred":"datagrip","label":"Open in DataGrip"}
+{"available":["cursor","kiro","vscodium","idea","clion","dataspell","goland","rubymine","rustrover"],"last":"goland","preferred":"goland","label":"Open in GoLand"}
+{"available":["trae","rustrover","idea","phpstorm","kiro","zed","dataspell"],"last":"vscodium","preferred":"trae","label":"Open in Trae"}
+{"available":["zed","pycharm","file-manager","antigravity","clion"],"last":"aqua","preferred":"zed","label":"Open in Zed"}
+{"available":["pycharm","webstorm","vscode","trae","goland","datagrip","rider","aqua"],"last":"kiro","preferred":"trae","label":"Open in Trae"}
+{"available":["vscode","antigravity","zed","trae","goland","pycharm","datagrip","phpstorm"],"last":"goland","preferred":"goland","label":"Open in GoLand"}
+{"available":["cursor","kiro","vscode","vscode-insiders","zed","pycharm","webstorm"],"last":"kiro","preferred":"kiro","label":"Open in Kiro"}
+{"available":["idea","rider","webstorm","file-manager"],"last":"phpstorm","preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["cursor","trae","datagrip","file-manager"],"last":"cursor","preferred":"cursor","label":"Open in Cursor"}
+{"available":["idea","dataspell","goland","phpstorm"],"last":"dataspell","preferred":"dataspell","label":"Open in DataSpell"}
+{"available":["datagrip","idea","zed","phpstorm","vscode","rider"],"last":"vscode-insiders","preferred":"vscode","label":"Open in VS Code"}
+{"available":["antigravity","idea","goland","rustrover"],"last":"rubymine","preferred":"antigravity","label":"Open in Antigravity"}
+{"available":["trae","datagrip","pycharm","kiro","phpstorm","clion","rider"],"last":"rider","preferred":"rider","label":"Open in Rider"}
+{"available":["idea","clion","rubymine","webstorm"],"last":null,"preferred":"idea","label":"Open in IntelliJ IDEA"}
+{"available":["trae","aqua","rubymine","file-manager","kiro","rider"],"last":"not-an-editor","preferred":"trae","label":"Open in Trae"}
+{"available":["vscodium","vscode","rustrover","antigravity","phpstorm"],"last":"zed","preferred":"vscode","label":"Open in VS Code"}
+{"available":["zed","idea","phpstorm","rubymine"],"last":"not-an-editor","preferred":"zed","label":"Open in Zed"}
+{"available":["vscode","goland","pycharm","webstorm"],"last":null,"preferred":"vscode","label":"Open in VS Code"}

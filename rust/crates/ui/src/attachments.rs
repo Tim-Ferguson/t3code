@@ -722,6 +722,17 @@ fn Chip(
     }
 }
 
+/// Long pasted text as a file of its own, named so several pastes in one draft stay distinct.
+pub(crate) fn attach_pasted_text(transport: &TransportHandle, state: Store<UiModel>, target: &DraftTarget, text: &str) {
+    use t3_client::text_paste::{Disposition, disposition, next_file_name};
+    if disposition(text, true, false, false) != Disposition::Attachment {
+        return;
+    }
+    let existing: Vec<String> = state.draft_attachments().peek().get(target).map(|list| list.iter().map(|attachment| attachment.name.clone()).collect()).unwrap_or_default();
+    let bytes: Rc<[u8]> = Rc::from(text.as_bytes());
+    attach(transport, state, target, vec![Incoming { name: next_file_name(&existing), mime_type: "text/plain".into(), size: bytes.len() as u64, source: Source::Bytes(bytes) }]);
+}
+
 /// Dioxus clipboard events carry no files, so a one-time listener on the prompt box
 /// hands pasted files back through the webview bridge. As in the original, images
 /// (and any files, when there is no pasted text) become attachments and the paste is
@@ -749,11 +760,29 @@ const read = (file) => new Promise((resolve) => {{
   reader.readAsDataURL(file);
 }});
 const image = (file) => file.type.startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(file.name);
+// Shift with the platform's paste chord pastes text as it is, however long.
+const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+if (box.__t3Chord) box.removeEventListener("keydown", box.__t3Chord, true);
+box.__t3Bypass = false;
+box.__t3Chord = (event) => {{
+  if (event.key.toLowerCase() === "v" && event.shiftKey && !event.altKey && (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey)) box.__t3Bypass = true;
+}};
+box.addEventListener("keydown", box.__t3Chord, true);
 box.__t3Paste = async (event) => {{
   const data = event.clipboardData;
   if (!data || box.getAttribute("data-attach-paste") !== "on") return;
+  const bypass = box.__t3Bypass;
+  box.__t3Bypass = false;
   const files = Array.from(data.files);
-  if (files.length === 0) return;
+  if (files.length === 0) {{
+    // Long text becomes a file (the rule is `text_paste::disposition`; this only has to decide before the text is inserted).
+    const text = data.getData("text/plain");
+    if (!bypass && text.length > 0 && (text.length >= {fold} || new TextEncoder().encode(text).length >= {fold})) {{
+      event.preventDefault();
+      dioxus.send({{ text }});
+    }}
+    return;
+  }}
   if (!files.some(image) && data.getData("text/plain").length > 0) return;
   event.preventDefault();
   const out = [];
@@ -766,10 +795,16 @@ box.addEventListener("paste", box.__t3Paste);
 await new Promise(() => {{}});
 "#,
         selector = serde_json::to_string(selector).expect("selector"),
-        limit = rules::MAX_FILE_BYTES
+        limit = rules::MAX_FILE_BYTES,
+        fold = t3_client::text_paste::THRESHOLD_BYTES
     );
     let mut bridge = dioxus::document::eval(&script);
-    while let Ok(files) = bridge.recv::<Vec<Value>>().await {
+    while let Ok(message) = bridge.recv::<Value>().await {
+        if let Some(text) = message["text"].as_str() {
+            attach_pasted_text(&transport, state, &target, text);
+            continue;
+        }
+        let files: Vec<Value> = serde_json::from_value(message).unwrap_or_default();
         let incoming = files
             .into_iter()
             .map(|file| {
