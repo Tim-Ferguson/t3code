@@ -115,9 +115,42 @@ impl Fixture {
     pub(crate) async fn start_with_terminals(git_repository: bool) -> Self {
         Self::build(git_repository, &[], true).await
     }
+    /// With Claude enabled over the fixture binary: `environment` is its process environment and
+    /// `files` are written under the fixture directory first (its login, for one).
+    #[cfg(unix)]
+    pub(crate) async fn start_claude(environment: &[(&str, &str)], files: &[(&str, String)]) -> Self {
+        Self::build_with(false, &[], false, Some((environment, files))).await
+    }
     async fn build(git_repository: bool, environment: &[(&str, &str)], terminals: bool) -> Self {
+        Self::build_with(git_repository, environment, terminals, None).await
+    }
+    async fn build_with(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let root = std::fs::canonicalize(directory.path()).unwrap();
+        let claude_instance = match claude {
+            Some((claude_environment, files)) => {
+                for (relative, contents) in files {
+                    let path = root.join(relative);
+                    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                    std::fs::write(path, contents.replace("$ROOT", root.to_str().unwrap())).unwrap();
+                }
+                std::fs::create_dir_all(root.join("claude-home")).unwrap();
+                #[cfg(unix)]
+                let shim = {
+                    use std::os::unix::fs::PermissionsExt;
+                    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("../server/tests/fixtures/claude-provider.py").canonicalize().unwrap();
+                    let binary = root.join("claude");
+                    std::fs::write(&binary, format!("#!/bin/sh\nexec python3 '{}' \"$@\"\n", fixture.display())).unwrap();
+                    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+                    binary
+                };
+                #[cfg(not(unix))]
+                let shim = root.join("claude");
+                json!({"driver":"claudeAgent","enabled":true,"config":{"binaryPath":shim,"homePath":root.join("claude-home")},"environment":claude_environment.iter().map(|(name, value)| json!({"name":name,"value":value})).collect::<Vec<_>>()})
+            }
+            // Usage reads a disabled account's history too, so even it names a home of its own.
+            None => json!({"driver":"claudeAgent","enabled":false,"config":{"homePath":root.join("claude-home")}}),
+        };
         let workspace = root.join("workspace");
         std::fs::create_dir(&workspace).unwrap();
         if git_repository {
@@ -132,7 +165,7 @@ impl Fixture {
             .canonicalize()
             .unwrap();
         let settings: t3_contracts::ServerSettings = serde_json::from_value(
-            json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}}),
+            json!({"providerInstances":{"claudeAgent":claude_instance,"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}}),
         )
         .unwrap();
         // The settings service the configuration stream needs, over the same settings.
@@ -152,7 +185,12 @@ impl Fixture {
         .await
         .unwrap();
         let execution = t3_server::execution::ExecutionService::start(api.store.clone(), native.providers.clone());
-        api.config = Some(native.snapshot);
+        // The server would offer whatever editors this machine has, and a click on one launches it.
+        // The configuration every client of this fixture sees lists none, so nothing here can ask
+        // for an editor to be started.
+        let mut snapshot = native.snapshot;
+        snapshot["availableEditors"] = json!([]);
+        api.config = Some(snapshot);
         api.settings = Some(settings_service.clone());
         api.providers = Some(native.providers);
         if terminals {
@@ -212,7 +250,7 @@ pub(crate) async fn seed(dom: &mut VirtualDom, props: &Harness, workspace: &Path
     dom.in_scope(ScopeId::APP, || request(&props.transport, state, "projects.mutate", json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":workspace}), RequestKind::Unary)).unwrap();
     until(dom, "project", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| !s.projects.is_empty())).await;
     for thread in ["thread-a", "thread-b"] {
-        dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.create", json!({"threadId":thread,"projectId":"project","title":thread,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
+        dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":thread,"projectId":"project","title":thread,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
     }
     until(dom, "threads", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.len() == 2)).await;
     state

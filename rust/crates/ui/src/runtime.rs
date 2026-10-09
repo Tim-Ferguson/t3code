@@ -37,6 +37,8 @@ pub struct PendingMessage {
     pub text: String,
     /// Local ids of the composer attachments this send claims.
     pub attachments: Vec<String>,
+    /// Ids of the context chips this send claims.
+    pub contexts: Vec<String>,
 }
 #[derive(Debug, Clone)]
 pub struct PendingLaunch {
@@ -46,6 +48,9 @@ pub struct PendingLaunch {
     pub active_thread: Option<String>,
     pub choices: NewThreadChoices,
     pub attachments: Vec<String>,
+    pub contexts: Vec<String>,
+    /// Started with `composer.sendBackground`: the person stays on the form.
+    pub background: bool,
 }
 pub type NewThreadChoices = t3_client::draft_storage::DraftChoices;
 
@@ -76,6 +81,8 @@ pub struct UiModel {
     pub draft_attachments:
         std::collections::BTreeMap<t3_client::draft_storage::DraftTarget, Vec<t3_client::attachments::Attachment>>,
     pub attachment_error: Option<(t3_client::draft_storage::DraftTarget, String)>,
+    /// Context chips by draft; only the composer that owns a draft reads its entry.
+    pub draft_contexts: std::collections::BTreeMap<t3_client::draft_storage::DraftTarget, Vec<Value>>,
     pub timeline_send: Option<(String, String)>,
     pub pending_messages: std::collections::BTreeMap<String, PendingMessage>,
     pub new_thread_drafts: std::collections::BTreeMap<(EnvironmentId, String), String>,
@@ -90,6 +97,8 @@ pub struct UiModel {
     /// asked for it to toggle (the palette, the `composer.branch` shortcut).
     pub branch_available: bool,
     pub branch_toggles: u64,
+    /// How often `composer.sendBackground` has asked the open new-thread form to start its thread.
+    pub background_sends: u64,
     pub notices: Vec<crate::notice::Notice>,
     /// The git action each workspace is running or last failed at, outliving the control that
     /// started it so that leaving the thread does not interrupt a push.
@@ -104,6 +113,11 @@ pub struct UiModel {
     pub lifecycle: crate::thread_lifecycle::Model,
     pub usage: crate::usage_page::Model,
     pub redeem: crate::limits_view::Redeem,
+    /// The environment's tracked repository clones.
+    pub clones: crate::clone_view::Model,
+    pub import: crate::import_projects::Model,
+    /// The `/usage-limits` result shown over the open thread's composer.
+    pub usage_panel: Option<crate::limits_view::Panel>,
     pub dark: bool,
     pub sidebar_open: bool,
 }
@@ -917,8 +931,13 @@ pub fn launch_thread(
     };
     let mut input = json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":title,"generateTitle":false,"modelSelection":selection,"runtimeMode":mode,"interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":workspace});
     let text = initial_text.filter(|text| !text.trim().is_empty());
-    if text.is_some() || !attachments.is_empty() {
-        input["initialMessage"] = json!({"messageId":uuid::Uuid::new_v4().to_string(),"text":text.unwrap_or_default(),"attachments":attachments});
+    // The chips of the form ride on the first message, named after its prose by a reference each.
+    let (composed, context, context_ids) = crate::composer_chips::for_send(state, &t3_client::draft_storage::DraftTarget::project(destination.to_string(), project), text.unwrap_or_default());
+    if text.is_some() || !attachments.is_empty() || context.is_some() {
+        input["initialMessage"] = json!({"messageId":uuid::Uuid::new_v4().to_string(),"text":composed,"attachments":attachments});
+        if let Some(context) = context {
+            input["initialMessage"]["context"] = context;
+        }
         if !attachments.is_empty() {
             // Claimed uploads are filed under the thread, which must therefore be named up front.
             input["threadId"] = json!(uuid::Uuid::new_v4().to_string());
@@ -950,6 +969,8 @@ pub fn launch_thread(
             active_thread,
             choices,
             attachments: attachment_ids,
+            contexts: context_ids,
+            background: false,
         },
     );
     Some(id)
@@ -1032,6 +1053,9 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
             return;
         }
     };
+    // The chips this send carries, named after the prose by a reference each.
+    let prompt = text;
+    let (text, context, context_ids) = crate::composer_chips::for_send(state, &target, &prompt);
     if (text.trim().is_empty() && attachments.is_empty())
         || model
             .pending_messages
@@ -1092,7 +1116,7 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
     // the generated title arrives; later messages leave the title alone.
     let title_seed = {
         let (image, file) = t3_client::thread_title::first_attachment_names(&json!(attachments));
-        t3_client::thread_title::title_seed(&text, image.as_deref(), file.as_deref())
+        t3_client::thread_title::title_seed(&prompt, image.as_deref(), file.as_deref())
     };
     let pending_id = uuid::Uuid::new_v4().to_string();
     let generation = handle.borrow().generation;
@@ -1101,8 +1125,9 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
         PendingMessage {
             destination: destination.clone(),
             thread_id: thread_id.clone(),
-            text: text.clone(),
+            text: prompt.clone(),
             attachments: attachment_ids,
+            contexts: context_ids,
         },
     );
     let handle = handle.clone();
@@ -1155,6 +1180,9 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
             }
             if let Some(plan) = options.source_plan.clone() {
                 payload["sourcePlanRef"] = plan;
+            }
+            if let Some(context) = context.clone() {
+                payload["context"] = context;
             }
             command(&handle, state, "message.dispatch", payload)
         };
@@ -2050,6 +2078,11 @@ fn finish_pending_launch(
         ),
         &pending.attachments,
     );
+    crate::composer_chips::sent(
+        state,
+        &t3_client::draft_storage::DraftTarget::project(pending.destination.to_string(), pending.project_id.clone()),
+        &pending.contexts,
+    );
     let current = {
         let model = state.peek();
         model.destination.as_ref() == Some(&pending.destination)
@@ -2059,7 +2092,7 @@ fn finish_pending_launch(
                 .as_deref()
                 .is_none_or(|project| project == pending.project_id)
     };
-    if current {
+    if current && !pending.background {
         select_thread(handle, state, thread_id.to_owned());
     }
 }
@@ -2126,6 +2159,7 @@ fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
     }
     // After the acknowledgements above, which reset the saved attachment list.
     crate::attachments::sent(state, &target, &pending.attachments);
+    crate::composer_chips::sent(state, &target, &pending.contexts);
     if let Some(record) = state
         .environments()
         .write()
@@ -2277,7 +2311,7 @@ mod tests {
                 PendingMessage {
                     destination: environment_a.clone(),
                     thread_id: "same-thread".into(),
-                    attachments: vec![],
+                    attachments: vec![], contexts: vec![],
                     text: "identical text".into(),
                 },
             );
@@ -2286,7 +2320,7 @@ mod tests {
                 PendingMessage {
                     destination: environment_b.clone(),
                     thread_id: "other-thread".into(),
-                    attachments: vec![],
+                    attachments: vec![], contexts: vec![],
                     text: "original text".into(),
                 },
             );
@@ -2295,7 +2329,7 @@ mod tests {
                 PendingMessage {
                     destination: environment_b.clone(),
                     thread_id: "same-thread".into(),
-                    attachments: vec![],
+                    attachments: vec![], contexts: vec![],
                     text: "identical text".into(),
                 },
             );
@@ -2324,7 +2358,7 @@ mod tests {
             PendingMessage {
                 destination: environment_b,
                 thread_id: "same-thread".into(),
-                attachments: vec![],
+                attachments: vec![], contexts: vec![],
                 text: "identical text".into(),
             },
         );
@@ -2353,10 +2387,11 @@ mod tests {
                 PendingLaunch {
                     destination: a.clone(),
                     project_id: "same-project".into(),
-                    attachments: vec![],
+                    attachments: vec![], contexts: vec![],
                     text: "original".into(),
                     active_thread: None,
                     choices: NewThreadChoices::default(),
+                    background: false,
                 },
             );
         }
@@ -2383,10 +2418,11 @@ mod tests {
             PendingLaunch {
                 destination: a,
                 project_id: "same-project".into(),
-                attachments: vec![],
+                attachments: vec![], contexts: vec![],
                 text: "edited while pending".into(),
                 active_thread: None,
                 choices: NewThreadChoices::default(),
+                background: false,
             },
         );
         finish_pending_launch(
@@ -2408,10 +2444,11 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
-                attachments: vec![],
+                attachments: vec![], contexts: vec![],
                 text: String::new(),
                 active_thread: None,
                 choices: NewThreadChoices::default(),
+                background: false,
             },
         );
         finish_pending_launch(
@@ -2433,10 +2470,11 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
-                attachments: vec![],
+                attachments: vec![], contexts: vec![],
                 text: "retain after malformed receipt".into(),
                 active_thread: None,
                 choices: NewThreadChoices::default(),
+                background: false,
             },
         );
         apply_rpc_event(
@@ -2493,13 +2531,14 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
-                attachments: vec![],
+                attachments: vec![], contexts: vec![],
                 text: "same prompt".into(),
                 active_thread: None,
                 choices: NewThreadChoices {
                     runtime_mode: Some(t3_contracts::RuntimeMode::FullAccess),
                     ..Default::default()
                 },
+                background: false,
             },
         );
         finish_pending_launch(&TransportHandle::default(), state, "launch", Some("thread"));
@@ -2726,3 +2765,15 @@ mod lifecycle_tests;
 #[cfg(all(test, unix))]
 #[path = "text_generation_tests.rs"]
 mod text_generation_tests;
+
+#[cfg(all(test, unix))]
+#[path = "usage_tests.rs"]
+mod usage_tests;
+
+#[cfg(all(test, unix))]
+#[path = "import_clone_tests.rs"]
+mod import_clone_tests;
+
+#[cfg(all(test, unix))]
+#[path = "chips_tests.rs"]
+mod chips_tests;

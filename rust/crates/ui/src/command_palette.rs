@@ -271,6 +271,9 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
     if let Some(usage) = item("action:usage", "Open usage", &["usage", "use", "tokens", "cost", "spend", "limits", "stats", "analytics"], Some("usage.open")) {
         actions.push(usage);
     }
+    if allows_operate(state) {
+        actions.push(Item::action("action:import-projects", "Import projects", &["import", "projects", "history", "claude", "codex", "conversations", "sessions", "scan"]));
+    }
     actions.push(Item::action("action:add-project", "Add project", &["add project", "folder", "directory", "browse", "existing", "path"]));
     if can_clone_now(state) {
         actions.push(Item::action("action:clone", "Clone repository", &["clone", "repository", "repo", "git", "github", "gitlab", "bitbucket", "azure", "url", "add project", "remote"]).keeping_open());
@@ -455,6 +458,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                 "action:clone-setup" => open_settings(state, View::SourceControl),
                 "action:pull-requests" => state.view().set(View::PullRequests),
                 "action:usage" => crate::usage_page::open(state),
+                "action:import-projects" => crate::import_projects::open(state),
                 "action:checkout-pull-request" => {
                     if let Some((project, cwd)) = crate::new_thread::form_workspace(state) {
                         crate::pull_request_thread::open(state, &project, &cwd, "");
@@ -584,7 +588,29 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                     creating.set(true);
                     failure.set(None);
                     let (transport, owner) = (transport.clone(), runtime::response_owner(&transport, state));
+                    // An environment that tracks clones creates the project and clones in the background:
+                    // progress follows the person in the clone notices, and only a problem found before
+                    // git runs comes back here. An older one clones and then adds the project.
+                    let tracked = state.typed_config().peek().as_ref().is_some_and(|config| config.environment.capabilities.project_clone_tracking == Some(true));
                     spawn(async move {
+                        if tracked {
+                            let project_id = uuid::Uuid::new_v4().to_string();
+                            let created_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+                            let input = t3_client::project_clone::start_input(&project_id, &clone::project_title(&destination), &created_at, &remote_url, &destination);
+                            let result = runtime::request_value_reported(transport.clone(), state, t3_client::project_clone::START, input).await;
+                            creating.set(false);
+                            if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+                                return;
+                            }
+                            match result {
+                                Ok(_) => {
+                                    close(state);
+                                    runtime::new_thread(&transport, state, Some(project_id));
+                                }
+                                Err(message) => failure.set(Some(format!("Clone failed. {message}"))),
+                            }
+                            return;
+                        }
                         let result = runtime::request_value_reported(transport.clone(), state, clone::CLONE, clone::clone_input(&remote_url, &destination)).await;
                         // A clone is added as a project, as the original does once git is done.
                         let result = match result {

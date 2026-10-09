@@ -264,6 +264,13 @@ fn RenderNode(node: Node) -> Element {
         Kind::Row => rsx! {tr {{children}}},
         Kind::Cell(true, alignment) => rsx! {th {style:alignment_style(*alignment),{children}}},
         Kind::Cell(false, alignment) => rsx! {td {style:alignment_style(*alignment),{children}}},
+        // A path in the workspace is a file the server serves (or the editor opens); the page never builds its URL.
+        Kind::Link(href, title) if crate::workspace_files::host_available() && t3_client::file_links::target(href).is_some() => {
+            rsx! {crate::workspace_files::FileLink {target:t3_client::file_links::target(href).expect("checked"),title:title.clone(),{children}}}
+        }
+        Kind::Image(src, title) if crate::workspace_files::host_available() && t3_client::file_links::target(src).is_some() => {
+            rsx! {crate::workspace_files::MarkdownImage {src:src.clone(),alt:node.plain_text(),title:title.clone()}}
+        }
         Kind::Link(href, title) if crate::safe_url(href) => {
             rsx! {a {href:href.clone(),title:title.clone(),{children}}}
         }

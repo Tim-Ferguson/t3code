@@ -393,7 +393,7 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadSnooze":true}});
+    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadSnooze":true,"projectCloneTracking":true}});
     let config = json!({"environment":environment,"auth":auth.descriptor(),"cwd":directory.path().to_string_lossy(),"keybindingsConfigPath":"/isolated/keybindings.json","keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":[],"availableEditors":[],"observability":{"logsDirectoryPath":"/isolated/logs","localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false},"settings":t3_contracts::ServerSettings::default()});
     let _: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
     let api = ApiState {
@@ -490,7 +490,7 @@ async fn native_pairing_project_thread_stream_and_reconnect_keep_unsent_draft() 
     assert!(store.projection("project", "project").unwrap().is_some());
     // The lifecycle command transport works before provider-backed launch lands.
     // The user-facing launch/provider/message scenario is added separately.
-    dom.in_scope(ScopeId::APP,||command(&props.transport,state,"thread.create",json!({"threadId":"thread","projectId":"project","title":"Native thread","modelSelection":{"instanceId":"codex","model":"test-provider-model"},"runtimeMode":"approval-required","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
+    dom.in_scope(ScopeId::APP,||command(&props.transport,state,"thread.create",json!({"createdBy":"user","creationSource":"web","threadId":"thread","projectId":"project","title":"Native thread","modelSelection":{"instanceId":"codex","model":"test-provider-model"},"runtimeMode":"approval-required","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
     drive_until(&mut dom, state, "thread-create", || {
         state
             .peek()

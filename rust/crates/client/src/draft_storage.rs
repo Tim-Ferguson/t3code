@@ -61,6 +61,10 @@ pub struct DraftChanges {
     /// so an intentionally emptied list is `Some(vec![])`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attachments: Option<Vec<crate::attachments::Persisted>>,
+    /// The context chips as last edited here (wire records). `None` defers to the original
+    /// draft, so an intentionally emptied list is `Some(vec![])`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub contexts: Option<Vec<Value>>,
     #[serde(default)]
     pub acknowledged: bool,
 }
@@ -184,6 +188,17 @@ impl DraftStorage {
         self.changes.entry(target).or_default().attachments = Some(attachments);
         self.revision += 1;
     }
+    pub fn edit_contexts(&mut self, target: DraftTarget, contexts: Vec<Value>) {
+        self.changes.entry(target).or_default().contexts = Some(contexts);
+        self.revision += 1;
+    }
+    /// The context chips of a draft: this client's edits, else the original's.
+    pub fn contexts(&self, target: &DraftTarget) -> Vec<Value> {
+        if let Some(saved) = self.changes.get(target).and_then(|changes| changes.contexts.as_ref()) {
+            return saved.clone();
+        }
+        self.recovered(target).map(crate::composer_context::records_from_draft).unwrap_or_default()
+    }
     pub fn acknowledge(&mut self, target: DraftTarget) {
         self.changes.insert(
             target,
@@ -200,6 +215,7 @@ impl DraftStorage {
         let changes = self.changes.entry(target).or_default();
         changes.prompt = None;
         changes.attachments = None;
+        changes.contexts = None;
         changes.acknowledged = true;
         self.revision += 1;
     }
@@ -425,9 +441,27 @@ mod attachment_tests {
     }
 
     #[test]
-    fn contexts_still_hold_a_draft_for_the_original_app() {
-        let draft = json!({"prompt":"","attachments":[{"id":"x"}],"terminalContexts":[{"id":"t"}]});
+    fn only_annotations_and_picked_elements_still_hold_a_draft_for_the_original_app() {
+        let draft = json!({"prompt":"","attachments":[{"id":"x"}],"previewAnnotations":[{"id":"a"}]});
         assert!(crate::drafts::has_unrendered_content(&draft));
+        assert!(crate::drafts::has_unrendered_content(&json!({"elementContexts":[{"id":"e"}]})));
+        // Terminal selections, review comments and thread references are chips now.
+        assert!(!crate::drafts::has_unrendered_content(&json!({"terminalContexts":[{"id":"t"}],"reviewComments":[{"id":"r"}],"threadContexts":[{"kind":"thread"}]})));
         assert!(!crate::drafts::has_unrendered_content(&json!({"prompt":"","attachments":[{"id":"x"}],"files":[{"id":"f"}]})));
+    }
+
+    #[test]
+    fn chips_are_edited_here_or_come_from_the_original_draft_until_a_send_clears_them() {
+        let record = crate::composer_context::thread_record("env", "thread-a", "Login bug");
+        let mut storage = DraftStorage::default();
+        let original = json!({"version":1,"draftsByThreadKey":{"env:thread-1":{"prompt":"p","attachments":[],"threadContexts":[record.clone()]}},"draftThreadsByThreadKey":{},"logicalProjectDraftThreadKeyByLogicalProjectKey":{}});
+        storage.source_state = Some(std::rc::Rc::new(original));
+        let target = DraftTarget::thread("env", "thread-1");
+        assert_eq!(storage.contexts(&target), vec![record.clone()], "the original's chips are shown");
+        storage.edit_contexts(target.clone(), vec![]);
+        assert!(storage.contexts(&target).is_empty(), "an emptied list hides them");
+        storage.edit_contexts(target.clone(), vec![record.clone()]);
+        storage.acknowledge_content(target.clone());
+        assert!(storage.contexts(&target).is_empty(), "a send clears them");
     }
 }

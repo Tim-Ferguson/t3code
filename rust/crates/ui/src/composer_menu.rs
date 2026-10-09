@@ -5,7 +5,8 @@
 use crate::{draft_storage, runtime, runtime::{UiModel, UiModelStoreExt}};
 use dioxus::prelude::*;
 use serde_json::json;
-use t3_client::composer_menu::{self as menu, SlashItem, Skill, TriggerKind};
+use crate::limits_view;
+use t3_client::{composer_menu::{self as menu, SlashItem, Skill, TriggerKind}, usage_limits as logic};
 
 #[derive(Debug, Clone, PartialEq)]
 enum Apply {
@@ -15,6 +16,8 @@ enum Apply {
     Mode(&'static str),
     /// Move to the model control (`/model`).
     Model,
+    /// Show the provider's limits (`/usage-limits`); the draft keeps nothing of it.
+    UsageLimits,
 }
 #[derive(Debug, Clone, PartialEq)]
 struct Entry {
@@ -38,6 +41,11 @@ fn provider_entries(state: Store<UiModel>, thread: &t3_contracts::ThreadShell, p
         for command in &provider.slash_commands {
             let description = command.description.as_ref().and_then(Option::as_ref).map(|text| text.to_string()).unwrap_or_default();
             items.push(SlashItem::Provider { name: command.name.to_string(), description, provider: provider.instance_id.to_string() });
+        }
+        if limits_view::offers_command(state, provider.instance_id.as_str()) {
+            // Served by T3 from the same snapshots as Usage, Limits; a provider's own command of that name gives way.
+            items.retain(|item| !matches!(item, SlashItem::Provider { name, .. } if name == logic::USAGE_LIMITS_COMMAND_NAME));
+            items.push(SlashItem::Provider { name: logic::USAGE_LIMITS_COMMAND_NAME.into(), description: logic::USAGE_LIMITS_COMMAND_DESCRIPTION.into(), provider: provider.instance_id.to_string() });
         }
         if show_skills {
             skills = provider.skills.iter().filter_map(|skill| Skill::from_json(&serde_json::to_value(skill).ok()?)).collect();
@@ -64,7 +72,7 @@ fn slash_entries(items: &[SlashItem], skills: &[Skill], query: &str, at_start: b
                     _ => Apply::Model,
                 },
             },
-            SlashItem::Provider { name, description, .. } => Entry { id: format!("provider:{name}"), label: format!("/{name}"), description: description.clone(), apply: Apply::Insert(format!("/{name} ")) },
+            SlashItem::Provider { name, description, .. } => Entry { id: format!("provider:{name}"), label: format!("/{name}"), description: description.clone(), apply: if name == logic::USAGE_LIMITS_COMMAND_NAME { Apply::UsageLimits } else { Apply::Insert(format!("/{name} ")) } },
             SlashItem::Skill { skill, .. } => Entry { id: format!("skill:{}", skill.name), label: format!("${}", skill.name), description: skill.short_description.clone().or_else(|| skill.description.clone()).unwrap_or_default(), apply: Apply::Insert(format!("${} ", skill.name)) },
         })
         .collect()
@@ -135,6 +143,7 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
     let pick = {
         let (transport, draft, trigger) = (transport.clone(), draft.clone(), trigger.clone());
         let thread_id = thread.id.to_string();
+        let instance_id = thread.provider_instance_id.to_string();
         move |entry: Entry| {
             let Some(trigger) = trigger.clone() else { return };
             let replacement = match &entry.apply {
@@ -150,6 +159,7 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
                 Apply::Model => {
                     let _ = document::eval("document.querySelector('.thread-controls select[aria-label=\"Model\"]')?.focus();");
                 }
+                Apply::UsageLimits => crate::limits_view::open_panel(state, &thread_id, &instance_id),
                 Apply::Insert(_) => {}
             }
             selected.set(0);

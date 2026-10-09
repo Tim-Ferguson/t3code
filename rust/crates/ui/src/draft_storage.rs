@@ -241,6 +241,11 @@ pub fn edit_attachments(
         .edit_attachments(target, attachments);
     schedule(state);
 }
+/// Records a draft's context chips; an empty list deliberately hides any the original app saved.
+pub fn edit_contexts(state: Store<UiModel>, target: DraftTarget, contexts: Vec<serde_json::Value>) {
+    state.peek().draft_storage.document.borrow_mut().edit_contexts(target, contexts);
+    schedule(state);
+}
 pub fn acknowledge_content(state: Store<UiModel>, target: DraftTarget) {
     state
         .peek()
@@ -648,8 +653,8 @@ mod tests {
             });
             rsx! {span {"Owned drafts"}}
         }
-        let context = json!({"id":"terminal","threadId":"thread","createdAt":"2026-01-01T00:00:00Z","terminalId":"term","terminalLabel":"Terminal 1","lineStart":1,"lineEnd":2,"text":"output"});
-        let source=json!({"version":9,"state":{"draftsByThreadKey":{"a:thread":{"prompt":"Unsent text","attachments":[],"terminalContexts":[context.clone()]},"draft":{"prompt":"New draft","attachments":[],"terminalContexts":[context]}},"draftThreadsByThreadKey":{"draft":{"threadId":"draft","environmentId":"a","projectId":"project","logicalProjectKey":"a:project"}},"logicalProjectDraftThreadKeyByLogicalProjectKey":{"a:project":"draft"}}}).to_string();
+        let context = json!({"id":"annotation","pageUrl":"http://localhost:3000/","pageTitle":null,"comment":"Move this","elements":[],"regions":[],"strokes":[],"styleChanges":[],"screenshot":null,"createdAt":"2026-01-01T00:00:00Z"});
+        let source=json!({"version":9,"state":{"draftsByThreadKey":{"a:thread":{"prompt":"Unsent text","attachments":[],"previewAnnotations":[context.clone()]},"draft":{"prompt":"New draft","attachments":[],"previewAnnotations":[context]}},"draftThreadsByThreadKey":{"draft":{"threadId":"draft","environmentId":"a","projectId":"project","logicalProjectKey":"a:project"}},"logicalProjectDraftThreadKeyByLogicalProjectKey":{"a:project":"draft"}}}).to_string();
         let props = Owned {
             state: Rc::new(RefCell::new(None)),
             source: source.clone(),

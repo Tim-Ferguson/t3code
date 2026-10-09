@@ -482,21 +482,11 @@ fn content(draft: &Value) -> bool {
         })
 }
 /// Saved content the Rust composer cannot yet show or send. Attachments are rendered
-/// (see `attachments::restore_source`); contexts are still held for the original app.
+/// (see `attachments::restore_source`), and so are terminal selections, review comments and
+/// thread references (`composer_context`); what is held for the original app is page
+/// annotations and picked elements.
 pub fn has_unrendered_content(draft: &Value) -> bool {
-    [
-        "terminalContexts",
-        "previewAnnotations",
-        "reviewComments",
-        "threadContexts",
-        "elementContexts",
-    ]
-    .iter()
-    .any(|key| {
-        draft[*key]
-            .as_array()
-            .is_some_and(|array| !array.is_empty())
-    })
+    crate::composer_context::holds_unsupported(draft)
 }
 
 /// Context IDs use the original pair of FNV-1a passes over UTF-16 units.

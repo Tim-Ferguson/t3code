@@ -152,7 +152,7 @@ async fn seed(dom: &mut VirtualDom, props: &Harness, root: &std::path::Path) -> 
     })
     .await;
     for thread in ["thread-a", "thread-b"] {
-        dom.in_scope(ScopeId::APP,||command(&props.transport,state,"thread.create",json!({"threadId":thread,"projectId":"project","title":thread,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
+        dom.in_scope(ScopeId::APP,||command(&props.transport,state,"thread.create",json!({"createdBy":"user","creationSource":"web","threadId":thread,"projectId":"project","title":thread,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
     }
     until(dom, "threads", |_| {
         state

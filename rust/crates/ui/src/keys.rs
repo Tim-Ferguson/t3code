@@ -144,6 +144,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                 .with("commandPaletteOpen", state.palette().read().open)
                 .with("modelPickerOpen", *picker.open.read())
                 .with("usagePageOpen", *state.view().read() == View::Usage)
+                .with("draftThreadRoute", *state.view().read() == View::Chat && state.active_thread().read().is_none() && state.selected_project().read().is_some())
         }
     });
     let runnable = use_memo({
@@ -189,6 +190,9 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                 if allows(state, AuthEnvironmentScope::OrchestrationOperate) && crate::sidebar_rows::caps(state).pinning {
                     set.insert("thread.pin".into());
                 }
+            }
+            if chat && open.is_none() && state.selected_project().read().is_some() && allows(state, AuthEnvironmentScope::OrchestrationOperate) {
+                set.insert("composer.sendBackground".into());
             }
             if chat && open.is_some() {
                 if state.diff().read().open || allows(state, AuthEnvironmentScope::OrchestrationRead) {
@@ -456,6 +460,10 @@ impl Runner {
             "composer.workspace" => crate::new_thread::focus_workspace(),
             "composer.previousWorktree" => crate::new_thread::use_previous_worktree(state),
             "thread.undo" => crate::thread_lifecycle::undo(state, &self.transport),
+            "composer.sendBackground" => {
+                let sends = *state.background_sends().peek();
+                state.background_sends().set(sends + 1);
+            }
             "composer.branch" => {
                 let toggles = *state.branch_toggles().peek();
                 state.branch_toggles().set(toggles + 1);

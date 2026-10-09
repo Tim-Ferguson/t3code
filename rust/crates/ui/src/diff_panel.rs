@@ -273,6 +273,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, environment_key: Str
     });
     let review = review_diff::use_review(state, transport.clone(), cwd.clone(), thread_id.clone(), kind, base_ref, ignore_whitespace);
     use_context_provider(|| ExpandHost { state, transport: transport.clone() });
+    let commenting = use_context_provider(|| Commenter(Signal::new(None)));
     {
         let owner = owner.clone();
         use_effect(move || {
@@ -518,6 +519,9 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, environment_key: Str
     rsx! {
         aside { class: "diff-panel", "aria-label": "Diff panel", tabindex: "-1", "data-wrap": "{wrapping}", "data-layout": if split { "split" } else { "stacked" },
             onkeydown: move |event| { if event.key() == Key::Escape { if *base_open.peek() { base_open.set(false); } else { close(state); } } },
+            if let Some(target) = commenting.0.read().clone() {
+                CommentDialog { state, environment_key: environment_key.clone(), thread_id: thread_id.clone(), section: section_of(&scope.read()), target, onclose: move |_| { let mut signal = commenting.0; signal.set(None); } }
+            }
             header { class: "diff-header",
                 div { class: "diff-header-main",
                     select { class: "diff-scope", "aria-label": "Diff scope", title: "{label}", value: "{value}",
@@ -762,9 +766,25 @@ pub(crate) fn FileSection(file: Rc<FileDiff>, collapsed: bool, split: bool, on_t
                 if partial { span { class: "diff-partial", role: "img", "aria-label": "Partial diff preview", title: "This file is too large to show in full. Counts include all changes.", "partial" } }
                 { let (additions, deletions) = stat.unwrap_or((u64::from(file.additions), u64::from(file.deletions))); rsx! { StatLabel { additions, deletions } } }
             }
+            if file.status != FileStatus::Deleted { OpenFile { path: path.clone() } }
             if !collapsed { FileBody { file: file.clone(), split, expand } }
         }
     }
+}
+
+/// Opens a changed file in the editor, from the thread's own workspace.
+#[component]
+fn OpenFile(path: String) -> Element {
+    let Some(host) = try_consume_context::<ExpandHost>() else { return rsx! {} };
+    let busy = use_signal(|| false);
+    let Some(last) = try_consume_context::<crate::open_in::Last>() else { return rsx! {} };
+    let state = host.state;
+    let available = !crate::open_in::available(state).is_empty();
+    rsx! { button { class: "diff-file-open", r#type: "button", "aria-label": "Open {path} in editor", title: "Open in editor", disabled: !available || *busy.read(),
+        onclick: move |_| {
+            let (Some(root), Some(editor)) = (crate::open_in::thread_cwd(state), crate::open_in::favorite(state, last.0.peek().as_deref())) else { return };
+            crate::open_in::open(&host.transport, state, busy, last.0, t3_client::file_links::editor_path(&t3_client::file_links::FileTarget { path: path.clone(), line: None, column: None }, &root), editor, false);
+        }, "Open" } }
 }
 
 /// An expanded file. Files with no hunks (binary, renamed, mode-only) say so instead.
@@ -865,7 +885,7 @@ fn Rows(file: Rc<FileDiff>, split: bool, expand: Option<Rc<ExpandSource>>) -> El
                         div { class: "diff-hunk-header", "{chunk.hunk.header()}" }
                         for (position, row) in chunk.rows.iter().enumerate() {
                             match row {
-                                Row::Line(line) => rsx! { StackedRow { key: "{position}", line: (*line).clone(), colour: colour(chunk.index, line) } },
+                                Row::Line(line) => rsx! { StackedRow { key: "{position}", line: (*line).clone(), colour: colour(chunk.index, line), path: path.clone() } },
                                 Row::Pair(pair) => rsx! {
                                     div { key: "{position}", class: "diff-split-row",
                                         { cell(pair.old, Side::Old, pair.old.and_then(|line| colour(chunk.index, line))) }
@@ -951,10 +971,11 @@ fn cell(line: Option<&DiffLine>, side: Side, colour: Option<Rc<RenderedLine>>) -
 struct StackedRowProps {
     line: DiffLine,
     colour: Option<Rc<RenderedLine>>,
+    path: String,
 }
 impl PartialEq for StackedRowProps {
     fn eq(&self, other: &Self) -> bool {
-        self.line == other.line && self.colour.as_ref().map(Rc::as_ptr) == other.colour.as_ref().map(Rc::as_ptr)
+        self.line == other.line && self.path == other.path && self.colour.as_ref().map(Rc::as_ptr) == other.colour.as_ref().map(Rc::as_ptr)
     }
 }
 #[allow(non_snake_case)]
@@ -971,8 +992,66 @@ fn StackedRow(props: StackedRowProps) -> Element {
             span { class: "diff-num", {line.new_number.map(|number| number.to_string()).unwrap_or_default()} }
             span { class: "diff-mark", "aria-hidden": "true", "{mark}" }
             { code(line, props.colour.clone()) }
+            if let Some(number) = line.new_number.or(line.old_number) {
+                button { r#type: "button", class: "diff-comment", "aria-label": "Comment on {props.path} line {number}", title: "Comment on this line", onclick: { let (path, line) = (props.path.clone(), line.clone()); move |_| { if let Some(commenter) = try_consume_context::<Commenter>() { let mut target = commenter.0; target.set(Some(CommentTarget { path: path.clone(), line: line.clone() })); } } }, "+" }
+            }
         }
     }
+}
+
+/// The id and title of the part of the diff a comment is made in.
+fn section_of(scope: &Scope) -> (String, String) {
+    match scope {
+        Scope::Changes => ("diff:changes".into(), "Changes".into()),
+        Scope::Uncommitted => ("diff:uncommitted".into(), "Uncommitted".into()),
+        Scope::Latest => ("diff:latest".into(), "Latest turn".into()),
+        Scope::Turn(id) => (format!("diff:turn:{id}"), "Turn".into()),
+        Scope::Thread => ("diff:thread".into(), "Thread".into()),
+    }
+}
+
+/// The line of a diff a comment is being written on.
+#[derive(Debug, Clone, PartialEq)]
+struct CommentTarget {
+    path: String,
+    line: DiffLine,
+}
+/// Lets a row ask the panel for a comment dialog without the rows depending on the panel.
+#[derive(Clone, Copy)]
+struct Commenter(Signal<Option<CommentTarget>>);
+
+/// Writes a comment on one line of a diff and attaches it to the open draft as a chip.
+#[component]
+fn CommentDialog(state: Store<UiModel>, environment_key: String, thread_id: String, section: (String, String), target: CommentTarget, onclose: EventHandler<()>) -> Element {
+    let mut text = use_signal(String::new);
+    let number = target.line.new_number.or(target.line.old_number).unwrap_or(1);
+    let deleted = target.line.kind == LineKind::Deletion;
+    let title = format!("Comment on {} line {}{}", target.path, number, if deleted { " (before)" } else { "" });
+    let add = {
+        let (target, section, thread_id, environment_key) = (target.clone(), section.clone(), thread_id.clone(), environment_key.clone());
+        move || {
+            let comment = t3_client::composer_context::line_comment(&format!("review-comment-{}", uuid::Uuid::new_v4().simple()), &section.0, &section.1, &target.path, if target.line.kind == LineKind::Deletion { '-' } else { '+' }, target.line.new_number.or(target.line.old_number).unwrap_or(1), &target.line.text, &text.peek());
+            if comment["text"].as_str().is_some_and(str::is_empty) {
+                return;
+            }
+            let record = t3_client::composer_context::review_record(&comment);
+            crate::composer_chips::add(state, t3_client::draft_storage::DraftTarget::thread(environment_key.clone(), thread_id.clone()), record);
+            onclose.call(());
+        }
+    };
+    rsx! { div { class: "modal-backdrop", onclick: move |_| onclose.call(()),
+        div { class: "dialog review-comment-dialog", role: "dialog", "aria-modal": "true", "aria-label": "{title}", tabindex: "-1", onclick: move |event| event.stop_propagation(),
+            onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); onclose.call(()); } },
+            h2 { "{title}" }
+            pre { class: "review-comment-line", "{target.line.text}" }
+            textarea { "aria-label": "Review comment", placeholder: "What should change here?", value: "{text}", oninput: move |event| text.set(event.value()),
+                onmounted: move |event| { let element = event.data(); spawn(async move { let _ = element.set_focus(true).await; }); } }
+            div { class: "dialog-actions",
+                button { r#type: "button", "aria-label": "Cancel review comment", onclick: move |_| onclose.call(()), "Cancel" }
+                button { class: "primary", r#type: "button", "aria-label": "Add comment to chat", disabled: text.read().trim().is_empty(), onclick: { let mut add = add.clone(); move |_| add() }, "Add to chat" }
+            }
+        }
+    } }
 }
 
 #[cfg(test)]

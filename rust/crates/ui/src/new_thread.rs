@@ -290,7 +290,45 @@ fn NewThreadOptions(
         });
     let launch_selection = selected.clone();
     let project_id = project.id.to_string();
+    let chip_count = attachment_target.as_ref().map_or(0, |target| crate::composer_chips::count(state, target));
+    // A project whose clone has not landed starts no thread; the reason repaints this form only when it changes.
+    let clone_block = use_memo(use_reactive((&project_id,), move |(project_id,)| crate::clone_view::block_reason(state, &project_id)));
+    let clone_blocked = clone_block.read().is_some();
+    let prompt_is_empty = prompt.trim().is_empty();
+    // Starting the thread from the button or `composer.sendBackground`; the background form leaves the person here.
+    let launch = {
+        let (transport, project_id, prompt, launch_selection, worktree_path, base_ref) = (transport.clone(), project_id.clone(), prompt.clone(), launch_selection.clone(), worktree_path.clone(), base_ref.clone());
+        move |background: bool| {
+            if let Some(selection)=launch_selection.as_ref() {
+                let workspace=if let Some(path)=worktree_path.clone() {
+                    let Ok(worktree_path)=TrimmedNonEmptyString::new(&path) else{return;};
+                    ThreadLaunchWorkspaceStrategy::ExistingWorktree(WorkspaceExistingWorktree {worktree_path,branch:TrimmedNonEmptyString::new(&base_ref).ok().map(Some)})
+                } else if environment==ThreadEnvMode::Worktree {
+                    let Ok(base_ref)=TrimmedNonEmptyString::new(&base_ref) else{return;};
+                    ThreadLaunchWorkspaceStrategy::Worktree(WorkspaceWorktree {base_ref,branch:None,start_from_origin:None})
+                } else {ThreadLaunchWorkspaceStrategy::Root(WorkspaceRoot {branch:None})};
+                if let Some(id)=runtime::launch_thread(&transport,state,&project_id,selection,mode,workspace,Some(&prompt)) {
+                    if background {
+                        if let Some(pending)=state.pending_launches().write().get_mut(&id) {pending.background=true;}
+                    }
+                }
+            }
+        }
+    };
+    // `composer.sendBackground` asks this form to start its thread without opening it.
+    {
+        let launch=launch.clone();
+        let mut seen=use_signal(|| *state.background_sends().peek());
+        use_effect(move || {
+            let requested=*state.background_sends().read();
+            if requested != *seen.peek() {
+                seen.set(requested);
+                if !disabled && !clone_blocked && (!prompt_is_empty || attachment_count>0 || chip_count>0) {launch(true);}
+            }
+        });
+    }
     rsx! {
+        crate::clone_view::Banner { state, transport: transport.clone(), project_id: project_id.clone() }
         if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
         label { "Model"
             select {"aria-label":"Model",value:selected_key,onchange:{let rows=rows.clone();let draft_key=draft_key.clone();move|event| {
@@ -335,6 +373,7 @@ fn NewThreadOptions(
             }
         })}}}
         div {class:"new-thread-attachments",ondragover:move|event|event.prevent_default(),ondrop:move|event|{if let Some(handler)=drop_files.as_mut(){handler(event);}},
+        if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
         label {class:"new-thread-prompt","First message",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:move|e|{
             if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
         }}}
@@ -343,18 +382,8 @@ fn NewThreadOptions(
             if can_operate {crate::attachments::AttachButton {state,transport:transport.clone(),target}}
         }
         }
-        button {class:"primary","aria-label":"Create new thread",disabled,onclick:move|_|{
-            if let Some(selection)=launch_selection.as_ref() {
-                let workspace=if let Some(path)=worktree_path.clone() {
-                    let Ok(worktree_path)=TrimmedNonEmptyString::new(&path) else{return;};
-                    ThreadLaunchWorkspaceStrategy::ExistingWorktree(WorkspaceExistingWorktree {worktree_path,branch:TrimmedNonEmptyString::new(&base_ref).ok().map(Some)})
-                } else if environment==ThreadEnvMode::Worktree {
-                    let Ok(base_ref)=TrimmedNonEmptyString::new(&base_ref) else{return;};
-                    ThreadLaunchWorkspaceStrategy::Worktree(WorkspaceWorktree {base_ref,branch:None,start_from_origin:None})
-                } else {ThreadLaunchWorkspaceStrategy::Root(WorkspaceRoot {branch:None})};
-                runtime::launch_thread(&transport,state,&project_id,selection,mode,workspace,Some(&prompt));
-            }
-        },if pending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 {"New thread"} else {"Start chat"}}
+        button {class:"primary","aria-label":"Create new thread",disabled:disabled || clone_blocked,title:clone_block.read().unwrap_or(""),onclick:{let mut launch=launch.clone();move|_|launch(false)},if pending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 && chip_count==0 {"New thread"} else {"Start chat"}}
+        button {"aria-label":"Start in background",disabled:disabled || clone_blocked || (prompt.trim().is_empty() && attachment_count==0 && chip_count==0),title:"Start the thread without leaving this form",onclick:{let mut launch=launch.clone();move|_|launch(true)},"Start in background"}
         if rows.is_empty() {p {class:"muted","No ready providers. Check provider setup in Settings."}}
     }
 }

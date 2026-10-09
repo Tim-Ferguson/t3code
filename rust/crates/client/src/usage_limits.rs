@@ -727,3 +727,74 @@ pub fn collect_provider_report(instance_id: &str, providers: &[Provider], source
     let created_at = DateTime::from_timestamp_millis(now as i64).map(|at| at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()).unwrap_or_default();
     Some(Report { created_at, accounts, notices })
 }
+
+// ---- the run a usage limit stopped -----------------------------------------------------------
+
+/// The latest run that actually started, when it stopped because the subscription limit was
+/// reached: its id, the reset time the provider reported and when it stopped. Port of
+/// `usageLimitBlockedRun` in `orchestrationV2ThreadError.ts`; a distinct session error is not
+/// known to a client and is taken as absent.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Blocked {
+    pub run_id: String,
+    pub reset_at: Option<String>,
+    pub stopped_at: Option<String>,
+    /// Whether a newer run was queued or cancelled before it started, so the limit is not the latest run.
+    pub presented_as_latest: bool,
+}
+
+fn run_end(run: &Value) -> f64 {
+    run["completedAt"].as_str().map(time).filter(|at| at.is_finite()).unwrap_or(f64::INFINITY)
+}
+fn ran_after(run: &Value, other: &Value) -> bool {
+    let (end, other_end) = (run_end(run), run_end(other));
+    if end == other_end { run["ordinal"].as_f64() > other["ordinal"].as_f64() } else { end > other_end }
+}
+fn latest_executed_run(runs: &[Value]) -> Option<&Value> {
+    let mut latest: Option<&Value> = None;
+    for run in runs {
+        if run["status"] == "queued" || (run["status"] == "cancelled" && run["startedAt"].is_null()) {
+            continue;
+        }
+        if latest.is_none_or(|current| ran_after(run, current)) {
+            latest = Some(run);
+        }
+    }
+    latest
+}
+/// Only a failed root turn of the run owns the thread's failure state.
+fn latest_root_failure<'a>(run: &Value, items: &'a [Value]) -> Option<&'a Value> {
+    if run["status"] != "failed" {
+        return None;
+    }
+    let mut latest: Option<&Value> = None;
+    for item in items {
+        if item["type"] != "error" || item["status"] != "failed" || item["runId"] != run["id"] || item["nodeId"] != run["rootNodeId"] {
+            continue;
+        }
+        let newer = latest.is_none_or(|current| {
+            let (at, current_at) = (item["updatedAt"].as_str().map_or(f64::NAN, time), current["updatedAt"].as_str().map_or(f64::NAN, time));
+            at > current_at || (at == current_at && (item["ordinal"].as_f64() > current["ordinal"].as_f64() || (item["ordinal"] == current["ordinal"] && item["id"].as_str() > current["id"].as_str())))
+        });
+        if newer {
+            latest = Some(item);
+        }
+    }
+    latest.map(|item| &item["failure"])
+}
+pub fn blocked_run(runs: &[Value], items: &[Value]) -> Option<Blocked> {
+    let executed = latest_executed_run(runs)?;
+    if executed["status"] != "failed" {
+        return None;
+    }
+    let failure = latest_root_failure(executed, items)?;
+    if failure["class"] != "usage_limit" {
+        return None;
+    }
+    Some(Blocked {
+        run_id: executed["id"].as_str()?.to_owned(),
+        reset_at: failure["resetAt"].as_str().map(str::to_owned),
+        stopped_at: executed["completedAt"].as_str().map(str::to_owned),
+        presented_as_latest: runs.iter().any(|run| run["ordinal"].as_f64() > executed["ordinal"].as_f64()),
+    })
+}

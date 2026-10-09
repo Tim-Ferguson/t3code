@@ -17,7 +17,7 @@ fn projection(state: Store<UiModel>) -> Value {
     state.peek().thread.projection.clone().unwrap()
 }
 async fn create_thread(dom: &mut VirtualDom, props: &Harness, state: Store<UiModel>, id: &str, runtime: &str, interaction: &str) {
-    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"threadId":id,"projectId":"project","title":id,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":runtime,"interactionMode":interaction,"branch":null,"worktreePath":null}))).unwrap();
+    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":id,"projectId":"project","title":id,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":runtime,"interactionMode":interaction,"branch":null,"worktreePath":null}))).unwrap();
     until(dom, id, |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.iter().any(|t| t.id.as_str() == id))).await;
 }
 fn send(dom: &mut VirtualDom, props: &Harness, state: Store<UiModel>, text: &str) {
@@ -706,7 +706,7 @@ async fn recorded_codex_subagents_open_their_child_threads_down_a_chain_and_back
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     // The recording was made with this model; the fake serves it only to the same requests.
-    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"threadId":"recorded","projectId":"project","title":"recorded","modelSelection":{"instanceId":"codex","model":scenario["model"]},"runtimeMode":"full-access","interactionMode":scenario["interactionMode"],"branch":null,"worktreePath":null}))).unwrap();
+    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":"recorded","projectId":"project","title":"recorded","modelSelection":{"instanceId":"codex","model":scenario["model"]},"runtimeMode":"full-access","interactionMode":scenario["interactionMode"],"branch":null,"worktreePath":null}))).unwrap();
     until(&mut dom, "the thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.iter().any(|t| t.id.as_str() == "recorded"))).await;
     open_thread(&mut dom, &props, state, "recorded").await;
     send(&mut dom, &props, state, scenario["steps"][0]["text"].as_str().unwrap());
@@ -1045,7 +1045,7 @@ async fn a_thread_is_renamed_in_place_and_a_new_thread_starts_on_its_branch() {
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
-    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"threadId":"on-branch","projectId":"project","title":"Feature work","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":"feature-x","worktreePath":null}))).unwrap();
+    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":"on-branch","projectId":"project","title":"Feature work","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":"feature-x","worktreePath":null}))).unwrap();
     until(&mut dom, "the branch thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.iter().any(|t| t.id.as_str() == "on-branch"))).await;
     let title = |state: Store<UiModel>| thread_shell(state, "on-branch").title;
 

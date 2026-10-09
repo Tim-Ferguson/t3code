@@ -802,6 +802,107 @@ for (const [a, b] of [
   });
 }
 
+// ---- the run a usage limit stopped -----------------------------------------------------
+{
+  const DateTime = await import(
+    new URL("../../packages/shared/node_modules/effect/dist/DateTime.js", import.meta.url).href
+  );
+  const thread = await shared("orchestrationV2ThreadError");
+  const at = (iso) => DateTime.makeUnsafe(iso);
+  const run = (
+    id,
+    ordinal,
+    status,
+    completedAt,
+    startedAt = "2026-10-09T10:00:00.000Z",
+    extra = {},
+  ) => ({ id, ordinal, status, rootNodeId: `${id}-root`, startedAt, completedAt, ...extra });
+  const failure = (runId, id, cls, resetAt, over = {}) => ({
+    id,
+    type: "error",
+    status: "failed",
+    runId,
+    nodeId: `${runId}-root`,
+    ordinal: 3,
+    updatedAt: "2026-10-09T10:01:00.000Z",
+    failure: { class: cls, message: "stopped", ...(resetAt ? { resetAt } : {}) },
+    ...over,
+  });
+  const cases = [
+    { name: "no runs", runs: [], items: [] },
+    {
+      name: "a limited run",
+      runs: [run("r1", 1, "failed", "2026-10-09T10:01:00.000Z")],
+      items: [failure("r1", "e1", "usage_limit", "2026-10-09T15:00:00.000Z")],
+    },
+    {
+      name: "a limit without a reset time",
+      runs: [run("r1", 1, "failed", "2026-10-09T10:01:00.000Z")],
+      items: [failure("r1", "e1", "usage_limit")],
+    },
+    {
+      name: "another failure",
+      runs: [run("r1", 1, "failed", "2026-10-09T10:01:00.000Z")],
+      items: [failure("r1", "e1", "provider_error")],
+    },
+    {
+      name: "a completed run after the limit",
+      runs: [
+        run("r1", 1, "failed", "2026-10-09T10:01:00.000Z"),
+        run("r2", 2, "completed", "2026-10-09T10:05:00.000Z"),
+      ],
+      items: [failure("r1", "e1", "usage_limit", "2026-10-09T15:00:00.000Z")],
+    },
+    {
+      name: "queued and cancelled runs after the limit",
+      runs: [
+        run("r1", 1, "failed", "2026-10-09T10:01:00.000Z"),
+        run("r2", 2, "queued", null, null),
+        run("r3", 3, "cancelled", "2026-10-09T10:02:00.000Z", null),
+      ],
+      items: [failure("r1", "e1", "usage_limit", "2026-10-09T15:00:00.000Z")],
+    },
+    {
+      name: "the newest of two failures decides",
+      runs: [run("r1", 1, "failed", "2026-10-09T10:01:00.000Z")],
+      items: [
+        failure("r1", "e1", "usage_limit", "2026-10-09T15:00:00.000Z"),
+        failure("r1", "e2", "provider_error", null, { updatedAt: "2026-10-09T10:02:00.000Z" }),
+      ],
+    },
+    {
+      name: "a failure of a child node",
+      runs: [run("r1", 1, "failed", "2026-10-09T10:01:00.000Z")],
+      items: [failure("r1", "e1", "usage_limit", "2026-10-09T15:00:00.000Z", { nodeId: "child" })],
+    },
+    {
+      name: "a run that is still going",
+      runs: [run("r1", 1, "failed", "2026-10-09T10:01:00.000Z"), run("r2", 2, "running", null)],
+      items: [failure("r1", "e1", "usage_limit", "2026-10-09T15:00:00.000Z")],
+    },
+  ];
+  for (const item of cases) {
+    const decoded = {
+      runs: item.runs.map((r) => ({ ...r, completedAt: r.completedAt ? at(r.completedAt) : null })),
+      items: item.items.map((i) => ({ ...i, updatedAt: at(i.updatedAt) })),
+    };
+    const blocked = thread.usageLimitBlockedRun(decoded.runs, decoded.items, null);
+    const run = blocked === null ? null : blocked.id;
+    const failureOf =
+      blocked === null ? null : thread.latestRootProviderFailure(blocked, decoded.items);
+    emit({
+      type: "blocked",
+      name: item.name,
+      runs: item.runs,
+      items: item.items,
+      run,
+      resetAt: failureOf?.resetAt ?? null,
+      presented:
+        thread.usageLimitRunPresentedAsLatest(decoded.runs, decoded.items, null)?.id ?? null,
+    });
+  }
+}
+
 writeFileSync(
   new URL("../crates/client/tests/fixtures/usage.jsonl", import.meta.url),
   `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,

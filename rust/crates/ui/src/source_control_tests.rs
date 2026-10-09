@@ -489,9 +489,10 @@ esac"#,
     input_control(&mut dom, "Clone destination path", destination.to_str().unwrap());
     click_control(&mut dom, "Clone repository");
     until(&mut dom, "the project", |_| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.projects.iter().any(|project| project.workspace_root.as_str() == destination.to_str().unwrap()))).await;
+    // The project exists before git is done; the form it opens on shows the clone, and nothing once it is done.
+    until(&mut dom, "the files", |_| destination.join("README.md").exists()).await;
     assert_eq!(std::fs::read_to_string(destination.join("README.md")).unwrap(), "hello\n");
-    // The notice, the closed palette and the new project's thread form follow the project.
-    wait_for_rendered_text(&mut dom, "Cloned by-url").await;
+    // The closed palette and the new project's thread form follow the project.
     assert!(control(&dom, PALETTE).is_none());
 
     // A looked-up host: GitLab, by its own name for the repository.
@@ -510,8 +511,7 @@ esac"#,
     key_on(&mut dom, "Clone destination path", Key::Enter);
     until(&mut dom, "the second project", |_| second.join("README.md").exists() && state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.projects.iter().any(|project| project.workspace_root.as_str() == second.to_str().unwrap()))).await;
 
-    // The clone's own notice and the closed palette come last; a key pressed before them would toggle the palette shut.
-    wait_for_rendered_text(&mut dom, "Cloned from-gitlab").await;
+    // The closed palette comes last; a key pressed before it would toggle the palette shut.
     until(&mut dom, "the palette closed", |dom| control(dom, PALETTE).is_none()).await;
 
     // A lookup that fails says so in the palette, where the user is looking; GitHub's repository

@@ -266,3 +266,15 @@ fn sources(value: &Value) -> Value {
         "accounts": source["accounts"].as_array().unwrap().iter().map(|account| json!({"id":"a","driver":account["driver"],"usageLimits":{"checkedAt":"2026-10-09T00:00:00.000Z","windows":[]}})).collect::<Vec<_>>(),
     })).collect())
 }
+
+#[test]
+fn the_run_a_usage_limit_stopped_is_found_as_the_original_finds_it() {
+    for row in rows("blocked") {
+        let runs: Vec<Value> = serde_json::from_value(row["runs"].clone()).unwrap();
+        let items: Vec<Value> = serde_json::from_value(row["items"].clone()).unwrap();
+        let blocked = limits::blocked_run(&runs, &items);
+        assert_eq!(blocked.as_ref().map(|blocked| blocked.run_id.as_str()), row["run"].as_str(), "{}", row["name"]);
+        assert_eq!(blocked.as_ref().and_then(|blocked| blocked.reset_at.as_deref()), row["resetAt"].as_str(), "reset of {}", row["name"]);
+        assert_eq!(blocked.as_ref().filter(|blocked| blocked.presented_as_latest).map(|blocked| blocked.run_id.as_str()), row["presented"].as_str(), "presented as latest in {}", row["name"]);
+    }
+}

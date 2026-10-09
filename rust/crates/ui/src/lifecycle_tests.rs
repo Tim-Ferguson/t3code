@@ -265,7 +265,7 @@ async fn cancelling_a_running_worktree_setup_stops_it_once_and_rolls_the_thread_
     git(&fixture.workspace, &["branch", "-m", "main"]);
     // A setup script that runs until the test lets it go, in the terminal the server gives it.
     let script = json!([{"id":"setup","name":"Install","command":format!("echo started; while [ ! -f '{}' ]; do sleep 0.05; done", gate.display()),"icon":"configure","runOnWorktreeCreate":true,"async":false}]);
-    dom.in_scope(ScopeId::APP, || request(&props.transport, state, "projects.mutate", json!({"type":"project.meta.update","commandId":"scripts","projectId":"project","scripts":script}), RequestKind::Unary)).unwrap();
+    dom.in_scope(ScopeId::APP, || request(&props.transport, state, "projects.mutate", json!({"type":"project.update","commandId":"scripts","projectId":"project","scripts":script}), RequestKind::Unary)).unwrap();
     until(&mut dom, "the script", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.projects.iter().any(|p| !p.scripts.is_empty()))).await;
     let _release = Release(gate.clone());
     dom.in_scope(ScopeId::APP, || new_thread(&props.transport, state, None));

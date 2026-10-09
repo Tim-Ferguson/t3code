@@ -42,6 +42,9 @@ try {
       case "size":
         surface.resend_size();
         break;
+      case "selection":
+        dioxus.send({ type: "selection", text: surface.selection_text() });
+        break;
       default:
         throw new Error("Unknown Rust terminal ABI command");
     }

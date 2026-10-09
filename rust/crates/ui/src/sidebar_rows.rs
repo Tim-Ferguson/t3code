@@ -190,6 +190,33 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
             }
         };
         let mut entries: Vec<Element> = vec![];
+        // Another thread's history, attached to the draft being written so the agent can read it.
+        {
+            let (thread_id, title) = (view.id.clone(), view.title.clone());
+            let target = crate::composer_chips::open_target(state);
+            let environment = state.destination().peek().as_ref().map(ToString::to_string).unwrap_or_default();
+            let own = target.as_ref().is_some_and(|target| target.local_id == thread_id);
+            entries.push(item("Reference in chat".to_owned(), target.is_none() || own, Box::new(move || {
+                if let Some(target) = target.clone() {
+                    crate::composer_chips::add(state, target, t3_client::composer_context::thread_record(&environment, &thread_id, &title));
+                }
+            })));
+        }
+        // Where a pin sits among the project's pins: one key written to this thread, or the section's keys when a neighbour has none.
+        if view.caps.pinning && view.pinned {
+            let pinned = pinned_order(state, &view.id);
+            for (up, name) in [(true, "Move pin up"), (false, "Move pin down")] {
+                let next = t3_client::pin_order::moved(&pinned.0, &view.id, up);
+                let (transport, id) = (transport.clone(), view.id.clone());
+                let keys = pinned.1.clone();
+                entries.push(item(name.to_owned(), !can || next.is_none(), Box::new(move || {
+                    let Some(order) = next.clone() else { return };
+                    for (target, key) in t3_client::pin_order::plan_reorder(&order, &keys, &id) {
+                        runtime::command(&transport, state, "thread.pin.reorder", json!({"threadId":target,"orderKey":key}));
+                    }
+                })));
+            }
+        }
         if view.caps.pinning {
             let command = thread_command.clone();
             entries.push(if view.pinned { item("Unpin thread".to_owned(), !can, Box::new(move || command("thread.unpin", json!({}), "Could not unpin the thread"))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Could not pin the thread"))) });
@@ -345,6 +372,16 @@ pub(crate) fn copy_reference(state: Store<UiModel>) {
         notice::push(state, Level::Success, format!("{what} copied"), value);
     }
 }
+/// The ids of the pinned threads of a thread's project in the order shown, with their order keys.
+fn pinned_order(state: Store<UiModel>, thread_id: &str) -> (Vec<String>, std::collections::BTreeMap<String, Option<String>>) {
+    let field = state.shell();
+    let shell = field.read();
+    let Some(snapshot) = shell.snapshot.as_ref() else { return Default::default() };
+    let Some(project) = snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id).map(|thread| thread.project_id.clone()) else { return Default::default() };
+    let pinned: Vec<&ThreadShell> = rows(&snapshot.threads, &project, Utc::now()).into_iter().filter(|thread| sidebar::is_pinned(thread)).collect();
+    (pinned.iter().map(|thread| thread.id.to_string()).collect(), pinned.iter().map(|thread| (thread.id.to_string(), thread.pin_order_key.clone().flatten().map(|key| key.to_string()))).collect())
+}
+
 /// Pins or unpins the open thread (`thread.pin`).
 pub(crate) fn toggle_pin(transport: &runtime::TransportHandle, state: Store<UiModel>) {
     let Some(id) = state.active_thread().peek().clone() else { return };

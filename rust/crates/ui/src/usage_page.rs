@@ -15,7 +15,7 @@
 use crate::{
     limits_view,
     provider_manage::{allowed_now, ask, follow_config},
-    runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View},
+    runtime::{TransportHandle, UiModel, UiModelStoreExt, View},
 };
 use dioxus::prelude::*;
 use serde_json::json;
@@ -51,6 +51,8 @@ pub(crate) struct Model {
     pub metric: &'static str,
     pub days: i64,
     pub hydrated: bool,
+    /// Whether the person has picked a metric or period, which saved choices must not undo.
+    pub chosen: bool,
     pub loaded: Option<Data>,
     pub scanning: bool,
     pub error: Option<String>,
@@ -65,10 +67,14 @@ pub(crate) struct Model {
 impl Default for Model {
     fn default() -> Self {
         let prefs = Preferences::default();
-        Self { metric: prefs.metric, days: prefs.window_days, hydrated: false, loaded: None, scanning: false, error: None, generation: 0, limits_now: 0.0, limits_refreshing: false, limits_refresh_after: None }
+        Self { metric: prefs.metric, days: prefs.window_days, hydrated: false, chosen: false, loaded: None, scanning: false, error: None, generation: 0, limits_now: 0.0, limits_refreshing: false, limits_refresh_after: None }
     }
 }
 
+fn edit(state: Store<UiModel>, change: impl FnOnce(&mut Model)) {
+    let mut usage = state.usage();
+    change(&mut usage.write());
+}
 fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
@@ -94,17 +100,31 @@ fn window_for(days: i64) -> Window {
 // ---- preferences ----------------------------------------------------------------------------
 
 async fn read_preferences() -> Option<String> {
-    #[cfg(target_arch = "wasm32")]
+    // A test never reads the real browser's storage.
+    #[cfg(test)]
+    {
+        return None;
+    }
+    #[cfg(all(not(test), target_arch = "wasm32"))]
     {
         web_sys::window()?.local_storage().ok().flatten()?.get_item(logic::PREFERENCES_KEY).ok().flatten()
     }
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(all(not(test), not(target_arch = "wasm32")))]
     {
         let args = json!({"key":logic::PREFERENCES_KEY});
         document::eval(&format!("return window.localStorage.getItem({args}.key);")).join::<Option<String>>().await.ok().flatten()
     }
 }
 fn write_preferences(preferences: Preferences) {
+    #[cfg(test)]
+    {
+        let _ = preferences;
+    }
+    #[cfg(not(test))]
+    write_preferences_now(preferences);
+}
+#[cfg(not(test))]
+fn write_preferences_now(preferences: Preferences) {
     let bytes = preferences.write();
     #[cfg(target_arch = "wasm32")]
     if let Some(storage) = web_sys::window().and_then(|window| window.local_storage().ok().flatten()) {
@@ -138,13 +158,13 @@ pub(crate) fn scan(transport: &TransportHandle, state: Store<UiModel>, rates: bo
     let Some(destination) = state.destination().peek().clone() else { return };
     let days = state.usage().peek().days;
     let window = window_for(days);
-    let generation = {
-        let mut model = state.usage().write();
+    let mut generation = 0;
+    edit(state, |model| {
         model.generation += 1;
         model.scanning = true;
         model.error = None;
-        model.generation
-    };
+        generation = model.generation;
+    });
     let transport = transport.clone();
     spawn(async move {
         if rates {
@@ -155,12 +175,13 @@ pub(crate) fn scan(transport: &TransportHandle, state: Store<UiModel>, rates: bo
         if state.usage().peek().generation != generation {
             return;
         }
-        let mut model = state.usage().write();
+        let label = state.environments().peek().records.get(&destination).map(|record| record.label.clone()).unwrap_or_else(|| destination.to_string());
+        let mut usage = state.usage();
+        let mut model = usage.write();
         model.scanning = false;
         let Some(answer) = answer else { return };
         match answer.and_then(|value| logic::Summary::from_value(&value)) {
             Ok(summary) => {
-                let label = state.environments().peek().records.get(&destination).map(|record| record.label.clone()).unwrap_or_else(|| destination.to_string());
                 let messages = {
                     let mut seen: Vec<String> = Vec::new();
                     for source in &summary.sources {
@@ -202,7 +223,8 @@ pub(crate) fn refresh_limits(transport: &TransportHandle, state: Store<UiModel>,
         if answer.as_ref().is_some_and(Result::is_ok) {
             follow_config(&transport, state).await;
         }
-        let mut model = state.usage().write();
+        let mut usage = state.usage();
+        let mut model = usage.write();
         model.limits_refreshing = false;
         model.limits_now = now_ms() as f64;
         model.limits_refresh_after = Some((destination, now_ms() + 5 * 60_000));
@@ -211,10 +233,12 @@ pub(crate) fn refresh_limits(transport: &TransportHandle, state: Store<UiModel>,
 
 /// What the open page shows, started when the metric or period asks for data it does not have.
 fn ensure(transport: &TransportHandle, state: Store<UiModel>) {
-    let (metric, days, covered) = {
-        let model = state.usage().peek();
+    let (metric, _days, covered) = {
+        let usage = state.usage();
+        let model = usage.peek();
         let destination = state.destination().peek().clone();
-        (model.metric, model.days, model.loaded.as_ref().is_some_and(|loaded| Some(&loaded.0.environment) == destination.as_ref() && loaded.0.days == days))
+        let days = model.days;
+        (model.metric, days, model.loaded.as_ref().is_some_and(|loaded| Some(&loaded.0.environment) == destination.as_ref() && loaded.0.days == days))
     };
     if metric == "limits" {
         state.usage().write().limits_now = now_ms() as f64;
@@ -225,6 +249,7 @@ fn ensure(transport: &TransportHandle, state: Store<UiModel>) {
 }
 
 pub(crate) fn select_metric(transport: &TransportHandle, state: Store<UiModel>, metric: &'static str) {
+    state.usage().write().chosen = true;
     if state.usage().peek().metric != metric {
         state.usage().write().metric = metric;
         let days = state.usage().peek().days;
@@ -239,7 +264,10 @@ pub(crate) fn select_period(transport: &TransportHandle, state: Store<UiModel>, 
     if metric == "limits" {
         return;
     }
-    state.usage().write().days = days;
+    edit(state, |model| {
+        model.days = days;
+        model.chosen = true;
+    });
     write_preferences(Preferences { metric, window_days: days });
     if *state.view().peek() == View::Usage {
         scan(transport, state, false);
@@ -280,11 +308,14 @@ fn Body(state: Store<UiModel>, transport: TransportHandle) -> Element {
             async move {
                 if !state.usage().peek().hydrated {
                     let saved = read_preferences().await;
-                    let mut model = state.usage().write();
+                    let mut usage = state.usage();
+                    let mut model = usage.write();
                     if !model.hydrated {
-                        let preferences = Preferences::read(saved.as_deref());
-                        model.metric = preferences.metric;
-                        model.days = preferences.window_days;
+                        if !model.chosen {
+                            let preferences = Preferences::read(saved.as_deref());
+                            model.metric = preferences.metric;
+                            model.days = preferences.window_days;
+                        }
                         model.hydrated = true;
                     }
                 }
@@ -299,7 +330,6 @@ fn Body(state: Store<UiModel>, transport: TransportHandle) -> Element {
         use_effect(move || {
             let now = *state.status().read() == ConnectionStatus::Connected;
             if now && !*seen_connected.peek() && state.usage().peek().hydrated {
-                state.usage().write().loaded = state.usage().peek().loaded.clone();
                 if state.usage().peek().metric == "limits" {
                     refresh_limits(&transport, state, false);
                 } else {
@@ -325,13 +355,13 @@ fn Body(state: Store<UiModel>, transport: TransportHandle) -> Element {
             div { class: "usage-controls",
                 div { class: "usage-segmented", role: "group", "aria-label": "Usage metric",
                     for (value, text, command) in logic::METRIC_OPTIONS {
-                        button { key: "{value}", r#type: "button", "aria-pressed": "{model.metric == value}", title: "{text}{hint(command)}",
+                        button { key: "{value}", r#type: "button", "aria-label": "{text}", "aria-pressed": "{model.metric == value}", title: "{text}{hint(command)}",
                             onclick: { let transport = transport.clone(); move |_| select_metric(&transport, state, value) }, "{text}" }
                     }
                 }
                 div { class: "usage-segmented", role: "group", "aria-label": "Usage period",
                     for (days, text, command) in logic::WINDOW_OPTIONS {
-                        button { key: "{days}", r#type: "button", "aria-pressed": "{model.days == days}", disabled: showing_limits, title: "{text}{hint(command)}",
+                        button { key: "{days}", r#type: "button", "aria-label": "{text}", "aria-pressed": "{model.days == days}", disabled: showing_limits, title: "{text}{hint(command)}",
                             onclick: { let transport = transport.clone(); move |_| select_period(&transport, state, days) }, "{text}" }
                     }
                 }
@@ -343,7 +373,7 @@ fn Body(state: Store<UiModel>, transport: TransportHandle) -> Element {
         if showing_limits { LimitsTab { state, transport: transport.clone() } }
         else if !can_read { p { class: "muted", role: "status", "This connection cannot read usage." } }
         else { Totals { state, transport: transport.clone(), loaded, scanning: model.scanning, error: model.error.clone(), metric: model.metric, days: model.days } }
-        limits_view::RedeemDialog { state, transport }
+        limits_view::RedeemDialog { state, transport: transport.clone() }
     }
 }
 
@@ -401,6 +431,8 @@ fn Totals(state: Store<UiModel>, transport: TransportHandle, loaded: Option<Data
     let chart = logic::build_chart(&active, columns);
     let labels: Vec<String> = periods.iter().map(|period| if hourly { logic::format_hour_short(period, zone_value) } else { logic::format_day_short(period) }).collect();
     let tooltips: Vec<String> = periods.iter().map(|period| match (&loaded.window.until_time, hourly) { (Some(reference), true) => logic::format_relative_hour_short(period, reference, zone_value), _ => if hourly { logic::format_hour_short(period, zone_value) } else { logic::format_day_short(period) } }).collect();
+    let period_name = if hourly { "hour" } else { "day" };
+    let heading = format!("{} {}", if hourly { "Hourly" } else { "Daily" }, if cost { "cost" } else { "processed tokens" });
     let selected = model_key.read().clone().and_then(|key| merged.models.iter().find(|model| model.key() == key).cloned());
     let unpriced_share = merged.cost_quality.unpriced_share;
     rsx! {
@@ -422,7 +454,7 @@ fn Totals(state: Store<UiModel>, transport: TransportHandle, loaded: Option<Data
                 }
             }
             div { class: "usage-chart-block",
-                h2 { "{if hourly { \"Hourly\" } else { \"Daily\" }} {if cost { \"cost\" } else { \"processed tokens\" }}" }
+                h2 { "{heading}" }
                 ProviderChart { chart: chart.clone(), labels, tooltips, tokens: !cost, hourly, providers: active.clone() }
             }
         }
@@ -448,8 +480,8 @@ fn Totals(state: Store<UiModel>, transport: TransportHandle, loaded: Option<Data
         section { class: "usage-breakdown",
             div { class: "usage-breakdown-head", h2 { "Breakdown" }
                 div { class: "usage-segmented", role: "group", "aria-label": "Usage breakdown",
-                    button { r#type: "button", "aria-pressed": "{!*by_time.read()}", onclick: move |_| by_time.set(false), "Model" }
-                    button { r#type: "button", "aria-pressed": "{*by_time.read()}", onclick: move |_| by_time.set(true), if hourly { "Hour" } else { "Day" } }
+                    button { r#type: "button", "aria-label": "By model", "aria-pressed": "{!*by_time.read()}", onclick: move |_| by_time.set(false), "Model" }
+                    button { r#type: "button", "aria-label": "By {period_name}", "aria-pressed": "{*by_time.read()}", onclick: move |_| by_time.set(true), if hourly { "Hour" } else { "Day" } }
                 }
             }
             if *by_time.read() { TimeTable { loaded: data.clone(), hourly, active: active.clone() } }
@@ -476,10 +508,12 @@ fn ProviderSummary(provider: &'static str, totals: Option<logic::ProviderTotals>
     let share = totals.as_ref().map_or(0.0, |totals| if cost { totals.cost_share } else { totals.token_share });
     let sessions = totals.as_ref().map_or(0.0, |totals| totals.sessions);
     let (tokens, usd) = totals.as_ref().map_or((0.0, 0.0), |totals| (totals.total_tokens, totals.cost_usd));
+    let session_label = format!("{} {}", logic::format_count(sessions), if sessions == 1.0 { "session" } else { "sessions" });
+    let headline = if cost { logic::format_usd(usd) } else { logic::format_tokens(tokens) };
     rsx! { div { class: "usage-provider",
         div { class: "usage-provider-head",
-            span { class: "usage-provider-name", span { class: "usage-dot", "aria-hidden": "true", style: "background-color:{color}" } span { "{label}" } span { class: "muted usage-provider-sessions", "{logic::format_count(sessions)} {if sessions == 1.0 { \"session\" } else { \"sessions\" }}" } }
-            span { class: "usage-provider-value", "{if cost { logic::format_usd(usd) } else { logic::format_tokens(tokens) }}" }
+            span { class: "usage-provider-name", span { class: "usage-dot", "aria-hidden": "true", style: "background-color:{color}" } span { "{label}" } span { class: "muted usage-provider-sessions", "{session_label}" } }
+            span { class: "usage-provider-value", "{headline}" }
         }
         span { class: "muted", if cost { "{logic::format_percent(share, 1)} of cost \u{b7} {logic::format_tokens(tokens)} tokens" } else { "{logic::format_percent(share, 1)} of tokens \u{b7} {logic::format_usd(usd)}" } }
     } }
@@ -512,13 +546,15 @@ fn ProviderChart(chart: logic::Chart, labels: Vec<String>, tooltips: Vec<String>
     let mut hover = use_signal(|| None::<usize>);
     let count = labels.len();
     let format = |value: f64| if tokens { logic::format_tokens(value) } else { logic::format_usd(value) };
+    let axis: Vec<(f64, f64, String)> = chart.ticks.iter().map(|(tick, y)| (*tick, y / logic::VIEW_HEIGHT * 100.0, if *tick == 0.0 { "0".to_owned() } else { format(*tick) })).collect();
     let summary = format!("{} {} by provider", if hourly { "Hourly" } else { "Daily" }, if tokens { "processed tokens" } else { "cost" });
     let index = *hover.read();
     let readout = index.and_then(|index| chart.columns.get(index).map(|column| (index, column.clone())));
+    let tooltip_left = index.map_or(0.0, |index| if count > 1 { index as f64 / (count as f64 - 1.0) * 100.0 } else { 0.0 });
     let color = |provider: &str| logic::presentation(provider).map_or("var(--foreground)", |presentation| presentation.color);
     rsx! { div { class: "usage-chart",
         div { class: "usage-chart-body",
-            div { class: "usage-axis", for (tick, y) in chart.ticks.iter().copied() { span { key: "{tick}", style: "top:{y / logic::VIEW_HEIGHT * 100.0}%", "{if tick == 0.0 { \"0\".to_owned() } else { format(tick) }}" } } }
+            div { class: "usage-axis", for (tick, top, text) in axis { span { key: "{tick}", style: "top:{top}%", "{text}" } } }
             div { class: "usage-plot", onmouseleave: move |_| hover.set(None),
                 svg { class: "usage-plot-svg", view_box: "0 0 960 260", preserve_aspect_ratio: "none", role: "img", "aria-label": "{summary}",
                     for (tick, y) in chart.ticks.iter().copied() { line { key: "{tick}", class: "usage-grid", x1: "0", x2: "960", y1: "{y}", y2: "{y}", stroke: "currentColor", "stroke-width": "1", "vector-effect": "non-scaling-stroke" } }
@@ -528,7 +564,7 @@ fn ProviderChart(chart: logic::Chart, labels: Vec<String>, tooltips: Vec<String>
                 }
                 div { class: "usage-hit", for position in 0..count { button { key: "{position}", r#type: "button", class: "usage-hit-cell", "aria-label": "{tooltips[position]}", onmouseenter: move |_| hover.set(Some(position)), onfocus: move |_| hover.set(Some(position)), onclick: move |_| hover.set(Some(position)) } } }
                 if let Some((position, column)) = readout {
-                    div { class: if count > 1 && position * 2 > count { "usage-tooltip left" } else { "usage-tooltip" }, style: "left:{if count > 1 { position as f64 / (count as f64 - 1.0) * 100.0 } else { 0.0 }}%", role: "status",
+                    div { class: if count > 1 && position * 2 > count { "usage-tooltip left" } else { "usage-tooltip" }, style: "left:{tooltip_left}%", role: "status",
                         div { class: "muted", "{tooltips[position]}" }
                         for provider in providers.iter().copied() {
                             div { key: "{provider}", class: "usage-tooltip-row", span { class: "muted", "{logic::presentation(provider).map_or(provider, |presentation| presentation.label)}" } span { "{format(column.bands.iter().find(|band| band.provider == provider).map_or(0.0, |band| band.value))}" } }
@@ -584,8 +620,10 @@ fn TimeTable(loaded: Data, hourly: bool, active: Vec<&'static str>) -> Element {
     } else {
         data.merged.daily.iter().rev().map(|entry| (entry.day.clone(), logic::format_day_short(&entry.day), entry.cost_usd, entry.total_tokens, &entry.by_provider)).collect()
     };
-    rsx! { table { class: "usage-table", "aria-label": "Usage by {if hourly { \"hour\" } else { \"day\" }}",
-        thead { tr { th { class: "left", "{if hourly { \"Hour\" } else { \"Day\" }}" } for provider in active.iter().copied() { th { key: "{provider}", "{logic::presentation(provider).map_or(provider, |presentation| presentation.label)}" } } th { "Total" } th { "Tokens" } } }
+    let period_label = if hourly { "Hour" } else { "Day" };
+    let table_label = format!("Usage by {}", period_label.to_lowercase());
+    rsx! { table { class: "usage-table", "aria-label": "{table_label}",
+        thead { tr { th { class: "left", "{period_label}" } for provider in active.iter().copied() { th { key: "{provider}", "{logic::presentation(provider).map_or(provider, |presentation| presentation.label)}" } } th { "Total" } th { "Tokens" } } }
         tbody {
             if rows.is_empty() { tr { td { colspan: "{active.len() + 3}", class: "usage-empty", "No activity in this window." } } }
             for (key, label, cost, tokens, by_provider) in rows {
@@ -625,12 +663,13 @@ fn ModelDialog(loaded: Data, model: logic::ModelTotals, cost: bool, hourly: bool
     if let Some(value) = per_million { stats.push(("Per 1M tokens", logic::format_usd(value))); }
     if let Some(value) = hit { stats.push(("Cache hit", logic::format_percent(value, 1))); }
     let tooltips = labels.clone();
+    let subtitle = format!("{}{}", presentation.map_or("", |presentation| presentation.label), if unknown { String::new() } else { format!(" \u{b7} {} of cost", logic::format_percent(model.cost_share, 1)) });
     rsx! { div { class: "modal-backdrop", onclick: move |_| onclose.call(()),
         div { class: "dialog usage-model-dialog", role: "dialog", "aria-modal": "true", "aria-label": "{model.model}", tabindex: "-1", onclick: move |event| event.stop_propagation(),
             onmounted: move |event| { let element = event.data(); spawn(async move { let _ = element.set_focus(true).await; }); },
             onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); onclose.call(()); } },
             h2 { "{model.model}" }
-            p { class: "muted", "{presentation.map_or(\"\", |presentation| presentation.label)}{if unknown { String::new() } else { format!(\" \u{b7} {} of cost\", logic::format_percent(model.cost_share, 1)) }}" }
+            p { class: "muted", "{subtitle}" }
             div { class: "usage-metrics", for (label, value) in stats { div { key: "{label}", class: "usage-metric", span { class: "muted", "{label}" } span { class: "usage-metric-value", "{value}" } } } }
             ProviderChart { chart, labels, tooltips, tokens, hourly, providers: vec![provider] }
             div { class: "usage-shares",

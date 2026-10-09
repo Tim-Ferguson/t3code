@@ -11,7 +11,7 @@ use crate::{
     settings_common::Confirm,
 };
 use dioxus::prelude::*;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use t3_client::{
     connection::ConnectionStatus,
@@ -33,6 +33,10 @@ pub(crate) struct Redeem {
     pub status: BTreeMap<String, String>,
 }
 
+fn edit(state: Store<UiModel>, change: impl FnOnce(&mut Redeem)) {
+    let mut redeem = state.redeem();
+    change(&mut redeem.write());
+}
 pub(crate) fn key_of(input: &ResetCreditInput) -> String {
     serde_json::to_string(input).unwrap_or_default()
 }
@@ -53,11 +57,10 @@ pub(crate) fn redeem(transport: &TransportHandle, state: Store<UiModel>) {
     if state.redeem().peek().busy.contains(&key) || !allowed_now(state, AuthEnvironmentScope::ProvidersManage) {
         return;
     }
-    {
-        let mut model = state.redeem().write();
+    edit(state, |model| {
         model.busy.insert(key.clone());
         model.status.remove(&key);
-    }
+    });
     let transport = transport.clone();
     spawn(async move {
         let answer = ask(&transport, state, "provider.consumeResetCredit", serde_json::to_value(&input).unwrap_or(Value::Null)).await;
@@ -70,9 +73,10 @@ pub(crate) fn redeem(transport: &TransportHandle, state: Store<UiModel>) {
             Some(Err(message)) => message,
             None => "The connection changed before the server answered. Refresh the limits to see whether the credit was used.".to_owned(),
         };
-        let mut model = state.redeem().write();
-        model.busy.remove(&key);
-        model.status.insert(key, status);
+        edit(state, |model| {
+            model.busy.remove(&key);
+            model.status.insert(key, status);
+        });
     });
 }
 
@@ -275,6 +279,7 @@ fn SegmentDetails(state: Store<UiModel>, account: Account, window: Window, reset
     let where_ = if account.environments.is_empty() { account.source_label.clone() } else { Some(account.environments.iter().map(|environment| environment.label.clone()).collect::<Vec<_>>().join(", ")) };
     let credits = account.limits.reset_credits.clone().filter(|credits| credits.available_count > 0.0);
     let title = account.display_name.clone().unwrap_or_else(|| driver_label(&account.driver));
+    let reset_line = reset_time(&window, now).map(|at| format!("{at}{}", resets_in.map(|text| format!(" \u{b7} {}", text.replace("resets in ", "in "))).unwrap_or_default()));
     rsx! { div { class: "limit-details", role: "group", "aria-label": "Details of {title}",
         div { class: "limit-details-head", AccountName { account: account.clone() } strong { "{title}" }
             if let Some(email) = account.email.clone() {
@@ -285,7 +290,7 @@ fn SegmentDetails(state: Store<UiModel>, account: Account, window: Window, reset
         if let Some(plan) = account.plan.clone() { div { class: "limit-detail-row", span { "Plan" } span { "{plan}" } } }
         if let Some(where_) = where_ { div { class: "limit-detail-row", span { if account.environments.is_empty() { "Via" } else { "Signed in" } } span { "{where_}" } } }
         div { class: "limit-detail-row", span { "Left" } span { "{remaining}%" } }
-        if let Some(at) = reset_time(&window, now) { div { class: "limit-detail-row", span { "Resets" } span { "{at}{resets_in.map(|text| format!(\" \u{b7} {}\", text.replace(\"resets in \", \"in \"))).unwrap_or_default()}" } } }
+        if let Some(at) = reset_line { div { class: "limit-detail-row", span { "Resets" } span { "{at}" } } }
         if let Some(reset) = reset.filter(|reset| reset.restores_percent > 0.0) { div { class: "limit-detail-row", span { "Restores" } span { "+{reset.restores_percent}% of pool" } } }
         if let (Some(credits), Some(redeem)) = (credits, account.redeem.clone()) {
             ResetCredits { state, input: redeem.input, credits, now }
@@ -383,4 +388,208 @@ pub(crate) fn presentation_of(state: Store<UiModel>) -> Option<Presentation> {
 /// A provider's limits as the `/usage-limits` panel and the provider settings show them.
 pub(crate) fn notice_of(limits: &Limits) -> Option<String> {
     logic::limits_notice(limits)
+}
+
+// ---- the composer's `/usage-limits` panel ------------------------------------------------
+
+/// The `/usage-limits` result for the open thread: a point-in-time report that never refreshes
+/// and closes when the thread or its provider changes.
+#[derive(Debug, Clone)]
+pub(crate) struct Panel {
+    pub thread_id: String,
+    pub instance_id: String,
+    pub report: logic::Report,
+}
+
+/// Whether the thread's provider has anything to say about its limits (the command is offered
+/// and accepted only then).
+pub(crate) fn offers_command(state: Store<UiModel>, instance_id: &str) -> bool {
+    let Some(presentation) = presentation_of(state) else { return false };
+    presentation.providers.iter().find(|provider| provider.instance_id == instance_id).is_some_and(|provider| logic::has_provider_limits(&provider.driver, &presentation.providers, &presentation.sources))
+}
+
+/// Opens the panel for this thread's provider from the snapshots the page already holds.
+pub(crate) fn open_panel(state: Store<UiModel>, thread_id: &str, instance_id: &str) {
+    let Some(presentation) = presentation_of(state) else { return };
+    let report = logic::collect_provider_report(instance_id, &presentation.providers, &presentation.sources, chrono::Utc::now().timestamp_millis() as f64);
+    let mut panel = state.usage_panel();
+    *panel.write() = report.map(|report| Panel { thread_id: thread_id.to_owned(), instance_id: instance_id.to_owned(), report });
+}
+
+fn account_label(account: &logic::ReportAccount) -> String {
+    let Some(instance_id) = &account.instance_id else { return account.label.clone() };
+    let driver = driver_label(&account.driver);
+    let instance = account.display_name.as_deref().map(str::trim).filter(|name| !name.is_empty()).map(str::to_owned).unwrap_or_else(|| if *instance_id != account.driver { instance_id.clone() } else { String::new() });
+    // The default instance is often named after its driver; saying it twice adds nothing.
+    if !instance.is_empty() && instance.to_lowercase() != driver.to_lowercase() { format!("{driver} \u{b7} {instance}") } else { driver }
+}
+
+fn account_line(account: &logic::ReportAccount) -> String {
+    format!("{}{}", account_label(account), account.plan.as_ref().map(|plan| format!(" \u{b7} {plan}")).unwrap_or_default())
+}
+
+#[component]
+pub(crate) fn UsageLimitsPanel(state: Store<UiModel>, thread_id: String, instance_id: String) -> Element {
+    let panel = state.usage_panel().read().clone().filter(|panel| panel.thread_id == thread_id && panel.instance_id == instance_id);
+    let Some(panel) = panel else { return rsx! {} };
+    let report = panel.report;
+    let now = chrono::DateTime::parse_from_rfc3339(&report.created_at).map(|at| at.timestamp_millis() as f64).unwrap_or(0.0);
+    let summary = match report.accounts.as_slice() {
+        [only] => account_line(only),
+        many => format!("{} accounts", many.len()),
+    };
+    let many = report.accounts.len() > 1;
+    rsx! { section { class: "composer-panel usage-limits-panel", role: "status", "aria-label": "Usage limits",
+        onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); state.usage_panel().set(None); } },
+        div { class: "usage-limits-head", strong { "Usage limits" } span { class: "muted", "{summary}" }
+            button { r#type: "button", "aria-label": "Dismiss usage limits", onclick: move |_| state.usage_panel().set(None), "\u{d7}" } }
+        for account in report.accounts.iter() {
+            div { key: "{account.id}", class: "usage-limits-account",
+                if many { span { class: "muted", "{account_line(account)}" } }
+                if let Some(notice) = logic::limits_notice(&account.limits) { span { class: "muted", "{notice}" } }
+                else { LimitWindows { driver: account.driver.clone(), windows: account.limits.windows.clone(), now, compact: true } }
+                if let Some(external) = account.limits.external_usage.clone() { a { class: "limit-external-link", href: "{external.url}", target: "_blank", rel: "noopener noreferrer", "Manage usage" } }
+                if let (Some(input), Some(credits)) = (account.reset_credit_input.clone().or_else(|| account.instance_id.clone().map(|instance_id| ResetCreditInput::Instance { instance_id })), account.limits.reset_credits.clone()) {
+                    ResetCredits { state, input, credits, now }
+                }
+            }
+        }
+        for notice in report.notices.iter() { span { key: "{notice}", class: "muted", "{notice}" } }
+    } }
+}
+
+// ---- the usage-limit recovery banner ----------------------------------------------------
+
+/// What the shell says of a limit recovery already scheduled for this thread.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RecoveryState {
+    pub run_id: String,
+    pub reset_at: String,
+    pub auto_resume: bool,
+    pub snooze: bool,
+}
+
+fn parse_ms(text: &str) -> Option<f64> {
+    chrono::DateTime::parse_from_rfc3339(text).ok().map(|at| at.timestamp_millis() as f64)
+}
+/// `Date.prototype.toLocaleString` in `en-US`: `10/9/2026, 11:51:00 AM`.
+fn local_string(at: &str) -> String {
+    use chrono::{Datelike, Duration, Timelike};
+    let Some(ms) = parse_ms(at) else { return String::new() };
+    let Some(moment) = chrono::DateTime::from_timestamp_millis(ms as i64) else { return String::new() };
+    let local = moment + Duration::minutes(offset_minutes(ms) as i64);
+    let hour = if local.hour() % 12 == 0 { 12 } else { local.hour() % 12 };
+    format!("{}/{}/{}, {hour}:{:02}:{:02} {}", local.month(), local.day(), local.year(), local.minute(), local.second(), if local.hour() < 12 { "AM" } else { "PM" })
+}
+
+/// What the thread's shell contributes to the banner.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ShellRecovery {
+    /// The latest run, when the shell itself says a usage limit stopped it.
+    pub limited_run: Option<String>,
+    pub reset_at: Option<String>,
+    pub stopped_at: String,
+    pub snoozed_until: Option<String>,
+    pub recovery: Option<RecoveryState>,
+}
+
+/// Finds the run a limit stopped in the open thread's projection (a narrow memo, so streaming
+/// text repaints nothing here) and shows the banner for it.
+#[component]
+pub(crate) fn RecoveryHost(state: Store<UiModel>, transport: TransportHandle, thread_id: String, shell: ShellRecovery) -> Element {
+    let blocked = use_memo(use_reactive((&thread_id,), move |(thread_id,)| {
+        let field = state.thread();
+        let model = field.read();
+        let projection = model.projection.as_ref()?;
+        if projection["thread"]["id"] != thread_id.as_str() {
+            return None;
+        }
+        let runs = projection["runs"].as_array()?;
+        let items: Vec<Value> = projection["visibleTurnItems"].as_array().into_iter().flatten().filter(|row| row["item"]["type"] == "error").map(|row| row["item"].clone()).collect();
+        logic::blocked_run(runs, &items)
+    }));
+    let found = blocked.read().clone();
+    let (run_id, reset_at, stopped_at) = match (found, &shell.limited_run) {
+        (Some(blocked), _) => (blocked.run_id, blocked.reset_at.or(shell.reset_at.clone()), blocked.stopped_at.unwrap_or(shell.stopped_at.clone())),
+        (None, Some(run)) => (run.clone(), shell.reset_at.clone(), shell.stopped_at.clone()),
+        (None, None) => return rsx! {},
+    };
+    rsx! { RecoveryBanner { state, transport, thread_id, run_id, reset_at, stopped_at, snoozed_until: shell.snoozed_until, recovery: shell.recovery } }
+}
+
+/// The banner over the composer of a thread that stopped on a usage limit. Resuming at the reset
+/// and snoozing until it are the thread's own recovery, saved on the server.
+#[component]
+pub(crate) fn RecoveryBanner(state: Store<UiModel>, transport: TransportHandle, thread_id: String, run_id: String, reset_at: Option<String>, stopped_at: String, snoozed_until: Option<String>, recovery: Option<RecoveryState>) -> Element {
+    let can_schedule = match (&reset_at, parse_ms(&stopped_at)) {
+        (Some(reset), Some(stopped)) => parse_ms(reset).is_some_and(|reset| reset > stopped),
+        _ => false,
+    };
+    let mut pending = use_signal(|| false);
+    let mut failure = use_signal(|| None::<String>);
+    // One timer, set for the reset, turns "Snooze until reset" off once the reset has passed.
+    let mut tick = use_signal(|| 0u64);
+    use_resource(use_reactive((&reset_at,), move |(reset_at,)| async move {
+        let _ = tick();
+        let Some(reset) = reset_at.as_deref().and_then(parse_ms) else { return };
+        let wait = reset - chrono::Utc::now().timestamp_millis() as f64;
+        if wait <= 0.0 {
+            return;
+        }
+        crate::runtime::delay((wait as u64 + 1).min(86_400_000)).await;
+        let next = *tick.peek() + 1;
+        tick.set(next);
+    }));
+    let _ = tick();
+    let now = chrono::Utc::now().timestamp_millis() as f64;
+    let scheduled = recovery.as_ref().is_some_and(|recovery| recovery.run_id == run_id && Some(&recovery.reset_at) == reset_at.as_ref() && recovery.auto_resume);
+    let snoozed = recovery.as_ref().is_some_and(|recovery| recovery.snooze && recovery.run_id == run_id && Some(&recovery.reset_at) == reset_at.as_ref()) && matches!((&snoozed_until, &reset_at), (Some(until), Some(reset)) if parse_ms(until) == parse_ms(reset));
+    let description = match &reset_at {
+        Some(reset) => format!("Resets {}", local_string(reset)),
+        None => "Reset time unavailable; retry manually".to_owned(),
+    };
+    let toggle = {
+        let (transport, thread_id, run_id, reset_at) = (transport.clone(), thread_id.clone(), run_id.clone(), reset_at.clone());
+        move |snooze: bool| {
+            let Some(reset) = reset_at.clone() else { return };
+            if *pending.peek() {
+                return;
+            }
+            if snooze && !snoozed && parse_ms(&reset).is_some_and(|at| at <= chrono::Utc::now().timestamp_millis() as f64) {
+                failure.set(Some("The reset time has passed. Retry the thread manually.".into()));
+                let next = *tick.peek() + 1;
+                tick.set(next);
+                return;
+            }
+            pending.set(true);
+            failure.set(None);
+            let update = if snooze { json!({"runId":run_id,"resetAt":reset,"snooze":!snoozed}) } else { json!({"runId":run_id,"resetAt":reset,"autoResume":!scheduled}) };
+            let payload = json!({"type":"thread.metadata.update","commandId":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"limitRecovery":update});
+            let transport = transport.clone();
+            spawn(async move {
+                let answer = ask(&transport, state, "orchestration.dispatchCommand", payload).await;
+                pending.set(false);
+                match answer {
+                    Some(Err(message)) => failure.set(Some(if message.is_empty() { "Could not change limit recovery.".into() } else { message })),
+                    _ => {}
+                }
+            });
+        }
+    };
+    let writable = *state.status().read() == ConnectionStatus::Connected;
+    let past = reset_at.as_deref().and_then(parse_ms).is_some_and(|reset| reset <= now);
+    rsx! { section { class: "composer-panel limit-recovery", role: "status", "aria-label": "Usage limit reached",
+        div { class: "usage-limits-head", strong { "Usage limit reached" } span { class: "muted", "{description}" } }
+        if can_schedule {
+            div { class: "limit-recovery-actions",
+                button { r#type: "button", "aria-label": if scheduled { "Cancel auto-resume" } else { "Resume at reset" }, disabled: *pending.read() || !writable, onclick: { let mut toggle = toggle.clone(); move |_| toggle(false) },
+                    if *pending.read() { "Saving..." } else if scheduled { "Cancel auto-resume" } else { "Resume at reset" } }
+                if !snoozed {
+                    button { r#type: "button", "aria-label": "Snooze until reset", disabled: *pending.read() || !writable || past, onclick: { let mut toggle = toggle.clone(); move |_| toggle(true) },
+                        if *pending.read() { "Saving..." } else { "Snooze until reset" } }
+                }
+                if let Some(message) = failure.read().clone() { p { class: "error-banner", role: "alert", "{message}" } }
+            }
+        }
+    } }
 }

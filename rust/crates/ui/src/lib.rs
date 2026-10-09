@@ -60,6 +60,10 @@ mod thread_controls;
 mod thread_lifecycle;
 mod timeline;
 mod limits_view;
+mod clone_view;
+mod workspace_files;
+mod composer_chips;
+mod import_projects;
 mod usage_page;
 mod timeline_scroll;
 mod work_rows;
@@ -113,6 +117,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let mut add_project = use_signal(|| false);
     use_context_provider(|| AddProject(add_project));
     let runner = keys::use_keys(state, transport.clone());
+    clone_view::use_stream(state, transport.clone());
     let new_thread_hint = runner.keys.label("chat.new");
     let mut project_title = use_signal(String::new);
     let mut project_path = use_signal(String::new);
@@ -244,6 +249,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 nav { class: "sidebar-actions",
                     button { title: match &new_thread_hint { Some(hint) => format!("New thread ({hint})"), None => "New thread".to_owned() }, onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
                     button { onclick: move |_| add_project.set(true), "＋ Add project" }
+                    button { "aria-label": "Import projects", disabled: !can_operate, title: "Import projects and conversations from Claude Code and Codex", onclick: move |_| import_projects::open(state), "＋ Import projects" }
                     button { "aria-label": "New project", disabled: !can_operate || project_create::new_projects_root(state).is_none(), onclick: move |_| command_palette::open(state, command_palette::Intent::NewProject), "＋ New project" }
                 }
                 search::SidebarSearch { state, transport: transport.clone() }
@@ -251,9 +257,10 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     for project in projects.iter() {
                         div { class: "project-group", key: "{project.id}",
                             button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
-                                file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string() } "{project.title}"
+                                file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string(), title: project.title.to_string() } "{project.title}"
                             }
                             button { class: "project-remove", "aria-label": "Remove project {project.title}", title: "Remove project", disabled: !can_operate, onclick: { let id = project.id.to_string(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" }
+                            clone_view::ProjectState { key: "clone:{project.id}", state, project_id: project.id.to_string() }
                             for thread in sidebar_rows::rows(&threads, &project.id, now) {
                                 sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(thread, active.as_ref().is_some_and(|active| active.id == thread.id), thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| Some(project.workspace_root.to_string())), row_caps, can_operate, now), state, transport: transport.clone() }
                             }
@@ -400,6 +407,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         command_palette::Host { state, transport: transport.clone() }
         pull_request_thread::Host { state, transport: transport.clone() }
         notice::Host { state }
+        clone_view::Notices { state, transport: transport.clone() }
+        import_projects::Host { state, transport: transport.clone() }
         thread_lifecycle::Host { state, transport: transport.clone() }
     }
 }
@@ -422,6 +431,9 @@ fn ThreadTimeline(
     let mount_scroll = scrolling.clone();
     let latest_scroll = scrolling.clone();
     rollback::provide_busy(state, (environment_key.clone(), thread_id.clone()));
+    // Files named in the conversation resolve against this thread's workspace.
+    let file_preview = use_signal(|| None::<String>);
+    use_context_provider(|| workspace_files::Host { state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id: thread_id.clone(), preview: file_preview });
     let thread = state.thread();
     let supports_rewind = use_memo({
         let thread_id = thread_id.clone();
@@ -488,6 +500,7 @@ fn ThreadTimeline(
     rendered.insert(setup_at, rsx! { worktree_setup::Card {key:"setup:{thread_id}",state,transport:transport.clone(),thread_id:thread_id.clone(),turn_live:latest_run.as_ref().is_some_and(|run| run.started_at.is_some())} });
     rsx! {
         div { class: "timeline", id:scrolling.id.clone(), tabindex:"0", "aria-label": "Conversation", onmounted:move |_|mount_scroll.mount(),
+            workspace_files::PreviewDialog {}
             if projection.is_some() {
                 if domain.has_more_history || history_error.read().as_ref().is_some_and(|(id,_)|id==&thread_id) {
                     button { "aria-label":"Load earlier messages",class:"load-earlier",disabled:history_loading.read().as_ref()==Some(&thread_id),onclick:{let transport=transport.clone();let thread_id=thread_id.clone();move |_|{
@@ -599,6 +612,20 @@ fn UserQuestion(
     }
 }
 
+/// What the shell says of a thread's usage-limit recovery: the reset it reports, when it is
+/// snoozed until, the recovery already scheduled, and whether the shell itself says a limit
+/// stopped the latest run.
+fn recovery_props(thread: &t3_contracts::ThreadShell) -> limits_view::ShellRecovery {
+    let iso = |at: &t3_contracts::UtcDateTime| at.0.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    limits_view::ShellRecovery {
+        limited_run: (t3_client::sidebar::status(thread) == t3_client::sidebar::Status::Limited).then(|| thread.latest_run_id.as_ref().map(ToString::to_string)).flatten(),
+        reset_at: thread.usage_limit_reset_at.clone().flatten().map(|at| at.to_string()),
+        stopped_at: thread.latest_run_completed_at.flatten().map(|at| iso(&at)).unwrap_or_else(|| iso(&thread.updated_at)),
+        snoozed_until: thread.snoozed_until.flatten().map(|at| iso(&at)),
+        recovery: thread.limit_recovery.clone().flatten().map(|recovery| limits_view::RecoveryState { run_id: recovery.run_id.to_string(), reset_at: recovery.reset_at.to_string(), auto_resume: recovery.auto_resume, snooze: recovery.snooze.flatten().unwrap_or(false) }),
+    }
+}
+
 #[component]
 fn Composer(
     state: Store<UiModel>,
@@ -670,13 +697,15 @@ fn Composer(
         words::show_plan_follow_up(inputs, &mode, true, plan.as_ref(), has_attachments).then_some(plan).flatten()
     }));
     let queue_by_default = state.client_settings().read().follow_up_behavior == t3_contracts::FollowUpBehavior::Queue;
-    let has_content = !draft.trim().is_empty() || attachment_count > 0;
+    let chip_count = target.as_ref().map_or(0, |target| composer_chips::count(state, target));
+    let has_content = !draft.trim().is_empty() || attachment_count > 0 || chip_count > 0;
     let following_up = follow_up.read().clone();
     let submit_label = if following_up.is_some() { if has_content { "Refine" } else { "Implement" } } else if editing.read().is_some() { "Update queued message" } else if running { if queue_by_default { "Queue message" } else { "Steer message" } } else { "Submit message" };
     let submit = {
         let transport = transport.clone();
         let following_up = following_up.clone();
         let mode_thread = thread.id.to_string();
+        let thread_provider = thread.provider_instance_id.to_string();
         move |alternate: bool| {
             let current = editing.peek().clone();
             if let Some(current) = current {
@@ -690,6 +719,10 @@ fn Composer(
                     runtime::SendOptions { interaction_mode: Some("plan"), ..Default::default() }
                 };
                 runtime::send_with(&transport, state, options);
+            } else if t3_client::usage_limits::is_usage_limits_command(&state.draft().peek()) && limits_view::offers_command(state, thread_provider.as_str()) {
+                // `/usage-limits` on its own shows the report; it is not a message.
+                draft_storage::edit_thread_prompt(state, String::new());
+                limits_view::open_panel(state, &mode_thread, &thread_provider);
             } else if let Some(mode) = composer_menu::standalone_mode(&state.draft().peek()) {
                 // `/plan` and `/default` on their own switch the mode; they are not a message.
                 draft_storage::edit_thread_prompt(state, String::new());
@@ -703,6 +736,8 @@ fn Composer(
     let show_stop = running && !has_content && editing.read().is_none() && following_up.is_none();
     let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
     rsx! {
+        limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) }
+        limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
         composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint}
         composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
@@ -710,6 +745,7 @@ fn Composer(
         form { class: "composer", onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },
             ondragover: move |event| event.prevent_default(),
             ondrop: move |event| { if let Some(handler)=drop_files.as_mut() { handler(event); } },
+            if let Some(target)=target.clone() { composer_chips::Tray {state,target} }
             composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
             if let Some(target)=target.clone() { attachments::Shelf {state,transport:transport.clone(),target,locked:pending,can_operate,paste_target:".composer textarea"} }
             if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
@@ -894,6 +930,74 @@ mod reactive_tests {
                 .len(),
             2000
         );
+    }
+
+    /// The Usage page keeps everything it shows in its own field of the model: a scan starting,
+    /// answering or failing, a limit refresh and a reset credit in flight repaint nothing else.
+    #[test]
+    fn usage_updates_repaint_neither_the_shell_nor_the_conversation_nor_the_composer() {
+        let props = Harness { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default() };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        let counts = || (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        let before = counts();
+        state.usage().write().scanning = true;
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        state.usage().write().error = Some("The scan failed.".into());
+        state.usage().write().limits_refreshing = true;
+        state.redeem().write().busy.insert("credit".into());
+        state.redeem().write().status.insert("credit".into(), "Reset applied.".into());
+        state.usage().write().scanning = false;
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!(counts(), before);
+    }
+
+    /// Adding and removing a context chip rebuilds the composer that shows it, and neither the
+    /// application, the sidebar nor the open conversation.
+    #[test]
+    fn adding_and_removing_a_context_chip_rebuilds_only_the_composer() {
+        let props = Harness { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default() };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        state.destination().set(Some(serde_json::from_value(json!("environment-a")).unwrap()));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        let (root, timeline, composer) = (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        let target = t3_client::draft_storage::DraftTarget::thread("environment-a", "thread");
+        let record = t3_client::composer_context::thread_record("environment-a", "other", "Other thread");
+        composer_chips::add(state, target.clone(), record.clone());
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get()), (root, timeline));
+        assert!(props.probe.composer.get() > composer, "the composer shows the chip");
+        let with_chip = props.probe.composer.get();
+        composer_chips::remove(state, target, record["contextId"].as_str().unwrap());
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get()), (root, timeline));
+        assert!(props.probe.composer.get() > with_chip);
+    }
+
+    /// A clone reporting progress repaints its own notice and its own project's line, and
+    /// nothing else of a thousand-project sidebar or the open conversation.
+    #[test]
+    fn clone_progress_repaints_neither_the_sidebar_nor_the_conversation_nor_the_composer() {
+        let props = Harness { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default() };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        let counts = || (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        let snapshot = |percent: f64| t3_client::project_clone::Snapshot {
+            project_id: "p7".into(), remote_url: "git://example/repo.git".into(), destination_path: "/projects/7".into(), repository: None,
+            phase: "running".into(), stage: "receiving".into(), percent: Some(percent), detail: None, error: None, sequence: percent,
+        };
+        state.clones().write().live = true;
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        let before = counts();
+        for percent in [1.0, 20.0, 55.0, 99.0] {
+            state.clones().write().list = vec![snapshot(percent)];
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+        assert_eq!(counts(), before);
     }
 
     #[test]

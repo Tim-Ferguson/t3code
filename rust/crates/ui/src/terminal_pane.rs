@@ -702,6 +702,16 @@ fn CanvasPane(
                 match event["type"].as_str() {
                     Some("focus") => catalog.focus(state, &focus_owner),
                     Some("ready") => ready.set(true),
+                    // The selection asked for by "Add selection to chat": a chip on this thread's draft.
+                    Some("selection") => {
+                        let text = event["text"].as_str().unwrap_or("");
+                        let lines = text.replace("\r\n", "\n").trim_matches('\n').lines().count().max(1) as u64;
+                        let label = t3_client::terminal_labels::label(&terminal, None);
+                        match t3_client::composer_context::terminal_record(&uuid::Uuid::new_v4().simple().to_string(), &terminal, &label, 1, lines, text) {
+                            Some(record) => crate::composer_chips::add(state, t3_client::draft_storage::DraftTarget::thread(environment.clone(), thread.clone()), record),
+                            None => crate::notice::push(state, crate::notice::Level::Info, "Nothing selected", "Select text in the terminal, then add it to the chat."),
+                        }
+                    }
                     Some("error") => {
                         error.set(Some(
                             event["message"]
@@ -903,7 +913,9 @@ fn CanvasPane(
             "const slot=window.__t3RustTerminals?.get({args}.id);if(slot){{slot.disposed=true;}}"
         ));
     });
-    rsx! {div{class:"terminal-pane","data-active":active,onmousedown:move |_|catalog.focus(state,&focus_owner),div{id:"{id}",class:"terminal-canvas",onmounted:move |_|mounted.set(true)},if let Some(message)=&*error.read(){p{class:"terminal-error",role:"alert","{message}"}}}}
+    rsx! {div{class:"terminal-pane","data-active":active,onmousedown:move |_|catalog.focus(state,&focus_owner),
+        button{r#type:"button",class:"terminal-add-selection","aria-label":"Add terminal selection to chat",title:"Add the selected text to the message",disabled:!*ready.read(),onmousedown:move |event|event.stop_propagation(),onclick:move |_|{if let Some(eval)=*renderer.peek(){let _=eval.send(json!({"type":"selection"}));}},"Add to chat"}
+        div{id:"{id}",class:"terminal-canvas",onmounted:move |_|mounted.set(true)},if let Some(message)=&*error.read(){p{class:"terminal-error",role:"alert","{message}"}}}}
 }
 
 fn owns_pane(state: Store<UiModel>, environment: &str, thread: &str) -> bool {

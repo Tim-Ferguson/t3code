@@ -46,7 +46,7 @@ pub(crate) fn WorkspaceImage(state: Store<UiModel>, transport: runtime::Transpor
 
 /// A project's own icon beside its name when it has one the server will serve, else a plain mark.
 #[component]
-pub(crate) fn ProjectFavicon(state: Store<UiModel>, transport: runtime::TransportHandle, environment_key: String, cwd: String) -> Element {
+pub(crate) fn ProjectFavicon(state: Store<UiModel>, transport: runtime::TransportHandle, environment_key: String, cwd: String, title: String) -> Element {
     let resource = use_resource({
         let (transport, environment_key, cwd) = (transport.clone(), environment_key.clone(), cwd.clone());
         move || {
@@ -65,7 +65,12 @@ pub(crate) fn ProjectFavicon(state: Store<UiModel>, transport: runtime::Transpor
     let shown = resource.read();
     match &*shown {
         Some(Some(preview)) => rsx! {img {class:"project-favicon","aria-hidden":"true",alt:"",src:"{preview.url}",width:"14",height:"14",loading:"lazy"}},
-        _ => rsx! {span {class:"project-icon","aria-hidden":"true","\u{25c7}"}},
+        _ => {
+            // No icon the server will serve: the project's first letter on a tile of its own colour.
+            let letter = title.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "\u{25c7}".to_owned());
+            let hue = title.bytes().fold(0u32, |hash, byte| hash.wrapping_mul(31).wrapping_add(u32::from(byte))) % 360;
+            rsx! {span {class:"project-monogram","aria-hidden":"true",style:"color:oklch(0.5 0.14 {hue});background-color:color-mix(in srgb, currentColor 14%, transparent)","{letter}"}}
+        }
     }
 }
 

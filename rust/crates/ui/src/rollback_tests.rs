@@ -30,7 +30,7 @@ async fn worktree_thread(fixture: &Fixture, dom: &mut VirtualDom, props: &Harnes
     let path = fixture.workspace.parent().unwrap().join("worktree");
     git(&fixture.workspace, &["worktree", "add", "-q", "-b", "feature", path.to_str().unwrap()]);
     let path = std::fs::canonicalize(path).unwrap();
-    dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.create", json!({"threadId":"thread-w","projectId":"project","title":"thread-w","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":"feature","worktreePath":path}))).unwrap();
+    dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":"thread-w","projectId":"project","title":"thread-w","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":"feature","worktreePath":path}))).unwrap();
     until(dom, "worktree thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.iter().any(|t| t.id.as_str() == "thread-w"))).await;
     path
 }
