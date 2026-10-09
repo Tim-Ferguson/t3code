@@ -182,6 +182,8 @@ pub fn start(
         let _lease = lease;
         let owner = uuid::Uuid::new_v4().to_string();
         let mut actors: HashMap<String, mpsc::Sender<Work>> = HashMap::new();
+        // The lifetime of each thread's actor, to tell which provider it serves.
+        let mut served: HashMap<String, ActorLifetime> = HashMap::new();
         let mut tasks = tokio::task::JoinSet::new();
         let mut effects = tokio::task::JoinSet::new();
         let mut scan = tokio::time::interval(Duration::from_secs(1));
@@ -313,6 +315,15 @@ pub fn start(
                         }
                         continue;
                     }
+                    // A run on another provider than the live actor serves takes the thread over: the
+                    // thread's conversation went to the new provider as a handoff, so the actor is replaced.
+                    if effect.request["type"] == "provider-turn.start" && actors.get(&effect.thread_id).is_some_and(|actor| !actor.is_closed()) {
+                        let target = projection(&store, &effect.thread_id).ok().and_then(|view| view["runs"].as_array().and_then(|runs| runs.iter().find(|run| run["id"] == effect.request["runId"]).and_then(|run| run["providerInstanceId"].as_str().map(ToOwned::to_owned))));
+                        if let Some(lifetime) = served.get(&effect.thread_id).filter(|lifetime| target.is_some() && lifetime.captured_instance() != target) {
+                            lifetime.stop_and_wait().await;
+                            actors.remove(&effect.thread_id);
+                        }
+                    }
                     let (complete, result) = oneshot::channel();
                     if !actors
                         .get(&effect.thread_id)
@@ -332,6 +343,7 @@ pub fn start(
                                     .map(ToOwned::to_owned)
                             });
                         let lifetime = ActorLifetime::new(instance);
+                        served.insert(effect.thread_id.clone(), lifetime.clone());
                         let actor_id = uuid::Uuid::new_v4().to_string();
                         actor_controls
                             .lock()
@@ -541,7 +553,7 @@ async fn codex_actor(
                 let runtime=runtime.as_mut().unwrap();
                 match incoming {
                     Ok(ProcessEvent::IngressBarrier{acknowledgement})=>{acknowledgement.acknowledge();},
-                    Ok(ProcessEvent::Notification{method,params})=>{if let Err(error)=runtime.notification(&method,&params){work.close();report(fail_run_captured(&runtime.store,&runtime.thread_id,runtime.active_run.as_deref(),runtime.active_context.as_ref(),&crate::provider_failure::make(&json!({"message":error.to_string(),"class":"transport_error","retryable":false}))),"provider failure");break;}},
+                    Ok(ProcessEvent::Notification{method,mut params})=>{runtime.capture_mcp_app(&method,&mut params).await;if let Err(error)=runtime.notification(&method,&params){work.close();report(fail_run_captured(&runtime.store,&runtime.thread_id,runtime.active_run.as_deref(),runtime.active_context.as_ref(),&crate::provider_failure::make(&json!({"message":error.to_string(),"class":"transport_error","retryable":false}))),"provider failure");break;}},
                     Ok(ProcessEvent::Request{id,method,params})=>{match runtime.request(id.clone(),&method,&params){Ok(None)=>{},Ok(Some(answer))=>{let _=runtime.connection.process.respond(id,Ok(answer)).await;},Err(error)=>{let _=runtime.connection.process.respond(id,Err(ProcessError::Protocol(error.to_string()))).await;}}},
                     Ok(ProcessEvent::Closed(error))=>{work.close();report(fail_run_captured(&runtime.store,&runtime.thread_id,runtime.active_run.as_deref(),runtime.active_context.as_ref(),&crate::provider_failure::make(&json!({"message":error.to_string(),"class":"transport_error","retryable":false}))),"provider failure");break;},
                     Err(error)=>{work.close();report(fail_run_captured(&runtime.store,&runtime.thread_id,runtime.active_run.as_deref(),runtime.active_context.as_ref(),&crate::provider_failure::make(&json!({"cause":{"_tag":"ProviderAdapterEventStreamError"},"class":"transport_error","retryable":false}))),"provider failure");break;},
@@ -624,6 +636,9 @@ pub(crate) fn find<'a>(
         .find(|row| row["id"] == *id)
         .ok_or_else(|| StoreError::InvalidCommand(format!("Missing {field} row {id}")))
 }
+/// An MCP App's document is one MCP round trip; a server that hangs must not hold the item open.
+const MCP_APP_CAPTURE_TIMEOUT: Duration = Duration::from_secs(20);
+
 pub(crate) fn commit(
     store: &Store,
     thread_id: &str,
@@ -827,9 +842,10 @@ impl Actor {
     async fn ingest(&mut self, event: ProcessEvent) -> Result<(), String> {
         match event {
             ProcessEvent::IngressBarrier { acknowledgement } => acknowledgement.acknowledge(),
-            ProcessEvent::Notification { method, params } => self
-                .notification(&method, &params)
-                .map_err(|error| error.to_string())?,
+            ProcessEvent::Notification { method, mut params } => {
+                self.capture_mcp_app(&method, &mut params).await;
+                self.notification(&method, &params).map_err(|error| error.to_string())?
+            }
             ProcessEvent::Request { id, method, params } => {
                 let answer = match self.request(id.clone(), &method, &params) {
                     Ok(None) => return Ok(()),
@@ -841,6 +857,32 @@ impl Actor {
             ProcessEvent::Closed(error) => return Err(error.to_string()),
         }
         Ok(())
+    }
+    /// `captureMcpApp`: a completed MCP tool call whose tool names a `ui://` resource lands with its
+    /// app. The resource is read through Codex's own MCP client and stored as a thread attachment, and
+    /// the reference joins the item (`t3McpApp`), which the projection records in the item's output
+    /// beside the full call result. A read that fails, times out or finds no app document leaves a
+    /// plain tool row. The item is held back until then, so the turn cannot complete past it.
+    async fn capture_mcp_app(&self, method: &str, params: &mut Value) {
+        let item = &params["item"];
+        if method != "item/completed" || item["type"] != "mcpToolCall" || self.active_context.is_none() || params.get("threadId").and_then(Value::as_str) != self.native_thread_id.as_deref() {
+            return;
+        }
+        let uri = [&item["mcpAppUi"]["resourceUri"], &item["mcpAppResourceUri"], &item["appContext"]["resourceUri"]].into_iter().find_map(|value| value.as_str().filter(|uri| uri.starts_with("ui://")));
+        let (Some(uri), true, Some(native_thread)) = (uri, item["status"] == "completed" && !item["result"].is_null() && item["error"].is_null(), self.native_thread_id.clone()) else { return };
+        let (server, tool, uri) = (item["server"].as_str().unwrap_or_default().to_owned(), item["tool"].as_str().unwrap_or_default().to_owned(), uri.to_owned());
+        let read = tokio::time::timeout(MCP_APP_CAPTURE_TIMEOUT, self.connection.process.request("mcpServer/resource/read", json!({"threadId":native_thread,"server":server,"uri":uri}), MCP_APP_CAPTURE_TIMEOUT)).await;
+        let contents = match read {
+            Ok(Ok(response)) => response["contents"].as_array().cloned().unwrap_or_default(),
+            Ok(Err(error)) => return tracing::warn!(%error, server, tool, uri, "Failed to capture an MCP app; showing a plain tool row."),
+            Err(_) => return tracing::warn!(server, tool, uri, "Timed out capturing an MCP app; showing a plain tool row."),
+        };
+        let Some(directory) = crate::attachment_service::AttachmentService::for_store(&self.store).map(|service| service.attachments_dir().to_path_buf()) else { return };
+        let thread = self.thread_id.clone();
+        let reference = tokio::task::spawn_blocking(move || crate::mcp_apps::snapshot_app(&directory, &thread, &server, &tool, &uri, &contents)).await.ok().flatten();
+        if let Some(reference) = reference {
+            params["item"]["t3McpApp"] = reference;
+        }
     }
     /// Stop the native turn, then stop the terminals its commands left running, which Codex keeps
     /// after an interrupt. A terminal that cannot be stopped is logged and does not fail the stop.
@@ -1090,6 +1132,9 @@ impl Actor {
             .map_err(|error| error.to_string())?;
         let model = &run["modelSelection"];
         let cwd = &session["cwd"];
+        // A fork's first run forks its source's native thread instead of starting a new one.
+        let fork_transfer = crate::context_transfer::native_fork_transfer(&projection, &json!(run_id)).cloned();
+        let mut forked = false;
         if self.native_thread_id.is_none() {
             let saved = provider_thread["nativeThreadRef"]["nativeId"].as_str();
             let mut params = json!({"cwd":cwd,"model":model["model"],"config":{"tools.update_plan.enabled":true}});
@@ -1100,11 +1145,23 @@ impl Actor {
                 params["threadId"] = json!(id);
                 params["excludeTurns"] = json!(true);
             }
+            let fork = fork_transfer.as_ref().filter(|_| saved.is_none());
+            if let Some(transfer) = fork {
+                let source = crate::codex_fork::fork_params(&self.store, transfer, provider_thread, cwd, model)?;
+                for (key, value) in source.as_object().unwrap() {
+                    if key != "config" {
+                        params[key] = value.clone();
+                    }
+                }
+                forked = true;
+            }
             let response = self
                 .connection
                 .process
                 .request(
-                    if saved.is_some() {
+                    if forked {
+                        "thread/fork"
+                    } else if saved.is_some() {
                         "thread/resume"
                     } else {
                         "thread/start"
@@ -1135,7 +1192,14 @@ impl Actor {
             thread["nativeThreadRef"] = native_ref(self.native_thread_id.as_deref().unwrap());
             thread["status"] = json!("idle");
             thread["updatedAt"] = json!(at(Utc::now()));
-            Ok(vec![("provider-thread.updated", thread)])
+            let mut events = vec![("provider-thread.updated", thread.clone())];
+            // The provider forked its own thread: the transfer is resolved natively.
+            if forked {
+                if let Some(transfer) = crate::context_transfer::native_fork_transfer(projection, &json!(run_id)) {
+                    events.push(("context-transfer.updated", crate::context_transfer::consume_native_fork(transfer, &self.instance_id, run_id, &thread["nativeThreadRef"], Utc::now())));
+                }
+            }
+            Ok(events)
         })
         .map_err(|error| error.to_string())?;
         self.active_run = Some(run_id.into());
@@ -1155,12 +1219,16 @@ impl Actor {
             self.compacting = Some(run_id.into());
             return Ok(());
         }
+        // Handoffs waiting for this run are injected into the native thread before its turn starts.
+        let user_text = crate::composer_context::provider_user_text(message);
+        let inline = crate::codex_fork::deliver_handoffs(&self.store, &self.thread_id, &self.connection.process, &projection, run, self.native_thread_id.as_deref().unwrap(), &user_text, &message["attachments"]).await?;
+        let text = if inline.context.is_empty() { user_text } else { format!("{}\n\nUser message:\n{user_text}", inline.context) };
         let mut params = turn_params(
             &self.native_thread_id.clone().unwrap(),
             &projection["thread"],
             model,
             cwd,
-            &crate::composer_context::provider_user_text(message),
+            &text,
         )
         .map_err(|error| error.to_string())?;
         crate::attachment_prompt::apply_codex_attachments(&self.store, message, &mut params).await?;
@@ -1176,6 +1244,22 @@ impl Actor {
             );
             params["collaborationMode"] = json!({"mode":if plan {"plan"} else {"default"},"settings":{"model":model["model"],"reasoning_effort":effort,"developer_instructions":crate::provider_instructions::codex_mode(plan)}});
         }
+        // What the thread's MCP Apps told the agent. It is text an MCP server wrote, so it goes in as
+        // untrusted context, beside T3's own entries. A read that fails costs the apps' notes for this
+        // turn, not the turn.
+        let app_context = crate::mcp_apps::model_context_for_thread(&self.store, &self.thread_id).unwrap_or_else(|error| {
+            tracing::warn!(%error, "Failed to read MCP app model context.");
+            Vec::new()
+        });
+        if !app_context.is_empty() {
+            if !params["additionalContext"].is_object() {
+                params["additionalContext"] = json!({});
+            }
+            for entry in &app_context {
+                let key: String = entry["itemId"].as_str().unwrap_or_default().chars().map(|character| if character.is_alphanumeric() || matches!(character, '_' | '.' | '-') { character } else { '_' }).collect();
+                params["additionalContext"][format!("mcp_app_{key}")] = json!({"kind":"untrusted","value":entry["text"]});
+            }
+        }
         self.additional_context = params.get("additionalContext").cloned();
         let response = self
             .connection
@@ -1187,6 +1271,10 @@ impl Actor {
             .as_str()
             .ok_or("Codex turn response is missing id.")?
             .to_string();
+        // History that went in the message is recorded as delivered once the provider took the turn.
+        if !inline.rows.is_empty() {
+            commit(&self.store, &self.thread_id, |_| Ok(inline.rows.iter().cloned().map(|row| ("context-handoff.updated", row)).collect())).map_err(|error| error.to_string())?;
+        }
         self.begin_native_turn(run_id, native_turn_id)
     }
     /// The native turn exists: the run, its attempt and the provider turn are running.

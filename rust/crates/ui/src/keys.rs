@@ -59,6 +59,10 @@ impl Keys {
     pub fn label(&self, command: &str) -> Option<String> {
         keybindings::shortcut_label(&self.rules.read(), command, self.platform, &Context::base(desktop()))
     }
+    /// The shortcut of a command that is bound only while `context` holds (the Usage page's letters).
+    pub fn label_in(&self, command: &str, context: &str) -> Option<String> {
+        keybindings::shortcut_label(&self.rules.read(), command, self.platform, &Context::base(desktop()).with(context, true))
+    }
     pub fn can_run(&self, command: &str) -> bool {
         self.runnable.read().contains(command)
     }
@@ -139,6 +143,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                 .with("turnRunning", open_thread(state).is_some_and(|thread| thread.working))
                 .with("commandPaletteOpen", state.palette().read().open)
                 .with("modelPickerOpen", *picker.open.read())
+                .with("usagePageOpen", *state.view().read() == View::Usage)
         }
     });
     let runnable = use_memo({
@@ -152,6 +157,10 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             let open = open_thread(state);
             let order = sidebar_order(state);
             set.insert("sidebar.toggle".into());
+            set.insert("usage.open".into());
+            if *state.view().read() == View::Usage {
+                set.extend(["usage.cost", "usage.tokens", "usage.limits", "usage.period.day", "usage.period.week", "usage.period.month", "usage.period.quarter"].map(String::from));
+            }
             if state.shell().read().snapshot.as_ref().is_some_and(|snapshot| !snapshot.projects.is_empty()) {
                 set.insert("chat.new".into());
             }
@@ -394,6 +403,14 @@ impl Runner {
             // Both start a thread in the project in use. The original's `chat.new` asks which
             // project first when there are several; this app's does not yet.
             "chat.new" | "chat.newLocal" => runtime::new_thread(&self.transport, state, None),
+            "usage.open" => crate::usage_page::open(state),
+            "usage.cost" => crate::usage_page::select_metric(&self.transport, state, "cost"),
+            "usage.tokens" => crate::usage_page::select_metric(&self.transport, state, "tokens"),
+            "usage.limits" => crate::usage_page::select_metric(&self.transport, state, "limits"),
+            "usage.period.day" => crate::usage_page::select_period(&self.transport, state, 1),
+            "usage.period.week" => crate::usage_page::select_period(&self.transport, state, 7),
+            "usage.period.month" => crate::usage_page::select_period(&self.transport, state, 30),
+            "usage.period.quarter" => crate::usage_page::select_period(&self.transport, state, 90),
             "chat.newWithoutProject" => project_create::start_scratch(&self.transport, state),
             "diff.toggle" => crate::diff_panel::toggle(state),
             "editor.openFavorite" => {

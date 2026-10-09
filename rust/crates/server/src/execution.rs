@@ -11,6 +11,14 @@ use serde_json::{Value, json};
 pub fn checked<T: DeserializeOwned + Serialize>(value: Value) -> Result<Value, StoreError> {
     Ok(serde_json::to_value(serde_json::from_value::<T>(value)?)?)
 }
+/// A transfer or handoff row of a planned run, validated before it is committed.
+fn checked_transfer_row(kind: &str, row: Value) -> Result<Value, StoreError> {
+    if kind == "context-handoff.updated" {
+        checked::<t3_contracts::ContextHandoff>(row)
+    } else {
+        checked::<t3_contracts::ContextTransfer>(row)
+    }
+}
 pub fn at(now: DateTime<Utc>) -> String {
     now.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
@@ -200,6 +208,8 @@ impl ExecutionService {
                         crate::checkpoint_rollback::plan(&command, &projection, transaction, now, &capabilities)
                     }
                     "run.interrupt" => plan_interrupt(&command, &projection, now),
+                    "thread.stop" => plan_thread_stop(&command, &projection, now),
+                    "queued-message.promote-to-steer" => crate::message_steering::plan_promote(&command, &projection, now, Some(transaction)),
                     "queued-run.cancel" => crate::queued_runs::plan_cancel(&command, &projection, now),
                     "queued-run.edit" => crate::queued_runs::plan_edit(&command, &projection, now),
                     "queued-run.reorder" => crate::queued_runs::plan_reorder(&command, &projection, now),
@@ -223,6 +233,12 @@ impl ExecutionService {
         if kind == "run.interrupt" && !replayed {
             self.runtime
                 .cancel_start(thread_id, command["runId"].as_str().unwrap());
+        }
+        if kind == "thread.stop" && !replayed {
+            // A run still preparing when Stop reached it never starts.
+            if let Some(run) = self.store.projection("thread", thread_id)?.and_then(|view| view["runs"].as_array().and_then(|runs| runs.iter().rfind(|run| run["status"] == "interrupted" || run["status"] == "cancelled").cloned())) {
+                self.runtime.cancel_start(thread_id, run["id"].as_str().unwrap_or_default());
+            }
         }
         self.runtime.wake();
         Ok(receipt)
@@ -288,6 +304,19 @@ fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
     };
     let capabilities: Value = serde_json::from_str(encoded).expect("static provider capabilities");
     capabilities["turns"]["supportsQueuedMessages"] == true
+}
+/// `thread.stop`: the Stop the UI gives a thread. Its active run is interrupted with the queue held;
+/// a thread with none still has its queued turns held and its pull request watches ended.
+fn plan_thread_stop(command: &Value, projection: &Value, now: DateTime<Utc>) -> Result<Decision, StoreError> {
+    let active = projection["runs"].as_array().into_iter().flatten().filter(|run| crate::message_queue::blocking(run)).max_by_key(|run| run["ordinal"].as_u64().unwrap_or(0));
+    let Some(run) = active else {
+        return Ok(Decision::Accepted { events: crate::delegated_tasks::stop_idle_thread(command, projection, now)?, effects: vec![] });
+    };
+    let mut interrupt = json!({"type":"run.interrupt","commandId":command["commandId"],"threadId":command["threadId"],"runId":run["id"],"holdQueue":true});
+    if let Some(reason) = command.get("reason").filter(|reason| !reason.is_null()) {
+        interrupt["reason"] = reason.clone();
+    }
+    plan_interrupt(&interrupt, projection, now)
 }
 fn plan_interrupt(
     command: &Value,
@@ -742,9 +771,22 @@ fn plan_message_delivery(
     let model = command
         .get("modelSelection")
         .unwrap_or(&projection["thread"]["modelSelection"]);
-    if model["instanceId"] != projection["thread"]["modelSelection"]["instanceId"] {
+    // A message to another provider than the thread's active provider thread runs there, with the
+    // conversation so far handed over (`context_transfer.rs`). It starts its own run: it can neither
+    // steer nor wait behind one that is still going.
+    let instance_changed = model["instanceId"] != projection["thread"]["modelSelection"]["instanceId"];
+    let provider_switch = projection["providerThreads"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["id"] == projection["thread"]["activeProviderThreadId"])
+        .is_some_and(|row| row["providerInstanceId"] != model["instanceId"]);
+    if (instance_changed || provider_switch)
+        && (matches!(command["dispatchMode"]["type"].as_str(), Some("steer_active" | "restart_active"))
+            || runs.iter().any(|run| crate::message_queue::blocking(run)))
+    {
         return Err(StoreError::InvalidCommand(
-            "Native provider switching via handoff is not yet available.".into(),
+            "A message to another provider cannot join or wait behind a run that is still active.".into(),
         ));
     }
     if matches!(
@@ -822,15 +864,26 @@ fn plan_message_delivery(
         .max()
         .unwrap_or(0)
         + 1;
-    let existing_provider_thread = projection["providerThreads"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|row| {
-            row["id"] == projection["thread"]["activeProviderThreadId"]
-                && row["providerInstanceId"] == model["instanceId"]
-                && row["status"] != "closed"
-        });
+    let existing_provider_thread = if provider_switch {
+        // Switching back to a provider the thread already ran on continues that provider thread
+        // (`rootProviderThreadsForProvider`: the thread's own, newest run first).
+        projection["providerThreads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|row| row["providerInstanceId"] == model["instanceId"] && row["appThreadId"] == projection["thread"]["id"] && row["ownerNodeId"].is_null() && row["status"] != "closed")
+            .max_by(|left, right| left["lastRunOrdinal"].as_u64().cmp(&right["lastRunOrdinal"].as_u64()).then_with(|| left["updatedAt"].as_str().cmp(&right["updatedAt"].as_str())))
+    } else {
+        projection["providerThreads"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| {
+                row["id"] == projection["thread"]["activeProviderThreadId"]
+                    && row["providerInstanceId"] == model["instanceId"]
+                    && row["status"] != "closed"
+            })
+    };
     let provider_thread_id = existing_provider_thread
         .and_then(|row| row["id"].as_str())
         .map(ToOwned::to_owned)
@@ -838,25 +891,64 @@ fn plan_message_delivery(
     let mut events = vec![];
     if !crate::message_queue::model_selections_equal(model, &projection["thread"]["modelSelection"])
     {
-        if let crate::provider_selection_transition::SelectionTransition::Reject { reason } =
-            crate::provider_selection_transition::classify_selection(projection, model)
-        {
-            return Err(StoreError::InvalidCommand(reason));
+        if !instance_changed {
+            if let crate::provider_selection_transition::SelectionTransition::Reject { reason } =
+                crate::provider_selection_transition::classify_selection(projection, model)
+            {
+                return Err(StoreError::InvalidCommand(reason));
+            }
         }
         let mut thread = projection["thread"].clone();
         thread["modelSelection"] = model.clone();
+        thread["providerInstanceId"] = model["instanceId"].clone();
         thread["updatedAt"] = json!(timestamp);
         events.push(event(
             thread_id,
             command_id,
-            "thread.model-selection-updated",
+            if instance_changed { "thread.provider-switched" } else { "thread.model-selection-updated" },
             thread,
             now,
         ));
     }
+    // The sessions of the provider the thread leaves are released; the new provider starts its own.
+    let mut released = vec![];
+    if provider_switch {
+        for session in projection["providerSessions"].as_array().unwrap().iter().filter(|session| !matches!(session["status"].as_str(), Some("stopped" | "error")) && session["providerInstanceId"] != model["instanceId"]) {
+            events.push(Event {
+                event_id: uuid::Uuid::new_v4().to_string(),
+                aggregate_kind: "thread".into(), aggregate_id: thread_id.into(), occurred_at: timestamp.clone(),
+                command_id: Some(command_id.into()), causation_event_id: None,
+                correlation_id: Some(command_id.into()), event_type: "provider-session.detached".into(),
+                payload: json!({"providerSessionId":session["id"],"detachedAt":timestamp,"reason":"Provider switched."}),
+                metadata: json!({}),
+            });
+            released.push(NewEffect {
+                id: format!("effect:{command_id}:provider-session.detach:{}", session["id"].as_str().unwrap_or("")),
+                command_id: command_id.into(),
+                thread_id: thread_id.into(),
+                request: json!({"type":"provider-session.detach","providerSessionId":session["id"],"detail":"Provider switched."}),
+                available_at: timestamp.clone(),
+            });
+        }
+    }
+    // A fork's first run and the first run after a merge-back carry the transfer they wait on.
+    let next_item_ordinal = projection["turnItems"].as_array().unwrap().iter().filter_map(|item| item["ordinal"].as_u64()).max().map_or(0, |ordinal| ordinal + 1);
+    let transfer = crate::context_transfer::resolve(&crate::context_transfer::Planning {
+        switch: provider_switch.then_some(crate::context_transfer::Switch { target_provider_thread: existing_provider_thread }),
+        command,
+        projection,
+        transaction,
+        driver,
+        model,
+        run_id: &run_id,
+        node_id: &node_id,
+        provider_thread_id: &provider_thread_id,
+        item_ordinal: next_item_ordinal,
+        now,
+    })?;
     if existing_provider_thread.is_none() {
         let provider_thread = checked::<t3_contracts::ProviderThread>(
-            json!({"id":provider_thread_id,"driver":driver,"providerInstanceId":model["instanceId"],"providerSessionId":null,"appThreadId":thread_id,"ownerNodeId":null,"nativeThreadRef":null,"nativeConversationHeadRef":null,"status":"not_loaded","firstRunOrdinal":ordinal,"lastRunOrdinal":ordinal,"handoffIds":[],"forkedFrom":null,"pendingBackgroundTasks":[],"createdAt":timestamp,"updatedAt":timestamp}),
+            json!({"id":provider_thread_id,"driver":driver,"providerInstanceId":model["instanceId"],"providerSessionId":null,"appThreadId":thread_id,"ownerNodeId":null,"nativeThreadRef":null,"nativeConversationHeadRef":null,"status":"not_loaded","firstRunOrdinal":ordinal,"lastRunOrdinal":ordinal,"handoffIds":transfer.as_ref().map_or(vec![], |transfer| transfer.handoff_ids.clone()),"forkedFrom":transfer.as_ref().map_or(Value::Null, |transfer| transfer.forked_from.clone()),"pendingBackgroundTasks":[],"createdAt":timestamp,"updatedAt":timestamp}),
         )?;
         events.push(event(
             thread_id,
@@ -865,8 +957,21 @@ fn plan_message_delivery(
             provider_thread,
             now,
         ));
+    } else if let Some(handoffs) = transfer.as_ref().map(|transfer| &transfer.handoff_ids).filter(|ids| !ids.is_empty()) {
+        // The thread that takes a merge-back now owns its handoff.
+        let mut provider_thread = existing_provider_thread.unwrap().clone();
+        let mut ids: Vec<Value> = provider_thread["handoffIds"].as_array().cloned().unwrap_or_default();
+        ids.extend(handoffs.iter().filter(|id| !ids.contains(id)).cloned().collect::<Vec<_>>());
+        provider_thread["handoffIds"] = json!(ids);
+        provider_thread["updatedAt"] = json!(timestamp);
+        events.push(event(thread_id, command_id, "provider-thread.updated", checked::<t3_contracts::ProviderThread>(provider_thread)?, now));
     }
-    let mut run = json!({"id":run_id,"threadId":thread_id,"ordinal":ordinal,"providerInstanceId":model["instanceId"],"modelSelection":model,"providerThreadId":provider_thread_id,"userMessageId":command["messageId"],"rootNodeId":node_id,"activeAttemptId":attempt_id,"status":if deferred{"preparing"}else{"starting"},"requestedAt":timestamp,"startedAt":null,"completedAt":null,"checkpointId":null,"contextHandoffId":null});
+    if let Some(transfer) = &transfer {
+        for (kind, payload) in &transfer.early {
+            events.push(event(thread_id, command_id, kind, checked_transfer_row(kind, payload.clone())?, now));
+        }
+    }
+    let mut run = json!({"id":run_id,"threadId":thread_id,"ordinal":ordinal,"providerInstanceId":model["instanceId"],"modelSelection":model,"providerThreadId":provider_thread_id,"userMessageId":command["messageId"],"rootNodeId":node_id,"activeAttemptId":attempt_id,"status":if deferred{"preparing"}else{"starting"},"requestedAt":timestamp,"startedAt":null,"completedAt":null,"checkpointId":null,"contextHandoffId":transfer.as_ref().map_or(Value::Null, |transfer| transfer.run_handoff_id.clone())});
     if deferred {
         if let Some(strategy) = command["dispatchMode"].get("workspaceStrategy") {
             run["workspacePreparation"] = strategy.clone();
@@ -898,7 +1003,7 @@ fn plan_message_delivery(
         json!({"id":node_id,"threadId":thread_id,"runId":run_id,"parentNodeId":null,"rootNodeId":node_id,"kind":"root_turn","status":"pending","countsForRun":true,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"runtimeRequestId":null,"checkpointScopeId":scope.as_ref().map(|scope|scope["id"].clone()),"startedAt":null,"completedAt":null}),
     )?;
     let mut message = json!({"createdBy":command["createdBy"],"creationSource":command["creationSource"],"id":command["messageId"],"threadId":thread_id,"runId":run_id,"nodeId":node_id,"role":"user","text":command["text"],"attachments":command["attachments"],"streaming":false,"createdAt":timestamp,"updatedAt":timestamp});
-    let mut item = json!({"id":user_item_id(command["messageId"].as_str().unwrap()),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().iter().filter_map(|item|item["ordinal"].as_u64()).max().map_or(0,|ordinal|ordinal+1),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","createdBy":command["createdBy"],"creationSource":command["creationSource"],"messageId":command["messageId"],"inputIntent":"turn_start","text":command["text"],"attachments":command["attachments"]});
+    let mut item = json!({"id":user_item_id(command["messageId"].as_str().unwrap()),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":next_item_ordinal + transfer.as_ref().map_or(0, |transfer| u64::from(transfer.handoff_item.is_some())),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","createdBy":command["createdBy"],"creationSource":command["creationSource"],"messageId":command["messageId"],"inputIntent":"turn_start","text":command["text"],"attachments":command["attachments"]});
     if reuse_message {
         if let Some(existing) = projection["turnItems"]
             .as_array()
@@ -926,6 +1031,7 @@ fn plan_message_delivery(
     let item = crate::notification::notification_turn_item(item, &message);
     let message = checked::<t3_contracts::ConversationMessage>(message)?;
     let item = checked::<t3_contracts::TurnItem>(item)?;
+    let handoff_item = transfer.as_ref().and_then(|transfer| transfer.handoff_item.clone()).map(checked::<t3_contracts::TurnItem>).transpose()?;
     for (kind, payload) in [
         ("run.created", run),
         ("run-attempt.created", attempt),
@@ -933,9 +1039,15 @@ fn plan_message_delivery(
     ]
     .into_iter()
     .chain(scope.map(|scope| ("checkpoint-scope.created", scope)))
+    .chain(handoff_item.map(|item| ("turn-item.updated", item)))
     .chain([("message.updated", message), ("turn-item.updated", item)])
     {
         events.push(event(thread_id, command_id, kind, payload, now));
+    }
+    if let Some(transfer) = &transfer {
+        for (kind, payload) in &transfer.late {
+            events.push(event(thread_id, command_id, kind, checked_transfer_row(kind, payload.clone())?, now));
+        }
     }
     if deferred {
         let item = checked::<t3_contracts::TurnItem>(
@@ -945,9 +1057,8 @@ fn plan_message_delivery(
     }
     // A worktree is created after this commit, by an effect; its release starts the turn.
     let worktree = deferred && command["dispatchMode"]["workspaceStrategy"]["type"] == "worktree";
-    Ok(Decision::Accepted {
-        events,
-        effects: if worktree {
+    let mut effects = released;
+    effects.extend(if worktree {
             vec![NewEffect {
                 id: format!("effect:{command_id}:workspace.prepare:{run_id}"),
                 command_id: command_id.into(),
@@ -965,8 +1076,8 @@ fn plan_message_delivery(
                 request: json!({"type":"provider-turn.start","runId":run_id}),
                 available_at: timestamp,
             }]
-        },
-    })
+        });
+    Ok(Decision::Accepted { events, effects })
 }
 
 /// Only actor delivery calls this after its recorded native steering turn has

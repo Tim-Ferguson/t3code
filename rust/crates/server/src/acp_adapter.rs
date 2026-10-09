@@ -1142,7 +1142,7 @@ impl Actor {
             return Err(error("Target run is no longer starting."));
         }
         if run["providerInstanceId"] != self.instance_id {
-            return Err(error("ACP provider handoff is not yet available."));
+            return Err(error("This ACP session serves another provider instance."));
         }
         let selection = &run["modelSelection"];
         // "default" and "auto" mean the agent's own choice, which is never sent (AcpAdapterV2 configureSession).
@@ -1161,6 +1161,12 @@ impl Actor {
         self.session.set_options(&changes).await.map_err(error)?;
         let user_message = find(&view, "messages", &run["userMessageId"])?;
         let text = crate::attachment_prompt::provider_text(&self.store, user_message);
+        // What the run's handoffs say (a fork, a merge-back, a provider switch) goes ahead of the message.
+        let inline = crate::claude_fork::plan_inline(&view, run, user_message["text"].as_str().unwrap_or(""), &user_message["attachments"]).map_err(error)?;
+        let text = match &inline {
+            Some(inline) => crate::claude_fork::with_context(&inline.context, &text),
+            None => text,
+        };
         let images = crate::attachment_prompt::acp_image_blocks(&self.store, user_message)
             .await
             .map_err(error)?;
@@ -1242,6 +1248,10 @@ impl Actor {
             ])
         })?;
         self.pending_instructions = (prompt_text != text).then_some(instruction_state);
+        // Recorded as pending first: a prompt the agent took and then lost is found by the next turn.
+        if let Some(inline) = &inline {
+            inline.mark(&self.store, &self.thread_id, "pending").map_err(error)?;
+        }
         self.active_run = Some(run_id.into());
         captured.provider_turn_id = json!(provider_turn_id);
         self.active_context = Some(captured);
@@ -1263,6 +1273,9 @@ impl Actor {
                 })
                 .await
         }));
+        if let Some(inline) = &inline {
+            inline.mark(&self.store, &self.thread_id, "inline").map_err(error)?;
+        }
         Ok(())
     }
     fn context<'a>(&self, view: &'a Value) -> Result<(Value, &'a Value), StoreError> {

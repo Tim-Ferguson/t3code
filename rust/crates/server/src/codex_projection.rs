@@ -641,6 +641,10 @@ impl Projector {
         if let Some(output) = if mcp { mcp_output(native) } else { dynamic_output(native) } {
             item["output"] = output;
         }
+        // An MCP App the call named: the stored document's reference, beside the full result the app replays.
+        if mcp && native["t3McpApp"].is_object() {
+            item["output"] = json!({"t3McpApp":native["t3McpApp"],"result":native["result"]});
+        }
         Ok(vec![("node.updated", node), ("turn-item.updated", item)])
     }
     fn compaction(&mut self, view: &Value, id: &str, completed: bool) -> Result<Events, StoreError> {

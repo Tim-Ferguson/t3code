@@ -216,6 +216,60 @@ fn apply_pull_request_link(thread: &mut Value, command: &Value, at: &str) -> boo
     true
 }
 
+/// `thread.pull-request.watch`: starts or stops the server watching a linked pull request for the
+/// thread's agent. A watch started on a pull request the thread has not linked (or dismissed) links
+/// it in the same step. `Ok(None)` when nothing would change; a refusal is the decider's cause.
+fn apply_pull_request_watch(thread: &mut Value, projection: &Value, command: &Value, at: &str) -> Result<Option<()>, String> {
+    use crate::thread_pull_requests::{links, normalize};
+    let id = thread["id"].as_str().unwrap_or_default().to_owned();
+    let watching = command["watching"] == true;
+    if watching {
+        if crate::subagents::is_provider_native_subagent_thread(thread) {
+            return Err(crate::subagents::READ_ONLY_REASON.into());
+        }
+        if thread["settledOverride"] == "settled" || !thread["settledAt"].is_null() || !thread["archivedAt"].is_null() {
+            return Err(format!("Thread {id} is settled or archived and cannot watch pull requests."));
+        }
+        // A subagent reports to its parent thread, which owns the pull request.
+        if thread["lineage"]["relationshipToParent"] == "subagent" {
+            return Err(format!("Thread {id} is a subagent; its parent thread watches pull requests."));
+        }
+        // Only the agent's watch_pull_request links as "agent". A call that raced a Stop may land after its run
+        // ended, so the latest run that executed decides.
+        if command["link"]["source"] == "agent" && crate::thread_pull_requests::stop_reached_latest_run(projection) {
+            return Err(format!("Thread {id} was stopped."));
+        }
+    }
+    let key = normalize(command);
+    let current = links(thread);
+    let visible = |link: &Value| link["source"] != "stack-dismissed" && normalize(link) == key;
+    let links_now = watching && command.get("link").is_some_and(|link| !link.is_null()) && !current.iter().any(visible);
+    let next: Vec<Value> = if links_now {
+        let link = json!({"host":key["host"],"repository":key["repository"],"number":key["number"],"url":command["link"]["url"],"source":command["link"]["source"],"linkedAt":at,"snapshot":null,"stack":null});
+        current.iter().filter(|entry| normalize(entry) != key).cloned().chain([link]).collect()
+    } else {
+        current
+    };
+    let Some(position) = next.iter().position(visible) else { return Ok(None) };
+    let previous = next[position].get("watch").filter(|watch| !watch.is_null()).cloned();
+    let watch = watching.then(|| previous.clone().unwrap_or_else(|| json!({"startedAt":at,"headSha":null,"failedChecks":[],"passed":false,"passedChecks":[],"remarksThrough":at,"remarkIds":[],"conflicting":false,"wakes":0})));
+    if watch == previous && !links_now {
+        return Ok(None);
+    }
+    let mut entry = next[position].clone();
+    match watch {
+        Some(watch) => entry["watch"] = watch,
+        None => {
+            entry.as_object_mut().map(|object| object.remove("watch"));
+        }
+    }
+    let mut pull_requests = next;
+    pull_requests[position] = entry;
+    thread["pullRequests"] = json!(pull_requests);
+    thread["updatedAt"] = json!(at);
+    Ok(Some(()))
+}
+
 pub fn normalize_command(input: &Value) -> Result<Value, String> {
     let mut input = input.clone();
     if !input.is_object() {
@@ -603,6 +657,13 @@ pub fn plan(
                 }
                 "thread.pull-request-synced"
             }
+            "thread.pull-request.watch" => {
+                if apply_pull_request_watch(&mut thread, projection, command, &at).map_err(reject)?.is_none() {
+                    // The thread already held this state: nothing changes, and nothing is announced.
+                    return Ok(vec![]);
+                }
+                "thread.pull-request-synced"
+            }
             "thread.interaction-mode.set" => {
                 serde_json::from_value::<t3_contracts::ProviderInteractionMode>(
                     command["interactionMode"].clone(),
@@ -623,10 +684,15 @@ pub fn plan(
                         .map_err(|error| reject(error.to_string()))?;
                 let selection =
                     serde_json::to_value(selection).map_err(|error| reject(error.to_string()))?;
-                if selection["instanceId"] != thread["providerInstanceId"] {
-                    return Err(unsupported("provider switching via handoff"));
-                }
-                if let crate::provider_selection_transition::SelectionTransition::Reject {
+                // Another provider takes the conversation over through a handoff on the next message.
+                // The previous provider's session is released now, so a run still going would be cut off.
+                let switching = selection["instanceId"] != thread["providerInstanceId"];
+                if switching {
+                    if array(projection, "runs").iter().any(crate::message_queue::blocking) {
+                        return Err(reject("The provider cannot be switched while a run is active.".into()));
+                    }
+                    thread["providerInstanceId"] = selection["instanceId"].clone();
+                } else if let crate::provider_selection_transition::SelectionTransition::Reject {
                     reason,
                 } =
                     crate::provider_selection_transition::classify_selection(projection, &selection)
@@ -634,7 +700,7 @@ pub fn plan(
                     return Err(reject(reason));
                 }
                 thread["modelSelection"] = selection;
-                "thread.model-selection-updated"
+                if switching { "thread.provider-switched" } else { "thread.model-selection-updated" }
             }
             _ => return Err(unsupported(kind)),
         };
@@ -731,6 +797,8 @@ pub fn plan(
         Some("Workspace changed.")
     } else if kind == "thread.runtime-mode.set" {
         Some("Runtime mode changed.")
+    } else if kind == "thread.model-selection.set" && command["modelSelection"]["instanceId"] != projection.unwrap()["thread"]["providerInstanceId"] {
+        Some("Provider switched.")
     } else {
         None
     };
@@ -742,6 +810,8 @@ pub fn plan(
                 kind != "thread.runtime-mode.set"
                     || crate::provider_selection_transition::needs_runtime_detach(session)
             })
+            // A provider switch keeps what the target provider already holds.
+            .filter(|session| kind != "thread.model-selection.set" || session["providerInstanceId"] != command["modelSelection"]["instanceId"])
         {
             events.push(Event {
                 event_id: uuid::Uuid::new_v4().to_string(),
@@ -767,9 +837,10 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
         event,
     )?;
     // A fork shows its source's history through the fork point before its own items.
-    if matches!(event.event_type.as_str(), "thread.created" | "turn-item.updated") && projection["thread"]["forkedFrom"]["type"] == "run" {
+    if matches!(event.event_type.as_str(), "thread.created" | "turn-item.updated" | "run.updated" | "run-attempt.updated") && projection["thread"]["forkedFrom"]["type"] == "run" {
         let source = read_projection(transaction, "thread", projection["thread"]["forkedFrom"]["threadId"].as_str().unwrap_or(""))?;
-        if let Some(source) = source.filter(|source| source["thread"]["deletedAt"].is_null()) {
+        // A deleted source is still read, as the original's projection read does: the fork keeps its history.
+        if let Some(source) = source {
             let local = projection["visibleTurnItems"].as_array().cloned().unwrap_or_default();
             projection["visibleTurnItems"] = Value::Array(crate::thread_fork::visible_with_inherited(&projection, &source, local));
         }
@@ -782,7 +853,23 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
     {
         transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
     }
-    write_projection(transaction, "thread", &event.aggregate_id, &projection)
+    write_projection(transaction, "thread", &event.aggregate_id, &projection)?;
+    // A fork or merge-back is listed by both threads it joins, as the original's projection reads them.
+    if matches!(event.event_type.as_str(), "context-transfer.created" | "context-transfer.updated") && matches!(event.payload["type"].as_str(), Some("fork" | "merge_back")) {
+        let other = if event.payload["sourceThreadId"] == event.aggregate_id { &event.payload["targetThreadId"] } else { &event.payload["sourceThreadId"] };
+        if let Some(other) = other.as_str().filter(|other| *other != event.aggregate_id) {
+            if let Some(mut listed) = read_projection(transaction, "thread", other)? {
+                if let Some(transfers) = listed["contextTransfers"].as_array_mut() {
+                    match transfers.iter_mut().find(|row| row["id"] == event.payload["id"]) {
+                        Some(row) => *row = event.payload.clone(),
+                        None => transfers.push(event.payload.clone()),
+                    }
+                    write_projection(transaction, "thread", other, &listed)?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 pub(crate) fn projection_after(
     projection: Option<Value>,
@@ -871,10 +958,10 @@ pub(crate) fn projection_after(
         {
             projection["thread"]["activeProviderThreadId"] = event.payload["id"].clone();
         }
-        if field == "turnItems" {
-            // Local histories keep first-write order; fork visibility and rollback
-            // filtering are supplied by their own lifecycle reducers when ported.
-            projection["visibleTurnItems"] = Value::Array(projection["turnItems"].as_array().unwrap().iter().enumerate().map(|(position,item)|json!({"position":position,"visibility":"local","sourceThreadId":item["threadId"],"sourceItemId":item["id"],"item":item})).collect());
+        if matches!(field, "turnItems" | "runs" | "attempts") {
+            // Local histories keep first-write order, less the runs a rollback undid and the queued
+            // messages of cancelled runs; a fork's inherited rows are put in front by `reduce`.
+            projection["visibleTurnItems"] = Value::Array(crate::thread_fork::local_visible_rows(&projection));
         }
     } else if event.event_type == "checkpoint.rollback-requested" {
         // A request only: the rollback effect's own events change the projection.
@@ -1015,7 +1102,9 @@ mod tests {
             "thread.model-selection.set",
             json!({"modelSelection":{"instanceId":"claude-code","model":"opus"}}),
         );
-        assert!(plan(&switch, Some(&current), None, now()).is_err());
+        // Another provider is chosen with a handoff to follow; the old provider's session is released.
+        let switched = plan(&switch, Some(&current), None, now()).unwrap();
+        assert_eq!(switched[0].event_type, "thread.provider-switched");
         current["providerSessions"][0]["capabilities"]["sessions"]["supportsRuntimeModeSwitchInSession"] =
             json!(false);
         current["providerSessions"][0]["id"] = json!("session:mode");

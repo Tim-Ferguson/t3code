@@ -62,6 +62,14 @@ impl From<rusqlite::Error> for SearchError {
     }
 }
 
+/// The `OrchestrationSearchThreadsResult` of a search: what the socket method and the MCP tool both return.
+pub fn result_json(matches: &[ThreadMatch]) -> serde_json::Value {
+    serde_json::json!({"matches":matches.iter().map(|found| serde_json::json!({
+        "threadId":found.thread_id,"projectId":found.project_id,"source":found.source,
+        "snippet":found.snippet,"messageCreatedAt":found.message_created_at,
+    })).collect::<Vec<_>>()})
+}
+
 /// `LIKE` wildcards in the query match literally, escaped with `!`.
 pub fn escape_like_pattern(value: &str) -> String {
     value.replace('!', "!!").replace('%', "!%").replace('_', "!_")

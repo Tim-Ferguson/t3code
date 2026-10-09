@@ -56,6 +56,9 @@ impl std::fmt::Display for McpFailure {
         if self.0["_tag"] == "PreviewAutomationUnavailableError" {
             return f.write_str("MCP credential does not grant the preview capability: browser preview tools are off for this thread. Do not retry them. To check a page, use a headless browser from the shell, such as Playwright, or curl. The user can turn on \"Agent browser access\" in Settings; it applies when the agent session next starts.");
         }
+        if self.0["_tag"] == "PreviewAutomationNoAvailableHostError" {
+            return write!(f, "No preview automation host is available for {} in environment {}. Preview tools run in a T3 Code desktop app that is open and connected to this environment; a headless server has no browser of its own. Do not retry. To check a page, use a headless browser from the shell, such as Playwright, or curl, or ask the user to open this thread in the T3 Code desktop app.", self.0["operation"].as_str().unwrap_or("this operation"), self.0["environmentId"].as_str().unwrap_or("this"));
+        }
         write!(
             f,
             "MCP credential does not grant the {} capability.",

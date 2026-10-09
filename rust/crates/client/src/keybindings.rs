@@ -408,7 +408,9 @@ impl Context {
         self
     }
     pub fn with_dom(self, dom: Dom) -> Self {
-        self.with("terminalFocus", dom.terminal_focus).with("editableFocus", dom.editable_focus).with("composerFocus", dom.composer_focus).with("dialogOpen", dom.dialog_open)
+        let context = self.with("terminalFocus", dom.terminal_focus).with("editableFocus", dom.editable_focus).with("composerFocus", dom.composer_focus).with("dialogOpen", dom.dialog_open);
+        // The Usage page's plain letters never take a key from a field or a dialog (`resolveUsageShortcut`).
+        if dom.editable_focus || dom.dialog_open { context.with("usagePageOpen", false) } else { context }
     }
     pub fn has(&self, name: &str) -> bool {
         self.on.contains(name)
@@ -417,7 +419,7 @@ impl Context {
 
 /// Every name the app's contexts define, for the editor's variable list.
 pub const CONTEXT_NAMES: &[&str] = &[
-    "terminalFocus", "terminalOpen", "isWeb", "isDesktop", "editableFocus", "composerFocus", "dialogOpen", "diffOpen", "turnRunning", "commandPaletteOpen", "modelPickerOpen", "true", "false",
+    "terminalFocus", "terminalOpen", "isWeb", "isDesktop", "editableFocus", "composerFocus", "dialogOpen", "diffOpen", "turnRunning", "commandPaletteOpen", "modelPickerOpen", "usagePageOpen", "true", "false",
 ];
 
 pub fn evaluate_when(node: &When, context: &Context) -> bool {

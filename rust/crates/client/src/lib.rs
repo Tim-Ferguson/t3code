@@ -56,5 +56,7 @@ pub mod thread_nav;
 pub mod timeline_items;
 pub mod timeline_rows;
 pub mod timeline_scroll;
+pub mod usage;
+pub mod usage_limits;
 pub mod vcs;
 pub mod work_log;

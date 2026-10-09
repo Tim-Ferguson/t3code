@@ -8,7 +8,7 @@
 use chrono::Utc;
 use serde_json::{Value, json};
 use std::{path::PathBuf, time::Duration};
-use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
+use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, thread::ThreadService};
 
 struct Harness {
     cwd: PathBuf,
@@ -396,6 +396,8 @@ fn every_excluded_recording_names_why_the_port_does_not_replay_it() {
     for entry in &excluded {
         assert!(entry["reason"].as_str().is_some_and(|reason| reason.len() > 20), "{entry}");
         assert!(!scenarios.iter().any(|row| row["name"] == entry["name"]), "{entry} is both replayed and excluded");
+        let file: Value = serde_json::from_str(include_str!("fixtures/codex-replay.json")).unwrap();
+        assert!(!file["forks"].as_array().unwrap().iter().any(|row| row["name"] == entry["name"]), "{entry} is both replayed as a fork and excluded");
     }
 }
 
@@ -432,4 +434,263 @@ async fn a_native_thread_is_resumed_after_a_server_restart() {
     let finals: Vec<&str> = row["finals"].as_array().unwrap().iter().map(|text| text.as_str().unwrap()).collect();
     assert_eq!(texts, finals);
     harness.stop().await;
+}
+
+// --- thread forks and merge-backs -------------------------------------------------------------------
+// `forks` in the fixture: one recording, several threads. The port serves each thread from a process
+// of its own, so the fake hands every process the part of the recording for the native thread it opens
+// (see the fake). What the original persisted for each thread, with ids named by what they identify,
+// is compared here.
+
+struct Forks {
+    cwd: PathBuf,
+    log: PathBuf,
+    inject_log: PathBuf,
+    store: Store,
+    execution: ExecutionService,
+    /// Alias to thread id, in the order the scenario created them.
+    ids: Vec<(String, String)>,
+    sent: std::collections::HashMap<String, usize>,
+    next: usize,
+    _root: tempfile::TempDir,
+}
+
+impl Forks {
+    async fn start(row: &Value) -> Self {
+        let scratch = tempfile::tempdir().unwrap();
+        let cwd = std::fs::canonicalize(scratch.path()).unwrap();
+        let transcript = cwd.join("transcript.ndjson");
+        std::fs::write(&transcript, row["transcript"].as_array().unwrap().iter().map(|entry| entry.to_string() + "\n").collect::<String>()).unwrap();
+        let (log, inject_log) = (cwd.join("fixture.log"), cwd.join("inject.log"));
+        let workspace = cwd.join("workspace");
+        std::fs::create_dir(&workspace).unwrap();
+        std::fs::write(workspace.join("README.md"), "# thread fork\n").unwrap();
+        git(&workspace, &["init", "-q"]);
+        git(&workspace, &["add", "."]);
+        git(&workspace, &["commit", "-q", "-m", "initial"]);
+        let environment: Vec<Value> = [
+            ("CODEX_FIXTURE_TRANSCRIPT", transcript.to_string_lossy().into_owned()),
+            ("CODEX_FIXTURE_CLAIMS", cwd.join("claims").to_string_lossy().into_owned()),
+            ("CODEX_FIXTURE_LOG", log.to_string_lossy().into_owned()),
+            ("CODEX_FIXTURE_INJECT_LOG", inject_log.to_string_lossy().into_owned()),
+            ("CODEX_FIXTURE_WORKSPACE", workspace.to_string_lossy().into_owned()),
+            ("T3CODE_CODEX_STREAM_FLUSH_MS", "600000".into()),
+        ]
+        .into_iter()
+        .map(|(name, value)| json!({"name":name,"value":value}))
+        .collect();
+        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+            "claudeAgent":{"driver":"claudeAgent","enabled":false},
+            "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":shim(&cwd),"homePath":cwd.join("codex-home")},"environment":environment}}}))
+        .unwrap();
+        let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
+        let store = Store::open(cwd.join("state.db")).unwrap();
+        ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Fixture","workspaceRoot":workspace}), Utc::now()).unwrap();
+        let source = row["threadIds"]["source"].as_str().unwrap();
+        ThreadLaunchService::with_providers(store.clone(), providers.clone())
+            .launch(json!({"commandId":"launch","threadId":source,"projectId":"project","title":row["sourceTitle"],"modelSelection":{"instanceId":"codex","model":row["model"]},"runtimeMode":"full-access","interactionMode":"default","workspaceStrategy":{"type":"root"}}), Utc::now())
+            .unwrap();
+        let execution = ExecutionService::start(store.clone(), providers);
+        let ids = row["threadIds"].as_object().unwrap().iter().map(|(alias, id)| (alias.clone(), id.as_str().unwrap().to_owned())).collect();
+        Self { cwd, log, inject_log, store, execution, ids, sent: Default::default(), next: 0, _root: scratch }
+    }
+    fn id(&self, alias: &str) -> &str {
+        &self.ids.iter().find(|(name, _)| name == alias).unwrap_or_else(|| panic!("no thread {alias}")).1
+    }
+    fn view_of(&self, id: &str) -> Value {
+        self.store.projection("thread", id).unwrap().unwrap_or_else(|| panic!("thread {id} does not exist"))
+    }
+    fn mismatch(&self) -> Option<Value> {
+        std::fs::read_to_string(&self.log).unwrap_or_default().lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()).find(|entry| entry.get("mismatch").is_some())
+    }
+    async fn until(&self, id: &str, mut check: impl FnMut(&Value) -> bool) {
+        let mut events = self.store.subscribe();
+        let waited = tokio::time::timeout(Duration::from_secs(30), async {
+            loop {
+                if check(&self.view_of(id)) {
+                    return;
+                }
+                let _ = events.recv().await;
+            }
+        })
+        .await;
+        if waited.is_err() {
+            let view = self.view_of(id);
+            panic!("timed out waiting on {id}; fixture mismatch: {:?}; runs {:?}", self.mismatch(), view["runs"].as_array().unwrap().iter().map(|run| run["status"].clone()).collect::<Vec<_>>());
+        }
+    }
+    /// The thread has taken every message sent to it and all its runs are over.
+    async fn idle(&self, alias: &str) {
+        let wanted = self.sent.get(alias).copied().unwrap_or(0);
+        self.until(self.id(alias), |view| {
+            let runs = view["runs"].as_array().unwrap();
+            runs.len() >= wanted && runs.iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled" | "rolled_back")))
+        })
+        .await;
+    }
+    fn run_id(&self, point: &Value) -> Value {
+        if point["type"] != "run" {
+            return Value::Null;
+        }
+        self.view_of(self.id(point["thread"].as_str().unwrap()))["runs"][point["ordinal"].as_u64().unwrap() as usize - 1]["id"].clone()
+    }
+    fn source_point(&self, point: &Value) -> Value {
+        if point["type"] == "run" { json!({"type":"run","runId":self.run_id(point)}) } else { point.clone() }
+    }
+    fn thread_command(&mut self, command: Value) -> t3_server::persistence::Receipt {
+        ThreadService::new(self.store.clone()).dispatch(&command, Utc::now()).unwrap()
+    }
+}
+
+/// The rows of a thread the original's description names (`describeThread` of the generator).
+fn describe(forks: &Forks, id: &str) -> Value {
+    let view = forks.view_of(id);
+    let alias = |thread: &Value| thread.as_str().map_or(Value::Null, |id| forks.ids.iter().find(|(_, known)| known == id).map_or(json!(id), |(alias, _)| json!(alias)));
+    let thread_view = |id: &Value| id.as_str().and_then(|id| forks.store.projection("thread", id).unwrap());
+    let run_ordinal = |thread: &Value, run: &Value| {
+        if run.is_null() { return Value::Null }
+        thread_view(thread).and_then(|view| view["runs"].as_array().unwrap().iter().find(|candidate| candidate["id"] == *run).map(|run| run["ordinal"].clone())).unwrap_or(Value::Null)
+    };
+    let thread = &view["thread"];
+    let forked = &thread["forkedFrom"];
+    let source_view = thread_view(&forked["threadId"]);
+    let native_of = |view: &Option<Value>, field: &str, id: &Value, native: &str| {
+        view.as_ref().and_then(|view| view[field].as_array().unwrap().iter().find(|row| row["id"] == *id).map(|row| row[native]["nativeId"].clone())).unwrap_or(Value::Null)
+    };
+    let pick = |value: &Value, keys: &[&str]| Value::Object(keys.iter().filter_map(|key| value.get(*key).map(|found| ((*key).to_owned(), found.clone()))).collect());
+    json!({
+        "title":thread["title"],"parent":alias(&thread["lineage"]["parentThreadId"]),"relationship":thread["lineage"]["relationshipToParent"],"root":alias(&thread["lineage"]["rootThreadId"]),
+        "forkedFrom":if forked.is_null() { Value::Null } else { json!({"type":forked["type"],"thread":alias(&forked["threadId"]),"runOrdinal":run_ordinal(&forked["threadId"], &forked["runId"])}) },
+        "expected":normalize(&view),
+        "providerThreads":view["providerThreads"].as_array().unwrap().iter().map(|provider| json!({
+            "nativeId":provider["nativeThreadRef"].get("nativeId").cloned().unwrap_or(Value::Null),
+            "handoffs":provider["handoffIds"].as_array().unwrap().len(),
+            "forkedFrom":match provider.get("forkedFrom").filter(|forked| !forked.is_null()) {
+                None => Value::Null,
+                Some(forked) => json!({"nativeThreadId":native_of(&source_view, "providerThreads", &forked["providerThreadId"], "nativeThreadRef"),
+                    "nativeTurnId":match forked.get("providerTurnId") { None => Value::Null, Some(turn) => native_of(&source_view, "providerTurns", turn, "nativeTurnRef") }}),
+            },
+        })).collect::<Vec<_>>(),
+        "runs":view["runs"].as_array().unwrap().iter().map(|run| json!({"status":run["status"],"carriesHandoff":!run["contextHandoffId"].is_null()})).collect::<Vec<_>>(),
+        "transfers":view["contextTransfers"].as_array().unwrap().iter().map(|transfer| json!({
+            "type":transfer["type"],"source":alias(&transfer["sourceThreadId"]),"target":alias(&transfer["targetThreadId"]),"status":transfer["status"],
+            "resolution":match transfer["resolution"]["strategy"].as_str() { None => Value::Null, Some("native_fork") => json!({"strategy":"native_fork","nativeId":transfer["resolution"]["providerThreadRef"]["nativeId"]}), Some(strategy) => json!({"strategy":strategy}) },
+            "sourceRunOrdinal":run_ordinal(&transfer["sourceThreadId"], &transfer["sourcePoint"]["runId"]),
+            "baseRunOrdinal":if transfer["basePoint"].is_null() { Value::Null } else { run_ordinal(&transfer["basePoint"]["threadId"], &transfer["basePoint"]["runId"]) },
+            "targetRunOrdinal":run_ordinal(&transfer["targetThreadId"], &transfer["targetRunId"]),
+            "sourceProviderInstanceId":transfer["sourceProviderInstanceId"],"targetProviderInstanceId":transfer["targetProviderInstanceId"],
+            "error":transfer["error"],"consumed":!transfer["consumedAt"].is_null(),
+        })).collect::<Vec<_>>(),
+        "handoffs":view["contextHandoffs"].as_array().unwrap().iter().map(|handoff| {
+            let mut row = json!({"strategy":handoff["strategy"],"status":handoff["status"],"summaryText":handoff["summaryText"],"coveredRunOrdinals":handoff["coveredRunOrdinals"],
+                "delivery":if handoff["delivery"].is_null() { Value::Null } else { json!({"status":handoff["delivery"]["status"],"items":handoff["delivery"]["itemIds"].as_array().unwrap().len()}) }});
+            if let Some(history) = handoff["history"]["messages"].as_array() {
+                row["history"] = Value::Array(history.iter().map(|message| pick(message, &["role", "text", "kind", "status", "threadId"])).collect());
+            }
+            row
+        }).collect::<Vec<_>>(),
+        "handoffItems":view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "handoff").map(|item| pick(item, &["title", "strategy", "fromProviderInstanceIds", "toProviderInstanceId", "toModel", "summary", "status"])).collect::<Vec<_>>(),
+        "visible":view["visibleTurnItems"].as_array().unwrap().iter().map(|row| {
+            let mut out = json!({"visibility":row["visibility"],"type":row["item"]["type"]});
+            if matches!(row["item"]["type"].as_str(), Some("user_message" | "assistant_message")) {
+                out["text"] = row["item"]["text"].clone();
+            }
+            out
+        }).collect::<Vec<_>>(),
+        "shell":{"visibleItemCount":t3_server::thread::shell(&view)["visibleItemCount"],"relationship":thread["lineage"]["relationshipToParent"],"forkedFrom":forked.get("type").cloned().unwrap_or(Value::Null)},
+    })
+}
+
+async fn replay_forks(row: &Value) {
+    let name = row["name"].as_str().unwrap();
+    let mut forks = Forks::start(row).await;
+    for step in row["steps"].as_array().unwrap() {
+        match step["type"].as_str().unwrap() {
+            "message" => {
+                let alias = step["thread"].as_str().unwrap().to_owned();
+                forks.next += 1;
+                let id = format!("message-{}", forks.next);
+                let command = json!({"type":"message.dispatch","commandId":id,"threadId":forks.id(&alias),"messageId":id,"text":step["text"],"attachments":[],"dispatchMode":{"type":"start_immediately"}});
+                forks.execution.dispatch(&command, Utc::now()).unwrap_or_else(|error| panic!("{name}: message to {alias}: {error}"));
+                *forks.sent.entry(alias.clone()).or_default() += 1;
+                forks.idle(&alias).await;
+            }
+            "fork" => {
+                forks.next += 1;
+                let command = json!({"type":"thread.fork","commandId":format!("fork-{}",forks.next),"sourceThreadId":forks.id(step["from"].as_str().unwrap()),"targetThreadId":forks.id(step["to"].as_str().unwrap()),"sourcePoint":forks.source_point(&step["sourcePoint"]),"title":step["title"]});
+                let receipt = forks.thread_command(command.clone());
+                assert_eq!(receipt.status, "accepted", "{name}: fork: {:?}", receipt.error);
+                if step["twice"] == true {
+                    // The same command again answers with its receipt and creates nothing more.
+                    assert_eq!(forks.thread_command(command), receipt, "{name}: a replayed fork command");
+                }
+            }
+            "merge_back" => {
+                forks.next += 1;
+                let command = json!({"type":"thread.merge_back","commandId":format!("merge-{}",forks.next),"sourceThreadId":forks.id(step["from"].as_str().unwrap()),"targetThreadId":forks.id(step["into"].as_str().unwrap()),"sourcePoint":forks.source_point(&step["sourcePoint"])});
+                let receipt = forks.thread_command(command);
+                assert_eq!(receipt.status, "accepted", "{name}: merge back: {:?}", receipt.error);
+            }
+            other => panic!("{name}: unsupported step {other}"),
+        }
+    }
+    for (alias, _) in forks.ids.clone() {
+        forks.idle(&alias).await;
+    }
+    assert!(forks.mismatch().is_none(), "{name}: the adapter sent a frame the recording does not have: {:?}", forks.mismatch());
+    for (alias, id) in forks.ids.clone() {
+        let want = &row["threads"][&alias];
+        let got = describe(&forks, &id);
+        for key in want.as_object().unwrap().keys() {
+            if key == "expected" {
+                assert_projection(&format!("{name}: thread {alias}"), &got["expected"], &want["expected"]);
+            } else {
+                assert_eq!(got[key], want[key], "{name}: thread {alias}: {key}");
+            }
+        }
+    }
+    assert_eq!(forks.view_of(forks.id("source"))["contextTransfers"].as_array().unwrap().iter().filter(|transfer| transfer["type"] == "fork").count(), row["steps"].as_array().unwrap().iter().filter(|step| step["type"] == "fork").count(), "{name}: one fork transfer per fork command");
+    // The history injected into a native thread: its messages and the context that frames them.
+    let injected: Vec<Value> = std::fs::read_to_string(&forks.inject_log).unwrap_or_default().lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let wanted = row["injections"].as_array().unwrap();
+    assert_eq!(injected.len(), wanted.len(), "{name}: injections");
+    let body = |text: &str| text.split_once("]\n").map_or(text.to_owned(), |(_, body)| body.to_owned());
+    let frame = |context: &str| context.lines().filter(|line| !line.starts_with("Source item range:")).collect::<Vec<_>>().join("\n");
+    for (got, want) in injected.iter().zip(wanted) {
+        let items = got["items"].as_array().unwrap();
+        assert_eq!(frame(items[0]["content"][0]["text"].as_str().unwrap()), frame(want["context"].as_str().unwrap()), "{name}: injected context");
+        let messages = want["messages"].as_array().unwrap();
+        assert_eq!(items.len() - 1, messages.len(), "{name}: injected messages");
+        for (item, message) in items[1..].iter().zip(messages) {
+            assert_eq!(item["role"], message["role"], "{name}: injected role");
+            assert_eq!(body(item["content"][0]["text"].as_str().unwrap()), message["text"].as_str().unwrap(), "{name}: injected text");
+        }
+    }
+    let _ = &forks.cwd;
+    forks.execution.shutdown().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn forks_and_merge_backs_persist_what_the_source_orchestrator_persisted() {
+    let file: Value = serde_json::from_str(include_str!("fixtures/codex-replay.json")).unwrap();
+    let rows = file["forks"].as_array().unwrap();
+    assert_eq!(rows.len(), 6);
+    let only = std::env::var("CODEX_REPLAY_ONLY").ok();
+    let mut failures = vec![];
+    for row in rows {
+        if only.as_deref().is_some_and(|only| !only.split(',').any(|name| name == row["name"].as_str().unwrap())) {
+            continue;
+        }
+        let outcome = tokio::spawn({
+            let row = row.clone();
+            async move { replay_forks(&row).await }
+        })
+        .await;
+        if let Err(error) = outcome {
+            let panic = error.into_panic();
+            let message = panic.downcast_ref::<String>().cloned().or_else(|| panic.downcast_ref::<&str>().map(|text| (*text).to_owned())).unwrap_or_default();
+            failures.push(format!("{}: {}", row["name"], message.chars().take(2500).collect::<String>()));
+        }
+    }
+    assert!(failures.is_empty(), "{} fork scenario(s) differ:\n{}", failures.len(), failures.join("\n---\n"));
 }

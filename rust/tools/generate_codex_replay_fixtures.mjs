@@ -16,6 +16,7 @@ import { ORCHESTRATOR_REPLAY_FIXTURES } from "../../apps/server/src/orchestratio
 import { materializeFixtureInput } from "../../apps/server/src/orchestration-v2/testkit/fixtures/shared.ts";
 import { runOrchestratorV2ProviderReplayScenario } from "../../apps/server/src/orchestration-v2/testkit/ProviderReplayHarness.ts";
 import { checkpointWorkspace } from "../../apps/server/src/orchestration-v2/testkit/ReplayFixtureWorkspace.ts";
+import { forkScenarios } from "./fork_scenarios.mjs";
 import {
   materializeReplayTranscriptWorkspace,
   readProviderReplayTranscript,
@@ -96,21 +97,9 @@ const EXCLUDED = {
     "advances the test clock past the session idle timeout so the provider session is reopened (a second initialize and thread/resume mid-rollback); the port has no idle session expiry to drive",
 };
 // Recordings no registered scenario replays; each is driven by a dedicated test of the original.
-// `delegated_task_status` is driven over MCP by `tests/codex_delegated_replay.rs`.
-const EXCLUDED_RECORDINGS = {
-  thread_fork_native:
-    "native thread forking (thread/fork) needs thread fork orchestration, which the port does not have",
-  thread_fork_native_continue:
-    "native thread forking (thread/fork) needs thread fork orchestration, which the port does not have",
-  thread_fork_native_prior_turn:
-    "forking at a prior turn boundary needs thread fork orchestration, which the port does not have",
-  thread_fork_native_siblings:
-    "sibling native forks need thread fork orchestration, which the port does not have",
-  thread_merge_back_continue:
-    "merging a fork back into its source needs thread fork and context transfer orchestration, which the port does not have",
-  thread_merge_back_siblings:
-    "merging sibling forks back needs thread fork and context transfer orchestration, which the port does not have",
-};
+// `delegated_task_status` is driven over MCP by `tests/codex_delegated_replay.rs`. The fork and
+// merge-back recordings are replayed as `forks` (fork_scenarios.mjs).
+const EXCLUDED_RECORDINGS = {};
 // Scenarios the port's orchestration has but whose Codex adapter half is not ported yet are listed
 // here with the reason. Their expectations (including every child thread) are generated all the
 // same and kept under `pending`, for the adapter work to replay; the Rust test lists them and does
@@ -263,9 +252,13 @@ const recovery = [
       .map((entry) => entry.frame.params.item.text),
   },
 ];
+// Forks, sibling forks and merge-backs: several threads over one recording.
+const forks = await Effect.runPromise(forkScenarios(normalize));
 writeFileSync(
   OUTPUT,
-  JSON.stringify({ excluded, scenarios: rows, pending, recovery }, null, 1) + "\n",
+  JSON.stringify({ excluded, scenarios: rows, forks, pending, recovery }, null, 1) + "\n",
 );
-console.log(`${rows.length} replay scenarios, ${excluded.length} excluded`);
+console.log(
+  `${rows.length} replay scenarios, ${forks.length} fork scenarios, ${excluded.length} excluded`,
+);
 process.exit(0);

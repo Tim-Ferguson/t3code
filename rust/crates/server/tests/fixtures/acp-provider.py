@@ -119,6 +119,10 @@ for line in sys.stdin:
         text = params["prompt"][0]["text"]
         if text.startswith("<t3_code_instructions>"):
             text = text.split("<user_request>\n",1)[1].rsplit("\n</user_request>",1)[0]
+        if scenario == "normal" and len(sys.argv) > 3:
+            # The prompts the agent was given, one per line, for a test to read.
+            with open(sys.argv[3], "a") as log:
+                log.write(json.dumps(text) + "\n")
         if text == "hold":
             update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "waiting"}})
         else:

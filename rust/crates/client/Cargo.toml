@@ -16,3 +16,4 @@ libm = "0.2"
 sha2.workspace = true
 flate2.workspace = true
 icu_normalizer = "2"
+indexmap.workspace = true

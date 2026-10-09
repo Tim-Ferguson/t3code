@@ -7,37 +7,19 @@ use serde_json::Value;
 const LACKING: &[(&str, &[&str])] = &[
     ("codex", &[
         "checkpointing.supportsNestedCheckpointScopes",
-        "context.acceptsSyntheticUserContext",
-        "context.canConsumeHandoffSummaries",
         "context.canGenerateSummaries",
-        "context.supportsDeltaHandoff",
-        "context.supportsFullThreadHandoff",
         "sessions.supportsMultipleProviderThreadsPerSession",
-        "sessions.supportsProviderSwitchingViaHandoff",
         "subagents.canForkSubagentThread",
         "threads.canForkFromSubagentThread",
-        "threads.canForkFromTurn",
-        "threads.canForkThread",
     ]),
     ("claudeAgent", &[
         "checkpointing.supportsNestedCheckpointScopes",
-        "context.acceptsSyntheticUserContext",
-        "context.canConsumeHandoffSummaries",
         "context.canGenerateSummaries",
-        "context.supportsDeltaHandoff",
-        "context.supportsFullThreadHandoff",
-        "sessions.supportsProviderSwitchingViaHandoff",
-        "threads.canForkFromTurn",
-        "threads.canForkThread",
         "tools.supportsDynamicToolCallbacks",
     ]),
     ("acpRegistry", &[
         "checkpointing.supportsNestedCheckpointScopes",
-        "context.canConsumeHandoffSummaries",
         "context.canGenerateSummaries",
-        "context.supportsDeltaHandoff",
-        "context.supportsFullThreadHandoff",
-        "sessions.supportsProviderSwitchingViaHandoff",
     ]),
 ];
 

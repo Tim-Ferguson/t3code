@@ -168,6 +168,51 @@ impl ProjectService {
     }
 }
 
+/// Why `ProjectService.create`, `update` or `delete` refused, in the original's four kinds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectFailure {
+    NotFound,
+    /// Another project already has the workspace.
+    Conflict,
+    /// The project still has threads and `force` was not given.
+    NotEmpty,
+    /// Anything else: storage, or a command the planner refused.
+    Operation,
+}
+
+impl ProjectService {
+    /// One project command through the service, then the project it left behind (a deleted one keeps
+    /// its `deletedAt`). A retried command id resolves to the receipt it already has.
+    pub fn apply(&self, command: &ProjectCommand, now: DateTime<Utc>) -> Result<Value, ProjectFailure> {
+        let receipt = self.dispatch(command, now).map_err(|error| match error {
+            StoreError::InvalidCommand(detail) if detail.starts_with("Project ") && detail.ends_with(" is not empty.") => ProjectFailure::NotEmpty,
+            _ => ProjectFailure::Operation,
+        })?;
+        if receipt.status == "rejected" {
+            return Err(match receipt.error.as_ref().and_then(|error| error["_tag"].as_str()) {
+                Some("ProjectWorkspaceConflictError") => ProjectFailure::Conflict,
+                Some("ProjectCommandMissingProjectError") => ProjectFailure::NotFound,
+                _ => ProjectFailure::Operation,
+            });
+        }
+        let row = self.store.projection("project", &command.project_id).map_err(|_| ProjectFailure::Operation)?.ok_or(ProjectFailure::Operation)?;
+        let deleted = row["deletedAt"].clone();
+        let mut project = to_shell(row);
+        project["deletedAt"] = deleted;
+        Ok(project)
+    }
+}
+
+/// `WorkspacePaths.normalizeWorkspaceRoot`: the absolute folder a root names, which must be a
+/// directory; a missing one is made first when `create_if_missing`.
+pub fn normalize_workspace_root(root: &str, create_if_missing: bool) -> Result<String, Value> {
+    let normalized = crate::asset_workspace::resolve_against(&std::env::current_dir().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_else(|_| "/".into()), &crate::asset_workspace::expand_home(root.trim()));
+    if create_if_missing && !std::path::Path::new(&normalized).exists() {
+        std::fs::create_dir_all(&normalized).map_err(|error| crate::asset_workspace::defect("WorkspaceRootCreateFailedError", format!("Failed to create workspace root: {normalized} ({error})")))?;
+    }
+    crate::asset_workspace::normalize_workspace_root(root)
+}
+
 /// What `projects.mutate` tells the client: the error's own text, except that the refusal of a
 /// project that still has threads reads as the original words it (`Project <id> is not empty.`).
 pub fn mutation_message(error: &StoreError) -> String {

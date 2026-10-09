@@ -21,8 +21,10 @@ async fn the_catalog_lists_every_original_tool_and_a_tool_without_a_service_says
     for handled in ["t3_thread_launch", "t3_thread_send", "t3_thread_update", "schedule_task", "request_secret", "run_scheduled_task_now"] {
         assert!(names.contains(&handled), "{handled}");
     }
-    let refused = h.refused(&caller, "t3_queue_list", json!({"threadId":parent})).await;
-    assert_eq!(refused, json!({"_tag":"OrchestratorMcpFailure","code":"orchestration_error","message":"The operation could not be completed."}));
+    // A tool with no service on this server is still listed, and says why it cannot run (see mcp_host_tools_flow).
+    let (failed, text) = h.text(&caller, "preview_status", json!({})).await;
+    assert!(failed && text.contains("Do not retry them."), "{text}");
+    assert_eq!(h.ok(&caller, "t3_queue_list", json!({"threadId":parent})).await, json!({"items":[],"nextCursor":null}));
     h.finish().await;
 }
 
@@ -488,13 +490,14 @@ async fn a_running_codex_session_offers_mcp_apps_and_feedback_upload_until_it_en
     assert_eq!(live.driver, "codex");
     let (host, upload) = (live.mcp_apps.expect("Codex offers MCP Apps"), live.upload_feedback.expect("Codex offers feedback upload"));
     // Each request reaches Codex as the original sends it, naming the native thread. The scripted fake
-    // knows none of these methods and answers that, which comes back as the operation's failure.
+    // serves one MCP server, `widget_server` (see the MCP App test in mcp_host_tools_flow); a request
+    // for another comes back as the operation's failure, and the status of a server without tools is empty.
     let native = provider_thread["nativeThreadRef"]["nativeId"].as_str().unwrap().to_owned();
     let error = host.read_resource(provider_thread.clone(), "docs".into(), "ui://docs/view".into()).await.unwrap_err();
     assert!(error.starts_with("Codex MCP resource read failed"), "{error}");
     assert!(host.call_tool(provider_thread.clone(), "docs".into(), "open".into(), json!({"page":1})).await.is_err());
-    assert!(host.list_tools(provider_thread.clone(), "docs".into()).await.is_err());
-    assert!(upload(provider_thread.clone(), Some("it broke".into())).await.is_err());
+    assert!(host.list_tools(provider_thread.clone(), "docs".into()).await.unwrap().is_empty());
+    assert!(upload(provider_thread.clone(), Some("it broke".into())).await.unwrap().starts_with("fixture-feedback-"));
     let requests = h.provider_requests();
     let sent = |method: &str| requests.iter().find(|request| request["method"] == method).unwrap_or_else(|| panic!("{method} was not sent: {requests:?}"))["params"].clone();
     assert_eq!(sent("mcpServer/resource/read"), json!({"threadId":native,"server":"docs","uri":"ui://docs/view"}));
@@ -508,4 +511,40 @@ async fn a_running_codex_session_offers_mcp_apps_and_feedback_upload_until_it_en
     h.execution.shutdown().await;
     assert!(t3_server::provider_live::get(&session).is_none());
     h.http_only_finish().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_stop_reached_spawns_nothing_and_stopping_a_thread_holds_its_queue_with_or_without_a_run() {
+    let h = Harness::new().await;
+    let parent = h.running_thread("parent", "full-access", "default").await;
+    let caller = h.caller(&parent).await;
+    // Stop's record on the run is what a slow tool call that lands after the Stop meets: nothing it starts may outlive the Stop.
+    let run_id = h.view(&parent)["runs"][0]["id"].as_str().unwrap().to_owned();
+    let mut projection = h.view(&parent);
+    projection["turnItems"].as_array_mut().unwrap().push(json!({"id":"stop-record","threadId":parent,"runId":run_id,"type":"run_interrupt_request"}));
+    h.store.transaction(|tx| t3_server::persistence::write_projection(tx, "thread", &parent, &projection)).unwrap();
+    let before = h.threads().len();
+    let refused = h.refused(&caller, "delegate_task", json!({"task":"too late"})).await;
+    assert_eq!(refused["code"], "orchestration_error");
+    assert!(refused["message"].as_str().unwrap().ends_with(&format!("Parent run {run_id} is stopping.")), "{refused}");
+    assert_eq!(h.threads().len(), before, "a refused spawn creates nothing");
+
+    // Stop on a thread with an active run interrupts it and holds what was queued behind it.
+    let busy = h.running_thread("busy", "full-access", "default").await;
+    assert_eq!(h.ok(&caller, "t3_thread_send", json!({"threadId":busy,"message":"queued behind","mode":"queue"})).await["delivery"], "queued");
+    h.execution.dispatch(&json!({"type":"thread.stop","commandId":"stop-busy","threadId":busy}), Utc::now()).unwrap();
+    let stopped = h.until(&busy, |view| (view["runs"][0]["status"] == "interrupted").then(|| view.clone())).await;
+    assert!(h.provider_requests().iter().any(|request| request["method"] == "turn/interrupt"));
+    assert_eq!((stopped["runs"][1]["status"].as_str(), stopped["runs"][1]["queueHeld"].as_bool()), (Some("queued"), Some(true)));
+
+    // Stop on a thread with nothing running still holds the turns it would start next.
+    let mut released = h.view(&busy);
+    released["runs"][1]["queueHeld"] = json!(false);
+    h.store.transaction(|tx| t3_server::persistence::write_projection(tx, "thread", &busy, &released)).unwrap();
+    assert_eq!(h.execution.dispatch(&json!({"type":"thread.stop","commandId":"stop-idle","threadId":busy}), Utc::now()).unwrap().status, "accepted");
+    assert_eq!(h.view(&busy)["runs"][1]["queueHeld"], true);
+    // An idle thread with nothing queued accepts it too.
+    let idle = h.ok(&caller, "t3_thread_launch", json!({"title":"Idle"})).await["threadId"].as_str().unwrap().to_owned();
+    assert_eq!(h.execution.dispatch(&json!({"type":"thread.stop","commandId":"stop-nothing","threadId":idle}), Utc::now()).unwrap().status, "accepted");
+    h.finish().await;
 }

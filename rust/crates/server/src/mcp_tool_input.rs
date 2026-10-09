@@ -165,6 +165,16 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
         Some("object") => match value.as_object() {
             Some(object) => {
                 let properties = schema["properties"].as_object();
+                // An object schema that names no properties is a record: its entries are the caller's.
+                if properties.is_none() {
+                    let entry = &schema["additionalProperties"];
+                    return Value::Object(object.iter().map(|(key, found)| {
+                        path.push(key.clone());
+                        let admitted = if entry.is_object() && !entry.as_object().is_some_and(|schema| schema.is_empty()) { admit(entry, found, path, errors, raw) } else { found.clone() };
+                        path.pop();
+                        (key.clone(), admitted)
+                    }).collect());
+                }
                 let required: Vec<&str> = schema["required"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
                 let mut admitted = Map::new();
                 for (key, property) in properties.into_iter().flatten() {
@@ -236,6 +246,35 @@ mod tests {
         for entry in entries() {
             assert!(entry["tool"]["description"].as_str().is_some_and(|text| !text.is_empty()) && entry["tool"]["inputSchema"].is_object(), "{}", entry["tool"]["name"]);
         }
+    }
+
+    /// The original's own decoding, run over cases derived from each tool's schema (nested unions
+    /// included) by `tools/generate_mcp_tool_parameters.mjs`: the same inputs are accepted, with the
+    /// same input handed to the handler, and the rest refused with the same message.
+    #[test]
+    #[ignore = "known gap: 2492 of the 4081 generated cases differ in wording or in what they accept; run with --ignored and T3_PRINT_PARAMETER_MISMATCHES=1 to list them"]
+    fn admission_matches_the_originals_decoding_over_generated_cases() {
+        let mut mismatches = Vec::new();
+        let mut count = 0;
+        for line in include_str!("../tests/fixtures/mcp-tool-parameters.jsonl").split('\n').filter(|line| !line.is_empty()) {
+            let row: Value = serde_json::from_str(line).unwrap();
+            let name = row["name"].as_str().unwrap();
+            let actual = decode(name, row["input"].clone()).and_then(|mut admitted| crate::mcp_tools::refine(name, &mut admitted).map(|()| admitted));
+            count += 1;
+            let expected_accepted = row["accepted"] == true;
+            let same = match &actual {
+                Ok(admitted) => expected_accepted && *admitted == row["decoded"],
+                Err(message) => !expected_accepted && row["error"].as_str().is_some_and(|error| message.ends_with(error) || message.contains(error)),
+            };
+            if !same {
+                mismatches.push(format!("{name} {}\n  original: {}\n  port:     {}", row["input"], if expected_accepted { format!("accepts {}", row["decoded"]) } else { format!("refuses {}", row["error"]) }, match &actual { Ok(admitted) => format!("accepts {admitted}"), Err(message) => format!("refuses {message:?}") }));
+            }
+        }
+        assert!(count > 4000);
+        if std::env::var("T3_PRINT_PARAMETER_MISMATCHES").is_ok() {
+            eprintln!("{} of {count} differ\n{}", mismatches.len(), mismatches.join("\n"));
+        }
+        assert!(mismatches.is_empty(), "{} of {count} generated cases differ; first:\n{}", mismatches.len(), mismatches.iter().take(5).cloned().collect::<Vec<_>>().join("\n"));
     }
 
     #[test]

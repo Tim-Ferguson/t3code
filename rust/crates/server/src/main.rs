@@ -819,6 +819,12 @@ async fn run(
         store: store.clone(),
         execution: Some(execution.clone()),
         clock: std::sync::Arc::new(chrono::Utc::now),
+        services: t3_server::mcp_control::McpServices {
+            settings: settings_service.clone(),
+            environment: Some(environment.clone()),
+            background: background.clone(),
+            terminals: Some(terminals.clone()),
+        },
     });
     let state = ApiState {
         settings: settings_service.clone(),

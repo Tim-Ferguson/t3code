@@ -2,7 +2,7 @@
   "sessions": {
     "supportsMultipleProviderThreadsPerSession": false,
     "supportsModelSwitchInSession": false,
-    "supportsProviderSwitchingViaHandoff": false,
+    "supportsProviderSwitchingViaHandoff": true,
     "supportsRuntimeModeSwitchInSession": false,
     "pendingRequestsSurviveRestart": false
   },
@@ -69,9 +69,9 @@
     "acceptsDeveloperContext": false,
     "acceptsSyntheticUserContext": true,
     "canGenerateSummaries": false,
-    "canConsumeHandoffSummaries": false,
-    "supportsDeltaHandoff": false,
-    "supportsFullThreadHandoff": false,
+    "canConsumeHandoffSummaries": true,
+    "supportsDeltaHandoff": true,
+    "supportsFullThreadHandoff": true,
     "maxRecommendedHandoffChars": null
   },
   "checkpointing": {

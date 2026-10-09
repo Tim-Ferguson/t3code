@@ -410,7 +410,7 @@ pub(crate) fn plan(
         ));
     }
     let mut message = json!({"id":command["messageId"],"threadId":thread_id,"runId":run["id"],"nodeId":message_node,"role":"user","text":command["text"],"attachments":command["attachments"],"createdBy":command["createdBy"],"creationSource":command["creationSource"],"streaming":false,"createdAt":timestamp,"updatedAt":timestamp});
-    let mut item = json!({"id":format!("turn-item:message:{}",encode(command["messageId"].as_str().unwrap())),"threadId":thread_id,"runId":run["id"],"nodeId":message_node,"providerThreadId":provider["id"],"providerTurnId":message_turn,"nativeItemRef":null,"parentItemId":null,"ordinal":rows(projection,"turnItems").iter().filter_map(|item|item["ordinal"].as_u64()).max().map_or(0,|ordinal|ordinal+1),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","messageId":command["messageId"],"inputIntent":"steer","text":command["text"],"attachments":command["attachments"],"createdBy":command["createdBy"],"creationSource":command["creationSource"]});
+    let mut item = json!({"id":format!("turn-item:message:{}",encode(command["messageId"].as_str().unwrap())),"threadId":thread_id,"runId":run["id"],"nodeId":message_node,"providerThreadId":provider["id"],"providerTurnId":message_turn,"nativeItemRef":null,"parentItemId":null,"ordinal":rows(projection,"turnItems").iter().filter_map(|item|item["ordinal"].as_u64()).max().map_or(0,|ordinal|ordinal+1),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","messageId":command["messageId"],"inputIntent":command.get("inputIntent").cloned().unwrap_or(json!("steer")),"text":command["text"],"attachments":command["attachments"],"createdBy":command["createdBy"],"creationSource":command["creationSource"]});
     for field in [
         "senderThreadId",
         "scheduledTaskId",
@@ -453,6 +453,51 @@ pub(crate) fn plan(
         events,
         effects: vec![effect],
     })
+}
+
+/// `queued-message.promote-to-steer`: a message waiting in the queue is delivered into the active
+/// run as steering instead. The queued run ends cancelled without having started, and the message
+/// joins the target run exactly as a steered message does (`dispatchQueuedMessagePromoteToSteer`).
+/// Automatic completion deliveries are not the user's to promote.
+pub(crate) fn plan_promote(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    transaction: Option<&rusqlite::Transaction<'_>>,
+) -> Result<Decision, StoreError> {
+    let thread_id = command["threadId"].as_str().unwrap_or_default();
+    if !projection["thread"]["archivedAt"].is_null() || !projection["thread"]["deletedAt"].is_null() {
+        return Err(error(format!("Thread {thread_id} is not active.")));
+    }
+    let queued_id = command["queuedRunId"].as_str().unwrap_or_default();
+    let run = rows(projection, "runs")
+        .iter()
+        .find(|run| run["id"] == command["queuedRunId"] && run["status"] == "queued")
+        .ok_or_else(|| error(format!("Queued run {queued_id} is not queued.")))?;
+    let find = |field: &str, id: &Value| rows(projection, field).iter().find(|row| !id.is_null() && row["id"] == *id);
+    let (Some(_), Some(_), Some(message)) = (find("nodes", &run["rootNodeId"]), find("attempts", &run["activeAttemptId"]), find("messages", &run["userMessageId"])) else {
+        return Err(error(format!("Queued run {queued_id} is missing message or execution state.")));
+    };
+    if message.get("delegatedCompletion").is_some_and(|value| !value.is_null()) || message.get("notification").is_some_and(|value| !value.is_null()) {
+        return Err(error("Automatic completion deliveries cannot be promoted to Steer."));
+    }
+    let cancel = json!({"type":"queued-run.cancel","commandId":command["commandId"],"threadId":thread_id,"runId":queued_id});
+    let Decision::Accepted { mut events, .. } = crate::queued_runs::plan_cancel(&cancel, projection, now)? else {
+        return Err(error(format!("Queued run {queued_id} is not queued.")));
+    };
+    let mut steer = json!({"commandId":command["commandId"],"threadId":thread_id,"messageId":message["id"],"text":message["text"],"attachments":message["attachments"],"createdBy":message["createdBy"],"creationSource":message["creationSource"],"dispatchMode":{"type":"steer_active","targetRunId":command["targetRunId"]},"inputIntent":"promoted_queued_to_steer"});
+    for field in ["scheduledTaskId", "senderThreadId", "context"] {
+        if let Some(value) = message.get(field).filter(|value| !value.is_null()) {
+            steer[field] = value.clone();
+        }
+    }
+    match plan(&steer, projection, now, transaction)? {
+        Decision::Accepted { events: steered, effects } => {
+            events.extend(steered);
+            Ok(Decision::Accepted { events, effects })
+        }
+        rejected => Ok(rejected),
+    }
 }
 
 #[cfg(test)]

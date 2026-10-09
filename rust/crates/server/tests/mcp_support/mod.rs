@@ -7,6 +7,7 @@ use std::{sync::Arc, time::Duration};
 use t3_server::{
     execution::ExecutionService, launch::ThreadLaunchService, mcp_control::McpControlTools, mcp_http::McpHttpService, mcp_sessions::{CredentialRequest, McpSessionRegistry},
     persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, secret_requests::SecretRequests,
+    server_secret_store::ServerSecretStore, server_settings::{SettingsOptions, SettingsService},
 };
 
 pub struct Harness {
@@ -17,6 +18,7 @@ pub struct Harness {
     pub registry: McpSessionRegistry,
     pub address: std::net::SocketAddr,
     pub requests: std::path::PathBuf,
+    pub settings: SettingsService,
     pub client: reqwest::Client,
     stop: Option<tokio::sync::oneshot::Sender<()>>,
     server: Option<tokio::task::JoinHandle<()>>,
@@ -63,13 +65,19 @@ impl Harness {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let registry = McpSessionRegistry::new("environment-1".parse().unwrap(), Some(address), Arc::new(|| Utc::now().timestamp_millis()), 10 * 60 * 1000);
-        let http = McpHttpService::new(registry.clone(), None).with_controls(McpControlTools { store: store.clone(), execution: Some(execution.clone()), clock: Arc::new(Utc::now) });
+        // The settings service the environment tools read and write, without a watcher on the file.
+        let mut options = SettingsOptions::file(cwd.join("settings.json"), ServerSecretStore::open(cwd.join("secrets")).unwrap());
+        options.watch = false;
+        let settings = SettingsService::start(options).await.unwrap();
+        let environment = json!({"environmentId":"environment-1","label":"Test server","platform":{"os":"linux","arch":"x64"},"serverVersion":"0.0.0-test","orchestrationProtocolVersion":2});
+        let services = t3_server::mcp_control::McpServices { settings: Some(settings.clone()), environment: Some(environment), ..Default::default() };
+        let http = McpHttpService::new(registry.clone(), None).with_controls(McpControlTools { store: store.clone(), execution: Some(execution.clone()), clock: Arc::new(Utc::now), services });
         let router = http.router();
         let (stop, stopped) = tokio::sync::oneshot::channel();
         let server = tokio::spawn(async move {
             axum::serve(listener, router).with_graceful_shutdown(async { let _ = stopped.await; }).await.unwrap();
         });
-        Self { _directory: directory, store, execution, providers, registry, address, requests, client: reqwest::Client::new(), stop: Some(stop), server: Some(server), http }
+        Self { _directory: directory, store, execution, providers, registry, address, requests, settings, client: reqwest::Client::new(), stop: Some(stop), server: Some(server), http }
     }
 
     /// A thread of the project whose first turn runs on the fake Codex and stays running.
@@ -133,6 +141,20 @@ impl Harness {
         let structured = response["result"]["structuredContent"].clone();
         assert!(t3_server::mcp_tool_input::output_issues(name, &structured).is_empty(), "{name} result breaks its output schema: {:?} in {structured}", t3_server::mcp_tool_input::output_issues(name, &structured));
         structured
+    }
+
+    /// A call and the text the model reads: whether it failed, and what the content says.
+    pub async fn text(&self, caller: &Caller, name: &str, arguments: Value) -> (bool, String) {
+        let response = self.rpc(caller, "tools/call", json!({"name":name,"arguments":arguments})).await;
+        (response["result"]["isError"] == true, response["result"]["content"][0]["text"].as_str().unwrap_or_else(|| panic!("{name}: {response}")).to_owned())
+    }
+
+    /// A credential for `thread` that carries the preview capability, as one of a thread with browser access has.
+    pub async fn caller_with_preview(&self, thread: &str) -> Caller {
+        let credential = self.registry.issue(CredentialRequest { thread_id: thread.parse().unwrap(), provider_instance_id: "codex".parse().unwrap(), browser_tools_available: Some(true), capabilities: None }).unwrap();
+        let initialize = self.client.post(format!("http://{}/mcp", self.address)).header("authorization", &credential.authorization_header).header("accept", "application/json,text/event-stream").json(&json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"tools-flow","version":"1"}}})).send().await.unwrap();
+        let session = initialize.headers()["mcp-session-id"].to_str().unwrap().to_owned();
+        Caller { header: credential.authorization_header, session, thread: thread.to_owned() }
     }
 
     /// A refused call: the original's `OrchestratorMcpFailure`.

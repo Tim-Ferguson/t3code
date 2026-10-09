@@ -1322,6 +1322,21 @@ pub struct CheckpointRollbackCommand {
     )]
     pub restore_files: Option<bool>,
 }
+/// `thread.stop`: Stop on a whole thread, whether or not a run is active. It interrupts the active
+/// run, holds the queue, ends the thread's pull request watches and drops the completions its
+/// delegated tasks still owe.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadStopCommand {
+    pub command_id: CommandId,
+    pub thread_id: ThreadId,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub reason: Option<Option<String>>,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunInterruptCommand {
@@ -1434,6 +1449,8 @@ pub enum ProviderCommand {
     NotificationDeliveryAccept(NotificationDeliveryAcceptCommand),
     #[serde(rename = "run.interrupt")]
     RunInterrupt(RunInterruptCommand),
+    #[serde(rename = "thread.stop")]
+    ThreadStop(ThreadStopCommand),
     #[serde(rename = "queued-message.promote-to-steer")]
     QueuedMessagePromoteToSteer(QueuedMessagePromoteCommand),
     #[serde(rename = "queue.resume")]
@@ -1669,6 +1686,7 @@ impl ProviderCommand {
                 "delegatedCompletion",
             ],
             Self::RunInterrupt(_) => &["reason", "holdQueue"],
+            Self::ThreadStop(_) => &["reason"],
             Self::QueuedRunEdit(_) => &["context", "attachments"],
             Self::RuntimeRequestRespond(_) => &["decision", "answers", "attachmentsByQuestionId"],
             _ => &[],
@@ -1695,6 +1713,7 @@ impl ProviderCommand {
             Self::PreparedRunFail(c) => &c.command_id,
             Self::NotificationDeliveryAccept(c) => &c.command_id,
             Self::RunInterrupt(c) => &c.command_id,
+            Self::ThreadStop(c) => &c.command_id,
             Self::QueuedMessagePromoteToSteer(c) => &c.command_id,
             Self::QueueResume(c) => &c.command_id,
             Self::QueuedRunReorder(c) => &c.command_id,
@@ -1714,6 +1733,7 @@ impl ProviderCommand {
             Self::PreparedRunFail(c) => &c.thread_id,
             Self::NotificationDeliveryAccept(c) => &c.thread_id,
             Self::RunInterrupt(c) => &c.thread_id,
+            Self::ThreadStop(c) => &c.thread_id,
             Self::QueuedMessagePromoteToSteer(c) => &c.thread_id,
             Self::QueueResume(c) => &c.thread_id,
             Self::QueuedRunReorder(c) => &c.thread_id,

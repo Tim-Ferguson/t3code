@@ -66,6 +66,8 @@ pub struct QueryOptions {
     pub include_partial_messages: bool,
     pub identity: Option<SessionIdentity>,
     pub resume_session_at: Option<String>,
+    /// `forkSession`: the resumed conversation continues under a new session id.
+    pub fork_session: bool,
     pub allowed_tools: Vec<String>,
     pub disallowed_tools: Vec<String>,
     /// `canUseTool` installed: permission prompts arrive as `can_use_tool` control requests.
@@ -152,6 +154,9 @@ impl QueryOptions {
         }
         for directory in &self.additional_directories {
             q.extend(["--add-dir".into(), directory.clone()]);
+        }
+        if self.fork_session {
+            q.push("--fork-session".into());
         }
         if let Some(at) = &self.resume_session_at {
             q.push(format!("--resume-session-at={at}"));
@@ -499,6 +504,7 @@ mod tests {
             include_partial_messages: true,
             identity: Some(SessionIdentity::New("session".into())),
             resume_session_at: None,
+            fork_session: false,
             allowed_tools: vec!["mcp__t3-code__*".into()],
             disallowed_tools: vec![],
             can_use_tool: true,

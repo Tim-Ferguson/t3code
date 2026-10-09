@@ -268,6 +268,9 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         actions.push(Item::action("action:checkout-pull-request", "Checkout pull request", &["pull request", "pr", "merge request", "mr", "checkout", "review", "worktree"]));
     }
     actions.push(Item::action("action:pull-requests", "Pull requests", &["pull request", "pr", "merge request", "mr", "review", "list"]));
+    if let Some(usage) = item("action:usage", "Open usage", &["usage", "use", "tokens", "cost", "spend", "limits", "stats", "analytics"], Some("usage.open")) {
+        actions.push(usage);
+    }
     actions.push(Item::action("action:add-project", "Add project", &["add project", "folder", "directory", "browse", "existing", "path"]));
     if can_clone_now(state) {
         actions.push(Item::action("action:clone", "Clone repository", &["clone", "repository", "repo", "git", "github", "gitlab", "bitbucket", "azure", "url", "add project", "remote"]).keeping_open());
@@ -451,6 +454,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                 }
                 "action:clone-setup" => open_settings(state, View::SourceControl),
                 "action:pull-requests" => state.view().set(View::PullRequests),
+                "action:usage" => crate::usage_page::open(state),
                 "action:checkout-pull-request" => {
                     if let Some((project, cwd)) = crate::new_thread::form_workspace(state) {
                         crate::pull_request_thread::open(state, &project, &cwd, "");

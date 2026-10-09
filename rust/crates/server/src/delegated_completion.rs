@@ -240,6 +240,10 @@ impl DelegatedTasks {
         let invalid = |cause: String| StoreError::InvalidCommand(cause);
         let (parent_id, command_id) = (command["parentThreadId"].as_str().unwrap_or_default(), command["commandId"].as_str().unwrap_or_default());
         let parent_run = rows(parent, "runs").iter().find(|run| run["id"] == command["parentRunId"]).filter(|run| blocking(run)).ok_or_else(|| invalid(format!("Parent run {} is not active.", command["parentRunId"].as_str().unwrap_or_default())))?;
+        // Stop reached the run: its agent can still call tools until the provider stops it, but nothing such a call starts may outlive the Stop.
+        if crate::thread_pull_requests::stop_reached_run(parent, parent_run["id"].as_str().unwrap_or_default()) {
+            return Err(invalid(format!("Parent run {} is stopping.", command["parentRunId"].as_str().unwrap_or_default())));
+        }
         let parent_node = rows(parent, "nodes").iter().find(|node| node["id"] == command["parentNodeId"]).filter(|node| node["runId"] == parent_run["id"] && !parent_run["rootNodeId"].is_null());
         if parent_node.is_none() {
             return Err(invalid(format!("Parent node {} is not part of active run {}.", command["parentNodeId"].as_str().unwrap_or_default(), parent_run["id"].as_str().unwrap_or_default())));

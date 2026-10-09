@@ -11,13 +11,14 @@ import { ORCHESTRATOR_REPLAY_FIXTURES } from "../../apps/server/src/orchestratio
 import { materializeFixtureInput } from "../../apps/server/src/orchestration-v2/testkit/fixtures/shared.ts";
 import { runOrchestratorV2ProviderReplayScenario } from "../../apps/server/src/orchestration-v2/testkit/ProviderReplayHarness.ts";
 import { checkpointWorkspace } from "../../apps/server/src/orchestration-v2/testkit/ReplayFixtureWorkspace.ts";
+import { forkScenarios } from "./fork_scenarios.mjs";
 import {
   readProviderReplayTranscript,
   materializeReplayTranscriptRuntimeInstructions,
 } from "../../apps/server/src/orchestration-v2/testkit/ReplayTranscriptNdjson.ts";
 
-// Every recorded Claude scenario of the original's replay registry, except the ones that need
-// thread forking (see EXCLUDED) and the one replayed across a restart (see `recovery`).
+// Every recorded Claude scenario of the original's replay registry, except the forks and merge-backs
+// (several threads over one recording: see `forks`) and the one replayed across a restart (see `recovery`).
 const SUBAGENT_AND_WAKE = [
   "subagent",
   "claude_nested_subagent_model",
@@ -56,16 +57,16 @@ const NAMES = [
   "claude_compact_after_peer_turn_no_echo",
   ...SUBAGENT_AND_WAKE,
 ];
-const FORK = "needs thread forking or merge-back, which the Rust orchestrator does not have";
-const EXCLUDED = [
-  ["thread_fork_native", FORK],
-  ["thread_fork_native_continue", FORK],
-  ["thread_fork_native_fork_local_rollback", FORK],
-  ["thread_fork_native_prior_turn", FORK],
-  ["thread_fork_native_siblings", FORK],
-  ["thread_merge_back_continue", FORK],
-  ["thread_merge_back_siblings", FORK],
-].map(([name, reason]) => ({ name, reason }));
+const FORKS = [
+  "thread_fork_native",
+  "thread_fork_native_continue",
+  "thread_fork_native_fork_local_rollback",
+  "thread_fork_native_prior_turn",
+  "thread_fork_native_siblings",
+  "thread_merge_back_continue",
+  "thread_merge_back_siblings",
+];
+const EXCLUDED = [];
 const pick = (object, keys) =>
   Object.fromEntries(
     keys.filter((key) => object[key] !== undefined).map((key) => [key, object[key]]),
@@ -218,6 +219,7 @@ const recorded = readdirSync(fixtures).filter((directory) =>
 const unaccounted = recorded.filter(
   (name) =>
     !NAMES.includes(name) &&
+    !FORKS.includes(name) &&
     name !== "claude_subagent_resume_after_restart" &&
     !EXCLUDED.some((entry) => entry.name === name),
 );
@@ -241,10 +243,11 @@ const recovery = [
     transcript: resumeEntries,
   },
 ];
+const forks = await Effect.runPromise(forkScenarios(normalize, "claude"));
 writeFileSync(
   new URL("../crates/server/tests/fixtures/claude-replay.json", import.meta.url),
   JSON.stringify(
-    { recorded: recorded.length, scenarios: rows, recovery, excluded: EXCLUDED },
+    { recorded: recorded.length, scenarios: rows, forks, recovery, excluded: EXCLUDED },
     null,
     1,
   ) + "\n",

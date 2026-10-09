@@ -427,6 +427,27 @@ pub struct ThreadPullRequestLinkCommand {
     pub url: TrimmedNonEmptyString,
     pub source: ThreadPullRequestLinkSource,
 }
+/// What a watch links first, when it starts on a pull request the thread has not linked.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadPullRequestWatchLink {
+    pub url: TrimmedNonEmptyString,
+    pub source: ThreadPullRequestLinkSource,
+}
+/// `thread.pull-request.watch`: start or stop the server watching a linked pull request for the
+/// thread's agent. Starting on an unlinked pull request links it in the same step.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadPullRequestWatchCommand {
+    pub command_id: CommandId,
+    pub thread_id: ThreadId,
+    pub host: TrimmedNonEmptyString,
+    pub repository: TrimmedNonEmptyString,
+    pub number: PositiveInt,
+    pub watching: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<ThreadPullRequestWatchLink>,
+}
 /// `thread.pull-request.unlink`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -672,6 +693,8 @@ pub enum ThreadCommand {
     PullRequestLink(ThreadPullRequestLinkCommand),
     #[serde(rename = "thread.pull-request.unlink")]
     PullRequestUnlink(ThreadPullRequestUnlinkCommand),
+    #[serde(rename = "thread.pull-request.watch")]
+    PullRequestWatch(ThreadPullRequestWatchCommand),
     #[serde(rename = "thread.runtime-mode.set")]
     RuntimeModeSet(ThreadRuntimeModeCommand),
     #[serde(rename = "thread.interaction-mode.set")]
@@ -738,6 +761,7 @@ impl ThreadCommand {
             Self::MetadataUpdate(c) => &c.command_id,
             Self::PullRequestLink(c) => &c.command_id,
             Self::PullRequestUnlink(c) => &c.command_id,
+            Self::PullRequestWatch(c) => &c.command_id,
             Self::RuntimeModeSet(c) => &c.command_id,
             Self::InteractionModeSet(c) => &c.command_id,
             Self::ModelSelectionSet(c) => &c.command_id,
@@ -764,6 +788,7 @@ impl ThreadCommand {
             Self::MetadataUpdate(c) => &c.thread_id,
             Self::PullRequestLink(c) => &c.thread_id,
             Self::PullRequestUnlink(c) => &c.thread_id,
+            Self::PullRequestWatch(c) => &c.thread_id,
             Self::RuntimeModeSet(c) => &c.thread_id,
             Self::InteractionModeSet(c) => &c.thread_id,
             Self::ModelSelectionSet(c) => &c.thread_id,

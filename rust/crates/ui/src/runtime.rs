@@ -28,6 +28,7 @@ pub enum View {
     SourceControl,
     TextGeneration,
     PullRequests,
+    Usage,
 }
 #[derive(Debug, Clone)]
 pub struct PendingMessage {
@@ -101,6 +102,8 @@ pub struct UiModel {
     /// The dialog that starts a thread from a pull request, while it is open.
     pub pr_checkout: Option<crate::pull_request_thread::Open>,
     pub lifecycle: crate::thread_lifecycle::Model,
+    pub usage: crate::usage_page::Model,
+    pub redeem: crate::limits_view::Redeem,
     pub dark: bool,
     pub sidebar_open: bool,
 }

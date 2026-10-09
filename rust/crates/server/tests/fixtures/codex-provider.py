@@ -45,7 +45,13 @@ def assistant(turn, text):
     notify("item/completed", params)
 
 
-SCRIPTED = ("[think]", "[todo]", "[plan]", "[usage]", "[retry]", "[usage-limit]", "[mcp-tool]", "[file]", "[permissions]", "[permissions-read]", "[elicit]", "[exec-legacy]", "[patch-legacy]", "[withdraw]")
+SCRIPTED = ("[think]", "[todo]", "[plan]", "[usage]", "[retry]", "[usage-limit]", "[mcp-tool]", "[mcp-app]", "[file]", "[permissions]", "[permissions-read]", "[elicit]", "[exec-legacy]", "[patch-legacy]", "[withdraw]")
+# The MCP App the fake `widget_server` serves, and the answers it gives the app-server's MCP requests.
+MCP_APP_URI = "ui://widget/app.html"
+MCP_APP_TOOLS = {
+    "render_widget": {"name": "render_widget", "description": "Renders the widget", "inputSchema": {"type": "object"}, "annotations": {"title": "Render widget", "readOnlyHint": True}, "_meta": {"ui": {"resourceUri": MCP_APP_URI, "visibility": ["model", "app"]}}},
+    "model_only": {"name": "model_only", "description": "Hidden from apps", "inputSchema": {"type": "object"}, "_meta": {"ui": {"visibility": ["model"]}}},
+}
 NEW_REQUEST_KINDS = ("file", "permissions", "elicit", "exec-legacy", "patch-legacy")
 
 
@@ -117,6 +123,11 @@ def scripted(turn):
         dynamic = {"type": "dynamicToolCall", "id": turn_id + "-dynamic", "namespace": "fixture", "tool": "lookup", "status": "inProgress", "arguments": {"q": 1}, "contentItems": None, "success": None, "durationMs": None}
         notify("item/started", dict(base, item=dynamic))
         notify("item/completed", dict(base, item=dict(dynamic, status="completed", contentItems=[{"type": "inputText", "text": "found"}], success=True)))
+    if "[mcp-app]" in text:
+        # A tool whose result names a `ui://` document: the port reads it through `mcpServer/resource/read`.
+        app = {"type": "mcpToolCall", "id": turn_id + "-app", "server": "widget_server", "tool": "render_widget", "status": "inProgress", "arguments": {"name": "fixture"}, "result": None, "error": None, "durationMs": None, "mcpAppUi": {"resourceUri": MCP_APP_URI}}
+        notify("item/started", dict(base, item=app))
+        notify("item/completed", dict(base, item=dict(app, status="completed", result={"content": [{"type": "text", "text": "rendered"}], "structuredContent": {"widget": "fixture"}})))
     never = turn.get("policy") == "never"
     if any(tag in text for tag in ("[file]", "[withdraw]")):
         item = file_item(turn, "inProgress", changes=False)
@@ -275,6 +286,30 @@ class Replay:
                     self.child_threads.add(item["agentThreadId"])
                 if item.get("type") == "collabAgentToolCall":
                     self.child_threads.update(thread for thread in item.get("receiverThreadIds") or [] if isinstance(thread, str))
+        # The recording is one stream, but the port serves each thread from a process of its own. The
+        # stream is cut into segments, a client frame and what the server sent in answer, and a
+        # process serves the segments of the native thread it opened (see `activate`). A recording of
+        # one thread is one owner and is replayed whole.
+        self.segments = []
+        for entry in self.entries:
+            if entry["type"] == "expect_outbound" or not self.segments:
+                self.segments.append({"method": (entry.get("frame") or {}).get("method"), "frame": entry.get("frame"), "entries": [], "owner": None})
+            self.segments[-1]["entries"].append(entry)
+        for segment in self.segments:
+            params = (segment["frame"] or {}).get("params") or {}
+            if segment["method"] in self.THREAD_METHODS:
+                for entry in segment["entries"]:
+                    thread = ((entry.get("frame") or {}).get("result") or {}).get("thread") if entry["type"] == "emit_inbound" else None
+                    if isinstance(thread, dict) and isinstance(thread.get("id"), str):
+                        segment["owner"] = thread["id"]
+                        break
+                else:
+                    segment["owner"] = params.get("threadId")
+        self.owners = {segment["owner"] for segment in self.segments if segment["owner"]}
+        for segment in self.segments:
+            if segment["method"] not in self.THREAD_METHODS:
+                owner = ((segment["frame"] or {}).get("params") or {}).get("threadId")
+                segment["owner"] = owner if owner in self.owners else None
         self.cursor = 0
         self.active = False
         self.ids = {}
@@ -377,13 +412,35 @@ class Replay:
             else:
                 return
 
+    def claimed(self):
+        path = os.environ.get("CODEX_FIXTURE_CLAIMS")
+        if path and os.path.exists(path):
+            return {int(line) for line in open(path) if line.strip()}
+        return set(getattr(self, "local_claims", set()))
+
+    def claim(self, index):
+        path = os.environ.get("CODEX_FIXTURE_CLAIMS")
+        if path:
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(str(index) + "\n")
+        self.local_claims = set(getattr(self, "local_claims", set())) | {index}
+
     def activate(self, message):
-        for index, entry in enumerate(self.entries):
-            if entry["type"] == "expect_outbound" and entry["frame"].get("method") == message.get("method"):
-                self.cursor = index
-                break
-        else:
-            self.fail("no recorded " + str(message.get("method")), None, message)
+        """Serves from the first recorded request of this method that no process has taken: the
+        segments of that thread from there on. With several threads in the recording the process
+        keeps to its own native thread and the others' frames are never sent by it."""
+        taken = self.claimed()
+        method = message.get("method")
+        first = next((index for index, segment in enumerate(self.segments) if segment["method"] == method and index not in taken), None)
+        if first is None:
+            first = next((index for index, segment in enumerate(self.segments) if segment["method"] == method), None)
+        if first is None:
+            self.fail("no recorded " + str(method), None, message)
+        self.claim(first)
+        owner = self.segments[first]["owner"]
+        mine = [segment for index, segment in enumerate(self.segments) if index >= first and (len(self.owners) <= 1 or owner is None or segment["owner"] in (owner, None))]
+        self.entries = [entry for segment in mine for entry in segment["entries"]]
+        self.cursor = 0
         self.active = True
         first = next((entry for entry in self.entries if entry["type"] == "expect_outbound" and entry["frame"].get("method") == "initialize"), None)
         if first is not None and self.initialize is not None and self.normalize(first["frame"], True) != self.normalize(self.initialize, True):
@@ -429,6 +486,15 @@ for line in sys.stdin:
     if REPLAY is not None:
         if message.get("method") == "initialize":
             REPLAY.initialize = message
+        if REPLAY.active and message.get("method") == "thread/inject_items" and "id" in message:
+            # History the port injects into a native thread is not in a recording made before
+            # injection existed: it is answered, and written down for the test to look at.
+            path = os.environ.get("CODEX_FIXTURE_INJECT_LOG")
+            if path:
+                with open(path, "a", encoding="utf-8") as handle:
+                    handle.write(json.dumps(message.get("params")) + "\n")
+            send({"id": message["id"], "result": {}})
+            continue
         if REPLAY.active or message.get("method") in Replay.THREAD_METHODS:
             REPLAY.handle(message)
             continue
@@ -481,9 +547,13 @@ for line in sys.stdin:
         result = {"data": [{"cwd": cwd, "skills": [], "errors": []} for cwd in params.get("cwds", [])]}
     elif method == "account/rateLimits/read":
         result = {"rateLimits": {"limitId": "fixture", "limitName": "Fixture", "primary": None, "secondary": None, "credits": None, "planType": "unknown"}, "rateLimitsByLimitId": None, "rateLimitResetCredits": None}
-    elif method in ("thread/start", "thread/resume"):
+    elif method == "thread/inject_items" and not os.environ.get("FIXTURE_NO_INJECT"):
+        # History goes into the thread; the request is recorded with the others for the test to read.
+        result = {}
+    elif method in ("thread/start", "thread/resume", "thread/fork"):
         serial += 1
-        native_id = params.get("threadId") or "fixture-thread-" + str(serial)
+        # A fork is a new native thread cut from the one it names.
+        native_id = ("fixture-fork-" + str(os.getpid()) + "-" + str(serial)) if method == "thread/fork" else (params.get("threadId") or "fixture-thread-" + str(serial))
         thread = {"id": native_id, "preview": "", "ephemeral": False, "modelProvider": "openai", "createdAt": 1800000000, "updatedAt": 1800000000, "status": {"type": "idle"}, "cwd": params.get("cwd", os.getcwd()), "path": None, "turns": [], "gitInfo": None, "source": "appServer", "cliVersion": "0.156.1", "agentNickname": None, "agentRole": None, "memoryMode": "enabled", "historyMode": "legacy" if os.environ.get("FIXTURE_LEGACY_HISTORY") else "paginated"}
         threads[native_id] = thread
         result = {"thread": thread, "model": params.get("model", "fixture-model"), "modelProvider": "openai", "cwd": thread["cwd"], "approvalPolicy": params.get("approvalPolicy", "on-request"), "sandbox": {"type": "workspaceWrite"}, "reasoningEffort": "low"}
@@ -515,6 +585,22 @@ for line in sys.stdin:
             continue
         result = {"turn": {"id": native_id, "items": [], "status": "inProgress", "error": None, "startedAt": 1800000000, "completedAt": None}}
         after_response = lambda: start_turn(turn)
+    elif method == "mcpServerStatus/list":
+        server = params.get("serverName")
+        result = {"data": [{"name": server, "tools": MCP_APP_TOOLS if server == "widget_server" else {}, "resources": [], "resourceTemplates": [], "authStatus": "unsupported"}], "nextCursor": None}
+    elif method == "mcpServer/tool/call":
+        if params.get("server") != "widget_server" or params.get("tool") not in MCP_APP_TOOLS:
+            send({"id": request_id, "error": {"code": -32000, "message": "Fixture MCP tool not found: " + str(params.get("tool"))}})
+            continue
+        result = {"content": [{"type": "text", "text": "called " + params["tool"] + " " + json.dumps(params.get("arguments"), sort_keys=True)}], "structuredContent": {"echo": params.get("arguments")}, "isError": False, "_meta": {"fixture": True}}
+    elif method == "mcpServer/resource/read":
+        if params.get("server") != "widget_server" or params.get("uri") != MCP_APP_URI:
+            send({"id": request_id, "error": {"code": -32000, "message": "Fixture MCP resource not found: " + str(params.get("uri"))}})
+            continue
+        result = {"contents": [{"uri": MCP_APP_URI, "mimeType": "text/html;profile=mcp-app", "text": "<!doctype html><html><body>Fixture widget</body></html>", "_meta": {"ui": {"csp": {"connectDomains": ["https://api.example.com"]}, "prefersBorder": True}}}]}
+    elif method == "feedback/upload":
+        serial += 1
+        result = {"threadId": "fixture-feedback-" + str(serial)}
     elif method == "thread/compact/start":
         # Codex compacts in a turn of its own, announced by turn/started rather than a response.
         serial += 1

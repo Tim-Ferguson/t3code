@@ -261,6 +261,25 @@ pub(crate) fn visible_with_inherited(projection: &Value, source: &Value, local: 
     visible
 }
 
+/// A thread's own conversation, in the order it was written (`activeLocalTurnItems`): what
+/// `item_visible` lets through, numbered from zero.
+pub(crate) fn local_visible_rows(projection: &Value) -> Vec<Value> {
+    let (runs, attempts, items) = (rows(projection, "runs"), rows(projection, "attempts"), rows(projection, "turnItems"));
+    let statuses: std::collections::HashMap<&str, &str> = runs.iter().filter_map(|run| Some((run["id"].as_str()?, run["status"].as_str()?))).collect();
+    items
+        .iter()
+        .filter(|item| {
+            let status = item["runId"].as_str().and_then(|run| statuses.get(run)).copied();
+            if status == Some("rolled_back") || (status == Some("cancelled") && item["type"] == "user_message" && item["inputIntent"] == "queued_turn") {
+                return false;
+            }
+            item["type"] != "run_interrupt_result" || !superseded_interrupt(item, attempts, items)
+        })
+        .enumerate()
+        .map(|(position, item)| json!({"position":position,"visibility":"local","sourceThreadId":item["threadId"],"sourceItemId":item["id"],"item":item}))
+        .collect()
+}
+
 /// A stop-then-steer result whose attempt was superseded, with no request beside it, is not part
 /// of the history (`isOrchestrationV2SupersededInterrupt`).
 fn superseded_interrupt(item: &Value, attempts: &[Value], items: &[Value]) -> bool {
@@ -292,8 +311,8 @@ mod tests {
     #[test]
     fn a_latest_stable_point_needs_a_completed_run_with_a_checkpoint() {
         let projection = json!({"runs":[{"id":"a","ordinal":1,"status":"completed","checkpointId":"c1"},{"id":"b","ordinal":2,"status":"completed","checkpointId":null},{"id":"c","ordinal":3,"status":"running","checkpointId":null}]});
-        assert_eq!(run_for_source_point(&projection, &json!({"type":"latest_stable"}))["id"], "a");
-        assert_eq!(run_for_source_point(&projection, &json!({"type":"run","runId":"c"}))["status"], "running");
+        assert_eq!(run_for_source_point(&projection, &json!({"type":"latest_stable"})).unwrap()["id"], "a");
+        assert_eq!(run_for_source_point(&projection, &json!({"type":"run","runId":"c"})).unwrap()["status"], "running");
         assert!(run_for_source_point(&projection, &json!({"type":"checkpoint","checkpointId":"missing"})).is_none());
     }
 

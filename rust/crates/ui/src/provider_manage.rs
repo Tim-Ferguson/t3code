@@ -20,7 +20,7 @@ use t3_client::{connection::ConnectionStatus, provider_manage as logic, provider
 use t3_contracts::AuthEnvironmentScope;
 
 /// Releases a control's in-flight flag when its request ends, answered or abandoned.
-struct Busy<T: 'static>(Signal<T>, fn() -> T);
+pub(crate) struct Busy<T: 'static>(pub(crate) Signal<T>, pub(crate) fn() -> T);
 impl<T: 'static> Drop for Busy<T> {
     fn drop(&mut self) {
         if let Ok(mut value) = self.0.try_write() {
@@ -28,24 +28,24 @@ impl<T: 'static> Drop for Busy<T> {
         }
     }
 }
-fn flag(signal: Signal<bool>) -> Busy<bool> {
+pub(crate) fn flag(signal: Signal<bool>) -> Busy<bool> {
     Busy(signal, || false)
 }
 
 /// Whether the connection is up and grants `scope` at the moment of asking.
-fn allowed_now(state: Store<UiModel>, scope: AuthEnvironmentScope) -> bool {
+pub(crate) fn allowed_now(state: Store<UiModel>, scope: AuthEnvironmentScope) -> bool {
     let model = state.peek();
     model.status == ConnectionStatus::Connected && model.destination.as_ref().is_some_and(|id| model.environments.allows(id, scope))
 }
 
 /// A request whose answer only matters to the connection that sent it. After it, the page reads the
 /// configuration again when the live stream is not the one carrying it.
-async fn ask(transport: &TransportHandle, state: Store<UiModel>, method: &str, input: Value) -> Option<Result<Value, String>> {
+pub(crate) async fn ask(transport: &TransportHandle, state: Store<UiModel>, method: &str, input: Value) -> Option<Result<Value, String>> {
     let owner = runtime::connection_owner(transport, state)?;
     let result = runtime::request_value_reported(transport.clone(), state, method, input).await;
     (runtime::connection_owner(transport, state).as_ref() == Some(&owner)).then_some(result)
 }
-async fn follow_config(transport: &TransportHandle, state: Store<UiModel>) {
+pub(crate) async fn follow_config(transport: &TransportHandle, state: Store<UiModel>) {
     if !runtime::live_config_active(transport, state) {
         let _ = runtime::request_value_reported(transport.clone(), state, "server.getConfig", json!({})).await;
     }

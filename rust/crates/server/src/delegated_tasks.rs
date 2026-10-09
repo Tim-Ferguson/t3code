@@ -209,6 +209,24 @@ pub(crate) fn stop_remaining(command: &Value, projection: &Value, run: &Value, n
     to_events(command["threadId"].as_str().unwrap_or_default(), command["commandId"].as_str().unwrap_or_default(), planned, now)
 }
 
+/// `thread.stop` on a thread with no run to interrupt: Stop still holds what the thread would start
+/// next. Its queued turns are held, its pull request watches end and the completions its delegated
+/// tasks owe are dropped.
+pub(crate) fn stop_idle_thread(command: &Value, projection: &Value, now: DateTime<Utc>) -> Result<Vec<Event>, StoreError> {
+    let timestamp = crate::execution::at(now);
+    let mut planned: Vec<(&'static str, Value)> = rows(projection, "runs")
+        .iter()
+        .filter(|run| run["status"] == "queued" && run["queueHeld"] != true)
+        .map(|run| {
+            let mut run = run.clone();
+            run["queueHeld"] = json!(true);
+            ("run.updated", run)
+        })
+        .collect();
+    planned.extend(hold_stopped_thread(projection, &[], &timestamp));
+    to_events(command["threadId"].as_str().unwrap_or_default(), command["commandId"].as_str().unwrap_or_default(), planned, now)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

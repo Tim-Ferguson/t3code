@@ -20,10 +20,7 @@ pub async fn command(store: &Store, tag: &str, payload: Value) -> Result<Value, 
         .await
         .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?
         .map_err(|error| error.wire())?;
-    let result = json!({"matches":matches.iter().map(|found| json!({
-        "threadId":found.thread_id,"projectId":found.project_id,"source":found.source,
-        "snippet":found.snippet,"messageCreatedAt":found.message_created_at,
-    })).collect::<Vec<_>>()});
+    let result = thread_search::result_json(&matches);
     // The result must decode as the original's success type before it leaves.
     serde_json::from_value::<OrchestrationSearchThreadsResult>(result)
         .and_then(|typed| serde_json::to_value(typed))

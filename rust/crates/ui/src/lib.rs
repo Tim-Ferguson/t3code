@@ -59,6 +59,8 @@ mod themes;
 mod thread_controls;
 mod thread_lifecycle;
 mod timeline;
+mod limits_view;
+mod usage_page;
 mod timeline_scroll;
 mod work_rows;
 mod worktree_setup;
@@ -331,6 +333,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::SourceControl => rsx! {source_control_page::Page {state,transport:transport.clone()}},
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {pull_request_list::Page {state,transport:transport.clone()}},
+                    View::Usage => rsx! {usage_page::Page {state,transport:transport.clone()}},
                     View::Appearance => rsx! {
                         section { class: "settings-page", settings_common::Tabs { state, current: View::Appearance }
                             h1 { "Appearance" }

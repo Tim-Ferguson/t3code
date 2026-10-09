@@ -548,8 +548,8 @@ impl McpControlTools {
         if !view["thread"]["deletedAt"].is_null() {
             return Ok(());
         }
-        let Some(run) = latest_active(&view) else { return Ok(()) };
-        let mut command = json!({"type":"run.interrupt","commandId":operation_id("command", scope, "cancel-task", &format!("{key}:{index}")),"threadId":thread_id,"runId":run["id"],"holdQueue":true});
+        // A thread with no active run is stopped too: its queued turns are held, so nothing starts later.
+        let mut command = json!({"type":"thread.stop","commandId":operation_id("command", scope, "cancel-task", &format!("{key}:{index}")),"threadId":thread_id});
         if let Some(reason) = reason {
             command["reason"] = json!(reason);
         }

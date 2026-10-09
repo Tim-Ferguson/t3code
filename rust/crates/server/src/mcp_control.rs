@@ -36,11 +36,22 @@ pub(crate) const HANDLED: &[&str] = &[
     "t3_project_list",
     "t3_project_read",
 ];
+/// What some tools need beyond the thread store: the settings the RPC settings methods use, the
+/// environment descriptor `server.getConfig` carries, and the background policy a checkout's status reads.
+#[derive(Clone, Default)]
+pub struct McpServices {
+    pub settings: Option<crate::server_settings::SettingsService>,
+    pub environment: Option<Value>,
+    pub background: Option<crate::background_policy::BackgroundPolicy>,
+    /// Where a handoff's setup script runs.
+    pub terminals: Option<crate::terminal_manager::TerminalManager>,
+}
 #[derive(Clone)]
 pub struct McpControlTools {
     pub store: Store,
     pub execution: Option<ExecutionService>,
     pub clock: Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>,
+    pub services: McpServices,
 }
 pub(crate) fn rows<'a>(value: &'a Value, key: &str) -> &'a [Value] {
     value[key].as_array().map(Vec::as_slice).unwrap_or(&[])
@@ -61,6 +72,23 @@ fn latest(projection: &Value) -> Option<&Value> {
     rows(projection, "runs")
         .iter()
         .max_by_key(|run| run["ordinal"].as_u64().unwrap_or(0))
+}
+/// How a send reaches the thread: steering or restarting the running turn the provider can still
+/// take input for, queueing behind the active run, or starting a turn.
+pub(crate) fn delivery_mode(target: &Value, id: &str, mode: McpThreadSendMode) -> Result<Value, McpFailure> {
+    let steerable = rows(target, "runs")
+        .iter()
+        .filter(|run| run["status"] == "running" && !run["activeAttemptId"].is_null() && rows(target, "providerTurns").iter().any(|turn| turn["runAttemptId"] == run["activeAttemptId"] && turn["status"] == "running"))
+        .max_by_key(|run| run["ordinal"].as_u64().unwrap_or(0));
+    Ok(match mode {
+        McpThreadSendMode::Steer | McpThreadSendMode::Restart => {
+            let run = steerable.ok_or_else(|| refusal("thread_not_sendable", &format!("Thread {id} has no running turn that can be {}.", if mode == McpThreadSendMode::Steer { "steered" } else { "restarted" })))?;
+            json!({"type":if mode == McpThreadSendMode::Steer {"steer_active"}else{"restart_active"},"targetRunId":run["id"]})
+        }
+        McpThreadSendMode::Auto if steerable.is_some() => json!({"type":"steer_active","targetRunId":steerable.unwrap()["id"]}),
+        McpThreadSendMode::Auto => json!({"type":"start_immediately"}),
+        McpThreadSendMode::Queue => json!({"type":"queue_after_active"}),
+    })
 }
 fn live(projection: &Value) -> Option<&Value> {
     rows(projection, "runs")
@@ -159,7 +187,7 @@ impl McpControlTools {
     /// Tools with a handler here. The rest are listed as the original lists them and answer with
     /// the original's generic failure, since the service behind them is not ported.
     pub fn handled(name: &str) -> bool {
-        HANDLED.contains(&name)
+        HANDLED.contains(&name) || crate::mcp_extra::IMPLEMENTED.contains(&name)
     }
     pub fn catalog() -> Vec<Value> {
         crate::mcp_tool_input::entries().iter().filter(|entry| !crate::mcp_tool_input::device_group(entry["group"].as_str().unwrap_or_default())).map(|entry| entry["tool"].clone()).collect()
@@ -217,15 +245,15 @@ impl McpControlTools {
             "create_threads" => Box::pin(self.create_threads(scope, arguments)).await,
             "t3_project_list" => self.project_list(scope, arguments),
             "t3_project_read" => self.project_read(scope, arguments),
-            // Listed as the original lists it; the service behind it is not ported.
-            _ => Err(mcp_access::unavailable()),
+            // The tools ported after the first group, and the ones this server answers as unavailable.
+            _ => Box::pin(self.extended(scope, name, arguments)).await,
         };
         Ok(match result {
             Ok(value) => {
                 json!({"isError":false,"structuredContent":value,"content":[{"type":"text","text":value.to_string()}]})
             }
             Err(error) => {
-                json!({"isError":true,"content":[{"type":"text","text":error.0.to_string()}]})
+                json!({"isError":true,"content":[{"type":"text","text":crate::mcp_extra::failure_text(name, &error)}]})
             }
         })
     }
@@ -409,21 +437,23 @@ impl McpControlTools {
                     StoreError::InvalidCommand("MCP admission refused".into())
                 })
             });
-        match result {
-            Ok(receipt) if receipt.status == "accepted" => Ok(receipt),
-            Ok(receipt) => Err(receipt
-                .error
-                .as_ref()
-                .map(mcp_access::dispatch_failure)
-                .unwrap_or_else(mcp_access::unavailable)),
-            Err(error) => Err(refused.into_inner().unwrap_or_else(|| match error {
-                StoreError::InvalidCommand(message) => refusal(
-                    "orchestration_error",
-                    &message.chars().take(1000).collect::<String>(),
-                ),
-                _ => mcp_access::unavailable(),
-            })),
+        map_dispatch(result, refused.into_inner())
+    }
+    /// A thread command (`thread.*`) goes to the thread service, as over the socket; every other
+    /// command to the execution service. Either way the caller's captured modes fence it at commit.
+    pub(crate) fn dispatch_command(&self, command: &Value, limits: CallerLimits) -> Result<Receipt, McpFailure> {
+        if !command["type"].as_str().is_some_and(|kind| kind.starts_with("thread.")) {
+            return self.execute(command, limits);
         }
+        let refused = std::cell::RefCell::new(None);
+        let result = thread::ThreadService::new(self.store.clone()).dispatch_guarded(command, (self.clock)(), |_, projection| {
+            let target = projection.ok_or_else(|| StoreError::InvalidCommand("Thread not found".into()))?;
+            mcp_access::recheck_limits(limits, &target["thread"]).map_err(|error| {
+                *refused.borrow_mut() = Some(error);
+                StoreError::InvalidCommand("MCP admission refused".into())
+            })
+        });
+        map_dispatch(result, refused.into_inner())
     }
     pub fn send(
         &self,
@@ -440,40 +470,7 @@ impl McpControlTools {
             ));
         }
         let mode = opt(input.mode).unwrap_or(McpThreadSendMode::Auto);
-        let steerable = rows(&target, "runs")
-            .iter()
-            .filter(|run| {
-                run["status"] == "running"
-                    && !run["activeAttemptId"].is_null()
-                    && rows(&target, "providerTurns").iter().any(|turn| {
-                        turn["runAttemptId"] == run["activeAttemptId"]
-                            && turn["status"] == "running"
-                    })
-            })
-            .max_by_key(|run| run["ordinal"].as_u64().unwrap_or(0));
-        let dispatch_mode = match mode {
-            McpThreadSendMode::Steer | McpThreadSendMode::Restart => {
-                let run = steerable.ok_or_else(|| {
-                    refusal(
-                        "thread_not_sendable",
-                        &format!(
-                            "Thread {id} has no running turn that can be {}.",
-                            if mode == McpThreadSendMode::Steer {
-                                "steered"
-                            } else {
-                                "restarted"
-                            }
-                        ),
-                    )
-                })?;
-                json!({"type":if mode == McpThreadSendMode::Steer {"steer_active"}else{"restart_active"},"targetRunId":run["id"]})
-            }
-            McpThreadSendMode::Auto if steerable.is_some() => {
-                json!({"type":"steer_active","targetRunId":steerable.unwrap()["id"]})
-            }
-            McpThreadSendMode::Auto => json!({"type":"start_immediately"}),
-            McpThreadSendMode::Queue => json!({"type":"queue_after_active"}),
-        };
+        let dispatch_mode = delivery_mode(&target, id, mode)?;
         let key = opt(input.client_request_id)
             .map(|value| value.0.to_string())
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -639,6 +636,18 @@ impl McpControlTools {
         valid::<ThreadMetadataMcpUpdateResult>(
             json!({"threadId":id,"action":input.action,"commandId":command_id,"sequence":receipt.result_sequence,"title":event["title"],"titleRegeneration":event["titleRegeneration"],"linkedPullRequest":event["linkedPullRequest"],"updatedAt":event["updatedAt"]}),
         )
+    }
+}
+/// An accepted receipt, or the refusal the caller hears: the captured mode refusal, a decider
+/// rejection's public cause, or the generic failure for anything the store reports.
+pub(crate) fn map_dispatch(result: Result<Receipt, StoreError>, refused: Option<McpFailure>) -> Result<Receipt, McpFailure> {
+    match result {
+        Ok(receipt) if receipt.status == "accepted" => Ok(receipt),
+        Ok(receipt) => Err(receipt.error.as_ref().map(mcp_access::dispatch_failure).unwrap_or_else(mcp_access::unavailable)),
+        Err(error) => Err(refused.unwrap_or_else(|| match error {
+            StoreError::InvalidCommand(message) => refusal("orchestration_error", &message.chars().take(1000).collect::<String>()),
+            _ => mcp_access::unavailable(),
+        })),
     }
 }
 fn pretty(value: &Value) -> String {
@@ -915,6 +924,7 @@ mod tests {
                 store,
                 execution: None,
                 clock: Arc::new(|| "2026-01-01T00:00:00Z".parse().unwrap()),
+                services: Default::default(),
             },
             scope,
         )

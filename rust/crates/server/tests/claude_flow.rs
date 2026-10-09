@@ -616,8 +616,12 @@ fn every_excluded_recording_names_why_the_port_does_not_replay_it() {
         assert!(entry["reason"].as_str().is_some_and(|reason| reason.len() > 20), "{entry}");
         assert!(!scenarios.iter().any(|row| row["name"] == entry["name"]), "{entry} is both replayed and excluded");
     }
-    let recovery = file["recovery"].as_array().unwrap();
-    assert_eq!(scenarios.len() + recovery.len() + excluded.len(), file["recorded"].as_u64().unwrap() as usize, "every recording is accounted for");
+    let (recovery, forks) = (file["recovery"].as_array().unwrap(), file["forks"].as_array().unwrap());
+    // The forks and merge-backs are replayed over several threads by `claude_fork_replay.rs`.
+    for entry in forks {
+        assert!(!excluded.iter().any(|row| row["name"] == entry["name"]), "{entry} is both replayed as a fork and excluded");
+    }
+    assert_eq!(scenarios.len() + recovery.len() + forks.len() + excluded.len(), file["recorded"].as_u64().unwrap() as usize, "every recording is accounted for");
 }
 
 /// The recording of a subagent launched, finished, and resumed by `SendMessage` after the server

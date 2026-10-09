@@ -112,6 +112,8 @@ struct Actor {
     bg: Background,
     /// The provider thread the latest turn ran on: where a wake is offered and the roster is written.
     route: Option<Value>,
+    /// A fork's first launch, until Claude reports the session it forked into.
+    fork_wait: Option<crate::claude_fork::ForkWait>,
 }
 
 fn view(store: &Store, thread_id: &str) -> Result<Value, StoreError> {
@@ -139,7 +141,7 @@ impl Actor {
         let capabilities: Value = serde_json::from_str(include_str!("claude-capabilities.json")).unwrap();
         let session = json!({"id":session_id,"driver":DRIVER,"providerInstanceId":instance_id,"status":"ready","cwd":cwd,"model":view["thread"]["modelSelection"]["model"],"capabilities":capabilities,"createdAt":now,"updatedAt":now,"lastError":null});
         commit(&store, thread_id, |_| Ok(vec![("provider-session.attached", session.clone())])).map_err(|e| e.to_string())?;
-        Ok(Self { store, thread_id: thread_id.into(), session_id, instance, cwd, session, live: None, turn: None, pending: HashMap::new(), opened: Default::default(), mcp: mcp.map(|lease| lease.config.clone()), detached: false, providers: providers.clone(), subagents: Default::default(), settled: None, nested: Default::default(), ignored_tasks: Default::default(), bg: Default::default(), route: None })
+        Ok(Self { store, thread_id: thread_id.into(), session_id, instance, cwd, session, live: None, turn: None, pending: HashMap::new(), opened: Default::default(), mcp: mcp.map(|lease| lease.config.clone()), detached: false, providers: providers.clone(), subagents: Default::default(), settled: None, nested: Default::default(), ignored_tasks: Default::default(), bg: Default::default(), route: None, fork_wait: None })
     }
 
     async fn effect(&mut self, effect: &Effect) -> Result<(), String> {
@@ -185,10 +187,20 @@ impl Actor {
         let has_turns = view["providerTurns"].as_array().into_iter().flatten().any(|turn| turn["providerThreadId"] == provider_thread["id"] && turn["runAttemptId"].as_str().is_none_or(|attempt| !rolled_back.contains(attempt)));
         // After a rollback the thread names the assistant message the conversation now ends at.
         let resume_session_at = provider_thread["nativeConversationHeadRef"]["nativeId"].as_str().map(str::to_owned);
-        let native_id = saved.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        // A fork's first launch resumes its source's session as a new one; Claude names it in its `init`.
+        let fork_transfer = if saved.is_none() && !provider_thread["forkedFrom"].is_null() { crate::context_transfer::native_fork_transfer(&view, &json!(run_id)).cloned() } else { None };
+        let fork_request = fork_transfer.as_ref().map(|transfer| crate::claude_fork::fork_request(&self.store, transfer, provider_thread)).transpose()?;
+        let resume_session_at = match &fork_request {
+            Some(request) => request.up_to_message.clone(),
+            None => resume_session_at,
+        };
+        let native_id = match &fork_request {
+            Some(request) => request.source_session.clone(),
+            None => saved.clone().unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+        };
         // An imported session exists natively before its first turn here; it loads as `not_loaded`.
         let imported = saved.is_some() && provider_thread["status"] == "not_loaded";
-        let resume = saved.is_some() && has_turns || self.opened.contains(&native_id) || resume_session_at.is_some() || imported;
+        let resume = saved.is_some() && has_turns || self.opened.contains(&native_id) || resume_session_at.is_some() || imported || fork_request.is_some();
         let message = find(&view, "messages", &run["userMessageId"]).map_err(|e| e.to_string())?.clone();
         let thread = &view["thread"];
         let runtime_mode = thread["runtimeMode"].as_str().unwrap_or("approval-required").to_owned();
@@ -204,6 +216,7 @@ impl Actor {
             native_thread_id: &native_id,
             resume,
             resume_session_at: resume_session_at.as_deref(),
+            fork_session: fork_request.is_some(),
             cwd: &self.cwd,
             attachments_dir: attachments_dir.as_deref(),
             runtime_mode: &runtime_mode,
@@ -214,7 +227,17 @@ impl Actor {
         // A continuation attaches to what the CLI already produced instead of prompting it again.
         let continuation = crate::provider_continuation::is_continuation(&message);
         // Build the prompt first so a bad attachment fails before any process starts.
-        let content = if continuation { Value::Null } else { self.prompt_content(&message, compiled.prompt_effort.as_deref()).await? };
+        // What the run's handoffs say goes ahead of the user's message, within the budget.
+        let inline = if continuation { None } else { crate::claude_fork::plan_inline(&view, run, message["text"].as_str().unwrap_or(""), &message["attachments"])? };
+        let content = if continuation {
+            Value::Null
+        } else {
+            let mut prompted = message.clone();
+            if let Some(inline) = &inline {
+                prompted["text"] = json!(crate::claude_fork::with_context(&inline.context, message["text"].as_str().unwrap_or("")));
+            }
+            self.prompt_content(&prompted, compiled.prompt_effort.as_deref()).await?
+        };
         let reusable = self.live.as_ref().is_some_and(|live| live.key == key && live.native_thread_id == native_id);
         if !reusable && !continuation {
             if let Some(live) = self.live.take() {
@@ -224,7 +247,9 @@ impl Actor {
             }
             let (process, events) = ClaudeProcess::spawn(&options.launch())?;
             process.write(&json!({"request_id":format!("t3-init-{}", uuid::Uuid::new_v4().simple()),"type":"control_request","request":options.initialize_request()}))?;
-            self.opened.insert(native_id.clone());
+            if fork_request.is_none() {
+                self.opened.insert(native_id.clone());
+            }
             self.live = Some(Live { echo_mode: EchoMode::Unknown, process, events, key, native_thread_id: native_id.clone(), opened_mode: options.permission_mode.clone(), mode: options.permission_mode.clone() });
         } else if let Some(live) = self.live.as_mut().filter(|live| live.mode != live.opened_mode && !continuation) {
             // Claude can switch its own mode (EnterPlanMode); put the thread's mode back.
@@ -258,7 +283,9 @@ impl Actor {
             node["providerTurnId"] = json!(provider_turn_id);
             thread["driver"] = json!(DRIVER);
             thread["providerSessionId"] = json!(session_id);
-            thread["nativeThreadRef"] = thread_ref(&native_id);
+            if fork_request.is_none() {
+                thread["nativeThreadRef"] = thread_ref(&native_id);
+            }
             thread["status"] = json!("active");
             thread["lastRunOrdinal"] = run["ordinal"].clone();
             thread["updatedAt"] = json!(now);
@@ -267,6 +294,7 @@ impl Actor {
         })
         .map_err(|e| e.to_string())?;
         captured.provider_turn_id = json!(provider_turn_id);
+        self.fork_wait = fork_request.zip(fork_transfer).map(|(request, transfer)| crate::claude_fork::ForkWait { source_session: request.source_session, run_id: run_id.to_owned(), transfer_id: transfer["id"].clone(), provider_thread_id: run["providerThreadId"].clone() });
         let view = crate::codex_runtime::projection(&self.store, &self.thread_id).map_err(|e| e.to_string())?;
         let mut projector = Projector::new(&self.thread_id, captured, &view, selection).map_err(|e| e.to_string())?;
         projector.skip_tools = self.subagents.agent_calls().clone();
@@ -281,8 +309,15 @@ impl Actor {
         self.bg.start_user_turn();
         // Written after the running state is durable: the CLI answers immediately.
         let uuid = prompt_uuid.unwrap_or_default();
+        // Recorded as pending first: a message the CLI took and then lost is found by the next turn.
+        if let Some(inline) = &inline {
+            inline.mark(&self.store, &self.thread_id, "pending")?;
+        }
         if let Err(cause) = self.live.as_ref().unwrap().process.write(&user_message(content, None, Some(&uuid))) {
             return Err(cause);
+        }
+        if let Some(inline) = &inline {
+            inline.mark(&self.store, &self.thread_id, "inline")?;
         }
         Ok(())
     }
@@ -464,6 +499,11 @@ impl Actor {
     /// the wake buffer and so to a continuation run. A CLI that echoes only on the result (or not at
     /// all) is never held.
     fn message(&mut self, message: &Value) -> Result<MessageOutcome, StoreError> {
+        if message["type"] == "system" && message["subtype"] == "init" && message["parent_tool_use_id"].is_null() {
+            if let Some(outcome) = self.adopt_fork(message)? {
+                return Ok(outcome);
+            }
+        }
         let Some((prompt, echoed, mode)) = self.turn.as_ref().filter(|turn| !turn.echo_confirmed).zip(self.live.as_ref()).and_then(|(turn, live)| Some((turn.prompt_uuid.clone()?, echoed_uuids(message), live.echo_mode))) else { return self.route(message) };
         if echoed.contains(&prompt) {
             if let Some(live) = self.live.as_mut().filter(|live| matches!(live.echo_mode, EchoMode::Unknown | EchoMode::Acknowledged)) {
@@ -538,6 +578,25 @@ impl Actor {
         // A result from no other turn (an interrupt, a startup failure) settles the prompt's turn.
         self.release_held()?;
         self.route(message)
+    }
+    /// A fork's first launch reports the session Claude forked into: that is the fork's native thread.
+    fn adopt_fork(&mut self, message: &Value) -> Result<Option<MessageOutcome>, StoreError> {
+        let Some(wait) = self.fork_wait.take() else { return Ok(None) };
+        let session = message["session_id"].as_str().unwrap_or_default();
+        if session.is_empty() || session == wait.source_session {
+            let failure = crate::provider_failure::make(&json!({"class":"provider_error","message":"Claude did not start a new session for the fork."}));
+            self.finish_turn(None, "failed", Some(failure))?;
+            return Ok(Some(MessageOutcome::Finished));
+        }
+        let view = view(&self.store, &self.thread_id)?;
+        let instance = self.session["providerInstanceId"].as_str().unwrap_or_default().to_owned();
+        let events = crate::claude_fork::adopt(&view, &wait, &instance, session).map_err(error)?;
+        commit(&self.store, &self.thread_id, |_| Ok(events))?;
+        if let Some(live) = self.live.as_mut() {
+            live.native_thread_id = session.to_owned();
+        }
+        self.opened.insert(session.to_owned());
+        Ok(None)
     }
     /// Gives held root output to the pending prompt turn.
     fn release_held(&mut self) -> Result<(), StoreError> {

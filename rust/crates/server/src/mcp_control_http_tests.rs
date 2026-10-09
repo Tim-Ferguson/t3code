@@ -42,6 +42,7 @@ async fn cooperative_fixture() {
         store: store.clone(),
         execution: Some(execution.clone()),
         clock: Arc::new(|| "2026-01-01T00:00:00Z".parse().unwrap()),
+        services: Default::default(),
     };
     let service = McpHttpService::new(registry.clone(), None).with_controls(tools);
     let router = service.router();
@@ -97,10 +98,10 @@ async fn cooperative_fixture() {
         json!(McpControlTools::catalog())
     );
     assert_eq!(catalog["result"]["tools"].as_array().unwrap().len(), 76);
-    // A tool listed without its service answers with the original's generic failure.
-    let unported: Value = call("t3_queue_list", json!({"threadId":"thread:1"})).send().await.unwrap().json().await.unwrap();
+    // A tool this server has no service for is still listed, and answers with the original's capability refusal.
+    let unported: Value = call("preview_status", json!({})).send().await.unwrap().json().await.unwrap();
     assert_eq!(unported["result"]["isError"], true);
-    assert_eq!(unported["result"]["content"][0]["text"], json!({"_tag":"OrchestratorMcpFailure","code":"orchestration_error","message":"The operation could not be completed."}).to_string());
+    assert!(unported["result"]["content"][0]["text"].as_str().unwrap().starts_with("MCP credential does not grant the preview capability"), "{unported}");
     let unknown: Value = call("not_a_tool", json!({})).send().await.unwrap().json().await.unwrap();
     assert_eq!(unknown["error"]["message"], "Tool 'not_a_tool' not found");
     let listed: Value = call(

@@ -304,6 +304,15 @@ def serve_transcript():
             handle.write(str(cursor))
     entries = [json.loads(line) for line in open(path) if line.strip()]
     cursor = int(open(state_path).read()) if os.path.exists(state_path) else 1
+    # The original forked a session in a call of its own before opening the fork; the CLI is asked to do
+    # both in this launch (`--fork-session`), so the recorded call and its answer are passed over.
+    if entries[cursor]["type"] == "expect_outbound" and entries[cursor]["frame"]["type"] == "session.fork":
+        if "--fork-session" not in ARGS:
+            sys.stderr.write("transcript forks a session but the launch has no --fork-session at %d\n" % cursor)
+            sys.exit(4)
+        cursor += 1
+        if entries[cursor]["type"] == "emit_inbound" and entries[cursor]["frame"]["type"] == "session.forked":
+            cursor += 1
     # A launch consumes the recorded `query.open`.
     if entries[cursor]["type"] == "expect_outbound" and entries[cursor]["frame"]["type"] == "query.open":
         cursor += 1
