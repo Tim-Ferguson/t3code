@@ -96,7 +96,8 @@ pub(crate) fn sidebar_order(state: Store<UiModel>) -> Vec<String> {
     let field = state.shell();
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return vec![] };
-    snapshot.projects.iter().flat_map(|project| snapshot.threads.iter().filter(move |thread| thread.project_id == project.id && thread.deleted_at.is_none())).map(|thread| thread.id.to_string()).collect()
+    let now = chrono::Utc::now();
+    snapshot.projects.iter().flat_map(|project| crate::sidebar_rows::rows(&snapshot.threads, &project.id, now)).map(|thread| thread.id.to_string()).collect()
 }
 fn allows(state: Store<UiModel>, scope: AuthEnvironmentScope) -> bool {
     *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, scope))
@@ -173,6 +174,12 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             if state.lifecycle().read().undo.is_some() && allows(state, AuthEnvironmentScope::OrchestrationOperate) {
                 set.insert("thread.undo".into());
             }
+            if open.is_some() {
+                set.insert("thread.copyReference".into());
+                if allows(state, AuthEnvironmentScope::OrchestrationOperate) && crate::sidebar_rows::caps(state).pinning {
+                    set.insert("thread.pin".into());
+                }
+            }
             if chat && open.is_some() {
                 if state.diff().read().open || allows(state, AuthEnvironmentScope::OrchestrationRead) {
                     set.insert("diff.toggle".into());
@@ -189,6 +196,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                     if open.as_ref().is_some_and(|thread| thread.working) {
                         set.insert("composer.sendAlternate".into());
                     }
+                    set.insert("composer.sendAndNewThread".into());
                     if state.thread().read().projection.as_ref().is_some_and(|projection| !t3_client::timeline_items::queued_runs(projection).is_empty()) {
                         set.insert("thread.editQueuedMessage".into());
                     }
@@ -448,6 +456,14 @@ impl Runner {
                 let queue = state.client_settings().peek().follow_up_behavior == t3_contracts::FollowUpBehavior::Queue;
                 runtime::send_with(&self.transport, state, runtime::SendOptions { mode: Some(t3_client::timeline_items::dispatch_mode(true, true, queue)), ..Default::default() });
             }
+            // Sends what is in the box and opens a fresh composer in the same project, so the thread
+            // goes on without waiting (`composer.sendAndNewThread`). An empty box does neither.
+            "composer.sendAndNewThread" => {
+                if !state.draft().peek().trim().is_empty() {
+                    runtime::send_with(&self.transport, state, runtime::SendOptions::default());
+                    runtime::new_thread(&self.transport, state, None);
+                }
+            }
             "thread.editQueuedMessage" => {
                 let latest = state.peek().thread.projection.as_ref().and_then(|projection| t3_client::timeline_items::queued_runs(projection).pop());
                 if let Some(run) = latest {
@@ -461,6 +477,8 @@ impl Runner {
                     runtime::stop_thread(&self.transport, state, &thread.id);
                 }
             }
+            "thread.pin" => crate::sidebar_rows::toggle_pin(&self.transport, state),
+            "thread.copyReference" => crate::sidebar_rows::copy_reference(state),
             "thread.previous" | "thread.next" => {
                 let order = sidebar_order(state);
                 let current = state.active_thread().peek().clone();

@@ -209,7 +209,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         let pick: Vec<Item> = projects.iter().map(|project| Item::action(&format!("new-thread-in:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string())).collect();
         actions.push(Item::submenu("action:new-thread-in", "New thread in...", &["new thread", "project", "pick", "choose", "select"], vec![Group::new("projects", "Projects", pick)]));
     }
-    let entries: [(&str, &str, &[&str], &str); 16] = [
+    let entries: [(&str, &str, &[&str], &str); 17] = [
         ("action:new-thread-without-project", "New thread without a project", &["new thread", "no project", "without project", "none", "chat"], "chat.newWithoutProject"),
         ("action:toggle-diff", "Toggle diff panel", &["diff", "changes", "files changed", "review"], "diff.toggle"),
         ("action:toggle-terminal", "Toggle terminal", &["terminal", "shell", "console"], "terminal.toggle"),
@@ -226,6 +226,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         ("action:choose-workspace", "Choose workspace", &["workspace", "worktree", "checkout", "new thread"], "composer.workspace"),
         ("action:previous-worktree", "Use previous worktree", &["previous worktree", "worktree", "workspace", "last"], "composer.previousWorktree"),
         ("action:undo-archive", "Undo archive", &["undo", "archive", "restore", "unarchive"], "thread.undo"),
+        ("action:copy-thread-reference", "Copy PR link or thread ID", &["copy", "pull request", "pr link", "thread id", "reference"], "thread.copyReference"),
     ];
     for (value, title, terms, command) in entries {
         if let Some(item) = item(value, title, terms, Some(command)) {
@@ -247,6 +248,11 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         }
         if title_regeneration_available(state) {
             actions.push(Item::action("action:regenerate-title", "Regenerate thread title", &["title", "rename", "regenerate", "thread", "name"]));
+        }
+    }
+    if let Some(pinned) = crate::sidebar_rows::open_thread_pinned(state) {
+        if let Some(item) = item("action:toggle-pin", if pinned { "Unpin thread" } else { "Pin thread" }, &["pin", "unpin", "keep on top", "thread"], Some("thread.pin")) {
+            actions.push(item);
         }
     }
     if state.environments().read().records.len() > 0 && allows_operate(state) && project_create::new_projects_root(state).is_some() {

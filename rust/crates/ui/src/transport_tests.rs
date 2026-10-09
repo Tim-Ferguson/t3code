@@ -393,7 +393,7 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"threadPullRequests":true,"threadPullRequestLinking":true}});
+    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadSnooze":true}});
     let config = json!({"environment":environment,"auth":auth.descriptor(),"cwd":directory.path().to_string_lossy(),"keybindingsConfigPath":"/isolated/keybindings.json","keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":[],"availableEditors":[],"observability":{"logsDirectoryPath":"/isolated/logs","localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false},"settings":t3_contracts::ServerSettings::default()});
     let _: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
     let api = ApiState {
@@ -856,16 +856,15 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
                     && row["item"]["exitCode"] == 0)
         );
     }
-    // Rows are closed until asked, so their output is neither built nor fetched. Both rows that
-    // withheld their output are opened, by the label they show, and loaded through the UI.
-    let withheld: Vec<String> = state.peek().thread.projection.as_ref().unwrap()["visibleTurnItems"].as_array().unwrap().iter().filter(|row| row["item"]["outputOmitted"] == true).map(|row| crate::item_cards::label(&row["item"])).collect();
-    assert_eq!(withheld.len(), 2, "{withheld:?}");
+    // The turn has settled, so its work is folded behind one line. The workspace preparation that
+    // launched it is not part of the conversation. Rows are closed until asked, so their output is
+    // neither built nor fetched: the one command that withheld its output is opened by the label it
+    // shows and loaded through the UI.
+    wait_for_rendered_text(&mut dom, "Worked for").await;
+    click_control(&mut dom, "Worked for*");
+    let withheld: Vec<String> = state.peek().thread.projection.as_ref().unwrap()["visibleTurnItems"].as_array().unwrap().iter().filter(|row| row["item"]["outputOmitted"] == true && row["item"]["input"] != "Preparing workspace").map(|row| crate::item_cards::label(&row["item"])).collect();
+    assert_eq!(withheld.len(), 1, "{withheld:?}");
     click_control(&mut dom, &withheld[0]);
-    click_control(&mut dom, "Load full output");
-    // Atomic initial-message launch includes a workspace preparation activity
-    // before the provider command; both details are fetched through the UI.
-    wait_for_rendered_text(&mut dom, "Workspace preparation completed.").await;
-    click_control(&mut dom, &withheld[1]);
     click_control(&mut dom, "Load full output");
     wait_for_rendered_text(&mut dom, "fixture tool output\n").await;
 
@@ -1397,7 +1396,12 @@ fn all_controls_attribute(
             let TemplateNode::Element { attrs, .. } = template else {
                 continue;
             };
-            let labeled=attrs.iter().any(|a|matches!(a,TemplateAttribute::Static {name:"aria-label",value,..} if *value==label)) || attributes.iter().any(|a|a.name=="aria-label" && matches!(&a.value,AttributeValue::Text(v) if v==label));
+            // A label ending in `*` names every control whose label starts with the rest.
+            let same = |candidate: &str| match label.strip_suffix('*') {
+                Some(prefix) => candidate.starts_with(prefix),
+                None => candidate == label,
+            };
+            let labeled=attrs.iter().any(|a|matches!(a,TemplateAttribute::Static {name:"aria-label",value,..} if same(value))) || attributes.iter().any(|a|a.name=="aria-label" && matches!(&a.value,AttributeValue::Text(v) if same(v)));
             // One element can carry several dynamic attributes; it is listed once.
             let Some(element) = node.mounted_dynamic_attribute(index, dom).filter(|_| labeled) else {
                 continue;

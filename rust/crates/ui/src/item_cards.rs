@@ -2,7 +2,7 @@
 //! and the projection alone. A card holds only its own open/closed state, and its body is not
 //! built until it is opened, so a long output or a streaming thought costs nothing while closed.
 //! Wording follows the original (`MessagesTimeline.tsx`, `session-logic.ts`, `proposedPlan.ts`).
-use crate::markdown::Markdown;
+use crate::{markdown::Markdown, runtime::{self, UiModel}};
 use dioxus::prelude::*;
 use serde_json::Value;
 use t3_client::{timeline_items as words, work_log};
@@ -164,9 +164,12 @@ pub(crate) fn ErrorRow(item: Value) -> Element {
 
 /// The streaming Markdown plan, collapsed when long, with the original's actions.
 #[component]
-pub(crate) fn PlanCard(item: Value, on_copy: EventHandler<String>, on_download: EventHandler<(String, String)>) -> Element {
+pub(crate) fn PlanCard(item: Value, state: Store<UiModel>, transport: runtime::TransportHandle, thread_id: String, on_copy: EventHandler<String>, on_download: EventHandler<(String, String)>) -> Element {
     let mut expanded = use_signal(|| false);
     let mut actions = use_signal(|| false);
+    let mut saving = use_signal(|| false);
+    let root = crate::plan_save::workspace_root(state, &thread_id);
+    let can_save = crate::plan_save::may_write(state) && root.is_some();
     let markdown = item["markdown"].as_str().unwrap_or_default().to_owned();
     let title = words::plan_title(&markdown).unwrap_or_else(|| "Proposed plan".into());
     let collapsible = words::plan_can_collapse(&markdown) && item["streaming"] != true;
@@ -181,7 +184,9 @@ pub(crate) fn PlanCard(item: Value, on_copy: EventHandler<String>, on_download: 
         if actions() {div {class:"menu",role:"menu",onkeydown:move |event| {if event.key()==Key::Escape {actions.set(false);}},
             button {role:"menuitem",onclick:{let text=words::plan_export(&markdown);move |_|{on_copy.call(text.clone());actions.set(false);}},"Copy to clipboard"}
             button {role:"menuitem",onclick:{let text=words::plan_export(&markdown);let name=words::plan_filename(&markdown);move |_|{on_download.call((name.clone(),text.clone()));actions.set(false);}},"Download as markdown"}
+            button {role:"menuitem","aria-label":"Save to workspace",disabled:!can_save,title:if can_save {""} else {"This connection cannot write files, or the thread has no workspace."},onclick:move |_|{actions.set(false);saving.set(true);},"Save to workspace"}
         }}
+        if saving() {if let Some(root)=root.clone() {crate::plan_save::SaveDialog {state,transport:transport.clone(),root,filename:words::plan_filename(&markdown),contents:words::plan_export(&markdown),close:move |_|saving.set(false)}}}
         Markdown {text:shown}
         if collapsible {button {class:"plan-toggle",onclick:move |_|expanded.set(!expanded()),if expanded() {"Collapse plan"} else {"Expand plan"}}}
     }}

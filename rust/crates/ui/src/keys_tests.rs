@@ -558,6 +558,24 @@ async fn thread_shortcuts_move_through_the_sidebar_order_and_stop_at_its_ends() 
     fixture.finish(dom).await;
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn send_and_new_thread_sends_the_message_and_opens_a_fresh_composer() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props, state) = connect(&fixture, &OPERATE).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    let mut event = chord("Enter", false, true);
+    event.code = "Enter".into();
+    // With nothing to send, the chord is claimed but does nothing.
+    assert_eq!(press(&mut dom, event.clone(), in_composer()).await.as_deref(), Some("composer.sendAndNewThread"));
+    assert_eq!(state.active_thread().peek().as_deref(), Some("thread-a"));
+    input_control(&mut dom, "Message", "Run the long job");
+    assert_eq!(press(&mut dom, event, in_composer()).await.as_deref(), Some("composer.sendAndNewThread"));
+    // The message went to thread-a, and the app is on a new draft.
+    until(&mut dom, "the message sent", |_| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.threads.iter().any(|thread| thread.id.as_str() == "thread-a" && thread.latest_run_id.is_some()))).await;
+    assert!(state.active_thread().peek().is_none(), "a fresh composer is open");
+    fixture.finish(dom).await;
+}
+
 /// The palette is the last thing in the page, so its entry is the last control with the title it
 /// shares with a button of the drawer.
 fn click_palette_entry(dom: &mut VirtualDom, title: &str) {

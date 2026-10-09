@@ -88,7 +88,7 @@ fn Mark(glyph: String, icon: Option<ToolIcon>, failed: bool) -> Element {
 /// "Worked for 2m 4s" above a settled turn, or "Superseded attempt" above partial output.
 #[component]
 fn FoldRow(attempt: bool, id: String, label: String, expanded: bool, set: Signal<BTreeSet<String>>) -> Element {
-    rsx! {button {class:if attempt {"attempt-fold"} else {"turn-fold"},r#type:"button","aria-expanded":"{expanded}","data-scroll-anchor-ignore":"true",
+    rsx! {button {class:if attempt {"attempt-fold"} else {"turn-fold"},r#type:"button","aria-label":"{label}","aria-expanded":"{expanded}","data-scroll-anchor-ignore":"true",
         onclick:move |_| toggle(set, &id),
         span {class:"fold-label","{label}"}
         span {class:"fold-chevron","aria-hidden":"true",if expanded {"▾"} else {"▸"}}
@@ -98,6 +98,10 @@ fn FoldRow(attempt: bool, id: String, label: String, expanded: bool, set: Signal
 
 #[component]
 fn WorkSummary(group: String, summary: String, count: usize, glyph: String, icon: Option<ToolIcon>, failed: bool, expanded: bool, set: Signal<BTreeSet<String>>) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
+        probe.summary.set(probe.summary.get() + 1);
+    }
     let name = if failed { format!("{summary}, tool call failed") } else { summary.clone() };
     rsx! {button {class:"work-summary",r#type:"button","aria-label":"{name}","aria-expanded":"{expanded}","data-scroll-anchor-ignore":"true",title:"{count} in this group",
         onclick:move |_| toggle(set, &group),
@@ -111,6 +115,10 @@ fn WorkSummary(group: String, summary: String, count: usize, glyph: String, icon
 /// with the latest thought above it. Nothing animates; the text is the state.
 #[component]
 fn LiveRow(group: String, label: String, thought: Option<String>, active: bool, failed: bool, glyph: String, icon: Option<ToolIcon>, expanded: bool, set: Signal<BTreeSet<String>>) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
+        probe.summary.set(probe.summary.get() + 1);
+    }
     let name = if failed { format!("{label}, tool call failed") } else { label.clone() };
     rsx! {button {class:if active {"live-activity active"} else {"live-activity"},r#type:"button","aria-label":"{name}","aria-expanded":"{expanded}","data-scroll-anchor-ignore":"true",
         onclick:move |_| toggle(set, &group),
@@ -136,6 +144,7 @@ pub(crate) struct Rows<'a> {
     pub transport: runtime::TransportHandle,
     pub environment_key: &'a str,
     pub thread_id: &'a str,
+    pub projection: &'a Value,
     pub items: &'a [Value],
     pub entries: &'a [Entry],
     pub offers: &'a std::collections::BTreeMap<String, Target>,
@@ -184,12 +193,14 @@ impl Rows<'_> {
                 Row::Subagents { entries } => {
                     let first = self.items[self.entries[entries[0]].row]["sourceItemId"].as_str().unwrap_or_default().to_owned();
                     let marker = format!("subagents:{first}");
+                    let items: Vec<&Value> = entries.iter().map(|&entry| &self.items[self.entries[entry].row]["item"]).collect();
+                    let cards = crate::subagent_rows::cards(self.state, self.projection, &items);
                     rsx! { div { key:"{marker}",class:"subagent-batch","data-timeline-row":"{marker}",
-                        for &entry in entries {{ let row = &self.items[self.entries[entry].row]; let key = self.key(row); rsx!{ div { key:"{key}",
-                            TimelineItem { environment_key:self.environment_key.to_owned(),item:row["item"].clone(),state:self.state,transport:self.transport.clone(),
-                                source_thread_id:row["sourceThreadId"].as_str().unwrap_or(self.thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned(),
-                                rewind:None,active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None } }
-                        }} }}
+                        if cards.len() == 1 {
+                            crate::subagent_rows::SubagentRow {card:cards[0].clone(),state:self.state,transport:self.transport.clone()}
+                        } else {
+                            crate::subagent_rows::SubagentGroup {id:marker.clone(),cards,state:self.state,transport:self.transport.clone()}
+                        }
                     }}
                 }
                 Row::TurnFold { run_id, label, expanded, .. } => {
@@ -203,10 +214,16 @@ impl Rows<'_> {
                 Row::Toggle { id, group, entries, summary, kind, surface, icon, has_failure, expanded, .. } => rsx! { div { key:"{id}",class:"work-row","data-timeline-row":"{id}",
                     WorkSummary {group:group.clone(),summary:summary.clone(),count:entries.len(),glyph:glyph(*kind,surface.as_deref()).to_owned(),icon:icon.clone(),failed:*has_failure,expanded:*expanded,set:groups}
                 }},
-                Row::Live { id, group, label, expanded, active, thought, surface, icon, failed, .. } => {
-                    let thought_line = thought.map(|index| words::live_thought_line(self.items[self.entries[index].row]["item"]["text"].as_str().unwrap_or_default())).filter(|line| !line.is_empty());
+                Row::Live { id, group, entry, label, expanded, active, thought, surface, icon, failed, .. } => {
+                    let text_of = |index: usize| self.items[self.entries[index].row]["item"]["text"].as_str().unwrap_or_default();
+                    let thought_line = thought.map(|index| words::live_thought_line(text_of(index))).filter(|line| !line.is_empty());
+                    // While the thought itself is the line, it says Thinking (or Thought) and the thought sits above it.
+                    let is_thought = *thought == Some(*entry) && thought_line.is_some() && !*expanded;
+                    let shown = if is_thought { (if *active { "Thinking" } else { "Thought" }).to_owned() }
+                        else if self.items[self.entries[*entry].row]["item"]["type"] == "reasoning" { words::live_thought_line(text_of(*entry)) }
+                        else { label.clone() };
                     rsx! { div { key:"{id}",class:"work-row","data-timeline-row":"{id}",
-                        LiveRow {group:group.clone(),label:label.clone(),thought:thought_line,active:*active,failed:*failed,glyph:glyph(SummaryKind::Mixed,surface.as_deref()).to_owned(),icon:icon.clone(),expanded:*expanded,set:groups}
+                        LiveRow {group:group.clone(),label:shown,thought:thought_line,active:*active,failed:*failed,glyph:glyph(SummaryKind::Mixed,surface.as_deref()).to_owned(),icon:icon.clone(),expanded:*expanded,set:groups}
                     }}
                 }
                 Row::Members { group, entries } => self.members(group, entries),

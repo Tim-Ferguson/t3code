@@ -3876,3 +3876,248 @@ html[data-theme-token-probe] *::after {
   flex-direction: column;
   gap: 6px;
 }
+
+/* Subagents in the parent's conversation. */
+.subagent-card {
+  position: relative;
+}
+.subagent-row,
+.subagent-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  font-size: 0.75rem;
+}
+button.subagent-row,
+.subagent-group-head {
+  cursor: pointer;
+}
+button.subagent-row:hover,
+.subagent-group-head:hover {
+  background: var(--accent);
+}
+.subagent-group-head:not(.active) .subagent-title,
+.subagent-group-head:not(.active) .subagent-avatars {
+  opacity: 0.7;
+}
+.subagent-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.subagent-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.subagent-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.subagent-state,
+.subagent-detail {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+.subagent-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subagent-state.failed,
+.subagent-detail.failed {
+  color: var(--destructive, #dc2626);
+}
+.subagent-detail.active {
+  color: var(--primary);
+}
+.subagent-elapsed {
+  flex: none;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.subagent-avatars {
+  display: inline-flex;
+  flex: none;
+}
+.subagent-avatars .subagent-avatar + .subagent-avatar {
+  margin-left: -6px;
+}
+.subagent-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+}
+.subagent-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 2px solid var(--background);
+  background: var(--muted-foreground);
+}
+.subagent-dot.info {
+  background: var(--primary);
+}
+.subagent-dot.success {
+  background: #16a34a;
+}
+.subagent-dot.failed {
+  background: var(--destructive, #dc2626);
+}
+.subagent-members {
+  margin: 4px 0;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+/* The hover card: on hover or keyboard focus of the row, never animated. */
+.subagent-tip {
+  display: none;
+  position: absolute;
+  left: 32px;
+  top: 100%;
+  z-index: 5;
+  max-width: min(360px, 90vw);
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+.subagent-card:hover .subagent-tip,
+.subagent-card:focus-within .subagent-tip {
+  display: flex;
+}
+.subagent-tip strong {
+  color: var(--foreground);
+}
+.subagent-tip-status {
+  text-transform: capitalize;
+}
+.subagent-tip-preview {
+  overflow-wrap: anywhere;
+}
+
+/* Thread rows: state at a glance, and the menu of what can be done. Nothing here animates. */
+.thread-row-wrap {
+  position: relative;
+}
+.status-dot.approval {
+  background: #d97706;
+}
+.status-dot.input {
+  background: #6366f1;
+}
+.status-dot.working {
+  background: #3b82f6;
+}
+.status-dot.waiting {
+  background: var(--muted-foreground);
+  outline: 1px solid var(--muted-foreground);
+  background-clip: content-box;
+  padding: 1px;
+}
+.status-dot.failed,
+.status-dot.limited {
+  background: var(--destructive, #dc2626);
+}
+.thread-pill,
+.thread-snooze,
+.thread-duration {
+  flex: none;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+}
+.thread-pill.amber {
+  color: #d97706;
+}
+.thread-pill.indigo {
+  color: #6366f1;
+}
+.thread-pill.sky {
+  color: #0284c7;
+}
+.thread-pill.violet {
+  color: #7c3aed;
+}
+.thread-pill.emerald {
+  color: #059669;
+}
+.thread-pin {
+  flex: none;
+  font-size: 0.5rem;
+  color: var(--muted-foreground);
+}
+.thread-row.snoozed {
+  opacity: 0.6;
+}
+.thread-row.unread .thread-title {
+  font-weight: 600;
+}
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+}
+.context-menu {
+  z-index: 50;
+  min-width: 200px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  position: absolute;
+  left: 24px;
+  top: 100%;
+}
+.context-menu .menu-item {
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+.context-menu .menu-item:hover:not(:disabled),
+.context-menu .menu-item:focus-visible {
+  background: var(--accent);
+}
+.context-menu .menu-item:disabled {
+  color: var(--muted-foreground);
+}

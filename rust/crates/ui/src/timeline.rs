@@ -67,7 +67,7 @@ pub(crate) fn TimelineItem(
     }
     let live = crate::item_cards::liveness(&effective, active_run.as_deref());
     match kind {
-        "proposed_plan" => return rsx! {crate::item_cards::PlanCard {item:effective.clone(),on_copy:|text|copy_text(text),on_download:|(name,text)|download_text(name,text)}},
+        "proposed_plan" => return rsx! {crate::item_cards::PlanCard {item:effective.clone(),state,transport:transport.clone(),thread_id:source_thread_id.clone(),on_copy:|text|copy_text(text),on_download:|(name,text)|download_text(name,text)}},
         "todo_list" => return rsx! {crate::item_cards::Todo {item:effective.clone(),live}},
         "reasoning" => return rsx! {crate::item_cards::Reasoning {item:effective.clone(),live}},
         "compaction" => return rsx! {crate::item_cards::Compaction {item:effective.clone()}},

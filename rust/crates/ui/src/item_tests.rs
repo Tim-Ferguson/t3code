@@ -37,8 +37,10 @@ async fn reasoning_todo_and_usage_show_while_the_turn_runs_and_nothing_keeps_wor
     // The second thought's heading can only come from the second reasoning item.
     until(&mut dom, "both thoughts", |dom| rendered_text(dom).contains("Planning the change")).await;
     let text = rendered_text(&dom);
-    assert!(text.contains("Reading the task") && text.contains("Thought"), "{text}");
     assert!(text.contains("Working for"), "the run is going, so the timeline says so: {text}");
+    // The thoughts are one group under the live line; the earlier one is inside it.
+    click_control(&mut dom, "Thinking");
+    until(&mut dom, "the first thought in the open group", |dom| rendered_text(dom).contains("Reading the task")).await;
     until(&mut dom, "the plan and the usage", |dom| rendered_text(dom).contains("Plan updated") && control(dom, "Context window 0.1% used").is_some()).await;
     assert!(control(&dom, "Stop generation").is_some());
 
@@ -137,6 +139,11 @@ async fn mcp_and_dynamic_tools_are_named_for_their_tool() {
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
     send(&mut dom, &props, state, "Use tools [mcp-tool]");
+    // The turn settles, its work folds behind one line, and the two calls are one group.
+    until(&mut dom, "the settled turn", |dom| control(dom, "Worked for*").is_some()).await;
+    click_control(&mut dom, "Worked for*");
+    until(&mut dom, "the group", |dom| control(dom, "Used*").is_some()).await;
+    click_control(&mut dom, "Used*");
     until(&mut dom, "both tool rows", |dom| rendered_text(dom).contains("Create issue") && rendered_text(dom).contains("Fixture.lookup")).await;
     // A tool call's input and output are not built until the row is opened.
     assert!(!rendered_text(&dom).contains("\"title\": \"Fixture\""));
@@ -361,6 +368,9 @@ async fn reasoning_may_have_no_title_and_may_be_interrupted() {
         with(base("r1", "reasoning", "interrupted"), json!({"text":"Looking at the **failing** test. Then more.","streaming":false})),
         with(base("r2", "reasoning", "completed"), json!({"title":"Checked the logs","text":"Nothing odd.","streaming":false})),
     ]), SETTLED(), json!({}));
+    // Two thoughts are one group, which says only how many.
+    assert!(text(&dom).contains("Thought (×2)"), "{}", text(&dom));
+    click_control(&mut dom, "Thought (×2)");
     let shown = text(&dom);
     assert!(shown.contains("Thought") && shown.contains("interrupted") && shown.contains("Looking at the failing test."), "{shown}");
     assert!(shown.contains("Checked the logs") && !shown.contains("Nothing odd."), "closed until asked: {shown}");
@@ -370,7 +380,7 @@ async fn reasoning_may_have_no_title_and_may_be_interrupted() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn tool_rows_carry_their_title_and_why_they_are_not_simply_done() {
-    let (dom, _) = synth(json!([
+    let (mut dom, _) = synth(json!([
         with(base("t1", "dynamic_tool", "completed"), json!({"toolName":"github_app.create_issue","title":"create issue","input":{"title":"x"},"output":[{"type":"text","text":"ok"}],"toolSource":{"key":"mcp:github_app","name":"github app","kind":"integration"}})),
         with(base("t2", "dynamic_tool", "waiting"), json!({"toolName":null,"title":"Action required","input":{}})),
         with(base("t3", "dynamic_tool", "completed"), json!({"toolName":null,"title":"Unsupported ACP update: usage_update","input":{}})),
@@ -379,10 +389,15 @@ async fn tool_rows_carry_their_title_and_why_they_are_not_simply_done() {
         with(base("t6", "file_change", "cancelled"), json!({"fileName":"src/lib.rs","additions":1,"deletions":0})),
         with(base("t7", "dynamic_tool", "interrupted"), json!({"toolName":"fixture.slow","input":{}})),
     ]), json!([{"id":"run-1","status":"cancelled","ordinal":1}]), json!({}));
+    // The calls are one group; its line counts them by kind, naming the integration that made one.
+    assert!(text(&dom).contains("Used github app integration, ran 1 command, changed 1 file, and performed 3 other actions"), "{}", text(&dom));
+    click_control(&mut dom, "Used github app integration*");
     let shown = text(&dom);
-    for expected in ["Create issue", "Action required", "waiting", "Unsupported ACP update: usage_update", "cargo test", "failed", "rust dioxus signals, dioxus 0.7", "src/lib.rs", "cancelled", "Fixture.slow", "interrupted"] {
+    for expected in ["Create issue", "Unsupported ACP update: usage_update", "cargo test", "failed", "rust dioxus signals, dioxus 0.7", "src/lib.rs", "cancelled", "Fixture.slow", "interrupted"] {
         assert!(shown.contains(expected), "{expected}: {shown}");
     }
+    // A call that is only waiting is not an outcome, so the group leaves it out until it runs.
+    assert!(!shown.contains("Action required"), "{shown}");
     assert!(!shown.contains("background"), "nothing here is left over from a finished run unless it is still going: {shown}");
 }
 
@@ -402,11 +417,15 @@ async fn work_still_running_after_its_run_ended_is_background_work_not_a_turn_in
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_running_item_of_the_active_run_is_working_and_says_so() {
-    let (dom, _) = synth(json!([
+    let (mut dom, _) = synth(json!([
         with(base("w1", "command_execution", "running"), json!({"input":"sleep 10","output":"partial output"})),
     ]), json!([{"id":"run-1","status":"running","ordinal":1,"startedAt":"2026-01-01T00:00:00Z"}]), json!({}));
     let shown = text(&dom);
-    assert!(shown.contains("sleep 10") && shown.contains("running") && shown.contains("Working for"), "{shown}");
+    assert!(shown.contains("Running sleep") && shown.contains("Working for"), "the live line names the call: {shown}");
+    click_control(&mut dom, "Running sleep");
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let shown = text(&dom);
+    assert!(shown.contains("sleep 10") && shown.contains("running"), "opened, the call says where it is: {shown}");
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -530,7 +549,7 @@ async fn an_approval_appearing_builds_its_own_row_and_the_panel_but_not_the_conv
     }
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     assert!(text(&dom).contains("Command approval") && text(&dom).contains("rm -rf build"));
-    assert_eq!(props.probe.item.get(), rows + 1, "one new row");
+    assert_eq!(props.probe.item.get(), rows, "the question is asked in the panel; waiting calls stay out of the conversation, as in the original");
     assert_eq!((props.probe.application.get(), props.probe.composer.get()), (application, composer));
 }
 
@@ -541,15 +560,336 @@ async fn a_subagent_row_names_its_state_and_opens_its_thread_and_a_child_thread_
         with(base("s2", "subagent", "waiting"), json!({"subagentId":"n2","origin":"tool","driver":"codex","providerInstanceId":"codex","childThreadId":null,"prompt":"Wait for it"})),
     ]);
     let (mut dom, _) = synth(items, SETTLED(), json!({}));
+    // Children launched by one provider turn are one group, which counts their states.
     let shown = text(&dom);
-    assert!(shown.contains("Review src/math.ts") && shown.contains("Completed") && shown.contains("Waiting"), "{shown}");
-    click_control(&mut dom, "Review src/math.ts");
-    assert!(control(&dom, "Open subagent thread").is_some() || text(&dom).contains("Open subagent thread"), "{}", text(&dom));
-    assert!(text(&dom).contains("Looks fine."));
+    assert!(shown.contains("2 subagents") && shown.contains("1 working \u{b7} 1 done"), "{shown}");
+    assert!(!shown.contains("Review src/math.ts"), "closed until asked: {shown}");
+    click_control(&mut dom, "2 subagents");
+    let shown = text(&dom);
+    assert!(shown.contains("Review src/math.ts") && shown.contains("Looks fine.") && shown.contains("Waiting"), "{shown}");
+    assert!(control(&dom, "Open Review src/math.ts").is_some(), "a child with a thread opens it");
+    assert!(control(&dom, "Open Subagent").is_none(), "one without a thread does not");
 
     // The child thread: no message box, a note saying why, and a way back to the parent.
     let (dom, _) = synth(json!([]), SETTLED(), json!({"lineage":{"parentThreadId":"parent","relationshipToParent":"subagent","rootThreadId":"parent"}}));
     let shown = text(&dom);
     assert!(shown.contains("This subagent is run by its provider and cannot take messages. Message the parent thread instead."), "{shown}");
     assert!(control(&dom, "Message").is_none() && control(&dom, "Open parent thread").is_some());
+}
+
+fn command(id: &str, input: &str, status: &str) -> Value {
+    with(base(id, "command_execution", status), json!({"input":input,"exitCode":if status == "completed" { json!(0) } else { Value::Null },"output":"","startedAt":"2026-01-01T00:00:00Z"}))
+}
+fn user(id: &str, text: &str) -> Value {
+    with(base(id, "user_message", "completed"), json!({"messageId":id,"text":text,"inputIntent":"turn_start","createdBy":"user","creationSource":"web"}))
+}
+fn assistant(id: &str, text: &str) -> Value {
+    with(base(id, "assistant_message", "completed"), json!({"messageId":id,"text":text,"streaming":false}))
+}
+fn set_field(state: Store<UiModel>, id: &str, field: &str, value: Value) {
+    let mut thread = state.thread();
+    let mut model = thread.write();
+    let projection = model.projection.as_mut().unwrap();
+    for list in ["turnItems", "visibleTurnItems"] {
+        for row in projection[list].as_array_mut().unwrap() {
+            let item = if list == "turnItems" { row } else { &mut row["item"] };
+            if item["id"] == id {
+                item[field] = value.clone();
+            }
+        }
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_settled_turn_folds_its_work_behind_one_line_and_its_group_opens_to_the_calls() {
+    let items = json!([
+        user("u1", "Tidy the repo"),
+        with(base("think", "reasoning", "completed"), json!({"text":"Looking around first."})),
+        command("c1", "ls -la", "completed"),
+        command("c2", "git status", "completed"),
+        assistant("a1", "All tidy."),
+    ]);
+    let runs = json!([{"id":"run-1","status":"completed","ordinal":1,"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:01:30Z"}]);
+    let (mut dom, _props) = synth(items, runs, json!({}));
+    let shown = text(&dom);
+    assert!(shown.contains("Tidy the repo") && shown.contains("All tidy."), "{shown}");
+    assert!(shown.contains("Worked for 1m 30s"), "{shown}");
+    assert!(!shown.contains("ls -la") && !shown.contains("Ran 2 commands"), "the work is folded away: {shown}");
+    assert_eq!(control_attribute(&dom, "Worked for 1m 30s", "aria-expanded").and_then(|(_, value)| value).as_deref(), Some("false"), "the fold is a button with its state in the page");
+    click_control(&mut dom, "Worked for 1m 30s");
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let shown = text(&dom);
+    assert!(shown.contains("Ran 2 commands") && !shown.contains("ls -la"), "the calls are one group, closed: {shown}");
+    click_control(&mut dom, "Ran 2 commands");
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let shown = text(&dom);
+    assert!(shown.contains("ls -la") && shown.contains("git status"), "{shown}");
+    // The same click closes the group, and the fold closes the lot.
+    click_control(&mut dom, "Ran 2 commands");
+    click_control(&mut dom, "Worked for 1m 30s");
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!text(&dom).contains("Ran 2 commands"));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_running_turn_keeps_its_work_and_says_what_it_is_doing_now() {
+    let items = json!([user("u1", "Build it"), command("c1", "cargo check", "completed"), command("c2", "cargo build --release", "running")]);
+    let runs = json!([{"id":"run-1","status":"running","ordinal":1,"startedAt":"2026-01-01T00:00:00Z"}]);
+    let (mut dom, props) = synth(items, runs, json!({}));
+    let state = state_of(&props);
+    let shown = text(&dom);
+    assert!(shown.contains("Running cargo") && shown.contains("Working for"), "{shown}");
+    assert!(!shown.contains("Worked for"), "a running turn is not folded: {shown}");
+    // A call that finished successfully keeps the line while the turn goes on, as in the original.
+    set_field(state, "c2", "status", json!("completed"));
+    set_field(state, "c2", "exitCode", json!(0));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("Running cargo"), "{}", text(&dom));
+    // A last call that failed gives the row back to "Thinking", with its group still reachable.
+    set_field(state, "c2", "status", json!("failed"));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("Thinking"), "{}", text(&dom));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_call_streaming_inside_a_group_rebuilds_that_call_and_the_summary_only_when_its_words_change() {
+    let mut items = many(300).as_array().unwrap().clone();
+    items.push(user("u1", "Build it"));
+    items.push(command("c1", "cargo check", "completed"));
+    items.push(command("c2", "cargo build --release", "running"));
+    let runs = json!([{"id":"run-1","status":"running","ordinal":1,"startedAt":"2026-01-01T00:00:00Z"}]);
+    let (mut dom, props) = synth(Value::Array(items), runs, json!({}));
+    let state = state_of(&props);
+    click_control(&mut dom, "Running cargo");
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("cargo build --release"), "the group lists its calls: {}", text(&dom));
+    let (rows, summaries, application, composer) = (props.probe.item.get(), props.probe.summary.get(), props.probe.application.get(), props.probe.composer.get());
+    for (step, output) in ["Compiling a", "Compiling a\nCompiling b", "Compiling a\nCompiling b\nCompiling c"].into_iter().enumerate() {
+        set_field(state, "c2", "output", json!(output));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!(props.probe.item.get(), rows + step + 1, "only the streaming call was built again");
+        assert_eq!(props.probe.summary.get(), summaries, "its words did not change, so neither did the line");
+    }
+    // The next call is another command, so the line names it.
+    {
+        let mut thread = state.thread();
+        let mut model = thread.write();
+        let projection = model.projection.as_mut().unwrap();
+        let item = command("c3", "git status", "running");
+        projection["turnItems"].as_array_mut().unwrap().push(item.clone());
+        projection["visibleTurnItems"].as_array_mut().unwrap().push(json!({"sourceThreadId":"thread","sourceItemId":"c3","position":999,"visibility":"local","item":item}));
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("Running git"), "{}", text(&dom));
+    assert_eq!(props.probe.summary.get(), summaries + 1, "the line named cargo and now names git");
+    assert_eq!((props.probe.application.get(), props.probe.composer.get()), (application, composer));
+}
+
+/// The subagent items of the open conversation, as the titles their rows are named by.
+fn subagent_labels(state: Store<UiModel>) -> Vec<String> {
+    projection(state)["visibleTurnItems"].as_array().unwrap().iter().filter(|row| row["item"]["type"] == "subagent").map(|row| format!("Open {}", t3_client::subagent_display::display_title(row["item"]["title"].as_str().unwrap_or("Subagent")))).collect()
+}
+
+/// A real recording of Codex's subagents (the original's), served by the fake Codex: the parent's
+/// row opens the child thread, which is read-only and holds the grandchild's row in turn, and the
+/// way back leads to the parent.
+#[tokio::test(flavor = "current_thread")]
+async fn recorded_codex_subagents_open_their_child_threads_down_a_chain_and_back() {
+    let file: Value = serde_json::from_str(include_str!("../../server/tests/fixtures/codex-replay.json")).unwrap();
+    let scenario = file["scenarios"].as_array().unwrap().iter().find(|row| row["name"] == "subagent_v2_nested").expect("the recording").clone();
+    let scratch = tempfile::tempdir().unwrap();
+    let transcript = scratch.path().join("transcript.ndjson");
+    std::fs::write(&transcript, scenario["transcript"].as_array().unwrap().iter().map(|entry| entry.to_string() + "\n").collect::<String>()).unwrap();
+    let transcript = transcript.to_string_lossy().into_owned();
+    let fixture = Fixture::start_with(false, &[("CODEX_FIXTURE_TRANSCRIPT", transcript.as_str()), ("T3CODE_CODEX_STREAM_FLUSH_MS", "600000")]).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    // The recording was made with this model; the fake serves it only to the same requests.
+    dom.in_scope(ScopeId::APP, || runtime::command(&props.transport, state, "thread.create", json!({"threadId":"recorded","projectId":"project","title":"recorded","modelSelection":{"instanceId":"codex","model":scenario["model"]},"runtimeMode":"full-access","interactionMode":scenario["interactionMode"],"branch":null,"worktreePath":null}))).unwrap();
+    until(&mut dom, "the thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.iter().any(|t| t.id.as_str() == "recorded"))).await;
+    open_thread(&mut dom, &props, state, "recorded").await;
+    send(&mut dom, &props, state, scenario["steps"][0]["text"].as_str().unwrap());
+    // The turn settles and its work folds; the child it launched is a row of its own below.
+    until(&mut dom, "the settled turn", |dom| control(dom, "Worked for*").is_some()).await;
+    click_control(&mut dom, "Worked for*");
+    let first = subagent_labels(state).into_iter().next().expect("the parent holds its subagent");
+    assert_eq!(first, "Open Chain Level 1", "the recording names its task by path");
+    until(&mut dom, "the subagent row", |dom| control(dom, &first).is_some()).await;
+    assert!(rendered_text(&dom).contains("Chain Level 1") && rendered_text(&dom).contains("Hello."), "{}", rendered_text(&dom));
+
+    click_control(&mut dom, &first);
+    until(&mut dom, "the child thread", |dom| rendered_text(dom).contains("This subagent is run by its provider and cannot take messages.") && control(dom, "Open parent thread").is_some()).await;
+    assert!(control(&dom, "Message").is_none(), "a child takes no messages");
+    // The child holds its own child, as a row that opens it.
+    until(&mut dom, "the child's conversation", |dom| control(dom, "Worked for*").is_some() || control(dom, "Open Chain Level 2*").is_some()).await;
+    if control(&dom, "Open Chain Level 2*").is_none() {
+        click_control(&mut dom, "Worked for*");
+    }
+    let nested = subagent_labels(state).into_iter().next().expect("the child holds a subagent");
+    until(&mut dom, "the grandchild's row", |dom| control(dom, &nested).is_some()).await;
+    click_control(&mut dom, &nested);
+    until(&mut dom, "the grandchild thread", |dom| rendered_text(dom).contains("Hello.") && control(dom, "Open parent thread").is_some()).await;
+    assert!(control(&dom, "Message").is_none());
+
+    // Back up the chain, one parent at a time, to the thread that can take messages.
+    click_control(&mut dom, "Open parent thread");
+    until(&mut dom, "the child again", |dom| control(dom, &nested).is_some() || control(dom, "Worked for*").is_some()).await;
+    click_control(&mut dom, "Open parent thread");
+    until(&mut dom, "the top-level thread", |dom| control(dom, "Message").is_some()).await;
+    assert_eq!(state.peek().active_thread.as_deref(), Some("recorded"));
+    fixture.finish(dom).await;
+}
+
+/// What the connected server says threads can do; the fixture's server says pinning and snoozing.
+fn set_thread_actions(state: Store<UiModel>, offered: bool) {
+    let mut config = state.typed_config();
+    let mut config = config.write();
+    let capabilities = &mut config.as_mut().expect("the server's config").environment.capabilities;
+    capabilities.thread_pinning = Some(offered);
+    capabilities.thread_snooze = Some(offered);
+}
+fn thread_shell(state: Store<UiModel>, id: &str) -> t3_contracts::ThreadShell {
+    state.peek().shell.snapshot.as_ref().unwrap().threads.iter().find(|thread| thread.id.as_str() == id).cloned().unwrap()
+}
+
+/// A thread's context menu, by the keyboard: pin and unpin, snooze and wake, mark unread. Each is
+/// one request, offered only where the server says it can, and the row shows what the server answered.
+#[tokio::test(flavor = "current_thread")]
+async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
+    use crate::runtime::keys_tests::key_on;
+    use dioxus::prelude::Key;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    // Without the capabilities, the menu leaves the actions out.
+    set_thread_actions(state, false);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
+    assert!(control(&dom, "Pin thread").is_none() && control(&dom, "Mark unread").is_some() && control(&dom, "Copy thread ID").is_some());
+    key_on(&mut dom, "Thread actions", Key::Escape);
+    assert!(control(&dom, "Thread actions").is_none(), "Escape closes the menu");
+    set_thread_actions(state, true);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+
+    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
+    click_control(&mut dom, "Pin thread");
+    until(&mut dom, "the pin", |_| t3_client::sidebar::is_pinned(&thread_shell(state, "thread-b"))).await;
+    assert!(control(&dom, "Thread actions").is_none(), "the menu closes when an action is chosen");
+    // The row is busy until the server has answered, and its menu offers nothing meanwhile.
+    until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-b", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+    until(&mut dom, "the pin on the row", |dom| control(dom, "Pinned").is_some() || rendered_text(dom).contains('\u{25c6}')).await;
+    let order = crate::keys::sidebar_order(state);
+    assert_eq!(order.first().map(String::as_str), Some("thread-b"), "pinned threads list first: {order:?}");
+    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
+    assert!(control(&dom, "Pin thread").is_none());
+    click_control(&mut dom, "Unpin thread");
+    until(&mut dom, "the unpin", |_| !t3_client::sidebar::is_pinned(&thread_shell(state, "thread-b"))).await;
+    until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-b", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+
+    // Snoozing hides the thread's urgency behind a wake time; waking brings it back.
+    key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
+    click_control(&mut dom, "Snooze: In 1 hour*");
+    until(&mut dom, "the snooze", |_| thread_shell(state, "thread-a").snoozed_until.flatten().is_some()).await;
+    until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-a", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+    until(&mut dom, "the wake time on the row", |dom| rendered_text(dom).contains("Snoozed \u{b7} ")).await;
+    key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
+    click_control(&mut dom, "Wake thread");
+    until(&mut dom, "the wake", |_| thread_shell(state, "thread-a").snoozed_until.flatten().is_none()).await;
+    until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-a", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+    until(&mut dom, "the row awake", |dom| !rendered_text(dom).contains("Snoozed")).await;
+
+    // A finished turn reads as read until it is marked unread; opening the thread reads it again.
+    // The first message names the thread, so the row is found by its new title.
+    open_thread(&mut dom, &props, state, "thread-b").await;
+    super::runtime::diff_tests::turn(&mut dom, &props, state, 1).await;
+    until(&mut dom, "the thread's new title", |_| thread_shell(state, "thread-b").title != "thread-b").await;
+    let row = format!("Thread {}", thread_shell(state, "thread-b").title);
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    key_on(&mut dom, &row, Key::ContextMenu);
+    click_control(&mut dom, "Mark unread");
+    until(&mut dom, "the unread state on the row", |dom| rendered_text(dom).contains("Completed") && control_attribute(dom, &row, "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+    open_thread(&mut dom, &props, state, "thread-b").await;
+    until(&mut dom, "the visit", |dom| !rendered_text(dom).contains("Completed") && !t3_client::sidebar::has_unseen_completion(&thread_shell(state, "thread-b")) && control(dom, &row).is_some()).await;
+    fixture.finish(dom).await;
+}
+
+/// One thread's status changing repaints its own row, not the 40 beside it nor the conversation.
+#[tokio::test(flavor = "current_thread")]
+async fn a_status_change_on_one_thread_repaints_one_sidebar_row() {
+    let (mut dom, props) = synth(json!([]), SETTLED(), json!({}));
+    let state = state_of(&props);
+    {
+        let mut shell = state.shell();
+        let mut shell = shell.write();
+        let snapshot = shell.snapshot.as_mut().unwrap();
+        let template = snapshot.threads[0].clone();
+        for index in 0..40 {
+            let mut thread = template.clone();
+            thread.id = format!("other-{index}").parse().unwrap();
+            thread.title = format!("Other {index}");
+            snapshot.threads.push(thread);
+        }
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("Other 39"));
+    let (rows, items, composer) = (props.probe.sidebar_row.get(), props.probe.item.get(), props.probe.composer.get());
+    {
+        let mut shell = state.shell();
+        let mut shell = shell.write();
+        let thread = shell.snapshot.as_mut().unwrap().threads.iter_mut().find(|thread| thread.id.as_str() == "other-7").unwrap();
+        thread.status = t3_contracts::ThreadStatus::Running;
+        thread.activity_run_status = Some(Some(t3_contracts::ActivityRunStatus::Running));
+        thread.latest_run_id = Some("run-x".parse().unwrap());
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert_eq!(props.probe.sidebar_row.get(), rows + 1, "only the thread that changed was built again");
+    assert_eq!(props.probe.item.get(), items, "the conversation was not touched");
+    assert_eq!(props.probe.composer.get(), composer);
+    assert!(text(&dom).contains("Working"), "{}", text(&dom));
+    assert_eq!(control_attribute(&dom, "Thread Other 7", "data-thread-status").and_then(|(_, value)| value).as_deref(), Some("working"));
+}
+
+/// "Save to workspace" on a plan writes its markdown where the reader says, once per click, and
+/// is offered only to a connection that may write files.
+#[tokio::test(flavor = "current_thread")]
+async fn a_plan_is_saved_into_the_workspace_from_its_menu() {
+    use crate::runtime::keys_tests::key_on;
+    use dioxus::prelude::Key;
+    use t3_contracts::AuthEnvironmentScope as Scope;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.client(Gate::default(), &[Scope::OrchestrationRead, Scope::OrchestrationOperate, Scope::FilesystemWrite]);
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    create_thread(&mut dom, &props, state, "planner", "full-access", "plan").await;
+    open_thread(&mut dom, &props, state, "planner").await;
+    send(&mut dom, &props, state, "Make a plan [plan]");
+    until(&mut dom, "the plan card", |dom| rendered_text(dom).contains("Proposed plan") && control(dom, "Plan actions").is_some()).await;
+    click_control(&mut dom, "Plan actions");
+    click_control(&mut dom, "Save to workspace");
+    assert!(control(&dom, "Save plan to workspace").is_some());
+    // Escape leaves without writing.
+    key_on(&mut dom, "Save plan to workspace", Key::Escape);
+    assert!(control(&dom, "Save plan to workspace").is_none());
+    click_control(&mut dom, "Plan actions");
+    click_control(&mut dom, "Save to workspace");
+    input_control(&mut dom, "Workspace path", "docs/plan.md");
+    click_control(&mut dom, "Save plan");
+    assert_eq!(control_attribute(&dom, "Save plan", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"), "one request per click");
+    until(&mut dom, "the file", |_| fixture.workspace.join("docs/plan.md").is_file()).await;
+    until(&mut dom, "the dialog to close", |dom| control(dom, "Save plan to workspace").is_none()).await;
+    let saved = std::fs::read_to_string(fixture.workspace.join("docs/plan.md")).unwrap();
+    assert!(saved.contains("Do the work."), "{saved}");
+    fixture.finish(dom).await;
+
+    // A connection that cannot write files is not offered the action.
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    create_thread(&mut dom, &props, state, "planner", "full-access", "plan").await;
+    open_thread(&mut dom, &props, state, "planner").await;
+    send(&mut dom, &props, state, "Make a plan [plan]");
+    until(&mut dom, "the plan card", |dom| control(dom, "Plan actions").is_some()).await;
+    click_control(&mut dom, "Plan actions");
+    assert_eq!(control_attribute(&dom, "Save to workspace", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+    fixture.finish(dom).await;
 }

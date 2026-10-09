@@ -29,6 +29,7 @@ mod model_controls;
 mod model_picker;
 mod new_thread;
 mod notice;
+mod plan_save;
 mod project_create;
 mod provider_auth;
 mod provider_manage;
@@ -37,9 +38,11 @@ mod rollback;
 mod runtime;
 mod scheduled_tasks_page;
 mod scroll_state;
+mod sidebar_rows;
 mod search;
 mod settings_common;
 mod source_control_page;
+mod subagent_rows;
 mod syntax_highlighting;
 mod terminal_bridge;
 mod terminal_pane;
@@ -121,6 +124,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         .map(|snapshot| snapshot.threads.clone())
         .unwrap_or_default();
     drop(snapshot);
+    let row_caps = sidebar_rows::caps(state);
+    let now = chrono::Utc::now();
     let active_id = state.active_thread().read().clone();
     let active = threads
         .iter()
@@ -139,6 +144,17 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     t3_contracts::AuthEnvironmentScope::OrchestrationOperate,
                 )
             });
+    // Opening a thread that finished while the reader was away marks it visited, on the server, so
+    // every device agrees. It is asked once: the answer clears the unread state this reads.
+    let unseen = active.as_ref().filter(|_| can_operate).filter(|thread| t3_client::sidebar::has_unseen_completion(thread)).map(|thread| thread.id.to_string());
+    use_effect(use_reactive(&unseen, {
+        let transport = transport.clone();
+        move |unseen| {
+            if let Some(id) = unseen.filter(|_| state.status().peek().clone() == ConnectionStatus::Connected) {
+                runtime::command(&transport, state, "thread.visit", json!({"threadId":id,"visitedAt":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)}));
+            }
+        }
+    }));
     let title = active
         .as_ref()
         .map(|thread| thread.title.clone())
@@ -216,14 +232,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 span { class: "project-icon", "◇" } "{project.title}"
                             }
                             button { class: "project-remove", "aria-label": "Remove project {project.title}", title: "Remove project", disabled: !can_operate, onclick: { let id = project.id.to_string(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" }
-                            for thread in threads.iter().filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none() && thread.archived_at.is_none() && !is_subagent_thread(thread)) {
-                                button { key: "{thread.id}", class: if active.as_ref().is_some_and(|active| active.id == thread.id) { "thread-row selected" } else { "thread-row" },
-                                    onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| runtime::select_thread(&transport, state, id.clone()) },
-                                    span { class: if thread.status.is_active() { "status-dot busy" } else { "status-dot" } }
-                                    span { class: "thread-title", "{thread.title}" }
-                                    if matches!(thread.title_regeneration, Some(Some(_))) { span { class: "sr-only", role: "status", "Regenerating title" } }
-                                    if thread.pending_runtime_request.is_some() { span { class: "attention", title: "Needs your input", "!" } }
-                                }
+                            for thread in sidebar_rows::rows(&threads, &project.id, now) {
+                                sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(thread, active.as_ref().is_some_and(|active| active.id == thread.id), thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| Some(project.workspace_root.to_string())), row_caps, can_operate, now), state, transport: transport.clone() }
                             }
                             thread_lifecycle::Archived { key: "archived:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string() }
                         }
@@ -452,7 +462,7 @@ fn ThreadTimeline(
         active_turn_started_at: working_since.as_deref().or(runless.as_deref()),
     });
     t3_client::timeline_rows::place_left_out(&mut derived, &entries, items);
-    let rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target }.render(&derived);
+    let rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, projection: projection.unwrap_or(&Value::Null), items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target }.render(&derived);
     rsx! {
         div { class: "timeline", id:scrolling.id.clone(), tabindex:"0", "aria-label": "Conversation", onmounted:move |_|mount_scroll.mount(),
             if projection.is_some() {
@@ -785,6 +795,10 @@ struct RenderProbe {
     /// How many times a conversation row was built.
     item: std::rc::Rc<std::cell::Cell<usize>>,
     diff: std::rc::Rc<std::cell::Cell<usize>>,
+    /// How many times a group's summary line (or the live line) was built.
+    summary: std::rc::Rc<std::cell::Cell<usize>>,
+    /// How many times a sidebar thread row was built.
+    sidebar_row: std::rc::Rc<std::cell::Cell<usize>>,
 }
 
 #[cfg(test)]

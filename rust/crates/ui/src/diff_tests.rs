@@ -130,7 +130,7 @@ impl Fixture {
             .canonicalize()
             .unwrap();
         let settings: t3_contracts::ServerSettings = serde_json::from_value(
-            json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).collect::<Vec<_>>()}}}),
+            json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}}),
         )
         .unwrap();
         // The settings service the configuration stream needs, over the same settings.
