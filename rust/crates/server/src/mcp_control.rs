@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 use t3_contracts::*;
 /// Tools with a handler; see `McpControlTools::handled`.
-const HANDLED: &[&str] = &[
+pub(crate) const HANDLED: &[&str] = &[
     "t3_thread_list",
     "t3_thread_read",
     "t3_thread_wait",
@@ -28,6 +28,13 @@ const HANDLED: &[&str] = &[
     "delete_scheduled_task",
     "run_scheduled_task_now",
     "request_secret",
+    "orchestrator_capabilities",
+    "delegate_task",
+    "task_status",
+    "task_cancel",
+    "create_threads",
+    "t3_project_list",
+    "t3_project_read",
 ];
 #[derive(Clone)]
 pub struct McpControlTools {
@@ -203,6 +210,13 @@ impl McpControlTools {
             "delete_scheduled_task" => Box::pin(self.delete_scheduled_task(scope, arguments)).await,
             "run_scheduled_task_now" => Box::pin(self.run_scheduled_task_now(scope, arguments)).await,
             "request_secret" => Box::pin(self.request_secret(scope, arguments)).await,
+            "orchestrator_capabilities" => self.capabilities(scope),
+            "delegate_task" => Box::pin(self.delegate_task(scope, arguments)).await,
+            "task_status" => Box::pin(self.task_status(scope, arguments)).await,
+            "task_cancel" => Box::pin(self.task_cancel(scope, arguments)).await,
+            "create_threads" => Box::pin(self.create_threads(scope, arguments)).await,
+            "t3_project_list" => self.project_list(scope, arguments),
+            "t3_project_read" => self.project_read(scope, arguments),
             // Listed as the original lists it; the service behind it is not ported.
             _ => Err(mcp_access::unavailable()),
         };
@@ -383,7 +397,7 @@ impl McpControlTools {
             }
         }
     }
-    fn execute(&self, input: &Value, limits: CallerLimits) -> Result<Receipt, McpFailure> {
+    pub(crate) fn execute(&self, input: &Value, limits: CallerLimits) -> Result<Receipt, McpFailure> {
         let refused = std::cell::RefCell::new(None);
         let result = self
             .execution
@@ -876,6 +890,8 @@ impl McpControlTools {
         let mut runs = rows(&target, "runs").iter().collect::<Vec<_>>();
         runs.sort_by_key(|run| std::cmp::Reverse(run["ordinal"].as_u64().unwrap_or(0)));
         let runs=runs.into_iter().take(run_limit).map(|run|json!({"runId":run["id"],"ordinal":run["ordinal"],"status":run["status"],"providerInstanceId":run["modelSelection"]["instanceId"],"model":run["modelSelection"]["model"],"requestedAt":run["requestedAt"],"startedAt":run["startedAt"],"completedAt":run["completedAt"]})).collect::<Vec<_>>();
+        // Reading a delegated child's finished result also acknowledges its delivery to the reader's own thread.
+        self.acknowledge_read_result(scope, &target, &page, max_chars, offset)?;
         valid::<OrchestratorMcpThreadReadResult>(
             json!({"thread":detail,"recentRuns":runs,"items":items,"nextPosition":page.last().map(|row|row["position"].clone()),"hasMore":matching.len()>page.len()}),
         )

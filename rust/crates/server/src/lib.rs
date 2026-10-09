@@ -74,6 +74,7 @@ pub mod agent_sessions;
 #[cfg(test)]
 mod usage_tests;
 pub mod thread;
+mod thread_fork;
 pub(crate) mod background_work;
 pub(crate) mod queued_runs;
 pub(crate) mod subagents;
@@ -188,7 +189,9 @@ pub mod mcp_access;
 
 pub mod mcp_control;
 pub mod mcp_tool_input;
+pub mod delegated_completion;
 mod mcp_tools;
+mod mcp_delegate;
 
 mod message_queue;
 mod message_steering;
@@ -246,6 +249,7 @@ mod checkpoint_rollback;
 mod project_folders;
 pub mod external_launcher;
 pub mod mcp_apps;
+mod codex_live;
 pub mod provider_live;
 pub mod secret_requests;
 pub mod trace_diagnostics;

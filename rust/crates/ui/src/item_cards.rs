@@ -73,6 +73,12 @@ pub(crate) fn label(item: &Value) -> String {
 
 /// The small word beside a row: why it is not simply done. Completed work shows none.
 pub(crate) fn status_word(item: &Value, live: Live) -> Option<&'static str> {
+    // A tool the provider declined to run (denied, cancelled before it started) says so, not just "cancelled".
+    if live == Live::No && item["status"] != "completed" {
+        if let Some(word) = words::non_execution_word(item["toolNonExecutionKind"].as_str()) {
+            return Some(word);
+        }
+    }
     match (item["status"].as_str()?, live) {
         (_, Live::Background) => Some("background"),
         ("running", _) => Some("running"),
@@ -83,6 +89,29 @@ pub(crate) fn status_word(item: &Value, live: Live) -> Option<&'static str> {
         ("interrupted", _) => Some("interrupted"),
         _ => None,
     }
+}
+
+/// A report that background work finished: the work's own glyph, what happened, and when. A report
+/// about a subagent the parent knows is drawn as that subagent instead (`subagent_rows`).
+#[component]
+pub(crate) fn Notification(item: Value, state: Store<UiModel>, transport: runtime::TransportHandle) -> Element {
+    let view = words::notification_view(&item);
+    let summary = item["summary"].as_str().unwrap_or_default().to_owned();
+    let glyph = match view.icon {
+        "bot" => "◈",
+        "terminal" => "›_",
+        "eye" => "◉",
+        "circle-alert" => "!",
+        _ => "ϟ",
+    };
+    let at = item["startedAt"].as_str().or_else(|| item["updatedAt"].as_str()).map(|at| words::short_timestamp(at, crate::scheduled_tasks_page::zone(chrono::Utc::now().timestamp_millis()))).unwrap_or_default();
+    let open = view.child_thread_id.clone();
+    rsx! {div {class:if view.failed {"activity-notice notification failure"} else {"activity-notice notification"},role:"note","data-item-type":"notification",
+        span {class:"work-mark","aria-hidden":"true","{glyph}"}
+        span {class:"notification-summary","{summary}"}
+        if let Some(child) = open {button {class:"link-button","aria-label":"Open subagent thread",onclick:move |_|runtime::select_thread(&transport,state,child.clone()),"Open subagent"}}
+        span {class:"notification-time muted","{at}"}
+    }}
 }
 
 #[component]

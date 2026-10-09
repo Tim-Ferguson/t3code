@@ -5,7 +5,7 @@
 use crate::runtime::{self, UiModel, UiModelStoreExt};
 use dioxus::prelude::*;
 use serde_json::Value;
-use t3_client::subagent_display as display;
+use t3_client::{subagent_display as display, timeline_items as words};
 
 /// What the hover card says beyond the row.
 #[derive(Clone, PartialEq, Default)]
@@ -27,6 +27,14 @@ pub(crate) struct Card {
     pub completed_at: Option<String>,
     pub child: Option<String>,
     pub tip: Tip,
+    /// A past report about this child (a notification): the status it reported, its word, and when it arrived.
+    pub event: Option<Event>,
+}
+#[derive(Clone, PartialEq)]
+pub(crate) struct Event {
+    pub status: Option<String>,
+    pub label: String,
+    pub timestamp: String,
 }
 
 fn driver_mark(driver: &str) -> &'static str {
@@ -100,9 +108,26 @@ pub(crate) fn cards(state: Store<UiModel>, projection: &Value, items: &[&Value])
                 started_at: live.and_then(|agent| agent["startedAt"].as_str()).or_else(|| item["startedAt"].as_str()).map(str::to_owned),
                 completed_at: live.and_then(|agent| agent["completedAt"].as_str()).or_else(|| item["completedAt"].as_str()).map(str::to_owned),
                 child,
+                event: None,
             }
         })
         .collect()
+}
+
+/// `SubagentNotificationLink`: a report about one subagent drawn as that subagent's row, with the
+/// status the report carried and when it arrived. None when the parent has no record of the child,
+/// and the report is then an ordinary row.
+pub(crate) fn notification_card(state: Store<UiModel>, projection: &Value, item: &Value, created_at: &str) -> Option<Card> {
+    let view = words::notification_view(item);
+    let child = view.child_thread_id?;
+    let agent = projection["subagents"].as_array()?.iter().find(|agent| agent["childThreadId"] == child.as_str())?;
+    let mut record = agent.clone();
+    record["subagentId"] = agent["id"].clone();
+    let mut card = cards(state, projection, &[&record]).pop()?;
+    let (status, label) = words::notification_outcome(item["outcome"].as_str().unwrap_or_default());
+    card.id = item["id"].as_str().unwrap_or_default().to_owned();
+    card.event = Some(Event { status: status.map(str::to_owned), label: label.to_owned(), timestamp: words::short_timestamp(created_at, crate::scheduled_tasks_page::zone(chrono::Utc::now().timestamp_millis())) });
+    Some(card)
 }
 
 #[component]
@@ -143,13 +168,15 @@ pub(crate) fn SubagentRow(card: Card, state: Store<UiModel>, transport: runtime:
     if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
         probe.item.set(probe.item.get() + 1);
     }
-    let label = display::status_label(&card.status);
-    let detail = display::row_detail(&card.status, card.result.as_deref(), card.progress.as_deref());
-    let failed = card.status == "failed";
-    let settled_completed = card.status == "completed";
-    let show_state = detail.is_some() && !settled_completed;
+    // A report shows the status it carried and its own word; the live record gives the rest.
+    let shown = card.event.as_ref().map_or(Some(card.status.as_str()), |event| event.status.as_deref());
+    let label = card.event.as_ref().map_or_else(|| display::status_label(&card.status), |event| event.label.as_str());
+    let detail = display::row_detail(shown.unwrap_or(&card.status), card.result.as_deref(), card.progress.as_deref());
+    let failed = shown == Some("failed");
+    let settled_completed = shown == Some("completed");
+    let show_state = detail.is_some() && (card.event.is_some() || !settled_completed);
     let content = rsx! {
-        Avatar {driver:card.driver.clone(),status:Some(card.status.clone())}
+        Avatar {driver:card.driver.clone(),status:shown.map(str::to_owned)}
         span {class:"subagent-text",
             span {class:"subagent-head",
                 span {class:"subagent-title","{card.title}"}
@@ -159,7 +186,9 @@ pub(crate) fn SubagentRow(card: Card, state: Store<UiModel>, transport: runtime:
                 match &detail {Some(detail) => rsx!{span {class:"subagent-line","{detail}"}}, None => rsx!{"{label}"}}
             }
         }
-        span {class:"subagent-elapsed",Elapsed {status:card.status.clone(),started_at:card.started_at.clone(),completed_at:card.completed_at.clone()}}
+        span {class:"subagent-elapsed",
+            if let Some(event) = &card.event {"{event.timestamp}"} else {Elapsed {status:card.status.clone(),started_at:card.started_at.clone(),completed_at:card.completed_at.clone()}}
+        }
         if card.child.is_some() {span {class:"fold-chevron","aria-hidden":"true","\u{203a}"}}
     };
     let tip = rsx! {

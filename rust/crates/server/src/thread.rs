@@ -32,8 +32,10 @@ impl ThreadService {
         let command = normalize_command(command).map_err(StoreError::InvalidCommand)?;
         let command = &command;
         let command_id = string(command, "commandId").unwrap_or("");
-        let thread_id = string(command, "threadId").unwrap_or("");
         let kind = string(command, "type").unwrap_or("");
+        // A fork or merge-back writes to one thread (the new one, or the one merged into) and reads another.
+        let forking = matches!(kind, "thread.fork" | "thread.merge_back");
+        let thread_id = string(command, if forking { "targetThreadId" } else { "threadId" }).unwrap_or("");
         self.store.dispatch(
             command_id,
             "thread",
@@ -42,6 +44,20 @@ impl ThreadService {
             now,
             |transaction| {
                 let current = read_projection(transaction, "thread", thread_id)?;
+                if forking {
+                    // The source is what the command copies from, so it is what a limited sender is checked against.
+                    let source = read_projection(transaction, "thread", string(command, "sourceThreadId").unwrap_or(""))?;
+                    authorize(transaction, source.as_ref())?;
+                    let planned = if kind == "thread.fork" {
+                        crate::thread_fork::plan_fork(command, current.as_ref(), source.as_ref(), now)
+                    } else {
+                        crate::thread_fork::plan_merge_back(command, current.as_ref(), source.as_ref(), now)
+                    };
+                    return Ok(match planned {
+                        Ok(events) => Decision::Accepted { events, effects: vec![] },
+                        Err(error) => Decision::Rejected(error),
+                    });
+                }
                 authorize(transaction, current.as_ref())?;
                 let project = string(command, "projectId")
                     .map(|id| read_projection(transaction, "project", id))
@@ -205,7 +221,7 @@ pub fn normalize_command(input: &Value) -> Result<Value, String> {
     if !input.is_object() {
         return Err("command must be an object".into());
     }
-    if input["type"] == "thread.create" {
+    if matches!(input["type"].as_str(), Some("thread.create" | "thread.fork" | "thread.merge_back")) {
         if input.get("createdBy").is_none() {
             input["createdBy"] = json!("user");
         }
@@ -746,10 +762,18 @@ fn decoded_instance(thread: &Value) -> String {
 
 pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
     let event = &stored.event;
-    let projection = projection_after(
+    let mut projection = projection_after(
         read_projection(transaction, "thread", &event.aggregate_id)?,
         event,
     )?;
+    // A fork shows its source's history through the fork point before its own items.
+    if matches!(event.event_type.as_str(), "thread.created" | "turn-item.updated") && projection["thread"]["forkedFrom"]["type"] == "run" {
+        let source = read_projection(transaction, "thread", projection["thread"]["forkedFrom"]["threadId"].as_str().unwrap_or(""))?;
+        if let Some(source) = source.filter(|source| source["thread"]["deletedAt"].is_null()) {
+            let local = projection["visibleTurnItems"].as_array().cloned().unwrap_or_default();
+            projection["visibleTurnItems"] = Value::Array(crate::thread_fork::visible_with_inherited(&projection, &source, local));
+        }
+    }
     if event.event_type == "run.updated"
         && matches!(
             event.payload["status"].as_str(),
@@ -808,6 +832,8 @@ pub(crate) fn projection_after(
         "checkpoint.captured" => Some("checkpoints"),
         "turn-item.updated" => Some("turnItems"),
         "subagent.updated" => Some("subagents"),
+        "context-transfer.created" | "context-transfer.updated" => Some("contextTransfers"),
+        "context-handoff.updated" => Some("contextHandoffs"),
         _ => None,
     };
     if event.event_type == "provider-session.detached" {
@@ -827,7 +853,15 @@ pub(crate) fn projection_after(
                     detail: format!("{field} is not an array"),
                 })?;
         if let Some(existing) = rows.iter_mut().find(|row| row["id"] == event.payload["id"]) {
-            *existing = event.payload.clone();
+            let mut next = event.payload.clone();
+            // A stale snapshot must not erase what another event recorded: a run's delegated-completion
+            // cohort and a task's completion delivery are kept when the update carries none.
+            for (row_field, kept) in [("runs", "delegatedCompletion"), ("subagents", "completionDelivery")] {
+                if field == row_field && next.get(kept).is_none() && existing.get(kept).is_some() {
+                    next[kept] = existing[kept].clone();
+                }
+            }
+            *existing = next;
         } else {
             rows.push(event.payload.clone());
         }

@@ -96,20 +96,13 @@ async fn cooperative_fixture() {
         catalog["result"]["tools"],
         json!(McpControlTools::catalog())
     );
-    assert_eq!(catalog["result"]["tools"].as_array().unwrap().len(), 4);
-    for name in ["t3_thread_send", "t3_thread_update"] {
-        let result: Value = call(name, json!({}))
-            .send()
-            .await
-            .unwrap()
-            .json()
-            .await
-            .unwrap();
-        assert_eq!(
-            result["error"]["message"],
-            format!("Tool '{name}' not found")
-        );
-    }
+    assert_eq!(catalog["result"]["tools"].as_array().unwrap().len(), 76);
+    // A tool listed without its service answers with the original's generic failure.
+    let unported: Value = call("t3_queue_list", json!({"threadId":"thread:1"})).send().await.unwrap().json().await.unwrap();
+    assert_eq!(unported["result"]["isError"], true);
+    assert_eq!(unported["result"]["content"][0]["text"], json!({"_tag":"OrchestratorMcpFailure","code":"orchestration_error","message":"The operation could not be completed."}).to_string());
+    let unknown: Value = call("not_a_tool", json!({})).send().await.unwrap().json().await.unwrap();
+    assert_eq!(unknown["error"]["message"], "Tool 'not_a_tool' not found");
     let listed: Value = call(
         "t3_thread_list",
         json!({"threadId":"spoofed","providerInstanceId":"spoofed"}),

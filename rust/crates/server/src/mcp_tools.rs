@@ -58,6 +58,16 @@ const TRIMMED: &[(&str, usize)] = &[
     ("clientRequestId", 256),
 ];
 
+/// A project as the tools return it: the shell the clients see, which a live project gives a null `deletedAt`.
+fn live_project(mut shell: Value) -> Value {
+    shell["deletedAt"] = Value::Null;
+    shell
+}
+
+pub(crate) fn trim(value: &str) -> String {
+    trim_wire_string(value).to_owned()
+}
+
 /// Trims the admitted strings the original decodes as `TrimmedNonEmptyString`, and refuses blank or
 /// overlong ones with its wording.
 pub(crate) fn refine(name: &str, args: &mut Value) -> Result<(), String> {
@@ -274,6 +284,31 @@ impl McpControlTools {
         let ran = self.scheduler()?.run_now(input).await.map_err(|_| mcp_access::unavailable())?;
         let task = serde_json::to_value(ran.task).map_err(|_| mcp_access::unavailable())?;
         Ok(json!({"taskId":task["id"],"threadId":task["threadId"],"lastRunStatus":task["lastRunStatus"],"runCount":task["runCount"],"nextRunAt":task["nextRunAt"]}))
+    }
+
+    // ---- projects -----------------------------------------------------------------------------
+
+    /// The orchestration capability the project reads need, before anything is read.
+    fn read_caller(&self, scope: &InvocationScope) -> Result<(), McpFailure> {
+        mcp_access::check_store(&self.store, scope, Access::Reads, &[])?;
+        if !scope.capabilities.contains(&crate::mcp_invocation::McpCapability::Orchestration) {
+            return Err(failure("capability_denied", "This credential cannot control threads."));
+        }
+        self.caller(scope).map(|_| ())
+    }
+
+    pub(crate) fn project_list(&self, scope: &InvocationScope, args: Value) -> Out {
+        self.read_caller(scope)?;
+        let projects = crate::project::ProjectService::new(self.store.clone()).list().map_err(|_| mcp_access::unavailable())?;
+        let start = args["cursor"].as_u64().unwrap_or(0) as usize;
+        let end = start + args["limit"].as_u64().unwrap_or(20) as usize;
+        let page: Vec<Value> = projects.iter().skip(start).take(end - start).cloned().map(live_project).collect();
+        Ok(json!({"projects":page,"nextCursor":if end < projects.len() {json!(end)} else {Value::Null}}))
+    }
+
+    pub(crate) fn project_read(&self, scope: &InvocationScope, args: Value) -> Out {
+        self.read_caller(scope)?;
+        crate::project::ProjectService::new(self.store.clone()).get(text(&args, "projectId").unwrap_or_default()).map_err(|_| mcp_access::unavailable())?.map(live_project).ok_or_else(|| failure("invalid_request", "The project was not found."))
     }
 
     // ---- launching threads -------------------------------------------------------------------

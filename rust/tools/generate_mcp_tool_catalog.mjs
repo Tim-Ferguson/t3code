@@ -23,7 +23,7 @@ import {
   DeviceScreenshotToolkit,
   DeviceStandardToolkit,
 } from "../../apps/server/src/mcp/toolkits/device/tools.ts";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 const toolkits = [
   ["orchestrator", OrchestratorToolkit],
   ["thread", ThreadToolkit],
@@ -64,8 +64,14 @@ for (const [group, toolkit] of toolkits) {
     out.push({ group, tool });
   }
 }
-writeFileSync(
-  new URL("../crates/server/src/mcp_tool_catalog.json", import.meta.url),
-  JSON.stringify(out, null, 1) + "\n",
-);
+const target = new URL("../crates/server/src/mcp_tool_catalog.json", import.meta.url);
+const text = JSON.stringify(out, null, 1) + "\n";
+if (process.argv.includes("--check")) {
+  // Regenerates in memory and fails when the committed catalog is not what the original registers.
+  // Parsed, so a formatter's whitespace is not a difference.
+  const same = JSON.stringify(JSON.parse(readFileSync(target, "utf8"))) === JSON.stringify(out);
+  console.log(JSON.stringify({ tools: out.length, same }));
+  process.exit(same ? 0 : 1);
+}
+writeFileSync(target, text);
 console.log(JSON.stringify({ tools: out.length }));

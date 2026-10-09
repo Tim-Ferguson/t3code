@@ -96,9 +96,8 @@ const EXCLUDED = {
     "advances the test clock past the session idle timeout so the provider session is reopened (a second initialize and thread/resume mid-rollback); the port has no idle session expiry to drive",
 };
 // Recordings no registered scenario replays; each is driven by a dedicated test of the original.
+// `delegated_task_status` is driven over MCP by `tests/codex_delegated_replay.rs`.
 const EXCLUDED_RECORDINGS = {
-  delegated_task_status:
-    "a delegated task's status through the orchestrator's delegated-task spawn and completion mailbox (the cohort is ported for Stop, cancel and delete; spawning a task and delivering its completion are not)",
   thread_fork_native:
     "native thread forking (thread/fork) needs thread fork orchestration, which the port does not have",
   thread_fork_native_continue:

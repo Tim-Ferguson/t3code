@@ -57,11 +57,16 @@ impl ExecutionService {
         store.validate_runtime_lease(&lease)?;
         crate::codex_runtime::recover(&store, &lease)?;
         let runtime = crate::codex_runtime::start(store.clone(), providers.clone(), lease);
-        Ok(Self {
+        let execution = Self {
             store,
             providers,
             runtime,
-        })
+        };
+        // Finalizes delegated tasks whose runs end, and delivers their completion to the parent.
+        if tokio::runtime::Handle::try_current().is_ok() {
+            crate::delegated_completion::start_listener(&execution);
+        }
+        Ok(execution)
     }
     #[cfg(test)]
     pub(crate) fn pause_next_actor(
@@ -95,6 +100,10 @@ impl ExecutionService {
                 return;
             }
         }
+    }
+    /// Wakes the effect loop after a command committed outside `dispatch_guarded`.
+    pub(crate) fn wake(&self) {
+        self.runtime.wake();
     }
     pub fn authentication_stop(&self) -> crate::provider_auth_service::StopInstances {
         let runtime = std::sync::Arc::downgrade(&self.runtime);
@@ -677,14 +686,14 @@ fn plan_message_delivery(
     {
         resolved["dispatchMode"] = json!({"type":"start_immediately"});
     }
+    // A delegated-completion delivery is the server's own queued wake; its text names the tasks owed now.
+    crate::delegated_completion::admit_message(&mut resolved, projection)?;
     let command = &resolved;
-    // Needs the restart-continuation, usage-limit-recovery and delegated-task features, none of
-    // which is ported: see the report for what each one requires.
+    // Needs the restart-continuation and usage-limit-recovery features, neither of which is ported.
     for field in [
         "restartContinuationOfRunId",
         "usageLimitContinuationOfRunId",
         "usageLimitRecoveryRequestId",
-        "delegatedCompletion",
     ] {
         if command.get(field).is_some() {
             return Err(StoreError::InvalidCommand(format!(

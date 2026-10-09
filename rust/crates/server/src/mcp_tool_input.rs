@@ -52,11 +52,11 @@ fn issue(errors: &mut Vec<String>, path: &[String], message: String) {
 }
 
 /// Checks `value` against `schema`, returning it with unnamed object properties removed.
-fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec<String>) -> Value {
+fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec<String>, raw: bool) -> Value {
     if let Some(any) = schema["anyOf"].as_array() {
         for branch in any {
             let mut trial = Vec::new();
-            let admitted = admit(branch, value, &mut path.clone(), &mut trial);
+            let admitted = admit(branch, value, &mut path.clone(), &mut trial, raw);
             if trial.is_empty() {
                 return admitted;
             }
@@ -110,8 +110,11 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                         }
                     }
                 }
+                // An `allOf` branch of a refined number only adds bounds to it.
                 for branch in schema["allOf"].as_array().into_iter().flatten() {
-                    admit(branch, value, path, errors);
+                    let mut bounds = branch.clone();
+                    bounds["type"] = json!(kind);
+                    admit(&bounds, value, path, errors, raw);
                 }
                 value.clone()
             }
@@ -147,7 +150,7 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                         .enumerate()
                         .map(|(index, item)| {
                             path.push(index.to_string());
-                            let admitted = if element.is_object() { admit(element, item, path, errors) } else { item.clone() };
+                            let admitted = if element.is_object() { admit(element, item, path, errors, raw) } else { item.clone() };
                             path.pop();
                             admitted
                         })
@@ -171,12 +174,12 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                         None if optional => {}
                         None => issue(errors, path, "Missing key".into()),
                         // The raw schema of an optional property names the value, or none: not null.
-                        Some(Value::Null) if optional && path.len() == 1 && property["anyOf"].as_array().is_some_and(|any| any.iter().any(|branch| branch["type"] == "null")) => {
+                        Some(Value::Null) if raw && optional && path.len() == 1 && property["anyOf"].as_array().is_some_and(|any| any.iter().any(|branch| branch["type"] == "null")) => {
                             let named = property["anyOf"].as_array().unwrap().iter().filter(|branch| branch["type"] != "null").map(types).collect::<Vec<_>>().join(" | ");
                             issue(errors, path, format!("Expected {named} | undefined"));
                         }
                         Some(found) => {
-                            admitted.insert(key.clone(), admit(property, found, path, errors));
+                            admitted.insert(key.clone(), admit(property, found, path, errors, raw));
                         }
                     }
                     path.pop();
@@ -198,13 +201,42 @@ pub fn decode(name: &str, input: Value) -> Result<Value, String> {
     let input = if input.is_null() { json!({}) } else { input };
     let schema = schema(name).ok_or_else(|| format!("Tool '{name}' not found"))?;
     let mut errors = Vec::new();
-    let admitted = admit(schema, &input, &mut Vec::new(), &mut errors);
+    let admitted = admit(schema, &input, &mut Vec::new(), &mut errors, true);
     if errors.is_empty() { Ok(admitted) } else { Err(format!("Invalid parameters for tool '{name}': {}", errors.join("\n"))) }
+}
+
+/// What is wrong with a tool result against the output schema the catalog declares for it.
+pub fn output_issues(name: &str, result: &Value) -> Vec<String> {
+    let Some(schema) = entries().iter().find(|entry| entry["tool"]["name"] == name).map(|entry| &entry["tool"]["outputSchema"]).filter(|schema| schema.is_object()) else { return vec![] };
+    let mut errors = Vec::new();
+    admit(schema, result, &mut Vec::new(), &mut errors, false);
+    errors
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The control and device catalogs, each generated on its own from the original, are entries of the full one.
+    #[test]
+    fn the_catalogs_generated_from_the_original_agree() {
+        let tool = |name: &str| entries().iter().find(|entry| entry["tool"]["name"] == name).unwrap()["tool"].clone();
+        for file in [include_str!("mcp_control_catalog.json"), include_str!("mcp_device_catalog.json")] {
+            for expected in serde_json::from_str::<Vec<Value>>(file).unwrap() {
+                assert_eq!(tool(expected["name"].as_str().unwrap()), expected);
+            }
+        }
+        let names: Vec<&str> = entries().iter().map(|entry| entry["tool"]["name"].as_str().unwrap()).collect();
+        assert_eq!(names.len(), 80);
+        assert_eq!(names.iter().collect::<std::collections::HashSet<_>>().len(), 80, "tool names are unique");
+        for handled in crate::mcp_control::HANDLED {
+            assert!(names.contains(handled), "{handled}");
+        }
+        // Every tool the model reads carries a description and an input schema.
+        for entry in entries() {
+            assert!(entry["tool"]["description"].as_str().is_some_and(|text| !text.is_empty()) && entry["tool"]["inputSchema"].is_object(), "{}", entry["tool"]["name"]);
+        }
+    }
 
     #[test]
     fn admission_follows_the_catalog_schema() {

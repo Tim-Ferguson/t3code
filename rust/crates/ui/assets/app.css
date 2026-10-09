@@ -4121,3 +4121,33 @@ button.subagent-row:hover,
 .context-menu .menu-item:disabled {
   color: var(--muted-foreground);
 }
+.activity-notice.notification,
+.activity-notice.warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.activity-notice.warning {
+  color: var(--warning, #b45309);
+}
+.notification-summary {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.notification-time {
+  flex: none;
+  font-size: 0.75rem;
+}
+.activity-notice .link-button {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary, inherit);
+  font-size: inherit;
+  cursor: pointer;
+}
+.activity-notice .link-button:hover {
+  text-decoration: underline;
+}

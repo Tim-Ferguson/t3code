@@ -1,10 +1,6 @@
 {
   "excluded": [
     {
-      "name": "delegated_task_status",
-      "reason": "a delegated task's status through the orchestrator's delegated-task spawn and completion mailbox (the cohort is ported for Stop, cancel and delete; spawning a task and delivering its completion are not)"
-    },
-    {
       "name": "thread_fork_native",
       "reason": "native thread forking (thread/fork) needs thread fork orchestration, which the port does not have"
     },

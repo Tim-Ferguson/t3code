@@ -322,7 +322,7 @@ fn synth_app(props: Synth) -> Element {
         model.active_thread = Some("thread".into());
         model.destination = Some(serde_json::from_value(json!("environment-a")).unwrap());
         let rows: Vec<_> = props.items.as_array().unwrap().iter().enumerate().map(|(index, item)| json!({"sourceThreadId":"thread","sourceItemId":item["id"],"position":index,"visibility":"local","item":item})).collect();
-        model.thread.projection = Some(json!({"thread":{"id":"thread","activeProviderThreadId":null},"visibleTurnItems":rows,"turnItems":props.items,"runs":props.runs,"runtimeRequests":props.extra["requests"].clone(),"plans":props.extra["plans"].clone(),"messages":props.extra["messages"].clone(),"providerTurns":[],"providerThreads":[],"updatedAt":"2026-01-01T00:00:00Z"}));
+        model.thread.projection = Some(json!({"thread":{"id":"thread","activeProviderThreadId":null},"visibleTurnItems":rows,"turnItems":props.items,"runs":props.runs,"runtimeRequests":props.extra["requests"].clone(),"plans":props.extra["plans"].clone(),"subagents":props.extra["subagents"].clone(),"messages":props.extra["messages"].clone(),"providerTurns":[],"providerThreads":[],"updatedAt":"2026-01-01T00:00:00Z"}));
         model
     });
     *props.state.borrow_mut() = Some(state);
@@ -330,7 +330,7 @@ fn synth_app(props: Synth) -> Element {
     rsx! { Application { state, transport } }
 }
 fn synth(items: Value, runs: Value, extra: Value) -> (VirtualDom, Synth) {
-    let props = Synth { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default(), items, runs, extra: json!({"tasks":[],"requests":[],"plans":[],"messages":[],"lineage":null}).as_object().unwrap().iter().map(|(key, value)| (key.clone(), extra.get(key).cloned().unwrap_or(value.clone()))).collect() };
+    let props = Synth { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default(), items, runs, extra: json!({"tasks":[],"requests":[],"plans":[],"subagents":[],"messages":[],"lineage":null}).as_object().unwrap().iter().map(|(key, value)| (key.clone(), extra.get(key).cloned().unwrap_or(value.clone()))).collect() };
     let mut dom = VirtualDom::new_with_props(synth_app, props.clone());
     dom.rebuild_in_place();
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
@@ -892,4 +892,28 @@ async fn a_plan_is_saved_into_the_workspace_from_its_menu() {
     click_control(&mut dom, "Plan actions");
     assert_eq!(control_attribute(&dom, "Save to workspace", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
     fixture.finish(dom).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_report_of_finished_background_work_reads_as_the_work_and_a_subagent_report_as_its_row() {
+    let report = |id: &str, source: Value, outcome: &str, summary: &str| with(base(id, "notification", "completed"), json!({"source":source,"outcome":outcome,"summary":summary,"startedAt":"2026-01-01T15:07:00Z"}));
+    let items = json!([
+        report("n1", json!({"kind":"background_command"}), "completed", "Command \"sleep 600\" finished"),
+        report("n2", json!({"kind":"background_task","work":"subagent","childThreadId":"child-a"}), "failed", "Subagent \"Review\" failed"),
+        report("n3", json!({"kind":"background_task","work":"subagent","childThreadId":"gone"}), "completed", "Subagent \"Lost\" finished"),
+        with(base("t1", "dynamic_tool", "cancelled"), json!({"toolName":"Bash","input":{},"toolNonExecutionKind":"denied"})),
+    ]);
+    let agent = json!({"id":"agent-a","title":"Review src/math.ts","driver":"claudeAgent","providerInstanceId":"claude","childThreadId":"child-a","status":"completed","result":"Looks fine.","startedAt":"2026-01-01T14:00:00Z","completedAt":"2026-01-01T14:05:00Z"});
+    let (mut dom, state) = synth(items, SETTLED(), json!({"subagents":[agent]}));
+    let _ = &mut dom;
+    let shown = text(&dom);
+    assert!(shown.contains("Command \"sleep 600\" finished"), "{shown}");
+    // The subagent the parent knows is its own row, worded by the report (a failure), stamped when it arrived.
+    assert!(shown.contains("Review src/math.ts") && shown.contains("Failed") && shown.contains("3:07 PM"), "{shown}");
+    assert!(control(&dom, "Open Review src/math.ts").is_some());
+    // One it has no record of is a plain row that still opens the thread.
+    assert!(shown.contains("Subagent \"Lost\" finished") && control(&dom, "Open subagent thread").is_some(), "{shown}");
+    // A tool the provider declined to run says how.
+    assert!(shown.contains("denied"), "{shown}");
+    let _ = state;
 }

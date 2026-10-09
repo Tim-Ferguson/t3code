@@ -73,9 +73,10 @@ pub(crate) fn TimelineItem(
         "compaction" => return rsx! {crate::item_cards::Compaction {item:effective.clone()}},
         "error" => return rsx! {crate::item_cards::ErrorRow {item:effective.clone()}},
         "run_interrupt_request" | "run_interrupt_result" => return rsx! {crate::item_cards::RunNotice {item:effective.clone()}},
-        "system_notice" | "notification" => {
+        "notification" => return rsx! {crate::item_cards::Notification {item:effective.clone(),state,transport:transport.clone()}},
+        "system_notice" => {
             let message = effective["message"].as_str().or_else(|| effective["detail"].as_str()).or_else(|| effective["title"].as_str()).unwrap_or_default().to_owned();
-            return rsx! {aside {class:"activity-notice",role:"note","data-item-type":kind,"{message}"}};
+            return rsx! {aside {class:"activity-notice warning",role:"note","data-item-type":kind,span {class:"work-mark","aria-hidden":"true","!"}"{message}"}};
         }
         _ => {}
     }

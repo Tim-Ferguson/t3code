@@ -446,6 +446,8 @@ struct Actor {
     interrupting: bool,
     /// How long streamed text waits before it is persisted (`T3CODE_CODEX_STREAM_FLUSH_MS`).
     flush_interval: Duration,
+    /// The session's MCP Apps and feedback operations, findable while the process lives.
+    _live: crate::provider_live::Registration,
 }
 async fn actor(
     store: Store,
@@ -741,6 +743,7 @@ impl Actor {
         .map_err(|error| error.to_string())?;
         let projector = Projector::new(thread_id, &session_id);
         let flush_interval = stream_flush_interval(&instance.environment);
+        let live = crate::provider_live::register(&session_id, crate::codex_live::live_session(&connection.process));
         Ok(Self {
             store,
             thread_id: thread_id.into(),
@@ -762,6 +765,7 @@ impl Actor {
             compacting: None,
             interrupting: false,
             flush_interval,
+            _live: live,
         })
     }
     async fn effect(&mut self, effect: &Effect) -> Result<(), String> {

@@ -197,10 +197,11 @@ fn validate_snapshot(value: Value) -> Result<Value, ProcessError> {
         serde_json::from_value(value).map_err(|error| ProcessError::Protocol(error.to_string()))?;
     serde_json::to_value(typed).map_err(|error| ProcessError::Protocol(error.to_string()))
 }
-/// The client capabilities of the original adapter, less MCP Apps (not ported): `turn/diff/updated`
-/// is opted out because checkpoints, not Codex's running diff, drive the diff views.
+/// The client capabilities of the original adapter: `turn/diff/updated`
+/// is opted out because checkpoints, not Codex's running diff, drive the diff views. `extensions` declares
+/// MCP Apps support (SEP-1724), so servers attach their UI resources and Codex reports them on tool call items.
 pub fn initialize_params() -> Value {
-    json!({"clientInfo":{"name":"T3 Code","title":"T3 Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":["turn/diff/updated"]}})
+    json!({"clientInfo":{"name":"T3 Code","title":"T3 Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":["turn/diff/updated"],"extensions":{"io.modelcontextprotocol/ui":{"mimeTypes":["text/html;profile=mcp-app"]}}}})
 }
 async fn read_models(process: &ProviderProcess) -> Result<Vec<Value>, ProcessError> {
     let mut models = vec![];

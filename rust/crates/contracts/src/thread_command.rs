@@ -590,6 +590,47 @@ pub enum ThreadForkSource {
     },
 }
 
+/// `thread.fork`: a new idle thread that continues from a completed run of `source_thread_id`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadForkCommand {
+    pub created_by: Actor,
+    pub creation_source: CreationSource,
+    pub command_id: CommandId,
+    pub source_thread_id: ThreadId,
+    pub target_thread_id: ThreadId,
+    pub source_point: ThreadForkSourcePoint,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub title: Option<Option<TrimmedNonEmptyString>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub created_at: Option<Option<UtcDateTime>>,
+}
+/// `thread.merge_back`: queue the work a fork did, to be delivered with the next message to the
+/// thread it was forked from (`target_thread_id`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadMergeBackCommand {
+    pub created_by: Actor,
+    pub creation_source: CreationSource,
+    pub command_id: CommandId,
+    pub source_thread_id: ThreadId,
+    pub target_thread_id: ThreadId,
+    pub source_point: ThreadForkSourcePoint,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub created_at: Option<Option<UtcDateTime>>,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ThreadCommand {
@@ -637,6 +678,10 @@ pub enum ThreadCommand {
     InteractionModeSet(ThreadInteractionModeCommand),
     #[serde(rename = "thread.model-selection.set")]
     ModelSelectionSet(ThreadModelSelectionCommand),
+    #[serde(rename = "thread.fork")]
+    Fork(ThreadForkCommand),
+    #[serde(rename = "thread.merge_back")]
+    MergeBack(ThreadMergeBackCommand),
 }
 impl ThreadCommand {
     /// Convert transport nulls representing undefined scalar options to the
@@ -649,6 +694,8 @@ impl ThreadCommand {
             Self::MetadataUpdate(_) => &["title", "regenerateTitle", "expectedEmpty"],
             Self::Settle(_) | Self::AutoSettle(_) => &["settledAt"],
             Self::Pin(_) => &["orderKey"],
+            Self::Fork(_) => &["title", "createdAt"],
+            Self::MergeBack(_) => &["createdAt"],
             _ => &[],
         };
         fn remove_null(value: &mut serde_json::Value, fields: &[&str]) {
@@ -694,6 +741,8 @@ impl ThreadCommand {
             Self::RuntimeModeSet(c) => &c.command_id,
             Self::InteractionModeSet(c) => &c.command_id,
             Self::ModelSelectionSet(c) => &c.command_id,
+            Self::Fork(c) => &c.command_id,
+            Self::MergeBack(c) => &c.command_id,
         }
     }
     pub fn thread_id(&self) -> &ThreadId {
@@ -718,6 +767,9 @@ impl ThreadCommand {
             Self::RuntimeModeSet(c) => &c.thread_id,
             Self::InteractionModeSet(c) => &c.thread_id,
             Self::ModelSelectionSet(c) => &c.thread_id,
+            // The thread a fork or a merge-back writes to: the new thread, or the one merged into.
+            Self::Fork(c) => &c.target_thread_id,
+            Self::MergeBack(c) => &c.target_thread_id,
         }
     }
 }

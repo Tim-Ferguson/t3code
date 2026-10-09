@@ -163,6 +163,13 @@ impl Rows<'_> {
         let row = &self.items[index];
         let key = self.key(row);
         let marker = format!("{prefix}{key}");
+        // A report about a subagent the parent knows is that subagent's row, with the status the report carried.
+        if row["item"]["type"] == "notification" {
+            let at = row["item"]["startedAt"].as_str().or_else(|| row["item"]["updatedAt"].as_str()).unwrap_or_default();
+            if let Some(card) = crate::subagent_rows::notification_card(self.state, self.projection, &row["item"], at) {
+                return rsx! { div { key:"{marker}","data-timeline-row":"{marker}",class:"subagent-batch",crate::subagent_rows::SubagentRow {card,state:self.state,transport:self.transport.clone()}} };
+            }
+        }
         rsx! { div { key:"{marker}","data-timeline-row":"{marker}","data-message-id":row["item"]["messageId"].as_str().unwrap_or_default(),
             TimelineItem { environment_key:self.environment_key.to_owned(),item:row["item"].clone(),state:self.state,transport:self.transport.clone(),
                 source_thread_id:row["sourceThreadId"].as_str().unwrap_or(self.thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned(),

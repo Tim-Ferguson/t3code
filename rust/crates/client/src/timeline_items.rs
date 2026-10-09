@@ -686,3 +686,114 @@ pub fn dispatch_mode(running: bool, alternate: bool, queue_by_default: bool) -> 
         (true, false) => "queue",
     }
 }
+
+// ---- notifications ------------------------------------------------------------------------------
+
+/// What a notification reports on (`OrchestrationV2NotificationSource`), with the server's two
+/// spellings of a background command and of a background subagent read as the original decodes them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotificationKind {
+    Subagent,
+    DelegatedTask,
+    Command,
+    Monitor,
+    BackgroundTask,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct NotificationView {
+    pub kind: NotificationKind,
+    /// `notificationChildThreadId`: the thread to open, for a subagent or delegated task.
+    pub child_thread_id: Option<String>,
+    pub failed: bool,
+    /// The glyph name `workEntryIconName` picks.
+    pub icon: &'static str,
+}
+pub fn notification_view(item: &Value) -> NotificationView {
+    let source = &item["source"];
+    let kind = match (source["kind"].as_str(), source["work"].as_str()) {
+        (Some("subagent"), _) | (Some("background_task"), Some("subagent")) => NotificationKind::Subagent,
+        (Some("delegated_task"), _) => NotificationKind::DelegatedTask,
+        (Some("command" | "background_command"), _) => NotificationKind::Command,
+        (Some("monitor"), _) => NotificationKind::Monitor,
+        _ => NotificationKind::BackgroundTask,
+    };
+    let child_thread_id = matches!(kind, NotificationKind::Subagent | NotificationKind::DelegatedTask).then(|| source["childThreadId"].as_str().map(str::to_owned)).flatten();
+    let failed = item["outcome"] == "failed";
+    let icon = if failed {
+        "circle-alert"
+    } else {
+        match kind {
+            NotificationKind::Subagent | NotificationKind::DelegatedTask => "bot",
+            NotificationKind::Command => "terminal",
+            NotificationKind::Monitor => "eye",
+            NotificationKind::BackgroundTask => "zap",
+        }
+    };
+    NotificationView { kind, child_thread_id, failed, icon }
+}
+/// `NOTIFICATION_OUTCOME_STATUS` and `NOTIFICATION_OUTCOME_LABEL` of `V2LifecycleRow.tsx`: the
+/// status a subagent card shows for a report, frozen at the time it arrived, and its word.
+pub fn notification_outcome(outcome: &str) -> (Option<&'static str>, &'static str) {
+    match outcome {
+        "completed" => (Some("completed"), "Finished"),
+        "failed" => (Some("failed"), "Failed"),
+        "cancelled" => (Some("cancelled"), "Stopped"),
+        "updated" => (None, "Updated"),
+        _ => (None, "Finished"),
+    }
+}
+/// The word a tool row carries when the provider reported it was not run: its own kind of
+/// non-execution (`toolNonExecutionKind`), read as words.
+pub fn non_execution_word(kind: Option<&str>) -> Option<&'static str> {
+    match kind?.trim().to_lowercase().replace(['_', '-'], " ").as_str() {
+        "" => None,
+        "denied" | "rejected" | "permission denied" => Some("denied"),
+        "cancelled" | "canceled" => Some("cancelled"),
+        "interrupted" => Some("interrupted"),
+        "blocked" => Some("blocked"),
+        "skipped" => Some("skipped"),
+        _ => Some("not run"),
+    }
+}
+/// `formatShortTimestamp` for the default 12-hour clock: `3:07 PM` in the viewer's zone.
+pub fn short_timestamp(iso: &str, offset_minutes: i32) -> String {
+    use chrono::{Duration, Timelike};
+    let Ok(at) = chrono::DateTime::parse_from_rfc3339(iso) else { return String::new() };
+    let local = at.with_timezone(&chrono::Utc) + Duration::minutes(offset_minutes as i64);
+    let hour = if local.hour() % 12 == 0 { 12 } else { local.hour() % 12 };
+    format!("{hour}:{:02} {}", local.minute(), if local.hour() < 12 { "AM" } else { "PM" })
+}
+
+#[cfg(test)]
+mod notification_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn both_spellings_of_a_source_read_as_the_original_decodes_them() {
+        let view = |source: Value, outcome: &str| notification_view(&json!({"type":"notification","source":source,"outcome":outcome,"summary":"x"}));
+        assert_eq!(view(json!({"kind":"background_command"}), "completed").icon, "terminal");
+        assert_eq!(view(json!({"kind":"command"}), "completed").kind, NotificationKind::Command);
+        assert_eq!(view(json!({"kind":"monitor"}), "updated").icon, "eye");
+        assert_eq!(view(json!({"kind":"background_task"}), "completed").icon, "zap");
+        let subagent = view(json!({"kind":"background_task","work":"subagent","childThreadId":"t2"}), "completed");
+        assert_eq!((subagent.kind, subagent.child_thread_id.as_deref(), subagent.icon), (NotificationKind::Subagent, Some("t2"), "bot"));
+        assert_eq!(view(json!({"kind":"subagent","childThreadId":"t3"}), "completed").child_thread_id.as_deref(), Some("t3"));
+        // A command never opens a thread, and a failure takes the alert glyph from any source.
+        assert_eq!(view(json!({"kind":"background_command","childThreadId":"t9"}), "completed").child_thread_id, None);
+        assert_eq!(view(json!({"kind":"background_task","work":"subagent"}), "failed").icon, "circle-alert");
+        // An unknown kind falls back to a background task, as `kindUnionWithFallback` does.
+        assert_eq!(view(json!({"kind":"something_new"}), "unknown").kind, NotificationKind::BackgroundTask);
+    }
+
+    #[test]
+    fn outcomes_and_times_read_as_the_original() {
+        assert_eq!(notification_outcome("cancelled"), (Some("cancelled"), "Stopped"));
+        assert_eq!(notification_outcome("updated"), (None, "Updated"));
+        assert_eq!(notification_outcome("unknown"), (None, "Finished"));
+        assert_eq!(short_timestamp("2026-10-01T15:07:00Z", 0), "3:07 PM");
+        assert_eq!(short_timestamp("2026-10-01T00:05:00Z", 0), "12:05 AM");
+        assert_eq!(short_timestamp("2026-10-01T23:30:00Z", 120), "1:30 AM");
+        assert_eq!(short_timestamp("nonsense", 0), "");
+    }
+}

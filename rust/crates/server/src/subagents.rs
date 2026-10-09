@@ -129,12 +129,12 @@ pub(crate) fn result_for_run(projection: &Value, run: &Value) -> Value {
     json!({"text":text,"messageId":message_id,"turnItemId":item_id})
 }
 
-fn terminal(status: &str) -> bool {
+pub(crate) fn terminal(status: &str) -> bool {
     matches!(status, "completed" | "failed" | "cancelled" | "interrupted" | "rolled_back")
 }
 
 /// Whether started `run` ran after `other`; an unfinished run is the latest.
-fn ran_after(run: &Value, other: &Value) -> bool {
+pub(crate) fn ran_after(run: &Value, other: &Value) -> bool {
     let end = |run: &Value| instant(&run["completedAt"]).map(|at| at.timestamp_millis());
     let ordering = match (end(run), end(other)) {
         (None, None) => std::cmp::Ordering::Equal,

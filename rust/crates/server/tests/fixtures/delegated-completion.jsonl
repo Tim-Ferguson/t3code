@@ -1,0 +1,15 @@
+{"kind":"wake","taskIds":["a"],"text":"Delegated task a reached a terminal state. Use task_status with taskId a to read the result."}
+{"kind":"wake","taskIds":["node:delegated-task:command%3Amcp%3Ax"],"text":"Delegated task node:delegated-task:command%3Amcp%3Ax reached a terminal state. Use task_status with taskId node:delegated-task:command%3Amcp%3Ax to read the result."}
+{"kind":"wake","taskIds":["a","b"],"text":"Delegated tasks a, b reached terminal states. Use task_status with each taskId to read the results."}
+{"kind":"wake","taskIds":["a","b","c"],"text":"Delegated tasks a, b, c reached terminal states. Use task_status with each taskId to read the results."}
+{"kind":"wake","taskIds":[],"text":"Delegated tasks  reached terminal states. Use task_status with each taskId to read the results."}
+{"kind":"status","status":"completed","terminal":"completed","taskTerminal":true}
+{"kind":"status","status":"failed","terminal":"failed","taskTerminal":true}
+{"kind":"status","status":"cancelled","terminal":"cancelled","taskTerminal":true}
+{"kind":"status","status":"interrupted","terminal":"interrupted","taskTerminal":true}
+{"kind":"status","status":"rolled_back","terminal":"cancelled","taskTerminal":false}
+{"kind":"status","status":"preparing","terminal":null,"taskTerminal":false}
+{"kind":"status","status":"queued","terminal":null,"taskTerminal":false}
+{"kind":"status","status":"starting","terminal":null,"taskTerminal":false}
+{"kind":"status","status":"running","terminal":null,"taskTerminal":false}
+{"kind":"status","status":"waiting","terminal":null,"taskTerminal":false}
