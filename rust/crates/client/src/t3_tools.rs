@@ -199,6 +199,11 @@ fn read_input(value: &Value) -> Option<Map<String, Value>> {
     let input = read_result(value, 0).data?;
     if input.get("toolName").is_some_and(Value::is_string) { input.get("args").and_then(record).cloned() } else { Some(input) }
 }
+/// `compactDynamicToolOutput(output).taskId`: the id a delegate call returned, if it is a sane one.
+pub fn output_task_id(output: &Value) -> Option<String> {
+    let id = read_result(output, 0).data?.get("taskId")?.as_str()?.to_owned();
+    (id.encode_utf16().count() <= 256 && !id.trim().is_empty()).then_some(id)
+}
 /// `t3ToolResultIndicatesFailure`: MCP errors can come back as data from a call the provider completed.
 pub fn result_indicates_failure(output: &Value) -> bool {
     read_result(output, 0).failed

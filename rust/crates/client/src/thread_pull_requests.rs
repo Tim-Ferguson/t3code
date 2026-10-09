@@ -14,6 +14,8 @@ pub struct Link {
     pub url: String,
     pub state: Option<String>,
     pub title: Option<String>,
+    /// The server is watching it for the thread, and wakes the agent when it changes.
+    pub watching: bool,
 }
 impl Link {
     pub fn reference(&self, project_id: &str) -> Reference {
@@ -54,12 +56,13 @@ pub fn links(thread: &Value) -> Vec<Link> {
                 url: link["url"].as_str()?.to_owned(),
                 state: link["snapshot"]["state"].as_str().map(str::to_owned),
                 title: link["snapshot"]["title"].as_str().map(str::to_owned),
+                watching: link["watch"].is_object(),
             })
         })
         .collect();
     let legacy = &thread["linkedPullRequest"];
     if let (Some(repository), Some(number), Some(url)) = (legacy["repository"].as_str(), legacy["number"].as_u64(), legacy["url"].as_str()) {
-        let link = Link { host: None, repository: repository.to_owned(), number, url: url.to_owned(), state: None, title: None };
+        let link = Link { host: None, repository: repository.to_owned(), number, url: url.to_owned(), state: None, title: None, watching: false };
         if !result.iter().any(|existing| link.is(&existing.reference(""))) {
             result.push(link);
         }
@@ -82,6 +85,17 @@ pub fn command(thread_id: &str, reference: &Reference, url: &str, link: bool) ->
     }
     Some((if link { "thread.pull-request.link" } else { "thread.pull-request.unlink" }, input))
 }
+
+/// The `thread.pull-request.watch` command: the server watches `link` for the thread, or stops.
+pub fn watch_command(thread_id: &str, host: &str, repository: &str, number: u64, watching: bool) -> Value {
+    json!({"type":"thread.pull-request.watch","threadId":thread_id,"host":host,"repository":repository,"number":number,"watching":watching})
+}
+
+/// The menu entries of a pull request's watch.
+pub const WATCH: &str = "Watch for changes";
+pub const STOP_WATCHING: &str = "Stop watching";
+pub const WATCHING_HINT: &str = "Watching: the agent wakes when checks finish, someone comments, or the branch conflicts.";
+pub const WATCH_FAILED: &str = "Could not change the pull request watch";
 
 pub const LINK_FAILED: &str = "Could not link the pull request";
 pub const UNLINK_FAILED: &str = "Could not unlink the pull request";

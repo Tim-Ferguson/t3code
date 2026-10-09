@@ -217,6 +217,9 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                     if state.thread().read().projection.as_ref().is_some_and(|projection| !t3_client::timeline_items::queued_runs(projection).is_empty()) {
                         set.insert("thread.editQueuedMessage".into());
                     }
+                    if state.thread().read().projection.as_ref().is_some_and(|projection| !t3_client::timeline_items::queued_runs(projection).is_empty() && t3_client::queue_workflow::can_promote_to_steer(projection)) {
+                        set.insert("thread.steerQueuedMessage".into());
+                    }
                 }
                 if let (Some(catalog), Some(key)) = (catalog.as_ref(), pane_key(state)) {
                     if catalog.is_open(&key) || allows(state, AuthEnvironmentScope::TerminalRead) {
@@ -507,6 +510,13 @@ impl Runner {
                     if let Some(thread) = open_thread(state) {
                         crate::composer_panels::begin_edit(state, self.editing, thread.id, run.run_id, run.text);
                     }
+                }
+            }
+            // Sends the first queued message into the running turn, as the Steer button on it does.
+            "thread.steerQueuedMessage" => {
+                let first = state.peek().thread.projection.as_ref().and_then(|projection| t3_client::timeline_items::queued_runs(projection).into_iter().next());
+                if let (Some(run), Some(thread)) = (first, open_thread(state)) {
+                    crate::composer_panels::steer(&self.transport, state, &thread.id, &run.run_id);
                 }
             }
             "thread.stop" => {

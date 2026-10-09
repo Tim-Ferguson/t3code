@@ -5097,3 +5097,106 @@ button.subagent-row:hover,
   padding: 1px 8px;
   margin: 2px 8px;
 }
+.lineage-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.lineage-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  min-width: 18rem;
+  max-width: min(26rem, 90vw);
+  max-height: 60vh;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 6px 18px #00000026;
+}
+@media (max-width: 640px) {
+  .lineage-panel {
+    position: fixed;
+    top: 48px;
+    right: 8px;
+    left: 8px;
+    max-width: none;
+  }
+}
+.lineage-panel h2 {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.lineage-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lineage-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lineage-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+.lineage-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lineage-status {
+  font-size: 0.75rem;
+}
+.lineage-previous {
+  display: block;
+  margin-top: 4px;
+}
+.fork-divider .link-button {
+  white-space: nowrap;
+}
+.handoff-endpoints {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.handoff-endpoint {
+  font-weight: 500;
+}
+.handoff-summary {
+  flex-basis: 100%;
+}
+.handoff-summary pre {
+  max-height: 16rem;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+.resource-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.resource-card-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}

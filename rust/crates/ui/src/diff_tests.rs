@@ -119,13 +119,19 @@ impl Fixture {
     /// `files` are written under the fixture directory first (its login, for one).
     #[cfg(unix)]
     pub(crate) async fn start_claude(environment: &[(&str, &str)], files: &[(&str, String)]) -> Self {
-        Self::build_with(false, &[], false, Some((environment, files))).await
+        Self::build_with(false, &[], false, Some((environment, files)), false).await
+    }
+    /// With the editors this machine really has on offer, which the one test that launches an
+    /// editor needs; every other fixture offers none. The directory and the file are named for this work.
+    pub(crate) async fn start_with_editors() -> Self {
+        Self::build_with(false, &[], false, None, true).await
     }
     async fn build(git_repository: bool, environment: &[(&str, &str)], terminals: bool) -> Self {
-        Self::build_with(git_repository, environment, terminals, None).await
+        Self::build_with(git_repository, environment, terminals, None, false).await
     }
-    async fn build_with(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>) -> Self {
-        let directory = tempfile::tempdir().unwrap();
+    async fn build_with(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool) -> Self {
+        // Whatever a test leaves open on a developer's machine is named for what opened it.
+        let directory = tempfile::Builder::new().prefix("t3code-rust-port-test-").tempdir().unwrap();
         let root = std::fs::canonicalize(directory.path()).unwrap();
         let claude_instance = match claude {
             Some((claude_environment, files)) => {
@@ -189,7 +195,9 @@ impl Fixture {
         // The configuration every client of this fixture sees lists none, so nothing here can ask
         // for an editor to be started.
         let mut snapshot = native.snapshot;
-        snapshot["availableEditors"] = json!([]);
+        if !real_editors {
+            snapshot["availableEditors"] = json!([]);
+        }
         api.config = Some(snapshot);
         api.settings = Some(settings_service.clone());
         api.providers = Some(native.providers);

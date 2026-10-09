@@ -111,6 +111,7 @@ pub struct UiModel {
     /// The dialog that starts a thread from a pull request, while it is open.
     pub pr_checkout: Option<crate::pull_request_thread::Open>,
     pub lifecycle: crate::thread_lifecycle::Model,
+    pub relations: crate::thread_relations::Model,
     pub usage: crate::usage_page::Model,
     pub redeem: crate::limits_view::Redeem,
     /// The environment's tracked repository clones.
@@ -1000,7 +1001,35 @@ pub fn stop_thread(handle: &TransportHandle, state: Store<UiModel>, thread_id: &
             "run.interrupt",
             json!({"threadId":thread_id,"runId":run_id,"holdQueue":true}),
         );
+        return;
     }
+    // `interruptThreadTurn` with no run to interrupt: work left in the background is stopped through
+    // the latest run, and otherwise the pull requests the server is watching are let go.
+    let background = state.peek().shell.snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id)).is_some_and(|thread| !thread.pending_background_tasks.is_empty());
+    if background && crate::composer_panels::stop_background_work(handle, state, thread_id) {
+        return;
+    }
+    unwatch_pull_requests(handle, state, thread_id);
+}
+
+/// Stops the server watching the pull requests filed under the thread; true when it was asked to.
+pub(crate) fn unwatch_pull_requests(handle: &TransportHandle, state: Store<UiModel>, thread_id: &str) -> bool {
+    let watched: Vec<_> = {
+        let model = state.peek();
+        let thread = model.shell.snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id));
+        thread.and_then(|thread| serde_json::to_value(thread).ok()).map(|thread| t3_client::thread_pull_requests::links(&thread).into_iter().filter(|link| link.watching).collect()).unwrap_or_default()
+    };
+    let mut sent = false;
+    for link in watched {
+        let Some(host) = link.host else { continue };
+        let mut input = t3_client::thread_pull_requests::watch_command(thread_id, &host, &link.repository, link.number, false);
+        let kind = input["type"].as_str().unwrap_or_default().to_owned();
+        if let Some(fields) = input.as_object_mut() {
+            fields.remove("type");
+        }
+        sent |= command(handle, state, &kind, input).is_some();
+    }
+    sent
 }
 
 /// How one send differs from "send the draft": how it is delivered to a running thread, a plan it
@@ -2777,3 +2806,11 @@ mod import_clone_tests;
 #[cfg(all(test, unix))]
 #[path = "chips_tests.rs"]
 mod chips_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_relations_tests.rs"]
+mod thread_relations_tests;
+
+#[cfg(all(test, unix))]
+#[path = "open_in_tests.rs"]
+mod open_in_tests;

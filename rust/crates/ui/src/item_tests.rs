@@ -322,7 +322,7 @@ fn synth_app(props: Synth) -> Element {
         model.shell.snapshot = Some(t3_contracts::ShellSnapshot { schema_version: 2, snapshot_sequence: 1, projects: vec![project], threads: vec![thread], archived_threads: vec![] });
         model.active_thread = Some("thread".into());
         model.destination = Some(serde_json::from_value(json!("environment-a")).unwrap());
-        let rows: Vec<_> = props.items.as_array().unwrap().iter().enumerate().map(|(index, item)| json!({"sourceThreadId":"thread","sourceItemId":item["id"],"position":index,"visibility":"local","item":item})).collect();
+        let rows: Vec<_> = props.items.as_array().unwrap().iter().enumerate().map(|(index, item)| json!({"sourceThreadId":item["sourceThreadId"].as_str().unwrap_or("thread"),"sourceItemId":item["id"],"position":index,"visibility":item["visibility"].as_str().unwrap_or("local"),"item":item})).collect();
         model.thread.projection = Some(json!({"thread":{"id":"thread","activeProviderThreadId":null},"visibleTurnItems":rows,"turnItems":props.items,"runs":props.runs,"runtimeRequests":props.extra["requests"].clone(),"plans":props.extra["plans"].clone(),"subagents":props.extra["subagents"].clone(),"messages":props.extra["messages"].clone(),"providerTurns":[],"providerThreads":[],"updatedAt":"2026-01-01T00:00:00Z"}));
         model
     });
@@ -1174,4 +1174,54 @@ async fn seed_free(dom: &mut VirtualDom, props: &Harness) -> Store<UiModel> {
     until(dom, "shell", |_| state.peek().shell.synchronized && state.peek().typed_config.is_some()).await;
     until(dom, "threads", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.len() == 2)).await;
     state
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_forks_long_inherited_history_folds_like_settled_turns_and_opening_it_builds_few_rows() {
+    // 120 turns of a source thread (a message, 22 calls and an answer each) that the fork carries,
+    // then the marker the fork adds, then the fork's own turn.
+    let mut items = vec![];
+    for turn in 0..120 {
+        let run = format!("source-run-{turn}");
+        let tag = |mut item: Value| {
+            item["runId"] = json!(run);
+            item["threadId"] = json!("source");
+            item["sourceThreadId"] = json!("source");
+            item["visibility"] = json!("inherited");
+            item
+        };
+        items.push(tag(user(&format!("u{turn}"), &format!("Inherited question {turn}"))));
+        for call in 0..22 {
+            items.push(tag(command(&format!("c{turn}-{call}"), &format!("step {call}"), "completed")));
+        }
+        items.push(tag(assistant(&format!("a{turn}"), &format!("Inherited answer {turn}"))));
+    }
+    let mut marker = with(base("fork-marker", "fork", "completed"), json!({"runId":null,"source":{"type":"run","threadId":"source","runId":"source-run-119"},"targetThreadId":"thread","visibility":"synthetic"}));
+    marker["threadId"] = json!("thread");
+    items.push(marker);
+    items.push(with(user("own-user", "In the fork"), json!({"runId":"own-run"})));
+    items.push(with(assistant("own-answer", "Own answer"), json!({"runId":"own-run"})));
+    let runs = json!([{"id":"own-run","status":"completed","ordinal":1,"startedAt":"2026-01-01T00:00:00Z","completedAt":"2026-01-01T00:01:00Z"}]);
+    let started = std::time::Instant::now();
+    let (mut dom, props) = synth(json!(items), runs, json!({}));
+    let built = props.probe.item.get();
+    eprintln!("MEASURE mount of a fork with 120 inherited turns / {} items: {built} rows built in {:?}", items.len(), started.elapsed());
+    assert!(built < 400, "inherited turns fold as settled ones do, so only their messages are built: {built}");
+    assert!(text(&dom).contains("Forked from conversation") && control(&dom, "Open source conversation").is_some(), "{}", text(&dom).len());
+    assert!(text(&dom).contains("Own answer") && text(&dom).contains("Inherited answer 119"));
+    // Opening one inherited turn builds that turn's rows and no others.
+    let before = props.probe.item.get();
+    click_control(&mut dom, "Worked for*");
+    let opened = props.probe.item.get() - before;
+    assert!(opened < 60, "one fold opens, not the whole history: {opened}");
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_thread_an_agent_created_is_a_card_under_the_answer_with_a_way_in() {
+    let created = with(base("created", "thread_created", "completed"), json!({"targetThreadId":"child","title":"Child task"}));
+    let (mut dom, props) = synth(json!([user("u", "Split the work"), created, assistant("a", "Started it.")]), SETTLED_WITH_END(), json!({}));
+    assert!(control(&dom, "Open Child task").is_some(), "{}", text(&dom));
+    assert!(text(&dom).contains("Child task") && text(&dom).contains("Open chat"));
+    click_control(&mut dom, "Open Child task");
+    assert_eq!(state_of(&props).peek().active_thread.as_deref(), Some("child"));
 }

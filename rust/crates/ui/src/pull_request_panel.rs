@@ -351,6 +351,7 @@ fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
                 span { class: "pr-state", "data-state": "{label}", "{label}" }
                 if let Some(url) = url { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request on the host", "Open on host" } }
                 if let Some(url) = value["url"].as_str().map(str::to_owned) { crate::pull_request_links::LinkControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), url } }
+                crate::pull_request_links::WatchControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), open: matches!(label, "Open" | "Draft") }
                 button { class: "icon-button diff-close", "aria-label": "Close pull request panel", title: "Close the pull request panel", onclick: move |_| on_close.call(()), "\u{2715}" }
             }
             crate::pull_request_edit::TitleLine { title, can_edit: t3_client::pull_request_edit::can_edit_change_request(&value), writable }

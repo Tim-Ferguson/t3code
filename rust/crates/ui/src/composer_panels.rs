@@ -105,9 +105,11 @@ pub(crate) struct EditingRun {
 /// composer or remove. (Reordering, resuming and steering a queued message need server commands
 /// that are not there yet.)
 #[component]
-pub(crate) fn QueuedRuns(state: Store<UiModel>, transport: runtime::TransportHandle, thread_id: String, can_operate: bool, editing: Signal<Option<EditingRun>>, edit_hint: Option<String>) -> Element {
+pub(crate) fn QueuedRuns(state: Store<UiModel>, transport: runtime::TransportHandle, thread_id: String, can_operate: bool, editing: Signal<Option<EditingRun>>, edit_hint: Option<String>, steer_hint: Option<String>) -> Element {
     let queue = use_memo(move || state.thread().read().projection.as_ref().map(words::queued_runs).unwrap_or_default());
     let mut expanded = use_signal(|| true);
+    let steerable = use_memo(move || state.thread().read().projection.as_ref().is_some_and(t3_client::queue_workflow::can_promote_to_steer));
+    let steering = use_memo(move || state.relations().read().steering.clone());
     let held = use_memo(move || state.thread().read().projection.as_ref().is_some_and(|projection| projection["runs"].as_array().is_some_and(|runs| runs.iter().any(|run| run["status"] == "queued" && run["queueHeld"] == true))));
     let edit_thread = thread_id.clone();
     // The edited message left the queue (delivered, removed elsewhere): the edit has nothing to save into.
@@ -165,6 +167,9 @@ pub(crate) fn QueuedRuns(state: Store<UiModel>, transport: runtime::TransportHan
                         } else {
                             button {"aria-label":"Edit queued message",disabled:!can_operate||editing.read().is_some(),title:{let hint=if latest.as_deref()==Some(run.run_id.as_str()) {edit_hint.clone()} else {None};format!("Edit in the composer{}",hint.map(|hint|format!(" ({hint})")).unwrap_or_default())},
                                 onclick:{let (id,text,thread)=(run.run_id.clone(),run.text.clone(),edit_thread_for_click.clone());move |_|begin_edit(state,editing,thread.clone(),id.clone(),text.clone())},"✎"}
+                            button {"aria-label":"Steer queued message",class:"queued-steer",disabled:!can_operate||editing.read().is_some()||!steerable()||steering().is_some(),"aria-busy":"{steering().as_deref()==Some(run.run_id.as_str())}",
+                                title:if !steerable() {"There is no running turn to steer".to_owned()} else {format!("Send as a steer instead{}",if position==0 {steer_hint.clone().map(|hint|format!(" ({hint})")).unwrap_or_default()} else {String::new()})},
+                                onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=run.run_id.clone();move |_|steer(&transport,state,&thread_id,&id)},"Steer"}
                             button {"aria-label":"Remove queued message",disabled:!can_operate||editing.read().is_some(),title:"Remove from queue",
                                 onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=run.run_id.clone();move |_|{runtime::command(&transport,state,"queued-run.cancel",json!({"threadId":thread_id,"runId":id}));}},"✕"}
                         }
@@ -173,6 +178,37 @@ pub(crate) fn QueuedRuns(state: Store<UiModel>, transport: runtime::TransportHan
             }}
         }
     }
+}
+
+/// Sends a queued message into the turn that is running (`queued-message.promote-to-steer`). One at
+/// a time: the button waits for the server's answer, and a refusal is reported.
+pub(crate) fn steer(transport: &runtime::TransportHandle, state: Store<UiModel>, thread_id: &str, queued_run: &str) {
+    let target = {
+        let model = state.peek();
+        let Some(projection) = model.thread.projection.as_ref().filter(|projection| projection["thread"]["id"] == thread_id) else { return };
+        if !t3_client::queue_workflow::can_promote_to_steer(projection) {
+            return;
+        }
+        t3_client::queue_workflow::active_run(projection).and_then(|run| run["id"].as_str()).map(str::to_owned)
+    };
+    let Some(target) = target else { return };
+    if state.relations().peek().steering.is_some() {
+        return;
+    }
+    let mut payload = t3_client::queue_workflow::promote_command(thread_id, queued_run, &target);
+    payload["commandId"] = json!(uuid::Uuid::new_v4().to_string());
+    state.relations().write().steering = Some(queued_run.to_owned());
+    let owner = runtime::response_owner(transport, state);
+    let transport = transport.clone();
+    dioxus::dioxus_core::spawn_forever(async move {
+        let result = runtime::request_value_reported(transport.clone(), state, "orchestration.dispatchCommand", payload).await;
+        state.relations().write().steering = None;
+        if owner.is_some() && owner == runtime::response_owner(&transport, state) {
+            if let Err(message) = result {
+                crate::notice::push(state, crate::notice::Level::Error, "Could not steer", if message.trim().is_empty() { "Failed to send the queued message as a steer.".to_owned() } else { message });
+            }
+        }
+    });
 }
 
 /// Puts a queued message in the composer (its attachments stay on the message; the edit replaces
@@ -243,7 +279,11 @@ pub(crate) fn stop_background_work(transport: &runtime::TransportHandle, state: 
         let runs = projection["runs"].as_array()?;
         runs.iter().rev().find(|run| matches!(run["status"].as_str(), Some("preparing" | "starting" | "running" | "waiting"))).or_else(|| runs.last()).and_then(|run| run["id"].as_str()).map(str::to_owned)
     });
-    run.is_some_and(|run| runtime::command(transport, state, "run.interrupt", json!({"threadId":thread_id,"runId":run,"holdQueue":true})).is_some())
+    match run {
+        Some(run) => runtime::command(transport, state, "run.interrupt", json!({"threadId":thread_id,"runId":run,"holdQueue":true})).is_some(),
+        // A thread that never ran can still be watching a pull request.
+        None => runtime::unwatch_pull_requests(transport, state, thread_id),
+    }
 }
 
 /// "Plan ready" above the box while a plan waits to be implemented or refined.

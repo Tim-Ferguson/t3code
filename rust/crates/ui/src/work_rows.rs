@@ -179,7 +179,23 @@ impl Rows<'_> {
                 return rsx! { div { key:"{marker}","data-timeline-row":"{marker}",class:"subagent-batch",crate::subagent_rows::SubagentRow {card,state:self.state,transport:self.transport.clone()}} };
             }
         }
-        rsx! { div { key:"{marker}","data-timeline-row":"{marker}","data-message-id":row["item"]["messageId"].as_str().unwrap_or_default(),
+        let visibility = row["visibility"].as_str().unwrap_or("local").to_owned();
+        match row["item"]["type"].as_str() {
+            // Under the turn's answer, a thread it created is a card with a way in.
+            Some("thread_created") if prefix == "summary:" => return rsx! { div { key:"{marker}","data-timeline-row":"{marker}","data-visibility":"{visibility}",
+                crate::thread_relations::CreatedThreadCard {item:row["item"].clone(),state:self.state,transport:self.transport.clone()} } },
+            // A fork's marker and a handoff between providers are dividers, not tool calls.
+            Some("fork") => return rsx! { div { key:"{marker}","data-timeline-row":"{marker}","data-visibility":"{visibility}",
+                crate::thread_relations::ForkRow {item:row["item"].clone(),state:self.state,transport:self.transport.clone(),visibility:visibility.clone()} } },
+            Some("handoff") => {
+                // Only what a handoff reads of the runs, so a run's status changing does not rebuild it.
+                let runs: Vec<Value> = self.projection["runs"].as_array().into_iter().flatten().map(|run| serde_json::json!({"id":run["id"],"ordinal":run["ordinal"],"providerInstanceId":run["providerInstanceId"],"modelSelection":run["modelSelection"]})).collect();
+                return rsx! { div { key:"{marker}","data-timeline-row":"{marker}","data-visibility":"{visibility}",
+                    crate::thread_relations::HandoffRow {item:row["item"].clone(),runs,state:self.state,visibility:visibility.clone()} } };
+            }
+            _ => {}
+        }
+        rsx! { div { key:"{marker}","data-timeline-row":"{marker}","data-visibility":"{visibility}","data-message-id":row["item"]["messageId"].as_str().unwrap_or_default(),
             TimelineItem { environment_key:self.environment_key.to_owned(),item:row["item"].clone(),state:self.state,transport:self.transport.clone(),
                 source_thread_id:row["sourceThreadId"].as_str().unwrap_or(self.thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned(),
                 rewind:(self.edit_target)(self.offers,self.thread_id,row),
@@ -213,8 +229,12 @@ impl Rows<'_> {
                 Row::Footer { message } => {
                     let item = &self.items[self.entries[*message].row]["item"];
                     let marker = format!("assistant-meta:{}", item["messageId"].as_str().or_else(|| item["id"].as_str()).unwrap_or_default());
+                    // An inherited answer forks from its own thread; its session is only known when that is this one.
+                    let source = self.items[self.entries[*message].row]["sourceThreadId"].as_str().unwrap_or(self.thread_id);
+                    let capabilities = if source == self.thread_id { t3_client::thread_relations::item_capabilities(self.projection, item) } else { None };
+                    let fork = t3_client::thread_relations::can_fork_assistant_item(item, capabilities).then(|| (source.to_owned(), item["runId"].as_str().unwrap_or_default().to_owned()));
                     rsx! { div { key:"{marker}",class:"assistant-footer-row","data-timeline-row":"{marker}",
-                        item_cards::AssistantFooter {text:item["text"].as_str().unwrap_or_default().to_owned(),status:item["status"].as_str().unwrap_or_default().to_owned(),updated_at:item["updatedAt"].as_str().unwrap_or_default().to_owned(),streaming:item["streaming"] == true}
+                        item_cards::AssistantFooter {text:item["text"].as_str().unwrap_or_default().to_owned(),status:item["status"].as_str().unwrap_or_default().to_owned(),updated_at:item["updatedAt"].as_str().unwrap_or_default().to_owned(),streaming:item["streaming"] == true,fork,state:self.state,transport:self.transport.clone()}
                     }}
                 }
                 Row::Subagents { entries } => {

@@ -95,7 +95,7 @@ pub(crate) fn status_word(item: &Value, live: Live) -> Option<&'static str> {
 /// status when it is not simply done, a copy button while there is text to copy, and when the
 /// answer was last written. The time is the answer's last update; nothing here ticks.
 #[component]
-pub(crate) fn AssistantFooter(text: String, status: String, updated_at: String, streaming: bool) -> Element {
+pub(crate) fn AssistantFooter(text: String, status: String, updated_at: String, streaming: bool, fork: Option<(String, String)>, state: Store<UiModel>, transport: runtime::TransportHandle) -> Element {
     let mut copied = use_signal(|| false);
     let offset = crate::scheduled_tasks_page::zone(chrono::Utc::now().timestamp_millis());
     let time = words::day_aware_timestamp(&updated_at, offset, chrono::Utc::now());
@@ -115,6 +115,7 @@ pub(crate) fn AssistantFooter(text: String, status: String, updated_at: String, 
                 });
             },
             if copied() {"✓"} else {"⧉"}}}
+        if let Some((source_thread, run_id)) = fork.filter(|_| !streaming) {crate::thread_relations::ForkButton {state,transport:transport.clone(),source_thread,run_id}}
         if !streaming && !time.is_empty() {time {class:"muted",title:"{tooltip}",datetime:"{updated_at}","{time}"}}
     }}
 }

@@ -14,7 +14,6 @@ use crate::{
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
 };
 use dioxus::prelude::*;
-use futures_util::StreamExt;
 use serde_json::json;
 use std::collections::BTreeSet;
 use t3_client::{connection::ConnectionStatus, project_clone as logic};

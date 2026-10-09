@@ -58,6 +58,7 @@ mod theme_search;
 mod themes;
 mod thread_controls;
 mod thread_lifecycle;
+mod thread_relations;
 mod timeline;
 mod limits_view;
 mod clone_view;
@@ -301,8 +302,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 }
                             }
                         }
+                        thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
                         thread_lifecycle::HeaderButtons { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
-                        pull_request_links::HeaderLinks { state, thread: active_thread.clone() }
+                        pull_request_links::HeaderLinks { state, transport: transport.clone(), thread: active_thread.clone() }
                     }
                 }
                 if let Some(error) = error {
@@ -410,6 +412,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         clone_view::Notices { state, transport: transport.clone() }
         import_projects::Host { state, transport: transport.clone() }
         thread_lifecycle::Host { state, transport: transport.clone() }
+        thread_relations::Host { state, transport: transport.clone() }
     }
 }
 
@@ -735,11 +738,12 @@ fn Composer(
     let blocked = !can_operate || unsupported || pending || rewinding() || attachment_block.is_some() || (!has_content && following_up.is_none());
     let show_stop = running && !has_content && editing.read().is_none() && following_up.is_none();
     let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
+    let steer_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.steerQueuedMessage"));
     rsx! {
         limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) }
         limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
         composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
-        composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint}
+        composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint,steer_hint:steer_hint.clone()}
         composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         if let Some(plan)=following_up.clone() { composer_panels::PlanReady {plan} }
         form { class: "composer", onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },

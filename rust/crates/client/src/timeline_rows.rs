@@ -1006,6 +1006,25 @@ pub fn entries(items: &[Value], attempts: &[Value], nodes: &[Value]) -> Vec<Entr
             node_id = node["parentNodeId"].as_str()?;
         }
     };
+    // Delegation already has a durable child card: the call that made it is dropped once the id it
+    // returned names that child (`withoutSubagentDelegationRows`). A failed call stays.
+    let mut children: HashMap<&str, HashSet<&str>> = HashMap::new();
+    for row in items {
+        let item = &row["item"];
+        if let (Some("subagent"), Some("app_owned"), Some(run), Some(id)) = (item["type"].as_str(), item["origin"].as_str(), item["runId"].as_str(), item["subagentId"].as_str()) {
+            children.entry(run).or_default().insert(id);
+        }
+    }
+    let delegation_card_exists = |item: &Value| -> bool {
+        if item["type"] != "dynamic_tool" || !matches!(item["status"].as_str(), Some("running" | "completed")) {
+            return false;
+        }
+        let Some(run) = item["runId"].as_str() else { return false };
+        if crate::t3_tools::resolve(item["toolName"].as_str()).is_none_or(|tool| tool.summary_action != "delegate") || crate::t3_tools::result_indicates_failure(&item["output"]) {
+            return false;
+        }
+        crate::t3_tools::output_task_id(&item["output"]).is_some_and(|task| children.get(run).is_some_and(|ids| ids.contains(task.as_str())))
+    };
     let answered: HashSet<String> = items.iter().filter_map(|row| row["item"]["questionAnswer"]["requestId"].as_str().filter(|_| row["item"]["type"] == "user_input_request").map(|id| format!("async-answer:{id}"))).collect();
     let mut result = vec![];
     for (index, row) in items.iter().enumerate() {
@@ -1020,6 +1039,9 @@ pub fn entries(items: &[Value], attempts: &[Value], nodes: &[Value]) -> Vec<Entr
             continue;
         }
         if kind == "user_message" && item["messageId"].as_str().is_some_and(|id| answered.contains(id)) {
+            continue;
+        }
+        if delegation_card_exists(item) {
             continue;
         }
         let id = item["id"].as_str().unwrap_or_default().to_owned();
