@@ -298,6 +298,7 @@ impl Actor {
         let view = crate::codex_runtime::projection(&self.store, &self.thread_id).map_err(|e| e.to_string())?;
         let mut projector = Projector::new(&self.thread_id, captured, &view, selection).map_err(|e| e.to_string())?;
         projector.skip_tools = self.subagents.agent_calls().clone();
+        projector.continuation = continuation;
         self.settled = None;
         self.ignored_tasks.clear();
         self.route = Some(run["providerThreadId"].clone());

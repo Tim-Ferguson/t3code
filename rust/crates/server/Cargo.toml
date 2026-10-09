@@ -42,7 +42,13 @@ rand.workspace = true
 # Named zones: usage buckets days in the zone the client names. Also drives the schedule fixtures.
 chrono-tz = { version = "0.10", default-features = false }
 
+[features]
+# Validates every reply the transport writes against the schema the original encodes it with (`rpc_response.rs`). Switched on for
+# the tests by the dev-dependency below, never in a build of the server.
+outbound-check = []
+
 [dev-dependencies]
+t3-server = { path = ".", features = ["outbound-check"] }
 flate2.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tempfile = "3"

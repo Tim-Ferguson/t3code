@@ -70,6 +70,10 @@ impl IdleRelease {
     fn settings(&self) -> Settings {
         self.settings.read().unwrap().clone()
     }
+    /// The clock idle release and usage-limit recovery run on.
+    pub(crate) fn clock(&self) -> Arc<dyn SchedulerClock> {
+        self.settings().clock
+    }
 }
 
 #[derive(Debug, PartialEq)]

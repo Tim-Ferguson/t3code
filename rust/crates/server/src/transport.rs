@@ -563,9 +563,14 @@ async fn upgrade(
 #[derive(Clone)]
 struct SocketSender {
     channel: mpsc::Sender<Message>,
+    /// The method of each request on this connection, so a reply can be checked against its schema (tests only).
+    #[cfg(feature = "outbound-check")]
+    methods: crate::rpc_response::Methods,
 }
 impl SocketSender {
     async fn send(&self, message: RpcServerMessage) -> Result<(), String> {
+        #[cfg(feature = "outbound-check")]
+        crate::rpc_response::inspect(&self.methods, &message);
         let encoded = serde_json::to_string(&message).map_err(|error| error.to_string())?;
         self.channel
             .send(Message::Text(encoded.into()))
@@ -615,7 +620,11 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
     };
     let (mut sink, mut source) = socket.split();
     let (channel, mut output) = mpsc::channel::<Message>(64);
-    let outgoing = SocketSender { channel };
+    let outgoing = SocketSender {
+        channel,
+        #[cfg(feature = "outbound-check")]
+        methods: Default::default(),
+    };
     let mut writer = tokio::spawn(async move {
         while let Some(frame) = output.recv().await {
             if sink.send(frame).await.is_err() {
@@ -639,10 +648,12 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                         RpcClientMessage::Ping=>{let _=outgoing.send(RpcServerMessage::Pong).await;},
                         RpcClientMessage::Eof=>{},
                         RpcClientMessage::Ack{request_id}=>{if let Some(ack)=subscriptions.get(&request_id).and_then(|task|task.ack.as_ref()){let _=ack.try_send(());}},
-                        RpcClientMessage::Interrupt{request_id}=>{if let Some(stream)=subscriptions.remove(&request_id){stream.task.abort();let _=outgoing.send(RpcServerMessage::Exit{request_id,exit:RpcExit::Failure{cause:vec![RpcCause::Interrupt{fiber_id:None}]}}).await;}},
+                        RpcClientMessage::Interrupt{request_id}=>{if let Some(stream)=subscriptions.remove(&request_id){stream.task.abort();let _=outgoing.send(RpcServerMessage::Exit{request_id,exit:RpcExit::Failure{cause:vec![RpcCause::Interrupt{fiber_id:Some(1.into())}]}}).await;}},
                         RpcClientMessage::Request{mut request}=>{
+                            #[cfg(feature = "outbound-check")]
+                            crate::rpc_response::remember(&outgoing.methods,request.id.clone(),&request.tag);
                             if let Some(previous)=subscriptions.remove(&request.id){previous.task.abort();}
-                            let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))).await;continue}};
+                            let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,session_ended(&request.tag))).await;continue}};
                             // A method the original's group does not have is a defect there, before anything else is looked at.
                             if t3_contracts::rpc_required_scope(&request.tag).is_err(){let _=outgoing.send(failure(request.id,json!({"_tag":"SchemaDecodeError","message":format!("Unknown request tag: {}",request.tag)}))).await;continue}
                             // The original decodes first, then authorizes. Here the scope is checked first, so a caller without it learns
@@ -1082,9 +1093,15 @@ fn require_scope(
     } else {
         let required = t3_contracts::auth_scope_required_response(scope);
         Err(
-            json!({"_tag":"EnvironmentAuthorizationError","operation":method,"requiredScope":required.required_scope,"requiredPermission":required.required_permission,"message":"The client does not have permission for this operation."}),
+            json!({"_tag":"EnvironmentAuthorizationError","requiredScope":required.required_scope,"requiredPermission":required.required_permission,"message":"The client does not have permission for this operation."}),
         )
     }
+}
+/// The error of a request whose session has ended: the original answers that at the HTTP upgrade, where there is no RPC error, so the
+/// scope the method needs stands in for the required scope its schema asks for.
+fn session_ended(method: &str) -> Value {
+    let required = t3_contracts::auth_scope_required_response(t3_contracts::rpc_required_scope(method).unwrap_or(AuthEnvironmentScope::OrchestrationRead));
+    json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked.","requiredScope":required.required_scope,"requiredPermission":required.required_permission})
 }
 fn authorize_request(session: &Session, request: &RpcRequest) -> Result<(), Value> {
     if request.tag == "device.list" {
@@ -1146,7 +1163,7 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
             // Every refusal reaches the client as the original's `OrchestrationV2DispatchCommandError`.
             let refused=|error:StoreError|crate::dispatch_error::dispatch(&request.payload,&error);
             let now=Utc::now();
-            let receipt=if request.payload["type"].as_str().is_some_and(crate::dispatch_decode::routes_to_thread_service) {ThreadService::new(state.store.clone()).dispatch(&request.payload,now).map_err(refused)?}else{let execution=state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?;crate::attachment_claims::dispatch_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,&request.payload,|command|crate::answer_attachments::respond_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,command,|command|execution.dispatch(command,now)).map_err(|failure|match failure{crate::attachment_claims::ClaimedDispatchError::Store(error)=>error,crate::attachment_claims::ClaimedDispatchError::Claim(message)=>StoreError::InvalidCommand(message)})).map_err(|failure|failure.dispatch_wire(&request.payload,refused))?};
+            let receipt=if request.payload["type"].as_str().is_some_and(crate::service_commands::is_service_command) {crate::service_commands::dispatch(&state.store,state.execution.as_ref(),&request.payload,now).map_err(refused)?.ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?}else if request.payload["type"].as_str().is_some_and(crate::dispatch_decode::routes_to_thread_service) {ThreadService::new(state.store.clone()).dispatch(&request.payload,now).map_err(refused)?}else{let execution=state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?;crate::attachment_claims::dispatch_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,&request.payload,|command|crate::answer_attachments::respond_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,command,|command|execution.dispatch(command,now)).map_err(|failure|match failure{crate::attachment_claims::ClaimedDispatchError::Store(error)=>error,crate::attachment_claims::ClaimedDispatchError::Claim(message)=>StoreError::InvalidCommand(message)})).map_err(|failure|failure.dispatch_wire(&request.payload,refused))?};
             if receipt.status=="rejected"{return Err(crate::dispatch_error::rejected(&receipt,receipt.accepted_at==now.to_rfc3339()));}
             Ok(json!({"sequence":receipt.result_sequence}))
         },
@@ -1272,7 +1289,7 @@ async fn provider_auth_stream(
     let result = async {
         let mut states = crate::provider_auth_rpc::subscribe(state.provider_auth.as_ref(),request.payload.clone(),&session.session_id).await?;
         while let Some(state_value) = states.recv().await {
-            let active = state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active = state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             let value = state_value.map_err(|error|serde_json::to_value(error).unwrap())?;
             if !chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(value).unwrap()]).await { return Ok(()); }
@@ -1302,7 +1319,7 @@ async fn provider_install_stream(
         let registry = state.providers.as_ref().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Provider registry is not configured."}))?;
         let (mut next, mut changes) = crate::provider_install::subscribe(registry, &input.instance_id).await.map_err(crate::provider_manage_rpc::setup_wire)?;
         loop {
-            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
             authorize_rpc(&active, &request.tag)?;
             let value = crate::provider_manage_rpc::install_state(next)?;
             if !chunk(&output, &mut ack, &request.id, vec![value]).await { return Ok(()); }
@@ -1336,7 +1353,7 @@ async fn project_clone_stream(
         }
         let mut changes = crate::project_clone::of(&state.store).subscribe();
         loop {
-            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
             authorize_rpc(&active, &request.tag)?;
             let list = changes.borrow_and_update().clone();
             if !chunk(&output, &mut ack, &request.id, vec![serde_json::to_value(list.as_ref()).expect("typed clone list")]).await { return Ok(()); }
@@ -1364,7 +1381,7 @@ async fn resource_telemetry_stream(
         let mut subscription=service.subscribe().await.ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Resource telemetry stopped."}))?;
         let mut next=subscription.latest.clone();
         loop {
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             let typed: t3_contracts::ResourceTelemetrySnapshot=serde_json::from_value(next).map_err(|error|json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
             let sent=tokio::select! {biased;_=service.closed()=>return Ok(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(typed).unwrap()])=>sent};
@@ -1461,7 +1478,7 @@ async fn device_stream(
         let service=state.devices.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Device service is not configured."}))?;
         let mut subscription=service.subscribe();let mut next=subscription.snapshot.clone();
         loop {
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             let sent=tokio::select! {biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(next).unwrap()])=>sent};
             if !sent{return Ok(());}
@@ -1490,7 +1507,7 @@ async fn background_stream(
         let service=state.background.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Background policy is not configured."}))?;
         let mut subscription=service.subscribe().await;let mut next=subscription.latest.clone();
         loop {
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             let sent=tokio::select!{biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(next).unwrap()])=>sent};
             if !sent{return Ok(());}
@@ -1529,7 +1546,7 @@ async fn discovery_stream(
             Box::pin(async move {let _ = updates.send(discovery_value(servers,clock()));})
         })).map_err(|error|json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
         loop {
-            let active = state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active = state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             let value = update;
             let admitted = tokio::select! {biased;_=service.closed()=>return Ok(()),admitted=chunk(&output,&mut ack,&request.id,vec![value])=>admitted};
@@ -1568,7 +1585,7 @@ async fn terminal_stream(
         };
         loop {
             let Some(item)=subscription.recv().await.map_err(|message|json!({"_tag":"RpcServerError","reason":"TerminalStreamContinuity","message":message}))? else {return Ok(());};
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             if !chunk(&output,&mut ack,&request.id,vec![item]).await{return Ok(());}
         }
@@ -1652,7 +1669,7 @@ async fn scheduled_tasks_stream(
         let operate = session.scopes.contains(&AuthEnvironmentScope::OrchestrationOperate);
         let mut lists = crate::scheduled_tasks_rpc::open_stream(&state, request.payload.clone(), operate)?;
         while let Some(list) = lists.next().await {
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             if !chunk(&output, &mut ack, &request.id, vec![list?]).await {
                 break;
@@ -1683,7 +1700,7 @@ async fn worktree_setup_stream(
         let mut snapshots = crate::workspace_rpc::open_stream(&state, &request.payload)?;
         loop {
             let snapshot = snapshots.borrow_and_update().clone();
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             let value = serde_json::to_value(snapshot).unwrap_or(Value::Null);
             if !chunk(&output, &mut ack, &request.id, vec![value]).await {
@@ -1717,7 +1734,7 @@ async fn vcs_status_stream(
     let result = async {
         let mut events = crate::vcs_rpc::open_status(&state, &request.payload).await?;
         while let Some(event) = events.next().await {
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             if !chunk(&output, &mut ack, &request.id, vec![event]).await {
                 break;
@@ -1777,7 +1794,7 @@ async fn pull_request_refresh_stream(
     let result = async {
         let mut revisions = crate::pull_request_rpc::open_refreshes(&request.payload)?;
         while let Some(revision) = revisions.next().await {
-            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             if !chunk(&output, &mut ack, &request.id, vec![revision]).await {
                 break;
@@ -1851,7 +1868,7 @@ async fn config_stream(
         loop {
             let typed:t3_contracts::ServerConfigStreamEvent=serde_json::from_value(item).map_err(|_|json!({"_tag":"NativeServiceError","message":"Native config event did not match its contract."}))?;
             item=serde_json::to_value(typed).unwrap();
-            state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             let sent=tokio::select! {biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![item])=>sent};
             if !sent {return Ok(());}
             item=loop {
@@ -1963,7 +1980,7 @@ async fn stream_inner(
     }
     loop {
         let events=live.recv().await.map_err(|error|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":format!("Live subscription lost continuity; reconnect with its sequence: {error}")}))?;
-        let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+        let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
         authorize_rpc(&active, &request.tag)?;
         for event in events.into_iter().filter(|event| event.sequence > through) {
             if let Some(value) = stream_item(state, &event, is_thread, archive, thread_id)? {

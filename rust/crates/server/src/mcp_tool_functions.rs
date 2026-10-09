@@ -63,7 +63,37 @@ pub(crate) const TRANSFORMS: &[&str] = &[
     "c873fba597093fe5",
 ];
 
-pub(crate) fn filter(hash: &str, value: &Js, rejects: Option<&[String]>) -> Outcome {
+/// What a refinement closes over, recorded beside it: the strings of a set it refuses, and for the thread stream's event filter the
+/// turn item types it knows; the text a known-tag filter fails with.
+#[derive(Clone, Copy)]
+pub(crate) struct Closed<'a> {
+    pub rejects: Option<&'a [String]>,
+    pub items: Option<&'a [String]>,
+    pub message: Option<&'a str>,
+}
+
+/// The functions the replies' schemas hold beyond the payloads' (`tools/generate_mcp_tool_schemas.mjs`, `rpc_response_schemas.jsonl`).
+#[cfg(test)]
+pub(crate) const RESPONSE_FILTERS: &[&str] = &["33e5eedd01847f1e", "60f6c7646715c878"];
+#[cfg(test)]
+pub(crate) const RESPONSE_TRANSFORMS: &[&str] = &[
+    "b7408df4ea2f386c",
+    "0d598deee82f8a14",
+    "20186a889c369a65",
+    "965a853d402f3e19",
+    "4dc934bde0c07926",
+    "ff3e3bc0b8a718ff",
+    "840d8d76235ea388",
+    "1db2c0a62a5876c5",
+    "28f4ab1d4b93afe0",
+    "5cfbde917cb0c2be",
+    "e9a1a99dca4469b3",
+    "6ee0335c8b931a5c",
+    "4d76020faf02fdbe",
+];
+
+pub(crate) fn filter(hash: &str, value: &Js, closed: Closed) -> Outcome {
+    let rejects = closed.rejects;
     let has = |key: &str| value.defined(key);
     let number = |key: &str| match value.get(key) {
         Some(Js::Num(number)) => number.as_f64().unwrap_or(f64::NAN),
@@ -165,6 +195,18 @@ pub(crate) fn filter(hash: &str, value: &Js, rejects: Option<&[String]>) -> Outc
         ("fe592ca0722cf7ea", _) => verdict(has("autoResume") || has("snooze"), "A recovery update must include autoResume or snooze."),
         // A known kind must decode as its own member: the strings the union's other members are keyed by.
         ("9d17f3fe6e0abee4", Js::Str(kind)) => verdict(!rejects.unwrap_or_default().contains(kind), "A known kind must decode in full."),
+        // ForwardCompatibleUnion's last member: a tag the union knows must be decoded by its own member.
+        ("33e5eedd01847f1e", Js::Str(tag)) => verdict(!rejects.unwrap_or_default().contains(tag), closed.message.unwrap_or("A known tag must decode in full.")),
+        // A thread stream event of a type this build knows must decode in full, unless it is a turn item of a type it does not.
+        ("60f6c7646715c878", event) => {
+            let known = matches!(event.get("type"), Some(Js::Str(kind)) if rejects.unwrap_or_default().contains(kind));
+            // hasUnknownUnionTag: an object that carries the tag, with a value the union does not know.
+            let unknown_item = || match event.get("payload") {
+                Some(payload @ Js::Obj(_)) => payload.get("type").is_some_and(|kind| !matches!(kind, Js::Str(kind) if closed.items.unwrap_or_default().contains(kind))),
+                _ => false,
+            };
+            verdict(!known || (matches!(event.get("type"), Some(Js::Str(kind)) if kind == "turn-item.updated") && unknown_item()), "A known event type must decode in full.")
+        }
         ("545f41b3d1af89b4", _) => if number("lineEnd") >= number("lineStart") { Pass } else { Fail },
         ("1d47e7d3fad08a52", _) => if number("endIndex") >= number("startIndex") { Pass } else { Fail },
         // An unknown context record's payload: JSON of at most 64,000 characters.
@@ -260,7 +302,7 @@ fn date_time(text: &str) -> Option<()> {
 }
 
 /// Runs a transformation's decode. A refusal is the text after "Expected" in the issue it raises.
-pub(crate) fn transform(hash: &str, value: Js) -> Result<Js, String> {
+pub(crate) fn transform(hash: &str, value: Js, closure: Option<&Value>) -> Result<Js, String> {
     let fields = |record: &Js| record.get("childThreadId").filter(|found| **found != Js::Undefined).cloned();
     let entries = |entries: Vec<(String, Js)>| Js::Arr(entries.into_iter().map(|(id, value)| Js::Obj(vec![("id".into(), Js::Str(id)), ("value".into(), value)])).collect());
     match (hash, value) {
@@ -315,6 +357,55 @@ pub(crate) fn transform(hash: &str, value: Js) -> Result<Js, String> {
         ("23115dae1df5b4a6", record @ Js::Obj(_)) => Ok(Js::Obj([("kind".to_owned(), Js::Str("subagent".into()))].into_iter().chain(fields(&record).map(|id| ("childThreadId".to_owned(), id))).collect())),
         // values.filter((value) => value !== undefined)
         ("c873fba597093fe5", Js::Arr(values)) => Ok(Js::Arr(values.into_iter().filter(|value| *value != Js::Undefined).collect())),
+        // The wire form of a Cause, an Exit, an Option: what is made of it stands for it.
+        ("b7408df4ea2f386c" | "0d598deee82f8a14" | "20186a889c369a65" | "965a853d402f3e19", value) => Ok(value),
+        // A class instance made of its fields, and a defect read back from its JSON form: what is made of them stands for them.
+        ("6ee0335c8b931a5c" | "4d76020faf02fdbe", value) => Ok(value),
+        // TrimmedString-with-a-default: `value || fallback`.
+        ("4dc934bde0c07926", Js::Str(text)) => Ok(if text.is_empty() { closure.map_or(Js::Str(text), Js::from_json) } else { Js::Str(text) }),
+        // ForwardCompatibleUnion: `new UnknownUnionMember(tag, raw[tag])`.
+        ("ff3e3bc0b8a718ff", _) => Ok(unknown_member()),
+        // A received project icon: an unknown kind is no override, a known one reads the legacy monogram.
+        ("840d8d76235ea388", icon) => Ok(if icon == unknown_member() { Js::Null } else { legacy_monogram(icon) }),
+        // A background task source: `description` kept when present.
+        ("1db2c0a62a5876c5", record) => {
+            let mut out = vec![("taskId".to_owned(), record.get("taskId").cloned().unwrap_or(Js::Undefined))];
+            if let Some(description) = record.get("description").filter(|found| **found != Js::Undefined) {
+                out.push(("description".into(), description.clone()));
+            }
+            out.push(("kind".into(), Js::Str("background_task".into())));
+            Ok(Js::Obj(out))
+        }
+        // ForwardCompatibleUnionArray: members this build does not know are dropped.
+        ("28f4ab1d4b93afe0", Js::Arr(values)) => Ok(Js::Arr(values.into_iter().filter(|value| *value != unknown_member()).collect())),
+        // Projected rows whose nested item this build does not know are dropped.
+        ("5cfbde917cb0c2be", Js::Arr(rows)) => Ok(Js::Arr(rows.into_iter().filter(|row| row.get("item") != Some(&unknown_member())).collect())),
+        // A thread event this build does not know, kept as the position it holds in the stream.
+        ("e9a1a99dca4469b3", item) => Ok(Js::Obj(vec![
+            ("kind".into(), Js::Str("unknown-event".into())),
+            ("sequence".into(), item.get("sequence").cloned().unwrap_or(Js::Undefined)),
+            ("eventType".into(), item.get("event").and_then(|event| event.get("type")).cloned().unwrap_or(Js::Undefined)),
+        ])),
         _ => panic!("transformation {hash} is not ported"),
+    }
+}
+
+/// The instance of `UnknownUnionMember` a forward-compatible union makes of a tag it does not know: a value no payload can equal,
+/// as the original's class is one no decoded payload is mistaken for.
+fn unknown_member() -> Js {
+    Js::Obj(vec![("\u{0}UnknownUnionMember".into(), Js::Bool(true))])
+}
+
+/// `fromLegacyMonogram` in packages/contracts/src/project.ts: a lucide icon that carries monogram text becomes a monogram.
+fn legacy_monogram(icon: Js) -> Js {
+    if !matches!(icon.get("kind"), Some(Js::Str(kind)) if kind == "lucide") {
+        return icon;
+    }
+    let field = |key: &str| icon.get(key).cloned().unwrap_or(Js::Undefined);
+    let text = [field("monogramText"), field("monogram")].into_iter().find(|found| *found != Js::Undefined && *found != Js::Null).unwrap_or(Js::Undefined);
+    if text == Js::Undefined {
+        Js::Obj(vec![("kind".into(), Js::Str("lucide".into())), ("name".into(), field("name")), ("color".into(), field("color"))])
+    } else {
+        Js::Obj(vec![("kind".into(), Js::Str("monogram".into())), ("text".into(), text), ("color".into(), field("color"))])
     }
 }

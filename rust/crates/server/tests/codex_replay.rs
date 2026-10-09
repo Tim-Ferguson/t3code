@@ -78,7 +78,7 @@ impl Harness {
         Self { cwd, log, store, providers, execution, thread, next: 0, clock, _root: root }
     }
     fn view(&self) -> Value {
-        self.store.projection("thread", &self.thread).unwrap().unwrap()
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", &self.thread).unwrap().unwrap())
     }
     fn dispatch_message(&mut self, text: &str, extra: Value) -> usize {
         self.next += 1;
@@ -516,7 +516,7 @@ impl Forks {
         &self.ids.iter().find(|(name, _)| name == alias).unwrap_or_else(|| panic!("no thread {alias}")).1
     }
     fn view_of(&self, id: &str) -> Value {
-        self.store.projection("thread", id).unwrap().unwrap_or_else(|| panic!("thread {id} does not exist"))
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", id).unwrap().unwrap_or_else(|| panic!("thread {id} does not exist")))
     }
     fn mismatch(&self) -> Option<Value> {
         std::fs::read_to_string(&self.log).unwrap_or_default().lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()).find(|entry| entry.get("mismatch").is_some())

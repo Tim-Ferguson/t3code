@@ -1,9 +1,10 @@
 // Runs the original's decoding of a WebSocket RPC payload over cases derived from the payload
 // schema in packages/contracts/src/rpc.ts, for the methods the Rust server decodes by hand, and
-// records whether it accepts. `tests/fixtures/rpc-decode-cases.jsonl` is the witness
+// records whether it accepts. `tests/fixtures/rpc-decode-cases.jsonl.gz` (gzipped: 16 MB as text, a few hundred KB packed) is the witness
 // `rpc_decode_tests.rs` checks the port's decoding against: the port must refuse what the original
 // refuses (a call it carries out that the original would have refused).
 import { readFileSync, writeFileSync } from "node:fs";
+import { gunzipSync, gzipSync } from "node:zlib";
 import * as Schema from "../../apps/server/node_modules/effect/dist/Schema.js";
 import * as SchemaIssue from "../../apps/server/node_modules/effect/dist/SchemaIssue.js";
 import * as Cause from "../../apps/server/node_modules/effect/dist/Cause.js";
@@ -185,10 +186,14 @@ for (const method of methods) {
     }
   }
 }
-const target = new URL("../crates/server/tests/fixtures/rpc-decode-cases.jsonl", import.meta.url);
+const target = new URL(
+  "../crates/server/tests/fixtures/rpc-decode-cases.jsonl.gz",
+  import.meta.url,
+);
 // `--check` regenerates in memory and fails when the committed cases are not what the original makes of them.
 if (process.argv.includes("--check")) {
-  const committed = readFileSync(target, "utf8")
+  const committed = gunzipSync(readFileSync(target))
+    .toString("utf8")
     .split("\n")
     .filter(Boolean)
     .map((line) => JSON.parse(line));
@@ -196,7 +201,10 @@ if (process.argv.includes("--check")) {
   console.log(JSON.stringify({ rows: rows.length, same }));
   process.exit(same ? 0 : 1);
 }
-writeFileSync(target, rows.map((row) => JSON.stringify(row)).join("\n") + "\n");
+writeFileSync(
+  target,
+  gzipSync(rows.map((row) => JSON.stringify(row)).join("\n") + "\n", { level: 9 }),
+);
 const per = {};
 for (const row of rows) {
   per[row.method] ??= { cases: 0, accepted: 0 };

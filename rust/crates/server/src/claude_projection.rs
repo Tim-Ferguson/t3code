@@ -240,6 +240,8 @@ pub(crate) struct Projector {
     pub(crate) skip_tools: HashSet<String>,
     /// A subagent registered or reported under this turn: its usage does not cover them.
     has_subagents: bool,
+    /// The turn ingests output the CLI produced while the root was idle (a wake), not an answer to a prompt.
+    pub(crate) continuation: bool,
     /// `Agent` calls seen since the adapter last took them: the call id and its input.
     launches: Vec<(String, Value)>,
 }
@@ -294,6 +296,7 @@ impl Projector {
             child: false,
             skip_tools: Default::default(),
             has_subagents: false,
+            continuation: false,
             launches: vec![],
         }
     }

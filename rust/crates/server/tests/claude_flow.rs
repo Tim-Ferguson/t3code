@@ -77,7 +77,7 @@ impl Harness {
         Self { root, cwd: workspace, log, store, providers, execution, thread, next: 0, clock }
     }
     pub fn view(&self) -> Value {
-        self.store.projection("thread", &self.thread).unwrap().unwrap()
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", &self.thread).unwrap().unwrap())
     }
     pub fn send(&mut self, text: &str) -> usize {
         self.next += 1;

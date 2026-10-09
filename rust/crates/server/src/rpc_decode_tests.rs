@@ -29,8 +29,10 @@ pub(crate) struct Case {
     pub message: Option<String>,
 }
 pub(crate) fn cases() -> Vec<Case> {
-    include_str!("../tests/fixtures/rpc-decode-cases.jsonl")
-        .lines()
+    // Kept gzipped in the repository: as text the fixture is 16 MB.
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut flate2::read::GzDecoder::new(&include_bytes!("../tests/fixtures/rpc-decode-cases.jsonl.gz")[..]), &mut text).expect("the committed cases unpack");
+    text.lines()
         .filter(|line| !line.is_empty())
         .map(|line| {
             let row: Value = serde_json::from_str(line).unwrap();
@@ -134,11 +136,8 @@ fn the_handlers_decode_what_the_original_decodes() {
             examples.entry(case.method.clone()).or_default().push(format!("handler carries out, original refuses: {}", shown()));
         }
         // JSON cannot carry NaN or an infinity to a Rust number: a field the original reads from "NaN" or "Infinity" is refused here.
-        // These commands are named by the original's client union, and are run by the Rust server only from its own services
-        // (a delegated task's request, a title regeneration's completion, a pull request watch's sync): not yet reachable by RPC.
-        let unported = case.method == "orchestration.dispatchCommand" && matches!(case.input["type"].as_str(), Some("delegated_task.request" | "delegated_task.wake-policy" | "delegated_task.completion-delivery.acknowledge" | "delegated_task.completion-delivery.dispose" | "provider-session.detach" | "thread.created.record" | "thread.pull-request-link.sync" | "thread.pull-request.sync" | "thread.title.regeneration.complete"));
         let non_finite = |result: &Result<Value, String>| result.as_ref().err().is_some_and(|error| ["\"NaN\"", "\"Infinity\"", "\"-Infinity\""].iter().any(|text| error.contains(&format!("string {text}"))));
-        if raw.is_err() && case.accepted && (non_finite(&raw) || unported) {
+        if raw.is_err() && case.accepted && non_finite(&raw) {
             entry[7] += 1;
         } else if raw.is_err() && case.accepted {
             entry[2] += 1;
@@ -155,7 +154,7 @@ fn the_handlers_decode_what_the_original_decodes() {
             entry[3] += 1;
             examples.entry(case.method.clone()).or_default().push(format!("gate and handler carry out, original refuses: {}", shown()));
         }
-        if !carried && case.accepted && (with_gate.as_ref().is_some_and(non_finite) || unported) {
+        if !carried && case.accepted && with_gate.as_ref().is_some_and(non_finite) {
             // counted above, in the non-finite column
         } else if !carried && case.accepted {
             entry[4] += 1;
@@ -177,7 +176,7 @@ fn the_handlers_decode_what_the_original_decodes() {
     }
     if std::env::var("T3_PRINT_RPC_MISMATCHES").is_ok() {
         for (method, [cases, a, b, c, d, e, accepted, nan]) in &counts {
-            eprintln!("HANDLER {method}: {cases} cases ({accepted} accepted); before the gate {a} carried out that the original refuses, {b} refused that it accepts; with the gate {c}, {d}; {e} act on a different decoded value; {nan} known divergences (a non-finite number; a command only the Rust server's own services run)");
+            eprintln!("HANDLER {method}: {cases} cases ({accepted} accepted); before the gate {a} carried out that the original refuses, {b} refused that it accepts; with the gate {c}, {d}; {e} act on a different decoded value; {nan} known divergences (a non-finite number)");
             let shown = std::env::var("T3_RPC_EXAMPLES").ok().and_then(|text| text.parse().ok()).unwrap_or(4);
             for example in examples.get(method).into_iter().flatten().take(shown) {
                 eprintln!("    {example}");

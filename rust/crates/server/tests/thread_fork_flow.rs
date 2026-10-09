@@ -180,7 +180,7 @@ impl Fixture {
         error["message"].as_str().unwrap().to_owned()
     }
     fn view(&self, thread: &str) -> Value {
-        self.store.projection("thread", thread).unwrap().unwrap_or_else(|| panic!("no thread {thread}"))
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", thread).unwrap().unwrap_or_else(|| panic!("no thread {thread}")))
     }
     async fn until(&self, thread: &str, mut check: impl FnMut(&Value) -> bool) -> Value {
         let mut events = self.store.subscribe();
@@ -594,8 +594,9 @@ async fn a_message_to_another_provider_hands_the_conversation_over_and_back() {
     assert_eq!(injected[0]["threadId"], new["nativeThreadRef"]["nativeId"]);
     let started = fixture.requests_in(&fixture.record_b.clone(), "turn/start");
     assert_eq!((started.len(), started[0]["input"][0]["text"].as_str()), (1, Some("delta")));
-    // The previous provider's session was released.
-    assert!(view["providerSessions"].as_array().unwrap().iter().all(|session| session["providerInstanceId"] == "codex-b"), "{}", view["providerSessions"]);
+    // A handoff does not release the previous provider's session; only continuing a native thread does.
+    let detached = fixture.store.events(0, None, Some("thread"), Some("source"), 10_000).unwrap().into_iter().filter(|event| event.event.event_type == "provider-session.detached").count();
+    assert_eq!(detached, 0);
 
     // Back to the first provider: it continues its own provider thread and is told only what it missed.
     let back = format!("back-{}", fixture.next + 1);
@@ -654,17 +655,15 @@ async fn accounts_that_share_a_claude_home_continue_one_native_conversation_with
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn selecting_another_provider_then_sending_hands_over_and_a_busy_thread_refuses() {
+async fn selecting_another_provider_then_sending_hands_over_and_a_running_turn_is_not_steered_elsewhere() {
     let mut fixture = fixture(&[]).await;
     fixture.say("source", "alpha").await;
     let other = json!({"instanceId":"codex-b","model":"fixture-model"});
     fixture.command(json!({"type":"message.dispatch","commandId":"hold","threadId":"source","messageId":"hold","text":"busy [hold]","attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
     let running = fixture.until("source", |view| view["runs"][1]["status"] == "running").await;
-    // A provider cannot be chosen, or messaged, while a run is going.
-    let refusal = fixture.refusal(json!({"type":"thread.model-selection.set","commandId":"select-busy","threadId":"source","modelSelection":other})).await;
-    assert!(refusal.contains("cannot be switched while a run is active"), "{refusal}");
-    let refusal = fixture.refusal(json!({"type":"message.dispatch","commandId":"busy","threadId":"source","messageId":"busy","text":"x","attachments":[],"modelSelection":other,"createdBy":"user","creationSource":"web","dispatchMode":{"type":"queue_after_active"}})).await;
-    assert!(refusal.contains("cannot join or wait behind a run that is still active"), "{refusal}");
+    // A running turn cannot be steered or restarted onto another provider.
+    let refusal = fixture.refusal(json!({"type":"message.dispatch","commandId":"busy","threadId":"source","messageId":"busy","text":"x","attachments":[],"modelSelection":other,"createdBy":"user","creationSource":"web","dispatchMode":{"type":"restart_active","targetRunId":running["runs"][1]["id"]}})).await;
+    assert!(refusal.contains("cannot steer or restart a run that is still active"), "{refusal}");
     fixture.command(json!({"type":"run.interrupt","commandId":"release","threadId":"source","runId":running["runs"][1]["id"]})).await;
     fixture.settled("source", 2).await;
 
@@ -750,5 +749,96 @@ async fn a_conversation_moves_to_a_registry_agent_in_its_prompt() {
     assert!(prompts[0].starts_with("Context handoff (full_thread_summary):"), "{}", prompts[0]);
     assert!(prompts[0].contains("Fixture response: alpha") && prompts[0].ends_with("\n\nUser message:\nbeta"), "{}", prompts[0]);
     assert_eq!(view["thread"]["providerInstanceId"], "local-agent");
+    fixture.finish().await;
+}
+
+/// The commands the server's own services issue are public commands in the original, which runs them
+/// for a client like any other. Each reaches the same service code over the socket.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_commands_services_issue_run_for_a_client_too() {
+    let mut fixture = fixture(&[]).await;
+    let view = fixture.say("source", "alpha").await;
+    let session = view["providerSessions"][0]["id"].clone();
+    assert_ne!(view["providerSessions"][0]["status"], "stopped");
+
+    // A provider session of the thread is released; one it does not own is refused with the original's text.
+    let refusal = fixture.refusal(json!({"type":"provider-session.detach","commandId":"detach-other","threadId":"source","providerSessionId":"session-other"})).await;
+    assert_eq!(refusal, "Provider session session-other does not belong to thread source.");
+    fixture.command(json!({"type":"provider-session.detach","commandId":"detach","threadId":"source","providerSessionId":session,"reason":"client-requested"})).await;
+    fixture.until("source", |view| view["providerSessions"].as_array().unwrap().is_empty()).await;
+
+    // A pull request link receives what the sync read, and only the link it names.
+    fixture.command(json!({"type":"thread.pull-request.link","commandId":"link","threadId":"source","host":"github.com","repository":"o/r","number":7,"url":"https://github.com/o/r/pull/7","source":"manual"})).await;
+    let snapshot = json!({"state":"open","title":"A change","headBranch":"feature","baseBranch":"main","isDraft":false,"updatedAt":"2026-02-01T00:00:00.000Z","syncedAt":"2026-02-01T00:00:00.000Z"});
+    fixture.command(json!({"type":"thread.pull-request-link.sync","commandId":"link-sync","threadId":"source","host":"github.com","repository":"o/r","number":7,"snapshot":snapshot,"stack":null})).await;
+    let thread = fixture.view("source")["thread"].clone();
+    assert_eq!(thread["pullRequests"][0]["snapshot"]["title"], "A change");
+
+    // A discovery read before the thread changed again is refused.
+    let expected = json!({"workspaceRoot":std::fs::canonicalize(fixture.directory.path()).unwrap().join("workspace"),"branch":thread["branch"],"worktreePath":thread["worktreePath"],"linkedPullRequest":null,"branchPullRequest":null});
+    let discovery = |id: &str, sequence: u64| json!({"type":"thread.pull-request.sync","commandId":id,"threadId":"source","projectId":"project","snapshotSequence":sequence,"expected":expected,"branchPullRequest":null});
+    let refusal = fixture.refusal(discovery("discover-stale", 0)).await;
+    assert_eq!(refusal, "Thread source changed before pull request discovery.");
+
+    // A title regeneration that is not the current request changes nothing; the current one lands its title.
+    fixture.command(json!({"type":"thread.title.regeneration.complete","commandId":"title-other","threadId":"source","requestId":"not-current","title":"Ignored"})).await;
+    assert_eq!(fixture.view("source")["thread"]["title"], "Source");
+
+    // The delegated-task commands refuse as the service does, not as the decoder did.
+    let refusal = fixture.refusal(json!({"type":"delegated_task.completion-delivery.dispose","commandId":"dispose","parentThreadId":"source","taskId":"node:none"})).await;
+    assert_eq!(refusal, "Delegated task node:none is not an app-owned task of thread source.");
+    let refusal = fixture.refusal(json!({"type":"delegated_task.request","commandId":"delegate","parentThreadId":"source","parentRunId":"run:none","parentNodeId":"node:none","task":"Do it","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","createdBy":"agent","creationSource":"mcp"})).await;
+    assert_eq!(refusal, "Parent run run:none is not active.");
+    let refusal = fixture.refusal(json!({"type":"thread.created.record","commandId":"record","parentThreadId":"source","parentRunId":"run:none","parentNodeId":"node:none","targetThreadId":"source","targetRunId":null})).await;
+    assert_eq!(refusal, "Parent node node:none is not the root of run run:none.");
+    fixture.finish().await;
+}
+
+/// A message to another provider while a run is going waits behind it on that provider's own thread, and
+/// the handoff is made when it starts. Nothing is released until then.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_message_to_another_provider_waits_behind_the_active_run_and_hands_over_when_it_starts() {
+    let mut fixture = fixture(&[]).await;
+    fixture.say("source", "alpha").await;
+    fixture.command(json!({"type":"message.dispatch","commandId":"hold","threadId":"source","messageId":"hold","text":"busy [hold]","attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
+    let running = fixture.until("source", |view| view["runs"][1]["status"] == "running").await;
+    let other = json!({"instanceId":"codex-b","model":"fixture-model"});
+    fixture.command(json!({"type":"message.dispatch","commandId":"to-b","threadId":"source","messageId":"to-b","text":"gamma","attachments":[],"modelSelection":other,"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
+    let queued = fixture.view("source");
+    let run = &queued["runs"][2];
+    assert_eq!((run["status"].as_str(), run["providerInstanceId"].as_str()), (Some("queued"), Some("codex-b")));
+    let waiting = queued["providerThreads"].as_array().unwrap().iter().find(|thread| thread["id"] == run["providerThreadId"]).unwrap();
+    assert_eq!((waiting["providerInstanceId"].as_str(), waiting["nativeThreadRef"].is_null()), (Some("codex-b"), true));
+    assert_eq!(queued["thread"]["providerInstanceId"], "codex", "the thread stays on its provider until the queued run starts");
+    assert!(queued["providerSessions"].as_array().unwrap().iter().all(|session| session["status"] != "stopped"));
+
+    fixture.command(json!({"type":"run.interrupt","commandId":"release","threadId":"source","runId":running["runs"][1]["id"]})).await;
+    let view = fixture.settled("source", 3).await;
+    assert_eq!(view["runs"][2]["status"], "completed");
+    assert_eq!(view["thread"]["providerInstanceId"], "codex-b");
+    let handoff = &view["contextHandoffs"][0];
+    assert_eq!((handoff["strategy"].as_str(), handoff["delivery"]["status"].as_str(), view["runs"][2]["contextHandoffId"].clone()), (Some("full_thread_summary"), Some("injected"), handoff["id"].clone()));
+    let text = fixture.requests_in(&fixture.record_b.clone(), "thread/inject_items")[0]["items"].to_string();
+    assert!(text.contains("alpha") && text.contains("busy [hold]"), "{text}");
+    assert_eq!(view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "handoff" && item["runId"] == view["runs"][2]["id"]).count(), 1);
+    fixture.finish().await;
+}
+
+/// Choosing another provider is allowed while a run is going; it releases the sessions the switch names.
+#[tokio::test(flavor = "multi_thread")]
+async fn choosing_another_provider_during_a_run_releases_the_old_providers_session() {
+    let mut fixture = fixture(&[]).await;
+    fixture.say("source", "alpha").await;
+    fixture.command(json!({"type":"message.dispatch","commandId":"hold","threadId":"source","messageId":"hold","text":"busy [hold]","attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
+    fixture.until("source", |view| view["runs"][1]["status"] == "running").await;
+    let other = json!({"instanceId":"codex-b","model":"fixture-model"});
+    fixture.command(json!({"type":"thread.model-selection.set","commandId":"select-busy","threadId":"source","modelSelection":other})).await;
+    let kinds: Vec<(String, Value)> = fixture.store.events(0, None, Some("thread"), Some("source"), 10_000).unwrap().into_iter().filter(|event| event.event.command_id.as_deref() == Some("select-busy")).map(|event| (event.event.event_type, event.event.payload)).collect();
+    assert_eq!(kinds[0].0, "thread.provider-switched");
+    let detached: Vec<&Value> = kinds.iter().filter(|(kind, _)| kind == "provider-session.detached").map(|(_, payload)| payload).collect();
+    assert_eq!(detached.len(), 1, "{kinds:?}");
+    assert_eq!(detached[0]["reason"], "Provider or model selection changed.");
+    let view = fixture.until("source", |view| view["runs"][1]["status"] != "running").await;
+    assert_eq!(view["thread"]["providerInstanceId"], "codex-b");
     fixture.finish().await;
 }

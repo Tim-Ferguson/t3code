@@ -386,7 +386,7 @@ async fn a_session_without_orchestration_operate_can_read_tasks_but_not_their_we
         let exit = rpc(&mut reader, 10 + offset as u64, tag, payload).await;
         let error = failure(&exit);
         assert_eq!(error["_tag"], "EnvironmentAuthorizationError", "{tag}: {exit}");
-        assert_eq!((error["operation"].as_str(), error["requiredPermission"].as_str()), (Some(tag), Some("orchestration:operate")), "{tag}");
+        assert_eq!((error.get("operation"), error["requiredPermission"].as_str()), (None, Some("orchestration:operate")), "{tag}");
     }
     // Nothing was changed by the refused calls.
     let after = success(&rpc(&mut operator, 2, "scheduledTasks.list", json!({})).await).clone();

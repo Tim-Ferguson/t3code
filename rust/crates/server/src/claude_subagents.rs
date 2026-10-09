@@ -207,12 +207,20 @@ impl Subagents {
         if key.is_none() && u.status != "running" {
             return Ok(());
         }
-        root.mark_subagents();
         let existing_status = key.as_ref().map(|key| self.by_task[key].task["status"].as_str().unwrap_or("running").to_owned());
         let existing_open = existing_status.as_deref() == Some("running");
         let is_reopen = u.reopen && key.is_some() && !existing_open && u.status == "running";
         if key.is_some() && !existing_open && u.status == "running" && !is_reopen {
             return Ok(());
+        }
+        // The turn's usage excludes a subagent it registered, reopened or saw end. Progress from one that
+        // was already running does not count for a wake turn: the original hands such a frame to the turn
+        // that settled last when the wake has not begun, and to the wake when it has, and which one it
+        // meets depends on timing alone. Counting it for one but not the other would make the usage of
+        // the same recorded stream depend on load.
+        let progress_of_running = key.is_some() && existing_open && u.status == "running" && !u.reopen;
+        if !(root.continuation && progress_of_running) {
+            root.mark_subagents();
         }
         // A call the subagent left open never returns once it ends: it ends first.
         if let (Some(key), true) = (&key, u.status != "running") {

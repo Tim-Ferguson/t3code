@@ -14,7 +14,12 @@
 // ones it meets by hash, so a changed original function fails the port's tests instead of
 // drifting. A Filter does not keep the function it wraps, so a loader hook records it on `run`.
 //
-// `--check` regenerates in memory and fails when the committed file is not what the original has.
+// A second file, `rpc_response_schemas.jsonl`, holds the schemas of what the server sends: for every method the exit (success,
+// typed error, defect, interrupt) and for a stream the chunk, each through the JSON codec `RpcServer` encodes with, read the way a
+// client decodes it (`rpc_response.rs`, which checks every reply in the tests). Its declarations of Exit, Cause and Option carry
+// the schemas they were made from, which they decode their value with once the codec has read it.
+//
+// `--check` regenerates in memory and fails when a committed file is not what the original has.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { register } from "node:module";
@@ -45,6 +50,8 @@ const Schema = await import(dist + "Schema.js");
 const Effect = await import(dist + "Effect.js");
 const Option = await import(dist + "Option.js");
 const SchemaIssue = await import(dist + "SchemaIssue.js");
+const Rpc = await import(dist + "rpc/Rpc.js");
+const RpcSchema = await import(dist + "rpc/RpcSchema.js");
 const Tool = await import(dist + "ai/Tool.js");
 // Every method of the original's RPC group: unary and streaming.
 export const rpcMethods = [...WsRpcGroup.requests.keys()];
@@ -130,7 +137,9 @@ const unsupportedAnnotations = ["message", "messageMissingKey", "messageUnexpect
 // Every string literal the payload schemas hold. A function that closes over a set of such literals
 // (the kinds a union knows) is recorded with the members of the set, found by trying each.
 const literalPool = new Set();
-{
+// Rebuilt for the schemas about to be read: the pool is every literal those schemas hold.
+const fillPool = (roots) => {
+  literalPool.clear();
   const seen = new Set();
   const walk = (ast) => {
     if (seen.has(ast)) return;
@@ -144,11 +153,37 @@ const literalPool = new Set();
         (x) => x,
       );
   };
-  for (const request of WsRpcGroup.requests.values())
-    walk(Schema.toCodecJson(request.payloadSchema).ast);
-}
+  roots.forEach(walk);
+};
+const exitCodec = (request) => Schema.toCodecJson(Rpc.exitSchema(request));
+const chunkCodec = (request) => {
+  const stream = RpcSchema.getStreamSchemas(request.successSchema);
+  return Option.isSome(stream)
+    ? Schema.toCodecJson(Schema.NonEmptyArray(stream.value.success))
+    : undefined;
+};
+fillPool(
+  [...WsRpcGroup.requests.values()].map((request) => Schema.toCodecJson(request.payloadSchema).ast),
+);
+// A function that closes over a set of such literals (the tags a union knows) is recorded with the members of the set,
+// found by trying each: the known tags of a forward-compatible union, and the event and turn item types of a thread stream.
 const closedOver = (fn) => {
-  if (!String(fn).includes("knownKinds.has(kind)")) return {};
+  const text = String(fn);
+  if (text.includes("knownDomainEventTypes.has(event.type)")) {
+    const rejects = [...literalPool].filter((type) => fn({ type }) !== true);
+    const items = [...literalPool].filter(
+      (type) => fn({ type: "turn-item.updated", payload: { type } }) !== true,
+    );
+    if (!rejects.length || !items.length)
+      throw new Error("a known-events filter that rejects nothing");
+    return { rejects, items };
+  }
+  if (text.includes("known.has(value)")) {
+    const rejects = [...literalPool].filter((tag) => fn(tag) !== true);
+    if (!rejects.length) throw new Error("a known-tags filter that rejects nothing");
+    return { rejects, message: fn(rejects[0]) };
+  }
+  if (!text.includes("knownKinds.has(kind)")) return {};
   const rejects = [...literalPool].filter((kind) => fn(kind) !== true);
   if (!rejects.length) throw new Error("a known-kinds filter that rejects nothing");
   return { rejects };
@@ -274,15 +309,33 @@ const linkOf = (link, ast) => {
       // A field read as it is when the schema it decodes with accepts it, and as absent otherwise.
       if (String(getter.transform).includes("Option.isSome(decodeValue(raw))")) {
         const member = ast.types?.[0];
-        const literals = (node) =>
-          node._tag === "Literal" || (node._tag === "Union" && node.types.every(literals));
-        if (ast._tag !== "Union" || !member || !literals(member) || member.encoding)
-          throw new Error("a tolerant field over something other than literals");
-        return { to, tolerant: visit(member) };
+        if (ast._tag !== "Union" || !member)
+          throw new Error("a tolerant field over something other than a union");
+        const tolerant = visit(member);
+        // The nullable form (`ForwardCompatibleNullable`) falls back to null where the optional one falls back to absent.
+        return String(getter.transform).includes(": null)")
+          ? { to, tolerant, fallback: "null" }
+          : { to, tolerant };
+      }
+      // `value || fallback`: the fallback is what an empty string becomes.
+      if (String(getter.transform).includes("value || fallback")) {
+        const fallback = run(getter.transform("", {}));
+        if (fallback._tag !== "Success" || typeof fallback.value !== "string")
+          throw new Error("a fallback that is not a string");
+        return { to, fn: opaque(getter.transform, "transform"), closure: fallback.value };
       }
       return { to, fn: opaque(getter.transform, "transform") };
     case "TransformOptionalEffect":
       return { to, default: { value: defaultOf(getter) } };
+    case "TransformOptional": {
+      // `OmittedWhenNull`: a missing key, or a value its literals do not hold, is read as null.
+      if (!String(getter.transform).includes("Option.isSome(decodeValue(raw.value))"))
+        throw new Error(`unsupported optional transformation ${getter.transform}`);
+      const member = ast.types?.[0];
+      if (ast._tag !== "Union" || !member)
+        throw new Error("a tolerant field over something other than a union");
+      return { to, tolerant: visit(member), fallback: "null", omitted: true };
+    }
     default:
       throw new Error(`getter ${getter._tag}`);
   }
@@ -377,8 +430,17 @@ const visit = (ast) => {
     case "Declaration":
       // What a transformation makes (a Duration, a DateTime), or JSON itself: a decoded payload
       // always passes the declaration's own check, so only the encoding below decides.
-      if (!declarations.includes(node.expected))
-        throw new Error(`unsupported declaration ${node.expected}`);
+      // A declaration the codec does not encode is read in a parameter's own schema, where the value it holds is already the
+      // instance the codec made, which it accepts.
+      // A declaration of a type built from others (Exit, Cause, Option) runs, after its encoding is read, a decode of the
+      // value it holds with the schemas it was made from: the codec holds the encoded form of that value and the declaration
+      // reads it as the schema says (trimming, checks, transformations).
+      // A class declares its struct as its one parameter and only checks that the value is an instance of it.
+      if (
+        ast.typeParameters.length &&
+        ["Exit", "Cause", "Cause.Failure", "Option"].includes(node.expected)
+      )
+        node.params = ast.typeParameters.map(visit);
       break;
     case "String":
     case "Number":
@@ -387,6 +449,7 @@ const visit = (ast) => {
     case "Undefined":
     case "Never":
     case "Unknown":
+    case "Void":
       break;
     default:
       throw new Error(`unsupported node ${ast._tag}`);
@@ -411,20 +474,59 @@ for (const method of rpcMethods) {
   // numbers from "NaN" and "Infinity" strings and dates and durations from their JSON form.
   rpc[method] = visit(Schema.toCodecJson(request.payloadSchema).ast);
 }
-const out = { nodes, tools, rpc, functions };
+// Written out before the tables are reused for the replies below.
+const out = JSON.parse(JSON.stringify({ nodes, tools, rpc, functions }));
+
+// What a client decodes of the server's replies: the encoded form of every method's exit (success, typed error, defect
+// and interrupt, as `RpcServer` encodes it through the JSON codec) and, for a streaming method, of a chunk (a non-empty
+// array of the stream's element). `rpc_response.rs` interprets these over the same node vocabulary, in a file of their own.
+const reset = () => {
+  nodes.length = 0;
+  index.clear();
+  suspended.clear();
+  for (const key of Object.keys(functions)) delete functions[key];
+};
+reset();
+fillPool(
+  [...WsRpcGroup.requests.values()].flatMap((request) =>
+    [exitCodec(request), chunkCodec(request)].filter(Boolean).map((codec) => codec.ast),
+  ),
+);
+const responses = {};
+for (const method of rpcMethods) {
+  const request = WsRpcGroup.requests.get(method);
+  const chunk = chunkCodec(request);
+  responses[method] = {
+    exit: visit(exitCodec(request).ast),
+    ...(chunk ? { chunk: visit(chunk.ast) } : {}),
+  };
+}
+const outbound = JSON.parse(JSON.stringify({ nodes, responses, functions }));
 
 const target = new URL("../crates/server/src/mcp_tool_schemas.json", import.meta.url);
+const responseTarget = new URL("../crates/server/src/rpc_response_schemas.jsonl", import.meta.url);
 if (process.argv.includes("--check")) {
-  const same = JSON.stringify(JSON.parse(readFileSync(target, "utf8"))) === JSON.stringify(out);
-  console.log(JSON.stringify({ tools: Object.keys(tools).length, same }));
-  process.exit(same ? 0 : 1);
+  const same = (file, value) =>
+    JSON.stringify(JSON.parse(readFileSync(file, "utf8"))) === JSON.stringify(value);
+  const results = {
+    tools: Object.keys(tools).length,
+    same: same(target, out),
+    responseSame: same(responseTarget, outbound),
+  };
+  console.log(JSON.stringify(results));
+  process.exit(results.same && results.responseSame ? 0 : 1);
 }
 writeFileSync(target, JSON.stringify(out, null, 1) + "\n");
+// One compact line, in a file the formatter that rewrites .json files leaves alone: written indented it is three times the size.
+writeFileSync(responseTarget, JSON.stringify(outbound) + "\n");
 console.log(
   JSON.stringify({
     tools: Object.keys(tools).length,
     rpc: Object.keys(rpc).length,
-    nodes: nodes.length,
-    functions: Object.keys(functions).length,
+    nodes: out.nodes.length,
+    functions: Object.keys(out.functions).length,
+    responses: Object.keys(responses).length,
+    responseNodes: outbound.nodes.length,
+    responseFunctions: Object.keys(outbound.functions).length,
   }),
 );

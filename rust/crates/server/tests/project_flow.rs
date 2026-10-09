@@ -103,7 +103,7 @@ fn scratch_and_new_projects_over_the_socket() {
             let exit = rpc(&mut reader, id, tag, payload).await;
             let error = failure(&exit);
             assert_eq!(error["_tag"], "EnvironmentAuthorizationError", "{exit}");
-            assert_eq!(error["operation"], tag);
+            assert!(error.get("operation").is_none(), "{error}");
             assert_eq!(error["requiredPermission"], "orchestration:operate");
         }
         assert!(!h.base.join("projects/refused").exists());

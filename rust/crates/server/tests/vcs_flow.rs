@@ -674,7 +674,7 @@ async fn a_read_only_connection_may_read_status_and_refs_but_not_change_them() {
         let error = failure(&exit);
         assert_eq!(error["_tag"], "EnvironmentAuthorizationError", "{tag}");
         assert!(error["requiredScope"].is_string(), "{error}");
-        assert_eq!(error["operation"], tag);
+        assert!(error.get("operation").is_none(), "{error}");
     }
     // Nothing was created by the refused calls.
     assert_eq!(git(&dir, &["branch", "--list"]).lines().count(), 1);

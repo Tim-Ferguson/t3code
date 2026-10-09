@@ -12,7 +12,7 @@ pub fn checked<T: DeserializeOwned + Serialize>(value: Value) -> Result<Value, S
     Ok(serde_json::to_value(serde_json::from_value::<T>(value)?)?)
 }
 /// A transfer or handoff row of a planned run, validated before it is committed.
-fn checked_transfer_row(kind: &str, row: Value) -> Result<Value, StoreError> {
+pub(crate) fn checked_transfer_row(kind: &str, row: Value) -> Result<Value, StoreError> {
     if kind == "context-handoff.updated" {
         checked::<t3_contracts::ContextHandoff>(row)
     } else {
@@ -63,6 +63,10 @@ impl ExecutionService {
         lease: crate::persistence::RuntimeLease,
     ) -> Result<Self, StoreError> {
         store.validate_runtime_lease(&lease)?;
+        crate::provider_switch::register(&store, &providers);
+        crate::restart_continuation::started(&store);
+        // The turns this start finds cut get their continuation before recovery cancels them.
+        crate::restart_continuation::queue_after_crash(&store, &providers, &store.projections("thread")?);
         crate::codex_runtime::recover(&store, &lease)?;
         let runtime = crate::codex_runtime::start(store.clone(), providers.clone(), lease);
         let execution = Self {
@@ -72,6 +76,7 @@ impl ExecutionService {
         };
         // Finalizes delegated tasks whose runs end, and delivers their completion to the parent.
         if tokio::runtime::Handle::try_current().is_ok() {
+            crate::usage_limits::start(&execution);
             crate::delegated_completion::start_listener(&execution);
         }
         Ok(execution)
@@ -126,6 +131,9 @@ impl ExecutionService {
         })
     }
     pub async fn shutdown(&self) {
+        // While the providers are live: which turns the shutdown is about to cut.
+        crate::restart_continuation::prepare_for_shutdown(&self.store, &self.providers);
+        crate::provider_switch::unregister(&self.store);
         self.runtime.shutdown().await;
     }
     /// Await cleanup of the currently admitted actors for these instances.
@@ -725,16 +733,16 @@ fn plan_message_delivery(
     // A delegated-completion delivery is the server's own queued wake; its text names the tasks owed now.
     crate::delegated_completion::admit_message(&mut resolved, projection)?;
     let command = &resolved;
-    // Needs the restart-continuation and usage-limit-recovery features, neither of which is ported.
-    for field in [
-        "restartContinuationOfRunId",
-        "usageLimitContinuationOfRunId",
-        "usageLimitRecoveryRequestId",
-    ] {
-        if command.get(field).is_some() {
-            return Err(StoreError::InvalidCommand(format!(
-                "Native message {field} orchestration is not yet available."
-            )));
+    // A usage-limit continuation is honoured only while the recovery that scheduled it is current.
+    if let Some(decision) = crate::usage_limits::admit_continuation(command, projection, now)? {
+        return Ok(decision);
+    }
+    // A restart continuation is honoured only while its source is the thread's latest cancelled run;
+    // a stale delivery is accepted and changes nothing.
+    if let Some(source_id) = command.get("restartContinuationOfRunId") {
+        let source = projection["runs"].as_array().into_iter().flatten().find(|run| run["id"] == *source_id);
+        if !source.is_some_and(|source| crate::restart_continuation::source_stands(projection, source)) {
+            return crate::restart_continuation::stale(command, projection, now);
         }
     }
     if command.get("notification").is_some()
@@ -791,12 +799,10 @@ fn plan_message_delivery(
     // Accounts that share a native conversation continue it: no handoff, the same provider thread.
     let resume_across = provider_switch && command["resumeAcrossInstances"] == true;
     let handoff_switch = provider_switch && !resume_across;
-    if (instance_changed || provider_switch)
-        && (matches!(command["dispatchMode"]["type"].as_str(), Some("steer_active" | "restart_active"))
-            || runs.iter().any(|run| crate::message_queue::blocking(run)))
-    {
+    // Steering a running turn onto another provider restarts it there, which is not ported.
+    if (instance_changed || provider_switch) && matches!(command["dispatchMode"]["type"].as_str(), Some("steer_active" | "restart_active")) {
         return Err(StoreError::InvalidCommand(
-            "A message to another provider cannot join or wait behind a run that is still active.".into(),
+            "A message to another provider cannot steer or restart a run that is still active.".into(),
         ));
     }
     if matches!(
@@ -842,11 +848,13 @@ fn plan_message_delivery(
                     active["id"].as_str().unwrap()
                 ))
             })?;
+        // A message to another provider waits on that provider's thread for this conversation.
+        let (target, new_provider_thread) = crate::provider_switch::queue_provider_thread(projection, provider, model, driver, &uuid::Uuid::new_v4().to_string(), &timestamp);
         let session = projection["providerSessions"]
             .as_array()
             .unwrap()
             .iter()
-            .find(|session| session["id"] == provider["providerSessionId"]);
+            .find(|session| session["id"] == target["providerSessionId"]);
         let supported = supports_queued_messages(session, driver);
         if !supported {
             return Err(StoreError::InvalidCommand(format!(
@@ -855,8 +863,8 @@ fn plan_message_delivery(
             )));
         }
         let context = crate::message_queue::QueueContext {
-            provider_thread: provider,
-            new_provider_thread: false,
+            provider_thread: &target,
+            new_provider_thread,
             checkpoint_scope: None,
         };
         return if reuse_message {
@@ -922,9 +930,10 @@ fn plan_message_delivery(
             now,
         ));
     }
-    // The sessions of the provider the thread leaves are released; the new provider starts its own.
+    // Only continuing the native thread under another account releases the session it ran in; a handoff
+    // leaves the old provider's session to its idle release (`dispatchMessage`).
     let mut released = vec![];
-    if provider_switch {
+    if provider_switch && resume_across {
         let detail = if resume_across { "Provider account changed; continuing the native thread." } else { "Provider switched." };
         // Continuing the native thread releases only the session it ran in; a switch releases every other provider's.
         let active_session = existing_provider_thread.filter(|_| resume_across).map(|row| row["providerSessionId"].clone());
@@ -994,6 +1003,9 @@ fn plan_message_delivery(
     }
     if let Some(plan) = command.get("sourcePlanRef") {
         run["sourcePlanRef"] = plan.clone();
+    }
+    if let Some(source) = command.get("restartContinuationOfRunId") {
+        run["restartContinuationOfRunId"] = source.clone();
     }
     let run = checked::<t3_contracts::Run>(run)?;
     let attempt = checked::<t3_contracts::RunAttempt>(

@@ -34,7 +34,9 @@ async fn payloads_the_original_refuses_never_reach_the_handlers() {
     let token = auth.issue_session("admission", "bearer-access-token", scopes, json!({"deviceType":"unknown"}), chrono::Utc::now(), chrono::Duration::hours(1)).unwrap().1;
     let mut socket = h.connect(&token).await;
     let mut refused: BTreeMap<String, Vec<(Value, String)>> = BTreeMap::new();
-    for line in include_str!("fixtures/rpc-decode-cases.jsonl").lines().filter(|line| !line.is_empty()) {
+    let mut cases = String::new();
+    std::io::Read::read_to_string(&mut flate2::read::GzDecoder::new(&include_bytes!("fixtures/rpc-decode-cases.jsonl.gz")[..]), &mut cases).unwrap();
+    for line in cases.lines().filter(|line| !line.is_empty()) {
         let row: Value = serde_json::from_str(line).unwrap();
         if row["accepted"] == false {
             refused.entry(row["method"].as_str().unwrap().to_owned()).or_default().push((expand(&row["input"]), row["message"].as_str().unwrap().to_owned()));

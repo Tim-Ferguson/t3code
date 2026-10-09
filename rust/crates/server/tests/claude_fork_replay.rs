@@ -144,7 +144,7 @@ impl Forks {
         &self.ids.iter().find(|(name, _)| name == alias).unwrap_or_else(|| panic!("no thread {alias}")).1
     }
     fn view_of(&self, id: &str) -> Value {
-        self.store.projection("thread", id).unwrap().unwrap_or_else(|| panic!("thread {id} does not exist"))
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", id).unwrap().unwrap_or_else(|| panic!("thread {id} does not exist")))
     }
     /// The arguments of every `claude` the port started, in order.
     fn launches(&self) -> Vec<Vec<String>> {

@@ -111,7 +111,7 @@ def scripted(turn):
         notify("error", dict(base, willRetry=True, error={"message": "Reconnecting... 1/5", "codexErrorInfo": {"httpConnectionFailed": {"httpStatusCode": None}}, "additionalDetails": "stream disconnected"}))
         notify("error", dict(base, willRetry=True, error={"message": "Reconnecting... 2/5", "codexErrorInfo": {"httpConnectionFailed": {"httpStatusCode": None}}, "additionalDetails": "stream disconnected"}))
     if "[usage-limit]" in text:
-        notify("account/rateLimits/updated", {"rateLimits": {"limitId": "codex", "planType": "plus", "primary": {"usedPercent": 100, "windowDurationMins": 300, "resetsAt": 1800003600}, "secondary": None}})
+        notify("account/rateLimits/updated", {"rateLimits": {"limitId": "codex", "planType": "plus", "primary": {"usedPercent": 100, "windowDurationMins": 300, "resetsAt": int(os.environ.get("FIXTURE_USAGE_RESET_AT", "1800003600"))}, "secondary": None}})
         error = {"message": "You've hit your usage limit.", "codexErrorInfo": "usageLimitExceeded", "additionalDetails": None}
         notify("error", dict(base, willRetry=False, error=error))
         notify("turn/completed", {"threadId": thread_id, "turn": {"id": turn_id, "status": "failed", "items": [], "error": error, "startedAt": 1800000000, "completedAt": 1800000001}})

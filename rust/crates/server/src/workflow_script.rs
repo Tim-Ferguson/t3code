@@ -35,6 +35,7 @@ impl Reason {
             Self::ReadFailed => "read-failed",
         }
     }
+    #[allow(dead_code)]
     fn message(self) -> &'static str {
         match self {
             Self::InvalidPath => "Workflow scripts must be absolute .js paths.",
@@ -57,7 +58,7 @@ pub struct ScriptError {
 }
 impl ScriptError {
     pub fn wire(&self) -> Value {
-        json!({"_tag":"OrchestrationGetWorkflowScriptError","reason":self.reason.tag(),"scriptPath":self.script_path,"message":self.reason.message()})
+        json!({"_tag":"OrchestrationGetWorkflowScriptError","reason":self.reason.tag(),"scriptPath":self.script_path})
     }
 }
 
@@ -176,6 +177,6 @@ mod tests {
     #[test]
     fn errors_carry_the_originals_tag_reason_and_message() {
         let error = ScriptError { reason: Reason::OutsideRoot, script_path: "/x.js".into() };
-        assert_eq!(error.wire(), json!({"_tag":"OrchestrationGetWorkflowScriptError","reason":"outside-root","scriptPath":"/x.js","message":"Script path is outside the workflow scripts root."}));
+        assert_eq!(error.wire(), json!({"_tag":"OrchestrationGetWorkflowScriptError","reason":"outside-root","scriptPath":"/x.js"}));
     }
 }

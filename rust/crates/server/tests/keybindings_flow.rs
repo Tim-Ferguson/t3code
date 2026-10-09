@@ -135,7 +135,7 @@ async fn bad_payloads_malformed_files_and_missing_scopes_are_refused_as_the_orig
         let exit = rpc(&mut reader, id, tag, json!({"key":"mod+shift+r","command":"script.run-tests.run"})).await;
         let error = failure(&exit);
         assert_eq!(error["_tag"], "EnvironmentAuthorizationError", "{exit}");
-        assert_eq!(error["operation"], tag);
+        assert!(error.get("operation").is_none(), "{error}");
         assert_eq!(error["requiredPermission"], "settings:write");
         assert_eq!(error["requiredScope"], "orchestration:operate");
     }

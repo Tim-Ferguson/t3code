@@ -89,11 +89,27 @@ fn js_keys(entries: &[(String, Js)]) -> Vec<&(String, Js)> {
 #[derive(Deserialize, Default)]
 pub(crate) struct Schemas {
     nodes: Vec<Node>,
+    #[serde(default)]
     tools: HashMap<String, usize>,
     /// WebSocket RPC methods whose payload the original's decoding is run for (`rpc_admission.rs`).
     #[serde(default)]
     rpc: HashMap<String, usize>,
     functions: HashMap<String, Function>,
+    /// What a client decodes of each method's replies (`rpc_response.rs`): the exit, and for a stream the chunk.
+    #[serde(default)]
+    responses: HashMap<String, Response>,
+    /// The most nodes one decode visits; a reply is far larger than a payload.
+    #[serde(skip, default = "default_visits")]
+    max_visits: usize,
+}
+fn default_visits() -> usize {
+    MAX_VISITS
+}
+#[derive(Deserialize)]
+struct Response {
+    exit: usize,
+    #[serde(default)]
+    chunk: Option<usize>,
 }
 /// The functions are read by the test that checks the port implements each one.
 #[derive(Deserialize)]
@@ -120,6 +136,8 @@ enum Tag {
     Declaration,
     /// A recursive schema's way back to a node.
     Suspend,
+    /// `undefined`, what a method with no result returns.
+    Void,
 }
 #[derive(Deserialize)]
 struct Node {
@@ -152,6 +170,10 @@ struct Node {
     middle: usize,
     #[serde(default)]
     target: usize,
+    /// The schemas an Exit, a Cause, a cause reason or an Option was made from (its `expected` says which), which it decodes the
+    /// value it holds with once its encoding has been read.
+    #[serde(default)]
+    params: Vec<usize>,
     /// Built on the first union parse of this node.
     #[serde(skip)]
     plan: OnceLock<Plan>,
@@ -205,6 +227,15 @@ struct Link {
     /// A field kept when the schema at this node accepts it, `undefined` otherwise (`ForwardCompatibleOptional`).
     #[serde(default)]
     tolerant: Option<usize>,
+    /// What a tolerant field becomes where it is not kept: "null" (`ForwardCompatibleNullable`), else absent.
+    #[serde(default)]
+    fallback: Option<String>,
+    /// A tolerant field that reads a missing key as null as well (`OmittedWhenNull`).
+    #[serde(default)]
+    omitted: bool,
+    /// What a transformation closes over (the string an empty one becomes).
+    #[serde(default)]
+    closure: Option<Value>,
 }
 #[derive(Deserialize)]
 struct DefaultValue {
@@ -225,6 +256,9 @@ struct Check {
     min_length: Option<usize>,
     /// Strings a function over a set closes over, which it refuses.
     rejects: Option<Vec<String>>,
+    /// The turn item types a thread stream's unknown-event filter knows, and the text a known-tag filter fails with.
+    items: Option<Vec<String>>,
+    message: Option<String>,
     #[serde(rename = "maxProperties")]
     max_properties: Option<usize>,
     #[serde(rename = "minProperties")]
@@ -246,13 +280,24 @@ struct Check {
 
 pub(crate) fn schemas() -> &'static Schemas {
     static SCHEMAS: OnceLock<Schemas> = OnceLock::new();
-    SCHEMAS.get_or_init(|| serde_json::from_str(include_str!("mcp_tool_schemas.json")).expect("source-generated tool schemas"))
+    SCHEMAS.get_or_init(|| Schemas { max_visits: MAX_VISITS, ..serde_json::from_str(include_str!("mcp_tool_schemas.json")).expect("source-generated tool schemas") })
+}
+/// What a client decodes of the server's replies, written by the same generator from the same schemas.
+#[cfg(any(test, feature = "outbound-check"))]
+pub(crate) fn response_schemas() -> &'static Schemas {
+    static SCHEMAS: OnceLock<Schemas> = OnceLock::new();
+    SCHEMAS.get_or_init(|| Schemas { max_visits: 40_000_000, ..serde_json::from_str(include_str!("rpc_response_schemas.jsonl")).expect("source-generated response schemas") })
 }
 
 /// The functions the schemas hold as code, each with the kind the port must implement it as.
 #[cfg(test)]
 pub(crate) fn function_hashes() -> Vec<(&'static str, &'static str, &'static str)> {
     schemas().functions.iter().map(|(hash, function)| (hash.as_str(), function.kind.as_str(), function.source.as_str())).collect()
+}
+/// The functions the replies' schemas hold.
+#[cfg(test)]
+pub(crate) fn response_function_hashes() -> Vec<(&'static str, &'static str, &'static str)> {
+    response_schemas().functions.iter().map(|(hash, function)| (hash.as_str(), function.kind.as_str(), function.source.as_str())).collect()
 }
 /// Patterns the schemas check that the regex crate cannot compile; none when the port runs them all.
 #[cfg(test)]
@@ -320,6 +365,18 @@ impl Schemas {
     pub(crate) fn covers_rpc(&self, method: &str) -> bool {
         self.rpc.contains_key(method)
     }
+    /// Decodes a reply as the client does: the `exit` of the response message, or for a stream the `values` of a chunk. None for
+    /// a method with no such schema.
+    #[cfg(any(test, feature = "outbound-check"))]
+    pub(crate) fn decode_response(&self, method: &str, chunk: bool, input: &Js) -> Option<Result<Js, Issue>> {
+        let response = self.responses.get(method)?;
+        let root = if chunk { response.chunk? } else { response.exit };
+        Some(Parser { strict: true, ..Parser::new(self, false) }.parse(root, Some(input)).map(|decoded| decoded.unwrap_or(Js::Undefined)))
+    }
+    #[cfg(any(test, feature = "outbound-check"))]
+    pub(crate) fn response_methods(&self) -> impl Iterator<Item = (&str, bool)> {
+        self.responses.iter().map(|(method, response)| (method.as_str(), response.chunk.is_some()))
+    }
     /// The original's decoding of a WebSocket RPC payload, for a method listed in the schemas. The RPC server decodes with the
     /// library's defaults, which stop at the first issue of a struct or an array.
     pub(crate) fn decode_rpc(&self, method: &str, input: &Js) -> Option<Result<Js, Issue>> {
@@ -344,13 +401,16 @@ const MAX_VISITS: usize = 1_000_000;
 struct Parser<'a> {
     schemas: &'a Schemas,
     all: bool,
+    /// `onExcessProperty: "error"`: a key no property or index signature covers is refused instead of ignored. A reply is
+    /// checked this way, as what an encoder makes of a value never carries a key its schema does not name.
+    strict: bool,
     depth: std::cell::Cell<usize>,
     visits: std::cell::Cell<usize>,
 }
 
 impl<'a> Parser<'a> {
     fn new(schemas: &'a Schemas, all: bool) -> Self {
-        Parser { schemas, all, depth: std::cell::Cell::new(0), visits: std::cell::Cell::new(0) }
+        Parser { schemas, all, strict: false, depth: std::cell::Cell::new(0), visits: std::cell::Cell::new(0) }
     }
     fn mismatch(&self, node: &Node) -> Issue {
         Issue::Leaf(format!("Expected {}", node.expected))
@@ -362,7 +422,7 @@ impl<'a> Parser<'a> {
         if depth > MAX_DEPTH {
             return Err(Issue::Leaf("Maximum call stack size exceeded".into()));
         }
-        if visits > MAX_VISITS {
+        if visits > self.schemas.max_visits {
             return Err(Issue::Leaf("The payload is too large to decode".into()));
         }
         self.depth.set(depth);
@@ -409,13 +469,15 @@ impl<'a> Parser<'a> {
             return Ok(value.map(|_| constant.value.as_ref().map_or(Js::Undefined, Js::from_json)));
         }
         if let Some(member) = link.tolerant {
+            let dropped = if link.fallback.as_deref() == Some("null") { Js::Null } else { Js::Undefined };
             return Ok(match value {
-                Some(raw) => Some(if self.parse(member, Some(&raw)).is_ok() { raw } else { Js::Undefined }),
+                Some(raw) => Some(if self.parse(member, Some(&raw)).is_ok() { raw } else { dropped }),
+                None if link.omitted => Some(Js::Null),
                 None => None,
             });
         }
         match (&link.function, value) {
-            (Some(hash), Some(value)) => functions::transform(hash, value).map(Some).map_err(|expected| Issue::Leaf(format!("Expected {expected}"))),
+            (Some(hash), Some(value)) => functions::transform(hash, value, link.closure.as_ref()).map(Some).map_err(|expected| Issue::Leaf(format!("Expected {expected}"))),
             (_, value) => Ok(value),
         }
     }
@@ -435,7 +497,9 @@ impl<'a> Parser<'a> {
             Tag::Null => value == Js::Null,
             Tag::Undefined => value == Js::Undefined,
             Tag::Literal => value.is_literal(node.literal.as_ref().unwrap_or(&Value::Null)),
+            Tag::Declaration if !node.params.is_empty() => return self.declaration(node, value),
             Tag::Unknown | Tag::Declaration => true,
+            Tag::Void => value == Js::Undefined,
             Tag::Never => false,
             Tag::Suspend => return Ok(self.parse(node.target, Some(&value))?.unwrap_or(Js::Undefined)),
             Tag::TemplateLiteral => return self.template(node, value),
@@ -444,6 +508,46 @@ impl<'a> Parser<'a> {
             Tag::Union => return self.union(node, value),
         };
         if fits { Ok(value) } else { Err(self.mismatch(node)) }
+    }
+
+    /// The `run` of the library's Exit, Cause, CauseReason and Option declarations (`Schema.js`): the value, as the codec's encoding
+    /// made it, is decoded with the schemas the declaration was made from, and an issue is put at the key the library puts it at.
+    fn declaration(&self, node: &Node, value: Js) -> Result<Js, Issue> {
+        let at = |key: &str, issue: Issue| Issue::Pointer(Key::Name(key.into()), Box::new(issue));
+        let field = |name: &str| value.get(name).cloned();
+        let decode = |param: usize, input: Option<Js>| self.parse(param, input.as_ref()).map(|decoded| decoded.unwrap_or(Js::Undefined));
+        let tag = match value.get("_tag") {
+            Some(Js::Str(tag)) => tag.as_str(),
+            _ => "",
+        };
+        // One reason of a cause: a typed failure is decoded with the error schema, a defect with the defect schema.
+        let reason = |error: usize, defect: usize, reason: &Js| -> Result<(), Issue> {
+            match reason.get("_tag") {
+                Some(Js::Str(kind)) if kind == "Fail" => decode(error, reason.get("error").cloned()).map(|_| ()).map_err(|issue| at("error", issue)),
+                Some(Js::Str(kind)) if kind == "Die" => decode(defect, reason.get("defect").cloned()).map(|_| ()).map_err(|issue| at("defect", issue)),
+                _ => Ok(()),
+            }
+        };
+        let (error, defect) = match node.expected.as_str() {
+            "Exit" => (node.params[1], node.params[2]),
+            _ => (node.params[0], *node.params.get(1).unwrap_or(&node.params[0])),
+        };
+        match node.expected.as_str() {
+            "Option" if tag == "Some" => decode(node.params[0], field("value")).map(|_| ()).map_err(|issue| at("value", issue))?,
+            "Exit" if tag == "Success" => decode(node.params[0], field("value")).map(|_| ()).map_err(|issue| at("value", issue))?,
+            "Exit" | "Cause" => {
+                let Some(Js::Arr(reasons)) = (if node.expected == "Exit" { field("cause") } else { Some(value.clone()) }).as_ref().map(|found| found.clone()) else { return Ok(value) };
+                for (position, found) in reasons.iter().enumerate() {
+                    let issue = reason(error, defect, found).err().map(|issue| at("failures", Issue::Pointer(Key::Index(position), Box::new(issue))));
+                    if let Some(issue) = issue {
+                        return Err(if node.expected == "Exit" { at("cause", issue) } else { issue });
+                    }
+                }
+            }
+            "Cause.Failure" => reason(error, defect, &value)?,
+            _ => {}
+        }
+        Ok(value)
     }
 
     /// A prefix, one part and a suffix: the part is read from what lies between them, as the element of the tuple the
@@ -457,6 +561,14 @@ impl<'a> Parser<'a> {
     }
     /// Whether the key is one the index signature reads at all: the library takes the keys that pass the checks of the
     /// parameter's encoded side (or fit its template, or one of its union members) and leaves the others alone.
+    /// Whether an index signature reads the key, so that it is no excess: any string for a plain string parameter.
+    fn key_covered(&self, id: usize, key: &str) -> bool {
+        let plain = {
+            let parameter = &self.schemas.nodes[id];
+            parameter.t == Tag::String && parameter.checks.is_empty() && parameter.encoding.is_empty()
+        };
+        plain || self.key_selected(id, key)
+    }
     fn key_selected(&self, id: usize, key: &str) -> bool {
         let mut node = &self.schemas.nodes[id];
         while let Some(last) = node.encoding.last() {
@@ -488,6 +600,13 @@ impl<'a> Parser<'a> {
                     return Err(Issue::All(issues));
                 }
             }};
+        }
+        if self.strict {
+            for (key, _) in js_keys(record) {
+                if !node.props.iter().any(|prop| prop.name == *key) && !node.indexes.iter().any(|index| self.key_covered(index.key, key)) {
+                    fail!(Key::Name(key.clone()), Issue::Leaf("Expected no excess property".into()));
+                }
+            }
         }
         for prop in &node.props {
             match self.parse(prop.ty, record.iter().find(|(name, _)| *name == prop.name).map(|(_, found)| found)) {
@@ -626,7 +745,7 @@ impl Check {
             _ => None,
         };
         let holds = if let Some(hash) = &self.function {
-            match functions::filter(hash, value, self.rejects.as_deref()) {
+            match functions::filter(hash, value, functions::Closed { rejects: self.rejects.as_deref(), items: self.items.as_deref(), message: self.message.as_deref() }) {
                 Outcome::Pass => true,
                 Outcome::Message(message) => return Some(message),
                 Outcome::Fail => false,

@@ -75,6 +75,19 @@ impl ThreadService {
                         Err(other) => return Err(other),
                     });
                 }
+                // A provider switch releases the sessions its transition names (`ProviderSwitchService`).
+                let mut switched;
+                let command = if matches!(kind, "thread.model-selection.set" | "provider.switch") && current.as_ref().is_some_and(|current| command["modelSelection"]["instanceId"] != current["thread"]["modelSelection"]["instanceId"]) {
+                    let registry = crate::provider_switch::registry(&self.store);
+                    switched = command.clone();
+                    match crate::provider_switch::plan(registry.as_ref(), current.as_ref().unwrap(), &command["modelSelection"]) {
+                        Ok(plan) => switched["releaseProviderSessionIds"] = json!(plan.release),
+                        Err(reason) => return Ok(Decision::Rejected(json!({"_tag":"OrchestratorDispatchError","commandId":command_id,"commandType":kind,"cause":reason}))),
+                    }
+                    &switched
+                } else {
+                    command
+                };
                 Ok(
                     match plan(command, current.as_ref(), project.as_ref(), now) {
                         Ok(events) => {
@@ -323,7 +336,9 @@ pub fn plan(
     project: Option<&Value>,
     now: DateTime<Utc>,
 ) -> Result<Vec<Event>, Value> {
-    let normalized=normalize_command(command).map_err(|detail|json!({"_tag":"OrchestratorDispatchError","commandId":command["commandId"],"commandType":command["type"],"cause":detail}))?;
+    let mut normalized=normalize_command(command).map_err(|detail|json!({"_tag":"OrchestratorDispatchError","commandId":command["commandId"],"commandType":command["type"],"cause":detail}))?;
+    // The sessions a provider switch releases, decided by the service that planned the switch.
+    if let Some(release)=command.get("releaseProviderSessionIds"){normalized["releaseProviderSessionIds"]=release.clone();}
     let command = &normalized;
     let kind = string(command, "type").unwrap_or("");
     let id = string(command, "threadId").unwrap_or("");
@@ -337,6 +352,20 @@ pub fn plan(
     };
     required("commandId")?;
     required("threadId")?;
+    // Automatic settlement evaluated a snapshot of the thread: anything that changed since, or any
+    // explicit override (including the un-settle button's "active"), wins over the sweep.
+    if kind == "thread.auto-settle" {
+        let current = projection.ok_or_else(|| reject(format!("Thread {id} does not exist.")))?;
+        let snapshot = time(&command["snapshotAt"]);
+        if !current["thread"]["settledOverride"].is_null() || time(&current["thread"]["updatedAt"]).zip(snapshot).is_none_or(|(updated, snapshot)| updated > snapshot) {
+            return Err(reject(format!("Thread {id} changed before automatic settlement.")));
+        }
+        let mut settle = json!({"type":"thread.settle","commandId":command_id,"threadId":id});
+        if let Some(settled_at) = command.get("settledAt").filter(|value| !value.is_null()) {
+            settle["settledAt"] = settled_at.clone();
+        }
+        return plan(&settle, projection, project, now);
+    }
     let at = iso(now);
     // An imported native thread is checked before anything is committed.
     let imported = command
@@ -350,6 +379,8 @@ pub fn plan(
             Ok::<_, Value>(imported.clone())
         })
         .transpose()?;
+    // Queued runs a settle cancels with it: the deliveries that only wake the agent.
+    let mut settled_deliveries: Vec<Value> = vec![];
     let (event_type, mut thread) = if kind == "thread.create" {
         if projection.is_some() {
             return Err(reject(format!("Thread {id} already exists.")));
@@ -406,15 +437,6 @@ pub fn plan(
         ) && !thread["archivedAt"].is_null()
         {
             return Err(reject(format!("Thread {id} is archived.")));
-        }
-        // Settling ends live provider sessions as archiving does, and its delegated-completion
-        // cancellation is not ported, so a settle with sessions still fails explicitly instead of
-        // dropping that work.
-        if kind == "thread.settle"
-            && (!array(projection, "providerSessions").is_empty()
-                || !array(projection, "subagents").is_empty())
-        {
-            return Err(unsupported("provider and delegated-task teardown"));
         }
         let old_updated_at = thread["updatedAt"].clone();
         thread["updatedAt"] = json!(at);
@@ -500,8 +522,17 @@ pub fn plan(
                         "Thread {id} has active or blocked work and cannot be settled."
                     )));
                 }
-                if !automatic.is_empty() || !requests.is_empty() {
-                    return Err(unsupported("settle automatic delivery cancellation"));
+                // Queued deliveries that only wake the agent are cancelled with the settle; a pending
+                // question the agent can answer by message is none here, since this server holds no such request.
+                settled_deliveries = automatic.iter().map(|run| run["id"].clone()).collect();
+                if !requests.is_empty() {
+                    return Err(unsupported("settle with a pending message-capable question"));
+                }
+                // A settled thread takes no wakes, so its pull request watches end.
+                for link in thread["pullRequests"].as_array_mut().into_iter().flatten() {
+                    if let Some(link) = link.as_object_mut() {
+                        link.remove("watch");
+                    }
                 }
                 let unchanged = thread["settledOverride"] == "settled"
                     && !thread["settledAt"].is_null()
@@ -657,8 +688,12 @@ pub fn plan(
                 {
                     return Err(reject(format!("Thread {id} is no longer empty.")));
                 }
-                if command.get("limitRecovery").is_some() {
-                    return Err(unsupported("limitRecovery"));
+                // Arm (object) or clear (null) the recovery from a usage limit; absent leaves it unchanged.
+                if let Some(recovery) = command.get("limitRecovery") {
+                    if !recovery.is_null() {
+                        crate::usage_limits::validate_recovery(projection, recovery, now).map_err(reject)?;
+                    }
+                    crate::usage_limits::apply_recovery(&mut thread, command, recovery, now);
                 }
                 // Link (object) or unlink (null) a pull request; absent leaves it unchanged.
                 if let Some(linked) = command.get("linkedPullRequest") {
@@ -716,9 +751,6 @@ pub fn plan(
                 // The previous provider's session is released now, so a run still going would be cut off.
                 let switching = selection["instanceId"] != thread["providerInstanceId"];
                 if switching {
-                    if array(projection, "runs").iter().any(crate::message_queue::blocking) {
-                        return Err(reject("The provider cannot be switched while a run is active.".into()));
-                    }
                     thread["providerInstanceId"] = selection["instanceId"].clone();
                 } else if let crate::provider_selection_transition::SelectionTransition::Reject {
                     reason,
@@ -776,6 +808,13 @@ pub fn plan(
             metadata: json!({}),
         });
     }
+    // Settling cancels the deliveries that only wake the agent, as a user cancelling each would.
+    for run_id in &settled_deliveries {
+        let cancel = json!({"type":"queued-run.cancel","commandId":command_id,"threadId":id,"runId":run_id});
+        if let Ok(Decision::Accepted { events: cancelled, .. }) = crate::queued_runs::plan_cancel(&cancel, projection.unwrap(), now) {
+            events.extend(cancelled);
+        }
+    }
     // Archiving cancels the runs still waiting in the queue; a run that is already executing
     // is ended by the detach of its provider session below.
     if kind == "thread.archive" {
@@ -823,10 +862,12 @@ pub fn plan(
             .is_some_and(|path| *path != projection.unwrap()["thread"]["worktreePath"])
     {
         Some("Workspace changed.")
+    } else if kind == "thread.settle" {
+        Some("Thread settled.")
     } else if kind == "thread.runtime-mode.set" {
         Some("Runtime mode changed.")
     } else if matches!(kind, "thread.model-selection.set" | "provider.switch") && command["modelSelection"]["instanceId"] != projection.unwrap()["thread"]["providerInstanceId"] {
-        Some("Provider switched.")
+        Some("Provider or model selection changed.")
     } else {
         None
     };
@@ -838,8 +879,11 @@ pub fn plan(
                 kind != "thread.runtime-mode.set"
                     || crate::provider_selection_transition::needs_runtime_detach(session)
             })
-            // A provider switch keeps what the target provider already holds.
-            .filter(|session| !matches!(kind, "thread.model-selection.set" | "provider.switch") || session["providerInstanceId"] != command["modelSelection"]["instanceId"])
+            // A provider switch releases the sessions its transition names, and keeps what the target already holds.
+            .filter(|session| !matches!(kind, "thread.model-selection.set" | "provider.switch") || match command["releaseProviderSessionIds"].as_array() {
+                Some(release) => release.contains(&session["id"]),
+                None => session["providerInstanceId"] != command["modelSelection"]["instanceId"],
+            })
         {
             events.push(Event {
                 event_id: uuid::Uuid::new_v4().to_string(),
@@ -1012,7 +1056,11 @@ pub(crate) fn projection_after(
 
 pub fn shell(projection: &Value) -> Value {
     let mut shell = projection["thread"].clone();
-    let latest = array(projection, "runs").last();
+    // The run the thread's outcome is read from, and why it stopped (`orchestrationV2ThreadError`).
+    let (latest, last_error, last_error_class, usage_limit_reset_at) = crate::usage_limits::shell_fields(projection);
+    shell["lastError"] = last_error;
+    shell["lastErrorClass"] = last_error_class;
+    shell["usageLimitResetAt"] = usage_limit_reset_at;
     let active = array(projection, "runs").iter().rev().find(|run| {
         matches!(
             string(run, "status"),

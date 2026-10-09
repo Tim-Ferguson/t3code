@@ -3,7 +3,7 @@
 //! until the returned start effect is committed.
 use crate::{
     execution::{at, checked, event},
-    persistence::{Decision, NewEffect, Store, StoreError, read_projection},
+    persistence::{Decision, Event, NewEffect, Store, StoreError, read_projection},
 };
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
@@ -334,7 +334,7 @@ pub(crate) fn promote(
     now: DateTime<Utc>,
     failed_run_id: Option<&str>,
 ) -> Result<Decision, StoreError> {
-    promote_inner(projection, now, failed_run_id, None)
+    promote_inner(projection, now, failed_run_id, None, None)
 }
 
 fn promote_inner(
@@ -342,6 +342,7 @@ fn promote_inner(
     now: DateTime<Utc>,
     failed_run_id: Option<&str>,
     transaction: Option<&rusqlite::Transaction<'_>>,
+    registry: Option<&crate::provider_registry::ProviderRegistry>,
 ) -> Result<Decision, StoreError> {
     let thread_id = projection["thread"]["id"].as_str().unwrap();
     let mut events = vec![];
@@ -416,34 +417,91 @@ fn promote_inner(
     {
         return Err(missing());
     }
-    if run["providerInstanceId"] != projection["thread"]["providerInstanceId"] {
-        return Err(StoreError::InvalidCommand(
-            "Native queued provider handoff is not yet available.".into(),
-        ));
-    }
     let timestamp = at(now);
-    if !model_selections_equal(
-        &run["modelSelection"],
-        &projection["thread"]["modelSelection"],
-    ) {
-        if let crate::provider_selection_transition::SelectionTransition::Reject { reason } =
-            crate::provider_selection_transition::classify_selection(
-                projection,
-                &run["modelSelection"],
-            )
-        {
-            return Err(StoreError::InvalidCommand(reason));
+    let selection_changed = !model_selections_equal(&run["modelSelection"], &projection["thread"]["modelSelection"]);
+    let instance_changed = run["modelSelection"]["instanceId"] != projection["thread"]["modelSelection"]["instanceId"];
+    // The provider this thread is on is not the run's: a switch plan names the sessions released.
+    let switch = if instance_changed { Some(crate::provider_switch::plan(registry, projection, &run["modelSelection"]).map_err(StoreError::InvalidCommand)?) } else { None };
+    if selection_changed {
+        if !instance_changed {
+            if let crate::provider_selection_transition::SelectionTransition::Reject { reason } =
+                crate::provider_selection_transition::classify_selection(projection, &run["modelSelection"])
+            {
+                return Err(StoreError::InvalidCommand(reason));
+            }
         }
         let mut thread = projection["thread"].clone();
         thread["modelSelection"] = run["modelSelection"].clone();
+        thread["providerInstanceId"] = run["modelSelection"]["instanceId"].clone();
         thread["updatedAt"] = json!(timestamp);
-        events.push(event(
-            thread_id,
-            &command_id,
-            "thread.model-selection-updated",
-            thread,
+        events.push(event(thread_id, &command_id, if instance_changed { "thread.provider-switched" } else { "thread.model-selection-updated" }, thread, now));
+    }
+    // Accounts that share a native conversation continue it; any other provider is given the conversation so far.
+    let active = rows(projection, "providerThreads").iter().find(|row| row["id"] == projection["thread"]["activeProviderThreadId"]);
+    let resume_across = switch.as_ref().is_some_and(|plan| plan.transition == crate::provider_switch::Transition::RestartAndResume) && active.is_some_and(|row| !row["nativeThreadRef"].is_null());
+    let latest_handoff = rows(projection, "runs").iter().rfind(|row| matches!(row["status"].as_str(), Some("completed" | "failed" | "interrupted")));
+    let mut provider = provider.clone();
+    if resume_across {
+        for field in ["nativeThreadRef", "nativeConversationHeadRef", "nativeMetadata"] {
+            if let Some(value) = active.and_then(|row| row.get(field)) {
+                provider[field] = value.clone();
+            }
+        }
+    }
+    let mut run_handoff = Value::Null;
+    if !resume_across && latest_handoff.is_some_and(|latest| latest["providerInstanceId"] != run["providerInstanceId"]) {
+        let instance = run["providerInstanceId"].as_str().unwrap_or_default();
+        let driver: &str = match registry.and_then(|registry| registry.driver(instance).ok()) {
+            Some(driver) => driver,
+            None => provider["driver"].as_str().filter(|driver| !driver.is_empty()).ok_or_else(|| StoreError::InvalidCommand(format!("Provider instance {instance} is not configured.")))?,
+        };
+        // Only provider handoffs belong to a queued run's start; a fork or merge-back is resolved by the run that consumes it.
+        let mut scoped = projection.clone();
+        scoped["contextTransfers"] = json!(rows(projection, "contextTransfers").iter().filter(|transfer| transfer["type"] == "provider_handoff").cloned().collect::<Vec<_>>());
+        let planning = crate::context_transfer::Planning {
+            switch: Some(crate::context_transfer::Switch { target_provider_thread: (!provider["nativeThreadRef"].is_null()).then_some(&provider) }),
+            command: &json!({"commandId":command_id,"createdBy":message["createdBy"]}),
+            projection: &scoped,
+            transaction,
+            driver,
+            model: &run["modelSelection"],
+            run_id: run["id"].as_str().unwrap_or_default(),
+            node_id: root["id"].as_str().unwrap_or_default(),
+            provider_thread_id: provider["id"].as_str().unwrap_or_default(),
+            item_ordinal: run["ordinal"].as_u64().unwrap_or(0) * 100 - 1,
             now,
-        ));
+        };
+        if let Some(transfer) = crate::context_transfer::resolve(&planning)? {
+            for (kind, payload) in &transfer.early {
+                events.push(event(thread_id, &command_id, kind, crate::execution::checked_transfer_row(kind, payload.clone())?, now));
+            }
+            if let Some(item) = transfer.handoff_item {
+                events.push(event(thread_id, &command_id, "turn-item.updated", checked::<t3_contracts::TurnItem>(item)?, now));
+            }
+            run_handoff = transfer.run_handoff_id;
+            let mut ids = provider["handoffIds"].as_array().cloned().unwrap_or_default();
+            for id in transfer.handoff_ids {
+                if !ids.contains(&id) {
+                    ids.push(id);
+                }
+            }
+            provider["handoffIds"] = json!(ids);
+        }
+    }
+    // A handoff or a switch leaves the provider's own session to a new run; what the plan releases is detached.
+    let released: Vec<&Value> = rows(projection, "providerSessions").iter().filter(|session| crate::provider_switch::live(session) && switch.as_ref().is_some_and(|plan| plan.release.iter().any(|id| session["id"] == *id))).collect();
+    for session in &released {
+        events.push(Event {
+            event_id: uuid::Uuid::new_v4().to_string(),
+            aggregate_kind: "thread".into(), aggregate_id: thread_id.into(), occurred_at: timestamp.clone(),
+            command_id: Some(command_id.clone()), causation_event_id: None,
+            correlation_id: Some(command_id.clone()), event_type: "provider-session.detached".into(),
+            payload: json!({"providerSessionId":session["id"],"detachedAt":timestamp,"reason":"Provider or model selection changed."}),
+            metadata: json!({}),
+        });
+    }
+    if provider["providerSessionId"].is_null() || resume_across || released.iter().any(|session| session["id"] == provider["providerSessionId"]) {
+        provider["providerSessionId"] = Value::Null;
     }
     if root["checkpointScopeId"].is_null() {
         let cwd = std::env::current_dir()
@@ -474,7 +532,6 @@ fn promote_inner(
             now,
         ));
     }
-    let mut provider = provider.clone();
     provider["status"] = json!("not_loaded");
     if provider["firstRunOrdinal"].is_null() {
         provider["firstRunOrdinal"] = run["ordinal"].clone();
@@ -485,6 +542,7 @@ fn promote_inner(
     starting["status"] = json!("starting");
     starting["queuePosition"] = Value::Null;
     starting["startedAt"] = Value::Null;
+    starting["contextHandoffId"] = run_handoff;
     let mut item = rows(projection,"turnItems").iter()
         .find(|row|row["type"] == "user_message" && row["runId"] == run["id"] && row["messageId"] == message["id"])
         .cloned().unwrap_or_else(|| json!({"id":format!("turn-item:message:{}",encode(message["id"].as_str().unwrap())),"threadId":thread_id,"runId":run["id"],"nodeId":run["rootNodeId"],"providerThreadId":run["providerThreadId"],"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":run["ordinal"].as_u64().unwrap()*100,"status":"completed","title":null,"type":"user_message","messageId":message["id"],"text":message["text"],"attachments":message["attachments"],"createdBy":message["createdBy"],"creationSource":message["creationSource"]}));
@@ -511,7 +569,14 @@ fn promote_inner(
     ] {
         events.push(event(thread_id, &command_id, kind, payload, now));
     }
-    let effects = vec![NewEffect {
+    let mut effects: Vec<NewEffect> = released.iter().map(|session| NewEffect {
+        id: format!("effect:{command_id}:provider-session.detach:{}", session["id"].as_str().unwrap_or_default()),
+        command_id: command_id.clone(),
+        thread_id: thread_id.into(),
+        request: json!({"type":"provider-session.detach","providerSessionId":session["id"],"detail":"Provider or model selection changed."}),
+        available_at: timestamp.clone(),
+    }).collect();
+    effects.push(NewEffect {
         id: format!(
             "effect:{command_id}:provider-turn.start:{}",
             run["id"].as_str().unwrap()
@@ -520,7 +585,7 @@ fn promote_inner(
         thread_id: thread_id.into(),
         request: json!({"type":"provider-turn.start","runId":run["id"]}),
         available_at: timestamp,
-    }];
+    });
     Ok(Decision::Accepted { events, effects })
 }
 
@@ -616,7 +681,7 @@ fn failed_start(
     }
     if let (Some(root), Some(provider)) = (root, provider) {
         let driver = provider["driver"].as_str().unwrap();
-        let item = json!({"id":format!("turn-item:provider:{}:native-item:{}", encode(driver), encode(&format!("queued-start-failure:{run_id}"))),"threadId":thread_id,"runId":run_id,"nodeId":root["id"],"providerThreadId":provider["id"],"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":rows(projection,"turnItems").iter().filter_map(|item|item["ordinal"].as_u64()).map(|ordinal|ordinal+1).max().unwrap_or(0),"status":"failed","title":"Queued provider could not start","startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"error","failure":crate::provider_failure::make(&json!({"cause":cause.to_string(),"code":"queued_start_failed","class":"unknown"}))});
+        let item = json!({"id":format!("turn-item:provider:{}:native-item:{}", encode(driver), encode(&format!("queued-start-failure:{run_id}"))),"threadId":thread_id,"runId":run_id,"nodeId":root["id"],"providerThreadId":provider["id"],"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":rows(projection,"turnItems").iter().filter_map(|item|item["ordinal"].as_u64()).map(|ordinal|ordinal+1).max().unwrap_or(0),"status":"failed","title":"Queued provider could not start","startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"error","failure":crate::provider_failure::make(&if cause.to_string().contains("cannot satisfy context_handoff") { json!({"cause":cause.to_string(),"code":"context_handoff_unsupported","class":"validation_error"}) } else { json!({"cause":cause.to_string(),"code":"queued_start_failed","class":"unknown"}) })});
         events.push(event(
             thread_id,
             &command_id,
@@ -662,6 +727,7 @@ pub(crate) fn settle(
             return Ok(false);
         };
         let now = Utc::now();
+        let registry = crate::provider_switch::registry(store);
         let mut selection_changed = false;
         let result = store.dispatch_resolved(
             &command_id,
@@ -681,7 +747,7 @@ pub(crate) fn settle(
             },
             |transaction, _| {
                 let projection = read_projection(transaction, "thread", thread_id)?.unwrap();
-                match promote_inner(&projection, now, failed_run_id, Some(transaction)) {
+                match promote_inner(&projection, now, failed_run_id, Some(transaction), registry.as_ref()) {
                     Ok(decision) => Ok(decision),
                     Err(cause) => {
                         let selected = ordered(&projection).first().copied().unwrap();

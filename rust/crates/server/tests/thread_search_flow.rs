@@ -101,7 +101,7 @@ async fn a_socket_without_orchestration_read_is_refused_and_an_unreadable_match_
     let exit = rpc(&mut limited, 1, "orchestration.searchThreads", json!({"query":"needle"})).await;
     let error = failure(&exit);
     assert_eq!(error["_tag"], "EnvironmentAuthorizationError", "{exit}");
-    assert_eq!(error["operation"], "orchestration.searchThreads");
+    assert!(error.get("operation").is_none(), "{error}");
     assert_eq!(error["requiredPermission"], "orchestration:read");
 
     // A message whose text is not a string cannot be decoded as a match.

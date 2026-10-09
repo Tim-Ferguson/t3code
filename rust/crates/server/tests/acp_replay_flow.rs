@@ -45,7 +45,7 @@ impl Harness {
         Self { status, store, execution, thread, next: 0 }
     }
     fn view(&self) -> Value {
-        self.store.projection("thread", &self.thread).unwrap().unwrap()
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", &self.thread).unwrap().unwrap())
     }
     fn dispatch(&self, command: Value) {
         self.execution.dispatch(&command, Utc::now()).unwrap();

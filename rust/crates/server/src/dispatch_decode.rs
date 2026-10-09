@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 /// Whether a command is planned by the thread service. `thread.stop` and `thread.user-input.dismiss` are named like a
 /// thread command and are run commands.
 pub(crate) fn routes_to_thread_service(kind: &str) -> bool {
-    (kind.starts_with("thread.") && !matches!(kind, "thread.stop" | "thread.user-input.dismiss")) || kind == "provider.switch"
+    !crate::service_commands::is_service_command(kind) && (kind.starts_with("thread.") && !matches!(kind, "thread.stop" | "thread.user-input.dismiss")) || kind == "provider.switch"
 }
 
 /// The command as the planner reads it, or why it is not one.
@@ -14,7 +14,9 @@ pub(crate) fn routes_to_thread_service(kind: &str) -> bool {
 pub(crate) fn command(payload: &Value) -> Result<Value, String> {
     let mut input = payload.clone();
     let kind = input["type"].as_str().unwrap_or_default().to_owned();
-    if routes_to_thread_service(&kind) {
+    if crate::service_commands::is_service_command(&kind) {
+        crate::service_commands::command(&input)
+    } else if routes_to_thread_service(&kind) {
         crate::thread::normalize_command(&input)
     } else {
         if kind == "message.dispatch" {

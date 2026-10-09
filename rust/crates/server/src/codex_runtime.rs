@@ -196,7 +196,7 @@ pub fn start(
             }
             crate::provider_idle::release_due(&idle_release, &mut idle, &store, &mut actors, &mut served).await;
             let claimed = if effects.len() < 32 {
-                store.claim_effect(&owner, Utc::now(), chrono::Duration::seconds(60))
+                store.claim_effect_with_options(&owner, Utc::now(), chrono::Duration::seconds(60), crate::restart_continuation::stopping(&store))
             } else {
                 Ok(None)
             };
@@ -231,6 +231,18 @@ pub fn start(
                             let outcome = result.as_ref().map(|_| ()).map_err(String::as_str);
                             if let Err(settlement) = store.finish_effect(&effect.id, &owner, Utc::now(), outcome, None) {
                                 tracing::error!(%settlement, "Failed to settle thread title generation");
+                            }
+                        });
+                        continue;
+                    }
+                    // A cut turn's continuation is one message to the thread; it needs no provider session of its own.
+                    if effect.request["type"] == "provider-runtime.continue" {
+                        let (store, owner, providers) = (store.clone(), owner.clone(), providers.clone());
+                        effects.spawn(async move {
+                            let result = tokio::task::spawn_blocking({ let (store, providers, effect) = (store.clone(), providers.clone(), effect.clone()); move || crate::restart_continuation::execute(&store, &providers, &effect) }).await.unwrap_or_else(|error| Err(error.to_string()));
+                            let outcome = result.as_ref().map(|_| ()).map_err(String::as_str);
+                            if let Err(settlement) = store.finish_effect(&effect.id, &owner, Utc::now(), outcome, None) {
+                                tracing::error!(%settlement, "Failed to settle restart continuation");
                             }
                         });
                         continue;
@@ -1238,6 +1250,10 @@ impl Actor {
         )
         .map_err(|error| error.to_string())?;
         crate::attachment_prompt::apply_codex_attachments(&self.store, message, &mut params).await?;
+        // A turn the restart cut resumes natively: its start sends no input.
+        if crate::restart_continuation::resumes_natively(run) {
+            params["input"] = json!([]);
+        }
         if let Some(mcp) = &self.mcp {
             let effort = model_option(model, "reasoningEffort").unwrap_or("medium");
             let plan = projection["thread"]["interactionMode"] == "plan";

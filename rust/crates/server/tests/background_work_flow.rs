@@ -106,7 +106,7 @@ impl Harness {
         tokio_tungstenite::connect_async(request).await.unwrap().0
     }
     fn view(&self) -> Value {
-        self.store.projection("thread", &self.thread).unwrap().unwrap()
+        t3_server::rpc_response::checked_thread(self.store.projection("thread", &self.thread).unwrap().unwrap())
     }
     /// Waits on committed events until `check` finds something in the thread projection.
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
