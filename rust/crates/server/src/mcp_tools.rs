@@ -43,21 +43,6 @@ fn task_workspace(bound: bool) -> Value {
     if bound { json!({"type":"root"}) } else { json!({"type":"worktree","baseRef":"main","startFromOrigin":true}) }
 }
 
-/// Keys that are non-blank trimmed strings in the original, with the length each is held to.
-const TRIMMED: &[(&str, usize)] = &[
-    ("projectId", usize::MAX),
-    ("threadId", usize::MAX),
-    ("scheduledTaskId", usize::MAX),
-    ("taskId", usize::MAX),
-    ("label", usize::MAX),
-    ("reason", usize::MAX),
-    ("placeholder", usize::MAX),
-    ("title", 512),
-    ("prompt", 120_000),
-    ("task", 120_000),
-    ("clientRequestId", 256),
-];
-
 /// A project as the tools return it: the shell the clients see, which a live project gives a null `deletedAt`.
 fn live_project(mut shell: Value) -> Value {
     shell["deletedAt"] = Value::Null;
@@ -66,29 +51,6 @@ fn live_project(mut shell: Value) -> Value {
 
 pub(crate) fn trim(value: &str) -> String {
     trim_wire_string(value).to_owned()
-}
-
-/// Trims the admitted strings the original decodes as `TrimmedNonEmptyString`, and refuses blank or
-/// overlong ones with its wording.
-pub(crate) fn refine(name: &str, args: &mut Value) -> Result<(), String> {
-    let Some(object) = args.as_object_mut() else { return Ok(()) };
-    let mut errors = Vec::new();
-    for &(key, max) in TRIMMED {
-        // `reason` is a free-form interrupt note, and `message` a send body: not trimmed ids.
-        if key == "reason" && name != "request_secret" {
-            continue;
-        }
-        if let Some(Value::String(found)) = object.get_mut(key) {
-            let trimmed = trim_wire_string(found).to_owned();
-            if trimmed.is_empty() {
-                errors.push(format!("Expected a non-blank string\n  at [\"{key}\"]"));
-            } else if trimmed.encode_utf16().count() > max {
-                errors.push(format!("Expected a value with a length of at most {max}\n  at [\"{key}\"]"));
-            }
-            *found = trimmed;
-        }
-    }
-    if errors.is_empty() { Ok(()) } else { Err(format!("Invalid parameters for tool '{name}': {}", errors.join("\n"))) }
 }
 
 impl McpControlTools {

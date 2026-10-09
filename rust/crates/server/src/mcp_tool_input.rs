@@ -1,13 +1,16 @@
-//! The original tool catalog and raw admission of tool input against it.
+//! The original tool catalog and the decoding of a call's arguments against it.
 //!
 //! The catalog is written by `tools/generate_mcp_tool_catalog.mjs` from the original toolkits, so
-//! descriptions and schemas are the ones the model reads there. Admission follows the JSON schema
-//! the catalog carries: a property that is not required accepts a value or none, never an explicit
-//! null (the original decodes the raw schema, not its JSON codec), and properties the schema does
-//! not name are dropped before any handler sees them. Four thread tools keep their exact
-//! Effect messages in `mcp_control_parameters.rs`; the rest report the same shape of issue.
+//! descriptions and schemas are the ones the model reads there. Arguments are not decoded from that
+//! JSON Schema, which loses what the decoder needs (trimming, refinements, union member
+//! descriptors, exact optionality): `decode` runs the Effect Schema AST that
+//! `tools/generate_mcp_tool_schemas.mjs` writes (`mcp_tool_decode.rs`) and returns the original's
+//! text for a refusal. The catalog's JSON Schema still checks results against the output schemas.
 use serde_json::{Map, Value, json};
 use std::sync::OnceLock;
+
+#[path = "mcp_tool_decode.rs"]
+pub(crate) mod decoder;
 
 /// Tools served by the device service rather than the orchestrator handlers.
 pub fn device_group(group: &str) -> bool {
@@ -18,10 +21,6 @@ pub fn device_group(group: &str) -> bool {
 pub fn entries() -> &'static [Value] {
     static ENTRIES: OnceLock<Vec<Value>> = OnceLock::new();
     ENTRIES.get_or_init(|| serde_json::from_str(include_str!("mcp_tool_catalog.json")).expect("source-generated tool catalog"))
-}
-
-pub fn schema(name: &str) -> Option<&'static Value> {
-    entries().iter().find(|entry| entry["tool"]["name"] == name).map(|entry| &entry["tool"]["inputSchema"])
 }
 
 fn types(schema: &Value) -> String {
@@ -52,11 +51,11 @@ fn issue(errors: &mut Vec<String>, path: &[String], message: String) {
 }
 
 /// Checks `value` against `schema`, returning it with unnamed object properties removed.
-fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec<String>, raw: bool) -> Value {
+fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec<String>) -> Value {
     if let Some(any) = schema["anyOf"].as_array() {
         for branch in any {
             let mut trial = Vec::new();
-            let admitted = admit(branch, value, &mut path.clone(), &mut trial, raw);
+            let admitted = admit(branch, value, &mut path.clone(), &mut trial);
             if trial.is_empty() {
                 return admitted;
             }
@@ -114,7 +113,7 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                 for branch in schema["allOf"].as_array().into_iter().flatten() {
                     let mut bounds = branch.clone();
                     bounds["type"] = json!(kind);
-                    admit(&bounds, value, path, errors, raw);
+                    admit(&bounds, value, path, errors);
                 }
                 value.clone()
             }
@@ -150,7 +149,7 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                         .enumerate()
                         .map(|(index, item)| {
                             path.push(index.to_string());
-                            let admitted = if element.is_object() { admit(element, item, path, errors, raw) } else { item.clone() };
+                            let admitted = if element.is_object() { admit(element, item, path, errors) } else { item.clone() };
                             path.pop();
                             admitted
                         })
@@ -170,7 +169,7 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                     let entry = &schema["additionalProperties"];
                     return Value::Object(object.iter().map(|(key, found)| {
                         path.push(key.clone());
-                        let admitted = if entry.is_object() && !entry.as_object().is_some_and(|schema| schema.is_empty()) { admit(entry, found, path, errors, raw) } else { found.clone() };
+                        let admitted = if entry.is_object() && !entry.as_object().is_some_and(|schema| schema.is_empty()) { admit(entry, found, path, errors) } else { found.clone() };
                         path.pop();
                         (key.clone(), admitted)
                     }).collect());
@@ -183,13 +182,8 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
                     match object.get(key) {
                         None if optional => {}
                         None => issue(errors, path, "Missing key".into()),
-                        // The raw schema of an optional property names the value, or none: not null.
-                        Some(Value::Null) if raw && optional && path.len() == 1 && property["anyOf"].as_array().is_some_and(|any| any.iter().any(|branch| branch["type"] == "null")) => {
-                            let named = property["anyOf"].as_array().unwrap().iter().filter(|branch| branch["type"] != "null").map(types).collect::<Vec<_>>().join(" | ");
-                            issue(errors, path, format!("Expected {named} | undefined"));
-                        }
                         Some(found) => {
-                            admitted.insert(key.clone(), admit(property, found, path, errors, raw));
+                            admitted.insert(key.clone(), admit(property, found, path, errors));
                         }
                     }
                     path.pop();
@@ -206,20 +200,22 @@ fn admit(schema: &Value, value: &Value, path: &mut Vec<String>, errors: &mut Vec
     if errors.len() == before { result } else { value.clone() }
 }
 
-/// The tool's input as its handler may read it, or the message the original's decoder gives.
+/// The tool's input as its handler reads it after the original's decoding, or the message that decoding gives.
 pub fn decode(name: &str, input: Value) -> Result<Value, String> {
+    let schemas = decoder::schemas();
+    if !schemas.has(name) {
+        return Err(format!("Tool '{name}' not found"));
+    }
+    // The registration decodes `payload ?? {}`.
     let input = if input.is_null() { json!({}) } else { input };
-    let schema = schema(name).ok_or_else(|| format!("Tool '{name}' not found"))?;
-    let mut errors = Vec::new();
-    let admitted = admit(schema, &input, &mut Vec::new(), &mut errors, true);
-    if errors.is_empty() { Ok(admitted) } else { Err(format!("Invalid parameters for tool '{name}': {}", errors.join("\n"))) }
+    schemas.decode(name, &decoder::Js::from_json(&input), true).map(|decoded| decoded.to_json()).map_err(|issue| format!("Invalid parameters for tool '{name}': {}", issue.format()))
 }
 
 /// What is wrong with a tool result against the output schema the catalog declares for it.
 pub fn output_issues(name: &str, result: &Value) -> Vec<String> {
     let Some(schema) = entries().iter().find(|entry| entry["tool"]["name"] == name).map(|entry| &entry["tool"]["outputSchema"]).filter(|schema| schema.is_object()) else { return vec![] };
     let mut errors = Vec::new();
-    admit(schema, result, &mut Vec::new(), &mut errors, false);
+    admit(schema, result, &mut Vec::new(), &mut errors);
     errors
 }
 
@@ -248,33 +244,82 @@ mod tests {
         }
     }
 
+    /// The generator writes a long run of one string as `{"$repeat": [unit, count]}`, and a long array
+    /// of one element as `{"$items": [element, count]}`.
+    fn expand(value: &Value) -> Value {
+        match value {
+            Value::Object(object) if object.len() == 1 && object.contains_key("$repeat") => Value::String(object["$repeat"][0].as_str().unwrap().repeat(object["$repeat"][1].as_u64().unwrap() as usize)),
+            Value::Object(object) if object.len() == 1 && object.contains_key("$items") => Value::Array(vec![expand(&object["$items"][0]); object["$items"][1].as_u64().unwrap() as usize]),
+            Value::Object(object) => Value::Object(object.iter().map(|(key, found)| (key.clone(), expand(found))).collect()),
+            Value::Array(items) => Value::Array(items.iter().map(expand).collect()),
+            other => other.clone(),
+        }
+    }
+
     /// The original's own decoding, run over cases derived from each tool's schema (nested unions
     /// included) by `tools/generate_mcp_tool_parameters.mjs`: the same inputs are accepted, with the
     /// same input handed to the handler, and the rest refused with the same message.
     #[test]
-    #[ignore = "known gap: 2492 of the 4081 generated cases differ in wording or in what they accept; run with --ignored and T3_PRINT_PARAMETER_MISMATCHES=1 to list them"]
     fn admission_matches_the_originals_decoding_over_generated_cases() {
         let mut mismatches = Vec::new();
         let mut count = 0;
+        let mut seen = std::collections::HashSet::new();
         for line in include_str!("../tests/fixtures/mcp-tool-parameters.jsonl").split('\n').filter(|line| !line.is_empty()) {
-            let row: Value = serde_json::from_str(line).unwrap();
+            let mut row: Value = serde_json::from_str(line).unwrap();
+            for key in ["input", "decoded"] {
+                row[key] = expand(&row[key]);
+            }
             let name = row["name"].as_str().unwrap();
-            let actual = decode(name, row["input"].clone()).and_then(|mut admitted| crate::mcp_tools::refine(name, &mut admitted).map(|()| admitted));
+            seen.insert(name.to_owned());
+            let actual = decode(name, row["input"].clone());
             count += 1;
-            let expected_accepted = row["accepted"] == true;
             let same = match &actual {
-                Ok(admitted) => expected_accepted && *admitted == row["decoded"],
-                Err(message) => !expected_accepted && row["error"].as_str().is_some_and(|error| message.ends_with(error) || message.contains(error)),
+                Ok(admitted) => row["accepted"] == true && *admitted == row["decoded"],
+                Err(message) => row["accepted"] == false && Some(message.as_str()) == row["error"].as_str(),
             };
             if !same {
-                mismatches.push(format!("{name} {}\n  original: {}\n  port:     {}", row["input"], if expected_accepted { format!("accepts {}", row["decoded"]) } else { format!("refuses {}", row["error"]) }, match &actual { Ok(admitted) => format!("accepts {admitted}"), Err(message) => format!("refuses {message:?}") }));
+                mismatches.push(format!("{name} {}\n  original: {}\n  port:     {}", row["input"], if row["accepted"] == true { format!("accepts {}", row["decoded"]) } else { format!("refuses {}", row["error"]) }, match &actual { Ok(admitted) => format!("accepts {admitted}"), Err(message) => format!("refuses {message:?}") }));
             }
+        }
+        // Every tool is covered here, except the four with their own witness below and the three image tools the original registers by hand with default decode options.
+        let skipped = ["preview_snapshot", "html_preview", "device_screenshot", "t3_thread_list", "t3_thread_read", "t3_thread_wait", "t3_thread_interrupt"];
+        for name in decoder::tool_names() {
+            assert!(seen.contains(name) || skipped.contains(&name), "{name} has no generated cases");
         }
         assert!(count > 4000);
         if std::env::var("T3_PRINT_PARAMETER_MISMATCHES").is_ok() {
             eprintln!("{} of {count} differ\n{}", mismatches.len(), mismatches.join("\n"));
         }
         assert!(mismatches.is_empty(), "{} of {count} generated cases differ; first:\n{}", mismatches.len(), mismatches.iter().take(5).cloned().collect::<Vec<_>>().join("\n"));
+    }
+
+    /// The schemas hold code the port cannot read as data; each function is ported by source hash.
+    #[test]
+    fn every_function_the_schemas_hold_is_ported() {
+        let mut known: Vec<&str> = crate::mcp_tool_functions::FILTERS.iter().chain(crate::mcp_tool_functions::TRANSFORMS).copied().collect();
+        known.sort_unstable();
+        let mut held: Vec<&str> = decoder::function_hashes().iter().map(|(hash, _, _)| *hash).collect();
+        held.sort_unstable();
+        assert_eq!(held, known, "regenerate with tools/generate_mcp_tool_schemas.mjs and port the changed functions");
+        assert!(decoder::unrunnable_patterns().is_empty(), "{:?}", decoder::unrunnable_patterns());
+    }
+
+    /// The first four thread tools have their own witness, `tools/generate_mcp_control_parameters.mjs`,
+    /// which runs them through the toolkit registration with the access layer.
+    #[test]
+    fn original_registered_thread_tool_raw_parameters() {
+        let (mut count, mut failures) = (0, Vec::new());
+        for line in include_str!("../tests/fixtures/mcp-control-parameters.jsonl").split('\n').filter(|line| !line.is_empty()) {
+            let row: Value = serde_json::from_str(line).unwrap();
+            match decode(row["name"].as_str().unwrap(), row["input"].clone()) {
+                Ok(decoded) if row["accepted"] == true && decoded == row["decoded"] => {}
+                Err(error) if row["accepted"] == false && error == row["error"] => {}
+                result => failures.push(format!("{count}: {row}; actual {result:?}")),
+            }
+            count += 1;
+        }
+        assert!(failures.is_empty(), "{}", failures.join("\n"));
+        assert_eq!(count, 427);
     }
 
     #[test]

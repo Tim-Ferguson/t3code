@@ -187,10 +187,14 @@ pub fn start(
         let mut tasks = tokio::task::JoinSet::new();
         let mut effects = tokio::task::JoinSet::new();
         let mut scan = tokio::time::interval(Duration::from_secs(1));
+        // Provider processes nobody is using are released after an idle window (`provider_idle`).
+        let idle_release = providers.idle_release().clone();
+        let mut idle = crate::provider_idle::Tracker::default();
         loop {
             if *stopped.borrow() {
                 break;
             }
+            crate::provider_idle::release_due(&idle_release, &mut idle, &store, &mut actors, &mut served).await;
             let claimed = if effects.len() < 32 {
                 store.claim_effect(&owner, Utc::now(), chrono::Duration::seconds(60))
             } else {
@@ -375,6 +379,8 @@ pub fn start(
                             captured_controls.lock().unwrap().remove(&actor_id);
                         });
                     }
+                    eprintln!("IDLEDEBUG dispatch touch {} {}", effect.request["type"], idle_release.now_ms());
+                    idle.touch(&effect.thread_id, idle_release.now_ms());
                     let work = Work {
                         effect: effect.clone(),
                         complete,
@@ -408,7 +414,8 @@ pub fn start(
                 Ok(None) => {}
                 Err(error) => tracing::error!(%error,"Native effect claim failed"),
             }
-            tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, _=committed.recv()=>{}, _=scan.tick()=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}finished_effects.send_modify(|count|*count+=1);}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
+            let expiry = idle_release.expiry(&idle);
+            tokio::select! { _=stopped.changed()=>{}, _=notified.notified()=>{}, batch=committed.recv()=>{match batch{Ok(batch)=>{let now=idle_release.now_ms();for stored in &batch{if stored.event.aggregate_kind=="thread"{eprintln!("IDLEDEBUG touch {} {} seq {}",stored.event.event_type,now,stored.sequence);idle.touch_if_tracked(&stored.event.aggregate_id,now);}idle_release.saw(stored.sequence);}},Err(_)=>{if let Ok(latest)=store.latest_sequence(){idle_release.saw(latest);}}}}, _=scan.tick()=>{}, _=expiry=>{}, result=effects.join_next(),if !effects.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider effect failed");}finished_effects.send_modify(|count|*count+=1);}, result=tasks.join_next(),if !tasks.is_empty()=>{if let Some(Err(error))=result{tracing::error!(%error,"Provider actor failed");}} }
         }
         for actor in actor_controls.lock().unwrap().values() {
             actor.stop.send_replace(true);
@@ -1669,6 +1676,20 @@ pub(crate) fn terminal_with(
     captured: Option<&crate::provider_turn_context::TurnContext>,
     retain: Retain,
 ) -> Result<(), StoreError> {
+    terminal_with_failure(store, thread_id, run_id, status, native, captured, retain, None)
+}
+/// `terminal_with`, and for a failed run the failure's error item in the same commit: a reader that sees
+/// the run failed must also see why, and a crash between two commits must not lose the reason.
+pub(crate) fn terminal_with_failure(
+    store: &Store,
+    thread_id: &str,
+    run_id: Option<&str>,
+    status: &str,
+    native: Option<&Value>,
+    captured: Option<&crate::provider_turn_context::TurnContext>,
+    retain: Retain,
+    failure: Option<&Value>,
+) -> Result<(), StoreError> {
     let Some(run_id) = run_id else { return Ok(()) };
     let completed_at = native
         .map(|native| timestamp(&native["completedAt"]))
@@ -1863,6 +1884,9 @@ pub(crate) fn terminal_with(
             }
             events.push(("turn-item.updated", item));
         }
+        if let Some(failure) = failure.filter(|_| current && status == "failed") {
+            events.push(("turn-item.updated", failure_item(projection, thread_id, run_id, &run, &attempt, failure, &completed_at)));
+        }
         events.extend(crate::subagents::cascade_events(projection, &run, status, &completed_at.as_str().map(str::to_owned).unwrap_or_default()));
         events.extend([("run-attempt.updated", attempt), ("node.updated", node.clone())]);
         let mut effects = vec![];
@@ -1915,7 +1939,7 @@ pub(crate) fn fail_run_with(
     retain: Retain,
 ) -> Result<(), StoreError> {
     tracing::error!(thread_id, class=?failure["class"], "Native provider execution failed");
-    terminal_with(store, thread_id, run_id, "failed", None, captured, retain)?;
+    terminal_with_failure(store, thread_id, run_id, "failed", None, captured, retain, Some(failure))?;
     let Some(run_id) = run_id else { return Ok(()) };
     commit(store, thread_id, |projection| {
         let (run, attempt) = if let Some(turn) = captured {
@@ -1929,7 +1953,6 @@ pub(crate) fn fail_run_with(
         if (current && run["status"] != "failed") || (!current && attempt["status"] != "failed") {
             return Ok(vec![]);
         }
-        let now = at(Utc::now());
         if projection["turnItems"]
             .as_array()
             .unwrap()
@@ -1942,12 +1965,7 @@ pub(crate) fn fail_run_with(
         {
             return Ok(vec![]);
         }
-        let error_id = if attempt["attemptOrdinal"] == 1 {
-            format!("{run_id}:error")
-        } else {
-            format!("{}:error", attempt["id"].as_str().unwrap())
-        };
-        let item = json!({"id":error_id,"threadId":thread_id,"runId":run_id,"nodeId":run["rootNodeId"],"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":failure_ordinal(projection,&attempt["providerTurnId"]),"status":"failed","title":if failure["class"]=="usage_limit"{"Usage limit reached"}else{"Provider error"},"startedAt":now,"completedAt":now,"updatedAt":now,"type":"error","failure":failure});
+        let item = failure_item(projection, thread_id, run_id, &run, attempt, failure, &json!(at(Utc::now())));
         Ok(vec![("turn-item.updated", item)])
     })?;
     // Old-attempt failure must never classify or terminalize its replacement.
@@ -1958,6 +1976,15 @@ pub(crate) fn fail_run_with(
         settle_queue(store, thread_id, Some(run_id))?;
     }
     Ok(())
+}
+/// The `error` turn item that tells a failed run's story, at `now`.
+fn failure_item(projection: &Value, thread_id: &str, run_id: &str, run: &Value, attempt: &Value, failure: &Value, now: &Value) -> Value {
+    let error_id = if attempt["attemptOrdinal"] == 1 {
+        format!("{run_id}:error")
+    } else {
+        format!("{}:error", attempt["id"].as_str().unwrap())
+    };
+    json!({"id":error_id,"threadId":thread_id,"runId":run_id,"nodeId":run["rootNodeId"],"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":failure_ordinal(projection,&attempt["providerTurnId"]),"status":"failed","title":if failure["class"]=="usage_limit"{"Usage limit reached"}else{"Provider error"},"startedAt":now,"completedAt":now,"updatedAt":now,"type":"error","failure":failure})
 }
 /// The failure item follows the turn's own items. A turn that never started has none.
 fn failure_ordinal(projection: &Value, provider_turn_id: &Value) -> u64 {

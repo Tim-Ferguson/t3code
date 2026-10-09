@@ -1,40 +1,56 @@
-// Runs the original's own tool parameter decoding over cases derived from each tool's input
-// schema, nested unions included, and records what it accepts and the message it refuses with.
-// `tests/fixtures/mcp-tool-parameters.jsonl` is the witness the port's admission is checked
-// against (`mcp_tool_input.rs`). The handlers never run: each fails at once, so only the decode shows.
-import { writeFileSync, readFileSync } from "node:fs";
+// Runs the original's own tool parameter decoding over cases derived from each tool's Effect Schema
+// AST, and records what it accepts and the message it refuses with.
+// `tests/fixtures/mcp-tool-parameters.jsonl` is the witness the port's decoding is checked against
+// (`mcp_tool_input.rs`). The handlers never run: each fails at once, so only the decode shows.
+//
+// The cases are walked from the same AST the port interprets, so every field of every tool is
+// reached: at each slot of the input (property, element, record entry, union member) a plain value
+// the schema holds is replaced in turn by wrong types, null, blanks, values around each bound a
+// check states (counted in UTF-16 units), a violation of each pattern, a missing required key and
+// an unknown key; every union member is tried and malformed; and where a hand-written refinement
+// reads several fields, every combination of the optional ones that it can tell apart. A string
+// repeated many times is written as {"$repeat": [unit, count]}, and an array of one element repeated
+// as {"$items": [element, count]}, in both input and decoded value.
+import { writeFileSync } from "node:fs";
 import * as Effect from "../../apps/server/node_modules/effect/dist/Effect.js";
 import * as Layer from "../../apps/server/node_modules/effect/dist/Layer.js";
 import * as McpServer from "../../apps/server/node_modules/effect/dist/ai/McpServer.js";
 import * as McpSchema from "../../apps/server/node_modules/effect/dist/ai/McpSchema.js";
+import { casesFor } from "./schema_cases.mjs";
 import { OrchestratorToolkit } from "../../apps/server/src/mcp/toolkits/orchestrator/tools.ts";
 import { ThreadToolkit } from "../../apps/server/src/mcp/toolkits/thread/tools.ts";
 import { AttachmentToolkit } from "../../apps/server/src/mcp/toolkits/attachment/tools.ts";
 import { ProjectToolkit } from "../../apps/server/src/mcp/toolkits/project/tools.ts";
 import { EnvironmentToolkit } from "../../apps/server/src/mcp/toolkits/environment/tools.ts";
+import { PreviewControlsToolkit } from "../../apps/server/src/mcp/toolkits/previewControls/tools.ts";
 import { WorktreeToolkit } from "../../apps/server/src/mcp/toolkits/worktree/tools.ts";
 import { PullRequestsToolkit } from "../../apps/server/src/mcp/toolkits/pullRequests/tools.ts";
+import { PreviewStandardToolkit } from "../../apps/server/src/mcp/toolkits/preview/tools.ts";
+import { HtmlRenderToolkit } from "../../apps/server/src/mcp/toolkits/html/tools.ts";
+import { DeviceStandardToolkit } from "../../apps/server/src/mcp/toolkits/device/tools.ts";
 import { OrchestratorMcpFailure } from "../../packages/contracts/src/index.ts";
 
-const catalog = JSON.parse(
-  readFileSync(new URL("../crates/server/src/mcp_tool_catalog.json", import.meta.url), "utf8"),
-);
-// The first four tools have their own witness (generate_mcp_control_parameters.mjs).
-const skipped = new Set([
-  "t3_thread_list",
-  "t3_thread_read",
-  "t3_thread_wait",
-  "t3_thread_interrupt",
-]);
+// The first four thread tools have their own witness (generate_mcp_control_parameters.mjs). The
+// three image tools are registered by hand in McpHttpServer.ts, which decodes with default options.
 const toolkits = [
   OrchestratorToolkit,
   ThreadToolkit,
   AttachmentToolkit,
   ProjectToolkit,
   EnvironmentToolkit,
+  PreviewControlsToolkit,
   WorktreeToolkit,
   PullRequestsToolkit,
+  PreviewStandardToolkit,
+  HtmlRenderToolkit,
+  DeviceStandardToolkit,
 ];
+const skipped = new Set([
+  "t3_thread_list",
+  "t3_thread_read",
+  "t3_thread_wait",
+  "t3_thread_interrupt",
+]);
 
 let decoded;
 const layers = toolkits.map((toolkit) => {
@@ -65,117 +81,25 @@ const client = McpSchema.McpServerClient.of({
   getClient: Effect.die("unused"),
 });
 
-// A value the schema holds, as plain as possible.
-const sample = (schema) => {
-  if (schema.enum) return schema.enum[0];
-  if (schema.anyOf)
-    return sample(schema.anyOf.find((branch) => branch.type !== "null") ?? schema.anyOf[0]);
-  switch (schema.type) {
-    case "string":
-      return schema.pattern
-        ? "pending-00000000-0000-4000-8000-000000000000-txt"
-        : schema.minLength > 1
-          ? "x".repeat(schema.minLength)
-          : "x";
-    case "integer":
-    case "number":
-      return Math.max(1, schema.minimum ?? 1);
-    case "boolean":
-      return true;
-    case "array":
-      return schema.items ? [sample(schema.items)] : [];
-    case "object": {
-      const out = {};
-      for (const key of schema.required ?? []) out[key] = sample(schema.properties[key]);
-      return out;
-    }
-    default:
-      return "x";
+// A long run of one unit is written as a marker.
+const compress = (value) => {
+  if (typeof value === "string") {
+    const unit = [...value][0];
+    const count = unit ? [...value].length : 0;
+    if (count >= 64 && unit.repeat(count) === value) return { $repeat: [unit, count] };
+    return value;
   }
-};
-const wrong = [
-  null,
-  false,
-  0,
-  1,
-  -1,
-  1.5,
-  9007199254740992,
-  "",
-  "  ",
-  " x ",
-  [],
-  {},
-  "x".repeat(300),
-  ["x"],
-  [1],
-  { unexpected: 1 },
-];
-const mutations = (schema, good, depth) => {
-  const values = [good, ...wrong];
-  if (schema.enum) values.push("not-in-the-enum");
-  if (schema.type === "string" && schema.maxLength)
-    values.push("x".repeat(schema.maxLength + 1), "x".repeat(schema.maxLength));
-  if (schema.type === "array" && schema.items)
-    values.push([sample(schema.items), sample(schema.items)], Array(9).fill(sample(schema.items)));
-  return values;
-};
-const casesFor = (schema) => {
-  const good = sample(schema);
-  const cases = [{}, null, [], false, 0, "", good, { ...good, unknown: true }];
-  for (const key of schema.required ?? []) {
-    const { [key]: _omitted, ...rest } = good;
-    cases.push(rest);
+  if (Array.isArray(value)) {
+    if (
+      value.length > 20 &&
+      value.every((item) => JSON.stringify(item) === JSON.stringify(value[0]))
+    )
+      return { $items: [compress(value[0]), value.length] };
+    return value.map(compress);
   }
-  const visit = (node, path, base) => {
-    for (const [key, property] of Object.entries(node.properties ?? {})) {
-      for (const value of mutations(property, sample(property))) {
-        const next = structuredClone(base);
-        let cursor = next;
-        for (const step of path) cursor = cursor[step];
-        cursor[key] = value;
-        cases.push(next);
-      }
-      // One level into every object branch of a union or object, so nested unions show their messages.
-      const branches = (property.anyOf ?? [property]).filter(
-        (branch) => branch.type === "object" && branch.properties,
-      );
-      const items =
-        property.type === "array" && property.items
-          ? (property.items.anyOf ?? [property.items]).filter(
-              (branch) => branch.type === "object" && branch.properties,
-            )
-          : [];
-      for (const branch of branches) {
-        const inner = sample(branch);
-        for (const [nested, nestedSchema] of Object.entries(branch.properties)) {
-          for (const value of mutations(nestedSchema, sample(nestedSchema))) {
-            const next = structuredClone(base);
-            next[key] = { ...inner, [nested]: value };
-            cases.push(next);
-          }
-        }
-        for (const required of branch.required ?? []) {
-          const { [required]: _gone, ...rest } = inner;
-          const next = structuredClone(base);
-          next[key] = rest;
-          cases.push(next);
-        }
-      }
-      for (const branch of items) {
-        const inner = sample(branch);
-        for (const [nested, nestedSchema] of Object.entries(branch.properties)) {
-          for (const value of mutations(nestedSchema, sample(nestedSchema))) {
-            const next = structuredClone(base);
-            next[key] = [{ ...inner, [nested]: value }];
-            cases.push(next);
-          }
-        }
-      }
-    }
-  };
-  if (schema.type === "object") visit(schema, [], good);
-  return cases;
+  if (value && typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, compress(item)]));
+  return value;
 };
 
 const rows = await Effect.runPromise(
@@ -183,27 +107,28 @@ const rows = await Effect.runPromise(
     Effect.gen(function* () {
       const server = yield* McpServer.McpServer;
       const out = [];
-      for (const { tool } of catalog) {
-        if (skipped.has(tool.name) || !toolkits.some((toolkit) => tool.name in toolkit.tools))
-          continue;
-        for (const input of casesFor(tool.inputSchema)) {
-          decoded = undefined;
-          const exit = yield* Effect.exit(
-            server
-              .callTool({ name: tool.name, arguments: input })
-              .pipe(Effect.provideService(McpSchema.McpServerClient, client)),
-          );
-          const raw = JSON.parse(JSON.stringify(exit));
-          out.push({
-            name: tool.name,
-            input,
-            accepted: raw._tag === "Success" || decoded !== undefined,
-            ...(decoded !== undefined
-              ? { decoded }
-              : { error: raw.cause?.failures?.[0]?.error?.message ?? null }),
-          });
+      for (const toolkit of toolkits)
+        for (const tool of Object.values(toolkit.tools)) {
+          if (skipped.has(tool.name)) continue;
+          for (const input of casesFor(tool.parametersSchema.ast)) {
+            decoded = undefined;
+            const exit = yield* Effect.exit(
+              server
+                .callTool({ name: tool.name, arguments: input })
+                .pipe(Effect.provideService(McpSchema.McpServerClient, client)),
+            );
+            const raw = JSON.parse(JSON.stringify(exit));
+            const accepted = raw._tag === "Success" || decoded !== undefined;
+            out.push({
+              name: tool.name,
+              input: compress(input),
+              accepted,
+              ...(decoded !== undefined
+                ? { decoded: compress(JSON.parse(JSON.stringify(decoded))) }
+                : { error: raw.cause?.failures?.[0]?.error?.message ?? null }),
+            });
+          }
         }
-      }
       return out;
     }),
   ).pipe(Effect.provide(layer)),
@@ -213,5 +138,9 @@ writeFileSync(
   rows.map((row) => JSON.stringify(row)).join("\n") + "\n",
 );
 console.log(
-  JSON.stringify({ cases: rows.length, accepted: rows.filter((row) => row.accepted).length }),
+  JSON.stringify({
+    cases: rows.length,
+    accepted: rows.filter((row) => row.accepted).length,
+    tools: new Set(rows.map((row) => row.name)).size,
+  }),
 );

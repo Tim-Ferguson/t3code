@@ -80,10 +80,15 @@ pub struct ProviderRegistry {
     mcp: Arc<RwLock<Option<crate::provider_mcp::ProviderMcpSessions>>>,
     text_generation: Arc<RwLock<crate::text_generation_run::Options>>,
     management: crate::provider_manage::Management,
+    idle: crate::provider_idle::IdleRelease,
     /// The refresh of every instance now running; callers arriving meanwhile share its result.
     inflight: Arc<Mutex<Option<futures_util::future::Shared<futures_util::future::BoxFuture<'static, Result<Vec<Value>, String>>>>>>,
 }
 impl ProviderRegistry {
+    /// The clock and windows on which an idle provider process is released.
+    pub fn idle_release(&self) -> &crate::provider_idle::IdleRelease {
+        &self.idle
+    }
     pub fn set_mcp_sessions(&self, sessions: crate::provider_mcp::ProviderMcpSessions) {
         *self.mcp.write().unwrap() = Some(sessions);
     }
@@ -275,6 +280,7 @@ impl ProviderRegistry {
             mcp: Default::default(),
             text_generation: Default::default(),
             management,
+            idle: Default::default(),
             inflight: Default::default(),
         })
     }

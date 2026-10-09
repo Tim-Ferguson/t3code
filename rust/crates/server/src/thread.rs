@@ -270,6 +270,34 @@ fn apply_pull_request_watch(thread: &mut Value, projection: &Value, command: &Va
     Ok(Some(()))
 }
 
+/// `thread.pull-request-watch.sync` (a server command, never a client's): records what a pass over the
+/// host saw, only while the watch it read is still the one on. Progress read before a stop or a restart
+/// must not bring the old watch back. `false` when the thread already held this.
+pub(crate) fn apply_pull_request_watch_sync(thread: &mut Value, key: &Value, started_at: &str, watch: Option<&Value>) -> bool {
+    use crate::thread_pull_requests::{links, normalize};
+    let current = links(thread);
+    let Some(position) = current.iter().position(|link| link["source"] != "stack-dismissed" && normalize(link) == *key) else { return false };
+    let existing = &current[position];
+    if existing["watch"]["startedAt"] != started_at {
+        return false;
+    }
+    let watch = watch.filter(|watch| !watch.is_null());
+    if existing.get("watch").filter(|held| !held.is_null()) == watch {
+        return false;
+    }
+    let mut entry = existing.clone();
+    match watch {
+        Some(watch) => entry["watch"] = watch.clone(),
+        None => {
+            entry.as_object_mut().map(|object| object.remove("watch"));
+        }
+    }
+    let mut pull_requests = current;
+    pull_requests[position] = entry;
+    thread["pullRequests"] = json!(pull_requests);
+    true
+}
+
 pub fn normalize_command(input: &Value) -> Result<Value, String> {
     let mut input = input.clone();
     if !input.is_object() {

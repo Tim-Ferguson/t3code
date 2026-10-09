@@ -642,6 +642,7 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             if let Some(previous)=subscriptions.remove(&request.id){previous.task.abort();}
                             let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))).await;continue}};
                             if let Err(error)=authorize_request(&session,&request){let _=outgoing.send(failure(request.id,error)).await;continue}
+                            if let Some(error)=crate::rpc_admission::refuse(&request.tag,&request.payload){let _=outgoing.send(failure(request.id,error)).await;continue}
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();

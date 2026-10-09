@@ -83,6 +83,14 @@ fn check_body(body: &str, allow_empty: bool) -> Result<(), Value> {
     Ok(())
 }
 
+/// `PullRequestCommentInput`, decoded and bounded the way the handler does before anything is posted.
+pub(crate) fn decode_comment(payload: Value) -> Result<PullRequestCommentInput, Value> {
+    let input: PullRequestCommentInput = decode(payload)?;
+    check_reference(&input.reference)?;
+    check_body(&input.body, false)?;
+    Ok(input)
+}
+
 /// The bounds the contract puts on a listing: each is written into a host's own search query.
 fn check_list(input: &PullRequestListInput) -> Result<(), Value> {
     let bad = |what: &str| Err(decode_failure(format!("Expected {what}.")));
@@ -220,9 +228,7 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
             done(result)
         }
         "pullRequests.comment" => {
-            let input: PullRequestCommentInput = decode(payload)?;
-            check_reference(&input.reference)?;
-            check_body(&input.body, false)?;
+            let input = decode_comment(payload)?;
             let result = Box::pin(service.routed(&env, &input.reference, |namespace| Box::pin(service.comment(&env, &input, namespace)))).await;
             done_void(result)
         }

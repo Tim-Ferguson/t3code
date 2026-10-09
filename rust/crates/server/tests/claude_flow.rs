@@ -15,6 +15,8 @@ pub struct Harness {
     pub execution: ExecutionService,
     pub thread: String,
     next: usize,
+    /// The clock a provider session's idle time runs on; only `advance_clock` moves it.
+    pub clock: std::sync::Arc<t3_server::scheduled_tasks::ManualClock>,
 }
 
 fn shim(cwd: &std::path::Path) -> PathBuf {
@@ -49,6 +51,8 @@ impl Harness {
         let providers = ProviderRegistry::discover(&settings(&shim(&cwd), environment), &cwd).await.unwrap();
         let snapshot = providers.snapshots().into_iter().find(|row| row["instanceId"] == "claudeAgent").unwrap();
         assert_eq!(snapshot["status"], "ready", "{snapshot}");
+        let clock = t3_server::scheduled_tasks::ManualClock::new(Utc::now().timestamp_millis());
+        providers.idle_release().configure(clock.clone(), t3_server::provider_idle::IDLE_TIMEOUT_MS, t3_server::provider_idle::MAX_PIN_MS);
         let store = Store::open(cwd.join("state.db")).unwrap();
         let (project_root, workspace, strategy) = if worktree {
             let repository = cwd.join("repository");
@@ -70,7 +74,7 @@ impl Harness {
             .unwrap()
             .to_owned();
         let execution = ExecutionService::start(store.clone(), providers.clone());
-        Self { root, cwd: workspace, log, store, providers, execution, thread, next: 0 }
+        Self { root, cwd: workspace, log, store, providers, execution, thread, next: 0, clock }
     }
     pub fn view(&self) -> Value {
         self.store.projection("thread", &self.thread).unwrap().unwrap()
@@ -339,7 +343,7 @@ async fn a_server_restart_ends_the_running_turn_and_the_next_turn_resumes_the_na
     harness.send("run forever");
     harness.until(|view| view["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "command_execution" && item["status"] == "running").cloned()).await;
     let native = harness.view()["providerThreads"][0]["nativeThreadRef"]["nativeId"].as_str().unwrap().to_owned();
-    let Harness { root, cwd, log, store, providers, execution, thread, .. } = harness;
+    let Harness { root, cwd, log, store, providers, execution, thread, clock, .. } = harness;
     execution.shutdown().await;
     drop(execution);
     drop(store);
@@ -349,7 +353,7 @@ async fn a_server_restart_ends_the_running_turn_and_the_next_turn_resumes_the_na
     // Shutdown interrupts the turn; the stopped session cannot be answered or reused.
     assert_eq!(view["runs"][0]["status"], "interrupted");
     assert!(view["providerSessions"].as_array().unwrap().iter().all(|session| session["status"] == "stopped"));
-    let mut harness = Harness { root, cwd, log, store, providers, execution, thread, next: 100 };
+    let mut harness = Harness { root, cwd, log, store, providers, execution, thread, next: 100, clock };
     harness.send("after restart");
     // The second run's own tool call proves its process started and logged its launch.
     harness.until(|view| { let run = view["runs"].get(1)?["id"].clone(); view["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "command_execution" && item["status"] == "running" && item["runId"] == run).cloned() }).await;
@@ -559,8 +563,20 @@ async fn replay(row: &Value) {
                 let run = harness.until(|view| view["runs"].get(step["targetRunIndex"].as_u64().unwrap() as usize - 1).filter(|run| run["status"] == "running").cloned()).await;
                 harness.execution.dispatch(&json!({"type":"run.interrupt","commandId":"stop","threadId":harness.thread,"runId":run["id"]}), Utc::now()).unwrap();
             }
-            // The Rust process is not released when idle, so there is no clock to advance.
-            "advance_clock" => {}
+            "advance_clock" => {
+                // The thread is quiet before time passes: its turns have settled and nothing is left to run.
+                harness.until(|view| view["runs"].as_array().unwrap().iter().all(finished).then_some(())).await;
+                harness.execution.drained(&harness.thread).await;
+                let minutes: i64 = step["duration"].as_str().unwrap().strip_suffix(" minutes").unwrap().parse().unwrap();
+                harness.providers.idle_release().caught_up(&harness.store).await;
+                harness.clock.advance(minutes * 60_000);
+                // The idle window ended, so the provider session is released and its process gone.
+                harness.until(|view| {
+                    let sessions = view["providerSessions"].as_array().unwrap();
+                    (!sessions.is_empty() && sessions.iter().all(|session| session["status"] == "stopped")).then_some(())
+                })
+                .await;
+            }
             other => panic!("{name}: unsupported step {other}"),
         }
         // A following message or rollback waits for the thread to be idle, as the original's does.

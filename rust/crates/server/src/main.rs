@@ -826,6 +826,14 @@ async fn run(
             terminals: Some(terminals.clone()),
         },
     });
+    // Watched pull requests wake their threads' agents; one timer, armed only while a watch exists.
+    let pull_request_watcher = {
+        let host = t3_server::source_control_host::Host::process_default();
+        let env = t3_server::pull_request_service::Env { host: host.clone().with_settings(settings_service.clone()), store: store.clone() };
+        let watcher = t3_server::pull_request_watcher::PullRequestWatcher::new(execution.clone(), env, t3_server::pull_request_service::PullRequestService::shared().clone(), host.clock().clone());
+        watcher.spawn_timer();
+        watcher
+    };
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -867,6 +875,7 @@ async fn run(
     if let Some(runtime) = settings_runtime {
         runtime.shutdown().await;
     }
+    pull_request_watcher.shutdown().await;
     scheduled_tasks.shutdown().await;
     execution.shutdown().await;
     terminals.shutdown().await;

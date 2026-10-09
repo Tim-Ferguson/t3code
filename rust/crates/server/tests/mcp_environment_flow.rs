@@ -33,6 +33,9 @@ fn stored_files(h: &Harness) -> Vec<String> {
 async fn uploaded_files_are_sent_to_a_thread_discarded_or_refused() {
     let h = Harness::new().await;
     let parent = h.running_thread("parent", "full-access", "default").await;
+    // Files go to a thread of their own: a message sent to the caller's own running turn steers it, and the
+    // fake provider then finishes that turn, which would end the caller's live run while this test still needs it.
+    let target = h.running_thread("target", "full-access", "default").await;
     let caller = h.caller(&parent).await;
     let file = |size: usize| json!({"type":"file","name":"notes.txt","mimeType":"text/plain","sizeBytes":size});
 
@@ -45,9 +48,9 @@ async fn uploaded_files_are_sent_to_a_thread_discarded_or_refused() {
 
     // Send claims the pending file into the thread and delivers it as a new agent message.
     let attachment = json!({"type":"file","id":pending,"name":"notes.txt","mimeType":"text/plain","sizeBytes":5});
-    let sent = h.ok(&caller, "t3_thread_send_attachments", json!({"message":"see the notes","attachments":[attachment]})).await;
-    assert_eq!(sent["threadId"], "parent");
-    let message = h.view("parent")["messages"].as_array().unwrap().iter().find(|message| message["id"] == sent["messageId"]).unwrap().clone();
+    let sent = h.ok(&caller, "t3_thread_send_attachments", json!({"threadId":target,"message":"see the notes","attachments":[attachment]})).await;
+    assert_eq!(sent["threadId"], "target");
+    let message = h.view("target")["messages"].as_array().unwrap().iter().find(|message| message["id"] == sent["messageId"]).unwrap().clone();
     assert_eq!((message["text"].as_str(), message["createdBy"].as_str(), message["creationSource"].as_str(), message["senderThreadId"].as_str()), (Some("see the notes"), Some("agent"), Some("mcp"), Some("parent")));
     let held = message["attachments"][0].clone();
     assert_ne!(held["id"], pending.as_str(), "the thread holds its own copy");
@@ -57,9 +60,9 @@ async fn uploaded_files_are_sent_to_a_thread_discarded_or_refused() {
     assert!(!stored_files(&h).iter().any(|name| name.starts_with(&pending)));
 
     // A file the thread already holds can be sent again; one it never held cannot.
-    h.ok(&caller, "t3_thread_send_attachments", json!({"attachments":[held]})).await;
+    h.ok(&caller, "t3_thread_send_attachments", json!({"threadId":target,"attachments":[held]})).await;
     let foreign = json!({"type":"file","id":"parent-00000000-0000-4000-8000-000000000000-txt","name":"x.txt","mimeType":"text/plain","sizeBytes":1});
-    assert_eq!(h.refused(&caller, "t3_thread_send_attachments", json!({"attachments":[foreign]})).await, json!({"_tag":"OrchestratorMcpFailure","code":"invalid_request","message":"Attachments must be pending uploads or already belong to the target thread."}));
+    assert_eq!(h.refused(&caller, "t3_thread_send_attachments", json!({"threadId":target,"attachments":[foreign]})).await, json!({"_tag":"OrchestratorMcpFailure","code":"invalid_request","message":"Attachments must be pending uploads or already belong to the target thread."}));
 
     // Discard removes only a pending upload.
     let second = h.ok(&caller, "t3_attachment_prepare_upload", json!({"upload":file(3)})).await;

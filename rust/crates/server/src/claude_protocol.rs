@@ -292,6 +292,8 @@ impl Exit {
     }
 }
 
+/// How long a finished process's stderr may take to be read to its end before the exit is reported without it.
+const STDERR_DRAIN: Duration = Duration::from_secs(2);
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>;
 /// A running `claude` subprocess. Dropping it kills the child.
 pub struct ClaudeProcess {
@@ -389,7 +391,12 @@ impl ClaudeProcess {
                 }
             };
             writer_task.abort();
-            stderr_task.abort();
+            // The CLI is gone, so its stderr pipe reaches end of file once what it wrote is read; the failure
+            // message is built from that tail, so it waits for it. Bounded for a grandchild holding the pipe open.
+            let mut stderr_task = stderr_task;
+            if tokio::time::timeout(STDERR_DRAIN, &mut stderr_task).await.is_err() {
+                stderr_task.abort();
+            }
             for (_, waiter) in reader_pending.lock().unwrap().drain() {
                 let _ = waiter.send(Err("Claude Code process ended before responding.".into()));
             }
@@ -546,5 +553,23 @@ mod tests {
         assert_eq!(serde_json::to_value(allow).unwrap(), json!({"behavior":"allow","updatedInput":{"a":1},"toolUseID":"tool","decisionClassification":"user_temporary"}));
         let deny = PermissionResult::Deny { message: "no".into(), interrupt: Some(true), tool_use_id: None, decision_classification: Some("user_reject") };
         assert_eq!(serde_json::to_value(deny).unwrap(), json!({"behavior":"deny","message":"no","interrupt":true,"decisionClassification":"user_reject"}));
+    }
+    /// The process exits while its stderr, still open in a helper it left behind, has not yet delivered its
+    /// last words (a stand-in for words still unread when a loaded machine reaps it): the reported exit must
+    /// wait for the pipe to end and carry them, or a crash reaches the user with no explanation.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_exit_waits_for_stderr_to_end_and_carries_its_last_words() {
+        let script = "exec 1>&-; (sleep 0.3; echo fixture-last-words >&2) & exit 3";
+        let launch = Launch { binary: "/bin/sh".into(), args: vec!["-c".into(), script.into()], cwd: std::env::temp_dir(), env: HashMap::new() };
+        let (_process, mut events) = ClaudeProcess::spawn(&launch).unwrap();
+        let exit = loop {
+            if let Event::Closed(exit) = events.recv().await.expect("the process reports its exit") {
+                break exit;
+            }
+        };
+        assert_eq!(exit.code, Some(3));
+        let described = exit.describe();
+        assert!(described.contains("exited with code 3. stderr: fixture-last-words"), "{described}");
     }
 }

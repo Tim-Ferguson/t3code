@@ -313,7 +313,7 @@ impl ProviderProcess {
             });
             let diagnostic = Arc::new(Mutex::new(Vec::<u8>::new()));
             let diagnostic_writer = diagnostic.clone();
-            let stderr_task = tokio::spawn(async move {
+            let mut stderr_task = tokio::spawn(async move {
                 let mut buffer = [0; 1024];
                 while let Ok(size) = stderr.read(&mut buffer).await {
                     if size == 0 {
@@ -349,6 +349,11 @@ impl ProviderProcess {
                             }
                             Ok(None) => {
                                 let status = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
+                                // An exited process's stderr reaches end of file once what it wrote is read, and the
+                                // message below quotes that tail; bounded for a grandchild holding the pipe open.
+                                if matches!(status, Ok(Ok(_))) {
+                                    let _ = tokio::time::timeout(Duration::from_secs(2), &mut stderr_task).await;
+                                }
                                 let details = String::from_utf8_lossy(&diagnostic.lock().unwrap()).into_owned();
                                 let code = status.as_ref().ok().and_then(|status|status.as_ref().ok()).and_then(|status|status.code());
                                 break (ProcessError::Exited{code,pid,message:format!("{status:?} {details}")}, true);
@@ -1207,6 +1212,18 @@ mod tests {
                 ..
             })
         ));
+    }
+    #[tokio::test]
+    async fn an_exit_waits_for_stderr_to_end_and_quotes_its_last_words() {
+        // The process exits while a helper it left behind still holds stderr open and has not yet written.
+        let (_directory, options) = fixture(
+            "import subprocess\nsys.stdin.readline()\nsubprocess.Popen(['sh','-c','sleep 0.3; echo fixture-last-words >&2'],stdout=subprocess.DEVNULL)\nsys.exit(9)",
+        );
+        let process = ProviderProcess::spawn_json_rpc(options).unwrap();
+        let Err(ProcessError::Exited { code: Some(9), message, .. }) = process.request("exit", Value::Null, Duration::from_secs(5)).await else {
+            panic!("the process exits with its status");
+        };
+        assert!(message.contains("fixture-last-words"), "{message}");
     }
     #[tokio::test]
     async fn versioned_numeric_ids_and_error_codes_follow_javascript_safe_integer_semantics() {

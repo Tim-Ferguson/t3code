@@ -1,6 +1,4 @@
 //! Cooperative thread tools over the authoritative application store.
-#[path = "mcp_control_parameters.rs"]
-mod parameters;
 use crate::{
     execution::ExecutionService,
     mcp_access::{self, Access, Caller, CallerLimits},
@@ -198,10 +196,8 @@ impl McpControlTools {
         name: &str,
         arguments: Value,
     ) -> Result<Value, String> {
-        // The four tools first ported keep their exact decoder; the rest follow the catalog schema.
-        let mut arguments = if parameters::NAMES.contains(&name) { parameters::decode(name, arguments)? } else { crate::mcp_tool_input::decode(name, arguments)? };
-        crate::mcp_tools::refine(name, &mut arguments)?;
-        // Raw schema admission above rejects null; JSON codecs preserve null separately.
+        // The original's decoding of the call's arguments, with its message for a refusal.
+        let arguments = crate::mcp_tool_input::decode(name, arguments)?;
         let decode_error = |error: serde_json::Error| error.to_string();
         let result = match name {
             "t3_thread_list" => self.list(

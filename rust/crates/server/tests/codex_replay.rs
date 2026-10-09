@@ -18,6 +18,8 @@ struct Harness {
     execution: ExecutionService,
     thread: String,
     next: usize,
+    /// The clock a provider session's idle time runs on; only `advance_clock` moves it.
+    clock: std::sync::Arc<t3_server::scheduled_tasks::ManualClock>,
     _root: tempfile::TempDir,
 }
 
@@ -62,6 +64,8 @@ impl Harness {
             "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":shim(&cwd),"homePath":cwd.join("codex-home")},"environment":environment}}}))
         .unwrap();
         let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
+        let clock = t3_server::scheduled_tasks::ManualClock::new(Utc::now().timestamp_millis());
+        providers.idle_release().configure(clock.clone(), t3_server::provider_idle::IDLE_TIMEOUT_MS, t3_server::provider_idle::MAX_PIN_MS);
         let store = Store::open(cwd.join("state.db")).unwrap();
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Fixture","workspaceRoot":project_root}), Utc::now()).unwrap();
         let thread = ThreadLaunchService::with_providers(store.clone(), providers.clone())
@@ -71,7 +75,7 @@ impl Harness {
             .unwrap()
             .to_owned();
         let execution = ExecutionService::start(store.clone(), providers.clone());
-        Self { cwd, log, store, providers, execution, thread, next: 0, _root: root }
+        Self { cwd, log, store, providers, execution, thread, next: 0, clock, _root: root }
     }
     fn view(&self) -> Value {
         self.store.projection("thread", &self.thread).unwrap().unwrap()
@@ -337,6 +341,20 @@ async fn replay(row: &Value) {
             "capture_shell_snapshot" => {
                 shells.insert(step["key"].as_str().unwrap().to_owned(), harness.shell_snapshot());
             }
+            "advance_clock" => {
+                // The thread is quiet before time passes: its turns have settled and nothing is left to run.
+                harness.until(|view| (view["runs"].as_array().unwrap().iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled" | "rolled_back")))).then_some(())).await;
+                harness.execution.drained(&harness.thread).await;
+                let minutes: i64 = step["duration"].as_str().unwrap().strip_suffix(" minutes").unwrap().parse().unwrap();
+                harness.providers.idle_release().caught_up(&harness.store).await;
+                harness.clock.advance(minutes * 60_000);
+                // The idle window ended, so the provider session is released and its process gone.
+                harness.until(|view| {
+                    let sessions = view["providerSessions"].as_array().unwrap();
+                    (!sessions.is_empty() && sessions.iter().all(|session| session["status"] == "stopped")).then_some(())
+                })
+                .await;
+            }
             "release_replay_gate" => {
                 use std::io::Write;
                 std::fs::OpenOptions::new().write(true).open(gate.as_ref().unwrap()).unwrap().write_all(b"release").unwrap();
@@ -345,7 +363,7 @@ async fn replay(row: &Value) {
         }
         // The next message, like a rollback, waits for the thread to be idle, as the original's does.
         let position = steps.iter().position(|s| s == step).unwrap();
-        if steps.get(position + 1).is_some_and(|next| matches!(next["type"].as_str(), Some("message" | "rollback"))) {
+        if steps.get(position + 1).is_some_and(|next| matches!(next["type"].as_str(), Some("message" | "rollback" | "advance_clock"))) {
             harness.until(|view| (view["runs"].as_array().unwrap().iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled" | "rolled_back")))).then_some(())).await;
         }
     }
@@ -417,13 +435,13 @@ async fn a_native_thread_is_resumed_after_a_server_restart() {
     let native = harness.view()["providerThreads"][0]["nativeThreadRef"]["nativeId"].clone();
     // The server stops and starts again over the same state: the process, its callbacks and the
     // running turn are gone, the native thread id is not.
-    let Harness { cwd, log, store, providers, execution, thread, next, _root } = harness;
+    let Harness { cwd, log, store, providers, execution, thread, next, clock, _root } = harness;
     execution.shutdown().await;
     drop(execution);
     drop(store);
     let store = Store::open(cwd.join("state.db")).unwrap();
     let execution = ExecutionService::start(store.clone(), providers.clone());
-    let mut harness = Harness { cwd, log, store, providers, execution, thread, next, _root };
+    let mut harness = Harness { cwd, log, store, providers, execution, thread, next, clock, _root };
     let runs = harness.dispatch_message(prompts[1].as_str().unwrap(), json!({}));
     harness.settled(runs).await;
     harness.until(|view| view["runs"].as_array().unwrap().iter().all(|run| run["status"] == "completed").then_some(())).await;
