@@ -1,0 +1,6833 @@
+[
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "default",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "default",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "default",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "default",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "default",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "default",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "default",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "approval-required",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "acceptEdits",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b",
+      "--settings",
+      "{\"fastMode\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "acceptEdits",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "acceptEdits",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "acceptEdits",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "acceptEdits",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "acceptEdits",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "acceptEdits",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto-accept-edits",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": true,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "auto",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "auto",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b",
+      "--settings",
+      "{\"fastMode\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "auto",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "default",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "bypassPermissions",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": true
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--allow-dangerously-skip-permissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6",
+        "options": [
+          {
+            "id": "effort",
+            "value": "high"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-sonnet-4-6",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-6",
+        "options": [
+          {
+            "id": "contextWindow",
+            "value": "1m"
+          },
+          {
+            "id": "fastMode",
+            "value": true
+          },
+          {
+            "id": "effort",
+            "value": "ultrathink"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "high",
+      "--model",
+      "claude-opus-4-6[1m]",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":true,\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--permission-mode plan",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-opus-4-8",
+        "options": [
+          {
+            "id": "effort",
+            "value": "ultracode"
+          }
+        ]
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--dangerously-skip-permissions",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": false,
+      "resumeSessionAt": "msg-uuid-1",
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--effort",
+      "xhigh",
+      "--model",
+      "claude-opus-4-8",
+      "--permission-prompt-tool",
+      "stdio",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "bypassPermissions",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--resume-session-at=msg-uuid-1",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"fastMode\":false,\"ultracode\":true,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display omitted --add-dir \"/a b\"",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "omitted",
+      "--add-dir",
+      "/a b"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-haiku-4-5"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/opt/claude",
+        "launchArgs": "--thinking-display=summarized --verbose",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/opt/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "claude-haiku-4-5",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--thinking-display",
+      "summarized",
+      "--verbose",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": null,
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "/usr/local/bin/claude",
+        "launchArgs": "",
+        "autoCompactWindow": ""
+      },
+      "environment": {
+        "PATH": "/usr/bin"
+      },
+      "resume": false,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "/usr/local/bin/claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--tools",
+      "default",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--session-id=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime"
+    }
+  },
+  {
+    "input": {
+      "runtimeMode": "full-access",
+      "interactionMode": "plan",
+      "modelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "custom-model-slug"
+      },
+      "mcp": {
+        "endpoint": "http://127.0.0.1:4100/mcp",
+        "authorizationHeader": "Bearer token-1"
+      },
+      "settings": {
+        "enabled": true,
+        "homePath": "",
+        "customModels": [],
+        "binaryPath": "claude",
+        "launchArgs": "--chrome --effort low",
+        "autoCompactWindow": "150000"
+      },
+      "environment": {
+        "PATH": "/usr/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+        "CUSTOM": "1"
+      },
+      "resume": true,
+      "resumeSessionAt": null,
+      "nativeThreadId": "77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "cwd": "/tmp/workspace",
+      "attachmentsDir": "/tmp/state/attachments"
+    },
+    "policy": {
+      "permissionMode": "plan",
+      "installPermissionCallback": false,
+      "allowDangerouslySkipPermissions": false
+    },
+    "command": "claude",
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--thinking",
+      "adaptive",
+      "--thinking-display",
+      "summarized",
+      "--model",
+      "custom-model-slug",
+      "--permission-prompt-tool",
+      "stdio",
+      "--resume=77171d01-fb4f-4dff-a961-d9dd334be93d",
+      "--allowedTools",
+      "mcp__t3-code__*",
+      "--tools",
+      "default",
+      "--mcp-config",
+      "{\"mcpServers\":{\"t3-code\":{\"type\":\"http\",\"url\":\"http://127.0.0.1:4100/mcp\",\"headers\":{\"Authorization\":\"Bearer token-1\"},\"timeout\":3900000}}}",
+      "--permission-mode",
+      "plan",
+      "--include-partial-messages",
+      "--add-dir",
+      "/tmp/workspace",
+      "--add-dir",
+      "/tmp/state/attachments",
+      "--chrome",
+      "--effort",
+      "low",
+      "--thinking-display",
+      "summarized",
+      "--settings",
+      "{\"autoCompactWindow\":150000,\"showThinkingSummaries\":true}"
+    ],
+    "cwd": "/tmp/workspace",
+    "env": {
+      "PATH": "/usr/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "CUSTOM": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "supportedDialogKinds": ["resume_return"],
+      "appendSystemPrompt": "runtime+orchestration"
+    }
+  }
+]

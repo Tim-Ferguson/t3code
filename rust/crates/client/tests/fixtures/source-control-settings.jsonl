@@ -1,0 +1,320 @@
+{"type":"redacted","value":"","placeholder":""}
+{"type":"redacted","value":"octo","placeholder":"jp7p"}
+{"type":"redacted","value":"tim.r_ferguson@example.com","placeholder":"q6v.r_dx6rj8zw@89pzjzd.a6c"}
+{"type":"redacted","value":"a-b","placeholder":"k-n"}
+{"type":"redacted","value":"UPPER lower 123","placeholder":"v8ua274uab2meve"}
+{"type":"redacted","value":"ünïcödé","placeholder":"ttu62eg"}
+{"type":"redacted","value":"日本語","placeholder":"4ny"}
+{"type":"redacted","value":"😀 emoji","placeholder":"av9nzxx"}
+{"type":"redacted","value":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","placeholder":"z8angh74yenpj3wxnq5bjchy7apkzmkn7at9aap5"}
+{"type":"redacted","value":"@","placeholder":"@"}
+{"type":"redacted","value":"..--__","placeholder":"..--__"}
+{"type":"redacted","value":"mixed@Host.example","placeholder":"6dy8n@cn4q.46849cf"}
+{"type":"groups","accounts":[],"groups":[]}
+{"type":"groups","accounts":[{"host":"github.com","account":"octo","active":true,"authenticated":true}],"groups":[{"host":"github.com","activeAccount":"octo","selectable":["octo"],"broken":[],"environmentVariable":null}]}
+{"type":"groups","accounts":[{"host":"github.com","account":"a","active":false,"authenticated":true},{"host":"github.com","account":"b","active":true,"authenticated":true},{"host":"ghe.example.com","account":"corp","active":false,"authenticated":true}],"groups":[{"host":"github.com","activeAccount":"b","selectable":["a","b"],"broken":[],"environmentVariable":null},{"host":"ghe.example.com","activeAccount":"corp","selectable":["corp"],"broken":[],"environmentVariable":null}]}
+{"type":"groups","accounts":[{"host":"github.com","account":"a","active":false,"authenticated":true},{"host":"github.com","account":"b","active":false,"authenticated":true}],"groups":[{"host":"github.com","activeAccount":"a","selectable":["a","b"],"broken":[],"environmentVariable":null}]}
+{"type":"groups","accounts":[{"host":"github.com","account":"a","active":true,"authenticated":false,"error":"token expired"},{"host":"github.com","account":"b","active":false,"authenticated":true}],"groups":[{"host":"github.com","activeAccount":"b","selectable":["b"],"broken":[{"host":"github.com","account":"a","active":true,"authenticated":false,"error":"token expired"}],"environmentVariable":null}]}
+{"type":"groups","accounts":[{"host":"github.com","account":"env","active":true,"authenticated":true,"environmentVariable":"GH_TOKEN"},{"host":"github.com","account":"stored","active":false,"authenticated":true}],"groups":[{"host":"github.com","activeAccount":"stored","selectable":["stored"],"broken":[],"environmentVariable":"GH_TOKEN"}]}
+{"type":"groups","accounts":[{"host":"github.com","account":"x","active":false,"authenticated":false,"error":"bad"}],"groups":[{"host":"github.com","activeAccount":null,"selectable":[],"broken":[{"host":"github.com","account":"x","active":false,"authenticated":false,"error":"bad"}],"environmentVariable":null}]}
+{"type":"groups","accounts":[{"host":"ghe.example.com","account":"corp","active":true,"authenticated":true},{"host":"github.com","account":"octo","active":false,"authenticated":true}],"groups":[{"host":"ghe.example.com","activeAccount":"corp","selectable":["corp"],"broken":[],"environmentVariable":null},{"host":"github.com","activeAccount":"octo","selectable":["octo"],"broken":[],"environmentVariable":null}]}
+{"type":"hosts","current":{},"host":"github.com","change":{"enabled":true},"next":{}}
+{"type":"hosts","current":{},"host":"github.com","change":{"enabled":false},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{},"host":"github.com","change":{"account":"octo"},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{},"host":"github.com","change":{"account":null},"next":{}}
+{"type":"hosts","current":{},"host":"github.com","change":{"enabled":false,"account":"b"},"next":{"github.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{},"host":"github.com","change":{},"next":{}}
+{"type":"hosts","current":{},"host":"ghe.example.com","change":{"enabled":true},"next":{}}
+{"type":"hosts","current":{},"host":"ghe.example.com","change":{"enabled":false},"next":{"ghe.example.com":{"enabled":false}}}
+{"type":"hosts","current":{},"host":"ghe.example.com","change":{"account":"octo"},"next":{"ghe.example.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{},"host":"ghe.example.com","change":{"account":null},"next":{}}
+{"type":"hosts","current":{},"host":"ghe.example.com","change":{"enabled":false,"account":"b"},"next":{"ghe.example.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{},"host":"ghe.example.com","change":{},"next":{}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"github.com","change":{"enabled":true},"next":{}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"github.com","change":{"enabled":false},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"github.com","change":{"account":"octo"},"next":{"github.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"github.com","change":{"account":null},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"github.com","change":{"enabled":false,"account":"b"},"next":{"github.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"github.com","change":{},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"ghe.example.com","change":{"enabled":true},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"ghe.example.com","change":{"enabled":false},"next":{"github.com":{"enabled":false},"ghe.example.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"ghe.example.com","change":{"account":"octo"},"next":{"github.com":{"enabled":false},"ghe.example.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"ghe.example.com","change":{"account":null},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"ghe.example.com","change":{"enabled":false,"account":"b"},"next":{"github.com":{"enabled":false},"ghe.example.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false}},"host":"ghe.example.com","change":{},"next":{"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"github.com","change":{"enabled":true},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"github.com","change":{"enabled":false},"next":{"github.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"github.com","change":{"account":"octo"},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"github.com","change":{"account":null},"next":{}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"github.com","change":{"enabled":false,"account":"b"},"next":{"github.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"github.com","change":{},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"ghe.example.com","change":{"enabled":true},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"ghe.example.com","change":{"enabled":false},"next":{"github.com":{"enabled":true,"account":"octo"},"ghe.example.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"ghe.example.com","change":{"account":"octo"},"next":{"github.com":{"enabled":true,"account":"octo"},"ghe.example.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"ghe.example.com","change":{"account":null},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"ghe.example.com","change":{"enabled":false,"account":"b"},"next":{"github.com":{"enabled":true,"account":"octo"},"ghe.example.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{"github.com":{"enabled":true,"account":"octo"}},"host":"ghe.example.com","change":{},"next":{"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"github.com","change":{"enabled":true},"next":{"ghe.example.com":{"enabled":false},"github.com":{"enabled":true,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"github.com","change":{"enabled":false},"next":{"ghe.example.com":{"enabled":false},"github.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"github.com","change":{"account":"octo"},"next":{"ghe.example.com":{"enabled":false},"github.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"github.com","change":{"account":null},"next":{"ghe.example.com":{"enabled":false},"github.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"github.com","change":{"enabled":false,"account":"b"},"next":{"ghe.example.com":{"enabled":false},"github.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"github.com","change":{},"next":{"ghe.example.com":{"enabled":false},"github.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"ghe.example.com","change":{"enabled":true},"next":{"github.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"ghe.example.com","change":{"enabled":false},"next":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"ghe.example.com","change":{"account":"octo"},"next":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false,"account":"octo"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"ghe.example.com","change":{"account":null},"next":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"ghe.example.com","change":{"enabled":false,"account":"b"},"next":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false,"account":"b"}}}
+{"type":"hosts","current":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}},"host":"ghe.example.com","change":{},"next":{"github.com":{"enabled":false,"account":"octo"},"ghe.example.com":{"enabled":false}}}
+{"type":"directory","input":"https://github.com/acme/web.git","name":"web"}
+{"type":"directory","input":"https://github.com/acme/web","name":"web"}
+{"type":"directory","input":"https://github.com/acme/web/","name":"web"}
+{"type":"directory","input":"https://github.com/acme/web.git?ref=x#frag","name":"web"}
+{"type":"directory","input":"ssh://git@host:22/owner/repo","name":"repo"}
+{"type":"directory","input":"ssh://git@host:22/owner/repo.git","name":"repo"}
+{"type":"directory","input":"git@github.com:acme/web.git","name":"web"}
+{"type":"directory","input":"git@host:acme","name":"acme"}
+{"type":"directory","input":"https://host","name":""}
+{"type":"directory","input":"https://host/","name":""}
+{"type":"directory","input":"https://host:8080","name":""}
+{"type":"directory","input":"https://host:8080/","name":""}
+{"type":"directory","input":"https://host/acme/123","name":"123"}
+{"type":"directory","input":"https://host/123","name":""}
+{"type":"directory","input":"https://host:123/repo","name":"repo"}
+{"type":"directory","input":"acme/web","name":"web"}
+{"type":"directory","input":"acme/web.git","name":"web"}
+{"type":"directory","input":"org/project/repo","name":"repo"}
+{"type":"directory","input":"web","name":"web"}
+{"type":"directory","input":"web.git","name":"web"}
+{"type":"directory","input":"","name":""}
+{"type":"directory","input":"   ","name":""}
+{"type":"directory","input":"C:\\work\\repo.git","name":"repo"}
+{"type":"directory","input":"\\\\server\\share\\repo","name":"repo"}
+{"type":"directory","input":"file:///tmp/seed/repo.git","name":"repo"}
+{"type":"directory","input":"/srv/git/repo.git","name":"repo"}
+{"type":"directory","input":"https://dev.azure.com/org/project/_git/repo","name":"repo"}
+{"type":"directory","input":"  https://host/a/b.git  ","name":"b"}
+{"type":"directory","input":".git","name":""}
+{"type":"directory","input":"a/.git","name":""}
+{"type":"directory","input":"https://host/a/b.git.git","name":"b.git"}
+{"type":"directory","input":"ssh://host/","name":""}
+{"type":"directory","input":"git://host/x/y.git","name":"y"}
+{"type":"directory","input":"user@host:path/to/repo","name":"repo"}
+{"type":"directory","input":"host:repo","name":"repo"}
+{"type":"destination","directory":"/home/me/code","name":"web","path":"/home/me/code/web"}
+{"type":"destination","directory":"/home/me/code","name":" web ","path":"/home/me/code/web"}
+{"type":"destination","directory":"/home/me/code","name":"","path":"/home/me/code"}
+{"type":"destination","directory":"/home/me/code","name":"  ","path":"/home/me/code"}
+{"type":"destination","directory":"/home/me/code","name":null,"path":"/home/me/code"}
+{"type":"destination","directory":"/home/me/code/","name":"web","path":"/home/me/code/web"}
+{"type":"destination","directory":"/home/me/code/","name":" web ","path":"/home/me/code/web"}
+{"type":"destination","directory":"/home/me/code/","name":"","path":"/home/me/code/"}
+{"type":"destination","directory":"/home/me/code/","name":"  ","path":"/home/me/code/"}
+{"type":"destination","directory":"/home/me/code/","name":null,"path":"/home/me/code/"}
+{"type":"destination","directory":"~/","name":"web","path":"~/web"}
+{"type":"destination","directory":"~/","name":" web ","path":"~/web"}
+{"type":"destination","directory":"~/","name":"","path":"~/"}
+{"type":"destination","directory":"~/","name":"  ","path":"~/"}
+{"type":"destination","directory":"~/","name":null,"path":"~/"}
+{"type":"destination","directory":"~","name":"web","path":"~/web"}
+{"type":"destination","directory":"~","name":" web ","path":"~/web"}
+{"type":"destination","directory":"~","name":"","path":"~"}
+{"type":"destination","directory":"~","name":"  ","path":"~"}
+{"type":"destination","directory":"~","name":null,"path":"~"}
+{"type":"destination","directory":"C:\\Users\\me","name":"web","path":"C:\\Users\\me\\web"}
+{"type":"destination","directory":"C:\\Users\\me","name":" web ","path":"C:\\Users\\me\\web"}
+{"type":"destination","directory":"C:\\Users\\me","name":"","path":"C:\\Users\\me"}
+{"type":"destination","directory":"C:\\Users\\me","name":"  ","path":"C:\\Users\\me"}
+{"type":"destination","directory":"C:\\Users\\me","name":null,"path":"C:\\Users\\me"}
+{"type":"destination","directory":"C:\\Users\\me\\","name":"web","path":"C:\\Users\\me\\web"}
+{"type":"destination","directory":"C:\\Users\\me\\","name":" web ","path":"C:\\Users\\me\\web"}
+{"type":"destination","directory":"C:\\Users\\me\\","name":"","path":"C:\\Users\\me\\"}
+{"type":"destination","directory":"C:\\Users\\me\\","name":"  ","path":"C:\\Users\\me\\"}
+{"type":"destination","directory":"C:\\Users\\me\\","name":null,"path":"C:\\Users\\me\\"}
+{"type":"destination","directory":"relative","name":"web","path":"relative/web"}
+{"type":"destination","directory":"relative","name":" web ","path":"relative/web"}
+{"type":"destination","directory":"relative","name":"","path":"relative"}
+{"type":"destination","directory":"relative","name":"  ","path":"relative"}
+{"type":"destination","directory":"relative","name":null,"path":"relative"}
+{"type":"destination","directory":"","name":"web","path":"web"}
+{"type":"destination","directory":"","name":" web ","path":"web"}
+{"type":"destination","directory":"","name":"","path":""}
+{"type":"destination","directory":"","name":"  ","path":""}
+{"type":"destination","directory":"","name":null,"path":""}
+{"type":"pasted","input":"acme/web","url":"https://github.com/acme/web.git"}
+{"type":"pasted","input":" acme/web ","url":"https://github.com/acme/web.git"}
+{"type":"pasted","input":"acme/web.git","url":"https://github.com/acme/web.git"}
+{"type":"pasted","input":"a/b","url":"https://github.com/a/b.git"}
+{"type":"pasted","input":"-a/b","url":"-a/b"}
+{"type":"pasted","input":"acme/web/extra","url":"acme/web/extra"}
+{"type":"pasted","input":"git@host:acme/web.git","url":"git@host:acme/web.git"}
+{"type":"pasted","input":"https://github.com/acme/web","url":"https://github.com/acme/web"}
+{"type":"pasted","input":"acme","url":"acme"}
+{"type":"pasted","input":"o/r.name_x-y","url":"https://github.com/o/r.name_x-y.git"}
+{"type":"pasted","input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/r","url":"https://github.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/r.git"}
+{"type":"pasted","input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/r","url":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/r"}
+{"type":"pasted","input":"","url":""}
+{"type":"default-url","repository":{"provider":"github","nameWithOwner":"acme/web","url":"https://x/acme/web","sshUrl":"git@x:acme/web.git"},"url":"https://x/acme/web"}
+{"type":"default-url","repository":{"provider":"forgejo","nameWithOwner":"acme/web","url":"https://x/acme/web","sshUrl":"git@x:acme/web.git"},"url":"https://x/acme/web"}
+{"type":"default-url","repository":{"provider":"gitlab","nameWithOwner":"acme/web","url":"https://x/acme/web","sshUrl":"git@x:acme/web.git"},"url":"git@x:acme/web.git"}
+{"type":"default-url","repository":{"provider":"bitbucket","nameWithOwner":"acme/web","url":"https://x/acme/web","sshUrl":"git@x:acme/web.git"},"url":"git@x:acme/web.git"}
+{"type":"default-url","repository":{"provider":"azure-devops","nameWithOwner":"acme/web","url":"https://x/acme/web","sshUrl":"git@x:acme/web.git"},"url":"git@x:acme/web.git"}
+{"type":"default-url","repository":{"provider":"unknown","nameWithOwner":"acme/web","url":"https://x/acme/web","sshUrl":"git@x:acme/web.git"},"url":"git@x:acme/web.git"}
+{"type":"path","input":"/home/me/code/web","title":"web","normalized":"/home/me/code/web","relative":false}
+{"type":"windows","input":"/home/me/code/web","platform":"linux","unsupported":false}
+{"type":"windows","input":"/home/me/code/web","platform":"darwin","unsupported":false}
+{"type":"windows","input":"/home/me/code/web","platform":"win32","unsupported":false}
+{"type":"windows","input":"/home/me/code/web","platform":"windows","unsupported":false}
+{"type":"path","input":"/home/me/code/web/","title":"web","normalized":"/home/me/code/web","relative":false}
+{"type":"windows","input":"/home/me/code/web/","platform":"linux","unsupported":false}
+{"type":"windows","input":"/home/me/code/web/","platform":"darwin","unsupported":false}
+{"type":"windows","input":"/home/me/code/web/","platform":"win32","unsupported":false}
+{"type":"windows","input":"/home/me/code/web/","platform":"windows","unsupported":false}
+{"type":"path","input":"/home/me/code//","title":"code","normalized":"/home/me/code","relative":false}
+{"type":"windows","input":"/home/me/code//","platform":"linux","unsupported":false}
+{"type":"windows","input":"/home/me/code//","platform":"darwin","unsupported":false}
+{"type":"windows","input":"/home/me/code//","platform":"win32","unsupported":false}
+{"type":"windows","input":"/home/me/code//","platform":"windows","unsupported":false}
+{"type":"path","input":"/","title":"/","normalized":"/","relative":false}
+{"type":"windows","input":"/","platform":"linux","unsupported":false}
+{"type":"windows","input":"/","platform":"darwin","unsupported":false}
+{"type":"windows","input":"/","platform":"win32","unsupported":false}
+{"type":"windows","input":"/","platform":"windows","unsupported":false}
+{"type":"path","input":"//","title":"//","normalized":"//","relative":false}
+{"type":"windows","input":"//","platform":"linux","unsupported":false}
+{"type":"windows","input":"//","platform":"darwin","unsupported":false}
+{"type":"windows","input":"//","platform":"win32","unsupported":false}
+{"type":"windows","input":"//","platform":"windows","unsupported":false}
+{"type":"path","input":"\\","title":"\\","normalized":"\\","relative":false}
+{"type":"windows","input":"\\","platform":"linux","unsupported":false}
+{"type":"windows","input":"\\","platform":"darwin","unsupported":false}
+{"type":"windows","input":"\\","platform":"win32","unsupported":false}
+{"type":"windows","input":"\\","platform":"windows","unsupported":false}
+{"type":"path","input":"C:","title":"C:\\","normalized":"C:\\","relative":false}
+{"type":"windows","input":"C:","platform":"linux","unsupported":true}
+{"type":"windows","input":"C:","platform":"darwin","unsupported":true}
+{"type":"windows","input":"C:","platform":"win32","unsupported":false}
+{"type":"windows","input":"C:","platform":"windows","unsupported":false}
+{"type":"path","input":"C:/","title":"C:/","normalized":"C:/","relative":false}
+{"type":"windows","input":"C:/","platform":"linux","unsupported":true}
+{"type":"windows","input":"C:/","platform":"darwin","unsupported":true}
+{"type":"windows","input":"C:/","platform":"win32","unsupported":false}
+{"type":"windows","input":"C:/","platform":"windows","unsupported":false}
+{"type":"path","input":"C:\\","title":"C:\\","normalized":"C:\\","relative":false}
+{"type":"windows","input":"C:\\","platform":"linux","unsupported":true}
+{"type":"windows","input":"C:\\","platform":"darwin","unsupported":true}
+{"type":"windows","input":"C:\\","platform":"win32","unsupported":false}
+{"type":"windows","input":"C:\\","platform":"windows","unsupported":false}
+{"type":"path","input":"C:\\work\\repo","title":"repo","normalized":"C:\\work\\repo","relative":false}
+{"type":"windows","input":"C:\\work\\repo","platform":"linux","unsupported":true}
+{"type":"windows","input":"C:\\work\\repo","platform":"darwin","unsupported":true}
+{"type":"windows","input":"C:\\work\\repo","platform":"win32","unsupported":false}
+{"type":"windows","input":"C:\\work\\repo","platform":"windows","unsupported":false}
+{"type":"path","input":"C:\\work\\repo\\","title":"repo","normalized":"C:\\work\\repo","relative":false}
+{"type":"windows","input":"C:\\work\\repo\\","platform":"linux","unsupported":true}
+{"type":"windows","input":"C:\\work\\repo\\","platform":"darwin","unsupported":true}
+{"type":"windows","input":"C:\\work\\repo\\","platform":"win32","unsupported":false}
+{"type":"windows","input":"C:\\work\\repo\\","platform":"windows","unsupported":false}
+{"type":"path","input":"C:/work/repo/","title":"repo","normalized":"C:/work/repo","relative":false}
+{"type":"windows","input":"C:/work/repo/","platform":"linux","unsupported":true}
+{"type":"windows","input":"C:/work/repo/","platform":"darwin","unsupported":true}
+{"type":"windows","input":"C:/work/repo/","platform":"win32","unsupported":false}
+{"type":"windows","input":"C:/work/repo/","platform":"windows","unsupported":false}
+{"type":"path","input":"\\\\server\\share\\repo","title":"repo","normalized":"\\\\server\\share\\repo","relative":false}
+{"type":"windows","input":"\\\\server\\share\\repo","platform":"linux","unsupported":true}
+{"type":"windows","input":"\\\\server\\share\\repo","platform":"darwin","unsupported":true}
+{"type":"windows","input":"\\\\server\\share\\repo","platform":"win32","unsupported":false}
+{"type":"windows","input":"\\\\server\\share\\repo","platform":"windows","unsupported":false}
+{"type":"path","input":"\\\\server\\share","title":"\\\\server\\share","normalized":"\\\\server\\share","relative":false}
+{"type":"windows","input":"\\\\server\\share","platform":"linux","unsupported":true}
+{"type":"windows","input":"\\\\server\\share","platform":"darwin","unsupported":true}
+{"type":"windows","input":"\\\\server\\share","platform":"win32","unsupported":false}
+{"type":"windows","input":"\\\\server\\share","platform":"windows","unsupported":false}
+{"type":"path","input":"~/code","title":"code","normalized":"~/code","relative":false}
+{"type":"windows","input":"~/code","platform":"linux","unsupported":false}
+{"type":"windows","input":"~/code","platform":"darwin","unsupported":false}
+{"type":"windows","input":"~/code","platform":"win32","unsupported":false}
+{"type":"windows","input":"~/code","platform":"windows","unsupported":false}
+{"type":"path","input":"~","title":"~","normalized":"~","relative":false}
+{"type":"windows","input":"~","platform":"linux","unsupported":false}
+{"type":"windows","input":"~","platform":"darwin","unsupported":false}
+{"type":"windows","input":"~","platform":"win32","unsupported":false}
+{"type":"windows","input":"~","platform":"windows","unsupported":false}
+{"type":"path","input":"  /padded/path/  ","title":"path","normalized":"/padded/path","relative":false}
+{"type":"windows","input":"/padded/path/","platform":"linux","unsupported":false}
+{"type":"windows","input":"/padded/path/","platform":"darwin","unsupported":false}
+{"type":"windows","input":"/padded/path/","platform":"win32","unsupported":false}
+{"type":"windows","input":"/padded/path/","platform":"windows","unsupported":false}
+{"type":"path","input":"relative/dir","title":"dir","normalized":"relative/dir","relative":false}
+{"type":"windows","input":"relative/dir","platform":"linux","unsupported":false}
+{"type":"windows","input":"relative/dir","platform":"darwin","unsupported":false}
+{"type":"windows","input":"relative/dir","platform":"win32","unsupported":false}
+{"type":"windows","input":"relative/dir","platform":"windows","unsupported":false}
+{"type":"path","input":"relative\\dir\\","title":"dir","normalized":"relative\\dir","relative":false}
+{"type":"windows","input":"relative\\dir\\","platform":"linux","unsupported":false}
+{"type":"windows","input":"relative\\dir\\","platform":"darwin","unsupported":false}
+{"type":"windows","input":"relative\\dir\\","platform":"win32","unsupported":false}
+{"type":"windows","input":"relative\\dir\\","platform":"windows","unsupported":false}
+{"type":"path","input":".","title":".","normalized":".","relative":true}
+{"type":"windows","input":".","platform":"linux","unsupported":false}
+{"type":"windows","input":".","platform":"darwin","unsupported":false}
+{"type":"windows","input":".","platform":"win32","unsupported":false}
+{"type":"windows","input":".","platform":"windows","unsupported":false}
+{"type":"path","input":"..","title":"..","normalized":"..","relative":true}
+{"type":"windows","input":"..","platform":"linux","unsupported":false}
+{"type":"windows","input":"..","platform":"darwin","unsupported":false}
+{"type":"windows","input":"..","platform":"win32","unsupported":false}
+{"type":"windows","input":"..","platform":"windows","unsupported":false}
+{"type":"path","input":"./a","title":"a","normalized":"./a","relative":true}
+{"type":"windows","input":"./a","platform":"linux","unsupported":false}
+{"type":"windows","input":"./a","platform":"darwin","unsupported":false}
+{"type":"windows","input":"./a","platform":"win32","unsupported":false}
+{"type":"windows","input":"./a","platform":"windows","unsupported":false}
+{"type":"path","input":"../a","title":"a","normalized":"../a","relative":true}
+{"type":"windows","input":"../a","platform":"linux","unsupported":false}
+{"type":"windows","input":"../a","platform":"darwin","unsupported":false}
+{"type":"windows","input":"../a","platform":"win32","unsupported":false}
+{"type":"windows","input":"../a","platform":"windows","unsupported":false}
+{"type":"path","input":".\\a","title":"a","normalized":".\\a","relative":true}
+{"type":"windows","input":".\\a","platform":"linux","unsupported":false}
+{"type":"windows","input":".\\a","platform":"darwin","unsupported":false}
+{"type":"windows","input":".\\a","platform":"win32","unsupported":false}
+{"type":"windows","input":".\\a","platform":"windows","unsupported":false}
+{"type":"path","input":"..\\a","title":"a","normalized":"..\\a","relative":true}
+{"type":"windows","input":"..\\a","platform":"linux","unsupported":false}
+{"type":"windows","input":"..\\a","platform":"darwin","unsupported":false}
+{"type":"windows","input":"..\\a","platform":"win32","unsupported":false}
+{"type":"windows","input":"..\\a","platform":"windows","unsupported":false}
+{"type":"path","input":"...","title":"...","normalized":"...","relative":false}
+{"type":"windows","input":"...","platform":"linux","unsupported":false}
+{"type":"windows","input":"...","platform":"darwin","unsupported":false}
+{"type":"windows","input":"...","platform":"win32","unsupported":false}
+{"type":"windows","input":"...","platform":"windows","unsupported":false}
+{"type":"path","input":".hidden","title":".hidden","normalized":".hidden","relative":false}
+{"type":"windows","input":".hidden","platform":"linux","unsupported":false}
+{"type":"windows","input":".hidden","platform":"darwin","unsupported":false}
+{"type":"windows","input":".hidden","platform":"win32","unsupported":false}
+{"type":"windows","input":".hidden","platform":"windows","unsupported":false}
+{"type":"path","input":"","title":"","normalized":"","relative":false}
+{"type":"windows","input":"","platform":"linux","unsupported":false}
+{"type":"windows","input":"","platform":"darwin","unsupported":false}
+{"type":"windows","input":"","platform":"win32","unsupported":false}
+{"type":"windows","input":"","platform":"windows","unsupported":false}
+{"type":"path","input":"   ","title":"","normalized":"","relative":false}
+{"type":"windows","input":"","platform":"linux","unsupported":false}
+{"type":"windows","input":"","platform":"darwin","unsupported":false}
+{"type":"windows","input":"","platform":"win32","unsupported":false}
+{"type":"windows","input":"","platform":"windows","unsupported":false}
+{"type":"readiness","discovery":null,"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"gitlab":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"azure-devops":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."}},"order":["azure-devops","bitbucket","forgejo","github","gitlab"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"gitlab":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"azure-devops":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."}},"order":["azure-devops","bitbucket","forgejo","github","gitlab"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[{"kind":"github","label":"GitHub","status":"available","version":{"_tag":"None"},"installHint":"Install GitHub.","detail":{"_tag":"None"},"auth":{"status":"authenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"gitlab","label":"GitLab","status":"available","version":{"_tag":"None"},"installHint":"Install GitLab.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"bitbucket","label":"Bitbucket","status":"available","version":{"_tag":"None"},"installHint":"Install Bitbucket.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"Run it."}}},{"kind":"azure-devops","label":"Azure DevOps","status":"available","version":{"_tag":"None"},"installHint":"Install Azure DevOps.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"No idea."}}}]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":true,"hint":null},"gitlab":{"ready":false,"hint":"GitLab is not authenticated. Open Source Control settings for setup guidance."},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":false,"hint":"Run it."},"azure-devops":{"ready":true,"hint":null}},"order":["azure-devops","github","bitbucket","forgejo","gitlab"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[{"kind":"github","label":"GitHub","status":"available","version":{"_tag":"None"},"installHint":"Install GitHub.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"gitlab","label":"GitLab","status":"available","version":{"_tag":"None"},"installHint":"Install GitLab.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"Run it."}}},{"kind":"bitbucket","label":"Bitbucket","status":"available","version":{"_tag":"None"},"installHint":"Install Bitbucket.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"No idea."}}},{"kind":"azure-devops","label":"Azure DevOps","status":"missing","version":{"_tag":"None"},"installHint":"Install Azure DevOps.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}}]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":false,"hint":"GitHub is not authenticated. Open Source Control settings for setup guidance."},"gitlab":{"ready":false,"hint":"Run it."},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":true,"hint":null},"azure-devops":{"ready":false,"hint":"Install Azure DevOps."}},"order":["bitbucket","azure-devops","forgejo","github","gitlab"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[{"kind":"github","label":"GitHub","status":"available","version":{"_tag":"None"},"installHint":"Install GitHub.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"Run it."}}},{"kind":"gitlab","label":"GitLab","status":"available","version":{"_tag":"None"},"installHint":"Install GitLab.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"No idea."}}},{"kind":"bitbucket","label":"Bitbucket","status":"missing","version":{"_tag":"None"},"installHint":"Install Bitbucket.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"azure-devops","label":"Azure DevOps","status":"available","version":{"_tag":"None"},"installHint":"Install Azure DevOps.","detail":{"_tag":"None"},"auth":{"status":"authenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}}]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":false,"hint":"Run it."},"gitlab":{"ready":true,"hint":null},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":false,"hint":"Install Bitbucket."},"azure-devops":{"ready":true,"hint":null}},"order":["azure-devops","gitlab","bitbucket","forgejo","github"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[{"kind":"github","label":"GitHub","status":"available","version":{"_tag":"None"},"installHint":"Install GitHub.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"No idea."}}},{"kind":"gitlab","label":"GitLab","status":"missing","version":{"_tag":"None"},"installHint":"Install GitLab.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"bitbucket","label":"Bitbucket","status":"available","version":{"_tag":"None"},"installHint":"Install Bitbucket.","detail":{"_tag":"None"},"auth":{"status":"authenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"azure-devops","label":"Azure DevOps","status":"available","version":{"_tag":"None"},"installHint":"Install Azure DevOps.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}}]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":true,"hint":null},"gitlab":{"ready":false,"hint":"Install GitLab."},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":true,"hint":null},"azure-devops":{"ready":false,"hint":"Azure DevOps is not authenticated. Open Source Control settings for setup guidance."}},"order":["bitbucket","github","azure-devops","forgejo","gitlab"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[{"kind":"github","label":"GitHub","status":"missing","version":{"_tag":"None"},"installHint":"Install GitHub.","detail":{"_tag":"None"},"auth":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"gitlab","label":"GitLab","status":"available","version":{"_tag":"None"},"installHint":"Install GitLab.","detail":{"_tag":"None"},"auth":{"status":"authenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"bitbucket","label":"Bitbucket","status":"available","version":{"_tag":"None"},"installHint":"Install Bitbucket.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"azure-devops","label":"Azure DevOps","status":"available","version":{"_tag":"None"},"installHint":"Install Azure DevOps.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"Run it."}}}]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":false,"hint":"Install GitHub."},"gitlab":{"ready":true,"hint":null},"forgejo":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"bitbucket":{"ready":false,"hint":"Bitbucket is not authenticated. Open Source Control settings for setup guidance."},"azure-devops":{"ready":false,"hint":"Run it."}},"order":["gitlab","azure-devops","bitbucket","forgejo","github"]}
+{"type":"readiness","discovery":{"versionControlSystems":[],"sourceControlProviders":[{"kind":"github","label":"GitHub","status":"available","version":{"_tag":"None"},"installHint":"Install GitHub.","detail":{"_tag":"None"},"auth":{"status":"authenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}},{"kind":"forgejo","label":"Forgejo","status":"available","version":{"_tag":"None"},"installHint":"Install Forgejo.","detail":{"_tag":"None"},"auth":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}}]},"readiness":{"url":{"ready":true,"hint":null},"github":{"ready":true,"hint":null},"gitlab":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"forgejo":{"ready":false,"hint":"Forgejo is not authenticated. Open Source Control settings for setup guidance."},"bitbucket":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."},"azure-devops":{"ready":false,"hint":"Provider status unavailable. Open Source Control settings and rescan."}},"order":["github","azure-devops","bitbucket","forgejo","gitlab"]}
+{"type":"labels","source":"url","label":"Git URL","hint":"URL"}
+{"type":"labels","source":"github","label":"GitHub","hint":"owner/repo"}
+{"type":"labels","source":"gitlab","label":"GitLab","hint":"group/project"}
+{"type":"labels","source":"bitbucket","label":"Bitbucket","hint":"workspace/repository"}
+{"type":"labels","source":"azure-devops","label":"Azure DevOps","hint":"project/repository"}

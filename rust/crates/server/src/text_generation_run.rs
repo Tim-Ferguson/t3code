@@ -1,0 +1,363 @@
+//! Running one prompt through a provider's CLI (port of `CodexTextGeneration.ts` and
+//! `ClaudeTextGeneration.ts`). Both are one-shot, non-interactive runs that can only answer: the
+//! prompt goes in on stdin, the CLI is held to a structured answer, and it is given no tools to edit
+//! files or run commands with.
+//!
+//! * Codex: `codex exec --ephemeral --skip-git-repo-check -s read-only --output-schema <file>
+//!   --output-last-message <file> -`, in the project's directory; the answer is the file.
+//! * Claude: `claude -p --output-format json --json-schema <schema> --tools "" --permission-mode
+//!   dontAsk --strict-mcp-config --disable-slash-commands --settings {"disableAllHooks":true,…}`;
+//!   the answer is `structured_output` of the JSON on stdout. A thread title runs in a fresh empty
+//!   directory, because it needs nothing from the checkout.
+//!
+//! The binary, environment and home come from the same instance configuration the provider's own
+//! sessions use (`CodexInstance::launch`, `ClaudeInstance::binary_path`/`process_environment`).
+//! These are batch runs with no protocol to speak, so they do not go through the JSON-lines
+//! transports that supervise a provider's sessions: the child is killed if the run is dropped, and
+//! a run that outlives its timeout is dropped.
+use crate::{
+    claude_instance::ClaudeInstance,
+    codex::{CodexInstance, tokenize_cli_args},
+    provider_registry::{ProviderRegistry, TextInstance},
+    text_generation::{Operation, Request, Runner, Shape, TextGenerationError},
+};
+use futures_util::future::BoxFuture;
+use serde_json::{Map, Value, json};
+use std::{collections::HashMap, path::{Path, PathBuf}, process::Stdio, sync::Arc, time::Duration};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    process::Command,
+};
+
+/// How long one run may take (`CODEX_TIMEOUT_MS`, `CLAUDE_TIMEOUT_MS`) and how a failed thread
+/// title is retried (`Schedule.exponential("2 seconds")`).
+#[derive(Debug, Clone)]
+pub struct Options {
+    pub timeout: Duration,
+    pub retry_delay: Duration,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { timeout: Duration::from_secs(180), retry_delay: Duration::from_secs(2) }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Arguments
+// ---------------------------------------------------------------------------------------------
+
+/// `codexExecLaunchArgs`: the configured launch arguments that `codex exec` understands.
+pub fn codex_exec_launch_args(launch_args: &str) -> Vec<String> {
+    let args = tokenize_cli_args(launch_args);
+    let mut kept = vec![];
+    let mut index = 0;
+    while index < args.len() {
+        let arg = &args[index];
+        if arg == "--strict-config" || arg.starts_with("--config=") || arg.starts_with("-c=") || arg.starts_with("--enable=") || arg.starts_with("--disable=") {
+            kept.push(arg.clone());
+        } else if matches!(arg.as_str(), "--config" | "-c" | "--enable" | "--disable") {
+            if let Some(value) = args.get(index + 1).filter(|value| !value.starts_with('-')) {
+                kept.push(arg.clone());
+                kept.push(value.clone());
+                index += 1;
+            }
+        }
+        index += 1;
+    }
+    kept
+}
+
+pub struct CodexRun<'a> {
+    pub launch_args: &'a str,
+    pub model: &'a str,
+    pub reasoning_effort: &'a str,
+    pub service_tier: Option<&'a str>,
+    pub schema_path: &'a str,
+    pub output_path: &'a str,
+    pub image_paths: &'a [String],
+}
+
+/// The arguments of `codex exec` for one run; the prompt follows on stdin (`-`).
+pub fn codex_args(run: &CodexRun) -> Vec<String> {
+    let mut args: Vec<String> = vec!["exec".into()];
+    args.extend(codex_exec_launch_args(run.launch_args));
+    args.extend(["--ephemeral", "--skip-git-repo-check", "-s", "read-only", "--model"].map(String::from));
+    args.push(run.model.into());
+    args.extend(["--config".into(), format!("model_reasoning_effort=\"{}\"", run.reasoning_effort)]);
+    if let Some(tier) = run.service_tier {
+        args.extend(["--config".into(), format!("service_tier=\"{tier}\"")]);
+    }
+    args.extend(["--output-schema".into(), run.schema_path.into(), "--output-last-message".into(), run.output_path.into()]);
+    for path in run.image_paths {
+        args.extend(["--image".into(), path.clone()]);
+    }
+    args.push("-".into());
+    args
+}
+
+/// `codexModelFamily`.
+fn codex_model_family(slug: &str) -> &str {
+    if slug.starts_with("openai.gpt-") { &slug["openai.".len()..] } else { slug }
+}
+
+/// The model slug to pass: the requested slug when the instance lists it, else the listed model
+/// whose family it names, else what was asked for.
+pub fn codex_model(requested: &str, models: &[Value]) -> String {
+    let slug = |model: &Value| model["slug"].as_str().map(str::to_string);
+    models
+        .iter()
+        .find(|model| model["slug"] == requested)
+        .and_then(slug)
+        .or_else(|| models.iter().find(|model| model["isCustom"] != true && model["slug"].as_str().is_some_and(|candidate| codex_model_family(candidate) == requested)).and_then(slug))
+        .unwrap_or_else(|| requested.to_string())
+}
+
+fn string_option<'a>(selection: &'a Value, id: &str) -> Option<&'a str> {
+    selection["options"].as_array()?.iter().find(|option| option["id"] == id)?["value"].as_str()
+}
+
+fn boolean_option(selection: &Value, id: &str) -> Option<bool> {
+    selection["options"].as_array()?.iter().find(|option| option["id"] == id)?["value"].as_bool()
+}
+
+/// `getCodexServiceTierOptionValue`.
+pub fn codex_service_tier(selection: &Value) -> Option<String> {
+    string_option(selection, "serviceTier").map(str::to_string).or_else(|| (boolean_option(selection, "fastMode") == Some(true)).then(|| "fast".to_string()))
+}
+
+/// The arguments of `claude -p` for one run; the prompt follows on stdin.
+pub fn claude_args(shape: Shape, selection: &Value) -> Vec<String> {
+    let compiled = crate::claude_models::compile_selection(selection);
+    let mut settings = Map::new();
+    settings.insert("disableAllHooks".into(), json!(true));
+    if let Some(thinking) = compiled.settings.get("alwaysThinkingEnabled").filter(|value| value.is_boolean()) {
+        settings.insert("alwaysThinkingEnabled".into(), thinking.clone());
+    }
+    if compiled.settings.get("fastMode") == Some(&json!(true)) {
+        settings.insert("fastMode".into(), json!(true));
+    }
+    if compiled.settings.get("ultracode") == Some(&json!(true)) {
+        settings.insert("ultracode".into(), json!(true));
+    }
+    let mut args: Vec<String> = ["-p", "--output-format", "json", "--json-schema"].map(String::from).to_vec();
+    args.push(serde_json::to_string(shape.schema()).expect("a schema encodes"));
+    args.extend(["--model".into(), compiled.api_model_id.clone()]);
+    if let Some(effort) = &compiled.effort {
+        args.extend(["--effort".into(), effort.clone()]);
+    }
+    args.extend(["--settings".into(), Value::Object(settings).to_string()]);
+    // Metadata prompts need no executable capabilities, even when they contain a skill name.
+    args.extend(["--tools", "", "--disable-slash-commands", "--strict-mcp-config", "--permission-mode", "dontAsk"].map(String::from));
+    args
+}
+
+// ---------------------------------------------------------------------------------------------
+// Answers
+// ---------------------------------------------------------------------------------------------
+
+/// How Claude's stdout failed to be an answer.
+#[derive(Debug, PartialEq, Eq)]
+pub enum ClaudeReadFailure {
+    /// Not the JSON the CLI is documented to print.
+    Format,
+    /// An answer that does not fit the schema.
+    Invalid,
+}
+
+/// The structured answer in `claude -p --output-format json`: an object with `structured_output`, or
+/// (verbose mode) an array of messages whose last `result` carries it.
+pub fn read_claude_answer(stdout: &str, shape: Shape) -> Result<Value, ClaudeReadFailure> {
+    let parsed: Value = serde_json::from_str(stdout).map_err(|_| ClaudeReadFailure::Format)?;
+    let answer = match &parsed {
+        Value::Object(object) if object.contains_key("structured_output") => object["structured_output"].clone(),
+        Value::Array(messages) => {
+            if !messages.iter().all(|message| message.as_object().is_some_and(|message| message.get("type").is_some_and(Value::is_string))) {
+                return Err(ClaudeReadFailure::Format);
+            }
+            messages.iter().rev().find(|message| message["type"] == "result").map(|message| message["structured_output"].clone()).unwrap_or(Value::Null)
+        }
+        _ => return Err(ClaudeReadFailure::Format),
+    };
+    shape.decode(&answer).ok_or(ClaudeReadFailure::Invalid)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Running
+// ---------------------------------------------------------------------------------------------
+
+struct Finished {
+    code: i32,
+    stdout: String,
+    stderr: String,
+}
+
+async fn drain(mut stream: impl AsyncReadExt + Unpin) -> String {
+    let mut bytes = vec![];
+    let _ = stream.read_to_end(&mut bytes).await;
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+/// Runs the CLI with the prompt on stdin and collects everything it prints. The child is killed if
+/// this future is dropped.
+async fn spawn(binary: &Path, args: &[String], environment: &HashMap<String, String>, cwd: &Path, prompt: String) -> std::io::Result<Finished> {
+    let mut command = if cfg!(windows) {
+        let mut merged: indexmap::IndexMap<String, String> = std::env::vars().collect();
+        merged.extend(environment.clone());
+        crate::acp_registry_spawn::command(&binary.to_string_lossy(), args, Some(&merged))
+    } else {
+        let mut command = Command::new(binary);
+        command.args(args).envs(environment);
+        command
+    };
+    let mut child = command.current_dir(cwd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true).spawn()?;
+    let mut stdin = child.stdin.take().expect("piped stdin");
+    let (stdout, stderr) = (child.stdout.take().expect("piped stdout"), child.stderr.take().expect("piped stderr"));
+    // A CLI that exits before reading its prompt closes the pipe; that is its failure to report.
+    let write = async move {
+        let _ = stdin.write_all(prompt.as_bytes()).await;
+        drop(stdin);
+    };
+    let (_, stdout, stderr, status) = tokio::join!(write, drain(stdout), drain(stderr), child.wait());
+    Ok(Finished { code: status?.code().unwrap_or(-1), stdout, stderr })
+}
+
+/// A temporary directory that is removed when it goes out of scope, whatever happened.
+struct Scratch(PathBuf);
+
+impl Scratch {
+    fn new(prefix: &str) -> std::io::Result<Self> {
+        let path = std::env::temp_dir().join(format!("{prefix}{}-{}", std::process::id(), uuid::Uuid::new_v4().simple()));
+        std::fs::create_dir(&path)?;
+        Ok(Self(path))
+    }
+    fn file(&self, content: &str) -> std::io::Result<String> {
+        let path = self.0.join("tmp");
+        std::fs::write(&path, content)?;
+        Ok(path.to_string_lossy().into_owned())
+    }
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// A provider's CLI as the thing a request runs on. The instance is read from the registry on every
+/// request, so a settings change takes effect on the next generation.
+pub struct CliRunner {
+    instances: Arc<dyn Fn(&str) -> Option<TextInstance> + Send + Sync>,
+    options: Arc<dyn Fn() -> Options + Send + Sync>,
+    attachments_dir: Option<PathBuf>,
+}
+
+/// A CLI that could not be started. The original reports every spawn failure alike, a missing binary
+/// included (what it checked for in the failure's text never appears in the one it gets).
+fn spawn_failure(operation: Operation, label: &str) -> TextGenerationError {
+    TextGenerationError::new(operation, format!("Failed to spawn {label} CLI process"))
+}
+
+/// A run that ended badly: the CLI's own words, or its exit code.
+fn exit_failure(operation: Operation, label: &str, finished: &Finished) -> TextGenerationError {
+    let stderr = crate::text_generation::js_trim(&finished.stderr);
+    let detail = if stderr.is_empty() { crate::text_generation::js_trim(&finished.stdout) } else { stderr };
+    TextGenerationError::new(operation, if detail.is_empty() { format!("{label} CLI command failed with code {}.", finished.code) } else { format!("{label} CLI command failed: {detail}") })
+}
+
+impl CliRunner {
+    /// Runs on the instances of a provider registry, bounded by its text generation options.
+    pub fn for_registry(registry: ProviderRegistry, attachments_dir: Option<PathBuf>) -> Self {
+        let options = registry.clone();
+        Self { instances: Arc::new(move |id| registry.text_instance(id)), options: Arc::new(move || options.text_generation_options()), attachments_dir }
+    }
+
+    /// Runs on instances found by `instances`; tests give it the instances they want to start.
+    pub fn new(instances: Arc<dyn Fn(&str) -> Option<TextInstance> + Send + Sync>, options: Options, attachments_dir: Option<PathBuf>) -> Self {
+        Self { instances, options: Arc::new(move || options.clone()), attachments_dir }
+    }
+
+    async fn codex(&self, instance: CodexInstance, models: Vec<Value>, request: Request) -> Result<Value, TextGenerationError> {
+        let operation = request.operation;
+        let failed = |detail: &str| TextGenerationError::new(operation, detail);
+        if !instance.enabled {
+            return Err(failed("Codex is disabled in T3 Code settings."));
+        }
+        let (binary, environment, launch_args) = instance.launch().map_err(|error| failed(&error.to_string()))?;
+        let binary = if binary.as_os_str().is_empty() { PathBuf::from("codex") } else { binary };
+        let image_paths: Vec<String> = request
+            .attachments
+            .iter()
+            .filter_map(|attachment| {
+                let reference = crate::attachment_store::AttachmentRef::from_value(attachment).filter(|reference| reference.kind == "image")?;
+                let path = crate::attachment_store::resolve_attachment_path(self.attachments_dir.as_deref()?, &reference)?;
+                (path.is_absolute() && path.is_file()).then(|| path.to_string_lossy().into_owned())
+            })
+            .collect();
+        let schema = serde_json::to_string(request.shape.schema()).expect("a schema encodes");
+        let (schema_dir, output_dir) = (Scratch::new("t3code-codex-schema-"), Scratch::new("t3code-codex-output-"));
+        let (Ok(schema_dir), Ok(output_dir)) = (schema_dir, output_dir) else { return Err(failed("Failed to write temp file")) };
+        let (Ok(schema_path), Ok(output_path)) = (schema_dir.file(&schema), output_dir.file("")) else { return Err(failed("Failed to write temp file")) };
+        let model = codex_model(request.model_selection["model"].as_str().unwrap_or(""), &models);
+        let effort = string_option(&request.model_selection, "reasoningEffort").unwrap_or_else(|| crate::text_generation::data()["defaults"]["reasoningEffort"].as_str().unwrap_or("low")).to_string();
+        let tier = codex_service_tier(&request.model_selection);
+        let args = codex_args(&CodexRun { launch_args: &launch_args, model: &model, reasoning_effort: &effort, service_tier: tier.as_deref(), schema_path: &schema_path, output_path: &output_path, image_paths: &image_paths });
+        let run = spawn(&binary, &args, &environment, Path::new(&request.cwd), request.prompt.clone());
+        let finished = match tokio::time::timeout(self.timeout(), run).await {
+            Err(_) => return Err(failed("Codex CLI request timed out.")),
+            Ok(Err(_)) => return Err(spawn_failure(operation, "Codex")),
+            Ok(Ok(finished)) => finished,
+        };
+        if finished.code != 0 {
+            return Err(exit_failure(operation, "Codex", &finished));
+        }
+        let content = std::fs::read_to_string(&output_path).map_err(|_| failed("Failed to read Codex output file."))?;
+        serde_json::from_str::<Value>(&content).ok().and_then(|answer| request.shape.decode(&answer)).ok_or_else(|| failed("Codex returned invalid structured output."))
+    }
+
+    async fn claude(&self, instance: ClaudeInstance, request: Request) -> Result<Value, TextGenerationError> {
+        let operation = request.operation;
+        let failed = |detail: &str| TextGenerationError::new(operation, detail);
+        if !instance.enabled {
+            return Err(failed("Claude is disabled in T3 Code settings."));
+        }
+        let binary = instance.binary_path();
+        let binary = if binary.as_os_str().is_empty() { PathBuf::from("claude") } else { binary };
+        let args = claude_args(request.shape, &request.model_selection);
+        // Titles need only the supplied prompt, not configuration from the checkout.
+        let title_dir = if operation == Operation::ThreadTitle { Some(Scratch::new("t3code-claude-title-").map_err(|_| failed("Failed to create title directory"))?) } else { None };
+        let cwd = title_dir.as_ref().map(|directory| directory.0.clone()).unwrap_or_else(|| PathBuf::from(&request.cwd));
+        let environment = instance.process_environment();
+        let run = spawn(&binary, &args, &environment, &cwd, request.prompt.clone());
+        let finished = match tokio::time::timeout(self.timeout(), run).await {
+            Err(_) => return Err(failed("Claude CLI request timed out.")),
+            Ok(Err(_)) => return Err(spawn_failure(operation, "Claude")),
+            Ok(Ok(finished)) => finished,
+        };
+        if finished.code != 0 {
+            return Err(exit_failure(operation, "Claude", &finished));
+        }
+        read_claude_answer(&finished.stdout, request.shape).map_err(|failure| match failure {
+            ClaudeReadFailure::Format => failed("Claude CLI returned unexpected output format."),
+            ClaudeReadFailure::Invalid => failed("Claude returned invalid structured output."),
+        })
+    }
+
+    fn timeout(&self) -> Duration {
+        (self.options)().timeout
+    }
+}
+
+impl Runner for CliRunner {
+    fn run<'a>(&'a self, request: Request) -> BoxFuture<'a, Result<Value, TextGenerationError>> {
+        Box::pin(async move {
+            let id = request.model_selection["instanceId"].as_str().unwrap_or("").to_string();
+            match (self.instances)(&id) {
+                None => Err(TextGenerationError::new(request.operation, format!("No provider instance registered for id '{id}'."))),
+                Some(TextInstance::Codex(instance, models)) => Box::pin(self.codex(instance, models, request)).await,
+                Some(TextInstance::Claude(instance)) => Box::pin(self.claude(instance, request)).await,
+                Some(TextInstance::Other(driver)) => Err(TextGenerationError::new(request.operation, format!("Provider driver '{driver}' cannot write text in this server."))),
+            }
+        })
+    }
+}

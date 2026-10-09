@@ -1,0 +1,2947 @@
+[
+  {
+    "type": "label",
+    "version": null,
+    "label": null
+  },
+  {
+    "type": "label",
+    "version": null,
+    "label": null
+  },
+  {
+    "type": "label",
+    "version": "",
+    "label": null
+  },
+  {
+    "type": "label",
+    "version": "1.2.3",
+    "label": "v1.2.3"
+  },
+  {
+    "type": "label",
+    "version": "v1.2.3",
+    "label": "v1.2.3"
+  },
+  {
+    "type": "label",
+    "version": "0.156.1",
+    "label": "v0.156.1"
+  },
+  {
+    "type": "label",
+    "version": "nightly",
+    "label": "nightly"
+  },
+  {
+    "type": "label",
+    "version": "agy_acp_server_20260818_01_RC01",
+    "label": "2026-08-18 RC01"
+  },
+  {
+    "type": "label",
+    "version": "agy_acp_server_20260818_01",
+    "label": "2026-08-18"
+  },
+  {
+    "type": "label",
+    "version": "agy_acp_server_2026081_01",
+    "label": "agy_acp_server_2026081_01"
+  },
+  {
+    "type": "label",
+    "version": "agy_acp_server_20260818_xx_RC01",
+    "label": "agy_acp_server_20260818_xx_RC01"
+  },
+  {
+    "type": "label",
+    "version": "agy_acp_server_20260818_01_RC-01",
+    "label": "agy_acp_server_20260818_01_RC-01"
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Some features are limited.",
+      "updateCommand": null,
+      "emphasis": "normal"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Use v1.1.0 for full support.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Use >=1.1 <2 for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Too old.",
+      "updateCommand": null,
+      "emphasis": "strong",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Update for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Broken.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Some features are limited.",
+      "updateCommand": null,
+      "emphasis": "normal"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Use v1.1.0 for full support.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Use >=1.1 <2 for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Too old.",
+      "updateCommand": null,
+      "emphasis": "strong",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Update for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Broken.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "current",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.0.0",
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Some features are limited.",
+      "updateCommand": null,
+      "emphasis": "normal"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Use v1.1.0 for full support.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Use >=1.1 <2 for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Too old.",
+      "updateCommand": null,
+      "emphasis": "strong",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Update for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Broken.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "unknown",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Some features are limited.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal"
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Use v1.1.0 for full support.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Use >=1.1 <2 for full support.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "strong"
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Too old.",
+      "updateCommand": null,
+      "emphasis": "strong",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Update for full support.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "strong"
+    },
+    "candidate": true
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install v1.2.0.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Broken.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": true,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Some features are limited.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Use v1.1.0 for full support.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Use >=1.1 <2 for full support.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Too old.",
+      "updateCommand": null,
+      "emphasis": "strong",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Update for full support.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Codex 1.2.0 is available.",
+      "updateCommand": "npm install -g @openai/codex@latest",
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Broken.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": "1.2.0",
+        "updateCommand": "npm install -g @openai/codex@latest",
+        "canUpdate": false,
+        "canInstallVersion": true,
+        "checkedAt": null,
+        "message": "Codex 1.2.0 is available."
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unknown"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Some features are limited.",
+      "updateCommand": null,
+      "emphasis": "normal"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "message": "Some features are limited."
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Limited support",
+      "detail": "Use v1.1.0 for full support.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "graceful",
+        "recommendedVersion": "1.1.0"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Use >=1.1 <2 for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "recommendedRange": ">=1.1 <2"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Unsupported version",
+      "detail": "Too old.",
+      "updateCommand": null,
+      "emphasis": "strong",
+      "targetVersion": "1.1.0"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "unsupported",
+        "message": "Too old.",
+        "recommendedVersion": "1.1.0",
+        "latestVersionStatus": "supported"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Update for full support.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken"
+      }
+    },
+    "advisory": {
+      "title": "Update available",
+      "detail": "Update available: install the latest provider version.",
+      "updateCommand": null,
+      "emphasis": "normal",
+      "targetVersion": null
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": {
+      "title": "Known broken version",
+      "detail": "Broken.",
+      "updateCommand": null,
+      "emphasis": "strong"
+    },
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "broken",
+        "latestVersionStatus": "broken",
+        "message": "Broken."
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": true,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "advisory",
+    "provider": {
+      "enabled": false,
+      "versionAdvisory": {
+        "status": "behind_latest",
+        "currentVersion": "1.0.0",
+        "latestVersion": null,
+        "updateCommand": null,
+        "canUpdate": false,
+        "checkedAt": null,
+        "message": null
+      },
+      "compatibilityAdvisory": {
+        "status": "supported",
+        "latestVersionStatus": "unsupported"
+      }
+    },
+    "advisory": null,
+    "candidate": false
+  },
+  {
+    "type": "active",
+    "provider": {},
+    "active": false
+  },
+  {
+    "type": "active",
+    "provider": {
+      "updateState": {
+        "status": "queued",
+        "message": null,
+        "output": null
+      }
+    },
+    "active": true
+  },
+  {
+    "type": "active",
+    "provider": {
+      "updateState": {
+        "status": "running",
+        "message": null,
+        "output": null
+      }
+    },
+    "active": true
+  },
+  {
+    "type": "active",
+    "provider": {
+      "updateState": {
+        "status": "succeeded",
+        "message": null,
+        "output": null
+      }
+    },
+    "active": false
+  },
+  {
+    "type": "active",
+    "provider": {
+      "updateState": {
+        "status": "failed",
+        "message": null,
+        "output": null
+      }
+    },
+    "active": false
+  },
+  {
+    "type": "active",
+    "provider": {
+      "updateState": {
+        "status": "unchanged",
+        "message": null,
+        "output": null
+      }
+    },
+    "active": false
+  },
+  {
+    "type": "derive",
+    "driver": "codex",
+    "label": "Work",
+    "id": "codex_work",
+    "available": "codex_work_3"
+  },
+  {
+    "type": "derive",
+    "driver": "codex",
+    "label": " Work ",
+    "id": "codex_work",
+    "available": "codex_work_3"
+  },
+  {
+    "type": "derive",
+    "driver": "codex",
+    "label": "My  Work!! Laptop",
+    "id": "codex_my_work_laptop",
+    "available": "codex_my_work_laptop"
+  },
+  {
+    "type": "derive",
+    "driver": "codex",
+    "label": "---",
+    "id": "",
+    "available": ""
+  },
+  {
+    "type": "derive",
+    "driver": "codex",
+    "label": "",
+    "id": "",
+    "available": ""
+  },
+  {
+    "type": "derive",
+    "driver": "codex",
+    "label": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "id": "codex_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "available": "codex_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  {
+    "type": "derive",
+    "driver": "claudeAgent",
+    "label": "a",
+    "id": "claudeAgent_a",
+    "available": "claudeAgent_a_2"
+  },
+  {
+    "type": "derive",
+    "driver": "cursor",
+    "label": "ÄÖ résumé 9",
+    "id": "cursor_r_sum_9",
+    "available": "cursor_r_sum_9"
+  },
+  {
+    "type": "derive",
+    "driver": "opencode",
+    "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y",
+    "id": "opencode_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_",
+    "available": "opencode_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_"
+  },
+  {
+    "type": "validate",
+    "id": "",
+    "error": "Instance ID is required."
+  },
+  {
+    "type": "validate",
+    "id": "codex_work",
+    "error": "An instance named 'codex_work' already exists."
+  },
+  {
+    "type": "validate",
+    "id": "fresh",
+    "error": null
+  },
+  {
+    "type": "validate",
+    "id": "9lives",
+    "error": "Instance ID must start with a letter and use only letters, digits, '-', or '_'."
+  },
+  {
+    "type": "validate",
+    "id": "a b",
+    "error": "Instance ID must start with a letter and use only letters, digits, '-', or '_'."
+  },
+  {
+    "type": "validate",
+    "id": "a-b_c",
+    "error": null
+  },
+  {
+    "type": "validate",
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "error": null
+  },
+  {
+    "type": "validate",
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "error": "Instance ID must be 64 characters or fewer."
+  },
+  {
+    "type": "validate",
+    "id": "Ünï",
+    "error": "Instance ID must start with a letter and use only letters, digits, '-', or '_'."
+  },
+  {
+    "type": "validate",
+    "id": "codex_work_2",
+    "error": "An instance named 'codex_work_2' already exists."
+  },
+  {
+    "type": "validate",
+    "id": "-x",
+    "error": "Instance ID must start with a letter and use only letters, digits, '-', or '_'."
+  },
+  {
+    "type": "validate",
+    "id": "_x",
+    "error": "Instance ID must start with a letter and use only letters, digits, '-', or '_'."
+  }
+]

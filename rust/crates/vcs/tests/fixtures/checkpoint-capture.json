@@ -1,0 +1,124 @@
+[
+  {
+    "name": "staged-and-unstaged",
+    "ops": [
+      ["git", "init"],
+      ["git", "config", "user.email", "test@test.com"],
+      ["git", "config", "user.name", "Test"],
+      ["write", "file.txt", "initial\n"],
+      ["git", "add", "."],
+      ["git", "commit", "-m", "initial"],
+      ["write", "file.txt", "staged\n"],
+      ["git", "add", "."],
+      ["write", "file.txt", "unstaged\n"],
+      ["write", "untracked/new.txt", "new\n"],
+      ["write", "script.sh", "#!/bin/sh\n"]
+    ],
+    "checkpointRef": "refs/t3/checkpoints/fixture/turn/1",
+    "tree": "131b18fac5af36931a623a95b089f28a0051fac0",
+    "lsTree": "100644 blob b8d041e39da713592693a6e2d6af4a02a9c7a265\tfile.txt\u0000100644 blob 1a2485251c33a70432394c93fb89330ef214bfc9\tscript.sh\u0000100644 blob 3e757656cf36eca53338e520d134963a44f793f8\tuntracked/new.txt\u0000",
+    "commit": "T3 Code|t3code@users.noreply.github.com|T3 Code|t3code@users.noreply.github.com|t3 checkpoint ref=refs/t3/checkpoints/fixture/turn/1|\n",
+    "status": "MM file.txt\u0000?? script.sh\u0000?? untracked/\u0000"
+  },
+  {
+    "name": "unborn-head",
+    "ops": [
+      ["git", "init"],
+      ["git", "config", "user.email", "test@test.com"],
+      ["git", "config", "user.name", "Test"],
+      ["write", "a.txt", "a\n"],
+      ["write", "dir/b.txt", "b\n"],
+      ["git", "add", "a.txt"],
+      ["write", "a.txt", "changed\n"]
+    ],
+    "checkpointRef": "refs/t3/checkpoints/fixture/turn/1",
+    "tree": "aced83afb38b7d02d82253db3cf26dcffd89ca57",
+    "lsTree": "100644 blob 5ea2ed416fbd4a4cbe227b75fe255dd7fa6bd4d6\ta.txt\u0000100644 blob 61780798228d17af2d34fce4cfbdf35556832472\tdir/b.txt\u0000",
+    "commit": "T3 Code|t3code@users.noreply.github.com|T3 Code|t3code@users.noreply.github.com|t3 checkpoint ref=refs/t3/checkpoints/fixture/turn/1|\n",
+    "status": "AM a.txt\u0000?? dir/\u0000"
+  },
+  {
+    "name": "deleted-and-ignored",
+    "ops": [
+      ["git", "init"],
+      ["git", "config", "user.email", "test@test.com"],
+      ["git", "config", "user.name", "Test"],
+      ["write", ".gitignore", "ignored.log\nbuild/\n"],
+      ["write", "keep.txt", "keep\n"],
+      ["write", "gone.txt", "gone\n"],
+      ["git", "add", "."],
+      ["git", "commit", "-m", "base"],
+      ["remove", "gone.txt"],
+      ["write", "ignored.log", "x\n"],
+      ["write", "build/out.o", "x\n"],
+      ["write", "src/lib.rs", "fn main() {}\n"]
+    ],
+    "checkpointRef": "refs/t3/checkpoints/fixture/turn/1",
+    "tree": "fdc9bf80cef0524d5623811f056df670f6b21f4c",
+    "lsTree": "100644 blob fcd283b56d5eb3e900fd6ac64772df386f93f7b9\t.gitignore\u0000100644 blob 2fa992c0b8b5c6acd2bdd4fa31de29d29799bdd5\tkeep.txt\u0000100644 blob f328e4d9d04c31d0d70d16d21a07d1613be9d577\tsrc/lib.rs\u0000",
+    "commit": "T3 Code|t3code@users.noreply.github.com|T3 Code|t3code@users.noreply.github.com|t3 checkpoint ref=refs/t3/checkpoints/fixture/turn/1|\n",
+    "status": " D gone.txt\u0000?? src/\u0000"
+  },
+  {
+    "name": "nested-repositories",
+    "ops": [
+      ["git", "init"],
+      ["git", "config", "user.email", "test@test.com"],
+      ["git", "config", "user.name", "Test"],
+      ["write", "file.txt", "initial\n"],
+      ["git", "add", "."],
+      ["git", "commit", "-m", "initial"],
+      ["git", "init", "scratch/empty [repo]"],
+      ["write", "scratch/empty [repo]/private.txt", "nested\n"],
+      ["git", "init", "another empty"],
+      ["git", "init", "committed"],
+      [
+        "git",
+        "-C",
+        "committed",
+        "-c",
+        "user.name=Test",
+        "-c",
+        "user.email=test@test.com",
+        "commit",
+        "--allow-empty",
+        "-m",
+        "initial"
+      ],
+      ["write", "untracked.txt", "new\n"]
+    ],
+    "checkpointRef": "refs/t3/checkpoints/fixture/turn/1",
+    "tree": "f9a648fd92637adec9867fa873bdc625d821114c",
+    "lsTree": "160000 commit 24ec753103c60f4cd9749d25f0e53b426fc7172b\tcommitted\u0000100644 blob e79c5e8f964493290a409888d5413a737e8e5dd5\tfile.txt\u0000100644 blob 3e757656cf36eca53338e520d134963a44f793f8\tuntracked.txt\u0000",
+    "commit": "T3 Code|t3code@users.noreply.github.com|T3 Code|t3code@users.noreply.github.com|t3 checkpoint ref=refs/t3/checkpoints/fixture/turn/1|\n",
+    "status": "?? another empty/\u0000?? committed/\u0000?? scratch/\u0000?? untracked.txt\u0000"
+  },
+  {
+    "name": "sparse-cone",
+    "ops": [
+      ["git", "init"],
+      ["git", "config", "user.email", "test@test.com"],
+      ["git", "config", "user.name", "Test"],
+      ["write", "scope/in/edit", "original\n"],
+      ["write", "scope/in/delete", "original\n"],
+      ["write", "scope/out/deep/absent", "original\n"],
+      ["write", "scope/out/present", "original\n"],
+      ["write", "elsewhere/file", "original\n"],
+      ["git", "add", "."],
+      ["git", "commit", "-m", "sparse fixture"],
+      ["git", "sparse-checkout", "set", "--cone", "--sparse-index", "scope/in", "elsewhere"],
+      ["write", "scope/in/edit", "staged\n"],
+      ["git", "add", "."],
+      ["git", "config", "sparse.expectFilesOutsideOfPatterns", "true"],
+      ["write", "scope/in/edit", "working\n"],
+      ["write", "scope/out/present", "modified skipped\n"],
+      ["write", "scope/out/new file", "new outside cone\n"],
+      ["remove", "scope/in/delete"]
+    ],
+    "checkpointRef": "refs/t3/checkpoints/fixture/turn/1",
+    "tree": "adfb699acab8f56190458f77009f9e842edaac09",
+    "lsTree": "100644 blob 4b48deed3a433909bfd6b6ab3d4b91348b6af464\telsewhere/file\u0000100644 blob d26b33daea1ed9823a189992bba38fbc913483c1\tscope/in/edit\u0000100644 blob 4b48deed3a433909bfd6b6ab3d4b91348b6af464\tscope/out/deep/absent\u0000100644 blob 015d54af179c7346aa13801615938199e831bf0d\tscope/out/new file\u0000100644 blob 24b4825bf00858e0a6ee1955c71f0c4634bb0af5\tscope/out/present\u0000",
+    "commit": "T3 Code|t3code@users.noreply.github.com|T3 Code|t3code@users.noreply.github.com|t3 checkpoint ref=refs/t3/checkpoints/fixture/turn/1|\n",
+    "status": " D scope/in/delete\u0000MM scope/in/edit\u0000?? scope/out/new file\u0000"
+  }
+]

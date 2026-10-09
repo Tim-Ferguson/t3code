@@ -48,7 +48,7 @@ async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payl
     tokio::time::timeout(std::time::Duration::from_secs(20),async {
         let directory=tempfile::tempdir().unwrap();
         let (catalog,config)=fixture_catalog(directory.path(),"normal");
-        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
+        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
         let providers=ProviderRegistry::discover_with_catalog(&settings,directory.path(),Some(catalog)).await.unwrap();
         let store=Store::memory().unwrap();
         let auth=AuthService::new(store.clone(),[42;32],"fixture_registry_session".into(),"loopback-browser".into()).unwrap();
@@ -101,7 +101,7 @@ async fn registry_search_and_uninstall_effect_socket_preserve_scope_decode_refer
     tokio::time::timeout(std::time::Duration::from_secs(20),async {
         let directory=tempfile::tempdir().unwrap();
         let (catalog,config)=fixture_catalog(directory.path(),"normal");
-        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
+        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
         let providers=ProviderRegistry::discover_with_catalog(&settings,directory.path(),Some(catalog)).await.unwrap();
         let secrets=crate::server_secret_store::ServerSecretStore::open(directory.path().join("secrets")).unwrap();
         let mut options=crate::server_settings::SettingsOptions::file(directory.path().join("settings.json"),secrets);
@@ -155,7 +155,7 @@ async fn registry_url_consent_socket_gates_and_validates_before_settling_real_pr
         let directory=tempfile::tempdir().unwrap();
         let fixture=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-coordinator-provider.py");
         let settings=serde_json::from_value(json!({"providerInstances":{
-            "codex":{"driver":"codex","enabled":false},
+            "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
             "local-agent":{"driver":"acpRegistry","enabled":true,"config":{"source":"local","commandPath":"python3",
                 "commandArgs":[fixture,"state",directory.path().join("starts")]}}
         }})).unwrap();

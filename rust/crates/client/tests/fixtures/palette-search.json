@@ -1,0 +1,400 @@
+{
+  "inputs": {
+    "actions": {
+      "value": "actions",
+      "label": "Actions",
+      "items": [
+        {
+          "kind": "action",
+          "value": "a:new",
+          "searchTerms": ["new thread", "chat", "create", "draft"]
+        },
+        {
+          "kind": "action",
+          "value": "a:diff",
+          "searchTerms": ["Toggle diff panel", "diff", "changes"]
+        },
+        {
+          "kind": "action",
+          "value": "a:settings",
+          "searchTerms": ["Open settings", "settings", "preferences", "keybindings"]
+        },
+        {
+          "kind": "action",
+          "value": "a:theme",
+          "searchTerms": ["Change theme", "appearance", "colors", "palette"]
+        },
+        {
+          "kind": "action",
+          "value": "a:later",
+          "searchTerms": ["Zeta thing", "secondary thing"],
+          "secondary": true
+        },
+        { "kind": "action", "value": "a:cafe", "searchTerms": ["Café Noir", "cafe"] },
+        { "kind": "action", "value": "a:wide", "searchTerms": ["ＦＵＬＬ width", "full"] }
+      ]
+    },
+    "recent": {
+      "value": "recent-threads",
+      "label": "Recent Threads",
+      "items": [
+        {
+          "kind": "action",
+          "value": "t:1",
+          "searchTerms": ["Fix login", "Project", "t1"],
+          "searchRecency": 5
+        }
+      ]
+    },
+    "projects": [
+      { "kind": "action", "value": "p:1", "searchTerms": ["Login service", "/work/login"] },
+      { "kind": "action", "value": "p:2", "searchTerms": ["Billing", "/work/billing"] }
+    ],
+    "settings": [
+      {
+        "kind": "action",
+        "value": "s:1",
+        "searchTerms": ["Providers", "Settings Providers", "models"],
+        "secondary": false
+      },
+      {
+        "kind": "action",
+        "value": "s:2",
+        "searchTerms": ["Advanced providers", "providers"],
+        "secondary": true
+      }
+    ],
+    "threads": [
+      {
+        "kind": "action",
+        "value": "t:1",
+        "searchTerms": ["Fix login", "Project", "", "t1"],
+        "searchRecency": 5
+      },
+      {
+        "kind": "action",
+        "value": "t:2",
+        "searchTerms": ["Login page", "Project", "", "t2", "we should fix the login flow"],
+        "searchRecency": 9
+      },
+      {
+        "kind": "action",
+        "value": "t:3",
+        "searchTerms": ["Billing login", "Other", "", "t3"],
+        "searchRecency": 9
+      },
+      {
+        "kind": "action",
+        "value": "t:4",
+        "searchTerms": ["Notes", "Project", "", "t4", "login is broken"],
+        "searchRecency": 1
+      },
+      {
+        "kind": "action",
+        "value": "t:5",
+        "searchTerms": ["login", "Project", "", "t5"],
+        "searchRecency": 2
+      }
+    ]
+  },
+  "rows": [
+    {
+      "query": "",
+      "isInSubmenu": false,
+      "groups": [
+        [
+          "actions",
+          "Actions",
+          ["a:new", "a:diff", "a:settings", "a:theme", "a:later", "a:cafe", "a:wide"]
+        ],
+        ["recent-threads", "Recent Threads", ["t:1"]]
+      ]
+    },
+    {
+      "query": " ",
+      "isInSubmenu": false,
+      "groups": [
+        [
+          "actions",
+          "Actions",
+          ["a:new", "a:diff", "a:settings", "a:theme", "a:later", "a:cafe", "a:wide"]
+        ],
+        ["recent-threads", "Recent Threads", ["t:1"]]
+      ]
+    },
+    { "query": "new", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:new"]]] },
+    { "query": "thread", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:new"]]] },
+    { "query": "new thread", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:new"]]] },
+    { "query": "theme", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:theme"]]] },
+    { "query": "diff", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:diff"]]] },
+    { "query": "dif", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:diff"]]] },
+    {
+      "query": "settings",
+      "isInSubmenu": false,
+      "groups": [
+        ["actions", "Actions", ["a:settings"]],
+        ["settings-search", "Settings", ["s:1"]]
+      ]
+    },
+    {
+      "query": "set",
+      "isInSubmenu": false,
+      "groups": [
+        ["actions", "Actions", ["a:settings"]],
+        ["settings-search", "Settings", ["s:1"]]
+      ]
+    },
+    {
+      "query": "login",
+      "isInSubmenu": false,
+      "groups": [
+        ["projects-search", "Projects", ["p:1"]],
+        ["threads-search", "Threads", ["t:5", "t:2", "t:3", "t:1", "t:4"]]
+      ]
+    },
+    {
+      "query": "Login",
+      "isInSubmenu": false,
+      "groups": [
+        ["projects-search", "Projects", ["p:1"]],
+        ["threads-search", "Threads", ["t:5", "t:2", "t:3", "t:1", "t:4"]]
+      ]
+    },
+    {
+      "query": "LOGIN",
+      "isInSubmenu": false,
+      "groups": [
+        ["projects-search", "Projects", ["p:1"]],
+        ["threads-search", "Threads", ["t:5", "t:2", "t:3", "t:1", "t:4"]]
+      ]
+    },
+    {
+      "query": "log in",
+      "isInSubmenu": false,
+      "groups": [
+        ["projects-search", "Projects", ["p:1"]],
+        ["threads-search", "Threads", ["t:2", "t:3", "t:1", "t:5", "t:4"]]
+      ]
+    },
+    {
+      "query": "fix login",
+      "isInSubmenu": false,
+      "groups": [["threads-search", "Threads", ["t:1", "t:2"]]]
+    },
+    { "query": "cafe", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:cafe"]]] },
+    { "query": "café", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:cafe"]]] },
+    { "query": "Cafe Noir", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:cafe"]]] },
+    { "query": "full", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:wide"]]] },
+    { "query": "ＦＵＬＬ", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:wide"]]] },
+    { "query": "thing", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:later"]]] },
+    { "query": "zeta", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:later"]]] },
+    {
+      "query": "providers",
+      "isInSubmenu": false,
+      "groups": [["settings-search", "Settings", ["s:1", "s:2"]]]
+    },
+    {
+      "query": "prov",
+      "isInSubmenu": false,
+      "groups": [["settings-search", "Settings", ["s:1", "s:2"]]]
+    },
+    {
+      "query": "billing",
+      "isInSubmenu": false,
+      "groups": [
+        ["projects-search", "Projects", ["p:2"]],
+        ["threads-search", "Threads", ["t:3"]]
+      ]
+    },
+    { "query": "page", "isInSubmenu": false, "groups": [["threads-search", "Threads", ["t:2"]]] },
+    {
+      "query": "the",
+      "isInSubmenu": false,
+      "groups": [
+        ["actions", "Actions", ["a:theme"]],
+        ["threads-search", "Threads", ["t:3", "t:2"]]
+      ]
+    },
+    {
+      "query": "t",
+      "isInSubmenu": false,
+      "groups": [
+        ["actions", "Actions", ["a:diff", "a:new", "a:settings", "a:theme", "a:wide", "a:later"]],
+        ["settings-search", "Settings", ["s:1"]],
+        ["threads-search", "Threads", ["t:4", "t:2", "t:3", "t:1", "t:5"]]
+      ]
+    },
+    {
+      "query": "a",
+      "isInSubmenu": false,
+      "groups": [
+        ["actions", "Actions", ["a:new", "a:diff", "a:theme", "a:cafe", "a:later"]],
+        ["settings-search", "Settings", ["s:2"]],
+        ["threads-search", "Threads", ["t:2"]]
+      ]
+    },
+    { "query": "zzz", "isInSubmenu": false, "groups": [] },
+    {
+      "query": ">",
+      "isInSubmenu": false,
+      "groups": [
+        [
+          "actions",
+          "Actions",
+          ["a:new", "a:diff", "a:settings", "a:theme", "a:later", "a:cafe", "a:wide"]
+        ]
+      ]
+    },
+    { "query": ">diff", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:diff"]]] },
+    {
+      "query": ">settings",
+      "isInSubmenu": false,
+      "groups": [["actions", "Actions", ["a:settings"]]]
+    },
+    { "query": ">  theme", "isInSubmenu": false, "groups": [["actions", "Actions", ["a:theme"]]] },
+    { "query": ">zzz", "isInSubmenu": false, "groups": [] },
+    {
+      "query": "  new   thread  ",
+      "isInSubmenu": false,
+      "groups": [["actions", "Actions", ["a:new"]]]
+    },
+    { "query": "1", "isInSubmenu": false, "groups": [["threads-search", "Threads", ["t:1"]]] },
+    { "query": "t3", "isInSubmenu": false, "groups": [["threads-search", "Threads", ["t:3"]]] },
+    { "query": "flow", "isInSubmenu": false, "groups": [["threads-search", "Threads", ["t:2"]]] },
+    {
+      "query": "",
+      "isInSubmenu": true,
+      "groups": [
+        [
+          "actions",
+          "Actions",
+          ["a:new", "a:diff", "a:settings", "a:theme", "a:later", "a:cafe", "a:wide"]
+        ],
+        ["recent-threads", "Recent Threads", ["t:1"]]
+      ]
+    },
+    {
+      "query": " ",
+      "isInSubmenu": true,
+      "groups": [
+        [
+          "actions",
+          "Actions",
+          ["a:new", "a:diff", "a:settings", "a:theme", "a:later", "a:cafe", "a:wide"]
+        ],
+        ["recent-threads", "Recent Threads", ["t:1"]]
+      ]
+    },
+    { "query": "new", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:new"]]] },
+    { "query": "thread", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:new"]]] },
+    { "query": "new thread", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:new"]]] },
+    { "query": "theme", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:theme"]]] },
+    { "query": "diff", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:diff"]]] },
+    { "query": "dif", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:diff"]]] },
+    {
+      "query": "settings",
+      "isInSubmenu": true,
+      "groups": [["actions", "Actions", ["a:settings"]]]
+    },
+    { "query": "set", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:settings"]]] },
+    {
+      "query": "login",
+      "isInSubmenu": true,
+      "groups": [["recent-threads", "Recent Threads", ["t:1"]]]
+    },
+    {
+      "query": "Login",
+      "isInSubmenu": true,
+      "groups": [["recent-threads", "Recent Threads", ["t:1"]]]
+    },
+    {
+      "query": "LOGIN",
+      "isInSubmenu": true,
+      "groups": [["recent-threads", "Recent Threads", ["t:1"]]]
+    },
+    {
+      "query": "log in",
+      "isInSubmenu": true,
+      "groups": [["recent-threads", "Recent Threads", ["t:1"]]]
+    },
+    {
+      "query": "fix login",
+      "isInSubmenu": true,
+      "groups": [["recent-threads", "Recent Threads", ["t:1"]]]
+    },
+    { "query": "cafe", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:cafe"]]] },
+    { "query": "café", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:cafe"]]] },
+    { "query": "Cafe Noir", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:cafe"]]] },
+    { "query": "full", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:wide"]]] },
+    { "query": "ＦＵＬＬ", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:wide"]]] },
+    { "query": "thing", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:later"]]] },
+    { "query": "zeta", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:later"]]] },
+    { "query": "providers", "isInSubmenu": true, "groups": [] },
+    { "query": "prov", "isInSubmenu": true, "groups": [] },
+    { "query": "billing", "isInSubmenu": true, "groups": [] },
+    { "query": "page", "isInSubmenu": true, "groups": [] },
+    { "query": "the", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:theme"]]] },
+    {
+      "query": "t",
+      "isInSubmenu": true,
+      "groups": [
+        ["actions", "Actions", ["a:diff", "a:new", "a:settings", "a:theme", "a:wide", "a:later"]],
+        ["recent-threads", "Recent Threads", ["t:1"]]
+      ]
+    },
+    {
+      "query": "a",
+      "isInSubmenu": true,
+      "groups": [["actions", "Actions", ["a:new", "a:diff", "a:theme", "a:cafe", "a:later"]]]
+    },
+    { "query": "zzz", "isInSubmenu": true, "groups": [] },
+    {
+      "query": ">",
+      "isInSubmenu": true,
+      "groups": [
+        [
+          "actions",
+          "Actions",
+          ["a:new", "a:diff", "a:settings", "a:theme", "a:later", "a:cafe", "a:wide"]
+        ]
+      ]
+    },
+    { "query": ">diff", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:diff"]]] },
+    {
+      "query": ">settings",
+      "isInSubmenu": true,
+      "groups": [["actions", "Actions", ["a:settings"]]]
+    },
+    { "query": ">  theme", "isInSubmenu": true, "groups": [["actions", "Actions", ["a:theme"]]] },
+    { "query": ">zzz", "isInSubmenu": true, "groups": [] },
+    {
+      "query": "  new   thread  ",
+      "isInSubmenu": true,
+      "groups": [["actions", "Actions", ["a:new"]]]
+    },
+    {
+      "query": "1",
+      "isInSubmenu": true,
+      "groups": [["recent-threads", "Recent Threads", ["t:1"]]]
+    },
+    { "query": "t3", "isInSubmenu": true, "groups": [] },
+    { "query": "flow", "isInSubmenu": true, "groups": [] }
+  ],
+  "normalized": [
+    { "text": "  Café   NOÏR ", "normalized": "cafe noir" },
+    { "text": "ＦＵＬＬ", "normalized": "full" },
+    { "text": "ﬁle", "normalized": "file" },
+    { "text": "Ünïcödé", "normalized": "unicode" },
+    { "text": "Ω≈ç", "normalized": "ω≈c" },
+    { "text": "İstanbul", "normalized": "istanbul" },
+    { "text": "ǅ", "normalized": "dz" },
+    { "text": "x́y", "normalized": "xy" },
+    { "text": "日本語", "normalized": "日本語" },
+    { "text": "  ", "normalized": "" },
+    { "text": "", "normalized": "" },
+    { "text": "a\tb\nc", "normalized": "a b c" },
+    { "text": "ÅNGSTRÖM", "normalized": "angstrom" },
+    { "text": "Ⅻ", "normalized": "xii" },
+    { "text": "①②", "normalized": "12" }
+  ]
+}

@@ -148,6 +148,10 @@ fn recovered_choices(document: &DraftStorage, target: &DraftTarget) -> NewThread
                     .and_then(|session| session["branch"].as_str())
                     .unwrap_or_default()
                     .into(),
+                worktree_path: session
+                    .and_then(|session| session["worktreePath"].as_str())
+                    .filter(|path| !path.is_empty())
+                    .map(str::to_owned),
             }
         })
 }
@@ -220,6 +224,21 @@ pub fn save_thread_choices(
             DraftTarget::thread(key.0.to_string(), key.1.clone()),
             serde_json::to_value(choices).expect("draft choices"),
         );
+    schedule(state);
+}
+/// Records a draft's attachment list; an empty list deliberately hides any the
+/// original app saved for it.
+pub fn edit_attachments(
+    state: Store<UiModel>,
+    target: DraftTarget,
+    attachments: Vec<t3_client::attachments::Persisted>,
+) {
+    state
+        .peek()
+        .draft_storage
+        .document
+        .borrow_mut()
+        .edit_attachments(target, attachments);
     schedule(state);
 }
 pub fn acknowledge_content(state: Store<UiModel>, target: DraftTarget) {
@@ -606,7 +625,7 @@ mod tests {
         }).await.expect("draft writer milestone")
     }
     #[test]
-    fn imported_attachment_drafts_are_held_without_dispatch_or_tombstones() {
+    fn imported_context_drafts_are_held_without_dispatch_or_tombstones() {
         #[derive(Clone)]
         struct Owned {
             state: Rc<RefCell<Option<Store<UiModel>>>>,
@@ -629,8 +648,8 @@ mod tests {
             });
             rsx! {span {"Owned drafts"}}
         }
-        let file = json!({"id":"file","name":"unsent.txt","mimeType":"text/plain","sizeBytes":1});
-        let source=json!({"version":9,"state":{"draftsByThreadKey":{"a:thread":{"prompt":"Unsent text","attachments":[],"files":[file.clone()]},"draft":{"prompt":"New draft","attachments":[],"files":[file]}},"draftThreadsByThreadKey":{"draft":{"threadId":"draft","environmentId":"a","projectId":"project","logicalProjectKey":"a:project"}},"logicalProjectDraftThreadKeyByLogicalProjectKey":{"a:project":"draft"}}}).to_string();
+        let context = json!({"id":"terminal","threadId":"thread","createdAt":"2026-01-01T00:00:00Z","terminalId":"term","terminalLabel":"Terminal 1","lineStart":1,"lineEnd":2,"text":"output"});
+        let source=json!({"version":9,"state":{"draftsByThreadKey":{"a:thread":{"prompt":"Unsent text","attachments":[],"terminalContexts":[context.clone()]},"draft":{"prompt":"New draft","attachments":[],"terminalContexts":[context]}},"draftThreadsByThreadKey":{"draft":{"threadId":"draft","environmentId":"a","projectId":"project","logicalProjectKey":"a:project"}},"logicalProjectDraftThreadKeyByLogicalProjectKey":{"a:project":"draft"}}}).to_string();
         let props = Owned {
             state: Rc::new(RefCell::new(None)),
             source: source.clone(),

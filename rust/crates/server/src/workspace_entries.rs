@@ -846,11 +846,18 @@ impl WorkspaceEntries {
                 continue;
             };
             let _guard = index.refresh.lock().unwrap();
-            let refreshed = index
-                .picker
-                .trigger_full_rescan_async(&index.frecency)
-                .is_ok()
-                && index.picker.wait_for_indexing_complete(self.0.scan_timeout);
+            // A rescan asked for while another scan runs is only remembered, and the scan that
+            // runs it starts after the one in progress has finished, with a moment in between
+            // when nothing is scanning. Waiting for "not scanning" then answers too early, with
+            // the files as they were before the write. The index's first scan reports it is done
+            // (the watcher is ready) only once it has started whatever it had been asked for, so
+            // waiting for that first leaves the picker idle, and the rescan below starts at once
+            // and is the scan being waited on.
+            let timeout = self.0.scan_timeout;
+            let refreshed = index.picker.wait_for_watcher(timeout)
+                && index.picker.wait_for_indexing_complete(timeout)
+                && index.picker.trigger_full_rescan_async(&index.frecency).is_ok()
+                && index.picker.wait_for_indexing_complete(timeout);
             if !refreshed {
                 tracing::warn!(cwd=%root.display(),"Failed to refresh workspace search index; invalidating it");
                 let mut cache = self.0.cache.lock().unwrap();

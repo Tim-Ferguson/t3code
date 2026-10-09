@@ -54,6 +54,9 @@ impl NativeConfig {
         let settings = service.snapshot().await?;
         let mut config = Self::from_settings(settings, state_dir, cwd, environment, auth).await?;
         config.settings_service = Some(service);
+        // Starts the keybindings owner now, so its startup default sync and file watcher run at
+        // boot as in the original; socket handlers find it by this path.
+        crate::keybindings_service::KeybindingsService::shared(&state_dir.join("keybindings.json")).await;
         Ok(config)
     }
     pub async fn from_settings(
@@ -88,7 +91,7 @@ mod tests {
     async fn enabled_provider_without_optional_environment_roundtrips_config() {
         let directory = tempfile::tempdir().unwrap();
         let binary = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex-provider.py");
-        let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","config":{"binaryPath":binary}}}})).unwrap();
+        let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")}}}})).unwrap();
         let environment = json!({"environmentId":"fixture-environment","label":"Fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
         let auth = json!({"policy":"loopback-browser","bootstrapMethods":["one-time-token"],"sessionMethods":["browser-session-cookie","bearer-access-token"],"sessionCookieName":"fixture-session","serverUpdateScope":"environment:maintain"});
         let config = NativeConfig::from_settings(
@@ -118,7 +121,7 @@ mod tests {
     #[tokio::test]
     async fn real_config_uses_defaults_environment_and_grants_without_secret_leakage() {
         let directory = tempfile::tempdir().unwrap();
-        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false,"environment":[{"name":"SECRET","value":"fixture-secret","sensitive":true}]}}})).unwrap();
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","enabled":false,"environment":[{"name":"SECRET","value":"fixture-secret","sensitive":true}]}}})).unwrap();
         let environment = json!({"environmentId":"fixture-environment","label":"Fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
         let auth = json!({"policy":"loopback-browser","bootstrapMethods":["one-time-token"],"sessionMethods":["browser-session-cookie","bearer-access-token"],"sessionCookieName":"fixture-session","serverUpdateScope":"environment:maintain"});
         let config = NativeConfig::from_settings(

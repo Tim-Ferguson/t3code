@@ -1,0 +1,935 @@
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"./a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"./a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a/../a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a/../a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a/b/../../c.png"},"expected":"c.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a/b/../../c.png"},"expected":"/srv/state/attachments/c.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"../a.png"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"../a.png"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a/../../a.png"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a/../../a.png"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"/a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"/a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"//a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"//a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"\\a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"\\a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"\\..\\a.png"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"\\..\\a.png"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"/../a.png"},"expected":"a.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"/../a.png"},"expected":"/srv/state/attachments/a.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":".."},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":".."},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"..."},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"..."},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"..a"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"..a"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"."},"expected":"."}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"."},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":""},"expected":"."}
+{"fn":"resolveAttachmentRelativePath","input":{"path":""},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"/"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"/"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a/"},"expected":"a/"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a/"},"expected":"/srv/state/attachments/a"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a//b.png"},"expected":"a/b.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a//b.png"},"expected":"/srv/state/attachments/a/b.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a\\b.png"},"expected":"a/b.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a\\b.png"},"expected":"/srv/state/attachments/a/b.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a\u0000b.png"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a\u0000b.png"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"x/./y"},"expected":"x/y"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"x/./y"},"expected":"/srv/state/attachments/x/y"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"./"},"expected":"./"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"./"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"../"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"../"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a/.."},"expected":"."}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a/.."},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a/../b"},"expected":"b"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a/../b"},"expected":"/srv/state/attachments/b"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"%2e%2e/a"},"expected":"%2e%2e/a"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"%2e%2e/a"},"expected":"/srv/state/attachments/%2e%2e/a"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"..\\a"},"expected":null}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"..\\a"},"expected":null}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"é/ü.png"},"expected":"é/ü.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"é/ü.png"},"expected":"/srv/state/attachments/é/ü.png"}
+{"fn":"normalizeAttachmentRelativePath","input":{"path":"a b/c d.png"},"expected":"a b/c d.png"}
+{"fn":"resolveAttachmentRelativePath","input":{"path":"a b/c d.png"},"expected":"/srv/state/attachments/a b/c d.png"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"thread-1"},"expected":"thread-1"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"thread-1","key":"message-1:0"},"expected":"thread-1-738860d8-5070-dd3e-47e3-aa0b236a348c"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"thread-1","key":"message-1:1"},"expected":"thread-1-d2ae455b-ef5d-3999-1afb-3ab5ffd85746"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"thread-1","key":""},"expected":"thread-1-cec7d7bc-976a-bdc0-f3de-74ac974ed7c5"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"Thread 1"},"expected":"thread-1"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Thread 1","key":"message-1:0"},"expected":"thread-1-11b319c2-ce51-e45a-1847-f9d90ef1dd44"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Thread 1","key":"message-1:1"},"expected":"thread-1-48ab02be-e87b-c2e8-4f0d-98b1ebb49f1e"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Thread 1","key":""},"expected":"thread-1-50bed4fa-de5b-2499-2ce6-72371d33f79b"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"  spaced  "},"expected":"spaced"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"  spaced  ","key":"message-1:0"},"expected":"spaced-9ca10cf2-eb90-9586-b042-fd41d40559dc"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"  spaced  ","key":"message-1:1"},"expected":"spaced-567e477f-9244-f580-1bb8-94d9783376f3"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"  spaced  ","key":""},"expected":"spaced-f91f585b-e00b-aa97-3778-cc1258572604"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"pending"},"expected":"_pending"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"pending","key":"message-1:0"},"expected":"_pending-87624d51-3e72-5f12-63ef-85a131b8b7ca"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"pending","key":"message-1:1"},"expected":"_pending-9e083a7c-f823-dfb8-2d94-5796acc6631e"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"pending","key":""},"expected":"_pending-9a3af858-a3d8-467e-4b9b-7d493e3264c9"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"PENDING"},"expected":"_pending"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"PENDING","key":"message-1:0"},"expected":"_pending-0be6de02-1aa1-f2ff-abd3-6c5677bbdb10"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"PENDING","key":"message-1:1"},"expected":"_pending-8f1f1242-43f6-93ac-d2f2-2c3b7a7a3394"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"PENDING","key":""},"expected":"_pending-b9de8a19-cf5e-1077-9c38-ab94324dbb1a"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"pending-"},"expected":"_pending"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"pending-","key":"message-1:0"},"expected":"_pending-31722539-dace-e28e-25c2-38a0c5296e0d"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"pending-","key":"message-1:1"},"expected":"_pending-26d840b8-2226-525a-fa39-187544dadfa3"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"pending-","key":""},"expected":"_pending-5ae3d063-ef0d-c1eb-d7c7-2c710c6f51e4"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"_pending"},"expected":"_pending"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"_pending","key":"message-1:0"},"expected":"_pending-8a174bae-3346-abee-0971-a2d66ee82e03"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"_pending","key":"message-1:1"},"expected":"_pending-8b58285f-b795-9122-f190-14334ab7a67e"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"_pending","key":""},"expected":"_pending-51a50d74-d4f9-d6e0-d310-236e5f68d971"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"a_b-c"},"expected":"a_b-c"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a_b-c","key":"message-1:0"},"expected":"a_b-c-d0d0a001-6846-5281-c9d4-3417452c16bc"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a_b-c","key":"message-1:1"},"expected":"a_b-c-a9463b21-e975-4fb1-b520-0b30aee89d1c"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a_b-c","key":""},"expected":"a_b-c-3175bd1c-cce7-8faa-7a82-153c2b962520"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"--x--"},"expected":"x"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"--x--","key":"message-1:0"},"expected":"x-68953a6c-fd5f-aaff-cec4-45124f2fde67"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"--x--","key":"message-1:1"},"expected":"x-7ba3ee07-08d3-57fe-de9f-2d911981b19f"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"--x--","key":""},"expected":"x-a862b6af-cfa4-a2ae-2d22-12c8676900f1"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"__x__"},"expected":"x"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"__x__","key":"message-1:0"},"expected":"x-2c8d05c9-e449-18ad-d458-92e99d7b3660"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"__x__","key":"message-1:1"},"expected":"x-ba75e754-9c3d-d233-c1af-3e4f59ca3c10"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"__x__","key":""},"expected":"x-244078a3-2411-a7a4-d3af-0b1c2019af46"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","key":"message-1:0"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-2805dabe-b082-f011-cde6-bc75ec0b39b3"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","key":"message-1:1"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-193a799b-95f9-50bd-73de-bc529e733055"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","key":""},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-da8f1f05-bf4e-b814-1d03-a641ccc9a8a3"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y","key":"message-1:0"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-335d4e7b-6706-f0ef-43f9-ca88e25ab771"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y","key":"message-1:1"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-7e88333f-cf6f-6f06-0093-ecb0a8eb8b01"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y","key":""},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-49317578-0386-4ff1-465d-1539c8a31af5"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--y"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--y","key":"message-1:0"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y-6fbd60a5-5c82-8ada-3030-d46c6567e2f8"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--y","key":"message-1:1"},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y-f55793a2-8347-14ff-5d39-121c4de4ab16"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx--y","key":""},"expected":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-y-b29342e6-1246-6e37-e4b3-cf9a4d0d0f47"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"日本語"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"日本語","key":"message-1:0"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"日本語","key":"message-1:1"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"日本語","key":""},"expected":null}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"a/b\\c"},"expected":"a-b-c"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a/b\\c","key":"message-1:0"},"expected":"a-b-c-ef171af0-b67a-13fd-a423-dd04118e9c93"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a/b\\c","key":"message-1:1"},"expected":"a-b-c-91a9ccd0-a52f-c8f6-2317-32b147ffd231"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a/b\\c","key":""},"expected":"a-b-c-73eba4fb-bcd8-ba4a-091d-6d2454e8a993"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"İstanbul"},"expected":"i-stanbul"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"İstanbul","key":"message-1:0"},"expected":"i-stanbul-f5fdb11f-855a-4b31-4f2b-5ba967d77fa9"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"İstanbul","key":"message-1:1"},"expected":"i-stanbul-beb5de2c-a7c7-0237-27ab-9ce833f6deda"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"İstanbul","key":""},"expected":"i-stanbul-a0612e46-ed10-f2c0-4f4d-b93041230946"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"Kelvin"},"expected":"kelvin"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Kelvin","key":"message-1:0"},"expected":"kelvin-c1329c30-09c9-9db3-640f-6499a3dcf2c5"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Kelvin","key":"message-1:1"},"expected":"kelvin-f67e9543-6434-c4bd-4adf-b44ec4b070b7"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Kelvin","key":""},"expected":"kelvin-1d80bbe7-f8d9-cef0-eaad-3da82cd938c5"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"ǅ"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"ǅ","key":"message-1:0"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"ǅ","key":"message-1:1"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"ǅ","key":""},"expected":null}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"thread:with:colons"},"expected":"thread-with-colons"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"thread:with:colons","key":"message-1:0"},"expected":"thread-with-colons-1fca4549-74b6-17b3-6151-2bed9dd91d01"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"thread:with:colons","key":"message-1:1"},"expected":"thread-with-colons-8c868a57-5991-b47b-2676-078c6ff2fe03"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"thread:with:colons","key":""},"expected":"thread-with-colons-4d86a45b-fe3d-95fe-e503-0efc62e67eee"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":""},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"","key":"message-1:0"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"","key":"message-1:1"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"","key":""},"expected":null}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"   "},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"   ","key":"message-1:0"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"   ","key":"message-1:1"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"   ","key":""},"expected":null}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"---"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"---","key":"message-1:0"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"---","key":"message-1:1"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"---","key":""},"expected":null}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"a---b"},"expected":"a-b"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a---b","key":"message-1:0"},"expected":"a-b-4ef0f26e-e12e-e758-d320-4eaa79af8ff5"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a---b","key":"message-1:1"},"expected":"a-b-8f5d2ac8-8dc0-7ca0-06c6-512b8fe88a81"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a---b","key":""},"expected":"a-b-093028a0-e235-8c27-8312-51ac4b6967a7"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"Ünïcode-Thread"},"expected":"n-code-thread"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Ünïcode-Thread","key":"message-1:0"},"expected":"n-code-thread-68b1a42c-6f80-74a6-b63d-0812164e20b3"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Ünïcode-Thread","key":"message-1:1"},"expected":"n-code-thread-cec547d9-e8ca-badd-302d-fd05cfdb2f05"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"Ünïcode-Thread","key":""},"expected":"n-code-thread-92dcdc28-db21-e9f7-5987-2aca71e23d6d"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"😀"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"😀","key":"message-1:0"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"😀","key":"message-1:1"},"expected":null}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"😀","key":""},"expected":null}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"a😀b"},"expected":"a-b"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a😀b","key":"message-1:0"},"expected":"a-b-aaa07af8-63c6-1509-fb38-5bbe0b51eeba"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a😀b","key":"message-1:1"},"expected":"a-b-9c8d17d2-1a8f-8b55-8b2f-b9480bf3b3ed"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"a😀b","key":""},"expected":"a-b-38247c8e-2cd9-8161-86ca-dd23ff92a7c5"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"﻿trim﻿"},"expected":"trim"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"﻿trim﻿","key":"message-1:0"},"expected":"trim-3cc016bf-5a1b-166a-2f04-7f86d7e0a491"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"﻿trim﻿","key":"message-1:1"},"expected":"trim-fae656e7-d849-eba7-681c-054b913de614"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"﻿trim﻿","key":""},"expected":"trim-da43c3e9-99c1-0254-4cb9-5d451657fd91"}
+{"fn":"toSafeThreadAttachmentSegment","input":{"threadId":"t t"},"expected":"t-t"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"t t","key":"message-1:0"},"expected":"t-t-c3a55bb9-580b-a9ee-ab7d-12a2504efbb9"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"t t","key":"message-1:1"},"expected":"t-t-32dfbefb-146f-f8f6-ac95-0ce219fb9f86"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"t t","key":""},"expected":"t-t-d07865d6-ddb4-f5da-9304-86e18d81fe9c"}
+{"fn":"createDeterministicAttachmentId","input":{"threadId":"t","key":"quo\"te\\ \n\u0001 é😀"},"expected":"t-bec4f225-0743-8117-daf7-cb505e69983a"}
+{"fn":"attachmentFileExtension","input":{"name":"report.PDF"},"expected":".pdf"}
+{"fn":"attachmentFileExtension","input":{"name":"a.png"},"expected":".png"}
+{"fn":"attachmentFileExtension","input":{"name":"archive.part"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"a.PART"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":".bashrc"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":".."},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"a."},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"file"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"x.tar.gz"},"expected":".gz"}
+{"fn":"attachmentFileExtension","input":{"name":"x.verylongextension"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"x.toolongext12"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"x.ex-t"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"x.é"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"dir.d/file"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"dir.d/"},"expected":".d"}
+{"fn":"attachmentFileExtension","input":{"name":"a/b.TXT"},"expected":".txt"}
+{"fn":"attachmentFileExtension","input":{"name":".hidden.md"},"expected":".md"}
+{"fn":"attachmentFileExtension","input":{"name":"a.b."},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":".a."},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"   "},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"a.zzzzzzzzzz"},"expected":".zzzzzzzzzz"}
+{"fn":"attachmentFileExtension","input":{"name":"a.zzzzzzzzzzz"},"expected":".bin"}
+{"fn":"attachmentFileExtension","input":{"name":"a. png"},"expected":".bin"}
+{"fn":"parseAttachmentId","input":{"id":"pending-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":null,"segment":"pending"}}
+{"fn":"parseAttachmentId","input":{"id":"pending-00000000-0000-4000-8000-0000000000aa-pdf"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":"pdf","segment":"pending"}}
+{"fn":"parseAttachmentId","input":{"id":"PENDING-00000000-0000-4000-8000-0000000000AA-PDF"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":"pdf","segment":"pending"}}
+{"fn":"parseAttachmentId","input":{"id":"thread-1-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":null,"segment":"thread-1"}}
+{"fn":"parseAttachmentId","input":{"id":"thread-1-00000000-0000-4000-8000-0000000000aa-"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"thread-1-00000000-0000-4000-8000-0000000000aa-toolongextension"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"a-b_c-00000000-0000-4000-8000-0000000000aa-bin"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":"bin","segment":"a-b_c"}}
+{"fn":"parseAttachmentId","input":{"id":"00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"x-00000000-0000-4000-8000-0000000000aa.png"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"x/00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"./pending-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":null,"segment":"pending"}}
+{"fn":"parseAttachmentId","input":{"id":"x/../pending-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":null,"segment":"pending"}}
+{"fn":"parseAttachmentId","input":{"id":"pending-00000000-0000-4000-8000-0000000000aa/"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"pending-00000000-0000-4000-8000-0000000000a"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"pending-00000000-0000-4000-8000-0000000000aa-a-b"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":""},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"pending"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"a\u0000b"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"K-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"k-00000000-0000-4000-8000-0000000000aa-ſ"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"T-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":null,"segment":"t"}}
+{"fn":"parseAttachmentId","input":{"id":"thread--1-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":null,"extension":null,"segment":null}}
+{"fn":"parseAttachmentId","input":{"id":"_a-00000000-0000-4000-8000-0000000000aa"},"expected":{"uuid":"00000000-0000-4000-8000-0000000000aa","extension":null,"segment":"_a"}}
+{"fn":"attachmentRelativePath","input":{"type":"image","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.png","mimeType":"image/png"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.png"}
+{"fn":"attachmentRelativePath","input":{"type":"image","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.jpeg","mimeType":"image/jpeg"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.jpg"}
+{"fn":"attachmentRelativePath","input":{"type":"image","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"photo","mimeType":"image/webp"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.webp"}
+{"fn":"attachmentRelativePath","input":{"type":"image","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.PNG","mimeType":"IMAGE/PNG"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.png"}
+{"fn":"attachmentRelativePath","input":{"type":"image","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.svg","mimeType":"image/x-unknown"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.svg"}
+{"fn":"attachmentRelativePath","input":{"type":"image","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.txt","mimeType":"image/x-unknown"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.bin"}
+{"fn":"attachmentRelativePath","input":{"type":"file","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"r.PDF","mimeType":"application/pdf"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.pdf"}
+{"fn":"attachmentRelativePath","input":{"type":"file","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.part","mimeType":"text/plain"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.bin"}
+{"fn":"attachmentRelativePath","input":{"type":"file","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"noext","mimeType":"text/plain"},"expected":"thread-1-00000000-0000-4000-8000-0000000000aa.bin"}
+{"fn":"attachmentRelativePath","input":{"type":"video","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"v.mp4","mimeType":"video/mp4"},"expected":null}
+{"fn":"attachmentRelativePath","input":{"type":"audio","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"a.wav","mimeType":"audio/wav"},"expected":null}
+{"fn":"attachmentRelativePath","input":{"type":"future","id":"thread-1-00000000-0000-4000-8000-0000000000aa","name":"x.y","mimeType":"a/b"},"expected":null}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a.JPEG"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a.ico"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a.txt"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a.toolongexten"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":" b.gif "},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png","fileName":"a.İco"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a.JPEG"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a.ico"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a.txt"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a.toolongexten"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":" b.gif "},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/PNG","fileName":"a.İco"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a.png"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a.JPEG"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a.ico"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a.txt"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a.toolongexten"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":" b.gif "},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg","fileName":"a.İco"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a.png"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a.JPEG"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a.ico"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a.txt"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a.toolongexten"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":" b.gif "},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg","fileName":"a.İco"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a.png"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a.JPEG"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a.ico"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a.txt"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a.toolongexten"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif","fileName":"a.İco"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a.png"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a.JPEG"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a.ico"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a.txt"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a.toolongexten"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":" b.gif "},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/webp","fileName":"a.İco"},"expected":".webp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a.png"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a.JPEG"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a.ico"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a.txt"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a.toolongexten"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":" b.gif "},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avif","fileName":"a.İco"},"expected":".avif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a.png"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a.JPEG"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a.ico"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a.txt"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a.toolongexten"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":" b.gif "},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/bmp","fileName":"a.İco"},"expected":".bmp"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a.png"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a.JPEG"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a.ico"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a.txt"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a.toolongexten"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":" b.gif "},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic","fileName":"a.İco"},"expected":".heic"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a.png"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a.JPEG"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a.ico"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a.txt"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a.toolongexten"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":" b.gif "},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif","fileName":"a.İco"},"expected":".heif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a.png"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a.JPEG"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a.ico"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a.txt"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a.toolongexten"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":" b.gif "},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/svg+xml","fileName":"a.İco"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a.png"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a.JPEG"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a.ico"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a.txt"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a.toolongexten"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":" b.gif "},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff","fileName":"a.İco"},"expected":".tiff"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-icon","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/vnd.microsoft.icon","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/x-ms-bmp","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/apng","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"application/pdf","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"text/plain","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":""},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"not a mime","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a.JPEG"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a.ico"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a.txt"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a.toolongexten"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":" b.gif "},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png; charset=binary","fileName":"a.İco"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png "},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a.JPEG"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a.ico"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a.txt"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a.toolongexten"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":" b.gif "},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":" image/png ","fileName":"a.İco"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a.JPEG"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a.ico"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a.txt"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a.toolongexten"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":" b.gif "},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/png;","fileName":"a.İco"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a.png"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a.JPEG"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a.ico"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a.txt"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a.toolongexten"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":" b.gif "},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpeg ; q=1","fileName":"a.İco"},"expected":".jpg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a.png"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a.JPEG"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a.ico"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a.txt"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a.toolongexten"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":" b.gif "},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"IMAGE/SVG+XML;x","fileName":"a.İco"},"expected":".svg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpg;x","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff;x","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a.png"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a.JPEG"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a.ico"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a.txt"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a.toolongexten"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/gif ","fileName":"a.İco"},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"toString","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"__proto__","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"constructor","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/aces","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avci","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/avcs","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/cgm","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dicom-rle","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/dpx","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/emf","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/fits","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/g3fax","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heic-sequence","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/heif-sequence","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/hej2k","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ief","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jaii","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jais","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jls","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jp2","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jph","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jphc","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpm","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jpx","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxl","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxr","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxra","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxrs","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxs","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsc","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxsi","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/jxss","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/ktx2","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/pjpeg","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/sgi","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/t38","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/tiff-fx","fileName":"a.İco"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a.png"},"expected":".png"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a.JPEG"},"expected":".jpeg"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a.ico"},"expected":".ico"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a.txt"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a.toolongexten"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a"},"expected":".bin"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":" b.gif "},"expected":".gif"}
+{"fn":"inferImageExtension","input":{"mimeType":"image/wmf","fileName":"a.İco"},"expected":".bin"}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,aGVsbG8gd29ybGQ="},"expected":{"mimeType":"image/png","base64":"aGVsbG8gd29ybGQ="}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":" DATA:IMAGE/PNG;BASE64,aGVsbG8gd29ybGQ=\n"},"expected":{"mimeType":"image/png","base64":"aGVsbG8gd29ybGQ="}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;charset=utf-8;base64,aGVsbG8gd29ybGQ="},"expected":{"mimeType":"image/png","base64":"aGVsbG8gd29ybGQ="}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,aGVsbG8g\r\nd29ybGQ="},"expected":{"mimeType":"image/png","base64":"aGVsbG8gd29ybGQ="}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,aGVsbG8gd29ybGQ"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,aGVsbG8gd29ybGQ=="},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,aG=sbG8="},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,=GVs"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:;base64,AAAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:base64,AAAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png,AAAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64;,AAAA"},"expected":{"mimeType":"image/png","base64":"AAAA"}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png; base64 ,AAAA"},"expected":{"mimeType":"image/png","base64":"AAAA"}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,AA\tAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,AAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,AAAA===="},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,é==="},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"image/png;base64,AAAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:;;image/png;base64,AAAA"},"expected":{"mimeType":"image/png","base64":"AAAA"}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data: ;base64,AAAA"},"expected":null}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:image/png;base64,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"},"expected":{"mimeType":"image/png","base64":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}}
+{"fn":"parseBase64DataUrl","input":{"dataUrl":"data:IMAGE/PNG ; Base64 ,AAAA"},"expected":{"mimeType":"image/png","base64":"AAAA"}}
+{"fn":"mimeTypeForPath","input":{"path":"a.png"},"expected":"image/png"}
+{"fn":"mimeTypeForPath","input":{"path":"a.JPG"},"expected":"image/jpeg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.jpeg"},"expected":"image/jpeg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.gif"},"expected":"image/gif"}
+{"fn":"mimeTypeForPath","input":{"path":"a.webp"},"expected":"image/webp"}
+{"fn":"mimeTypeForPath","input":{"path":"a.avif"},"expected":"image/avif"}
+{"fn":"mimeTypeForPath","input":{"path":"a.bmp"},"expected":"image/bmp"}
+{"fn":"mimeTypeForPath","input":{"path":"a.heic"},"expected":"image/heic"}
+{"fn":"mimeTypeForPath","input":{"path":"a.heif"},"expected":"image/heif"}
+{"fn":"mimeTypeForPath","input":{"path":"a.tiff"},"expected":"image/tiff"}
+{"fn":"mimeTypeForPath","input":{"path":"a.tif"},"expected":"image/tiff"}
+{"fn":"mimeTypeForPath","input":{"path":"a.svg"},"expected":"image/svg+xml"}
+{"fn":"mimeTypeForPath","input":{"path":"a.ico"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.pdf"},"expected":"application/pdf"}
+{"fn":"mimeTypeForPath","input":{"path":"a.html"},"expected":"text/html"}
+{"fn":"mimeTypeForPath","input":{"path":"a.htm"},"expected":"text/html"}
+{"fn":"mimeTypeForPath","input":{"path":"a.txt"},"expected":"text/plain"}
+{"fn":"mimeTypeForPath","input":{"path":"a.log"},"expected":"text/plain"}
+{"fn":"mimeTypeForPath","input":{"path":"a.text"},"expected":"text/plain"}
+{"fn":"mimeTypeForPath","input":{"path":"a.md"},"expected":"text/markdown"}
+{"fn":"mimeTypeForPath","input":{"path":"a.markdown"},"expected":"text/markdown"}
+{"fn":"mimeTypeForPath","input":{"path":"a.css"},"expected":"text/css"}
+{"fn":"mimeTypeForPath","input":{"path":"a.csv"},"expected":"text/csv"}
+{"fn":"mimeTypeForPath","input":{"path":"a.js"},"expected":"text/javascript"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mjs"},"expected":"text/javascript"}
+{"fn":"mimeTypeForPath","input":{"path":"a.json"},"expected":"application/json"}
+{"fn":"mimeTypeForPath","input":{"path":"a.xml"},"expected":"application/xml"}
+{"fn":"mimeTypeForPath","input":{"path":"a.yaml"},"expected":"text/yaml"}
+{"fn":"mimeTypeForPath","input":{"path":"a.yml"},"expected":"text/yaml"}
+{"fn":"mimeTypeForPath","input":{"path":"a.zip"},"expected":"application/zip"}
+{"fn":"mimeTypeForPath","input":{"path":"a.gz"},"expected":"application/gzip"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mp4"},"expected":"video/mp4"}
+{"fn":"mimeTypeForPath","input":{"path":"a.m4v"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mov"},"expected":"video/quicktime"}
+{"fn":"mimeTypeForPath","input":{"path":"a.webm"},"expected":"video/webm"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mkv"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.avi"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mpeg"},"expected":"video/mpeg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mpg"},"expected":"video/mpeg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.mp3"},"expected":"audio/mpeg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.wav"},"expected":"audio/wav"}
+{"fn":"mimeTypeForPath","input":{"path":"a.ogg"},"expected":"audio/ogg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.oga"},"expected":"audio/ogg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.opus"},"expected":"audio/ogg"}
+{"fn":"mimeTypeForPath","input":{"path":"a.flac"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.aac"},"expected":"audio/aac"}
+{"fn":"mimeTypeForPath","input":{"path":"a.m4a"},"expected":"audio/mp4"}
+{"fn":"mimeTypeForPath","input":{"path":"a.aiff"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.bin"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"a.unknown"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"noext"},"expected":"application/octet-stream"}
+{"fn":"mimeTypeForPath","input":{"path":"thread-1-x.PNG"},"expected":"image/png"}
+{"fn":"audioMimeType","input":{"extension":".mp3"},"expected":"audio/mpeg"}
+{"fn":"audioMimeType","input":{"extension":".WAV"},"expected":"audio/wav"}
+{"fn":"audioMimeType","input":{"extension":".ogg"},"expected":"audio/ogg"}
+{"fn":"audioMimeType","input":{"extension":".oga"},"expected":"audio/ogg"}
+{"fn":"audioMimeType","input":{"extension":".flac"},"expected":"audio/flac"}
+{"fn":"audioMimeType","input":{"extension":".aac"},"expected":"audio/aac"}
+{"fn":"audioMimeType","input":{"extension":".m4a"},"expected":"audio/mp4"}
+{"fn":"audioMimeType","input":{"extension":".opus"},"expected":"audio/ogg"}
+{"fn":"audioMimeType","input":{"extension":".aiff"},"expected":"audio/aiff"}
+{"fn":"audioMimeType","input":{"extension":".pdf"},"expected":null}
+{"fn":"audioMimeType","input":{"extension":"mp3"},"expected":null}
+{"fn":"audioMimeType","input":{"extension":"..mp3"},"expected":null}
+{"fn":"audioMimeType","input":{"extension":".mp-3"},"expected":null}
+{"fn":"audioMimeType","input":{"extension":"."},"expected":null}
+{"fn":"audioMimeType","input":{"extension":""},"expected":null}
+{"fn":"audioMimeType","input":{"extension":".é"},"expected":null}
+{"fn":"createPendingAttachmentId","input":{"shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},"expected":"pending-<uuid>"}
+{"fn":"createPendingAttachmentId","input":{"extension":".pdf","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-pdf$"},"expected":"pending-<uuid>-pdf"}
+{"fn":"createPendingAttachmentId","input":{"extension":"PDF","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-pdf$"},"expected":"pending-<uuid>-pdf"}
+{"fn":"createPendingAttachmentId","input":{"extension":".PDF","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-pdf$"},"expected":"pending-<uuid>-pdf"}
+{"fn":"createPendingAttachmentId","input":{"extension":".toolongextension1","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-bin$"},"expected":"pending-<uuid>-bin"}
+{"fn":"createPendingAttachmentId","input":{"extension":".a-b","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-bin$"},"expected":"pending-<uuid>-bin"}
+{"fn":"createPendingAttachmentId","input":{"extension":"","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},"expected":"pending-<uuid>"}
+{"fn":"createPendingAttachmentId","input":{"extension":".bin","shape":"^pending-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}-bin$"},"expected":"pending-<uuid>-bin"}

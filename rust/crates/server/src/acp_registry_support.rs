@@ -366,6 +366,10 @@ impl Catalog {
     pub fn new(cache_dir: PathBuf, tools_dir: PathBuf) -> Result<Self, RegistryError> {
         Self::with_origin(cache_dir, tools_dir, REGISTRY_URL.into())
     }
+    /// Where registry agents and other managed provider tools are installed.
+    pub fn tools_dir(&self) -> &Path {
+        &self.0.tools_dir
+    }
     /// The original catalog factory allows overriding its registry URL; callers
     /// still must supply credential-free HTTPS, including test transport hooks.
     pub fn with_origin(

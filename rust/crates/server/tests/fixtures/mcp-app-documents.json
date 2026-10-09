@@ -1,0 +1,1070 @@
+{
+  "csp": [
+    {
+      "input": null,
+      "undefinedInput": true,
+      "read": null,
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": null,
+      "undefinedInput": false,
+      "read": null,
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": [],
+      "undefinedInput": false,
+      "read": null,
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": {},
+      "undefinedInput": false,
+      "read": null,
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "undefinedInput": false,
+      "read": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "https://*.cdn.example.com"
+        ]
+      },
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "undefinedInput": false,
+      "read": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "policy": "default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'"
+    },
+    {
+      "input": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "undefinedInput": false,
+      "read": null,
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "undefinedInput": false,
+      "read": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com"
+        ]
+      },
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "undefinedInput": false,
+      "read": {
+        "connectDomains": ["https://ok.example.com"]
+      },
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    },
+    {
+      "input": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "undefinedInput": false,
+      "read": null,
+      "policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    }
+  ],
+  "injection": [
+    {
+      "csp": null,
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": null,
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": null,
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": null,
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": null,
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": null,
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": null,
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": null,
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": null,
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": null,
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": null,
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": null,
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": [],
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": [],
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": [],
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": [],
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": [],
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": [],
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {},
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {},
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {},
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {},
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": {},
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": {},
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://api.example.com",
+          "wss://live.example.com:8443",
+          "http://localhost:3000",
+          "*.example.com",
+          "https://*.cdn.example.com",
+          "https://bad host",
+          "ftp://x.test",
+          5
+        ]
+      },
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://api.example.com wss://live.example.com:8443 http://localhost:3000 https://*.cdn.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'\">rest"
+    },
+    {
+      "csp": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'\">"
+    },
+    {
+      "csp": {
+        "resourceDomains": [
+          "https://cdn.example.com",
+          "javascript:alert(1)",
+          "https://a.b.c.d.example.com:1",
+          "https://-x.test",
+          "HTTPS://UPPER.EXAMPLE.COM"
+        ],
+        "frameDomains": ["https://embed.example.com"],
+        "baseUriDomains": ["https://base.example.com"]
+      },
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; style-src 'unsafe-inline' https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; img-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; font-src data: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; media-src data: blob: https://cdn.example.com https://a.b.c.d.example.com:1 https://-x.test HTTPS://UPPER.EXAMPLE.COM; connect-src 'none'; frame-src https://embed.example.com; object-src 'none'; base-uri https://base.example.com; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": {
+        "connectDomains": "https://not-an-array.test",
+        "resourceDomains": []
+      },
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://host0.example.com",
+          "https://host1.example.com",
+          "https://host2.example.com",
+          "https://host3.example.com",
+          "https://host4.example.com",
+          "https://host5.example.com",
+          "https://host6.example.com",
+          "https://host7.example.com",
+          "https://host8.example.com",
+          "https://host9.example.com",
+          "https://host10.example.com",
+          "https://host11.example.com",
+          "https://host12.example.com",
+          "https://host13.example.com",
+          "https://host14.example.com",
+          "https://host15.example.com",
+          "https://host16.example.com",
+          "https://host17.example.com",
+          "https://host18.example.com",
+          "https://host19.example.com",
+          "https://host20.example.com",
+          "https://host21.example.com",
+          "https://host22.example.com",
+          "https://host23.example.com",
+          "https://host24.example.com",
+          "https://host25.example.com",
+          "https://host26.example.com",
+          "https://host27.example.com",
+          "https://host28.example.com",
+          "https://host29.example.com",
+          "https://host30.example.com",
+          "https://host31.example.com",
+          "https://host32.example.com",
+          "https://host33.example.com",
+          "https://host34.example.com",
+          "https://host35.example.com",
+          "https://host36.example.com",
+          "https://host37.example.com",
+          "https://host38.example.com",
+          "https://host39.example.com"
+        ]
+      },
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://host0.example.com https://host1.example.com https://host2.example.com https://host3.example.com https://host4.example.com https://host5.example.com https://host6.example.com https://host7.example.com https://host8.example.com https://host9.example.com https://host10.example.com https://host11.example.com https://host12.example.com https://host13.example.com https://host14.example.com https://host15.example.com https://host16.example.com https://host17.example.com https://host18.example.com https://host19.example.com https://host20.example.com https://host21.example.com https://host22.example.com https://host23.example.com https://host24.example.com https://host25.example.com https://host26.example.com https://host27.example.com https://host28.example.com https://host29.example.com https://host30.example.com https://host31.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": {
+        "connectDomains": [
+          "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+          "https://ok.example.com"
+        ]
+      },
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src https://ok.example.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    },
+    {
+      "csp": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "html": "<html><body>x</body></html>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html><body>x</body></html>"
+    },
+    {
+      "csp": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "html": "<!DOCTYPE html><html></html>",
+      "injected": "<!DOCTYPE html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\"><html></html>"
+    },
+    {
+      "csp": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "html": "﻿  <!doctype html>\n<p>",
+      "injected": "﻿  <!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">\n<p>"
+    },
+    {
+      "csp": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "html": "<!doctype html public \"x\">rest",
+      "injected": "<!doctype html public \"x\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">rest"
+    },
+    {
+      "csp": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "html": "",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">"
+    },
+    {
+      "csp": {
+        "frameDomains": ["https://x.test\"; script-src *"],
+        "resourceDomains": ["https://y.test'><script>"]
+      },
+      "html": "no doctype & <b>\"quoted\"</b>",
+      "injected": "<!doctype html><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'\">no doctype & <b>\"quoted\"</b>"
+    }
+  ],
+  "permissions": [
+    {
+      "input": null,
+      "read": null
+    },
+    {
+      "input": null,
+      "read": null
+    },
+    {
+      "input": {},
+      "read": null
+    },
+    {
+      "input": {
+        "camera": {},
+        "microphone": {},
+        "geolocation": {},
+        "clipboardWrite": {}
+      },
+      "read": {
+        "camera": {},
+        "microphone": {},
+        "geolocation": {},
+        "clipboardWrite": {}
+      }
+    },
+    {
+      "input": {
+        "camera": true,
+        "microphone": {},
+        "other": {}
+      },
+      "read": {
+        "microphone": {}
+      }
+    },
+    {
+      "input": {
+        "geolocation": []
+      },
+      "read": null
+    }
+  ],
+  "callable": [
+    {
+      "meta": null,
+      "callable": true
+    },
+    {
+      "meta": null,
+      "callable": true
+    },
+    {
+      "meta": {},
+      "callable": true
+    },
+    {
+      "meta": {
+        "ui": {}
+      },
+      "callable": true
+    },
+    {
+      "meta": {
+        "ui": {
+          "visibility": ["model"]
+        }
+      },
+      "callable": false
+    },
+    {
+      "meta": {
+        "ui": {
+          "visibility": ["app"]
+        }
+      },
+      "callable": true
+    },
+    {
+      "meta": {
+        "ui": {
+          "visibility": ["model", "app"]
+        }
+      },
+      "callable": true
+    },
+    {
+      "meta": {
+        "ui": {
+          "visibility": []
+        }
+      },
+      "callable": false
+    },
+    {
+      "meta": {
+        "ui": {
+          "visibility": "app"
+        }
+      },
+      "callable": true
+    },
+    {
+      "meta": {
+        "ui": {
+          "visibility": "model"
+        }
+      },
+      "callable": true
+    },
+    {
+      "meta": {
+        "ui": null
+      },
+      "callable": true
+    },
+    {
+      "meta": "text",
+      "callable": true
+    },
+    {
+      "meta": 5,
+      "callable": true
+    }
+  ]
+}

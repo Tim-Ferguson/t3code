@@ -1,0 +1,223 @@
+{"fn":"trigger","input":{"text":"","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"/","cursor":1},"output":{"kind":"slash-command","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"/","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"/","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"/","cursor":999},"output":{"kind":"slash-command","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"/mod","cursor":4},"output":{"kind":"slash-command","query":"mod","rangeStart":0,"rangeEnd":4}}
+{"fn":"trigger","input":{"text":"/mod","cursor":2},"output":{"kind":"slash-command","query":"m","rangeStart":0,"rangeEnd":2}}
+{"fn":"trigger","input":{"text":"/mod","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"/mod","cursor":999},"output":{"kind":"slash-command","query":"mod","rangeStart":0,"rangeEnd":4}}
+{"fn":"trigger","input":{"text":"/model now","cursor":10},"output":null}
+{"fn":"trigger","input":{"text":"/model now","cursor":5},"output":{"kind":"slash-command","query":"mode","rangeStart":0,"rangeEnd":5}}
+{"fn":"trigger","input":{"text":"/model now","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"/model now","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"hello /x","cursor":8},"output":null}
+{"fn":"trigger","input":{"text":"hello /x","cursor":4},"output":null}
+{"fn":"trigger","input":{"text":"hello /x","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"hello /x","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"line one\n/pl","cursor":12},"output":{"kind":"slash-command","query":"pl","rangeStart":9,"rangeEnd":12}}
+{"fn":"trigger","input":{"text":"line one\n/pl","cursor":6},"output":null}
+{"fn":"trigger","input":{"text":"line one\n/pl","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"line one\n/pl","cursor":999},"output":{"kind":"slash-command","query":"pl","rangeStart":9,"rangeEnd":12}}
+{"fn":"trigger","input":{"text":"see @src/li","cursor":11},"output":{"kind":"path","query":"src/li","rangeStart":4,"rangeEnd":11}}
+{"fn":"trigger","input":{"text":"see @src/li","cursor":5},"output":{"kind":"path","query":"","rangeStart":4,"rangeEnd":5}}
+{"fn":"trigger","input":{"text":"see @src/li","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"see @src/li","cursor":999},"output":{"kind":"path","query":"src/li","rangeStart":4,"rangeEnd":11}}
+{"fn":"trigger","input":{"text":"@","cursor":1},"output":{"kind":"path","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"@","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"@","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"@","cursor":999},"output":{"kind":"path","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"a @b c","cursor":6},"output":null}
+{"fn":"trigger","input":{"text":"a @b c","cursor":3},"output":{"kind":"path","query":"","rangeStart":2,"rangeEnd":3}}
+{"fn":"trigger","input":{"text":"a @b c","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"a @b c","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"ping #123","cursor":9},"output":{"kind":"pull-request","query":"123","rangeStart":5,"rangeEnd":9}}
+{"fn":"trigger","input":{"text":"ping #123","cursor":4},"output":null}
+{"fn":"trigger","input":{"text":"ping #123","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"ping #123","cursor":999},"output":{"kind":"pull-request","query":"123","rangeStart":5,"rangeEnd":9}}
+{"fn":"trigger","input":{"text":"#","cursor":1},"output":{"kind":"pull-request","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"#","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"#","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"#","cursor":999},"output":{"kind":"pull-request","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"#a-b","cursor":4},"output":{"kind":"pull-request","query":"a-b","rangeStart":0,"rangeEnd":4}}
+{"fn":"trigger","input":{"text":"#a-b","cursor":2},"output":{"kind":"pull-request","query":"a","rangeStart":0,"rangeEnd":2}}
+{"fn":"trigger","input":{"text":"#a-b","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"#a-b","cursor":999},"output":{"kind":"pull-request","query":"a-b","rangeStart":0,"rangeEnd":4}}
+{"fn":"trigger","input":{"text":"use $deploy","cursor":11},"output":{"kind":"skill","query":"deploy","rangeStart":4,"rangeEnd":11}}
+{"fn":"trigger","input":{"text":"use $deploy","cursor":5},"output":{"kind":"skill","query":"","rangeStart":4,"rangeEnd":5}}
+{"fn":"trigger","input":{"text":"use $deploy","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"use $deploy","cursor":999},"output":{"kind":"skill","query":"deploy","rangeStart":4,"rangeEnd":11}}
+{"fn":"trigger","input":{"text":"$","cursor":1},"output":{"kind":"skill","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"$","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"$","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"$","cursor":999},"output":{"kind":"skill","query":"","rangeStart":0,"rangeEnd":1}}
+{"fn":"trigger","input":{"text":"€price","cursor":6},"output":{"kind":"skill","query":"price","rangeStart":0,"rangeEnd":6}}
+{"fn":"trigger","input":{"text":"€price","cursor":3},"output":{"kind":"skill","query":"pr","rangeStart":0,"rangeEnd":3}}
+{"fn":"trigger","input":{"text":"€price","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"€price","cursor":999},"output":{"kind":"skill","query":"price","rangeStart":0,"rangeEnd":6}}
+{"fn":"trigger","input":{"text":"text @a\nnext","cursor":12},"output":null}
+{"fn":"trigger","input":{"text":"text @a\nnext","cursor":6},"output":{"kind":"path","query":"","rangeStart":5,"rangeEnd":6}}
+{"fn":"trigger","input":{"text":"text @a\nnext","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"text @a\nnext","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"  /x","cursor":4},"output":null}
+{"fn":"trigger","input":{"text":"  /x","cursor":2},"output":null}
+{"fn":"trigger","input":{"text":"  /x","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"  /x","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"x/y","cursor":3},"output":null}
+{"fn":"trigger","input":{"text":"x/y","cursor":1},"output":null}
+{"fn":"trigger","input":{"text":"x/y","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"x/y","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"/plan\n@file","cursor":11},"output":{"kind":"path","query":"file","rangeStart":6,"rangeEnd":11}}
+{"fn":"trigger","input":{"text":"/plan\n@file","cursor":5},"output":{"kind":"slash-command","query":"plan","rangeStart":0,"rangeEnd":5}}
+{"fn":"trigger","input":{"text":"/plan\n@file","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"/plan\n@file","cursor":999},"output":{"kind":"path","query":"file","rangeStart":6,"rangeEnd":11}}
+{"fn":"trigger","input":{"text":"mail me@host","cursor":12},"output":null}
+{"fn":"trigger","input":{"text":"mail me@host","cursor":6},"output":null}
+{"fn":"trigger","input":{"text":"mail me@host","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"mail me@host","cursor":999},"output":null}
+{"fn":"trigger","input":{"text":"#12 and @path","cursor":13},"output":{"kind":"path","query":"path","rangeStart":8,"rangeEnd":13}}
+{"fn":"trigger","input":{"text":"#12 and @path","cursor":6},"output":null}
+{"fn":"trigger","input":{"text":"#12 and @path","cursor":0},"output":null}
+{"fn":"trigger","input":{"text":"#12 and @path","cursor":999},"output":{"kind":"path","query":"path","rangeStart":8,"rangeEnd":13}}
+{"fn":"slash","input":{"query":""},"output":["slash:model","slash:plan","slash:default","provider:compact","provider:review","provider:init","provider:model-config","skill:deploy-app","skill:review_pr"]}
+{"fn":"slash","input":{"query":"/"},"output":["slash:model","slash:plan","slash:default","provider:compact","provider:review","provider:init","provider:model-config","skill:deploy-app","skill:review_pr"]}
+{"fn":"slash","input":{"query":"m"},"output":["slash:model","provider:model-config","provider:compact","provider:init","slash:plan","slash:default"]}
+{"fn":"slash","input":{"query":"mod"},"output":["slash:model","provider:model-config","slash:plan","slash:default"]}
+{"fn":"slash","input":{"query":"/mod"},"output":["slash:model","provider:model-config","slash:plan","slash:default"]}
+{"fn":"slash","input":{"query":"plan"},"output":["slash:plan"]}
+{"fn":"slash","input":{"query":"pl"},"output":["slash:plan","skill:deploy-app"]}
+{"fn":"slash","input":{"query":"rev"},"output":["provider:review","skill:review_pr"]}
+{"fn":"slash","input":{"query":"review"},"output":["provider:review","skill:review_pr"]}
+{"fn":"slash","input":{"query":"comp"},"output":["provider:compact"]}
+{"fn":"slash","input":{"query":"cmp"},"output":["provider:compact"]}
+{"fn":"slash","input":{"query":"ini"},"output":["provider:init"]}
+{"fn":"slash","input":{"query":"xyz"},"output":[]}
+{"fn":"slash","input":{"query":"default"},"output":["slash:default"]}
+{"fn":"slash","input":{"query":"ship"},"output":["skill:deploy-app"]}
+{"fn":"slash","input":{"query":"deploy"},"output":["skill:deploy-app"]}
+{"fn":"slash","input":{"query":"skill"},"output":["skill:deploy-app","skill:review_pr"]}
+{"fn":"slash","input":{"query":"skill:dep"},"output":["skill:deploy-app"]}
+{"fn":"slash","input":{"query":"config"},"output":["provider:model-config"]}
+{"fn":"slash","input":{"query":"free context"},"output":["provider:compact"]}
+{"fn":"slash","input":{"query":"-config"},"output":["provider:model-config"]}
+{"fn":"slash","input":{"query":"pull"},"output":["skill:review_pr"]}
+{"fn":"slash","input":{"query":"PLAN"},"output":["slash:plan"]}
+{"fn":"slash","input":{"query":"  rev  "},"output":["provider:review","skill:review_pr"]}
+{"fn":"position","input":{"atStart":true},"output":["slash:model","slash:plan","slash:default","provider:compact","provider:review","provider:init","provider:model-config","skill:deploy-app","skill:review_pr"]}
+{"fn":"position","input":{"atStart":false},"output":["slash:model","slash:plan","slash:default","skill:deploy-app","skill:review_pr"]}
+{"fn":"skills","input":{"query":"","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/a","/b","/f"]}
+{"fn":"skills","input":{"query":"$","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/a","/b","/f"]}
+{"fn":"skills","input":{"query":"dep","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/a"]}
+{"fn":"skills","input":{"query":"$dep","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/a"]}
+{"fn":"skills","input":{"query":"ship","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/a"]}
+{"fn":"skills","input":{"query":"pr","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/b","/a"]}
+{"fn":"skills","input":{"query":"review","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/b"]}
+{"fn":"skills","input":{"query":"docs","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/f"]}
+{"fn":"skills","input":{"query":"hid","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":[]}
+{"fn":"skills","input":{"query":"xyz","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":[]}
+{"fn":"skills","input":{"query":"wd","skills":[{"name":"deploy-app","displayName":"Deploy App","shortDescription":"Ship to production","enabled":true,"path":"/a"},{"name":"review_pr","description":"Review a pull request thoroughly","scope":"personal","enabled":true,"path":"/b"},{"name":"Review_PR","enabled":true,"path":"/c"},{"name":"hidden","enabled":false,"path":"/d"},{"name":"reserved","enabled":true,"userInvocable":false,"path":"/e"},{"name":"write-docs","shortDescription":"Docs and READMEs","enabled":true,"path":"/f"}]},"output":["/f"]}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":""},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":""},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":""},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":""},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":""},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":""},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"  "},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"  "},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"  "},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"  "},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"  "},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"  "},"output":0}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"gpt"},"output":6}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"gpt"},"output":12}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"gpt"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"gpt"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"gpt"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"gpt"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"5.4"},"output":10}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"5.4"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"5.4"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"5.4"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"5.4"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"5.4"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"opus"},"output":10}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"opus"},"output":192}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"claude"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"claude"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"claude"},"output":11}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"claude"},"output":-11}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"claude"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"claude"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"claude son"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"claude son"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"claude son"},"output":279}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"claude son"},"output":21}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"claude son"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"claude son"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"codex personal"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"codex personal"},"output":72}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"codex personal"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"codex personal"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"codex personal"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"codex personal"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"openai"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"openai"},"output":10}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"openai"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"openai"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"openai"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"openai"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"deep"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"deep"},"output":277}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"deep"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"deep"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"deep"},"output":11}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"deep"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"dsc"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"dsc"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"dsc"},"output":244}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"dsc"},"output":195}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"dsc"},"output":138}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"dsc"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"co"},"output":25}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"co"},"output":25}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"co"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"co"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"co"},"output":40}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"co"},"output":10}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"cmp"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"cmp"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"cmp"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"cmp"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"cmp"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"cmp"},"output":111}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"composer 1"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"composer 1"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"composer 1"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"composer 1"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"composer 1"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"composer 1"},"output":35}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"xyz"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"xyz"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"xyz"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"xyz"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"xyz"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"xyz"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"GPT 5"},"output":20}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"GPT 5"},"output":36}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"GPT 5"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"GPT 5"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"GPT 5"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"GPT 5"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex","name":"GPT-5.4","shortName":"5.4"},"query":"sonnet opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"codex","providerDisplayName":"Codex Personal","name":"GPT-5.3 Codex","subProvider":"OpenAI"},"query":"sonnet opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Opus 4.1","shortName":"Opus"},"query":"sonnet opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"claudeAgent","providerDisplayName":"Claude","name":"Claude Sonnet 4.5","isFavorite":true},"query":"sonnet opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"opencode","providerDisplayName":"OpenCode","name":"deepseek-chat","subProvider":"DeepSeek"},"query":"sonnet opus"},"output":null}
+{"fn":"pickerScore","input":{"model":{"driverKind":"cursor","providerDisplayName":"Cursor","name":"Composer 1"},"query":"sonnet opus"},"output":null}

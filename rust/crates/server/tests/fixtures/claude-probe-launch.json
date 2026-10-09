@@ -1,0 +1,74 @@
+[
+  {
+    "input": {
+      "binaryPath": "/usr/local/bin/claude",
+      "cwd": "/tmp/workspace",
+      "environment": {
+        "PATH": "/usr/bin"
+      }
+    },
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--setting-sources=user,project,local",
+      "--strict-mcp-config",
+      "--permission-mode",
+      "default",
+      "--no-session-persistence",
+      "--settings",
+      "{\"disableAllHooks\":true}"
+    ],
+    "env": {
+      "PATH": "/usr/bin",
+      "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+      "CLAUDE_CODE_AUTO_CONNECT_IDE": "0",
+      "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "systemPrompt": [""]
+    }
+  },
+  {
+    "input": {
+      "binaryPath": "claude",
+      "cwd": "/tmp/workspace",
+      "environment": {
+        "PATH": "/bin",
+        "CLAUDE_CONFIG_DIR": "/home/u/.claude-work"
+      }
+    },
+    "args": [
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--input-format",
+      "stream-json",
+      "--setting-sources=user,project,local",
+      "--strict-mcp-config",
+      "--permission-mode",
+      "default",
+      "--no-session-persistence",
+      "--settings",
+      "{\"disableAllHooks\":true}"
+    ],
+    "env": {
+      "PATH": "/bin",
+      "CLAUDE_CONFIG_DIR": "/home/u/.claude-work",
+      "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+      "CLAUDE_CODE_AUTO_CONNECT_IDE": "0",
+      "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "sdk-ts",
+      "CLAUDE_AGENT_SDK_VERSION": "0.3.276"
+    },
+    "initialize": {
+      "subtype": "initialize",
+      "systemPrompt": [""]
+    }
+  }
+]

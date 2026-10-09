@@ -1,0 +1,178 @@
+[
+  {
+    "line": "Cloning into 'repo'...",
+    "parsed": null
+  },
+  {
+    "line": "remote: Enumerating objects: 1234, done.",
+    "parsed": {
+      "stage": "counting",
+      "percent": null,
+      "detail": null
+    }
+  },
+  {
+    "line": "remote: Counting objects:  45% (45/100)",
+    "parsed": {
+      "stage": "counting",
+      "percent": 45,
+      "detail": null
+    }
+  },
+  {
+    "line": "remote: Counting objects: 100% (100/100), done.",
+    "parsed": {
+      "stage": "counting",
+      "percent": 100,
+      "detail": null
+    }
+  },
+  {
+    "line": "remote: Compressing objects:  12% (3/25)",
+    "parsed": {
+      "stage": "counting",
+      "percent": 12,
+      "detail": null
+    }
+  },
+  {
+    "line": "remote: Compressing objects: 100% (25/25), done.",
+    "parsed": {
+      "stage": "counting",
+      "percent": 100,
+      "detail": null
+    }
+  },
+  {
+    "line": "Receiving objects:   0% (1/2000)",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 0,
+      "detail": null
+    }
+  },
+  {
+    "line": "Receiving objects:  45% (900/2000), 12.30 MiB | 5.00 MiB/s",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 45,
+      "detail": "12.30 MiB | 5.00 MiB/s"
+    }
+  },
+  {
+    "line": "Receiving objects: 100% (2000/2000), 40.00 MiB | 9.10 MiB/s, done.",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 100,
+      "detail": "40.00 MiB | 9.10 MiB/s"
+    }
+  },
+  {
+    "line": "Receiving objects: 100% (2000/2000), done.",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 100,
+      "detail": null
+    }
+  },
+  {
+    "line": "Resolving deltas:  50% (10/20)",
+    "parsed": {
+      "stage": "resolving",
+      "percent": 50,
+      "detail": null
+    }
+  },
+  {
+    "line": "Resolving deltas: 100% (20/20), done.",
+    "parsed": {
+      "stage": "resolving",
+      "percent": 100,
+      "detail": null
+    }
+  },
+  {
+    "line": "Updating files:  99% (990/1000)",
+    "parsed": {
+      "stage": "checkout",
+      "percent": 99,
+      "detail": null
+    }
+  },
+  {
+    "line": "Updating files: 100% (1000/1000), done.",
+    "parsed": {
+      "stage": "checkout",
+      "percent": 100,
+      "detail": null
+    }
+  },
+  {
+    "line": "Checking out files:  10% (1/10)",
+    "parsed": {
+      "stage": "checkout",
+      "percent": 10,
+      "detail": null
+    }
+  },
+  {
+    "line": "  Receiving objects:  7% (7/100)  ",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 7,
+      "detail": null
+    }
+  },
+  {
+    "line": "Receiving objects: 150% (3/2)",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 100,
+      "detail": null
+    }
+  },
+  {
+    "line": "Receiving objects: 100% (1/1), 1.00 KiB | 1.00 KiB/s, done.",
+    "parsed": {
+      "stage": "receiving",
+      "percent": 100,
+      "detail": "1.00 KiB | 1.00 KiB/s"
+    }
+  },
+  {
+    "line": "remote: Total 5 (delta 0), reused 0 (delta 0), pack-reused 0",
+    "parsed": null
+  },
+  {
+    "line": "fatal: repository 'x' not found",
+    "parsed": null
+  },
+  {
+    "line": "warning: You appear to have cloned an empty repository.",
+    "parsed": null
+  },
+  {
+    "line": "hint: something",
+    "parsed": null
+  },
+  {
+    "line": "",
+    "parsed": null
+  },
+  {
+    "line": "Receiving objects",
+    "parsed": {
+      "stage": "receiving",
+      "percent": null,
+      "detail": null
+    }
+  },
+  {
+    "line": "Receiving objects: abc",
+    "parsed": {
+      "stage": "receiving",
+      "percent": null,
+      "detail": null
+    }
+  }
+]

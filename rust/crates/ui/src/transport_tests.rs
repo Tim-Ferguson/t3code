@@ -6,7 +6,7 @@ use std::{cell::RefCell, rc::Rc, time::Duration};
 use t3_server::{
     auth::AuthService,
     persistence::Store as EventStore,
-    transport::{ApiState, router},
+    transport::ApiState,
 };
 
 pub(crate) async fn drive_future<F: std::future::Future>(
@@ -251,25 +251,25 @@ for line in sys.stdin:
     {
         buffer.apply(&serde_json::from_value(event).unwrap())
     }
-    let continuity_error = drive_future(&mut dom, "deferred-output-released-by-ACK", async {
-        loop {
-            let events = match held
-                .next()
-                .await
-                .expect("server stream ends with explicit continuity failure")
-            {
-                Ok(events) => events,
-                Err(error) => return Some(error),
-            };
-            for event in events {
-                buffer.apply(&serde_json::from_value(event).unwrap())
-            }
-            if t3_client::terminal_output::text(&buffer.output).contains("BURST_END") {
-                return None;
-            }
+    // The server queues up to 64 events behind the held consumer and releases one per ACK, so
+    // reaching the continuity error takes one ACK round trip per queued event (about 11 ms
+    // each: the socket thread sends an ACK between its 10 ms read timeouts). The wait is
+    // therefore bounded per event, not for the whole queue, whose length the test chose.
+    let continuity_error = loop {
+        let events = match drive_future(&mut dom, "next-event-released-by-ACK", held.next())
+            .await
+            .expect("server stream ends with explicit continuity failure")
+        {
+            Ok(events) => events,
+            Err(error) => break Some(error),
+        };
+        for event in events {
+            buffer.apply(&serde_json::from_value(event).unwrap())
         }
-    })
-    .await;
+        if t3_client::terminal_output::text(&buffer.output).contains("BURST_END") {
+            break None;
+        }
+    };
     if recover {
         assert!(
             continuity_error
@@ -331,9 +331,7 @@ for line in sys.stdin:
     drop(metadata);
     drop(witness);
     drop(dom);
-    terminals.shutdown().await;
-    server.abort();
-    let _ = server.await;
+    server.await;
 }
 
 #[derive(Clone)]
@@ -357,7 +355,18 @@ fn harness(props: Harness) -> Element {
             pair_and_connect(transport, state, address, credential).await;
         }
     });
-    rsx! {crate::Application {state,transport:props.transport}}
+    rsx! {ConfigConsumer {state} crate::Application {state,transport:props.transport}}
+}
+
+/// `drive_until` only re-checks its predicate when the dom has work, and a stream chunk that no
+/// mounted component reads schedules none: `wait_for_work` keeps polling the stream task inside
+/// its own await. The first config snapshot is such a chunk until a settings page mounts, so a
+/// wait on config state raced the snapshot against the last unrelated render (flaky
+/// "live-config-initial"). Mounting a reader models the consumer every real config wait has.
+#[component]
+fn ConfigConsumer(state: Store<UiModel>) -> Element {
+    let _ = state.config().read();
+    rsx! {}
 }
 
 async fn drive_until(
@@ -384,7 +393,7 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
+    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"threadPullRequests":true,"threadPullRequestLinking":true}});
     let config = json!({"environment":environment,"auth":auth.descriptor(),"cwd":directory.path().to_string_lossy(),"keybindingsConfigPath":"/isolated/keybindings.json","keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":[],"availableEditors":[],"observability":{"logsDirectoryPath":"/isolated/logs","localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false},"settings":t3_contracts::ServerSettings::default()});
     let _: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
     let api = ApiState {
@@ -410,13 +419,9 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
     api
 }
 
-pub(crate) async fn start_fixture(api: ApiState) -> (String, tokio::task::JoinHandle<()>) {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = format!("http://{}", listener.local_addr().unwrap());
-    let server = tokio::spawn(async move {
-        axum::serve(listener, router(api)).await.unwrap();
-    });
-    (address, server)
+/// Serves the API; see `fixture_server` for how it and its services are stopped.
+pub(crate) async fn start_fixture(api: ApiState) -> (String, crate::runtime::fixture_server::Server) {
+    crate::runtime::fixture_server::serve(api).await
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -591,8 +596,7 @@ async fn native_pairing_project_thread_stream_and_reconnect_keep_unsent_draft() 
     assert!(state.peek().draft.is_empty());
     assert!(props.transport.borrow().unary_waiters.is_empty());
     drop(dom);
-    server.abort();
-    let _ = server.await;
+    server.await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -651,8 +655,7 @@ async fn read_only_native_session_receives_updates_but_cannot_create_projects() 
         )
     });
     drop(dom);
-    server.abort();
-    let _ = server.await;
+    server.await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -709,8 +712,7 @@ async fn changed_saved_address_is_rejected_before_pairing_credential_is_consumed
         "credential must never have been sent to the changed saved address"
     );
     drop(dom);
-    server.abort();
-    let _ = server.await;
+    server.await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -723,7 +725,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         .unwrap();
     let rpc_record = directory.path().join("provider-rpc.jsonl");
     let settings: t3_contracts::ServerSettings = serde_json::from_value(
-        json!({"providerInstances":{"codex":{"driver":"codex","config":{"binaryPath":binary},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
+        json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
     )
     .unwrap();
     let native = t3_server::config::NativeConfig::from_settings(
@@ -854,10 +856,16 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
                     && row["item"]["exitCode"] == 0)
         );
     }
+    // Rows are closed until asked, so their output is neither built nor fetched. Both rows that
+    // withheld their output are opened, by the label they show, and loaded through the UI.
+    let withheld: Vec<String> = state.peek().thread.projection.as_ref().unwrap()["visibleTurnItems"].as_array().unwrap().iter().filter(|row| row["item"]["outputOmitted"] == true).map(|row| crate::item_cards::label(&row["item"])).collect();
+    assert_eq!(withheld.len(), 2, "{withheld:?}");
+    click_control(&mut dom, &withheld[0]);
     click_control(&mut dom, "Load full output");
     // Atomic initial-message launch includes a workspace preparation activity
     // before the provider command; both details are fetched through the UI.
     wait_for_rendered_text(&mut dom, "Workspace preparation completed.").await;
+    click_control(&mut dom, &withheld[1]);
     click_control(&mut dom, "Load full output");
     wait_for_rendered_text(&mut dom, "fixture tool output\n").await;
 
@@ -1012,7 +1020,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         "approval-required"
     );
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
-    change_control(&mut dom, "Model", "[\"codex\",\"fixture-model-alt\"]");
+    choose_model(&mut dom, "Codex · Fixture Alternate");
     assert_eq!(
         control(&dom, "Reasoning").unwrap().1.as_deref(),
         Some(""),
@@ -1314,8 +1322,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         forget_environment(&props.transport, state, &original_destination)
     });
     drop(dom);
-    server.abort();
-    execution.shutdown().await;
+    server.await;
 }
 fn pending_ui_requests(state: Store<UiModel>) -> t3_client::requests::PendingRequests {
     state
@@ -1350,11 +1357,23 @@ pub(crate) fn control(
 ) -> Option<(dioxus::dioxus_core::ElementId, Option<String>)> {
     control_attribute(dom, label, "value")
 }
-fn control_attribute(
+pub(crate) fn control_attribute(
     dom: &VirtualDom,
     label: &str,
     attribute_name: &str,
 ) -> Option<(dioxus::dioxus_core::ElementId, Option<String>)> {
+    all_controls_attribute(dom, label, attribute_name, true).into_iter().next()
+}
+/// Every mounted element with this accessible label, in document order.
+pub(crate) fn all_controls(dom: &VirtualDom, label: &str) -> Vec<dioxus::dioxus_core::ElementId> {
+    all_controls_attribute(dom, label, "value", false).into_iter().map(|(element, _)| element).collect()
+}
+fn all_controls_attribute(
+    dom: &VirtualDom,
+    label: &str,
+    attribute_name: &str,
+    first_only: bool,
+) -> Vec<(dioxus::dioxus_core::ElementId, Option<String>)> {
     use dioxus::dioxus_core::{
         AttributeValue, DynamicNode, TemplateAttribute, TemplateNode, VNode,
     };
@@ -1363,7 +1382,9 @@ fn control_attribute(
         node: &VNode,
         label: &str,
         attribute_name: &str,
-    ) -> Option<(dioxus::dioxus_core::ElementId, Option<String>)> {
+        first_only: bool,
+        found: &mut Vec<(dioxus::dioxus_core::ElementId, Option<String>)>,
+    ) {
         for (index, attributes) in node.dynamic_attrs.iter().enumerate() {
             let path = node.template.attr_paths[index];
             let mut template = &node.template.roots[usize::from(path[0])];
@@ -1377,51 +1398,64 @@ fn control_attribute(
                 continue;
             };
             let labeled=attrs.iter().any(|a|matches!(a,TemplateAttribute::Static {name:"aria-label",value,..} if *value==label)) || attributes.iter().any(|a|a.name=="aria-label" && matches!(&a.value,AttributeValue::Text(v) if v==label));
-            if labeled {
-                return Some((
-                    node.mounted_dynamic_attribute(index, dom)?,
-                    node.dynamic_attrs
-                        .iter()
-                        .enumerate()
-                        .filter(|(other, _)| node.template.attr_paths[*other] == path)
-                        .flat_map(|(_, attrs)| attrs.iter())
-                        .find_map(|a| match (&a.name, &a.value) {
-                            (name, AttributeValue::Text(v)) if *name == attribute_name => {
-                                Some(v.clone())
-                            }
-                            (name, AttributeValue::Bool(v)) if *name == attribute_name => {
-                                Some(v.to_string())
-                            }
-                            _ => None,
-                        }),
-                ));
+            // One element can carry several dynamic attributes; it is listed once.
+            let Some(element) = node.mounted_dynamic_attribute(index, dom).filter(|_| labeled) else {
+                continue;
+            };
+            if found.iter().any(|(existing, _)| *existing == element) {
+                continue;
+            }
+            found.push((
+                element,
+                node.dynamic_attrs
+                    .iter()
+                    .enumerate()
+                    .filter(|(other, _)| node.template.attr_paths[*other] == path)
+                    .flat_map(|(_, attrs)| attrs.iter())
+                    .find_map(|a| match (&a.name, &a.value) {
+                        (name, AttributeValue::Text(v)) if *name == attribute_name => {
+                            Some(v.clone())
+                        }
+                        (name, AttributeValue::Bool(v)) if *name == attribute_name => {
+                            Some(v.to_string())
+                        }
+                        _ => None,
+                    }),
+            ));
+            if first_only {
+                return;
             }
         }
         for (index, child) in node.dynamic_nodes.iter().enumerate() {
+            if first_only && !found.is_empty() {
+                return;
+            }
             match child {
                 DynamicNode::Component(component) => {
                     if let Some(scope) = component.mounted_scope(index, node, dom) {
-                        if let Some(found) = find(dom, scope.root_node(), label, attribute_name) {
-                            return Some(found);
-                        }
+                        find(dom, scope.root_node(), label, attribute_name, first_only, found);
                     }
                 }
                 DynamicNode::Fragment(nodes) => {
                     for node in nodes {
-                        if let Some(found) = find(dom, node, label, attribute_name) {
-                            return Some(found);
-                        }
+                        find(dom, node, label, attribute_name, first_only, found);
                     }
                 }
                 _ => {}
             }
         }
-        None
     }
-    find(dom, dom.base_scope().root_node(), label, attribute_name)
+    let mut found = Vec::new();
+    find(dom, dom.base_scope().root_node(), label, attribute_name, first_only, &mut found);
+    found
 }
 pub(crate) fn change_control(dom: &mut VirtualDom, label: &str, value: &str) {
     form_control_event(dom, label, value, "change");
+}
+/// Chooses a model the way a person does: opens the picker and picks the row with this label.
+pub(crate) fn choose_model(dom: &mut VirtualDom, label: &str) {
+    click_control(dom, "Model");
+    click_control(dom, label);
 }
 pub(crate) fn input_control(dom: &mut VirtualDom, label: &str, value: &str) {
     form_control_event(dom, label, value, "input");
@@ -1458,8 +1492,16 @@ fn blur_control(dom: &mut VirtualDom, label: &str, render: bool) {
     }
 }
 pub(crate) fn click_control(dom: &mut VirtualDom, label: &str) {
-    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
     let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    click_element(dom, element);
+}
+/// Clicks the `index`th element carrying this label, for rows that repeat a control.
+pub(crate) fn click_nth_control(dom: &mut VirtualDom, label: &str, index: usize) {
+    let element = *all_controls(dom, label).get(index).unwrap_or_else(|| panic!("missing control {label} #{index}"));
+    click_element(dom, element);
+}
+fn click_element(dom: &mut VirtualDom, element: dioxus::dioxus_core::ElementId) {
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
     let mouse: dioxus_html::SerializedMouseData = serde_json::from_value(
         serde_json::to_value(dioxus_html::point_interaction::SerializedPointInteraction::default())
             .unwrap(),
@@ -1899,9 +1941,9 @@ fn existing_thread_choices_restore_and_remain_owned_by_destination_and_thread() 
     change_control(&mut dom, "Permissions", "auto");
     input_control(&mut dom, "Message", "Owned existing text");
     // Switching away and back restores this model's own option snapshot.
-    change_control(&mut dom, "Model", "[\"codex\",\"other\"]");
+    choose_model(&mut dom, "Codex · Other model");
     assert!(control(&dom, "Reasoning").is_none());
-    change_control(&mut dom, "Model", "[\"codex\",\"model\"]");
+    choose_model(&mut dom, "Codex · Model");
     assert_eq!(
         control(&dom, "Reasoning").unwrap().1.as_deref(),
         Some("low")
@@ -2106,9 +2148,7 @@ async fn native_provider_settings_controls_mutate_one_instance_and_preserve_unkn
             .is_some()
     );
     drop(dom);
-    server.abort();
-    let _ = server.await;
-    service.shutdown().await;
+    server.await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -2165,9 +2205,7 @@ async fn native_provider_settings_same_destination_replacement_before_first_poll
     blur_control(&mut dom, "Executable", true);
     drive_until(&mut dom,state,"provider-settings-new-owner",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="new-connection-edit").await;
     drop(dom);
-    server.abort();
-    let _ = server.await;
-    service.shutdown().await;
+    server.await;
 }
 
 struct HeldProviderSettingsWrite {
@@ -2305,9 +2343,7 @@ async fn native_provider_settings_same_destination_replacement_during_receipt_re
     blur_control(&mut dom, "Executable", true);
     drive_until(&mut dom,state,"provider-settings-new-owner-after-receipt",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="new-owner-after-receipt").await;
     drop(dom);
-    server.abort();
-    let _ = server.await;
-    service.shutdown().await;
+    server.await;
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -2317,7 +2353,7 @@ async fn native_provider_settings_subscription_refreshes_delayed_registry_and_fe
     let (mut api, service) = provider_settings_fixture(&directory).await;
     let missing = directory.path().join("missing-codex-fixture");
     let mut settings = serde_json::to_value(service.snapshot().await.unwrap()).unwrap();
-    settings["providerInstances"]["codex"] = json!({"driver":"codex","enabled":true,"displayName":"Live status","config":{"binaryPath":missing}});
+    settings["providerInstances"]["codex"] = json!({"driver":"codex","enabled":true,"displayName":"Live status","config":{"binaryPath":missing,"homePath":directory.path().join("codex-home")}});
     service
         .update(
             serde_json::from_value(json!({"providerInstances":settings["providerInstances"]}))
@@ -2548,7 +2584,5 @@ async fn native_provider_settings_subscription_refreshes_delayed_registry_and_fe
             .contains_key(&"codex".parse().unwrap())
     );
     drop(dom);
-    server.abort();
-    let _ = server.await;
-    service.shutdown().await;
+    server.await;
 }

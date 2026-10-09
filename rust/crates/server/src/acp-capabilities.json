@@ -2,7 +2,7 @@
   "sessions": {
     "supportsMultipleProviderThreadsPerSession": false,
     "supportsModelSwitchInSession": false,
-    "supportsProviderSwitchingViaHandoff": true,
+    "supportsProviderSwitchingViaHandoff": false,
     "supportsRuntimeModeSwitchInSession": false,
     "pendingRequestsSurviveRestart": false
   },
@@ -68,15 +68,15 @@
     "acceptsSystemContext": false,
     "acceptsDeveloperContext": false,
     "acceptsSyntheticUserContext": true,
-    "canGenerateSummaries": true,
-    "canConsumeHandoffSummaries": true,
-    "supportsDeltaHandoff": true,
-    "supportsFullThreadHandoff": true,
+    "canGenerateSummaries": false,
+    "canConsumeHandoffSummaries": false,
+    "supportsDeltaHandoff": false,
+    "supportsFullThreadHandoff": false,
     "maxRecommendedHandoffChars": null
   },
   "checkpointing": {
     "appCanCheckpointFilesystem": true,
-    "supportsNestedCheckpointScopes": true,
+    "supportsNestedCheckpointScopes": false,
     "providerCanRollbackConversation": true,
     "providerRollbackReturnsSnapshot": true,
     "providerCanReadConversationSnapshot": false

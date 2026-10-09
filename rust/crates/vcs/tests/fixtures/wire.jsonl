@@ -1,0 +1,37 @@
+{"type":"freshness","json":{"source":"live-local","observedAt":"2024-01-02T03:04:05.678Z","expiresAt":{"_tag":"None"}}}
+{"type":"freshness","json":{"source":"cached-remote","observedAt":"2024-01-02T03:04:05.000Z","expiresAt":{"_tag":"Some","value":"2024-06-07T08:09:10.011Z"}}}
+{"type":"freshness","json":{"source":"explicit-remote","observedAt":"2024-01-02T03:04:05.100Z","expiresAt":{"_tag":"None"}}}
+{"type":"capabilities","json":{"kind":"git","supportsWorktrees":true,"supportsBookmarks":false,"supportsAtomicSnapshot":false,"supportsPushDefaultRemote":true,"ignoreClassifier":"native"}}
+{"type":"capabilities","json":{"kind":"jj","supportsWorktrees":false,"supportsBookmarks":true,"supportsAtomicSnapshot":true,"supportsPushDefaultRemote":false,"ignoreClassifier":"git-compatible-fallback"}}
+{"type":"repositoryIdentity","json":{"kind":"git","rootPath":"/repo","metadataPath":"/repo/.git","freshness":{"source":"live-local","observedAt":"2024-01-02T03:04:05.678Z","expiresAt":{"_tag":"None"}}}}
+{"type":"repositoryIdentity","json":{"kind":"unknown","rootPath":"/repo","metadataPath":null,"freshness":{"source":"live-local","observedAt":"2024-01-02T03:04:05.678Z","expiresAt":{"_tag":"None"}}}}
+{"type":"workspaceFiles","json":{"paths":["a.txt","dir/b é.txt"],"truncated":true,"freshness":{"source":"live-local","observedAt":"2024-01-02T03:04:05.678Z","expiresAt":{"_tag":"None"}}}}
+{"type":"remotes","json":{"remotes":[{"name":"origin","url":"https://example.com/a.git","pushUrl":{"_tag":"Some","value":"git@example.com:a.git"},"isPrimary":true},{"name":"fork","url":"https://example.com/b.git","pushUrl":{"_tag":"None"},"isPrimary":false}],"freshness":{"source":"live-local","observedAt":"2024-01-02T03:04:05.678Z","expiresAt":{"_tag":"None"}}}}
+{"type":"listRefsResult","json":{"refs":[{"name":"main","isRemote":false,"current":true,"isDefault":true,"worktreePath":"/repo"},{"name":"origin/main","isRemote":true,"remoteName":"origin","current":false,"isDefault":false,"worktreePath":null},{"name":"feature/x","isRemote":false,"current":false,"isDefault":false,"worktreePath":"/wt"},{"name":"lonely","isRemote":true,"current":false,"isDefault":false,"worktreePath":null}],"isRepo":true,"hasPrimaryRemote":true,"nextCursor":4,"totalCount":9}}
+{"type":"listRefsResult","json":{"refs":[],"isRepo":false,"hasPrimaryRemote":false,"nextCursor":null,"totalCount":0}}
+{"type":"pull","json":{"status":"pulled","refName":"main","upstreamRef":"origin/main"}}
+{"type":"pull","json":{"status":"skipped_up_to_date","refName":"main","upstreamRef":null}}
+{"type":"statusLocal","json":{"isRepo":true,"hasPrimaryRemote":true,"isDefaultRef":false,"refName":"feature/x","hasWorkingTreeChanges":true,"workingTree":{"files":[{"path":"a.txt","insertions":2,"deletions":1}],"insertions":2,"deletions":1}}}
+{"type":"statusLocal","json":{"isRepo":true,"hasPrimaryRemote":true,"isDefaultRef":false,"refName":null,"hasWorkingTreeChanges":true,"workingTree":{"files":[{"path":"a.txt","insertions":2,"deletions":1}],"insertions":2,"deletions":1},"branchChanges":{"baseRef":"origin/main","insertions":5,"deletions":3}}}
+{"type":"statusLocal","json":{"isRepo":true,"hasPrimaryRemote":true,"isDefaultRef":false,"refName":"feature/x","hasWorkingTreeChanges":true,"workingTree":{"files":[{"path":"a.txt","insertions":2,"deletions":1}],"insertions":2,"deletions":1},"branchChanges":{"baseRef":null,"insertions":0,"deletions":0}}}
+{"type":"statusRemote","json":{"hasUpstream":true,"aheadCount":1,"behindCount":2,"aheadOfDefaultCount":3,"pr":null}}
+{"type":"statusRemote","json":{"hasUpstream":false,"aheadCount":0,"behindCount":0,"pr":null}}
+{"type":"status","json":{"isRepo":true,"hasPrimaryRemote":true,"isDefaultRef":false,"refName":"feature/x","hasWorkingTreeChanges":true,"workingTree":{"files":[{"path":"a.txt","insertions":2,"deletions":1}],"insertions":2,"deletions":1},"hasUpstream":true,"aheadCount":1,"behindCount":0,"aheadOfDefaultCount":1,"pr":null}}
+{"type":"status","json":{"isRepo":true,"hasPrimaryRemote":true,"isDefaultRef":false,"refName":"feature/x","hasWorkingTreeChanges":true,"workingTree":{"files":[{"path":"a.txt","insertions":2,"deletions":1}],"insertions":2,"deletions":1},"branchChanges":{"baseRef":"main","insertions":1,"deletions":1},"hasUpstream":false,"aheadCount":0,"behindCount":0,"pr":null}}
+{"type":"reviewPreview","json":{"cwd":"/repo","generatedAt":"2024-01-02T03:04:05.678Z","sources":[{"id":"working-tree","kind":"working-tree","title":"Uncommitted","baseRef":"HEAD","headRef":null,"diff":"diff --git a/x b/x\n","diffHash":"abababababababababababababababababababababababababababababababab","truncated":false,"files":[{"path":"x","previousPath":null,"additions":1,"deletions":0},{"path":"new name","previousPath":"old name","additions":0,"deletions":0}]},{"id":"branch-range","kind":"branch-range","title":"Changes vs main","baseRef":"main","headRef":"feature/x","diff":"diff --git a/x b/x\n","diffHash":"abababababababababababababababababababababababababababababababab","truncated":true}]}}
+{"type":"reviewPreview","json":{"cwd":"/repo","generatedAt":"2024-01-02T03:04:05.000Z","sources":[]}}
+{"type":"reviewContents","json":{"oldContents":"old\n","newContents":""}}
+{"type":"listRefsInput","json":{"cwd":"/repo"}}
+{"type":"listRefsInput","json":{"cwd":"/repo","query":"feat","cursor":100,"includeMatchingRemoteRefs":true,"refKind":"remote","refresh":false,"limit":50}}
+{"type":"reviewPreviewInput","json":{"cwd":"/repo"}}
+{"type":"reviewPreviewInput","json":{"cwd":"/repo","baseRef":"main","ignoreWhitespace":true,"file":{"path":"a.txt","previousPath":null,"sourceKind":"branch-range"}}}
+{"type":"reviewPreviewInput","json":{"cwd":"/repo","file":{"path":"b.txt","previousPath":"a.txt","sourceKind":"working-tree"}}}
+{"type":"reviewContentsInput","json":{"cwd":"/repo","sourceKind":"working-tree","changeType":"change","baseRef":null,"headRef":null,"oldPath":"a","newPath":"b"}}
+{"type":"reviewContentsInput","json":{"cwd":"/repo","sourceKind":"working-tree","changeType":"rename-pure","baseRef":null,"headRef":null,"oldPath":"a","newPath":"b"}}
+{"type":"reviewContentsInput","json":{"cwd":"/repo","sourceKind":"working-tree","changeType":"rename-changed","baseRef":null,"headRef":null,"oldPath":"a","newPath":"b"}}
+{"type":"reviewContentsInput","json":{"cwd":"/repo","sourceKind":"working-tree","changeType":"new","baseRef":null,"headRef":null,"oldPath":"a","newPath":"b"}}
+{"type":"reviewContentsInput","json":{"cwd":"/repo","sourceKind":"working-tree","changeType":"deleted","baseRef":null,"headRef":null,"oldPath":"a","newPath":"b"}}
+{"type":"reviewContentsInput","json":{"cwd":"/repo","sourceKind":"branch-range","changeType":"change","baseRef":"main","headRef":"feature/x","oldPath":"a","newPath":"a"}}
+{"type":"gitCommandError","json":{"_tag":"GitCommandError","operation":"GitVcsDriver.x","command":"git","cwd":"/repo","detail":"d"}}
+{"type":"gitCommandError","json":{"_tag":"GitCommandError","operation":"GitVcsDriver.x","command":"git","cwd":"/repo","argumentCount":3,"exitCode":128,"stdoutLength":4,"stderrLength":5,"outputLength":6,"reason":"remote_unreachable","detail":"failed"}}
+{"type":"gitCommandError","json":{"_tag":"GitCommandError","operation":"GitVcsDriver.x","command":"git","cwd":"/repo","exitCode":-1,"reason":"not_a_repository","detail":"negative exit"}}

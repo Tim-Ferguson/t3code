@@ -17,6 +17,7 @@ if-addrs.workspace = true
 portable-pty.workspace = true
 t3-contracts.workspace = true
 t3-acp.workspace = true
+t3-vcs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
@@ -32,11 +33,14 @@ fff-search.workspace = true
 regex.workspace = true
 icu_collator.workspace = true
 icu_locale.workspace = true
+icu_normalizer = "2"
 unicode-segmentation = "1.12"
 hmac.workspace = true
 sha2.workspace = true
 base64.workspace = true
 rand.workspace = true
+# Named zones: usage buckets days in the zone the client names. Also drives the schedule fixtures.
+chrono-tz = { version = "0.10", default-features = false }
 
 [dev-dependencies]
 flate2.workspace = true

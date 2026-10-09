@@ -1,0 +1,61 @@
+{
+  "upstreamNullDereference": "vscode-oniguruma1.7.0/src/onig.cc159-161",
+  "observations": [
+    {
+      "pattern": [91],
+      "constructorRejected": false,
+      "firstFind": {
+        "index": 0,
+        "captureIndices": [
+          {
+            "start": 0,
+            "end": 0,
+            "length": 0
+          }
+        ]
+      }
+    },
+    {
+      "pattern": [40],
+      "constructorRejected": false,
+      "firstFind": {
+        "index": 0,
+        "captureIndices": [
+          {
+            "start": 0,
+            "end": 0,
+            "length": 0
+          }
+        ]
+      }
+    },
+    {
+      "pattern": [40, 63, 105, 110, 118, 97, 108, 105, 100, 41],
+      "constructorRejected": false,
+      "firstFind": {
+        "index": 0,
+        "captureIndices": [
+          {
+            "start": 0,
+            "end": 0,
+            "length": 0
+          }
+        ]
+      }
+    },
+    {
+      "pattern": [92, 107, 60, 109, 105, 115, 115, 105, 110, 103, 62],
+      "constructorRejected": false,
+      "firstFind": {
+        "index": 0,
+        "captureIndices": [
+          {
+            "start": 0,
+            "end": 0,
+            "length": 0
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1306,6 +1306,22 @@ pub struct PreparedRunFailCommand {
     pub run_id: RunId,
     pub failure: ProviderFailure,
 }
+/// Restore a thread to a checkpoint: the files, and the provider conversation when later turns
+/// exist. `restoreFiles: false` rewinds the conversation only.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckpointRollbackCommand {
+    pub command_id: CommandId,
+    pub thread_id: ThreadId,
+    pub scope_id: CheckpointScopeId,
+    pub checkpoint_id: CheckpointId,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional"
+    )]
+    pub restore_files: Option<bool>,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RunInterruptCommand {
@@ -1432,6 +1448,8 @@ pub enum ProviderCommand {
     RuntimeRequestRespond(RuntimeRequestRespondCommand),
     #[serde(rename = "thread.user-input.dismiss")]
     UserInputDismiss(UserInputDismissCommand),
+    #[serde(rename = "checkpoint.rollback")]
+    CheckpointRollback(CheckpointRollbackCommand),
 }
 
 impl Default for RuntimePolicyCapabilities {
@@ -1683,6 +1701,7 @@ impl ProviderCommand {
             Self::QueuedRunEdit(c) => &c.command_id,
             Self::RuntimeRequestRespond(c) => &c.command_id,
             Self::UserInputDismiss(c) => &c.command_id,
+            Self::CheckpointRollback(c) => &c.command_id,
         }
     }
     pub fn thread_id(&self) -> &ThreadId {
@@ -1701,6 +1720,7 @@ impl ProviderCommand {
             Self::QueuedRunEdit(c) => &c.thread_id,
             Self::RuntimeRequestRespond(c) => &c.thread_id,
             Self::UserInputDismiss(c) => &c.thread_id,
+            Self::CheckpointRollback(c) => &c.thread_id,
         }
     }
 }

@@ -1,0 +1,43 @@
+{"content":"{\"vcs\":{\"kind\":\"jj\"}}","kind":"jj","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"git\"}}","kind":"git","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"unknown\"}}","kind":"unknown","warned":false}
+{"content":"{\"vcsKind\":\"jj\"}","kind":"jj","warned":false}
+{"content":"{\"vcsKind\":\"git\"}","kind":"git","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"git\"},\"vcsKind\":\"jj\"}","kind":"git","warned":false}
+{"content":"{\"vcs\":{},\"vcsKind\":\"jj\"}","kind":"jj","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"bogus\"},\"vcsKind\":\"jj\"}","kind":"auto","warned":true}
+{"content":"{\"vcs\":{\"kind\":\"jj\"},\"vcsKind\":\"bogus\"}","kind":"auto","warned":true}
+{"content":"{\"vcsKind\":\"bogus\"}","kind":"auto","warned":true}
+{"content":"{\"vcs\":{\"kind\":\"auto\"}}","kind":"auto","warned":true}
+{"content":"{\"vcs\":{\"kind\":null}}","kind":"auto","warned":true}
+{"content":"{\"vcs\":null}","kind":"auto","warned":true}
+{"content":"{\"vcs\":[]}","kind":"auto","warned":true}
+{"content":"{\"vcs\":\"jj\"}","kind":"auto","warned":true}
+{"content":"{\"vcsKind\":null}","kind":"auto","warned":true}
+{"content":"{\"vcsKind\":1}","kind":"auto","warned":true}
+{"content":"{}","kind":"auto","warned":false}
+{"content":"[]","kind":"auto","warned":true}
+{"content":"\"jj\"","kind":"auto","warned":true}
+{"content":"7","kind":"auto","warned":true}
+{"content":"null","kind":"auto","warned":true}
+{"content":"","kind":"auto","warned":true}
+{"content":"   ","kind":"auto","warned":true}
+{"content":"{not json","kind":"auto","warned":true}
+{"content":"{\"vcs\":{\"kind\":\"jj\"}} trailing","kind":"auto","warned":true}
+{"content":"{\"vcs\":{\"kind\":\"jj\"},\"extra\":{\"a\":[1,2]}}","kind":"jj","warned":false}
+{"content":"// line comment\n{\"vcs\":{\"kind\":\"jj\"}}","kind":"jj","warned":false}
+{"content":"/* block\ncomment */{\"vcs\":{\"kind\":\"jj\"}}","kind":"jj","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"jj\",},}","kind":"jj","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"jj\"} , }","kind":"jj","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"jj\"}, // trailing comment\n}","kind":"jj","warned":false}
+{"content":"{\"note\":\"// not a comment, /* nor this */, ]\",\"vcs\":{\"kind\":\"jj\"}}","kind":"jj","warned":false}
+{"content":"{\"note\":\"a,]\",\"vcsKind\":\"git\"}","kind":"git","warned":false}
+{"content":"{\"note\":\"quote \\\" // still string\",\"vcsKind\":\"git\"}","kind":"git","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"jj\"}} // eof comment","kind":"jj","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"jj\"}} /* unterminated","kind":"auto","warned":true}
+{"content":"﻿{\"vcs\":{\"kind\":\"jj\"}}","kind":"jj","warned":false}
+{"content":"{\"vcsKind\":\"git\"}\n// c\n","kind":"git","warned":false}
+{"content":"{\"vcs\":{\"kind\":\"jj\"/*x*/}}","kind":"jj","warned":false}
+{"content":"{\"a\":[1,2,],\"vcsKind\":\"jj\"}","kind":"jj","warned":false}
+{"content":"{\"vcsKind\":\"j\\u006a\"}","kind":"jj","warned":false}
+{"content":"{'vcsKind':'jj'}","kind":"auto","warned":true}

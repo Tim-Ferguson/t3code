@@ -1,0 +1,2753 @@
+{
+  "version": 1,
+  "source": "@shikijs/langs@4.2.0",
+  "sha256": "27c98847fda7f4bafeba2b5f780f07dfde5a68069ef35316b73342c0bf2e01c7",
+  "languages": {
+    "abap": { "scope": "source.abap", "grammars": ["source.abap"] },
+    "actionscript-3": { "scope": "source.actionscript.3", "grammars": ["source.actionscript.3"] },
+    "ada": { "scope": "source.ada", "grammars": ["source.ada"] },
+    "angular-expression": { "scope": "expression.ng", "grammars": ["expression.ng"] },
+    "angular-html": {
+      "scope": "text.html.derivative.ng",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "expression.ng",
+        "expression.ng",
+        "template.let.ng",
+        "expression.ng",
+        "template.ng",
+        "expression.ng",
+        "expression.ng",
+        "template.ng",
+        "template.blocks.ng",
+        "text.html.derivative.ng"
+      ]
+    },
+    "angular-inline-style": {
+      "scope": "inline-styles.ng",
+      "grammars": ["source.css", "source.css.scss", "inline-styles.ng"]
+    },
+    "angular-inline-template": {
+      "scope": "inline-template.ng",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "expression.ng",
+        "expression.ng",
+        "template.let.ng",
+        "expression.ng",
+        "template.ng",
+        "expression.ng",
+        "expression.ng",
+        "template.ng",
+        "template.blocks.ng",
+        "text.html.derivative.ng",
+        "expression.ng",
+        "template.ng",
+        "inline-template.ng"
+      ]
+    },
+    "angular-let-declaration": {
+      "scope": "template.let.ng",
+      "grammars": ["expression.ng", "template.let.ng"]
+    },
+    "angular-template": { "scope": "template.ng", "grammars": ["expression.ng", "template.ng"] },
+    "angular-template-blocks": {
+      "scope": "template.blocks.ng",
+      "grammars": ["expression.ng", "expression.ng", "template.ng", "template.blocks.ng"]
+    },
+    "angular-ts": {
+      "scope": "source.ts.ng",
+      "grammars": [
+        "expression.ng",
+        "source.css",
+        "source.css.scss",
+        "inline-styles.ng",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "expression.ng",
+        "expression.ng",
+        "template.let.ng",
+        "expression.ng",
+        "template.ng",
+        "expression.ng",
+        "expression.ng",
+        "template.ng",
+        "template.blocks.ng",
+        "text.html.derivative.ng",
+        "expression.ng",
+        "template.ng",
+        "inline-template.ng",
+        "expression.ng",
+        "template.let.ng",
+        "expression.ng",
+        "template.ng",
+        "expression.ng",
+        "expression.ng",
+        "template.ng",
+        "template.blocks.ng",
+        "source.ts.ng"
+      ]
+    },
+    "apache": { "scope": "source.apacheconf", "grammars": ["source.apacheconf"] },
+    "apex": { "scope": "source.apex", "grammars": ["source.apex"] },
+    "apl": {
+      "scope": "source.apl",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.css",
+        "source.js",
+        "source.json",
+        "source.apl"
+      ]
+    },
+    "applescript": { "scope": "source.applescript", "grammars": ["source.applescript"] },
+    "ara": { "scope": "source.ara", "grammars": ["source.ara"] },
+    "asciidoc": { "scope": "text.asciidoc", "grammars": ["text.asciidoc"] },
+    "adoc": { "scope": "text.asciidoc", "grammars": ["text.asciidoc"] },
+    "asm": { "scope": "source.asm.x86_64", "grammars": ["source.asm.x86_64"] },
+    "astro": {
+      "scope": "source.astro",
+      "grammars": [
+        "source.json",
+        "source.js",
+        "source.ts",
+        "source.css",
+        "source.css.postcss",
+        "source.tsx",
+        "source.astro"
+      ]
+    },
+    "awk": { "scope": "source.awk", "grammars": ["source.awk"] },
+    "ballerina": { "scope": "source.ballerina", "grammars": ["source.ballerina"] },
+    "bat": { "scope": "source.batchfile", "grammars": ["source.batchfile"] },
+    "batch": { "scope": "source.batchfile", "grammars": ["source.batchfile"] },
+    "beancount": { "scope": "text.beancount", "grammars": ["text.beancount"] },
+    "berry": { "scope": "source.berry", "grammars": ["source.berry"] },
+    "be": { "scope": "source.berry", "grammars": ["source.berry"] },
+    "bibtex": { "scope": "text.bibtex", "grammars": ["text.bibtex"] },
+    "bicep": { "scope": "source.bicep", "grammars": ["source.bicep"] },
+    "bird2": { "scope": "source.bird2", "grammars": ["source.bird2"] },
+    "bird": { "scope": "source.bird2", "grammars": ["source.bird2"] },
+    "blade": {
+      "scope": "text.html.php.blade",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.html.derivative",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.json",
+        "source.css",
+        "text.html.php.blade"
+      ]
+    },
+    "bsl": { "scope": "source.bsl", "grammars": ["source.sdbl", "source.bsl"] },
+    "1c": { "scope": "source.bsl", "grammars": ["source.sdbl", "source.bsl"] },
+    "c": { "scope": "source.c", "grammars": ["source.c"] },
+    "c3": { "scope": "source.c3", "grammars": ["source.c3"] },
+    "cadence": { "scope": "source.cadence", "grammars": ["source.cadence"] },
+    "cdc": { "scope": "source.cadence", "grammars": ["source.cadence"] },
+    "cairo": { "scope": "source.cairo0", "grammars": ["source.python", "source.cairo0"] },
+    "clarity": { "scope": "source.clar", "grammars": ["source.clar"] },
+    "clojure": { "scope": "source.clojure", "grammars": ["source.clojure"] },
+    "clj": { "scope": "source.clojure", "grammars": ["source.clojure"] },
+    "cmake": { "scope": "source.cmake", "grammars": ["source.cmake"] },
+    "cobol": {
+      "scope": "source.cobol",
+      "grammars": ["source.js", "source.css", "text.html.basic", "source.java", "source.cobol"]
+    },
+    "codeowners": { "scope": "text.codeowners", "grammars": ["text.codeowners"] },
+    "codeql": { "scope": "source.ql", "grammars": ["source.ql"] },
+    "ql": { "scope": "source.ql", "grammars": ["source.ql"] },
+    "coffee": { "scope": "source.coffee", "grammars": ["source.js", "source.coffee"] },
+    "coffeescript": { "scope": "source.coffee", "grammars": ["source.js", "source.coffee"] },
+    "common-lisp": { "scope": "source.commonlisp", "grammars": ["source.commonlisp"] },
+    "lisp": { "scope": "source.commonlisp", "grammars": ["source.commonlisp"] },
+    "coq": { "scope": "source.coq", "grammars": ["source.coq"] },
+    "cpp": {
+      "scope": "source.cpp",
+      "grammars": [
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp"
+      ]
+    },
+    "c++": {
+      "scope": "source.cpp",
+      "grammars": [
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp"
+      ]
+    },
+    "cpp-macro": {
+      "scope": "source.cpp.embedded.macro",
+      "grammars": [
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro"
+      ]
+    },
+    "crystal": {
+      "scope": "source.crystal",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.sql",
+        "source.css",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.crystal"
+      ]
+    },
+    "csharp": { "scope": "source.cs", "grammars": ["source.cs"] },
+    "c#": { "scope": "source.cs", "grammars": ["source.cs"] },
+    "cs": { "scope": "source.cs", "grammars": ["source.cs"] },
+    "css": { "scope": "source.css", "grammars": ["source.css"] },
+    "csv": { "scope": "text.csv", "grammars": ["text.csv"] },
+    "cue": { "scope": "source.cue", "grammars": ["source.cue"] },
+    "cypher": { "scope": "source.cypher", "grammars": ["source.cypher"] },
+    "cql": { "scope": "source.cypher", "grammars": ["source.cypher"] },
+    "d": { "scope": "source.d", "grammars": ["source.d"] },
+    "dart": { "scope": "source.dart", "grammars": ["source.dart"] },
+    "dax": { "scope": "source.dax", "grammars": ["source.dax"] },
+    "desktop": { "scope": "source.desktop", "grammars": ["source.desktop"] },
+    "diff": { "scope": "source.diff", "grammars": ["source.diff"] },
+    "docker": { "scope": "source.dockerfile", "grammars": ["source.dockerfile"] },
+    "dockerfile": { "scope": "source.dockerfile", "grammars": ["source.dockerfile"] },
+    "dotenv": { "scope": "source.dotenv", "grammars": ["source.dotenv"] },
+    "dream-maker": { "scope": "source.dm", "grammars": ["source.dm"] },
+    "edge": {
+      "scope": "text.html.edge",
+      "grammars": [
+        "source.ts",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.html.derivative",
+        "text.html.edge"
+      ]
+    },
+    "elixir": {
+      "scope": "source.elixir",
+      "grammars": ["source.js", "source.css", "text.html.basic", "source.elixir"]
+    },
+    "elm": { "scope": "source.elm", "grammars": ["source.c", "source.glsl", "source.elm"] },
+    "emacs-lisp": { "scope": "source.emacs.lisp", "grammars": ["source.emacs.lisp"] },
+    "elisp": { "scope": "source.emacs.lisp", "grammars": ["source.emacs.lisp"] },
+    "erb": {
+      "scope": "text.html.erb",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.haml",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.css",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.c",
+        "source.lua",
+        "source.yaml",
+        "source.ruby",
+        "text.html.erb"
+      ]
+    },
+    "erlang": { "scope": "source.erlang", "grammars": ["text.html.markdown", "source.erlang"] },
+    "erl": { "scope": "source.erlang", "grammars": ["text.html.markdown", "source.erlang"] },
+    "es-tag-css": {
+      "scope": "inline.es6-css",
+      "grammars": ["source.ts", "source.css", "source.js", "inline.es6-css"]
+    },
+    "es-tag-glsl": {
+      "scope": "inline.es6-glsl",
+      "grammars": ["source.ts", "source.c", "source.glsl", "source.js", "inline.es6-glsl"]
+    },
+    "es-tag-html": {
+      "scope": "inline.es6-html",
+      "grammars": [
+        "source.ts",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "inline.es6-html"
+      ]
+    },
+    "es-tag-sql": {
+      "scope": "inline.tagged-template-sql",
+      "grammars": ["source.ts", "source.sql", "inline.tagged-template-sql"]
+    },
+    "es-tag-xml": {
+      "scope": "inline.es6-xml",
+      "grammars": ["source.java", "text.xml", "inline.es6-xml"]
+    },
+    "fennel": { "scope": "source.fnl", "grammars": ["source.fnl"] },
+    "fish": { "scope": "source.fish", "grammars": ["source.fish"] },
+    "fluent": { "scope": "source.ftl", "grammars": ["source.ftl"] },
+    "ftl": { "scope": "source.ftl", "grammars": ["source.ftl"] },
+    "fortran-fixed-form": {
+      "scope": "source.fortran.fixed",
+      "grammars": ["source.fortran.free", "source.fortran.fixed"]
+    },
+    "f": {
+      "scope": "source.fortran.fixed",
+      "grammars": ["source.fortran.free", "source.fortran.fixed"]
+    },
+    "for": {
+      "scope": "source.fortran.fixed",
+      "grammars": ["source.fortran.free", "source.fortran.fixed"]
+    },
+    "f77": {
+      "scope": "source.fortran.fixed",
+      "grammars": ["source.fortran.free", "source.fortran.fixed"]
+    },
+    "fortran-free-form": { "scope": "source.fortran.free", "grammars": ["source.fortran.free"] },
+    "f90": { "scope": "source.fortran.free", "grammars": ["source.fortran.free"] },
+    "f95": { "scope": "source.fortran.free", "grammars": ["source.fortran.free"] },
+    "f03": { "scope": "source.fortran.free", "grammars": ["source.fortran.free"] },
+    "f08": { "scope": "source.fortran.free", "grammars": ["source.fortran.free"] },
+    "f18": { "scope": "source.fortran.free", "grammars": ["source.fortran.free"] },
+    "fsharp": { "scope": "source.fsharp", "grammars": ["text.html.markdown", "source.fsharp"] },
+    "f#": { "scope": "source.fsharp", "grammars": ["text.html.markdown", "source.fsharp"] },
+    "fs": { "scope": "source.fsharp", "grammars": ["text.html.markdown", "source.fsharp"] },
+    "gdresource": {
+      "scope": "source.gdresource",
+      "grammars": ["source.gdshader", "source.gdscript", "source.gdresource"]
+    },
+    "tscn": {
+      "scope": "source.gdresource",
+      "grammars": ["source.gdshader", "source.gdscript", "source.gdresource"]
+    },
+    "tres": {
+      "scope": "source.gdresource",
+      "grammars": ["source.gdshader", "source.gdscript", "source.gdresource"]
+    },
+    "gdscript": { "scope": "source.gdscript", "grammars": ["source.gdscript"] },
+    "gd": { "scope": "source.gdscript", "grammars": ["source.gdscript"] },
+    "gdshader": { "scope": "source.gdshader", "grammars": ["source.gdshader"] },
+    "genie": { "scope": "source.genie", "grammars": ["source.genie"] },
+    "gherkin": { "scope": "text.gherkin.feature", "grammars": ["text.gherkin.feature"] },
+    "git-commit": { "scope": "text.git-commit", "grammars": ["source.diff", "text.git-commit"] },
+    "git-rebase": { "scope": "text.git-rebase", "grammars": ["source.shell", "text.git-rebase"] },
+    "gleam": { "scope": "source.gleam", "grammars": ["source.gleam"] },
+    "glimmer-js": {
+      "scope": "source.gjs",
+      "grammars": [
+        "source.js",
+        "source.ts",
+        "source.css",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.gjs"
+      ]
+    },
+    "gjs": {
+      "scope": "source.gjs",
+      "grammars": [
+        "source.js",
+        "source.ts",
+        "source.css",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.gjs"
+      ]
+    },
+    "glimmer-ts": {
+      "scope": "source.gts",
+      "grammars": [
+        "source.ts",
+        "source.css",
+        "source.js",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.gts"
+      ]
+    },
+    "gts": {
+      "scope": "source.gts",
+      "grammars": [
+        "source.ts",
+        "source.css",
+        "source.js",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.gts"
+      ]
+    },
+    "glsl": { "scope": "source.glsl", "grammars": ["source.c", "source.glsl"] },
+    "gn": { "scope": "source.gn", "grammars": ["source.gn"] },
+    "gnuplot": { "scope": "source.gnuplot", "grammars": ["source.gnuplot"] },
+    "go": { "scope": "source.go", "grammars": ["source.go"] },
+    "graphql": {
+      "scope": "source.graphql",
+      "grammars": ["source.js", "source.ts", "source.js.jsx", "source.tsx", "source.graphql"]
+    },
+    "gql": {
+      "scope": "source.graphql",
+      "grammars": ["source.js", "source.ts", "source.js.jsx", "source.tsx", "source.graphql"]
+    },
+    "groovy": { "scope": "source.groovy", "grammars": ["source.groovy"] },
+    "hack": {
+      "scope": "source.hack",
+      "grammars": ["source.js", "source.css", "text.html.basic", "source.sql", "source.hack"]
+    },
+    "haml": { "scope": "text.haml", "grammars": ["source.js", "source.css", "text.haml"] },
+    "handlebars": {
+      "scope": "text.html.handlebars",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.css",
+        "source.js",
+        "source.yaml",
+        "text.html.handlebars"
+      ]
+    },
+    "hbs": {
+      "scope": "text.html.handlebars",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.css",
+        "source.js",
+        "source.yaml",
+        "text.html.handlebars"
+      ]
+    },
+    "haskell": { "scope": "source.haskell", "grammars": ["source.haskell"] },
+    "hs": { "scope": "source.haskell", "grammars": ["source.haskell"] },
+    "haxe": { "scope": "source.hx", "grammars": ["source.hx"] },
+    "hcl": { "scope": "source.hcl", "grammars": ["source.hcl"] },
+    "hjson": { "scope": "source.hjson", "grammars": ["source.hjson"] },
+    "hlsl": { "scope": "source.hlsl", "grammars": ["source.hlsl"] },
+    "html": {
+      "scope": "text.html.basic",
+      "grammars": ["source.js", "source.css", "text.html.basic"]
+    },
+    "html-derivative": {
+      "scope": "text.html.derivative",
+      "grammars": ["source.js", "source.css", "text.html.basic", "text.html.derivative"]
+    },
+    "http": {
+      "scope": "source.http",
+      "grammars": [
+        "source.shell",
+        "source.json",
+        "source.java",
+        "text.xml",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.http"
+      ]
+    },
+    "hurl": {
+      "scope": "source.hurl",
+      "grammars": [
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.java",
+        "text.xml",
+        "text.csv",
+        "source.hurl"
+      ]
+    },
+    "hxml": { "scope": "source.hxml", "grammars": ["source.hx", "source.hxml"] },
+    "hy": { "scope": "source.hy", "grammars": ["source.hy"] },
+    "imba": { "scope": "source.imba", "grammars": ["source.imba"] },
+    "ini": { "scope": "source.ini", "grammars": ["source.ini"] },
+    "properties": { "scope": "source.ini", "grammars": ["source.ini"] },
+    "java": { "scope": "source.java", "grammars": ["source.java"] },
+    "javascript": { "scope": "source.js", "grammars": ["source.js"] },
+    "js": { "scope": "source.js", "grammars": ["source.js"] },
+    "cjs": { "scope": "source.js", "grammars": ["source.js"] },
+    "mjs": { "scope": "source.js", "grammars": ["source.js"] },
+    "jinja": {
+      "scope": "source.jinja",
+      "grammars": ["source.js", "source.css", "text.html.basic", "text.html.jinja", "source.jinja"]
+    },
+    "jinja-html": {
+      "scope": "text.html.jinja",
+      "grammars": ["source.js", "source.css", "text.html.basic", "text.html.jinja"]
+    },
+    "jison": { "scope": "source.jison", "grammars": ["source.js", "source.jison"] },
+    "json": { "scope": "source.json", "grammars": ["source.json"] },
+    "json5": { "scope": "source.json5", "grammars": ["source.json5"] },
+    "jsonc": { "scope": "source.json.comments", "grammars": ["source.json.comments"] },
+    "jsonl": { "scope": "source.json.lines", "grammars": ["source.json.lines"] },
+    "jsonnet": { "scope": "source.jsonnet", "grammars": ["source.jsonnet"] },
+    "jssm": { "scope": "source.jssm", "grammars": ["source.jssm"] },
+    "fsl": { "scope": "source.jssm", "grammars": ["source.jssm"] },
+    "jsx": { "scope": "source.js.jsx", "grammars": ["source.js.jsx"] },
+    "julia": {
+      "scope": "source.julia",
+      "grammars": [
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.python",
+        "source.js",
+        "source.r",
+        "source.sql",
+        "source.julia"
+      ]
+    },
+    "jl": {
+      "scope": "source.julia",
+      "grammars": [
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.python",
+        "source.js",
+        "source.r",
+        "source.sql",
+        "source.julia"
+      ]
+    },
+    "just": {
+      "scope": "source.just",
+      "grammars": [
+        "source.shell",
+        "source.js",
+        "source.ts",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.css",
+        "source.js",
+        "source.sql",
+        "source.perl",
+        "source.python",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.haml",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.css",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.c",
+        "source.lua",
+        "source.yaml",
+        "source.ruby",
+        "source.just"
+      ]
+    },
+    "kdl": { "scope": "source.kdl", "grammars": ["source.kdl"] },
+    "kotlin": { "scope": "source.kotlin", "grammars": ["source.kotlin"] },
+    "kt": { "scope": "source.kotlin", "grammars": ["source.kotlin"] },
+    "kts": { "scope": "source.kotlin", "grammars": ["source.kotlin"] },
+    "kusto": { "scope": "source.kusto", "grammars": ["source.kusto"] },
+    "kql": { "scope": "source.kusto", "grammars": ["source.kusto"] },
+    "latex": { "scope": "text.tex.latex", "grammars": ["source.r", "text.tex", "text.tex.latex"] },
+    "lean": { "scope": "source.lean4", "grammars": ["source.lean4"] },
+    "lean4": { "scope": "source.lean4", "grammars": ["source.lean4"] },
+    "less": { "scope": "source.css.less", "grammars": ["source.css.less"] },
+    "liquid": {
+      "scope": "text.html.liquid",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.css",
+        "source.json",
+        "source.js",
+        "text.html.liquid"
+      ]
+    },
+    "llvm": { "scope": "source.llvm", "grammars": ["source.llvm"] },
+    "log": { "scope": "text.log", "grammars": ["text.log"] },
+    "logo": { "scope": "source.logo", "grammars": ["source.logo"] },
+    "lua": { "scope": "source.lua", "grammars": ["source.c", "source.lua"] },
+    "luau": { "scope": "source.luau", "grammars": ["source.luau"] },
+    "make": { "scope": "source.makefile", "grammars": ["source.makefile"] },
+    "makefile": { "scope": "source.makefile", "grammars": ["source.makefile"] },
+    "markdown": { "scope": "text.html.markdown", "grammars": ["text.html.markdown"] },
+    "md": { "scope": "text.html.markdown", "grammars": ["text.html.markdown"] },
+    "markdown-nix": { "scope": "markdown.nix.codeblock", "grammars": ["markdown.nix.codeblock"] },
+    "markdown-vue": { "scope": "markdown.vue.codeblock", "grammars": ["markdown.vue.codeblock"] },
+    "marko": {
+      "scope": "text.marko",
+      "grammars": [
+        "source.css",
+        "source.css.less",
+        "source.css",
+        "source.css.scss",
+        "source.ts",
+        "text.marko"
+      ]
+    },
+    "matlab": { "scope": "source.matlab", "grammars": ["source.matlab"] },
+    "mdc": {
+      "scope": "text.markdown.mdc.standalone",
+      "grammars": [
+        "text.html.markdown",
+        "source.yaml",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.html.derivative",
+        "text.markdown.mdc.standalone"
+      ]
+    },
+    "mdx": { "scope": "source.mdx", "grammars": ["source.mdx"] },
+    "mermaid": {
+      "scope": "markdown.mermaid.codeblock",
+      "grammars": ["markdown.mermaid.codeblock"]
+    },
+    "mmd": { "scope": "markdown.mermaid.codeblock", "grammars": ["markdown.mermaid.codeblock"] },
+    "mipsasm": { "scope": "source.mips", "grammars": ["source.mips"] },
+    "mips": { "scope": "source.mips", "grammars": ["source.mips"] },
+    "mojo": { "scope": "source.mojo", "grammars": ["source.mojo"] },
+    "moonbit": { "scope": "source.moonbit", "grammars": ["source.moonbit"] },
+    "mbt": { "scope": "source.moonbit", "grammars": ["source.moonbit"] },
+    "mbti": { "scope": "source.moonbit", "grammars": ["source.moonbit"] },
+    "move": { "scope": "source.move", "grammars": ["source.move"] },
+    "narrat": { "scope": "source.narrat", "grammars": ["source.narrat"] },
+    "nar": { "scope": "source.narrat", "grammars": ["source.narrat"] },
+    "nextflow": {
+      "scope": "source.nextflow",
+      "grammars": ["source.nextflow-groovy", "source.nextflow"]
+    },
+    "nf": { "scope": "source.nextflow", "grammars": ["source.nextflow-groovy", "source.nextflow"] },
+    "nextflow-groovy": {
+      "scope": "source.nextflow-groovy",
+      "grammars": ["source.nextflow-groovy"]
+    },
+    "nginx": { "scope": "source.nginx", "grammars": ["source.c", "source.lua", "source.nginx"] },
+    "nim": {
+      "scope": "source.nim",
+      "grammars": [
+        "source.c",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.js",
+        "source.css",
+        "source.c",
+        "source.glsl",
+        "text.html.markdown",
+        "source.nim"
+      ]
+    },
+    "nix": { "scope": "source.nix", "grammars": ["markdown.nix.codeblock", "source.nix"] },
+    "nushell": { "scope": "source.nushell", "grammars": ["source.nushell"] },
+    "nu": { "scope": "source.nushell", "grammars": ["source.nushell"] },
+    "objective-c": { "scope": "source.objc", "grammars": ["source.objc"] },
+    "objc": { "scope": "source.objc", "grammars": ["source.objc"] },
+    "objective-cpp": { "scope": "source.objcpp", "grammars": ["source.objcpp"] },
+    "ocaml": { "scope": "source.ocaml", "grammars": ["source.ocaml"] },
+    "odin": { "scope": "source.odin", "grammars": ["source.odin"] },
+    "openscad": { "scope": "source.scad", "grammars": ["source.scad"] },
+    "scad": { "scope": "source.scad", "grammars": ["source.scad"] },
+    "pascal": { "scope": "source.pascal", "grammars": ["source.pascal"] },
+    "perl": {
+      "scope": "source.perl",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.css",
+        "source.js",
+        "source.sql",
+        "source.perl"
+      ]
+    },
+    "php": {
+      "scope": "source.php",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.json",
+        "source.css",
+        "source.php"
+      ]
+    },
+    "pkl": { "scope": "source.pkl", "grammars": ["source.pkl"] },
+    "plsql": { "scope": "source.plsql.oracle", "grammars": ["source.plsql.oracle"] },
+    "po": { "scope": "source.po", "grammars": ["source.po"] },
+    "pot": { "scope": "source.po", "grammars": ["source.po"] },
+    "potx": { "scope": "source.po", "grammars": ["source.po"] },
+    "polar": { "scope": "source.polar", "grammars": ["source.polar"] },
+    "postcss": { "scope": "source.css.postcss", "grammars": ["source.css.postcss"] },
+    "powerquery": { "scope": "source.powerquery", "grammars": ["source.powerquery"] },
+    "powershell": { "scope": "source.powershell", "grammars": ["source.powershell"] },
+    "ps": { "scope": "source.powershell", "grammars": ["source.powershell"] },
+    "ps1": { "scope": "source.powershell", "grammars": ["source.powershell"] },
+    "prisma": { "scope": "source.prisma", "grammars": ["source.prisma"] },
+    "prolog": { "scope": "source.prolog", "grammars": ["source.prolog"] },
+    "proto": { "scope": "source.proto", "grammars": ["source.proto"] },
+    "protobuf": { "scope": "source.proto", "grammars": ["source.proto"] },
+    "pug": {
+      "scope": "text.pug",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.pug"
+      ]
+    },
+    "jade": {
+      "scope": "text.pug",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.pug"
+      ]
+    },
+    "puppet": { "scope": "source.puppet", "grammars": ["source.puppet"] },
+    "purescript": { "scope": "source.purescript", "grammars": ["source.purescript"] },
+    "python": { "scope": "source.python", "grammars": ["source.python"] },
+    "py": { "scope": "source.python", "grammars": ["source.python"] },
+    "qml": { "scope": "source.qml", "grammars": ["source.js", "source.qml"] },
+    "qmldir": { "scope": "source.qmldir", "grammars": ["source.qmldir"] },
+    "qss": { "scope": "source.qss", "grammars": ["source.qss"] },
+    "r": { "scope": "source.r", "grammars": ["source.r"] },
+    "racket": { "scope": "source.racket", "grammars": ["source.racket"] },
+    "raku": { "scope": "source.perl.6", "grammars": ["source.perl.6"] },
+    "perl6": { "scope": "source.perl.6", "grammars": ["source.perl.6"] },
+    "razor": {
+      "scope": "text.aspnetcorerazor",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.cs",
+        "text.aspnetcorerazor"
+      ]
+    },
+    "reg": { "scope": "source.reg", "grammars": ["source.reg"] },
+    "regexp": { "scope": "source.regexp.python", "grammars": ["source.regexp.python"] },
+    "regex": { "scope": "source.regexp.python", "grammars": ["source.regexp.python"] },
+    "rel": { "scope": "source.rel", "grammars": ["source.rel"] },
+    "riscv": { "scope": "source.riscv", "grammars": ["source.riscv"] },
+    "ron": { "scope": "source.ron", "grammars": ["source.ron"] },
+    "rosmsg": { "scope": "source.rosmsg", "grammars": ["source.rosmsg"] },
+    "rst": {
+      "scope": "source.rst",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.html.derivative",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.python",
+        "source.js",
+        "source.shell",
+        "source.yaml",
+        "source.cmake",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.haml",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.css",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.c",
+        "source.lua",
+        "source.yaml",
+        "source.ruby",
+        "source.rst"
+      ]
+    },
+    "ruby": {
+      "scope": "source.ruby",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.haml",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.css",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.c",
+        "source.lua",
+        "source.yaml",
+        "source.ruby"
+      ]
+    },
+    "rb": {
+      "scope": "source.ruby",
+      "grammars": [
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.haml",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.css",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.c",
+        "source.lua",
+        "source.yaml",
+        "source.ruby"
+      ]
+    },
+    "rust": { "scope": "source.rust", "grammars": ["source.rust"] },
+    "rs": { "scope": "source.rust", "grammars": ["source.rust"] },
+    "sas": { "scope": "source.sas", "grammars": ["source.sql", "source.sas"] },
+    "sass": { "scope": "source.sass", "grammars": ["source.sass"] },
+    "scala": { "scope": "source.scala", "grammars": ["source.scala"] },
+    "scheme": { "scope": "source.scheme", "grammars": ["source.scheme"] },
+    "scss": { "scope": "source.css.scss", "grammars": ["source.css", "source.css.scss"] },
+    "sdbl": { "scope": "source.sdbl", "grammars": ["source.sdbl"] },
+    "1c-query": { "scope": "source.sdbl", "grammars": ["source.sdbl"] },
+    "shaderlab": { "scope": "source.shaderlab", "grammars": ["source.hlsl", "source.shaderlab"] },
+    "shader": { "scope": "source.shaderlab", "grammars": ["source.hlsl", "source.shaderlab"] },
+    "shellscript": { "scope": "source.shell", "grammars": ["source.shell"] },
+    "bash": { "scope": "source.shell", "grammars": ["source.shell"] },
+    "sh": { "scope": "source.shell", "grammars": ["source.shell"] },
+    "shell": { "scope": "source.shell", "grammars": ["source.shell"] },
+    "zsh": { "scope": "source.shell", "grammars": ["source.shell"] },
+    "shellsession": {
+      "scope": "text.shell-session",
+      "grammars": ["source.shell", "text.shell-session"]
+    },
+    "console": {
+      "scope": "text.shell-session",
+      "grammars": ["source.shell", "text.shell-session"]
+    },
+    "smalltalk": { "scope": "source.smalltalk", "grammars": ["source.smalltalk"] },
+    "solidity": { "scope": "source.solidity", "grammars": ["source.solidity"] },
+    "soy": {
+      "scope": "text.html.soy",
+      "grammars": ["source.js", "source.css", "text.html.basic", "text.html.soy"]
+    },
+    "closure-templates": {
+      "scope": "text.html.soy",
+      "grammars": ["source.js", "source.css", "text.html.basic", "text.html.soy"]
+    },
+    "sparql": { "scope": "source.sparql", "grammars": ["source.turtle", "source.sparql"] },
+    "splunk": { "scope": "source.splunk_search", "grammars": ["source.splunk_search"] },
+    "spl": { "scope": "source.splunk_search", "grammars": ["source.splunk_search"] },
+    "sql": { "scope": "source.sql", "grammars": ["source.sql"] },
+    "ssh-config": { "scope": "source.ssh-config", "grammars": ["source.ssh-config"] },
+    "stata": { "scope": "source.stata", "grammars": ["source.sql", "source.stata"] },
+    "stylus": { "scope": "source.stylus", "grammars": ["source.stylus"] },
+    "styl": { "scope": "source.stylus", "grammars": ["source.stylus"] },
+    "surrealql": { "scope": "source.surrealql", "grammars": ["source.js", "source.surrealql"] },
+    "surql": { "scope": "source.surrealql", "grammars": ["source.js", "source.surrealql"] },
+    "svelte": {
+      "scope": "source.svelte",
+      "grammars": ["source.js", "source.ts", "source.css", "source.css.postcss", "source.svelte"]
+    },
+    "swift": { "scope": "source.swift", "grammars": ["source.swift"] },
+    "system-verilog": { "scope": "source.systemverilog", "grammars": ["source.systemverilog"] },
+    "systemd": { "scope": "source.systemd", "grammars": ["source.systemd"] },
+    "talonscript": { "scope": "source.talon", "grammars": ["source.talon"] },
+    "talon": { "scope": "source.talon", "grammars": ["source.talon"] },
+    "tasl": { "scope": "source.tasl", "grammars": ["source.tasl"] },
+    "tcl": { "scope": "source.tcl", "grammars": ["source.tcl"] },
+    "templ": {
+      "scope": "source.templ",
+      "grammars": ["source.go", "source.js", "source.css", "source.templ"]
+    },
+    "terraform": { "scope": "source.hcl.terraform", "grammars": ["source.hcl.terraform"] },
+    "tf": { "scope": "source.hcl.terraform", "grammars": ["source.hcl.terraform"] },
+    "tfvars": { "scope": "source.hcl.terraform", "grammars": ["source.hcl.terraform"] },
+    "tex": { "scope": "text.tex", "grammars": ["source.r", "text.tex"] },
+    "toml": { "scope": "source.toml", "grammars": ["source.toml"] },
+    "ts-tags": {
+      "scope": "source.ts.tags",
+      "grammars": [
+        "source.ts",
+        "source.ts",
+        "source.css",
+        "source.js",
+        "inline.es6-css",
+        "source.ts",
+        "source.c",
+        "source.glsl",
+        "source.js",
+        "inline.es6-glsl",
+        "source.ts",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "inline.es6-html",
+        "source.ts",
+        "source.sql",
+        "inline.tagged-template-sql",
+        "source.java",
+        "text.xml",
+        "inline.es6-xml",
+        "source.ts.tags"
+      ]
+    },
+    "lit": {
+      "scope": "source.ts.tags",
+      "grammars": [
+        "source.ts",
+        "source.ts",
+        "source.css",
+        "source.js",
+        "inline.es6-css",
+        "source.ts",
+        "source.c",
+        "source.glsl",
+        "source.js",
+        "inline.es6-glsl",
+        "source.ts",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "inline.es6-html",
+        "source.ts",
+        "source.sql",
+        "inline.tagged-template-sql",
+        "source.java",
+        "text.xml",
+        "inline.es6-xml",
+        "source.ts.tags"
+      ]
+    },
+    "tsv": { "scope": "text.tsv", "grammars": ["text.tsv"] },
+    "tsx": { "scope": "source.tsx", "grammars": ["source.tsx"] },
+    "turtle": { "scope": "source.turtle", "grammars": ["source.turtle"] },
+    "twig": {
+      "scope": "text.html.twig",
+      "grammars": [
+        "source.css",
+        "source.js",
+        "source.css",
+        "source.css.scss",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.json",
+        "source.css",
+        "source.php",
+        "source.python",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.haml",
+        "source.java",
+        "text.xml",
+        "source.sql",
+        "source.js",
+        "source.ts",
+        "source.js.jsx",
+        "source.tsx",
+        "source.graphql",
+        "source.css",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp.embedded.macro",
+        "source.regexp.python",
+        "source.c",
+        "source.glsl",
+        "source.sql",
+        "source.cpp",
+        "source.c",
+        "source.js",
+        "source.shell",
+        "source.c",
+        "source.lua",
+        "source.yaml",
+        "source.ruby",
+        "text.html.twig"
+      ]
+    },
+    "typescript": { "scope": "source.ts", "grammars": ["source.ts"] },
+    "ts": { "scope": "source.ts", "grammars": ["source.ts"] },
+    "cts": { "scope": "source.ts", "grammars": ["source.ts"] },
+    "mts": { "scope": "source.ts", "grammars": ["source.ts"] },
+    "typespec": { "scope": "source.tsp", "grammars": ["source.tsp"] },
+    "tsp": { "scope": "source.tsp", "grammars": ["source.tsp"] },
+    "typst": { "scope": "source.typst", "grammars": ["source.typst"] },
+    "typ": { "scope": "source.typst", "grammars": ["source.typst"] },
+    "v": { "scope": "source.v", "grammars": ["source.v"] },
+    "vala": { "scope": "source.vala", "grammars": ["source.vala"] },
+    "vb": { "scope": "source.asp.vb.net", "grammars": ["source.asp.vb.net"] },
+    "cmd": { "scope": "source.asp.vb.net", "grammars": ["source.asp.vb.net"] },
+    "verilog": { "scope": "source.verilog", "grammars": ["source.verilog"] },
+    "vhdl": { "scope": "source.vhdl", "grammars": ["source.vhdl"] },
+    "viml": { "scope": "source.viml", "grammars": ["source.viml"] },
+    "vim": { "scope": "source.viml", "grammars": ["source.viml"] },
+    "vimscript": { "scope": "source.viml", "grammars": ["source.viml"] },
+    "vue": {
+      "scope": "text.html.vue",
+      "grammars": [
+        "source.css",
+        "source.js",
+        "source.ts",
+        "source.json",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "source.js",
+        "source.css",
+        "text.html.basic",
+        "text.html.derivative",
+        "markdown.vue.codeblock",
+        "vue.directives",
+        "vue.interpolations",
+        "source.js",
+        "vue.sfc.style.variable.injection",
+        "text.html.vue"
+      ]
+    },
+    "vue-directives": { "scope": "vue.directives", "grammars": ["vue.directives"] },
+    "vue-html": { "scope": "text.html.vue-html", "grammars": ["source.js", "text.html.vue-html"] },
+    "vue-interpolations": { "scope": "vue.interpolations", "grammars": ["vue.interpolations"] },
+    "vue-sfc-style-variable-injection": {
+      "scope": "vue.sfc.style.variable.injection",
+      "grammars": ["source.js", "vue.sfc.style.variable.injection"]
+    },
+    "vue-vine": {
+      "scope": "source.vue-vine",
+      "grammars": [
+        "source.css",
+        "source.css",
+        "source.css.scss",
+        "source.css.less",
+        "source.stylus",
+        "source.css.postcss",
+        "source.js",
+        "source.vue-vine"
+      ]
+    },
+    "vyper": { "scope": "source.vyper", "grammars": ["source.vyper"] },
+    "vy": { "scope": "source.vyper", "grammars": ["source.vyper"] },
+    "wasm": { "scope": "source.wat", "grammars": ["source.wat"] },
+    "wenyan": { "scope": "source.wenyan", "grammars": ["source.wenyan"] },
+    "文言": { "scope": "source.wenyan", "grammars": ["source.wenyan"] },
+    "wgsl": { "scope": "source.wgsl", "grammars": ["source.wgsl"] },
+    "wikitext": { "scope": "source.wikitext", "grammars": ["source.wikitext"] },
+    "mediawiki": { "scope": "source.wikitext", "grammars": ["source.wikitext"] },
+    "wiki": { "scope": "source.wikitext", "grammars": ["source.wikitext"] },
+    "wit": { "scope": "source.wit", "grammars": ["source.wit"] },
+    "wolfram": { "scope": "source.wolfram", "grammars": ["source.wolfram"] },
+    "wl": { "scope": "source.wolfram", "grammars": ["source.wolfram"] },
+    "xml": { "scope": "text.xml", "grammars": ["source.java", "text.xml"] },
+    "xsl": { "scope": "text.xml.xsl", "grammars": ["source.java", "text.xml", "text.xml.xsl"] },
+    "yaml": { "scope": "source.yaml", "grammars": ["source.yaml"] },
+    "yml": { "scope": "source.yaml", "grammars": ["source.yaml"] },
+    "zenscript": { "scope": "source.zenscript", "grammars": ["source.zenscript"] },
+    "zig": { "scope": "source.zig", "grammars": ["source.zig"] }
+  },
+  "scopes": {
+    "expression.ng": {
+      "offset": 0,
+      "length": 2983,
+      "bytes": 18243,
+      "sha256": "cbdd6a304c9b8dad5854bb692e1369fb84effd4866d0ac18a4ca65aa6344d3c5"
+    },
+    "inline-styles.ng": {
+      "offset": 2983,
+      "length": 439,
+      "bytes": 1221,
+      "sha256": "58d4862133d2f3e3f9cc716e19cfffca5e0e5c5190ab1b6da1ce1b9ba2c1bd1d"
+    },
+    "inline-template.ng": {
+      "offset": 3422,
+      "length": 410,
+      "bytes": 1022,
+      "sha256": "4c9cd4e82e8953ad8d9d257699dbde6c5807c516841714da415d24bcde604bf7"
+    },
+    "inline.es6-css": {
+      "offset": 3832,
+      "length": 545,
+      "bytes": 1738,
+      "sha256": "4a6eff0c303626f2e8b4240ac457211a666c579b164afae75d82eb33ceccdbce"
+    },
+    "inline.es6-glsl": {
+      "offset": 4377,
+      "length": 532,
+      "bytes": 1615,
+      "sha256": "ad4808ff3e9303fccc3025b91b000f2f9da2e38b891e3478c371163baad0701f"
+    },
+    "inline.es6-html": {
+      "offset": 4909,
+      "length": 556,
+      "bytes": 1926,
+      "sha256": "bf978f4603a214b9cd82ccfd7376a85eb583f763cbb31845c5b6ae78934c7324"
+    },
+    "inline.es6-xml": {
+      "offset": 5465,
+      "length": 437,
+      "bytes": 1094,
+      "sha256": "e3bf9d93f86e8ff47c90eb9fe613a8d0780372af3c4258dd292eaf8bd8432e22"
+    },
+    "inline.tagged-template-sql": {
+      "offset": 5902,
+      "length": 1132,
+      "bytes": 8083,
+      "sha256": "8e404063b1514b843c6983cea63dab47cd1e9acc661df69cf0cb0f5fd03b73b0"
+    },
+    "markdown.mermaid.codeblock": {
+      "offset": 7034,
+      "length": 3514,
+      "bytes": 27774,
+      "sha256": "3a6de6a14f5ebc41bf1996d02e32c0d98ff4e91f1aed5b23b33ccba8eb852a7e"
+    },
+    "markdown.nix.codeblock": {
+      "offset": 10548,
+      "length": 373,
+      "bytes": 762,
+      "sha256": "df6ae4f31dd46b779ad8fcb5e634962a9ff1108268b5f18f60cf2248bd150d23"
+    },
+    "markdown.vue.codeblock": {
+      "offset": 10921,
+      "length": 338,
+      "bytes": 682,
+      "sha256": "aab94514da0c813986566897b9434d460bf9114362439fe048155f760f1c15ee"
+    },
+    "source.abap": {
+      "offset": 11259,
+      "length": 5823,
+      "bytes": 15483,
+      "sha256": "18ed42200344af143f3aea9442d8fcb8032ed7ff9022ce5620eb78fbb57d5f89"
+    },
+    "source.actionscript.3": {
+      "offset": 17082,
+      "length": 2581,
+      "bytes": 14783,
+      "sha256": "3f6281972284d0e434ef4ab7758fb61b7147dcba2fd7ca600ea0452b5e36c767"
+    },
+    "source.ada": {
+      "offset": 19663,
+      "length": 5843,
+      "bytes": 46477,
+      "sha256": "8fecfe6247526929917e3a6a6f3c8d4992ab5dddcb5e6cd3676afd46379542f0"
+    },
+    "source.apacheconf": {
+      "offset": 25506,
+      "length": 3643,
+      "bytes": 12116,
+      "sha256": "102fd3d5916e57782f09b2a5d330d95a8ed6130fd152fe1dc60c15090975f95f"
+    },
+    "source.apex": {
+      "offset": 29149,
+      "length": 6675,
+      "bytes": 46265,
+      "sha256": "faaa7435c53d7318b3c3af6b9098b872896aa9dd6178ceba56452a7de6c674a0"
+    },
+    "source.apl": {
+      "offset": 35824,
+      "length": 3905,
+      "bytes": 23290,
+      "sha256": "046607fda7aeffe38a5c4f088b4348fb205ddbcc137f2cbd9c379f0a18dffdcb"
+    },
+    "source.applescript": {
+      "offset": 39729,
+      "length": 5832,
+      "bytes": 28463,
+      "sha256": "359dc629b053e3d6d58afcbe4da20bcfa9917ff3a4da8825da8703036357997e"
+    },
+    "source.ara": {
+      "offset": 45561,
+      "length": 1720,
+      "bytes": 6053,
+      "sha256": "8856ce7804da517c8ac3fe5ef9527395d0e1f4639cdbbad0537d21d618d5275a"
+    },
+    "source.asm.x86_64": {
+      "offset": 47281,
+      "length": 8044,
+      "bytes": 39351,
+      "sha256": "d92bba9026e51dde8dbb8b9f6332703cc51a3b24bb83d350c0e82420738b89e0"
+    },
+    "source.asp.vb.net": {
+      "offset": 55325,
+      "length": 2265,
+      "bytes": 5853,
+      "sha256": "a21b264f2ed37da3f7ef947628d6e259bc2bcb9b40f08823ba9fb66caee1906f"
+    },
+    "source.astro": {
+      "offset": 57590,
+      "length": 7377,
+      "bytes": 23539,
+      "sha256": "1238cfefe9f7a288cb685d0dcce25539d16ef9468f02d1db85748a78bdd4fe2c"
+    },
+    "source.awk": {
+      "offset": 64967,
+      "length": 1310,
+      "bytes": 5280,
+      "sha256": "1c2abcc931e4c6c5a84151356b948dead48bc41d8bb5cf0966d2d737d0fd0f3d"
+    },
+    "source.ballerina": {
+      "offset": 66277,
+      "length": 7849,
+      "bytes": 56350,
+      "sha256": "bc12cdc05cb0a0866ca7484cfb96ccf142626020d1f4f791914865e6b7be25a4"
+    },
+    "source.batchfile": {
+      "offset": 74126,
+      "length": 3136,
+      "bytes": 12606,
+      "sha256": "deeeacfbf40f9c06b3565ab8a033a1093a13ce85b317146ef464087455f408ed"
+    },
+    "source.berry": {
+      "offset": 77262,
+      "length": 743,
+      "bytes": 2705,
+      "sha256": "ed7384ec1d0720826a0b72866a39d39b3a2c26e750abc41d9eb2f5e27dd3c5cb"
+    },
+    "source.bicep": {
+      "offset": 78005,
+      "length": 1089,
+      "bytes": 5036,
+      "sha256": "747636edc8c7d67ba11bfb94249cb683bd3d36f4ca90c771c6cf27b42b4c4cf9"
+    },
+    "source.bird2": {
+      "offset": 79094,
+      "length": 4568,
+      "bytes": 22187,
+      "sha256": "6179379acc90d16bf0120cdf742833d05cac7ed8a6aac2a063afed52db64ebfb"
+    },
+    "source.bsl": {
+      "offset": 83662,
+      "length": 8183,
+      "bytes": 33421,
+      "sha256": "7c7fc6213f2982424122ec8d0d9a6e433e4182980e365b19c822d2d0735ecba1"
+    },
+    "source.c": {
+      "offset": 91845,
+      "length": 10115,
+      "bytes": 69561,
+      "sha256": "201258d55162d9df1ba96254f77bfe69729ed78257aabf7ef854668eb4d6591d"
+    },
+    "source.c3": {
+      "offset": 101960,
+      "length": 3820,
+      "bytes": 26270,
+      "sha256": "f97826586dbd30e52e8ec5ffab93ee7569b7fb904431de212dda6686045cc962"
+    },
+    "source.cadence": {
+      "offset": 105780,
+      "length": 3542,
+      "bytes": 22779,
+      "sha256": "7a06c88228329743d51fe3da8f896ad027a9f384e8d89f4f577117876630a14b"
+    },
+    "source.cairo0": {
+      "offset": 109322,
+      "length": 717,
+      "bytes": 2754,
+      "sha256": "7b16f3434d811ec1c9897ba9eea6b07555c836d4ff184f8bf72918fd74824c56"
+    },
+    "source.clar": {
+      "offset": 110039,
+      "length": 2385,
+      "bytes": 13789,
+      "sha256": "aecfe850cc1735130068d44fe5adb1276c7c714bd156c9380e6a9d3b58e84e98"
+    },
+    "source.clojure": {
+      "offset": 112424,
+      "length": 1349,
+      "bytes": 6178,
+      "sha256": "bbea3e9c2c1a11ff2eec234da30c7b7e8ee3e6b52819cad63d10ce08bc8e37c4"
+    },
+    "source.cmake": {
+      "offset": 113773,
+      "length": 3307,
+      "bytes": 9603,
+      "sha256": "01eb7724425d8e0d5758e0c67947583dc9a1bcb7c3d52311affcbad71b42d3f2"
+    },
+    "source.cobol": {
+      "offset": 117080,
+      "length": 10666,
+      "bytes": 38228,
+      "sha256": "07399491bee3d4d2ec01a075defd0de9879ce242e390fa129e0b586de5c386ca"
+    },
+    "source.coffee": {
+      "offset": 127746,
+      "length": 6205,
+      "bytes": 26555,
+      "sha256": "24b1616ef504e1cb9800e289f8ec7948f6d207c29ab991bf0952c7da3cb3a225"
+    },
+    "source.commonlisp": {
+      "offset": 133951,
+      "length": 6013,
+      "bytes": 22086,
+      "sha256": "3194f94d9aa1a3810a9b11253e956a23d44363c67201cf2c02262a7a154187c7"
+    },
+    "source.coq": {
+      "offset": 139964,
+      "length": 1853,
+      "bytes": 5235,
+      "sha256": "1f0a395a6da076f7d985251b2f91b2d47e497e8f076b0ada9a6d4e20f44bb62c"
+    },
+    "source.cpp": {
+      "offset": 141817,
+      "length": 27548,
+      "bytes": 381729,
+      "sha256": "d7223bfd8fb71d77b485010ab48bcd12f86c253bef27e8177d70ae07204e63ee"
+    },
+    "source.cpp.embedded.macro": {
+      "offset": 169365,
+      "length": 16098,
+      "bytes": 213001,
+      "sha256": "473900c314f4615da831b1e97a2af4d4ddb8197d85d8e9184336412b1bcc2045"
+    },
+    "source.crystal": {
+      "offset": 185463,
+      "length": 4158,
+      "bytes": 28117,
+      "sha256": "5e00fb7d4712e2be6911a2d7b2d2dfbada452a40a8e6669db66e69984d0d6014"
+    },
+    "source.cs": {
+      "offset": 189621,
+      "length": 10429,
+      "bytes": 86806,
+      "sha256": "4245da26b0eb50ccb3217e5a328df71e19b177d5a5354872a75cb7dc8020abcd"
+    },
+    "source.css": {
+      "offset": 200050,
+      "length": 11749,
+      "bytes": 48071,
+      "sha256": "1fc05256b7851097ec5389fe4241b8c870fe41def4b1fa320c69f80dd875dda6"
+    },
+    "source.css.less": {
+      "offset": 211799,
+      "length": 14521,
+      "bytes": 94797,
+      "sha256": "1352728043f6c8906ec76468bfc3a897f81e7f8d2829436ab4af4eed186fe4eb"
+    },
+    "source.css.postcss": {
+      "offset": 226320,
+      "length": 1845,
+      "bytes": 6193,
+      "sha256": "25d475645626325e3a7a982684fecbdb5458fe86db79d144387ea67a9c04fd82"
+    },
+    "source.css.scss": {
+      "offset": 228165,
+      "length": 4066,
+      "bytes": 26449,
+      "sha256": "c59595d6e2966a47fd6e9c6076b717b19dec310d83ac485e4c1ed409b817fb4b"
+    },
+    "source.cue": {
+      "offset": 232231,
+      "length": 1960,
+      "bytes": 15455,
+      "sha256": "4b24bfd4d6c05faba3372139139f5ff67c37ab519c971ba577c1b09e3ddddef5"
+    },
+    "source.cypher": {
+      "offset": 234191,
+      "length": 1641,
+      "bytes": 5680,
+      "sha256": "178b0ec96cf9f946455f6e56a5f125a992ef8b6d137f66cf4f8f11abb1a3dff6"
+    },
+    "source.d": {
+      "offset": 235832,
+      "length": 8225,
+      "bytes": 42093,
+      "sha256": "981f448fb47d5f7ecb42aaec6379479b0068ae81557e917db1fca1f56361c40c"
+    },
+    "source.dart": {
+      "offset": 244057,
+      "length": 1921,
+      "bytes": 8207,
+      "sha256": "82c96fcbdb0fbcb5867aad9053f196f134cd018ce7e110219d31a35715d1baaa"
+    },
+    "source.dax": {
+      "offset": 245978,
+      "length": 2139,
+      "bytes": 5245,
+      "sha256": "1131ded53648703f7254d4b0addd334678652b80c031f8ad626d2123dda5fa83"
+    },
+    "source.desktop": {
+      "offset": 248117,
+      "length": 705,
+      "bytes": 1731,
+      "sha256": "491a73fc05e773c2599771ce59e1e0c895816879309524c5e4c4320cc41a12ee"
+    },
+    "source.diff": {
+      "offset": 248822,
+      "length": 632,
+      "bytes": 2437,
+      "sha256": "256843a66b11cd0193a0cf34425474bce6f773a14e29beb6e87fba251701f8fd"
+    },
+    "source.dm": {
+      "offset": 249454,
+      "length": 2174,
+      "bytes": 9940,
+      "sha256": "812189419294edb1e504b03b2d499d84a7ce69b212f41e205b8009bc6d32e06f"
+    },
+    "source.dockerfile": {
+      "offset": 251628,
+      "length": 538,
+      "bytes": 1643,
+      "sha256": "6f78c0a16c51e684d736799d4d15a1c013d82defcda28e52cbab8a86433a703f"
+    },
+    "source.dotenv": {
+      "offset": 252166,
+      "length": 471,
+      "bytes": 1331,
+      "sha256": "c974b3c3b610a2953cb296d3c0ecb272f4a772eadca04228ee941792f36c4ed5"
+    },
+    "source.elixir": {
+      "offset": 252637,
+      "length": 2617,
+      "bytes": 15583,
+      "sha256": "2f27283269254d5cec105e6bc4f064250f0efd04a2adef6e9a61d09a5eb64424"
+    },
+    "source.elm": {
+      "offset": 255254,
+      "length": 1989,
+      "bytes": 10544,
+      "sha256": "732d93c88578862c13b2972846b78658ffadec4b3907d7c6174d93019105a008"
+    },
+    "source.emacs.lisp": {
+      "offset": 257243,
+      "length": 196386,
+      "bytes": 778700,
+      "sha256": "1d33ac4e082d5f64a63eac7ec5bcebd7dbeb5e6536854a982b4d52ca76d1c563"
+    },
+    "source.erlang": {
+      "offset": 453629,
+      "length": 4215,
+      "bytes": 36539,
+      "sha256": "d71cb918ed96994d35c4a0fa9f1b0d457ad2369bf1dd0e22cb8dab0d49727de0"
+    },
+    "source.fish": {
+      "offset": 457844,
+      "length": 1661,
+      "bytes": 12564,
+      "sha256": "dc072382dd838cd5da87a628f401778adbcf11c602ab3c7a822d2dd611457449"
+    },
+    "source.fnl": {
+      "offset": 459505,
+      "length": 1497,
+      "bytes": 4634,
+      "sha256": "bd7ee794f1e8d8939d03706bf9d557a7a5f880014e58e42fa28d78c5a7c0b744"
+    },
+    "source.fortran.fixed": {
+      "offset": 461002,
+      "length": 604,
+      "bytes": 1521,
+      "sha256": "33dad4b0d8291b39c684df0adcb185ff49f17ac35b64fa1c79ff7b9e9174fd03"
+    },
+    "source.fortran.free": {
+      "offset": 461606,
+      "length": 10901,
+      "bytes": 85948,
+      "sha256": "67b7b387c1957112c68bc0ad1d015fbeee6b7bdea01d28549a75e73ee1f75a78"
+    },
+    "source.fsharp": {
+      "offset": 472507,
+      "length": 3979,
+      "bytes": 24503,
+      "sha256": "116c6a78d261d5e3e05f2ff35838fba502253ac62915e16a8e5236e965a05fd3"
+    },
+    "source.ftl": {
+      "offset": 476486,
+      "length": 831,
+      "bytes": 3484,
+      "sha256": "d477e06b5f02220922433409e19197bbbcccf6641f7ea84552763bfd1d65ba58"
+    },
+    "source.gdresource": {
+      "offset": 477317,
+      "length": 1221,
+      "bytes": 4897,
+      "sha256": "4346e33975957cbe841dbeff4df8f0f43c425d92740fd46f396ed083ddc2aaf7"
+    },
+    "source.gdscript": {
+      "offset": 478538,
+      "length": 3667,
+      "bytes": 18403,
+      "sha256": "7db9dd6888eb84a77ca4601a39c058899015b07442e1dac8b4c8ef21d69953f1"
+    },
+    "source.gdshader": {
+      "offset": 482205,
+      "length": 1659,
+      "bytes": 6048,
+      "sha256": "6f66e4f8ad185496eab29299cdcb922ce33b3cf55b1a015ab36cc18c8b1b0684"
+    },
+    "source.genie": {
+      "offset": 483864,
+      "length": 1143,
+      "bytes": 3180,
+      "sha256": "38ae5ba8299d649433e2ccccc3d1947f967f343324d6f5b26de322bb4a55b55d"
+    },
+    "source.gjs": {
+      "offset": 485007,
+      "length": 2765,
+      "bytes": 19585,
+      "sha256": "25e4a10bd043e2c34a3cb046a5d67f7dd74b7a6a8b065c28cccfa42b464b329e"
+    },
+    "source.gleam": {
+      "offset": 487772,
+      "length": 761,
+      "bytes": 2427,
+      "sha256": "624ffafa6357197ac7c9e5af6bada946bdd84ae47f85ee543515382b3ba2007b"
+    },
+    "source.glsl": {
+      "offset": 488533,
+      "length": 1336,
+      "bytes": 3490,
+      "sha256": "176e2c12edd0837b591a9ea387503e63470a89c9c42e6b3b1d8b529ed05af4ef"
+    },
+    "source.gn": {
+      "offset": 489869,
+      "length": 1442,
+      "bytes": 3859,
+      "sha256": "6f9ed6190cc733e191d9e261a90639353abb9682cc79f9f18838664bd4ba96ee"
+    },
+    "source.gnuplot": {
+      "offset": 491311,
+      "length": 3186,
+      "bytes": 14063,
+      "sha256": "f37309fb7c9650c9f22792f145a48e52e93e9367c26a5e9100790a4cf51d1236"
+    },
+    "source.go": {
+      "offset": 494497,
+      "length": 4935,
+      "bytes": 44514,
+      "sha256": "4f5d671acb3e3a85795ca1e808ca6f49faa65addedc71b6a7abee9e93775a762"
+    },
+    "source.graphql": {
+      "offset": 499432,
+      "length": 2310,
+      "bytes": 17390,
+      "sha256": "3aab32e38a90adf4ca55d4ce90a9d9e107e228f72f2d46bf82cc6197504d05f7"
+    },
+    "source.groovy": {
+      "offset": 501742,
+      "length": 3502,
+      "bytes": 18601,
+      "sha256": "78ae6be76d00601a6b3f91b22052b402a2fe58dc241778dcbee77837c4cf25e5"
+    },
+    "source.gts": {
+      "offset": 505244,
+      "length": 2764,
+      "bytes": 19585,
+      "sha256": "1c0f8137235e3e384d4a93302dad6fab6ffda96802bac294003ed8b691ba4e8e"
+    },
+    "source.hack": {
+      "offset": 508008,
+      "length": 25976,
+      "bytes": 79394,
+      "sha256": "a67826347ccd2e2c2719e03f31febc446109685495c0c1b9597cfc0994173d43"
+    },
+    "source.haskell": {
+      "offset": 533984,
+      "length": 6220,
+      "bytes": 39465,
+      "sha256": "2aeaad0b701be7cc5fbbe9620010edf77c84e812c1a69f1b9eb3c23a9cadfb16"
+    },
+    "source.hcl": {
+      "offset": 540204,
+      "length": 1850,
+      "bytes": 9714,
+      "sha256": "d534ba88d85acfc9a7adc3eb367d3759409d4e522040b139e3a8d8177daa0ecb"
+    },
+    "source.hcl.terraform": {
+      "offset": 542054,
+      "length": 2429,
+      "bytes": 11074,
+      "sha256": "07cf78a2ebd4ddd6a452bd1c0208a0b43fb737ce8b5e55fb61258cdb44dbce9b"
+    },
+    "source.hjson": {
+      "offset": 544483,
+      "length": 1564,
+      "bytes": 11647,
+      "sha256": "2f8c3ec2cef0bbbf039583c51bbd67b4d9972cf12c6cc1600fd9d4edf0bcbab9"
+    },
+    "source.hlsl": {
+      "offset": 546047,
+      "length": 2121,
+      "bytes": 6998,
+      "sha256": "6582a4cd8f28ef245abce0410658976a44b6fcc031551bd409f53c43db79e49c"
+    },
+    "source.http": {
+      "offset": 548168,
+      "length": 903,
+      "bytes": 4037,
+      "sha256": "7409b483e834ac1d5821577b2f1f554c3b5d2b7cb2c7986f51a783d8daea18be"
+    },
+    "source.hurl": {
+      "offset": 549071,
+      "length": 966,
+      "bytes": 3245,
+      "sha256": "823db16810dc9acfd55866205e6e0fe807a1b8b1c35a3521ea3f2d3825d72fc7"
+    },
+    "source.hx": {
+      "offset": 550037,
+      "length": 5775,
+      "bytes": 34333,
+      "sha256": "6c5086ab5822d98ce367e4fd4fb809b753a5ee3dcffa7ca1099194892994d26d"
+    },
+    "source.hxml": {
+      "offset": 555812,
+      "length": 794,
+      "bytes": 1606,
+      "sha256": "e1b660746235e3f5d8d81096e9ef22603da98e799d2575a1d5cb24aeadcfb63a"
+    },
+    "source.hy": {
+      "offset": 556606,
+      "length": 1110,
+      "bytes": 2475,
+      "sha256": "9c98574b54512bbb9ff934a4dfd27197ebcc1c5206deab99ef95c3b2ceb47621"
+    },
+    "source.imba": {
+      "offset": 557716,
+      "length": 9235,
+      "bytes": 48264,
+      "sha256": "978b00d4349b7990d505921a6807b45f70deb9914d7d723dace44b0ee8fc80f1"
+    },
+    "source.ini": {
+      "offset": 566951,
+      "length": 439,
+      "bytes": 1433,
+      "sha256": "684d90650a6073371d2b1855e6d1c87847a3dec4377a986c49f9a0ddf7c2aff1"
+    },
+    "source.java": {
+      "offset": 567390,
+      "length": 4157,
+      "bytes": 26339,
+      "sha256": "e80b07bc37436b92c451766b708fc30b7fb2e631511dc0837a093b5a90798fcd"
+    },
+    "source.jinja": {
+      "offset": 571547,
+      "length": 1137,
+      "bytes": 4800,
+      "sha256": "c29ee9d92dd4b78686df8afb5f7af4143b69421de9999246ea4d20561738fe40"
+    },
+    "source.jison": {
+      "offset": 572684,
+      "length": 1762,
+      "bytes": 9374,
+      "sha256": "bec55f99e9157202118d4304f337b3285f2f53e0f25059e7ddccb75e3ce097a8"
+    },
+    "source.js": {
+      "offset": 574446,
+      "length": 15641,
+      "bytes": 159352,
+      "sha256": "61b3cc25da815da1f8625bffdb3282f48a561f6c2fca3457e477765bffb24eef"
+    },
+    "source.js.jsx": {
+      "offset": 590087,
+      "length": 15729,
+      "bytes": 162317,
+      "sha256": "08dc208c4b63a1976fb3820fc24df4edad273b48973403a53d0cb1031481f1b8"
+    },
+    "source.json": {
+      "offset": 605816,
+      "length": 722,
+      "bytes": 2705,
+      "sha256": "265030d70a20a2d86ce3110c80f2e3499b9a6f7ad1ea3daeb11f89897c7bdb06"
+    },
+    "source.json.comments": {
+      "offset": 606538,
+      "length": 740,
+      "bytes": 2990,
+      "sha256": "6ad016e60fb0a05ede5c72f07263d35e4443a31a3b1b9a776ea20a4fd36667dc"
+    },
+    "source.json.lines": {
+      "offset": 607278,
+      "length": 736,
+      "bytes": 2892,
+      "sha256": "1ff014eaa1708875b2f05a8866c660a62253540f53b6249396b7481a6019eddd"
+    },
+    "source.json5": {
+      "offset": 608014,
+      "length": 778,
+      "bytes": 3118,
+      "sha256": "fcd93b9b47e8b7e71aaca9b221c5c1213b7bfa0c5b785bca00bda058cd540fe9"
+    },
+    "source.jsonnet": {
+      "offset": 608792,
+      "length": 990,
+      "bytes": 3372,
+      "sha256": "ae7d77b58e7168d424a15462ee4baf72b6e6e9cb2c43441f6702c1e6a696bda9"
+    },
+    "source.jssm": {
+      "offset": 609782,
+      "length": 555,
+      "bytes": 2147,
+      "sha256": "fb5c4428b638e4652c6f0dfd001705b26ef22b42c31dde70f7ab1f097d6b8849"
+    },
+    "source.julia": {
+      "offset": 610337,
+      "length": 3993,
+      "bytes": 29009,
+      "sha256": "92b263f3a88cd46c419ec025c916920d9ae3a3ecccee34b41d9994c03c9c938d"
+    },
+    "source.just": {
+      "offset": 614330,
+      "length": 2387,
+      "bytes": 10255,
+      "sha256": "76ca6038344aabe5cdea894be2cb863ec48f3657a7b0c7569a02d6690f591a92"
+    },
+    "source.kdl": {
+      "offset": 616717,
+      "length": 966,
+      "bytes": 3424,
+      "sha256": "a5589e1beffb4fc8c9ae5fb9fa9d607b9f7fd74b055979a9a065c75477026d0f"
+    },
+    "source.kotlin": {
+      "offset": 617683,
+      "length": 2057,
+      "bytes": 8409,
+      "sha256": "aba5b51c1ccea953a0b68ffe443ae972cee239d4d7b7b85df57dec7d696546ab"
+    },
+    "source.kusto": {
+      "offset": 619740,
+      "length": 3879,
+      "bytes": 14645,
+      "sha256": "6042597b04bef0021878abbcbb4b0bd0984d8f78178f1e51a74a3f85e7960eb3"
+    },
+    "source.lean4": {
+      "offset": 623619,
+      "length": 1853,
+      "bytes": 5514,
+      "sha256": "4e7d2eaf4bb7ace5655400c02f4357711c4744ab73b92c311521d5b00c3c8f2c"
+    },
+    "source.llvm": {
+      "offset": 625472,
+      "length": 1950,
+      "bytes": 4668,
+      "sha256": "5cfe36861dd2be785bf6acaaad25b0c901b7f38fe31fd2d4a3282bf459d28e96"
+    },
+    "source.logo": {
+      "offset": 627422,
+      "length": 1413,
+      "bytes": 3016,
+      "sha256": "e9b0e672b4ffc49e359080c131c84b291f25eb554eb6e4b35859caa917e60174"
+    },
+    "source.lua": {
+      "offset": 628835,
+      "length": 3041,
+      "bytes": 14841,
+      "sha256": "b651788ac65f1c0a469b47442e886917274af421011da8ab4f3c1af632182e8a"
+    },
+    "source.luau": {
+      "offset": 631876,
+      "length": 3308,
+      "bytes": 14994,
+      "sha256": "7d2c5380672673e0e2837877955f2cb7dc85a585ed21ef1e9cc723b2121695f7"
+    },
+    "source.makefile": {
+      "offset": 635184,
+      "length": 1685,
+      "bytes": 8633,
+      "sha256": "a71587d3d69c764f684d722e9da6e957983a2ea23bef2b6c5c749fdb23cdeeb8"
+    },
+    "source.matlab": {
+      "offset": 636869,
+      "length": 2945,
+      "bytes": 15279,
+      "sha256": "cb1ff74ce6105c49aa45578e3be733b1586a7a63549d8d533c02af7355561358"
+    },
+    "source.mdx": {
+      "offset": 639814,
+      "length": 23389,
+      "bytes": 131160,
+      "sha256": "836974c4ffb91235d3f84fd73780f3cbb84ed6597669179dfc0623d69edae298"
+    },
+    "source.mips": {
+      "offset": 663203,
+      "length": 1098,
+      "bytes": 2984,
+      "sha256": "36e53d5f59c86780e5e24e8c4a5a7474fa08aa2545a9629c3b9e0907aacff712"
+    },
+    "source.mojo": {
+      "offset": 664301,
+      "length": 9032,
+      "bytes": 68006,
+      "sha256": "d5c89acbf11a1652e1326236fc2d8defa8a37ee85e67e073dba62c8579d45fa1"
+    },
+    "source.moonbit": {
+      "offset": 673333,
+      "length": 1611,
+      "bytes": 5608,
+      "sha256": "8765c356fb6109390bfdb25eef2b42b16ca44b734a4ee8f4ff545e064895bcfe"
+    },
+    "source.move": {
+      "offset": 674944,
+      "length": 2955,
+      "bytes": 16984,
+      "sha256": "56f39e524deae8ec780819f77ab4843d4595f9b9ec395902bf9d3a7fe1554104"
+    },
+    "source.narrat": {
+      "offset": 677899,
+      "length": 1057,
+      "bytes": 3482,
+      "sha256": "fe7b47a477dd4861ab3b7c1a8ca86e733a7199775b2b12868d30030c823f06b4"
+    },
+    "source.nextflow": {
+      "offset": 678956,
+      "length": 1066,
+      "bytes": 4260,
+      "sha256": "944ce1c3dd6d1ae21db6438612f9dc8be7fc72a698f9452b5fb602ddf246900a"
+    },
+    "source.nextflow-groovy": {
+      "offset": 680022,
+      "length": 2060,
+      "bytes": 10114,
+      "sha256": "1946ea1ed1371d78a2f3b1590430e9a34a934a57d4243f9528b083bd6fc6d02b"
+    },
+    "source.nginx": {
+      "offset": 682082,
+      "length": 4337,
+      "bytes": 34714,
+      "sha256": "f7f238abd05a97efec2b7d3bd73d478a8a24539e93726bb1277436dbea78ea56"
+    },
+    "source.nim": {
+      "offset": 686419,
+      "length": 2908,
+      "bytes": 21349,
+      "sha256": "48e362379059f710d5d0f94f23ddea7715905d0b2743133321bce17c7a1a607b"
+    },
+    "source.nix": {
+      "offset": 689327,
+      "length": 2149,
+      "bytes": 14232,
+      "sha256": "1638d8f96381e18b4f267a7d2f6a8e06aeabbb5654cb258b2713fd9c398bd955"
+    },
+    "source.nushell": {
+      "offset": 691476,
+      "length": 5132,
+      "bytes": 19731,
+      "sha256": "dc41914e95df8a902e184d00ff368bd9f526ec263f5e8151cd17800d8743d039"
+    },
+    "source.objc": {
+      "offset": 696608,
+      "length": 23170,
+      "bytes": 103083,
+      "sha256": "07b1d7abfaf1010906fbe60f04a8f17c7ddc807c29bfcb70e8ef748d0f500262"
+    },
+    "source.objcpp": {
+      "offset": 719778,
+      "length": 30017,
+      "bytes": 167425,
+      "sha256": "531b974f87857ae0fad3e5fd94da6d6ebb23785dfc49ebe6703ce68b69b7508e"
+    },
+    "source.ocaml": {
+      "offset": 749795,
+      "length": 4847,
+      "bytes": 60396,
+      "sha256": "7750216955f532f8e7ccc12e7b88da36019857f243483ca1165124500698dc4b"
+    },
+    "source.odin": {
+      "offset": 754642,
+      "length": 2852,
+      "bytes": 16000,
+      "sha256": "6e632c5e5affdaa564aa67c1ac1de77a12957d4e893501a9fe07237b4d6f135a"
+    },
+    "source.pascal": {
+      "offset": 757494,
+      "length": 1619,
+      "bytes": 3982,
+      "sha256": "dcbeab7bccbd5d73c50472f078d7c9aa7cbb821abf2fab9a84d36d4a58122c52"
+    },
+    "source.perl": {
+      "offset": 759113,
+      "length": 4368,
+      "bytes": 41925,
+      "sha256": "7663d022dba8fb03597fb5a61ce780fe1dbf7d57fcad4749ee57a001a14e2bf4"
+    },
+    "source.perl.6": {
+      "offset": 763481,
+      "length": 2909,
+      "bytes": 10213,
+      "sha256": "e1fa7d209103f02141a1945b29585a64284cd348c309204f8adb70420b9ea770"
+    },
+    "source.php": {
+      "offset": 766390,
+      "length": 28225,
+      "bytes": 109417,
+      "sha256": "15ea633c990cd3b8fd4b617d851df2606c11c69963f326aeebe973feefee84d8"
+    },
+    "source.pkl": {
+      "offset": 794615,
+      "length": 1307,
+      "bytes": 9546,
+      "sha256": "548aced5dffb746bd6a9d555bc69193f4774aec114d2bea26118eb20ab256f8c"
+    },
+    "source.plsql.oracle": {
+      "offset": 795922,
+      "length": 2939,
+      "bytes": 8125,
+      "sha256": "df263091a38aec36e3937008d74acaf5ece12777a752db474efc75e2a3739c69"
+    },
+    "source.po": {
+      "offset": 798861,
+      "length": 846,
+      "bytes": 3055,
+      "sha256": "d105f43809ac816ae4ef63b650cfe06c944cb99f0146a8d1b98780e89eaed052"
+    },
+    "source.polar": {
+      "offset": 799707,
+      "length": 1067,
+      "bytes": 4474,
+      "sha256": "b2f406326c1a5f25dbb809658c720e438455f10a420ff5d955670f16cc8ba417"
+    },
+    "source.powerquery": {
+      "offset": 800774,
+      "length": 1449,
+      "bytes": 5631,
+      "sha256": "f6dec85d2f45aa7e972b0363f882702d6933eaac6dd57ce640f16ec1e3604aa7"
+    },
+    "source.powershell": {
+      "offset": 802223,
+      "length": 3971,
+      "bytes": 19647,
+      "sha256": "638cb8ffbec5a25a012f128d55aabd4c33cf1dcd5dc9de91bae96ec4b1fd99d0"
+    },
+    "source.prisma": {
+      "offset": 806194,
+      "length": 1323,
+      "bytes": 6116,
+      "sha256": "f21ddf4a2576826edb27f5ceb6f05bf7034da7478e7cea49c58d8f6b1c351a63"
+    },
+    "source.prolog": {
+      "offset": 807517,
+      "length": 3794,
+      "bytes": 11206,
+      "sha256": "05ebb1a26e4ff112bd70c9bf2fbf32d58eb84e601a595273d2288e05ea00e7dc"
+    },
+    "source.proto": {
+      "offset": 811311,
+      "length": 1354,
+      "bytes": 6278,
+      "sha256": "1528ff1380b7da83f4f6b02c16cba648b31c558092c7b9809c43515bdcb82375"
+    },
+    "source.puppet": {
+      "offset": 812665,
+      "length": 2037,
+      "bytes": 11065,
+      "sha256": "7fe0865e109077afa2dea40eccf729f9348c34c061b444031ab6749dc5abc6a9"
+    },
+    "source.purescript": {
+      "offset": 814702,
+      "length": 3118,
+      "bytes": 22745,
+      "sha256": "72f2dd3695f2c0f670a011eda5166f95df1b5a3a575a0c4822982dbf27225e8e"
+    },
+    "source.python": {
+      "offset": 817820,
+      "length": 8874,
+      "bytes": 68156,
+      "sha256": "c5ee757de40010f44f5f1f88872baafa3b91f696ed3d61d88572a22c8feb7141"
+    },
+    "source.ql": {
+      "offset": 826694,
+      "length": 3694,
+      "bytes": 26420,
+      "sha256": "f59ddc27867cd2ac1ff736374bc6c4589967e7ffdf071672685961f822c6dfd3"
+    },
+    "source.qml": {
+      "offset": 830388,
+      "length": 1292,
+      "bytes": 5063,
+      "sha256": "0f8df3ba053d10b15e1fa10d78fead88c9da6da5b3ac5304d48cf97d0c7370a3"
+    },
+    "source.qmldir": {
+      "offset": 831680,
+      "length": 390,
+      "bytes": 902,
+      "sha256": "70821290ed4af542dd75753bcbb981efde4178fade4e7fc448b7ab4e0603417b"
+    },
+    "source.qss": {
+      "offset": 832070,
+      "length": 2531,
+      "bytes": 7288,
+      "sha256": "cab4a22d50b94be23ed24db90c4e6c082480e048711bd373c622c41048168b50"
+    },
+    "source.r": {
+      "offset": 834601,
+      "length": 1689,
+      "bytes": 6206,
+      "sha256": "62320322f0141d847abc685e0afbce2ec57bcc21554efc260aa046374a1dc673"
+    },
+    "source.racket": {
+      "offset": 836290,
+      "length": 14854,
+      "bytes": 89526,
+      "sha256": "9bd08de5b567828d4b818cc696f02f7385e409d3b8fb9f7fb7ec36e952d8a764"
+    },
+    "source.reg": {
+      "offset": 851144,
+      "length": 640,
+      "bytes": 2239,
+      "sha256": "8fd8805bae4061ffcd7032b8a430bd0574818b2ae9ee77b7e9419ba7eb6a10b6"
+    },
+    "source.regexp.python": {
+      "offset": 851784,
+      "length": 1349,
+      "bytes": 7736,
+      "sha256": "9953773b204f33129756b734be26eef27731144af84b51ee8a3f65ea2ae19429"
+    },
+    "source.rel": {
+      "offset": 853133,
+      "length": 1037,
+      "bytes": 3220,
+      "sha256": "29bf290207f2db7f6ba4f4fb1363c459b8825ee4928b5a938406c9040dba46fb"
+    },
+    "source.riscv": {
+      "offset": 854170,
+      "length": 1902,
+      "bytes": 6482,
+      "sha256": "a08ba02a6945aa3a4ec4cde4f7a7163dab5ba8c792ba033d519657d32e73c9d8"
+    },
+    "source.ron": {
+      "offset": 856072,
+      "length": 915,
+      "bytes": 3788,
+      "sha256": "981824270ad9b96602733c5c31c11dc2ed49d3aaa0e4bfcfab2105dd6e1aa761"
+    },
+    "source.rosmsg": {
+      "offset": 856987,
+      "length": 996,
+      "bytes": 4345,
+      "sha256": "203e18711b08e61df53d39dac7e121157634bf707bdfd011d00ce22cc93658a4"
+    },
+    "source.rst": {
+      "offset": 857983,
+      "length": 1982,
+      "bytes": 9391,
+      "sha256": "9f01d69187acb66fa55646cf1fb90dfa3c73ff997b57ebbec768808c66a8edd7"
+    },
+    "source.ruby": {
+      "offset": 859965,
+      "length": 5338,
+      "bytes": 44537,
+      "sha256": "31545bd26625206c875bb68a3c602fd6b751472942200ce261bbda3496223071"
+    },
+    "source.rust": {
+      "offset": 865303,
+      "length": 2616,
+      "bytes": 14706,
+      "sha256": "23946a0b4f8c0a9b2e86b18ed511b99ee7f30333bde85c8740ce9089a4f35642"
+    },
+    "source.sas": {
+      "offset": 867919,
+      "length": 3682,
+      "bytes": 8843,
+      "sha256": "39ce06261203078095d7e5bc212dd3b8fff966078fb57e044b8e3bbafb45e724"
+    },
+    "source.sass": {
+      "offset": 871601,
+      "length": 2411,
+      "bytes": 8971,
+      "sha256": "32cf3a1080a248f75be8c3c55c9b852d7aaedc92cb6399a97ea8083d0512f969"
+    },
+    "source.scad": {
+      "offset": 874012,
+      "length": 949,
+      "bytes": 2656,
+      "sha256": "0efb530bf9e4e1ba30a8fdf96f5b74826848a0ec1585fa926c82e76dc3f251a5"
+    },
+    "source.scala": {
+      "offset": 874961,
+      "length": 3802,
+      "bytes": 26953,
+      "sha256": "afb86401c429948924c207718cf879aa320dc033a96abcbb9fa4eb01cc98c078"
+    },
+    "source.scheme": {
+      "offset": 878763,
+      "length": 1993,
+      "bytes": 6924,
+      "sha256": "9309522d98f75a726a4ffe9e8607490123912c7fa9ccab4b08ad5b6906adcb27"
+    },
+    "source.sdbl": {
+      "offset": 880756,
+      "length": 1903,
+      "bytes": 4501,
+      "sha256": "2ba7cf87a34dcd753350080d290c6a5909890c1e8824527b3d71583a9776d54c"
+    },
+    "source.shaderlab": {
+      "offset": 882659,
+      "length": 1980,
+      "bytes": 5672,
+      "sha256": "7e4f503f068fd583bbc6fc290ce8868c4be37a8e917b07a144a2040f8a121320"
+    },
+    "source.shell": {
+      "offset": 884639,
+      "length": 5900,
+      "bytes": 39955,
+      "sha256": "9261d28a7a40077bd4af281c9e1cdaca5861eda3b70584436551e05b72a995e4"
+    },
+    "source.smalltalk": {
+      "offset": 890539,
+      "length": 1553,
+      "bytes": 6369,
+      "sha256": "3bd4bbbc1011d6dd454b74df62efd4b8aee5e4670f1a87d8f8eb2bd69058970b"
+    },
+    "source.solidity": {
+      "offset": 892092,
+      "length": 3006,
+      "bytes": 15412,
+      "sha256": "1078ac358609963c49e7775d91e3d69f982c52c1150db36dfe7b1993bc7aa45c"
+    },
+    "source.sparql": {
+      "offset": 895098,
+      "length": 730,
+      "bytes": 1357,
+      "sha256": "b8d5d2b799ab8a8125fc8b53a95d32f220968d224c1a689d369e1fdc8ed092a4"
+    },
+    "source.splunk_search": {
+      "offset": 895828,
+      "length": 1473,
+      "bytes": 3277,
+      "sha256": "5d4c4582a011735b161cef9b23ced8e07af30d9c702a518070f08214886ce63e"
+    },
+    "source.sql": {
+      "offset": 897301,
+      "length": 7349,
+      "bytes": 22888,
+      "sha256": "d4d1e03187c37c6e08ff0b6a1de38369d280afe86cce79de20cb97787160bdad"
+    },
+    "source.ssh-config": {
+      "offset": 904650,
+      "length": 1549,
+      "bytes": 3509,
+      "sha256": "fca0131fcdca0d7bfe9283486824720dd887e029a86f7fb5ab0da05566073fc8"
+    },
+    "source.stata": {
+      "offset": 906199,
+      "length": 12081,
+      "bytes": 55725,
+      "sha256": "de2fc275a4f2d2e031c5fb71f93622f8b08e253600197232f2424f02fe341c47"
+    },
+    "source.stylus": {
+      "offset": 918280,
+      "length": 7926,
+      "bytes": 30425,
+      "sha256": "6f1a64d16c25907a6e334907711a9fc0ae2ba5a12a2c8841888c7c07401bd33c"
+    },
+    "source.surrealql": {
+      "offset": 926206,
+      "length": 4121,
+      "bytes": 21474,
+      "sha256": "5a252022fea422c9d3c4b1ca7052e69e7bee25181682fe7d675fcb96559ca395"
+    },
+    "source.svelte": {
+      "offset": 930327,
+      "length": 2962,
+      "bytes": 17764,
+      "sha256": "1a41b30b230be71b57411403676147a0ba62e78e6ec5715b63ee70507ce80a5f"
+    },
+    "source.swift": {
+      "offset": 933289,
+      "length": 14324,
+      "bytes": 83734,
+      "sha256": "2dcd66ae7cf86cb571cc609af73fbef53d537662dbae099d0e06a34a75c06e91"
+    },
+    "source.systemd": {
+      "offset": 947613,
+      "length": 2465,
+      "bytes": 7571,
+      "sha256": "dac3d03353f33a3f9e8e8b44aa472540d0415286d346086fc207940d0d935e97"
+    },
+    "source.systemverilog": {
+      "offset": 950078,
+      "length": 4711,
+      "bytes": 24776,
+      "sha256": "1571d59ad73fd9b03881bad50354eeff648e1e06e818ae00fd1195f0a9d53f0e"
+    },
+    "source.talon": {
+      "offset": 954789,
+      "length": 1420,
+      "bytes": 6571,
+      "sha256": "a43da22b3a3456ec60b9253bad0a630deffab059c2dbe1f16b1f090e6b30aab0"
+    },
+    "source.tasl": {
+      "offset": 956209,
+      "length": 790,
+      "bytes": 3178,
+      "sha256": "707cfabfc56554b737e030d854424bcce7c547bd0871ef609a49736f6c85a307"
+    },
+    "source.tcl": {
+      "offset": 956999,
+      "length": 1441,
+      "bytes": 4214,
+      "sha256": "fda5ac9a8bc9b46ce1ab793d727f6ad11a8560d949c072732390e2ad7d5eac1a"
+    },
+    "source.templ": {
+      "offset": 958440,
+      "length": 5264,
+      "bytes": 23630,
+      "sha256": "4c2dd57d35cb8351a35d755bf299f50630debca54c9549f8566b983415f1f896"
+    },
+    "source.toml": {
+      "offset": 963704,
+      "length": 1198,
+      "bytes": 6126,
+      "sha256": "b534839b4f9fb78c307cc2d61798c2f8eb3878d224e36fd7f725d37a9c19fc29"
+    },
+    "source.ts": {
+      "offset": 964902,
+      "length": 14865,
+      "bytes": 163900,
+      "sha256": "e4fac5af22dfc3b05cda262151f3d163f4eb0cd6c4c2d599be686e9c617b564b"
+    },
+    "source.ts.ng": {
+      "offset": 979767,
+      "length": 14918,
+      "bytes": 164041,
+      "sha256": "eed3b99bfd099dbd261ea4a6df66cd4a17f1e7a805a08916a95c8f3a6e5a7e6a"
+    },
+    "source.ts.tags": {
+      "offset": 994685,
+      "length": 162,
+      "bytes": 237,
+      "sha256": "0adef3b20a8774e5a70fbca4e4394b5773485f2b65505602c16ddb709ade8588"
+    },
+    "source.tsp": {
+      "offset": 994847,
+      "length": 2541,
+      "bytes": 24136,
+      "sha256": "b23afb4f1ce7554f319808bc06e81251680504d2c2cabecbd7e43d94f1a66c63"
+    },
+    "source.tsx": {
+      "offset": 997388,
+      "length": 15631,
+      "bytes": 160061,
+      "sha256": "1fc9566ecdf9c6f079896d18d633fcfb1062fd4e194772b671fc840cf790e991"
+    },
+    "source.turtle": {
+      "offset": 1013019,
+      "length": 899,
+      "bytes": 3578,
+      "sha256": "ae325ed494cce91724ed84b5c7c9f0ca553881caf08752af3a6f4eb57376d68a"
+    },
+    "source.typst": {
+      "offset": 1013918,
+      "length": 1595,
+      "bytes": 8039,
+      "sha256": "9dc65b4819d830af4845a8acb5d165d50963d366d5f1a9e56bd4bcec460760d5"
+    },
+    "source.v": {
+      "offset": 1015513,
+      "length": 2649,
+      "bytes": 12730,
+      "sha256": "0211bcf303dab3f5e11010417dd592dc8865fb54019c538c60ffd004c092c3b3"
+    },
+    "source.vala": {
+      "offset": 1018162,
+      "length": 1122,
+      "bytes": 3194,
+      "sha256": "b7aa3c2ee3e228e6af7eaedb9772be51f4777f0b960a1fc1e70b2bb4cbacb0a9"
+    },
+    "source.verilog": {
+      "offset": 1019284,
+      "length": 1842,
+      "bytes": 5734,
+      "sha256": "45bc3475e38627f8dacd51d78ffb3a220ac2bb506b23a6ddc3e545496942002f"
+    },
+    "source.vhdl": {
+      "offset": 1021126,
+      "length": 3777,
+      "bytes": 23535,
+      "sha256": "b9ae240e619754edce04d345c7eda11eaaa73e2754bf080af13b4398fc8e7b4e"
+    },
+    "source.viml": {
+      "offset": 1024903,
+      "length": 6681,
+      "bytes": 20079,
+      "sha256": "3fa3495d2cfa645547d0bc65aecd9d769c88c59de6e7dae5768422e5e5cea2ad"
+    },
+    "source.vue-vine": {
+      "offset": 1031584,
+      "length": 16633,
+      "bytes": 173598,
+      "sha256": "8ba1ae03ac72e27e64a41d2461b4afffebf20718e5404a23cca6b7948153888f"
+    },
+    "source.vyper": {
+      "offset": 1048217,
+      "length": 10487,
+      "bytes": 72740,
+      "sha256": "b7aa8bb48b9b392be76620931642e6dfce4d23c48b2ebeace8e51344fe51b3cf"
+    },
+    "source.wat": {
+      "offset": 1058704,
+      "length": 2105,
+      "bytes": 11450,
+      "sha256": "1172e26e1208ca881dcca830c1831cde55d76529d04ea3f86d57e3446ef354d7"
+    },
+    "source.wenyan": {
+      "offset": 1060809,
+      "length": 990,
+      "bytes": 2075,
+      "sha256": "2a2246b79a05459d756cae9b190298fc55fed02011dbdad7e233f4cf64ee510c"
+    },
+    "source.wgsl": {
+      "offset": 1061799,
+      "length": 1312,
+      "bytes": 4934,
+      "sha256": "5c3d59f551a036bdbe518e263d78a0f8c3c01b13d341c87fbeaffbef0be05228"
+    },
+    "source.wikitext": {
+      "offset": 1063111,
+      "length": 4614,
+      "bytes": 54733,
+      "sha256": "edc49a3a73d7eb5ce2628daefde8b65bd67a6bd09dde7ae2a46734fd647c3043"
+    },
+    "source.wit": {
+      "offset": 1067725,
+      "length": 2793,
+      "bytes": 20891,
+      "sha256": "5ce2b1ff1afe1716be09e38b59c32ced614e57274b80a73fd97c7ca36d2bbe6e"
+    },
+    "source.wolfram": {
+      "offset": 1070518,
+      "length": 76891,
+      "bytes": 260666,
+      "sha256": "37e33e6aec411c3be558a9c6abc6bcb24c3729ff2d81cd685afbba9a120dbb95"
+    },
+    "source.yaml": {
+      "offset": 1147409,
+      "length": 2170,
+      "bytes": 9997,
+      "sha256": "cea61ca61948d6af1b38b82886ce4b698a7c9e23fe545d3a1f376c7fa2f7f995"
+    },
+    "source.zenscript": {
+      "offset": 1149579,
+      "length": 1228,
+      "bytes": 3707,
+      "sha256": "419be1cb0b35400beb319cba810ba164adb2b69bd048b63a5f4ac8c15c5c9fa5"
+    },
+    "source.zig": {
+      "offset": 1150807,
+      "length": 1479,
+      "bytes": 5053,
+      "sha256": "a4b74b24b7d5955b4de9b880db3ed06ffd6e91aa7b6e53e404f58b8c9dd18149"
+    },
+    "template.blocks.ng": {
+      "offset": 1152286,
+      "length": 645,
+      "bytes": 1970,
+      "sha256": "07d67da597b4eca0765421b8b34992695df2dcf4de463654020f4272f6e64d54"
+    },
+    "template.let.ng": {
+      "offset": 1152931,
+      "length": 432,
+      "bytes": 910,
+      "sha256": "fdc0ec42ad35c689897c1f7d1eee41a6360aefbba5affbc0978fc4ad6b648244"
+    },
+    "template.ng": {
+      "offset": 1153363,
+      "length": 269,
+      "bytes": 514,
+      "sha256": "a3a72ab15de7bab7f2e4263f4d9beb9a76e3892817fbf818173babfe4aeecae7"
+    },
+    "text.asciidoc": {
+      "offset": 1153632,
+      "length": 9082,
+      "bytes": 124672,
+      "sha256": "7f1c9b92d57cf1439d266c7119ec59a0c774b7a1144cca2ff77fe04006bc22ac"
+    },
+    "text.aspnetcorerazor": {
+      "offset": 1162714,
+      "length": 3383,
+      "bytes": 26818,
+      "sha256": "a07cf46cec894a5549020999a443ca73befd5079fa051a77635215efa54cf773"
+    },
+    "text.beancount": {
+      "offset": 1166097,
+      "length": 1358,
+      "bytes": 10133,
+      "sha256": "98e9b4220f8599bb13eb268d5fa522e964f2dd98c8674cd7b6d24af809132840"
+    },
+    "text.bibtex": {
+      "offset": 1167455,
+      "length": 771,
+      "bytes": 4621,
+      "sha256": "34c6d78b13fac6712f116116dfd34ca947c2cb7bd428440828ff05d29a7c4479"
+    },
+    "text.codeowners": {
+      "offset": 1168226,
+      "length": 263,
+      "bytes": 471,
+      "sha256": "470b07636c0ef77233f16754a7af26a7a784b405744a80085ca81bf226752496"
+    },
+    "text.csv": {
+      "offset": 1168489,
+      "length": 310,
+      "bytes": 1017,
+      "sha256": "63c544120e90176a2d9c3531f17e39011058427d12a69967ee760d492771e5d6"
+    },
+    "text.gherkin.feature": {
+      "offset": 1168799,
+      "length": 4872,
+      "bytes": 11828,
+      "sha256": "5ef9454b6f115b14aaf9479f3e08054e616408e6209a6d74219b832facbf04ee"
+    },
+    "text.git-commit": {
+      "offset": 1173671,
+      "length": 439,
+      "bytes": 1113,
+      "sha256": "b03fce4c1a46ac0df218024591e6f07cd84d7328fa7b31a32470fec212ffb0ee"
+    },
+    "text.git-rebase": {
+      "offset": 1174110,
+      "length": 353,
+      "bytes": 853,
+      "sha256": "8057d01d58c1db89987898742c7f2a9b7fbb5bac7c7a66e26f33eeee4facb55f"
+    },
+    "text.haml": {
+      "offset": 1174463,
+      "length": 1693,
+      "bytes": 7812,
+      "sha256": "2f2492f5baaa719e29fb08acb116c2b71f19a4b42f9b5bc64bbbf163b6e2b33a"
+    },
+    "text.html.basic": {
+      "offset": 1176156,
+      "length": 11552,
+      "bytes": 56408,
+      "sha256": "2d1c727fefade4b057b2ce0f00b13206fc413800b15964393b69c2abc42d84e0"
+    },
+    "text.html.derivative": {
+      "offset": 1187708,
+      "length": 377,
+      "bytes": 732,
+      "sha256": "4c6ebc8b6b6fc841f61ad883c0b8d8bbf90bb322c15e9b79b4dd658434277056"
+    },
+    "text.html.derivative.ng": {
+      "offset": 1188085,
+      "length": 415,
+      "bytes": 818,
+      "sha256": "864f10dbd44a5927713f8f998865406016c2f51ebf7bbf59872f66e3caaa9d67"
+    },
+    "text.html.edge": {
+      "offset": 1188500,
+      "length": 546,
+      "bytes": 2076,
+      "sha256": "e3da9de381534c958b71a4194a5385e6b935131dee35d6170da7f1e06fbc8fb4"
+    },
+    "text.html.erb": {
+      "offset": 1189046,
+      "length": 514,
+      "bytes": 1974,
+      "sha256": "af91f250a1d820bf31b5cdf497340aa1923ef64a479887f9c98351b9b37fc6d2"
+    },
+    "text.html.handlebars": {
+      "offset": 1189560,
+      "length": 2214,
+      "bytes": 11745,
+      "sha256": "12f08d1af9610eb1dfa26878158432f165f972f0b124a1f3b8ee71b951755030"
+    },
+    "text.html.jinja": {
+      "offset": 1191774,
+      "length": 284,
+      "bytes": 490,
+      "sha256": "2a6f3cf3fb955c2a5c8504a0a9cc2ac6a1a55b862905779c8b5e8e098e4a6831"
+    },
+    "text.html.liquid": {
+      "offset": 1192058,
+      "length": 2978,
+      "bytes": 17400,
+      "sha256": "cfd806bbf1530fc029c5214663162d7ab3ebb14359b913ac3986642f337eb64f"
+    },
+    "text.html.markdown": {
+      "offset": 1195036,
+      "length": 5484,
+      "bytes": 56874,
+      "sha256": "25ab9696f0b1cd4dee3d24373a3c561db567f2cf2a641590f422d473777a4734"
+    },
+    "text.html.php.blade": {
+      "offset": 1200520,
+      "length": 27664,
+      "bytes": 102486,
+      "sha256": "128601d88df0f2039697f05b12716379d99f3cee5ceb0493de18312330d2ccf3"
+    },
+    "text.html.soy": {
+      "offset": 1228184,
+      "length": 1510,
+      "bytes": 6612,
+      "sha256": "d78d1e4c2c30d0aa622938e39771de5f3eedb638a8d4583e13ea54070d719a02"
+    },
+    "text.html.twig": {
+      "offset": 1229694,
+      "length": 3443,
+      "bytes": 20129,
+      "sha256": "9bd6e56bf93dec57888b5a55a6394a6ed7ca1f63a9edaf6972a026f858c0110c"
+    },
+    "text.html.vue": {
+      "offset": 1233137,
+      "length": 2235,
+      "bytes": 21016,
+      "sha256": "856dcae11a64670a1e9145f323165e17effbace59d06b078f4fd66a2f1463c95"
+    },
+    "text.html.vue-html": {
+      "offset": 1235372,
+      "length": 1577,
+      "bytes": 8287,
+      "sha256": "06f318545537519c6ea8f54f362f9acab783a734f065de899543327608e6320c"
+    },
+    "text.log": {
+      "offset": 1236949,
+      "length": 819,
+      "bytes": 2577,
+      "sha256": "bb2c7ba798400f5749b1a758d54cd899b417e17fc7f21c7d03126ab21387ad66"
+    },
+    "text.markdown.mdc.standalone": {
+      "offset": 1237768,
+      "length": 6496,
+      "bytes": 19160,
+      "sha256": "4165f0f329f3845664eef607594942dcc2fa2a67bdbde37486c1061a9680e1f8"
+    },
+    "text.marko": {
+      "offset": 1244264,
+      "length": 3400,
+      "bytes": 24646,
+      "sha256": "6c793525cb6db3bb2b2f053659f8d351d23327f4fdc14128fcbf3cd492a7122a"
+    },
+    "text.pug": {
+      "offset": 1247664,
+      "length": 2423,
+      "bytes": 13156,
+      "sha256": "07e2141ecef90cad5ced18ddcc7f485b040b352b7d5c6e78e34379735034b419"
+    },
+    "text.shell-session": {
+      "offset": 1250087,
+      "length": 340,
+      "bytes": 567,
+      "sha256": "b9700702bac496bc770bfc6df9d175ed3c4da6213569056a389d05f943e7f403"
+    },
+    "text.tex": {
+      "offset": 1250427,
+      "length": 2982,
+      "bytes": 9357,
+      "sha256": "def6acbb19575187365f6566cda7c29bb859e608d9a8b529b01186a6941b4c5c"
+    },
+    "text.tex.latex": {
+      "offset": 1253409,
+      "length": 6545,
+      "bytes": 70050,
+      "sha256": "51d2820486e906d08b192221f5e8db61348d4d4d01e5f5afad1cdb024233eb2c"
+    },
+    "text.tsv": {
+      "offset": 1259954,
+      "length": 285,
+      "bytes": 633,
+      "sha256": "c5bd6d0e7fa667fc3477053e33f16274298005094020bdee62c11458efd54ea4"
+    },
+    "text.xml": {
+      "offset": 1260239,
+      "length": 1109,
+      "bytes": 5235,
+      "sha256": "5b8c33883759c41d4b058d38d3c212f3b021a65cacbdae81742e0203687dcce0"
+    },
+    "text.xml.xsl": {
+      "offset": 1261348,
+      "length": 411,
+      "bytes": 1252,
+      "sha256": "8d6c6cf2b93405d17f2d9f7c3ed7d84504050f3b9004abf892b21f1059fb2a1c"
+    },
+    "vue.directives": {
+      "offset": 1261759,
+      "length": 227,
+      "bytes": 369,
+      "sha256": "213f56eba72efdab2d82b2b337f9bafd311e6cd5bdc222c350b4749ff07bef20"
+    },
+    "vue.interpolations": {
+      "offset": 1261986,
+      "length": 199,
+      "bytes": 352,
+      "sha256": "f67793a5f891a2f31eb0245f6bf708458cc497bdca65511dfe0c9eb6cddbf0d8"
+    },
+    "vue.sfc.style.variable.injection": {
+      "offset": 1262185,
+      "length": 343,
+      "bytes": 823,
+      "sha256": "aee46818802998522891d437464f88ded76c41bad441ea4178cc219627942b78"
+    }
+  }
+}

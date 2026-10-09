@@ -1,0 +1,435 @@
+#![cfg(unix)]
+//! Replay parity for the Codex adapter. `fixtures/codex-replay.json` holds, for each recorded
+//! Codex app-server transcript of the original, what the unchanged TypeScript orchestrator and
+//! `CodexAdapterV2` persisted (see `tools/generate_codex_replay_fixtures.mjs`). The fake Codex
+//! (`fixtures/codex-provider.py`) serves the same recording to the Rust adapter, which must persist
+//! the same user-visible items, requests, plans and token usage. A scenario that differs is a bug in
+//! the adapter, not an expectation to relax. Tests wait on persisted events, never on sleeps.
+use chrono::Utc;
+use serde_json::{Value, json};
+use std::{path::PathBuf, time::Duration};
+use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
+
+struct Harness {
+    cwd: PathBuf,
+    log: PathBuf,
+    store: Store,
+    providers: ProviderRegistry,
+    execution: ExecutionService,
+    thread: String,
+    next: usize,
+    _root: tempfile::TempDir,
+}
+
+fn shim(cwd: &std::path::Path) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex-provider.py");
+    let binary = cwd.join("codex");
+    std::fs::write(&binary, format!("#!/bin/sh\nexec python3 '{}' \"$@\"\n", fixture.display())).unwrap();
+    std::fs::set_permissions(&binary, std::fs::Permissions::from_mode(0o700)).unwrap();
+    binary
+}
+
+impl Harness {
+    async fn start(environment: Vec<(&str, String)>, runtime_mode: &str, interaction_mode: &str, model: &str) -> Self {
+        Self::start_in(environment, runtime_mode, interaction_mode, model, false, "Codex").await
+    }
+    /// `worktree` runs the thread in its own git worktree, the workspace a checkpoint rollback needs.
+    async fn start_in(environment: Vec<(&str, String)>, runtime_mode: &str, interaction_mode: &str, model: &str, worktree: bool, title: &str) -> Self {
+        let root = tempfile::tempdir().unwrap();
+        let cwd = std::fs::canonicalize(root.path()).unwrap();
+        let log = cwd.join("fixture.log");
+        let (project_root, workspace, strategy) = if worktree {
+            let repository = cwd.join("repository");
+            std::fs::create_dir(&repository).unwrap();
+            git(&repository, &["init", "-q"]);
+            std::fs::write(repository.join("README.md"), "hello\n").unwrap();
+            git(&repository, &["add", "."]);
+            git(&repository, &["commit", "-q", "-m", "initial"]);
+            git(&repository, &["worktree", "add", "-q", "-b", "feature", cwd.join("worktree").to_str().unwrap()]);
+            (repository, cwd.join("worktree"), json!({"type":"existing_worktree","worktreePath":cwd.join("worktree")}))
+        } else {
+            (cwd.clone(), cwd.clone(), json!({"type":"root"}))
+        };
+        let mut environment: Vec<Value> = environment.into_iter().map(|(name, value)| json!({"name":name,"value":value})).collect();
+        environment.push(json!({"name":"CODEX_FIXTURE_LOG","value":log}));
+        environment.push(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}));
+        // The original's replay runs on a test clock, so streamed text is only ever persisted at the
+        // end of its item; the flush timer is stretched so that it cannot reorder items here.
+        environment.push(json!({"name":"T3CODE_CODEX_STREAM_FLUSH_MS","value":"600000"}));
+        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+            "claudeAgent":{"driver":"claudeAgent","enabled":false},
+            "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":shim(&cwd),"homePath":cwd.join("codex-home")},"environment":environment}}}))
+        .unwrap();
+        let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
+        let store = Store::open(cwd.join("state.db")).unwrap();
+        ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Fixture","workspaceRoot":project_root}), Utc::now()).unwrap();
+        let thread = ThreadLaunchService::with_providers(store.clone(), providers.clone())
+            .launch(json!({"commandId":"launch","projectId":"project","title":title,"modelSelection":{"instanceId":"codex","model":model},"runtimeMode":runtime_mode,"interactionMode":interaction_mode,"workspaceStrategy":strategy}), Utc::now())
+            .unwrap()["threadId"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        let execution = ExecutionService::start(store.clone(), providers.clone());
+        Self { cwd, log, store, providers, execution, thread, next: 0, _root: root }
+    }
+    fn view(&self) -> Value {
+        self.store.projection("thread", &self.thread).unwrap().unwrap()
+    }
+    fn dispatch_message(&mut self, text: &str, extra: Value) -> usize {
+        self.next += 1;
+        let id = format!("message-{}", self.next);
+        let mut command = json!({"type":"message.dispatch","commandId":id,"threadId":self.thread,"messageId":id,"text":text,"attachments":[],"dispatchMode":{"type":"start_immediately"}});
+        for (key, value) in extra.as_object().unwrap() {
+            command[key] = value.clone();
+        }
+        self.execution.dispatch(&command, Utc::now()).unwrap();
+        self.view()["runs"].as_array().unwrap().len()
+    }
+    /// Wait on persisted events until `check` yields a value. A fixture that rejected a frame the
+    /// adapter sent is reported instead of waiting out the timeout.
+    async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
+        let mut events = self.store.subscribe();
+        let found = tokio::time::timeout(Duration::from_secs(20), async {
+            loop {
+                if let Some(found) = check(&self.view()) {
+                    return found;
+                }
+                let _ = events.recv().await;
+            }
+        })
+        .await;
+        match found {
+            Ok(found) => found,
+            Err(_) => panic!("timed out waiting for a persisted event; fixture log: {:?}; view: {}", self.mismatch(), self.summary()),
+        }
+    }
+    fn summary(&self) -> String {
+        let view = self.view();
+        format!("runs {:?} items {:?}", view["runs"].as_array().unwrap().iter().map(|run| run["status"].clone()).collect::<Vec<_>>(), view["turnItems"].as_array().unwrap().iter().map(|item| format!("{}:{}", item["type"], item["status"])).collect::<Vec<_>>())
+    }
+    /// The thread shell as the scenarios capture it, with run ids as their position in the thread.
+    fn shell_snapshot(&self) -> Value {
+        let view = self.view();
+        let shell = t3_server::thread::shell(&view);
+        let position = |id: &Value| if id.is_null() { Value::Null } else { json!(view["runs"].as_array().unwrap().iter().position(|run| run["id"] == *id).unwrap() + 1) };
+        json!({"latestRun":position(&shell["latestRunId"]),"activeRun":position(&shell["activeRunId"]),"status":shell["status"],"activityRunStatus":shell["activityRunStatus"],"pendingBackgroundTasks":shell["pendingBackgroundTasks"]})
+    }
+    fn mismatch(&self) -> Option<Value> {
+        std::fs::read_to_string(&self.log).unwrap_or_default().lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()).find(|entry| entry.get("mismatch").is_some())
+    }
+    async fn settled(&self, ordinal: usize) -> Value {
+        self.until(|view| view["runs"].get(ordinal - 1).filter(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled"))).cloned()).await
+    }
+    async fn pending_request(&self) -> Value {
+        self.until(|view| view["runtimeRequests"].as_array().unwrap().iter().find(|request| request["status"] == "pending").cloned()).await
+    }
+    async fn stop(self) {
+        self.execution.shutdown().await;
+    }
+}
+
+fn git(cwd: &std::path::Path, args: &[&str]) {
+    let output = std::process::Command::new("git")
+        .args(["-c", "user.email=test@test.com", "-c", "user.name=Test", "-c", "commit.gpgsign=false"])
+        .args(args)
+        .current_dir(cwd)
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+}
+
+// --- normalised projection ----------------------------------------------------------------------
+fn pick(item: &Value, keys: &[&str]) -> serde_json::Map<String, Value> {
+    keys.iter().filter_map(|key| item.get(*key).map(|value| ((*key).to_owned(), value.clone()))).collect()
+}
+fn normalize_item(item: &Value) -> Value {
+    let by_type: &[&str] = match item["type"].as_str().unwrap() {
+        "user_message" => &["text"],
+        "assistant_message" | "reasoning" => &["text", "streaming"],
+        "command_execution" => &["input", "output", "exitCode"],
+        "file_change" => &["fileName", "diffStr"],
+        "web_search" => &["patterns", "results"],
+        "dynamic_tool" => &["toolName", "input", "output", "viewedImagePath", "toolSource"],
+        "todo_list" => &["steps"],
+        "proposed_plan" => &["markdown"],
+        "approval_request" => &["requestKind", "prompt"],
+        "user_input_request" => &["questions"],
+        "run_interrupt_request" | "run_interrupt_result" | "system_notice" => &["message"],
+        "subagent" => &["prompt", "result"],
+        _ => &[],
+    };
+    let mut out = serde_json::Map::new();
+    out.insert("type".into(), item["type"].clone());
+    out.insert("status".into(), item["status"].clone());
+    out.insert("title".into(), item["title"].clone());
+    if let Some(kind) = item.get("toolNonExecutionKind") {
+        out.insert("toolNonExecutionKind".into(), kind.clone());
+    }
+    out.extend(pick(item, by_type));
+    if item["type"] == "error" {
+        out.insert("failure".into(), Value::Object(pick(&item["failure"], &["class", "message", "code", "retryable"])));
+    }
+    Value::Object(out)
+}
+fn normalize(view: &Value) -> Value {
+    let mut items: Vec<&Value> = view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] != "checkpoint").collect();
+    items.sort_by_key(|item| item["ordinal"].as_u64());
+    json!({
+        "runs": view["runs"].as_array().unwrap().iter().map(|run| run["status"].clone()).collect::<Vec<_>>(),
+        "attempts": view["attempts"].as_array().unwrap().iter().map(|a| a["status"].clone()).collect::<Vec<_>>(),
+        "providerTurns": view["providerTurns"].as_array().unwrap().iter().map(|turn| json!({"status":turn["status"],"turnTokenUsage":turn.get("turnTokenUsage").cloned().unwrap_or(Value::Null),"tokenUsage":turn.get("tokenUsage").filter(|u| !u.is_null()).map_or(Value::Null, |u| Value::Object(pick(u, &["usedTokens","maxTokens","inputTokens","cachedInputTokens","outputTokens","reasoningOutputTokens"])))})).collect::<Vec<_>>(),
+        "items": items.into_iter().map(normalize_item).collect::<Vec<_>>(),
+        "requests": view["runtimeRequests"].as_array().unwrap().iter().map(|r| json!({"kind":r["kind"],"status":r["status"]})).collect::<Vec<_>>(),
+        "plans": view["plans"].as_array().unwrap().iter().map(|p| Value::Object(pick(p, &["kind","status","steps","markdown"]))).collect::<Vec<_>>(),
+        "providerThread": view["providerThreads"].as_array().unwrap().iter().map(|t| t["status"].clone()).collect::<Vec<_>>(),
+    })
+}
+
+/// `permissions` of a `thread/start`-time recorded runtime policy name the runtime mode whose
+/// native approval policy is closest; the fake does not compare those fields (see the fake).
+fn runtime_mode(policy: &Value) -> &'static str {
+    match policy["approvalPolicy"].as_str() {
+        Some("never") => "full-access",
+        Some("untrusted") => "approval-required",
+        Some("on-request") => "auto-accept-edits",
+        _ if policy["approvalPolicy"].is_object() => "approval-required",
+        _ => "full-access",
+    }
+}
+
+fn assert_projection(name: &str, actual: &Value, expected: &Value) {
+    let types = |items: &Value| items.as_array().unwrap().iter().map(|item| format!("{}:{}", item["type"].as_str().unwrap(), item["status"].as_str().unwrap())).collect::<Vec<_>>().join(" ");
+    assert_eq!(types(&actual["items"]), types(&expected["items"]), "{name}: the items, in order");
+    for (index, (got, want)) in actual["items"].as_array().unwrap().iter().zip(expected["items"].as_array().unwrap()).enumerate() {
+        for key in got.as_object().unwrap().keys().chain(want.as_object().unwrap().keys()) {
+            let short = |value: &Value| value.to_string().chars().take(400).collect::<String>();
+            assert!(got.get(key) == want.get(key), "{name}: item {index} ({}) differs at {key}\n  rust: {}\n  ts:   {}", want["type"], short(&got[key]), short(&want[key]));
+        }
+    }
+    assert_eq!(actual["items"].as_array().unwrap().len(), expected["items"].as_array().unwrap().len(), "{name}: item count");
+    assert_eq!(actual, expected, "{name}");
+}
+
+/// Every thread the scenario created, the root first, as the original's projections list them:
+/// each thread's own projection, how it relates to its parent, and the subagents it holds.
+fn assert_threads(name: &str, harness: &Harness, expected: &[Value]) {
+    let mut found: Vec<Value> = vec![harness.view()];
+    let mut index = 0;
+    while index < found.len() {
+        let children: Vec<String> = found[index]["subagents"].as_array().unwrap().iter().filter_map(|task| task["childThreadId"].as_str().map(str::to_owned)).collect();
+        for child in children {
+            found.push(harness.store.projection("thread", &child).unwrap().unwrap_or_else(|| panic!("{name}: child thread {child} is missing")));
+        }
+        index += 1;
+    }
+    assert_eq!(found.len(), expected.len(), "{name}: the threads created: {:?}", found.iter().map(|view| view["thread"]["title"].clone()).collect::<Vec<_>>());
+    let title_of = |id: &Value| found.iter().find(|view| view["thread"]["id"] == *id).map_or(Value::Null, |view| view["thread"]["title"].clone());
+    for want in expected {
+        let view = found.iter().find(|view| view["thread"]["title"] == want["title"]).unwrap_or_else(|| panic!("{name}: no thread titled {}", want["title"]));
+        let label = format!("{name}: thread {}", want["title"]);
+        assert_eq!(title_of(&view["thread"]["lineage"]["parentThreadId"]), want["parent"], "{label}: parent");
+        assert_eq!(view["thread"]["lineage"]["relationshipToParent"], want["relationship"], "{label}: relationship");
+        let subagents: Vec<Value> = view["subagents"].as_array().unwrap().iter().map(|task| {
+            let mut row = serde_json::Map::new();
+            for key in ["origin", "createdBy", "driver", "status", "prompt", "title", "model", "result"] {
+                row.insert(key.to_owned(), task[key].clone());
+            }
+            row.insert("child".into(), title_of(&task["childThreadId"]));
+            Value::Object(row)
+        }).collect();
+        assert_eq!(Value::Array(subagents), want["subagents"], "{label}: subagents");
+        assert_projection(&label, &normalize(view), &want["expected"]);
+    }
+}
+
+/// The recordings the port replays; the generator lists what it leaves out and why.
+fn rows() -> (Vec<Value>, Vec<Value>) {
+    let file: Value = serde_json::from_str(include_str!("fixtures/codex-replay.json")).unwrap();
+    (file["scenarios"].as_array().unwrap().clone(), file["excluded"].as_array().unwrap().clone())
+}
+
+async fn replay(row: &Value) {
+    let name = row["name"].as_str().unwrap();
+    let scratch = tempfile::tempdir().unwrap();
+    let transcript = scratch.path().join("transcript.ndjson");
+    std::fs::write(&transcript, row["transcript"].as_array().unwrap().iter().map(|entry| entry.to_string() + "\n").collect::<String>()).unwrap();
+    let mut environment = vec![("CODEX_FIXTURE_TRANSCRIPT", transcript.to_string_lossy().into_owned())];
+    let steps = row["steps"].as_array().unwrap();
+    // A step that releases the replay gate holds the recording back at that frame until then.
+    let gate = steps.iter().find(|step| step["type"] == "release_replay_gate").map(|step| {
+        let fifo = scratch.path().join("gate.fifo");
+        let path = std::ffi::CString::new(fifo.to_string_lossy().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+        environment.push(("CODEX_FIXTURE_GATE_LABEL", step["label"].as_str().unwrap().to_owned()));
+        environment.push(("CODEX_FIXTURE_GATE_FIFO", fifo.to_string_lossy().into_owned()));
+        fifo
+    });
+    let mut shells = serde_json::Map::new();
+    let rolls_back = steps.iter().any(|step| step["type"] == "rollback");
+    let mut harness = Harness::start_in(environment, runtime_mode(&row["runtimePolicy"]), row["interactionMode"].as_str().unwrap(), row["model"].as_str().unwrap(), rolls_back, &format!("Replay fixture: {name}")).await;
+    let mut runs = 0;
+    for step in steps {
+        match step["type"].as_str().unwrap() {
+            "message" => {
+                runs = harness.dispatch_message(step["text"].as_str().unwrap(), json!({}));
+            }
+            "queue_message" => {
+                harness.next += 1;
+                let id = format!("message-{}", harness.next);
+                let mut command = json!({"type":"message.dispatch","commandId":id,"threadId":harness.thread,"messageId":id,"text":step["text"],"attachments":[],"dispatchMode":{"type":"queue_after_active"}});
+                for key in ["createdBy", "creationSource"] {
+                    if let Some(value) = step.get(key) {
+                        command[key] = value.clone();
+                    }
+                }
+                harness.execution.dispatch(&command, Utc::now()).unwrap();
+                runs = harness.view()["runs"].as_array().unwrap().len();
+            }
+            "approve_next_runtime_request" => {
+                let request = harness.pending_request().await;
+                if let Some(key) = step.get("shellSnapshotKeyWhilePending").and_then(Value::as_str) {
+                    shells.insert(key.to_owned(), harness.shell_snapshot());
+                }
+                harness.execution.dispatch(&json!({"type":"runtime-request.respond","commandId":"approve","threadId":harness.thread,"requestId":request["id"],"decision":step.get("decision").cloned().unwrap_or(json!("accept"))}), Utc::now()).unwrap();
+            }
+            "answer_next_user_input_request" => {
+                let request = harness.pending_request().await;
+                harness.execution.dispatch(&json!({"type":"runtime-request.respond","commandId":"answer","threadId":harness.thread,"requestId":request["id"],"answers":step["answers"]}), Utc::now()).unwrap();
+            }
+            "rollback" => {
+                // The checkpoint the step names is the one after that run of the root scope.
+                let view = harness.view();
+                let scope = view["checkpointScopes"][0]["id"].clone();
+                let ordinal: u64 = step["checkpointSuffix"].as_str().unwrap().parse().unwrap();
+                let target = view["checkpoints"].as_array().unwrap().iter().find(|checkpoint| checkpoint["ordinalWithinScope"] == ordinal).unwrap()["id"].clone();
+                harness.execution.dispatch(&json!({"type":"checkpoint.rollback","commandId":"rewind","threadId":harness.thread,"scopeId":scope,"checkpointId":target,"restoreFiles":false}), Utc::now()).unwrap();
+                // Codex has been asked to drop the later turns and the later runs are history.
+                harness.until(|view| (view["thread"]["rollbackFailure"].is_object() || view["runs"].as_array().unwrap().iter().any(|run| run["status"] == "rolled_back")).then_some(())).await;
+                assert!(harness.view()["thread"]["rollbackFailure"].is_null(), "{}", harness.view()["thread"]["rollbackFailure"]);
+            }
+            "steer" => {
+                let index = step["targetRunIndex"].as_u64().unwrap() as usize - 1;
+                let run = harness.until(|view| view["runs"].get(index).filter(|run| run["status"] == "running").cloned()).await;
+                harness.next += 1;
+                let id = format!("message-{}", harness.next);
+                harness.execution.dispatch(&json!({"type":"message.dispatch","commandId":id,"threadId":harness.thread,"messageId":id,"text":step["text"],"attachments":[],"dispatchMode":{"type":"steer_active","targetRunId":run["id"]}}), Utc::now()).unwrap();
+            }
+            "interrupt" => {
+                let index = step["targetRunIndex"].as_u64().unwrap() as usize - 1;
+                if let Some(kind) = step.get("waitForTurnItemType").and_then(Value::as_str) {
+                    harness.until(|view| view["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == kind && item["status"] == "running").cloned()).await;
+                }
+                let run = harness.until(|view| view["runs"].get(index).filter(|run| run["status"] == "running").cloned()).await;
+                harness.execution.dispatch(&json!({"type":"run.interrupt","commandId":"stop","threadId":harness.thread,"runId":run["id"]}), Utc::now()).unwrap();
+            }
+            "cancel_queued_run" => {
+                let run = harness.view()["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1]["id"].clone();
+                harness.execution.dispatch(&json!({"type":"queued-run.cancel","commandId":"cancel-queued","threadId":harness.thread,"runId":run}), Utc::now()).unwrap();
+            }
+            "await_run_status" => {
+                let index = step["targetRunIndex"].as_u64().unwrap() as usize - 1;
+                harness.until(|view| view["runs"].get(index).filter(|run| run["status"] == step["status"]).map(|_| ())).await;
+            }
+            "capture_shell_snapshot" => {
+                shells.insert(step["key"].as_str().unwrap().to_owned(), harness.shell_snapshot());
+            }
+            "release_replay_gate" => {
+                use std::io::Write;
+                std::fs::OpenOptions::new().write(true).open(gate.as_ref().unwrap()).unwrap().write_all(b"release").unwrap();
+            }
+            other => panic!("{name}: unsupported step {other}"),
+        }
+        // The next message, like a rollback, waits for the thread to be idle, as the original's does.
+        let position = steps.iter().position(|s| s == step).unwrap();
+        if steps.get(position + 1).is_some_and(|next| matches!(next["type"].as_str(), Some("message" | "rollback"))) {
+            harness.until(|view| (view["runs"].as_array().unwrap().iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled" | "rolled_back")))).then_some(())).await;
+        }
+    }
+    harness.settled(runs).await;
+    // Everything after the terminal (checkpoint capture) settles through the same persisted state.
+    harness.until(|view| view["runs"].as_array().unwrap().iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled" | "rolled_back"))).then_some(())).await;
+    assert!(harness.mismatch().is_none(), "{name}: the adapter sent a frame the recording does not have: {:?}", harness.mismatch());
+    for (key, snapshot) in &shells {
+        assert_eq!(snapshot, &row["shells"][key], "{name}: the thread shell captured as {key}");
+    }
+    assert_eq!(shells.len(), row["shells"].as_object().unwrap().len(), "{name}: captured shells");
+    assert_projection(name, &normalize(&harness.view()), &row["expected"]);
+    // A subagent's child threads are threads of their own, found by their lineage.
+    if let Some(expected_threads) = row.get("threads").and_then(Value::as_array) {
+        assert_threads(name, &harness, expected_threads);
+    }
+    let _ = &harness.cwd;
+    harness.stop().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn recorded_app_server_streams_persist_what_the_source_adapter_persisted() {
+    let (scenarios, _) = rows();
+    assert!(scenarios.len() >= 10);
+    let only = std::env::var("CODEX_REPLAY_ONLY").ok();
+    let mut failures = vec![];
+    for row in &scenarios {
+        if only.as_deref().is_some_and(|only| !only.split(',').any(|name| name == row["name"].as_str().unwrap())) {
+            continue;
+        }
+        let outcome = tokio::spawn({
+            let row = row.clone();
+            async move { replay(&row).await }
+        })
+        .await;
+        if let Err(error) = outcome {
+            let panic = error.into_panic();
+            let message = panic.downcast_ref::<String>().cloned().or_else(|| panic.downcast_ref::<&str>().map(|text| (*text).to_owned())).unwrap_or_default();
+            failures.push(format!("{}: {}", row["name"], message.chars().take(1800).collect::<String>()));
+        }
+    }
+    assert!(failures.is_empty(), "{} replay scenario(s) differ:\n{}", failures.len(), failures.join("\n---\n"));
+}
+
+#[test]
+fn every_excluded_recording_names_why_the_port_does_not_replay_it() {
+    let (scenarios, excluded) = rows();
+    for entry in &excluded {
+        assert!(entry["reason"].as_str().is_some_and(|reason| reason.len() > 20), "{entry}");
+        assert!(!scenarios.iter().any(|row| row["name"] == entry["name"]), "{entry} is both replayed and excluded");
+    }
+}
+
+/// The recording whose second turn runs in a new server process: the thread is resumed natively
+/// (`thread/resume`, no history) and the turn continues from what Codex remembers.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_native_thread_is_resumed_after_a_server_restart() {
+    let file: Value = serde_json::from_str(include_str!("fixtures/codex-replay.json")).unwrap();
+    let row = &file["recovery"][0];
+    let scratch = tempfile::tempdir().unwrap();
+    let transcript = scratch.path().join("transcript.ndjson");
+    std::fs::write(&transcript, row["transcript"].as_array().unwrap().iter().map(|entry| entry.to_string() + "\n").collect::<String>()).unwrap();
+    let mut harness = Harness::start(vec![("CODEX_FIXTURE_TRANSCRIPT", transcript.to_string_lossy().into_owned()), ("T3CODE_CODEX_STREAM_FLUSH_MS", "600000".into())], "full-access", "default", row["model"].as_str().unwrap()).await;
+    let prompts = row["prompts"].as_array().unwrap();
+    let runs = harness.dispatch_message(prompts[0].as_str().unwrap(), json!({}));
+    harness.settled(runs).await;
+    let native = harness.view()["providerThreads"][0]["nativeThreadRef"]["nativeId"].clone();
+    // The server stops and starts again over the same state: the process, its callbacks and the
+    // running turn are gone, the native thread id is not.
+    let Harness { cwd, log, store, providers, execution, thread, next, _root } = harness;
+    execution.shutdown().await;
+    drop(execution);
+    drop(store);
+    let store = Store::open(cwd.join("state.db")).unwrap();
+    let execution = ExecutionService::start(store.clone(), providers.clone());
+    let mut harness = Harness { cwd, log, store, providers, execution, thread, next, _root };
+    let runs = harness.dispatch_message(prompts[1].as_str().unwrap(), json!({}));
+    harness.settled(runs).await;
+    harness.until(|view| view["runs"].as_array().unwrap().iter().all(|run| run["status"] == "completed").then_some(())).await;
+    assert!(harness.mismatch().is_none(), "the adapter sent a frame the recording does not have: {:?}", harness.mismatch());
+    let view = harness.view();
+    assert_eq!(view["providerThreads"][0]["nativeThreadRef"]["nativeId"], native, "one native thread across both processes");
+    let texts: Vec<&str> = view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "assistant_message").map(|item| item["text"].as_str().unwrap()).collect();
+    let finals: Vec<&str> = row["finals"].as_array().unwrap().iter().map(|text| text.as_str().unwrap()).collect();
+    assert_eq!(texts, finals);
+    harness.stop().await;
+}

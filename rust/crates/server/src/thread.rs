@@ -47,16 +47,22 @@ impl ThreadService {
                     .map(|id| read_projection(transaction, "project", id))
                     .transpose()?
                     .flatten();
+                // Deleting cancels the thread's work and queues the cleanup that follows it.
+                if kind == "thread.delete" {
+                    let Some(current) = current.as_ref() else {
+                        return Ok(Decision::Rejected(json!({"_tag":"OrchestratorDispatchError","commandId":command_id,"commandType":kind,"cause":format!("Thread {thread_id} does not exist.")})));
+                    };
+                    let attachments = crate::thread_deletion::attachment_ids(current);
+                    return Ok(match crate::thread_deletion::plan(command, current, &attachments, now) {
+                        Ok(plan) => Decision::Accepted { events: plan.events, effects: plan.effects },
+                        Err(StoreError::InvalidCommand(cause)) => Decision::Rejected(json!({"_tag":"OrchestratorDispatchError","commandId":command_id,"commandType":kind,"cause":cause})),
+                        Err(other) => return Err(other),
+                    });
+                }
                 Ok(
                     match plan(command, current.as_ref(), project.as_ref(), now) {
                         Ok(events) => {
-                            let effects = events.iter().filter(|event| event.event_type == "provider-session.detached").map(|event| NewEffect {
-                                id: format!("effect:{command_id}:provider-session.detach:{}", event.payload["providerSessionId"].as_str().unwrap()),
-                                command_id: command_id.into(),
-                                thread_id: thread_id.into(),
-                                request: json!({"type":"provider-session.detach","providerSessionId":event.payload["providerSessionId"],"detail":event.payload["reason"]}),
-                                available_at: iso(now),
-                            }).collect();
+                            let effects = lifecycle_effects(command, &events, now);
                             Decision::Accepted { events, effects }
                         },
                         Err(error) => Decision::Rejected(error),
@@ -83,6 +89,41 @@ impl ThreadService {
     }
 }
 
+/// The effects a thread command's events leave behind (`dispatchThreadMutation`): each detached
+/// provider session is unloaded after the commit, an archive also closes the thread's terminals,
+/// and a requested rename is written by an effect.
+pub(crate) fn lifecycle_effects(command: &Value, events: &[Event], now: DateTime<Utc>) -> Vec<NewEffect> {
+    let command_id = string(command, "commandId").unwrap_or("");
+    let thread_id = string(command, "threadId").unwrap_or("");
+    let kind = string(command, "type").unwrap_or("");
+    let mut effects: Vec<NewEffect> = events
+        .iter()
+        .filter(|event| event.event_type == "provider-session.detached")
+        .map(|event| {
+            let mut request = json!({"type":"provider-session.detach","providerSessionId":event.payload["providerSessionId"],"detail":event.payload["reason"]});
+            // Only an archive is terminal: the other detaches keep the MCP credential so a
+            // re-attaching provider stays authorized.
+            if kind == "thread.archive" {
+                request["revokeMcpCredential"] = json!(true);
+            }
+            NewEffect {
+                id: format!("effect:{command_id}:provider-session.detach:{}", event.payload["providerSessionId"].as_str().unwrap()),
+                command_id: command_id.into(),
+                thread_id: thread_id.into(),
+                request,
+                available_at: iso(now),
+            }
+        })
+        .collect();
+    if kind == "thread.archive" {
+        effects.push(NewEffect { id: format!("effect:{command_id}:terminal.cleanup"), command_id: command_id.into(), thread_id: thread_id.into(), request: json!({"type":"terminal.cleanup"}), available_at: iso(now) });
+    }
+    if kind == "thread.metadata.update" && command["regenerateTitle"] == true {
+        effects.push(crate::text_generation_title::generate_effect(command_id, thread_id, json!({"type":"regenerate"}), iso(now)));
+    }
+    effects
+}
+
 fn string<'a>(value: &'a Value, field: &str) -> Option<&'a str> {
     value.get(field).and_then(Value::as_str)
 }
@@ -98,6 +139,65 @@ fn time(value: &Value) -> Option<DateTime<Utc>> {
 }
 fn iso(now: DateTime<Utc>) -> String {
     now.to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
+/// `thread.pull-request.link` and `.unlink`: files a pull request under the thread by its
+/// host-level identity, or takes it out again. `false` when the thread already knew. A
+/// stack-derived link is dismissed rather than removed, so a sync does not bring it back. The
+/// branch's own pull request (`branchPullRequest`) is not tracked here yet.
+fn apply_pull_request_link(thread: &mut Value, command: &Value, at: &str) -> bool {
+    use crate::thread_pull_requests::{legacy_key, links, normalize};
+    let key = normalize(command);
+    let current = links(thread);
+    let existing = current.iter().find(|link| normalize(link) == key).cloned();
+    let pull_requests: Vec<Value> = if command["type"] == "thread.pull-request.link" {
+        let source = command["source"].as_str().unwrap_or("manual");
+        let undismisses = existing.as_ref().is_some_and(|link| link["source"] == "stack-dismissed") && !matches!(source, "stack" | "stack-dismissed");
+        if existing.is_some() && !undismisses {
+            return false;
+        }
+        let link = match existing {
+            Some(mut link) => {
+                link["source"] = json!(source);
+                link["url"] = command["url"].clone();
+                link
+            }
+            None => json!({"host":key["host"],"repository":key["repository"],"number":key["number"],"url":command["url"],"source":source,"linkedAt":at,"snapshot":null,"stack":null}),
+        };
+        current.iter().filter(|entry| normalize(entry) != key).cloned().chain([link]).collect()
+    } else {
+        let Some(existing) = existing else { return false };
+        let in_a_stack = existing["source"] == "stack"
+            || !existing["stack"].is_null()
+            || current.iter().any(|link| {
+                link["host"].as_str().map(str::to_lowercase) == key["host"].as_str().map(str::to_lowercase)
+                    && link["repository"].as_str().map(str::to_lowercase) == key["repository"].as_str().map(str::to_lowercase)
+                    && link["stack"]["layers"].as_array().is_some_and(|layers| layers.iter().any(|layer| layer["number"] == key["number"]))
+            });
+        current
+            .iter()
+            .filter_map(|link| {
+                if *link != existing {
+                    return Some(link.clone());
+                }
+                in_a_stack.then(|| {
+                    let mut dismissed = link.clone();
+                    dismissed.as_object_mut().map(|object| object.remove("watch"));
+                    dismissed["source"] = json!("stack-dismissed");
+                    dismissed
+                })
+            })
+            .collect()
+    };
+    let keeps_legacy = thread
+        .get("linkedPullRequest")
+        .filter(|linked| !linked.is_null())
+        .is_some_and(|linked| pull_requests.iter().any(|link| link["source"] != "stack-dismissed" && normalize(link) == legacy_key(linked, None)));
+    if !keeps_legacy {
+        thread["linkedPullRequest"] = Value::Null;
+    }
+    thread["pullRequests"] = json!(pull_requests);
+    true
 }
 
 pub fn normalize_command(input: &Value) -> Result<Value, String> {
@@ -140,6 +240,18 @@ pub fn plan(
     required("commandId")?;
     required("threadId")?;
     let at = iso(now);
+    // An imported native thread is checked before anything is committed.
+    let imported = command
+        .get("importedNativeThread")
+        .filter(|_| kind == "thread.create")
+        .map(|imported| {
+            serde_json::from_value::<t3_contracts::ImportedNativeThreadRef>(imported["ref"].clone()).map_err(|error| reject(error.to_string()))?;
+            if let Some(metadata) = imported.get("metadata").filter(|metadata| !metadata.is_null()) {
+                serde_json::from_value::<t3_contracts::ProviderThreadNativeMetadata>(metadata.clone()).map_err(|error| reject(error.to_string()))?;
+            }
+            Ok::<_, Value>(imported.clone())
+        })
+        .transpose()?;
     let (event_type, mut thread) = if kind == "thread.create" {
         if projection.is_some() {
             return Err(reject(format!("Thread {id} already exists.")));
@@ -152,9 +264,6 @@ pub fn plan(
                 "Project {} does not exist.",
                 required("projectId")?
             )));
-        }
-        if command.get("importedNativeThread").is_some() {
-            return Err(unsupported("native thread import"));
         }
         serde_json::from_value::<t3_contracts::ModelSelection>(command["modelSelection"].clone())
             .map_err(|error| reject(error.to_string()))?;
@@ -200,9 +309,10 @@ pub fn plan(
         {
             return Err(reject(format!("Thread {id} is archived.")));
         }
-        // Until provider teardown and delegated completion orchestration are ported,
-        // operations needing those effects fail explicitly instead of dropping work.
-        if matches!(kind, "thread.archive" | "thread.delete" | "thread.settle")
+        // Settling ends live provider sessions as archiving does, and its delegated-completion
+        // cancellation is not ported, so a settle with sessions still fails explicitly instead of
+        // dropping that work.
+        if kind == "thread.settle"
             && (!array(projection, "providerSessions").is_empty()
                 || !array(projection, "subagents").is_empty())
         {
@@ -215,11 +325,14 @@ pub fn plan(
                 if !thread["archivedAt"].is_null() {
                     return Err(reject(format!("Thread {id} is already archived.")));
                 }
-                if !array(projection, "runs").is_empty() {
-                    return Err(unsupported("archive run cancellation"));
-                }
                 thread["archivedAt"] = json!(at);
                 thread["titleRegeneration"] = Value::Null;
+                // An archived thread takes no wakes, so its pull request watches end.
+                for link in thread["pullRequests"].as_array_mut().into_iter().flatten() {
+                    if let Some(link) = link.as_object_mut() {
+                        link.remove("watch");
+                    }
+                }
                 "thread.archived"
             }
             "thread.unarchive" => {
@@ -229,17 +342,8 @@ pub fn plan(
                 thread["archivedAt"] = Value::Null;
                 "thread.unarchived"
             }
-            "thread.delete" => {
-                if !array(projection, "runs").is_empty()
-                    || !array(projection, "runtimeRequests").is_empty()
-                    || !array(projection, "messages").is_empty()
-                {
-                    return Err(unsupported("thread run and attachment cleanup"));
-                }
-                thread["deletedAt"] = json!(at);
-                thread["titleRegeneration"] = Value::Null;
-                "thread.deleted"
-            }
+            // Planned with its cleanup effects by `thread_deletion`, never by this function.
+            "thread.delete" => return Err(reject("thread.delete is planned by thread deletion.".into())),
             "thread.visit" => {
                 let visited = time(&command["visitedAt"]).ok_or_else(|| {
                     reject(format!(
@@ -455,23 +559,33 @@ pub fn plan(
                 {
                     return Err(reject(format!("Thread {id} is no longer empty.")));
                 }
-                for field in ["limitRecovery", "linkedPullRequest"] {
-                    if command.get(field).is_some() {
-                        return Err(unsupported(field));
-                    }
+                if command.get("limitRecovery").is_some() {
+                    return Err(unsupported("limitRecovery"));
                 }
-                if command["regenerateTitle"] == true {
-                    return Err(unsupported("title regeneration"));
+                // Link (object) or unlink (null) a pull request; absent leaves it unchanged.
+                if let Some(linked) = command.get("linkedPullRequest") {
+                    crate::thread_pull_requests::update_legacy(&mut thread, linked, &at);
                 }
                 for field in ["title", "branch", "worktreePath"] {
                     if let Some(value) = command.get(field) {
                         thread[field] = value.clone();
                     }
                 }
-                if command["regenerateTitle"] == false || command.get("title").is_some() {
+                // regenerateTitle: true arms the in-flight marker that the title effect completes;
+                // a landing title or an explicit false (generation abandoned) clears it.
+                if command["regenerateTitle"] == true {
+                    thread["titleRegeneration"] = json!({"requestId":command_id,"startedAt":at});
+                } else if command["regenerateTitle"] == false || command.get("title").is_some() {
                     thread["titleRegeneration"] = Value::Null;
                 }
                 "thread.metadata-updated"
+            }
+            "thread.pull-request.link" | "thread.pull-request.unlink" => {
+                if !apply_pull_request_link(&mut thread, command, &at) {
+                    // The thread already knew: nothing changes, and nothing is announced.
+                    return Ok(vec![]);
+                }
+                "thread.pull-request-synced"
             }
             "thread.interaction-mode.set" => {
                 serde_json::from_value::<t3_contracts::ProviderInteractionMode>(
@@ -526,9 +640,74 @@ pub fn plan(
         payload: thread.take(),
         metadata: json!({}),
     }];
+    // `dispatchThreadCreate`: an imported native thread arrives with its provider thread, not yet
+    // loaded. Its native reference makes it the thread's active provider thread, so the first message
+    // starts the agent on that session (loading or resuming it) instead of a new one.
+    if let Some(imported) = imported {
+        let native = &imported["ref"];
+        let driver = native["driver"].as_str().unwrap_or("");
+        let instance = decoded_instance(&events[0].payload);
+        let encode = crate::provider_maintenance::encode_uri_component;
+        let provider_thread_id = ["provider", driver, "provider-instance", instance.as_str(), "native-thread", native["nativeId"].as_str().unwrap_or("")]
+            .iter()
+            .fold("provider-thread".to_owned(), |id, part| format!("{id}:{}", encode(part)));
+        events.push(Event {
+            event_id: uuid::Uuid::new_v4().to_string(),
+            aggregate_kind: "thread".into(),
+            aggregate_id: id.into(),
+            occurred_at: iso(now),
+            command_id: Some(command_id.into()),
+            causation_event_id: None,
+            correlation_id: Some(command_id.into()),
+            event_type: "provider-thread.updated".into(),
+            payload: json!({"id":provider_thread_id,"driver":driver,"providerInstanceId":instance,"providerSessionId":null,"appThreadId":id,"ownerNodeId":null,
+                "nativeThreadRef":native,"nativeConversationHeadRef":null,"status":"not_loaded","firstRunOrdinal":null,"lastRunOrdinal":null,"handoffIds":[],"forkedFrom":null,
+                "pendingBackgroundTasks":[],"contextUsage":null,"nativeMetadata":imported.get("metadata").cloned().unwrap_or(Value::Null),"createdAt":iso(now),"updatedAt":iso(now)}),
+            metadata: json!({}),
+        });
+    }
+    // Archiving cancels the runs still waiting in the queue; a run that is already executing
+    // is ended by the detach of its provider session below.
+    if kind == "thread.archive" {
+        let projection = projection.unwrap();
+        let queued: Vec<&Value> = array(projection, "runs").iter().filter(|run| run["status"] == "queued").collect();
+        let child = |event_type: &str, payload: Value| Event {
+            event_id: uuid::Uuid::new_v4().to_string(),
+            aggregate_kind: "thread".into(), aggregate_id: id.into(), occurred_at: iso(now),
+            command_id: Some(command_id.into()), causation_event_id: None,
+            correlation_id: Some(command_id.into()), event_type: event_type.into(),
+            payload, metadata: json!({}),
+        };
+        for run in &queued {
+            let mut run = (*run).clone();
+            run["status"] = json!("cancelled");
+            run["queuePosition"] = Value::Null;
+            run["completedAt"] = json!(iso(now));
+            events.push(child("run.updated", run));
+        }
+        let is_queued = |run_id: &Value| queued.iter().any(|run| run["id"] == *run_id);
+        for attempt in array(projection, "attempts") {
+            if is_queued(&attempt["runId"]) && matches!(string(attempt, "status"), Some("pending" | "running")) {
+                let mut attempt = attempt.clone();
+                attempt["status"] = json!("cancelled");
+                attempt["completedAt"] = json!(iso(now));
+                events.push(child("run-attempt.updated", attempt));
+            }
+        }
+        for node in array(projection, "nodes") {
+            if is_queued(&node["runId"]) && matches!(string(node, "status"), Some("pending" | "running" | "waiting")) {
+                let mut node = node.clone();
+                node["status"] = json!("cancelled");
+                node["completedAt"] = json!(iso(now));
+                events.push(child("node.updated", node));
+            }
+        }
+    }
     // Match the source lifecycle: workspace changes detach bindings in the
     // command transaction; the persisted effect unloads/reaps the runtime.
-    let detach_reason = if kind == "thread.metadata.update"
+    let detach_reason = if kind == "thread.archive" {
+        Some("Thread archived.")
+    } else if kind == "thread.metadata.update"
         && command
             .get("worktreePath")
             .is_some_and(|path| *path != projection.unwrap()["thread"]["worktreePath"])
@@ -559,6 +738,10 @@ pub fn plan(
         }
     }
     Ok(events)
+}
+
+fn decoded_instance(thread: &Value) -> String {
+    thread["providerInstanceId"].as_str().unwrap_or("").to_owned()
 }
 
 pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
@@ -621,7 +804,10 @@ pub(crate) fn projection_after(
         "runtime-request.updated" => Some("runtimeRequests"),
         "message.updated" => Some("messages"),
         "plan.updated" => Some("plans"),
+        "checkpoint-scope.created" | "checkpoint-scope.updated" => Some("checkpointScopes"),
+        "checkpoint.captured" => Some("checkpoints"),
         "turn-item.updated" => Some("turnItems"),
+        "subagent.updated" => Some("subagents"),
         _ => None,
     };
     if event.event_type == "provider-session.detached" {
@@ -656,6 +842,8 @@ pub(crate) fn projection_after(
             // filtering are supplied by their own lifecycle reducers when ported.
             projection["visibleTurnItems"] = Value::Array(projection["turnItems"].as_array().unwrap().iter().enumerate().map(|(position,item)|json!({"position":position,"visibility":"local","sourceThreadId":item["threadId"],"sourceItemId":item["id"],"item":item})).collect());
         }
+    } else if event.event_type == "checkpoint.rollback-requested" {
+        // A request only: the rollback effect's own events change the projection.
     } else if event.event_type.starts_with("thread.") {
         projection["thread"] = event.payload.clone();
     } else {
@@ -684,6 +872,10 @@ pub fn shell(projection: &Value) -> Value {
     });
     shell["latestRunId"] = latest.map(|run| run["id"].clone()).unwrap_or(Value::Null);
     shell["activeRunId"] = active.map(|run| run["id"].clone()).unwrap_or(Value::Null);
+    // The run the thread is doing work for, waiting included (`isActivityRunForShell`).
+    let activity = array(projection, "runs").iter().filter(|run| matches!(string(run, "status"), Some("preparing" | "starting" | "running" | "waiting"))).max_by_key(|run| run["ordinal"].as_u64());
+    shell["activityRunStatus"] = activity.map_or(Value::Null, |run| run["status"].clone());
+    shell["activityRunStartedAt"] = activity.map_or(Value::Null, |run| [&run["workStartedAt"], &run["startedAt"], &run["requestedAt"]].into_iter().find(|value| !value.is_null()).cloned().unwrap_or(Value::Null));
     shell["status"] = latest
         .map(|run| run["status"].clone())
         .unwrap_or(json!("idle"));
@@ -697,7 +889,7 @@ pub fn shell(projection: &Value) -> Value {
         .map(|message| message["updatedAt"].clone())
         .unwrap_or(Value::Null);
     shell["hasActionableProposedPlan"] = json!(false);
-    shell["pendingBackgroundTasks"] = json!([]);
+    shell["pendingBackgroundTasks"] = json!(crate::background_work::derive_for(projection));
     shell["providerInstanceHistory"] = json!([]);
     shell["itemCount"] = json!(array(projection, "turnItems").len());
     shell["visibleItemCount"] = json!(array(projection, "visibleTurnItems").len());
@@ -727,6 +919,39 @@ mod tests {
             command[key] = value.clone();
         }
         command
+    }
+
+    /// Archiving and unarchiving decide the same events and effects as the original, for
+    /// threads with and without queued runs, live sessions and watched pull requests.
+    #[test]
+    fn archiving_matches_the_original() {
+        let at: DateTime<Utc> = "2026-09-04T00:00:00.000Z".parse().unwrap();
+        let mut compared = 0;
+        for line in include_str!("../tests/fixtures/thread-archive.jsonl").lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            let name = row["name"].as_str().unwrap();
+            let planned = plan(&row["command"], Some(&row["projection"]), None, at);
+            if let Some(refused) = row["refused"].as_str() {
+                assert_eq!(planned.unwrap_err()["cause"], refused, "{name}");
+                compared += 1;
+                continue;
+            }
+            let events = planned.unwrap_or_else(|error| panic!("{name}: {error}"));
+            // The stored thread spells an absent pull request list as null; the wire projection omits it.
+            let wire: Vec<Value> = events.iter().map(|event| {
+                let mut payload = event.payload.clone();
+                if payload["pullRequests"].is_null() {
+                    payload.as_object_mut().unwrap().remove("pullRequests");
+                }
+                json!({"type":event.event_type,"payload":payload})
+            }).collect();
+            let expected: Vec<Value> = row["events"].as_array().unwrap().iter().map(|event| json!({"type":event["type"],"payload":event["payload"]})).collect();
+            assert_eq!(Value::Array(wire), Value::Array(expected), "{name}");
+            let effects: Vec<Value> = lifecycle_effects(&row["command"], &events, at).iter().map(|effect| json!({"id":effect.id,"request":effect.request})).collect();
+            assert_eq!(Value::Array(effects), row["effects"], "{name}");
+            compared += 1;
+        }
+        assert_eq!(compared, 14);
     }
 
     #[test]

@@ -106,6 +106,13 @@ impl ProviderMcpSessions {
             config,
         })
     }
+    /// The terminal detach of an archived or deleted thread (`clearMcpSession` with no credential
+    /// id): every credential of the thread is revoked at once and its slot dropped, so nothing
+    /// issued to it outlives it. A lease still held by a stopping actor releases harmlessly later.
+    pub fn revoke_thread(&self, thread: &ThreadId) {
+        self.0.slots.lock().unwrap().remove(thread);
+        self.0.registry.revoke_thread(thread);
+    }
     #[cfg(test)]
     pub(crate) fn config(&self, thread: &str) -> Option<ProviderSessionConfig> {
         self.0
@@ -246,6 +253,20 @@ mod tests {
                 .is_none()
         );
         assert!(sessions.config("thread").is_none());
+    }
+    #[test]
+    fn terminal_detach_revokes_the_threads_credential_even_while_a_lease_is_held() {
+        let (sessions, registry, _) = fixture();
+        let lease = reserve(&sessions, "codex", false, false);
+        assert!(valid(&registry, &lease));
+        sessions.revoke_thread(&"thread".parse().unwrap());
+        assert!(!valid(&registry, &lease));
+        assert!(sessions.config("thread").is_none());
+        // The actor releasing its lease afterwards revokes nothing else and does not panic.
+        drop(lease);
+        // A thread that comes back (unarchived) is issued a new credential.
+        let fresh = reserve(&sessions, "codex", false, false);
+        assert!(valid(&registry, &fresh));
     }
     #[test]
     fn capability_and_instance_rotation_preserve_replacements_when_old_actors_finish() {

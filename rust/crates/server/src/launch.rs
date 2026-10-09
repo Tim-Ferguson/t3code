@@ -1,13 +1,13 @@
 //! Durable launch identity allocation and validation under the command transaction.
 use crate::{
-    persistence::{AcceptedCommand, Decision, Store, StoreError, read_projection},
+    persistence::{AcceptedCommand, Decision, NewEffect, Store, StoreError, read_projection},
     provider_registry::ProviderRegistry,
     thread,
 };
 use chrono::{DateTime, Utc};
 use serde_json::{Value, json};
 
-fn resolved_scripts(
+pub(crate) fn resolved_scripts(
     settings: &t3_contracts::ServerSettings,
     project_id: &t3_contracts::ProjectId,
     project: &Value,
@@ -42,6 +42,17 @@ fn resolved_scripts(
         .clone())
 }
 
+/// Who a launch is attributed to, beyond what the wire input says: the actor that creates the
+/// thread and its first message, and where that message came from. A client launch is the
+/// user's; the scheduled-task service launches as the task's creator, with the task's id.
+#[derive(Debug, Clone, Default)]
+pub struct LaunchProvenance {
+    /// `user` when unset.
+    pub created_by: Option<String>,
+    pub scheduled_task_id: Option<String>,
+    pub sender_thread_id: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct ThreadLaunchService {
     store: Store,
@@ -61,6 +72,10 @@ impl ThreadLaunchService {
         }
     }
     pub fn launch(&self, input: Value, now: DateTime<Utc>) -> Result<Value, StoreError> {
+        self.launch_as(input, LaunchProvenance::default(), now)
+    }
+    pub fn launch_as(&self, input: Value, provenance: LaunchProvenance, now: DateTime<Utc>) -> Result<Value, StoreError> {
+        let created_by = provenance.created_by.clone().unwrap_or_else(|| "user".into());
         let decoded: t3_contracts::ThreadLaunchInput = serde_json::from_value(input)?;
         let input = decoded.service_payload()?;
         let command_id = input["commandId"].as_str().unwrap();
@@ -79,17 +94,25 @@ impl ThreadLaunchService {
                 "Reusing an existing thread requires a thread id.".into(),
             ));
         }
-        if input.get("initialMessage").is_some() && input["generateTitle"] == true {
-            return Err(StoreError::InvalidCommand(
-                "Native initial-message title generation is not yet available.".into(),
-            ));
+        // A Scratch thread launched at the project root runs in a folder of its own. Only the
+        // first attempt claims one; a replay finds its launch already recorded.
+        let mut claimed_strategy = input["workspaceStrategy"].clone();
+        if claimed_strategy["type"] == "root" && self.store.receipt(command_id)?.is_none() {
+            if let Some(folders) = crate::project_folders::ManagedProjectFolders::for_store(&self.store) {
+                let candidate = supplied_id.map(str::to_owned).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+                let text = input.get("initialMessage").map_or(&input["title"], |initial| &initial["text"]);
+                let folder = folders
+                    .folder_for_thread(project_id, &candidate, text.as_str().unwrap_or(""), now)
+                    .map_err(|error| StoreError::InvalidCommand(error.message().into()))?;
+                if let Some(folder) = folder {
+                    claimed_strategy = json!({"type":"existing_worktree","worktreePath":folder.to_string_lossy()});
+                    if let Some(branch) = input["workspaceStrategy"].get("branch") {
+                        claimed_strategy["branch"] = branch.clone();
+                    }
+                }
+            }
         }
-        let strategy = &input["workspaceStrategy"];
-        if strategy["type"] == "worktree" {
-            return Err(StoreError::InvalidCommand(
-                "Native Git worktree preparation is not yet available.".into(),
-            ));
-        }
+        let strategy = &claimed_strategy;
         let command_type = if reuse {
             "thread.metadata.update"
         } else {
@@ -126,29 +149,49 @@ impl ThreadLaunchService {
                 Ok(id)
             },
             |transaction, id| {
-                let command = if reuse { json!({"type":"thread.metadata.update","commandId":command_id,"threadId":id,"expectedEmpty":true}) }
-                    else { json!({"type":"thread.create","commandId":command_id,"threadId":id,"projectId":project_id,"title":input["title"],"modelSelection":input["modelSelection"],"runtimeMode":input["runtimeMode"],"interactionMode":input["interactionMode"],"createdBy":"user","creationSource":input.get("creationSource").cloned().unwrap_or(json!("web")),"branch":strategy.get("branch").cloned().unwrap_or(Value::Null),"worktreePath":if strategy["type"] == "existing_worktree" { strategy["worktreePath"].clone() } else { Value::Null }}) };
+                let command = if reuse {
+                        let mut claim = json!({"type":"thread.metadata.update","commandId":command_id,"threadId":id,"expectedEmpty":true});
+                        // A worktree is recorded once it exists; any other strategy names its workspace now.
+                        if strategy["type"] != "worktree" { claim["branch"]=strategy.get("branch").cloned().unwrap_or(Value::Null); claim["worktreePath"]=if strategy["type"] == "existing_worktree" { strategy["worktreePath"].clone() } else { Value::Null }; }
+                        claim
+                    }
+                    else { json!({"type":"thread.create","commandId":command_id,"threadId":id,"projectId":project_id,"title":input["title"],"modelSelection":input["modelSelection"],"runtimeMode":input["runtimeMode"],"interactionMode":input["interactionMode"],"createdBy":created_by,"creationSource":input.get("creationSource").cloned().unwrap_or(json!("web")),"branch":strategy.get("branch").cloned().unwrap_or(Value::Null),"worktreePath":if strategy["type"] == "existing_worktree" { strategy["worktreePath"].clone() } else { Value::Null }}) };
                 let projection = read_projection(transaction,"thread",id)?;
                 let project = read_projection(transaction,"project",project_id)?;
                 let mut events = thread::plan(&command,projection.as_ref(),project.as_ref(),now).map_err(|error|StoreError::InvalidCommand(error.to_string()))?;
-                if resolved_scripts(&settings,&project_key,project.as_ref().unwrap())?.iter().any(|script|script["runOnWorktreeCreate"]==true) {return Err(StoreError::InvalidCommand("Native launch setup-script execution is not yet available.".into()));}
-                let Some(initial)=input.get("initialMessage") else {return Ok(Decision::Accepted { events, effects: vec![] });};
+                // A worktree is created, and a setup script run, after this commit by the
+                // `workspace.prepare` effect; the run waits in `preparing` until it releases it.
+                let prepare = strategy["type"] == "worktree" || resolved_scripts(&settings,&project_key,project.as_ref().unwrap())?.iter().any(|script|script["runOnWorktreeCreate"]==true);
+                let preparation = |run: Value| NewEffect{id:format!("effect:{command_id}:workspace.prepare:{}",run.as_str().unwrap_or("thread")),command_id:command_id.into(),thread_id:id.into(),request:json!({"type":"workspace.prepare","baseCommandId":command_id,"runId":run,"workspaceStrategy":strategy}),available_at:crate::execution::at(now)};
+                let Some(initial)=input.get("initialMessage") else {return Ok(Decision::Accepted { events, effects: if prepare {vec![preparation(Value::Null)]} else {vec![]} });};
                 let providers=self.providers.as_ref().ok_or_else(||StoreError::InvalidCommand("Native provider execution is not configured.".into()))?;
                 let driver=providers.driver(input["modelSelection"]["instanceId"].as_str().unwrap()).map_err(|error|StoreError::InvalidCommand(error.to_string()))?;
                 let mut projected=projection;
                 for event in &events {projected=Some(thread::projection_after(projected,event)?);}
                 let initial_id=format!("{command_id}:initial-message");let release_id=format!("{command_id}:release");
-                let mut message=json!({"type":"message.dispatch","commandId":initial_id,"threadId":id,"messageId":initial.get("messageId").cloned().unwrap_or_else(||json!(uuid::Uuid::new_v4().to_string())),"text":initial["text"],"attachments":initial["attachments"],"modelSelection":input["modelSelection"],"createdBy":"user","creationSource":input.get("creationSource").cloned().unwrap_or(json!("web")),"dispatchMode":{"type":"defer_start","workspaceStrategy":strategy}});
+                let mut message=json!({"type":"message.dispatch","commandId":initial_id,"threadId":id,"messageId":initial.get("messageId").cloned().unwrap_or_else(||json!(uuid::Uuid::new_v4().to_string())),"text":initial["text"],"attachments":initial["attachments"],"modelSelection":input["modelSelection"],"createdBy":created_by,"creationSource":input.get("creationSource").cloned().unwrap_or(json!("web")),"dispatchMode":{"type":"defer_start","workspaceStrategy":strategy}});
                 if let Some(context)=initial.get("context"){message["context"]=context.clone();}
+                // The launch title names the thread until a generated one replaces it.
+                if input["generateTitle"]==true{message["titleSeed"]=input["title"].clone();}
+                if let Some(task)=&provenance.scheduled_task_id{message["scheduledTaskId"]=json!(task);}
+                if let Some(sender)=&provenance.sender_thread_id{message["senderThreadId"]=json!(sender);}
                 let message:t3_contracts::ProviderCommand=serde_json::from_value(message)?;let message=message.service_payload()?;
                 let decision=crate::execution::plan_message_for_driver(&message,projected.as_ref().unwrap(),now,driver)?;
                 let Decision::Accepted{events:message_events,effects:message_effects}=decision else {return Err(StoreError::InvalidCommand("Initial-message planning did not accept.".into()));};
-                if !message_effects.is_empty(){return Err(StoreError::InvalidCommand("Prepared initial message scheduled provider work before release.".into()));}
                 let run_id=message_events.iter().find(|event|event.event_type=="run.created").unwrap().payload["id"].clone();
+                // The message plan itself prepares a worktree; nothing else may start provider work before release.
+                // A generated title is written by an effect that needs no workspace; anything else is provider work.
+                if message_effects.iter().any(|effect|!matches!(effect.request["type"].as_str(),Some("workspace.prepare"|"thread-title.generate"))){return Err(StoreError::InvalidCommand("Prepared initial message scheduled provider work before release.".into()));}
+                let (title_effects,message_effects):(Vec<_>,Vec<_>)=message_effects.into_iter().partition(|effect|effect.request["type"]=="thread-title.generate");
                 for event in &message_events {projected=Some(thread::projection_after(projected,event)?);}events.extend(message_events);
+                if prepare {
+                    let effects=if message_effects.is_empty(){vec![preparation(run_id)]}else{message_effects}.into_iter().chain(title_effects).collect();
+                    return Ok(Decision::AcceptedBatch{events,effects,commands:vec![AcceptedCommand{command_id:initial_id,command_type:"message.dispatch".into()}]});
+                }
                 let release=json!({"type":"prepared-run.release","commandId":release_id,"threadId":id,"runId":run_id});
-                let Decision::Accepted{events:release_events,effects}=crate::execution::plan_release(&release,projected.as_ref().unwrap(),now)? else{return Err(StoreError::InvalidCommand("Prepared initial-message release did not accept.".into()));};
+                let Decision::Accepted{events:release_events,effects}=crate::execution::plan_release_in(&release,projected.as_ref().unwrap(),now,Some(transaction))? else{return Err(StoreError::InvalidCommand("Prepared initial-message release did not accept.".into()));};
                 events.extend(release_events);
+                let effects=effects.into_iter().chain(title_effects).collect();
                 Ok(Decision::AcceptedBatch{events,effects,commands:vec![AcceptedCommand{command_id:initial_id,command_type:"message.dispatch".into()},AcceptedCommand{command_id:release_id,command_type:"prepared-run.release".into()}]})
             }, thread::reduce)?;
         let projection = self
@@ -177,12 +220,12 @@ mod tests {
     ) -> ProviderRegistry {
         let binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/codex-provider.py");
-        let mut entry = json!({"driver":"codex","config":{"binaryPath":binary}});
+        let mut entry = json!({"driver":"codex","config":{"binaryPath":binary,"homePath":directory.join("codex-home")}});
         if let Some(record) = record {
             entry["environment"] = json!([{"name":"FIXTURE_RPC_RECORD","value":record}]);
         }
         let settings: t3_contracts::ServerSettings =
-            serde_json::from_value(json!({"providerInstances":{"codex":entry}})).unwrap();
+            serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":entry}})).unwrap();
         ProviderRegistry::discover(&settings, directory)
             .await
             .unwrap()
@@ -230,12 +273,99 @@ mod tests {
         let store = Store::memory().unwrap();
         setup(&store, directory.path());
         crate::project::ProjectService::new(store.clone()).mutate(json!({"type":"project.update","commandId":"scripts","projectId":"project","scripts":[script("project")]}),Utc::now()).unwrap();
-        assert!(
-            ThreadLaunchService::new(store.clone())
-                .launch(input(), Utc::now())
-                .is_err()
+        // The launch commits the thread; a `workspace.prepare` effect runs the script after it.
+        let launched = ThreadLaunchService::new(store.clone())
+            .launch(input(), Utc::now())
+            .unwrap();
+        assert_eq!(store.projections("thread").unwrap().len(), 1);
+        let effect = store
+            .effect(&format!(
+                "effect:launch:workspace.prepare:thread"
+            ))
+            .unwrap()
+            .expect("the setup script is scheduled with the launch");
+        assert_eq!(effect.request["runId"], Value::Null);
+        assert_eq!(effect.request["workspaceStrategy"], json!({"type":"root"}));
+        assert_eq!(launched["resumed"], false);
+    }
+
+    #[tokio::test]
+    async fn a_scratch_thread_launched_at_the_root_runs_in_a_folder_of_its_own() {
+        let directory = tempfile::tempdir().unwrap();
+        let home = std::fs::canonicalize(directory.path()).unwrap();
+        std::fs::create_dir_all(home.join("userdata")).unwrap();
+        let store = Store::open(home.join("userdata").join("state.db")).unwrap();
+        let scratch = crate::project_folders::ManagedProjectFolders::for_store(&store)
+            .unwrap()
+            .ensure_scratch_project()
+            .await
+            .unwrap();
+        setup(&store, &home.join("workspace"));
+        let providers = registry(directory.path(), None).await;
+        let service = ThreadLaunchService::with_providers(store.clone(), providers);
+        let mut launch = initial();
+        launch["projectId"] = json!(scratch);
+        launch["threadId"] = json!("thread-scratch");
+        launch["initialMessage"]["text"] = json!("Convert these PNGs to WebP");
+        let launched = service.launch(launch.clone(), Utc::now()).unwrap();
+        let thread = &launched["projection"]["thread"];
+        let folder = thread["worktreePath"].as_str().expect("the thread records its folder");
+        let folder = std::path::Path::new(folder);
+        assert_eq!(folder.parent().unwrap(), home.join("scratch"));
+        assert!(folder.is_dir());
+        assert!(folder.file_name().unwrap().to_string_lossy().contains("-convert-these-pngs-to-webp-"));
+        // The run's checkpoint scope is the folder, not the shared Scratch root.
+        let projection = store.projection("thread", "thread-scratch").unwrap().unwrap();
+        assert_eq!(projection["checkpointScopes"][0]["cwd"], folder.to_string_lossy().as_ref());
+        // A replay of the launch makes no second folder.
+        assert_eq!(service.launch(launch, Utc::now()).unwrap()["resumed"], true);
+        assert_eq!(std::fs::read_dir(home.join("scratch")).unwrap().count(), 1);
+        // A launch into a normal project is left at its root.
+        let mut ordinary = input();
+        ordinary["commandId"] = json!("ordinary");
+        let ordinary = service.launch(ordinary, Utc::now()).unwrap();
+        assert_eq!(ordinary["projection"]["thread"]["worktreePath"], Value::Null);
+        assert_eq!(std::fs::read_dir(home.join("scratch")).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn launch_attribution_reaches_the_thread_and_its_first_message() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::memory().unwrap();
+        setup(&store, directory.path());
+        let provenance = LaunchProvenance {
+            created_by: Some("agent".into()),
+            scheduled_task_id: Some("scheduled-task:audit".into()),
+            sender_thread_id: Some("parent-thread".into()),
+        };
+        let mut launch = initial();
+        launch["creationSource"] = json!("mcp");
+        // Planning the message needs the provider driver, as the transport's launches have.
+        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let providers = runtime.block_on(registry(directory.path(), None));
+        let launched = ThreadLaunchService::with_providers(store.clone(), providers)
+            .launch_as(launch, provenance, Utc::now())
+            .unwrap();
+        let projection = &launched["projection"];
+        assert_eq!(
+            (projection["thread"]["createdBy"].as_str(), projection["thread"]["creationSource"].as_str()),
+            (Some("agent"), Some("mcp"))
         );
-        assert!(store.projections("thread").unwrap().is_empty());
+        let message = &projection["messages"][0];
+        assert_eq!(
+            (message["createdBy"].as_str(), message["creationSource"].as_str(), message["scheduledTaskId"].as_str(), message["senderThreadId"].as_str()),
+            (Some("agent"), Some("mcp"), Some("scheduled-task:audit"), Some("parent-thread"))
+        );
+        let item = projection["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "user_message").unwrap();
+        assert_eq!((item["scheduledTaskId"].as_str(), item["senderThreadId"].as_str()), (Some("scheduled-task:audit"), Some("parent-thread")));
+        // A plain client launch is the user's and names no task.
+        let mut plain = initial();
+        plain["commandId"] = json!("plain");
+        let plain = ThreadLaunchService::with_providers(store.clone(), runtime.block_on(registry(directory.path(), None)))
+            .launch(plain, Utc::now())
+            .unwrap();
+        assert_eq!(plain["projection"]["thread"]["createdBy"], "user");
+        assert!(plain["projection"]["messages"][0].get("scheduledTaskId").is_none());
     }
     #[tokio::test]
     async fn atomic_initial_message_allocates_once_and_rolls_back_invalid_or_colliding_derived_commands()

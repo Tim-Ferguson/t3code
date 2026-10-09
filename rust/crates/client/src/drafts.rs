@@ -481,10 +481,10 @@ fn content(draft: &Value) -> bool {
                 .is_some_and(|array| !array.is_empty())
         })
 }
+/// Saved content the Rust composer cannot yet show or send. Attachments are rendered
+/// (see `attachments::restore_source`); contexts are still held for the original app.
 pub fn has_unrendered_content(draft: &Value) -> bool {
     [
-        "attachments",
-        "files",
         "terminalContexts",
         "previewAnnotations",
         "reviewComments",

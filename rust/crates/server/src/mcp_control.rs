@@ -13,13 +13,29 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use t3_contracts::*;
+/// Tools with a handler; see `McpControlTools::handled`.
+const HANDLED: &[&str] = &[
+    "t3_thread_list",
+    "t3_thread_read",
+    "t3_thread_wait",
+    "t3_thread_interrupt",
+    "t3_thread_send",
+    "t3_thread_update",
+    "t3_thread_launch",
+    "schedule_task",
+    "list_scheduled_tasks",
+    "update_scheduled_task",
+    "delete_scheduled_task",
+    "run_scheduled_task_now",
+    "request_secret",
+];
 #[derive(Clone)]
 pub struct McpControlTools {
     pub store: Store,
     pub execution: Option<ExecutionService>,
     pub clock: Arc<dyn Fn() -> DateTime<Utc> + Send + Sync>,
 }
-fn rows<'a>(value: &'a Value, key: &str) -> &'a [Value] {
+pub(crate) fn rows<'a>(value: &'a Value, key: &str) -> &'a [Value] {
     value[key].as_array().map(Vec::as_slice).unwrap_or(&[])
 }
 fn active(run: &Value) -> bool {
@@ -53,7 +69,7 @@ fn valid<T: DeserializeOwned + Serialize>(value: Value) -> Result<Value, McpFail
 fn opt<T>(value: Option<Option<T>>) -> Option<T> {
     value.flatten()
 }
-fn encode(value: &str) -> String {
+pub(crate) fn encode(value: &str) -> String {
     let mut output = String::new();
     for byte in value.bytes() {
         if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
@@ -72,7 +88,7 @@ pub fn operation_id(prefix: &str, scope: &InvocationScope, operation: &str, key:
         encode(key)
     )
 }
-fn link(scope: &InvocationScope, id: &str, title: &str) -> String {
+pub(crate) fn link(scope: &InvocationScope, id: &str, title: &str) -> String {
     let cleaned = title
         .chars()
         .map(|character| {
@@ -129,15 +145,17 @@ fn view_item(scope: &InvocationScope, shell: &Value, now: DateTime<Utc>) -> Valu
     json!({"threadId":shell["id"],"link":link(scope,shell["id"].as_str().unwrap(),shell["title"].as_str().unwrap_or("")),"title":shell["title"],"createdBy":shell["createdBy"],"creationSource":shell["creationSource"],"status":shell.get("activityRunStatus").filter(|status|!status.is_null()).unwrap_or(&shell["status"]),"latestRunId":shell["latestRunId"],"providerInstanceId":shell["modelSelection"]["instanceId"],"model":shell["modelSelection"]["model"],"runtimeMode":shell["runtimeMode"],"interactionMode":shell["interactionMode"],"linkedPullRequest":shell["linkedPullRequest"],"settled":settled,"settledAt":if settled{shell["settledAt"].clone()}else{Value::Null},"snoozed":snooze,"snoozedUntil":if snooze{shell["snoozedUntil"].clone()}else{Value::Null},"parentThreadId":shell["lineage"]["parentThreadId"],"relationshipToParent":shell["lineage"]["relationshipToParent"],"itemCount":shell["visibleItemCount"],"createdAt":shell["createdAt"],"updatedAt":shell["updatedAt"]})
 }
 impl McpControlTools {
+    /// Every original tool except the device tools, which the device service serves.
     pub fn registered(name: &str) -> bool {
-        parameters::NAMES.contains(&name)
+        crate::mcp_tool_input::entries().iter().any(|entry| entry["tool"]["name"] == name && !crate::mcp_tool_input::device_group(entry["group"].as_str().unwrap_or_default()))
+    }
+    /// Tools with a handler here. The rest are listed as the original lists them and answer with
+    /// the original's generic failure, since the service behind them is not ported.
+    pub fn handled(name: &str) -> bool {
+        HANDLED.contains(&name)
     }
     pub fn catalog() -> Vec<Value> {
-        serde_json::from_str::<Vec<Value>>(include_str!("mcp_control_catalog.json"))
-            .expect("source-generated tool catalog")
-            .into_iter()
-            .filter(|tool| Self::registered(tool["name"].as_str().unwrap()))
-            .collect()
+        crate::mcp_tool_input::entries().iter().filter(|entry| !crate::mcp_tool_input::device_group(entry["group"].as_str().unwrap_or_default())).map(|entry| entry["tool"].clone()).collect()
     }
     pub async fn call(
         &self,
@@ -145,7 +163,9 @@ impl McpControlTools {
         name: &str,
         arguments: Value,
     ) -> Result<Value, String> {
-        let arguments = parameters::decode(name, arguments)?;
+        // The four tools first ported keep their exact decoder; the rest follow the catalog schema.
+        let mut arguments = if parameters::NAMES.contains(&name) { parameters::decode(name, arguments)? } else { crate::mcp_tool_input::decode(name, arguments)? };
+        crate::mcp_tools::refine(name, &mut arguments)?;
         // Raw schema admission above rejects null; JSON codecs preserve null separately.
         let decode_error = |error: serde_json::Error| error.to_string();
         let result = match name {
@@ -158,17 +178,33 @@ impl McpControlTools {
                 serde_json::from_value(arguments).map_err(decode_error)?,
             ),
             "t3_thread_wait" => {
-                self.wait(
+                Box::pin(self.wait(
                     scope,
                     serde_json::from_value(arguments).map_err(decode_error)?,
-                )
+                ))
                 .await
             }
             "t3_thread_interrupt" => self.interrupt(
                 scope,
                 serde_json::from_value(arguments).map_err(decode_error)?,
             ),
-            _ => unreachable!(),
+            "t3_thread_send" => self.send(
+                scope,
+                serde_json::from_value(arguments).map_err(decode_error)?,
+            ),
+            "t3_thread_update" => self.update(
+                scope,
+                serde_json::from_value::<ThreadMetadataMcpUpdateInput>(arguments).map_err(decode_error)?,
+            ),
+            "t3_thread_launch" => Box::pin(self.launch_thread(scope, arguments)).await,
+            "schedule_task" => Box::pin(self.schedule_task(scope, arguments)).await,
+            "list_scheduled_tasks" => Box::pin(self.list_scheduled_tasks(scope, arguments)).await,
+            "update_scheduled_task" => Box::pin(self.update_scheduled_task(scope, arguments)).await,
+            "delete_scheduled_task" => Box::pin(self.delete_scheduled_task(scope, arguments)).await,
+            "run_scheduled_task_now" => Box::pin(self.run_scheduled_task_now(scope, arguments)).await,
+            "request_secret" => Box::pin(self.request_secret(scope, arguments)).await,
+            // Listed as the original lists it; the service behind it is not ported.
+            _ => Err(mcp_access::unavailable()),
         };
         Ok(match result {
             Ok(value) => {
@@ -179,7 +215,7 @@ impl McpControlTools {
             }
         })
     }
-    fn caller(&self, scope: &InvocationScope) -> Result<Caller, McpFailure> {
+    pub(crate) fn caller(&self, scope: &InvocationScope) -> Result<Caller, McpFailure> {
         if !scope.capabilities.contains(&McpCapability::Orchestration) {
             return Err(refusal(
                 "capability_denied",

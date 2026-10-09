@@ -1,0 +1,39 @@
+--- onig.cc
++++ onig.cc
+@@ -173,20 +173,30 @@
+ 
+   for (i = 0; i < count; i++) {
+     regexes[i] = createOnigRegExp(patterns[i], lengths[i]);
+-    regs[i] = regexes[i]->regex;
+     if (regexes[i] == NULL) {
+       // parsing this regex failed, so clean up all the ones created so far
+       for (j = 0; j < i; j++) {
+-        free(regs[i]);
+-        freeOnigRegExp(regexes[i]);
++        onig_free(regs[j]);
++        freeOnigRegExp(regexes[j]);
+       }
+       free(regexes);
+       free(regs);
+       return 0;
+     }
+-  }
+-
+-  onig_regset_new(&rset, count, regs);
++    regs[i] = regexes[i]->regex;
++  }
++
++  lastOnigStatus = onig_regset_new(&rset, count, regs);
++  if (lastOnigStatus != ONIG_NORMAL) {
++    // A failed regset construction frees its own regions, not the regexes.
++    for (j = 0; j < count; j++) {
++      onig_free(regs[j]);
++      freeOnigRegExp(regexes[j]);
++    }
++    free(regexes);
++    free(regs);
++    return 0;
++  }
+   free(regs);
+ 
+   scanner = (OnigScanner*)malloc(sizeof(OnigScanner));

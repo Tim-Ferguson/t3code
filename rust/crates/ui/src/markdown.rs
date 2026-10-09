@@ -345,7 +345,7 @@ fn CodeBlock(code: String, language: String, title: Option<String>) -> Element {
                 button {r#type:"button","aria-label":if copied(){"Copied"}else{"Copy code"},onclick:copy,if copied(){"✓"}else{"Copy"}}
             }
         }
-        pre {style:if wrapped(){"white-space:pre-wrap;overflow-wrap:anywhere;"}else{"white-space:pre;overflow-wrap:normal;"},code {"{code}"}}
+        pre {style:if wrapped(){"white-space:pre-wrap;overflow-wrap:anywhere;"}else{"white-space:pre;overflow-wrap:normal;"},crate::syntax_highlighting::HighlightedCode {code:code.clone(),language:language.clone()}}
         if let Some(error)=copy_error(){p {role:"alert","{error}"}}
     }}
 }

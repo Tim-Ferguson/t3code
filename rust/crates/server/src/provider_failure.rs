@@ -315,9 +315,129 @@ fn make_with_timezone<T: TimeZone>(input: &Value, timezone: &T) -> Value {
     }
     result
 }
+fn codex_error_code(info: &Value) -> Option<String> {
+    if let Some(code) = info.as_str() {
+        return Some(code.into());
+    }
+    if info.as_array().is_some_and(|items| !items.is_empty()) {
+        return Some("0".into());
+    }
+    let object = info.as_object()?;
+    let numeric = object.keys().filter_map(|key| {
+        key.parse::<u32>()
+            .ok()
+            .filter(|number| *number < u32::MAX && number.to_string().as_str() == key.as_str())
+    });
+    numeric
+        .min()
+        .map(|number| number.to_string())
+        .or_else(|| object.keys().next().cloned())
+}
+pub(crate) fn codex_error(error: &Value, will_retry: bool) -> Value {
+    let code = codex_error_code(&error["codexErrorInfo"]);
+    let details = error["additionalDetails"]
+        .as_str()
+        .map(t3_contracts::trim_wire_string)
+        .filter(|value| !value.is_empty());
+    let class = if code
+        .as_deref()
+        .is_some_and(|code| matches!(code, "usageLimitExceeded" | "rateLimitExceeded"))
+    {
+        "usage_limit"
+    } else if will_retry
+        && code
+            .as_deref()
+            .is_some_and(|code| code.starts_with("http") || code.starts_with("responseStream"))
+    {
+        "transport_error"
+    } else {
+        "provider_error"
+    };
+    make(
+        &json!({"message":details.or_else(||error["message"].as_str()),"code":code,"class":class,"retryable":will_retry.then_some(true)}),
+    )
+}
+pub(crate) fn codex_terminal(error: &Value, previous: Option<&(String, Value)>) -> Value {
+    let code = codex_error_code(&error["codexErrorInfo"]);
+    if let Some((native_message, failure)) = previous {
+        if error["message"]
+            .as_str()
+            .is_none_or(|message| message == native_message)
+            && (error.is_null() || failure["code"] == json!(code))
+        {
+            return failure.clone();
+        }
+    }
+    make(
+        &json!({"message":error["message"],"code":code,"class":if code.as_deref().is_some_and(|code|matches!(code,"usageLimitExceeded"|"rateLimitExceeded")){"usage_limit"}else{"provider_error"}}),
+    )
+}
+pub(crate) fn acp_prompt(agent_id: &str, cause: &t3_acp::AcpError) -> Value {
+    let request = match cause {
+        t3_acp::AcpError::Failure(failure) => match failure.as_ref() {
+            t3_acp::errors::Failure::Request(error) => {
+                Some((error.code, error.error_message.as_str()))
+            }
+            _ => None,
+        },
+        t3_acp::AcpError::ResponseError { error, .. } | t3_acp::AcpError::Request(error) => {
+            Some((error.code, error.message.as_str()))
+        }
+        _ => None,
+    };
+    if let Some((code, message)) = request {
+        make(
+            &json!({"message":message,"code":code.to_string(),"class":if agent_id=="mistral-vibe"&&code== -31001{"usage_limit"}else{"provider_error"}}),
+        )
+    } else {
+        make(&json!({"class":"provider_error"}))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn matches_unchanged_native_failure_classifiers() {
+        let rows: Vec<Value> = serde_json::from_str(include_str!(
+            "../tests/fixtures/provider-native-failures.json"
+        ))
+        .unwrap();
+        for (index, row) in rows.iter().enumerate() {
+            let input = &row["input"];
+            let actual = match row["operation"].as_str().unwrap() {
+                "codexError" => codex_error(&input["error"], input["willRetry"] == true),
+                "codexTerminal" => {
+                    let previous = input.get("previous").map(|previous| {
+                        (
+                            previous["nativeMessage"].as_str().unwrap().to_string(),
+                            previous["failure"].clone(),
+                        )
+                    });
+                    codex_terminal(&input["error"], previous.as_ref())
+                }
+                "acpPrompt" => {
+                    let cause = if let Some(request) = input.get("request") {
+                        t3_acp::errors::RequestError::new(
+                            request["code"].as_i64().unwrap(),
+                            request["message"].as_str().unwrap(),
+                            None,
+                        )
+                        .into()
+                    } else {
+                        t3_acp::AcpError::Transport("arbitrary private defect".into())
+                    };
+                    acp_prompt(input["agentId"].as_str().unwrap(), &cause)
+                }
+                _ => panic!("Unknown native failure operation"),
+            };
+            assert_eq!(
+                actual, row["output"],
+                "native source row {index}: {}",
+                row["operation"]
+            );
+        }
+    }
     #[test]
     fn matches_unchanged_provider_failure_source() {
         let rows: Vec<Value> =

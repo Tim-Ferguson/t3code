@@ -1,0 +1,588 @@
+[
+  {
+    "operation": "classify",
+    "name": "Bash",
+    "output": {
+      "known": true,
+      "normalizedName": "bash",
+      "itemType": "command_execution",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "bash",
+    "output": {
+      "known": true,
+      "normalizedName": "bash",
+      "itemType": "command_execution",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Edit",
+    "output": {
+      "known": true,
+      "normalizedName": "edit",
+      "itemType": "file_change",
+      "requestKind": "file-change"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "MultiEdit",
+    "output": {
+      "known": true,
+      "normalizedName": "multiedit",
+      "itemType": "file_change",
+      "requestKind": "file-change"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "NotebookEdit",
+    "output": {
+      "known": true,
+      "normalizedName": "notebookedit",
+      "itemType": "file_change",
+      "requestKind": "file-change"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Write",
+    "output": {
+      "known": true,
+      "normalizedName": "write",
+      "itemType": "file_change",
+      "requestKind": "file-change"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Read",
+    "output": {
+      "known": true,
+      "normalizedName": "read",
+      "itemType": "dynamic_tool",
+      "requestKind": "file-read"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Glob",
+    "output": {
+      "known": true,
+      "normalizedName": "glob",
+      "itemType": "dynamic_tool",
+      "requestKind": "file-read"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Grep",
+    "output": {
+      "known": true,
+      "normalizedName": "grep",
+      "itemType": "dynamic_tool",
+      "requestKind": "file-read"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "LS",
+    "output": {
+      "known": true,
+      "normalizedName": "ls",
+      "itemType": "dynamic_tool",
+      "requestKind": "file-read"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "WebFetch",
+    "output": {
+      "known": true,
+      "normalizedName": "webfetch",
+      "itemType": "web_search",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "web_search",
+    "output": {
+      "known": true,
+      "normalizedName": "websearch",
+      "itemType": "web_search",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Web Search",
+    "output": {
+      "known": true,
+      "normalizedName": "websearch",
+      "itemType": "web_search",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Agent",
+    "output": {
+      "known": true,
+      "normalizedName": "agent",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Task",
+    "output": {
+      "known": true,
+      "normalizedName": "task",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "TodoWrite",
+    "output": {
+      "known": true,
+      "normalizedName": "todowrite",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "Monitor",
+    "output": {
+      "known": true,
+      "normalizedName": "monitor",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "mcp__t3-code__html_render",
+    "output": {
+      "known": false,
+      "normalizedName": "mcpt3codehtmlrender",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "unknown_tool",
+    "output": {
+      "known": false,
+      "normalizedName": "unknowntool",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "classify",
+    "name": "",
+    "output": {
+      "known": false,
+      "normalizedName": "",
+      "itemType": "dynamic_tool",
+      "requestKind": "command"
+    }
+  },
+  {
+    "operation": "todos",
+    "input": {
+      "todos": [
+        {
+          "content": " a ",
+          "status": "in_progress"
+        },
+        {
+          "content": "b",
+          "status": "completed"
+        },
+        {
+          "content": "",
+          "status": "pending"
+        },
+        {
+          "content": "c"
+        },
+        5
+      ]
+    },
+    "output": [
+      {
+        "id": "todo-0",
+        "text": "a",
+        "status": "running"
+      },
+      {
+        "id": "todo-1",
+        "text": "b",
+        "status": "completed"
+      },
+      {
+        "id": "todo-3",
+        "text": "c",
+        "status": "pending"
+      }
+    ]
+  },
+  {
+    "operation": "todos",
+    "input": {
+      "todos": "no"
+    },
+    "output": []
+  },
+  {
+    "operation": "todos",
+    "input": {},
+    "output": []
+  },
+  {
+    "operation": "todos",
+    "input": null,
+    "output": []
+  },
+  {
+    "operation": "plan",
+    "input": {
+      "plan": "  step one  "
+    },
+    "output": "step one"
+  },
+  {
+    "operation": "plan",
+    "input": {
+      "plan": "   "
+    },
+    "output": null
+  },
+  {
+    "operation": "plan",
+    "input": {
+      "plan": 3
+    },
+    "output": null
+  },
+  {
+    "operation": "plan",
+    "input": {},
+    "output": null
+  },
+  {
+    "operation": "plan",
+    "input": null,
+    "output": null
+  },
+  {
+    "operation": "questions",
+    "input": {
+      "questions": [
+        {
+          "question": " Which? ",
+          "header": " H ",
+          "options": [
+            {
+              "label": " A ",
+              "description": " d "
+            },
+            {
+              "label": ""
+            },
+            {
+              "label": "B"
+            }
+          ],
+          "multiSelect": true
+        },
+        {
+          "question": "",
+          "header": "x"
+        },
+        {
+          "question": "Second"
+        },
+        4
+      ]
+    },
+    "output": [
+      {
+        "id": "Which?",
+        "header": "H",
+        "question": "Which?",
+        "options": [
+          {
+            "label": "A",
+            "description": "d"
+          },
+          {
+            "label": "B",
+            "description": ""
+          }
+        ],
+        "multiSelect": true
+      },
+      {
+        "id": "Second",
+        "header": "Question 3",
+        "question": "Second",
+        "options": [],
+        "multiSelect": false
+      }
+    ]
+  },
+  {
+    "operation": "questions",
+    "input": {
+      "questions": "no"
+    },
+    "output": []
+  },
+  {
+    "operation": "questions",
+    "input": {},
+    "output": []
+  },
+  {
+    "operation": "answers",
+    "answers": {},
+    "output": {}
+  },
+  {
+    "operation": "answers",
+    "answers": {
+      "Which": "A",
+      "Many": ["A", "B", 3],
+      "None": null,
+      "Num": 4
+    },
+    "output": {
+      "Which": "A",
+      "Many": "A, B",
+      "None": "",
+      "Num": "4"
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "accept",
+    "suggestions": null,
+    "output": {
+      "behavior": "allow",
+      "updatedInput": {
+        "command": "ls"
+      },
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_temporary"
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "accept",
+    "suggestions": [
+      {
+        "type": "addDirectories",
+        "directories": ["/a"],
+        "destination": "projectSettings"
+      }
+    ],
+    "output": {
+      "behavior": "allow",
+      "updatedInput": {
+        "command": "ls"
+      },
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_temporary"
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "acceptForSession",
+    "suggestions": null,
+    "output": {
+      "behavior": "allow",
+      "updatedInput": {
+        "command": "ls"
+      },
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_permanent",
+      "updatedPermissions": [
+        {
+          "type": "addRules",
+          "rules": [
+            {
+              "toolName": "Bash"
+            }
+          ],
+          "behavior": "allow",
+          "destination": "session"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "acceptForSession",
+    "suggestions": [
+      {
+        "type": "addDirectories",
+        "directories": ["/a"],
+        "destination": "projectSettings"
+      }
+    ],
+    "output": {
+      "behavior": "allow",
+      "updatedInput": {
+        "command": "ls"
+      },
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_permanent",
+      "updatedPermissions": [
+        {
+          "type": "addDirectories",
+          "directories": ["/a"],
+          "destination": "session"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "decline",
+    "suggestions": null,
+    "output": {
+      "behavior": "deny",
+      "message": "User declined tool execution.",
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_reject"
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "decline",
+    "suggestions": [
+      {
+        "type": "addDirectories",
+        "directories": ["/a"],
+        "destination": "projectSettings"
+      }
+    ],
+    "output": {
+      "behavior": "deny",
+      "message": "User declined tool execution.",
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_reject"
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "cancel",
+    "suggestions": null,
+    "output": {
+      "behavior": "deny",
+      "message": "User cancelled tool execution.",
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_reject",
+      "interrupt": true
+    }
+  },
+  {
+    "operation": "permission",
+    "decision": "cancel",
+    "suggestions": [
+      {
+        "type": "addDirectories",
+        "directories": ["/a"],
+        "destination": "projectSettings"
+      }
+    ],
+    "output": {
+      "behavior": "deny",
+      "message": "User cancelled tool execution.",
+      "toolUseID": "toolu_1",
+      "decisionClassification": "user_reject",
+      "interrupt": true
+    }
+  },
+  {
+    "operation": "presentation",
+    "toolName": "Bash",
+    "output": {}
+  },
+  {
+    "operation": "presentation",
+    "toolName": "mcp__linear__create_issue",
+    "output": {
+      "title": "create issue",
+      "toolSource": {
+        "key": "mcp:linear",
+        "name": "linear",
+        "kind": "integration"
+      }
+    }
+  },
+  {
+    "operation": "presentation",
+    "toolName": "mcp__t3-code__html_render",
+    "output": {}
+  },
+  {
+    "operation": "presentation",
+    "toolName": "mcp__t3-code__not_a_tool",
+    "output": {
+      "title": "not a tool",
+      "toolSource": {
+        "key": "mcp:t3-code",
+        "name": "t3 code",
+        "kind": "integration"
+      }
+    }
+  },
+  {
+    "operation": "presentation",
+    "toolName": "mcp__claude_ai_Gmail__search_threads",
+    "output": {
+      "title": "search threads",
+      "toolSource": {
+        "key": "mcp:gmail",
+        "name": "Gmail",
+        "kind": "integration"
+      }
+    }
+  },
+  {
+    "operation": "presentation",
+    "toolName": "mcp__a__b__c",
+    "output": {
+      "title": "b c",
+      "toolSource": {
+        "key": "mcp:a",
+        "name": "a",
+        "kind": "integration"
+      }
+    }
+  },
+  {
+    "operation": "presentation",
+    "toolName": "mcp__only",
+    "output": {}
+  },
+  {
+    "operation": "presentation",
+    "toolName": "Read",
+    "output": {}
+  }
+]

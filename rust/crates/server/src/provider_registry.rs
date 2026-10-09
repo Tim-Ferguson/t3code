@@ -1,6 +1,7 @@
 //! Instance routing and source-compatible legacy configuration hydration.
 use crate::{
     acp_runtime::AcpInstance,
+    claude_instance::ClaudeInstance,
     codex::{CodexConfig, CodexInstance},
     provider_process::ProcessError,
 };
@@ -29,14 +30,18 @@ pub fn derive_instance_configs(settings: &ServerSettings) -> ProviderInstanceCon
     instances
 }
 enum RegisteredInstance {
+    Claude(ClaudeInstance),
     Codex(CodexInstance),
     Acp(AcpInstance),
 }
 struct RegistryState {
+    claude: HashMap<String, ClaudeInstance>,
     codex: HashMap<String, CodexInstance>,
     acp: HashMap<String, AcpInstance>,
     snapshots: Vec<Value>,
     settings: ServerSettings,
+    /// Where the instances were last probed; a refresh probes from here again.
+    cwd: std::path::PathBuf,
 }
 #[derive(Default)]
 struct ProviderListeners {
@@ -73,6 +78,10 @@ pub struct ProviderRegistry {
     auth: Arc<RwLock<Option<crate::provider_auth_service::WeakProviderAuthService>>>,
     health: crate::acp_health_jobs::Refreshes,
     mcp: Arc<RwLock<Option<crate::provider_mcp::ProviderMcpSessions>>>,
+    text_generation: Arc<RwLock<crate::text_generation_run::Options>>,
+    management: crate::provider_manage::Management,
+    /// The refresh of every instance now running; callers arriving meanwhile share its result.
+    inflight: Arc<Mutex<Option<futures_util::future::Shared<futures_util::future::BoxFuture<'static, Result<Vec<Value>, String>>>>>>,
 }
 impl ProviderRegistry {
     pub fn set_mcp_sessions(&self, sessions: crate::provider_mcp::ProviderMcpSessions) {
@@ -147,11 +156,22 @@ impl ProviderRegistry {
         cwd: &Path,
         catalog: Option<crate::acp_registry_support::Catalog>,
     ) -> Result<Self, ProcessError> {
+        let management = crate::provider_manage::Management::new(catalog.as_ref().map(|catalog| catalog.tools_dir().to_path_buf()));
+        Self::discover_with_management(settings, cwd, catalog, management).await
+    }
+    /// With provider management already configured, so its settings apply to the first probe too.
+    pub async fn discover_with_management(
+        settings: &ServerSettings,
+        cwd: &Path,
+        catalog: Option<crate::acp_registry_support::Catalog>,
+        management: crate::provider_manage::Management,
+    ) -> Result<Self, ProcessError> {
         let mut registry = Self::discover_with_context(
             settings,
             cwd,
             catalog,
             crate::acp_coordinator::Coordinator::default(),
+            management,
         )
         .await?;
         let state = Arc::downgrade(&registry.state);
@@ -189,149 +209,33 @@ impl ProviderRegistry {
         cwd: &Path,
         catalog: Option<crate::acp_registry_support::Catalog>,
         coordinator: crate::acp_coordinator::Coordinator,
+        management: crate::provider_manage::Management,
     ) -> Result<Self, ProcessError> {
         let entries = derive_instance_configs(settings);
         let mut results =
             futures_util::stream::iter(entries)
-                .map(|(id, entry)| {
-                    let catalog = catalog.clone();
-                    let coordinator = coordinator.clone();
-                    async move {
-                        let id = id.to_string();
-                        if entry.driver.as_str() == "acpRegistry" {
-                            let config =
-                                match serde_json::from_value::<t3_contracts::AcpRegistrySettings>(
-                                    entry.config.clone().unwrap_or(json!({})),
-                                ) {
-                                    Ok(config) => config,
-                                    Err(error) => {
-                                        return Ok((
-                                            id.clone(),
-                                            None,
-                                            unavailable(
-                                                &id,
-                                                &entry,
-                                                format!("Invalid ACP config: {error}"),
-                                            )?,
-                                        ));
-                                    }
-                                };
-                            let instance = AcpInstance {
-                                instance_id: id.clone(),
-                                display_name: entry
-                                    .display_name
-                                    .as_ref()
-                                    .and_then(Option::as_ref)
-                                    .map(ToString::to_string)
-                                    .unwrap_or_else(|| "ACP Registry".into()),
-                                accent_color: entry
-                                    .accent_color
-                                    .as_ref()
-                                    .and_then(Option::as_ref)
-                                    .map(ToString::to_string),
-                                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
-                                config,
-                                catalog,
-                                coordinator,
-                                environment: entry
-                                    .environment
-                                    .as_ref()
-                                    .map(|variables| {
-                                        variables
-                                            .iter()
-                                            .map(|variable| {
-                                                (variable.name.to_string(), variable.value.clone())
-                                            })
-                                            .collect()
-                                    })
-                                    .unwrap_or_default(),
-                            };
-                            let snapshot = instance
-                                .discover(cwd)
-                                .await
-                                .map_err(|error| ProcessError::Protocol(error.to_string()))?;
-                            return Ok((id, Some(RegisteredInstance::Acp(instance)), snapshot));
-                        }
-                        if entry.driver.as_str() != "codex" {
-                            return Ok((
-                                id.clone(),
-                                None,
-                                unavailable(
-                                    &id,
-                                    &entry,
-                                    format!(
-                                        "Driver '{}' is not registered in this native build.",
-                                        entry.driver
-                                    ),
-                                )?,
-                            ));
-                        }
-                        let config = match serde_json::from_value::<CodexConfig>(
-                            entry.config.clone().unwrap_or(json!({})),
-                        ) {
-                            Ok(config) => config,
-                            Err(error) => {
-                                return Ok((
-                                    id.clone(),
-                                    None,
-                                    unavailable(
-                                        &id,
-                                        &entry,
-                                        format!("Invalid config for instance '{id}': {error}"),
-                                    )?,
-                                ));
-                            }
-                        };
-                        let environment = entry
-                            .environment
-                            .as_ref()
-                            .map(|variables| {
-                                variables
-                                    .iter()
-                                    .map(|variable| {
-                                        (variable.name.to_string(), variable.value.clone())
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        let instance = CodexInstance {
-                            instance_id: id.clone(),
-                            display_name: entry
-                                .display_name
-                                .as_ref()
-                                .and_then(Option::as_ref)
-                                .map(ToString::to_string)
-                                .unwrap_or_else(|| "Codex".into()),
-                            accent_color: entry
-                                .accent_color
-                                .as_ref()
-                                .and_then(Option::as_ref)
-                                .map(ToString::to_string),
-                            enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
-                            config,
-                            environment,
-                        };
-                        let snapshot = instance.discover(cwd).await?;
-                        Ok::<_, ProcessError>((
-                            id,
-                            Some(RegisteredInstance::Codex(instance)),
-                            snapshot,
-                        ))
-                    }
-                })
+                .map(|(id, entry)| discover_entry(id, entry, catalog.clone(), coordinator.clone(), management.clone(), cwd, false))
                 .buffer_unordered(4)
                 .collect::<Vec<_>>()
                 .await
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()?;
         // Keep deterministic instance ordering even when probes complete out of order.
-        results.sort_by(|left, right| left.0.cmp(&right.0));
+        // Presentation order is the source `orderProviderSnapshots`: built-in driver rank
+        // (Codex, then Claude), driver, display name, instance id.
+        let rank = |driver: &str| ["codex", "claudeAgent", "cursor", "grok", "opencode", "antigravity"].iter().position(|name| *name == driver).unwrap_or(6);
+        let key = |snapshot: &Value| (rank(snapshot["driver"].as_str().unwrap_or("")), snapshot["driver"].as_str().unwrap_or("").to_owned(), snapshot["displayName"].as_str().unwrap_or("").to_owned(), snapshot["instanceId"].as_str().unwrap_or("").to_owned());
+        results.sort_by_key(|result| key(&result.2));
         let mut codex = HashMap::new();
+        let mut claude = HashMap::new();
         let mut acp = HashMap::new();
         let mut snapshots = vec![];
         for (id, instance, snapshot) in results {
             if let Some(instance) = instance {
                 match instance {
+                    RegisteredInstance::Claude(instance) => {
+                        claude.insert(id, instance);
+                    }
                     RegisteredInstance::Codex(instance) => {
                         codex.insert(id, instance);
                     }
@@ -354,10 +258,12 @@ impl ProviderRegistry {
         }
         Ok(Self {
             state: Arc::new(RwLock::new(RegistryState {
+                claude,
                 codex,
                 acp,
                 snapshots,
                 settings: settings.clone(),
+                cwd: cwd.to_path_buf(),
             })),
             catalog,
             refresh: Arc::new(tokio::sync::Mutex::new(())),
@@ -367,6 +273,9 @@ impl ProviderRegistry {
             auth: Arc::new(RwLock::new(None)),
             health: Default::default(),
             mcp: Default::default(),
+            text_generation: Default::default(),
+            management,
+            inflight: Default::default(),
         })
     }
     /// Existing registry clones observe a complete replacement after discovery.
@@ -393,6 +302,7 @@ impl ProviderRegistry {
             cwd,
             self.catalog.clone(),
             self.coordinator.clone(),
+            self.management.clone(),
         )
         .await?;
         let mut state = Arc::try_unwrap(replacement.state)
@@ -412,7 +322,9 @@ impl ProviderRegistry {
                     &instance.config.custom_models,
                 );
             }
+            self.management.apply_update_state(snapshot);
         }
+        self.management.retain_update_states(&state.snapshots.iter().filter_map(|snapshot| snapshot["instanceId"].as_str().map(str::to_owned)).collect());
         let snapshots = state.snapshots.clone();
         *current = state;
         let published = Arc::new(snapshots.clone());
@@ -631,6 +543,13 @@ impl ProviderRegistry {
             .cloned()
             .ok_or_else(|| ProcessError::Protocol("ACP provider instance is unavailable.".into()))
     }
+    pub fn claude(&self, instance_id: &str) -> Result<ClaudeInstance, ProcessError> {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "claudeAgent" {
+            return Err(ProcessError::Protocol("Provider instance is not Claude.".into()));
+        }
+        state.claude.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Claude provider instance is unavailable.".into()))
+    }
     pub fn codex(&self, instance_id: &str) -> Result<CodexInstance, ProcessError> {
         let state = self.state.read().unwrap();
         if state_driver(&state, instance_id)? != "codex" {
@@ -644,6 +563,439 @@ impl ProviderRegistry {
             .cloned()
             .ok_or_else(|| ProcessError::Protocol("Codex provider instance is unavailable.".into()))
     }
+    /// What a one-shot text generation needs of an instance: its configuration, not its readiness
+    /// (the original asks the instance's CLI whatever its last health check said).
+    pub(crate) fn text_instance(&self, instance_id: &str) -> Option<TextInstance> {
+        let state = self.state.read().unwrap();
+        let snapshot = state.snapshots.iter().find(|snapshot| snapshot["instanceId"] == instance_id)?;
+        if let Some(instance) = state.codex.get(instance_id) {
+            return Some(TextInstance::Codex(instance.clone(), snapshot["models"].as_array().cloned().unwrap_or_default()));
+        }
+        if let Some(instance) = state.claude.get(instance_id) {
+            return Some(TextInstance::Claude(instance.clone()));
+        }
+        Some(TextInstance::Other(snapshot["driver"].as_str().unwrap_or("").to_string()))
+    }
+    /// How one-shot text generations are bounded; tests tighten it.
+    pub fn text_generation_options(&self) -> crate::text_generation_run::Options {
+        self.text_generation.read().unwrap().clone()
+    }
+    pub fn set_text_generation_options(&self, options: crate::text_generation_run::Options) {
+        *self.text_generation.write().unwrap() = options;
+    }
+}
+/// An instance as one-shot text generation sees it.
+pub enum TextInstance {
+    /// With the models its last snapshot listed.
+    Codex(CodexInstance, Vec<Value>),
+    Claude(ClaudeInstance),
+    /// A driver with no adapter here.
+    Other(String),
+}
+/// On-demand re-probing, update state and maintenance lookups (see provider_manage.rs).
+impl ProviderRegistry {
+    pub fn management(&self) -> &crate::provider_manage::Management {
+        &self.management
+    }
+    fn publish(&self, snapshots: Vec<Value>) {
+        let published = Arc::new(snapshots);
+        self.changes.lock().unwrap().senders.retain(|_, sender| sender.send(published.clone()).is_ok());
+    }
+    /// The update target of a live Codex or Claude instance; other drivers cannot be updated here.
+    pub(crate) fn maintenance_target(&self, instance_id: &str) -> Option<crate::provider_manage::Target> {
+        let state = self.state.read().unwrap();
+        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target))
+    }
+    pub(crate) fn codex_instance(&self, instance_id: &str) -> Option<CodexInstance> {
+        self.state.read().unwrap().codex.get(instance_id).cloned()
+    }
+    pub(crate) fn acp_instance(&self, instance_id: &str) -> Option<AcpInstance> {
+        self.state.read().unwrap().acp.get(instance_id).cloned()
+    }
+    pub(crate) fn codex_instance_ids(&self) -> Vec<String> {
+        self.state.read().unwrap().codex.keys().cloned().collect()
+    }
+    /// Every executable the configured instances run, with the environment each would run in.
+    pub(crate) fn settings_binaries(&self) -> Vec<(String, HashMap<String, String>)> {
+        derive_instance_configs(&self.settings())
+            .values()
+            .filter_map(|entry| {
+                let binary = entry.config.as_ref()?.get("binaryPath")?.as_str()?.trim().to_owned();
+                let instance: HashMap<String, String> = entry.environment.as_ref().map(|variables| variables.iter().map(|variable| (variable.name.to_string(), variable.value.clone())).collect()).unwrap_or_default();
+                (!binary.is_empty()).then(|| (binary, crate::provider_manage::merged_environment(&instance)))
+            })
+            .collect()
+    }
+    /// Every live instance that has an npm package, as (instance, package).
+    pub(crate) fn maintenance_packages(&self) -> Vec<(String, String)> {
+        let state = self.state.read().unwrap();
+        state.codex.keys().map(|id| (id.clone(), "@openai/codex".to_owned())).chain(state.claude.keys().map(|id| (id.clone(), "@anthropic-ai/claude-code".to_owned()))).collect()
+    }
+    /// Set (or clear) an instance's volatile update state and republish it. Returns the new list.
+    pub async fn set_update_state(&self, instance: &str, update: Option<Value>) -> Vec<Value> {
+        self.management.set_update_state(instance, update);
+        let mut state = self.state.write().unwrap();
+        let Some(snapshot) = state.snapshots.iter_mut().find(|snapshot| snapshot["instanceId"] == instance) else {
+            return state.snapshots.clone();
+        };
+        let before = snapshot.clone();
+        self.management.apply_update_state(snapshot);
+        let changed = *snapshot != before;
+        let snapshots = state.snapshots.clone();
+        drop(state);
+        if changed {
+            self.publish(snapshots.clone());
+        }
+        snapshots
+    }
+    /// `snapshot.applyUsageLimits`: fold a sparse runtime update into the usage windows an instance
+    /// publishes and republish when they changed.
+    pub fn apply_usage_limits(&self, instance: &str, update: &Value, checked_at: &str) {
+        let mut state = self.state.write().unwrap();
+        let Some(snapshot) = state.snapshots.iter_mut().find(|snapshot| snapshot["instanceId"] == instance) else { return };
+        let Some(next) = crate::claude_usage_limits::apply_usage_limits_update(snapshot.get("usageLimits").filter(|limits| !limits.is_null()), update, checked_at) else { return };
+        if snapshot.get("usageLimits") == Some(&next) {
+            return;
+        }
+        snapshot["usageLimits"] = next;
+        let snapshots = state.snapshots.clone();
+        drop(state);
+        self.publish(snapshots);
+    }
+    /// Re-probe the named instances, replacing their snapshots (and runtime objects) and publishing the
+    /// new list. An instance that no longer has a configuration, or whose probe cannot be built, keeps
+    /// its last snapshot. Unknown ids answer with the current list, as the original's do.
+    async fn refresh_ids(&self, ids: Option<Vec<String>>) -> Result<Vec<Value>, ProcessError> {
+        let _permit = self.refresh.lock().await;
+        let (settings, cwd, known) = {
+            let state = self.state.read().unwrap();
+            (state.settings.clone(), state.cwd.clone(), state.snapshots.iter().filter_map(|snapshot| snapshot["instanceId"].as_str().map(str::to_owned)).collect::<Vec<_>>())
+        };
+        let entries = derive_instance_configs(&settings);
+        let wanted = ids.unwrap_or(known);
+        let probes = futures_util::stream::iter(wanted.into_iter().filter_map(|id| {
+            let key: ProviderInstanceId = id.parse().ok()?;
+            entries.get(&key).cloned().map(|entry| (key, entry))
+        }))
+        .map(|(id, entry)| Box::pin(discover_entry(id, entry, self.catalog.clone(), self.coordinator.clone(), self.management.clone(), &cwd, false)))
+        .buffer_unordered(4)
+        .collect::<Vec<_>>()
+        .await;
+        let checks = settings.enable_provider_update_checks;
+        let mut finished = vec![];
+        for probe in probes {
+            let (id, instance, mut snapshot) = match probe {
+                Ok(probe) => probe,
+                Err(error) => {
+                    tracing::warn!(error = %error, "provider refresh could not probe an instance");
+                    continue;
+                }
+            };
+            if let Some(RegisteredInstance::Acp(acp)) = &instance {
+                apply_coordinator_state(&mut snapshot, &self.coordinator, &id, &acp.config.custom_models);
+            }
+            let target = match &instance {
+                Some(RegisteredInstance::Codex(codex)) => Some(crate::provider_manage::codex_target(codex)),
+                Some(RegisteredInstance::Claude(claude)) => Some(crate::provider_manage::claude_target(claude)),
+                _ => None,
+            };
+            self.management.finish_snapshot(&mut snapshot, target.as_ref(), checks).await;
+            finished.push((id, instance, snapshot));
+        }
+        let mut state = self.state.write().unwrap();
+        let before = state.snapshots.clone();
+        for (id, instance, snapshot) in finished {
+            state.claude.remove(&id);
+            state.codex.remove(&id);
+            state.acp.remove(&id);
+            match instance {
+                Some(RegisteredInstance::Claude(instance)) => {
+                    state.claude.insert(id.clone(), instance);
+                }
+                Some(RegisteredInstance::Codex(instance)) => {
+                    state.codex.insert(id.clone(), instance);
+                }
+                Some(RegisteredInstance::Acp(instance)) => {
+                    state.acp.insert(id.clone(), instance);
+                }
+                None => {}
+            }
+            match state.snapshots.iter_mut().find(|existing| existing["instanceId"] == id.as_str()) {
+                Some(existing) => {
+                    // Per-workspace snapshots survive a machine re-probe, as in the source's merge.
+                    let mut snapshot = snapshot;
+                    // A probe that failed this time must not wipe bars an earlier probe or a turn drew.
+                    if snapshot["driver"] == "claudeAgent" {
+                        match crate::claude_usage_limits::resolve_usage_limits_after_probe(existing.get("usageLimits"), snapshot.get("usageLimits")) {
+                            Some(limits) => snapshot["usageLimits"] = limits,
+                            None => {
+                                snapshot.as_object_mut().map(|snapshot| snapshot.remove("usageLimits"));
+                            }
+                        }
+                    }
+                    if snapshot.get("workspaceSnapshots").is_none() {
+                        if let Some(kept) = existing.get("workspaceSnapshots").cloned() {
+                            snapshot["workspaceSnapshots"] = kept;
+                        }
+                    }
+                    *existing = snapshot;
+                }
+                None => state.snapshots.push(snapshot),
+            }
+        }
+        let snapshots = state.snapshots.clone();
+        drop(state);
+        if snapshots != before {
+            self.publish(snapshots.clone());
+        }
+        Ok(snapshots)
+    }
+    /// `refreshInstance`.
+    pub async fn refresh_instance(&self, instance: &str) -> Result<Vec<Value>, ProcessError> {
+        self.refresh_ids(Some(vec![instance.to_owned()])).await
+    }
+    /// `refresh()`: untargeted refreshes probe every instance, so callers arriving while one runs
+    /// share it instead of each starting their own set of provider processes.
+    pub async fn refresh_all(&self) -> Result<Vec<Value>, ProcessError> {
+        use futures_util::FutureExt;
+        let pass = {
+            let mut slot = self.inflight.lock().unwrap();
+            match &*slot {
+                Some(pass) => pass.clone(),
+                None => {
+                    let registry = self.clone();
+                    // Detached, so an abandoned first caller cannot cancel the pass others await.
+                    let task = tokio::spawn(async move {
+                        let result = Box::pin(registry.refresh_ids(None)).await.map_err(|error| error.to_string());
+                        registry.inflight.lock().unwrap().take();
+                        result
+                    });
+                    let pass = async move { task.await.unwrap_or_else(|error| Err(error.to_string())) }.boxed().shared();
+                    *slot = Some(pass.clone());
+                    pass
+                }
+            }
+        };
+        pass.await.map_err(ProcessError::Protocol)
+    }
+    /// `refreshWorkspaceSnapshot`: the skills and slash commands one cwd sees, kept per provider for a few
+    /// minutes. A cwd with a current snapshot is left alone unless `fresh`; a fresh scan also re-reads the
+    /// instance's machine snapshot and drops the other instances' snapshots for the cwd.
+    pub async fn refresh_workspace(&self, instance: &str, cwd: &str, fresh: bool) -> Result<Vec<Value>, ProcessError> {
+        const MAX_SNAPSHOTS: usize = 16;
+        let workspace_of = |provider: &Value| provider["workspaceSnapshots"].as_array().and_then(|all| all.iter().find(|snapshot| snapshot["cwd"] == cwd)).cloned();
+        if fresh {
+            let mut state = self.state.write().unwrap();
+            let mut changed = false;
+            for provider in state.snapshots.iter_mut().filter(|provider| provider["instanceId"] != instance) {
+                if let Some(all) = provider.get_mut("workspaceSnapshots").and_then(Value::as_array_mut) {
+                    let before = all.len();
+                    all.retain(|snapshot| snapshot["cwd"] != cwd);
+                    changed |= all.len() != before;
+                }
+            }
+            let snapshots = state.snapshots.clone();
+            drop(state);
+            if changed {
+                self.publish(snapshots);
+            }
+        }
+        let provider = self.snapshots().into_iter().find(|provider| provider["instanceId"] == instance);
+        let Some(provider) = provider.filter(|provider| provider["enabled"] == true) else {
+            return Ok(self.snapshots());
+        };
+        let scanned_from = workspace_of(&provider);
+        let current = scanned_from.as_ref().is_some_and(|snapshot| {
+            snapshot["slashCommandsPending"] != true
+                && snapshot["checkedAt"].as_str().is_some_and(|at| chrono::DateTime::parse_from_rfc3339(at).is_ok_and(|at| chrono::Utc::now().timestamp_millis() - at.timestamp_millis() < t3_contracts::PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS))
+        });
+        if !fresh && current {
+            return Ok(self.snapshots());
+        }
+        let scanned_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        if fresh {
+            self.refresh_instance(instance).await?;
+        }
+        let (settings, id) = (self.settings(), instance.parse::<ProviderInstanceId>().map_err(|error| ProcessError::Protocol(error.to_string()))?);
+        let Some(entry) = derive_instance_configs(&settings).get(&id).cloned() else {
+            return Ok(self.snapshots());
+        };
+        let Ok((_, _, scoped)) = Box::pin(discover_entry(id, entry, self.catalog.clone(), self.coordinator.clone(), self.management.clone(), Path::new(cwd), true)).await else {
+            return Ok(self.snapshots());
+        };
+        if scoped["status"] == "error" && scoped.get("slashCommandsPending").is_none() {
+            return Ok(self.snapshots());
+        }
+        let mut state = self.state.write().unwrap();
+        let before = state.snapshots.clone();
+        // Written only if the cwd's snapshot did not change during the scan: a newer one landed first.
+        if let Some(provider) = state.snapshots.iter_mut().find(|provider| provider["instanceId"] == instance && workspace_of(provider) == scanned_from) {
+            let mut all = provider["workspaceSnapshots"].as_array().cloned().unwrap_or_default();
+            all.retain(|snapshot| snapshot["cwd"] != cwd);
+            all.push(json!({"cwd":cwd,"checkedAt":scanned_at,"slashCommands":scoped["slashCommands"],"skills":scoped["skills"]}));
+            let keep = all.len().saturating_sub(MAX_SNAPSHOTS);
+            provider["workspaceSnapshots"] = json!(all.split_off(keep));
+        }
+        let snapshots = state.snapshots.clone();
+        drop(state);
+        if snapshots != before {
+            self.publish(snapshots.clone());
+        }
+        Ok(snapshots)
+    }
+}
+/// Probe one configured instance: its runtime object (when the driver has an adapter here) and its snapshot.
+async fn discover_entry(
+    id: ProviderInstanceId,
+    entry: ProviderInstanceConfig,
+    catalog: Option<crate::acp_registry_support::Catalog>,
+    coordinator: crate::acp_coordinator::Coordinator,
+    management: crate::provider_manage::Management,
+    cwd: &Path,
+    // A scan for one workspace skips what only the machine's snapshot carries (usage windows).
+    workspace: bool,
+) -> Result<(String, Option<RegisteredInstance>, Value), ProcessError> {
+        let id = id.to_string();
+        if entry.driver.as_str() == "acpRegistry" {
+            let config =
+                match serde_json::from_value::<t3_contracts::AcpRegistrySettings>(
+                    entry.config.clone().unwrap_or(json!({})),
+                ) {
+                    Ok(config) => config,
+                    Err(error) => {
+                        return Ok((
+                            id.clone(),
+                            None,
+                            unavailable(
+                                &id,
+                                &entry,
+                                format!("Invalid ACP config: {error}"),
+                            )?,
+                        ));
+                    }
+                };
+            let instance = AcpInstance {
+                instance_id: id.clone(),
+                display_name: entry
+                    .display_name
+                    .as_ref()
+                    .and_then(Option::as_ref)
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "ACP Registry".into()),
+                accent_color: entry
+                    .accent_color
+                    .as_ref()
+                    .and_then(Option::as_ref)
+                    .map(ToString::to_string),
+                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                config,
+                catalog,
+                coordinator,
+                environment: entry
+                    .environment
+                    .as_ref()
+                    .map(|variables| {
+                        variables
+                            .iter()
+                            .map(|variable| {
+                                (variable.name.to_string(), variable.value.clone())
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+            };
+            let snapshot = instance
+                .discover(cwd)
+                .await
+                .map_err(|error| ProcessError::Protocol(error.to_string()))?;
+            return Ok((id, Some(RegisteredInstance::Acp(instance)), snapshot));
+        }
+        if entry.driver.as_str() == "claudeAgent" {
+            let config = match serde_json::from_value::<t3_contracts::ClaudeSettings>(entry.config.clone().unwrap_or(json!({}))) {
+                Ok(config) => config,
+                Err(error) => return Ok((id.clone(), None, unavailable(&id, &entry, format!("Invalid config for instance '{id}': {error}"))?)),
+            };
+            let instance = ClaudeInstance {
+                instance_id: id.clone(),
+                display_name: entry.display_name.as_ref().and_then(Option::as_ref).map(ToString::to_string).unwrap_or_else(|| "Claude".into()),
+                accent_color: entry.accent_color.as_ref().and_then(Option::as_ref).map(ToString::to_string),
+                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                config,
+                environment: entry.environment.as_ref().map(|variables| variables.iter().map(|variable| (variable.name.to_string(), variable.value.clone())).collect()).unwrap_or_default(),
+            };
+            let snapshot = instance.discover_scoped(cwd, !workspace).await?;
+            return Ok((id, Some(RegisteredInstance::Claude(instance)), snapshot));
+        }
+        if entry.driver.as_str() != "codex" {
+            return Ok((
+                id.clone(),
+                None,
+                unavailable(
+                    &id,
+                    &entry,
+                    format!(
+                        "Driver '{}' is not registered in this native build.",
+                        entry.driver
+                    ),
+                )?,
+            ));
+        }
+        let config = match serde_json::from_value::<CodexConfig>(
+            entry.config.clone().unwrap_or(json!({})),
+        ) {
+            Ok(config) => config,
+            Err(error) => {
+                return Ok((
+                    id.clone(),
+                    None,
+                    unavailable(
+                        &id,
+                        &entry,
+                        format!("Invalid config for instance '{id}': {error}"),
+                    )?,
+                ));
+            }
+        };
+        let environment = entry
+            .environment
+            .as_ref()
+            .map(|variables| {
+                variables
+                    .iter()
+                    .map(|variable| {
+                        (variable.name.to_string(), variable.value.clone())
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let instance = CodexInstance {
+            instance_id: id.clone(),
+            display_name: entry
+                .display_name
+                .as_ref()
+                .and_then(Option::as_ref)
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "Codex".into()),
+            accent_color: entry
+                .accent_color
+                .as_ref()
+                .and_then(Option::as_ref)
+                .map(ToString::to_string),
+            enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+            config,
+            environment,
+        };
+        // A managed-setup instance reports its installation; there is no CLI to probe until one is installed.
+        let snapshot = if instance.config.setup_mode == Some(t3_contracts::CodexSetupMode::Managed) {
+            crate::provider_install::managed_snapshot(&management, &instance).await?
+        } else {
+            instance.discover(cwd).await?
+        };
+        Ok::<_, ProcessError>((
+            id,
+            Some(RegisteredInstance::Codex(instance)),
+            snapshot,
+        ))
 }
 fn apply_live_update(
     snapshot: &mut Value,
@@ -719,6 +1071,7 @@ fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str
     }
     match snapshot["driver"].as_str() {
         Some("codex") => Ok("codex"),
+        Some("claudeAgent") => Ok("claudeAgent"),
         Some("acpRegistry") => Ok("acpRegistry"),
         _ => Err(ProcessError::Protocol(
             "Provider driver is not registered.".into(),
@@ -812,7 +1165,7 @@ mod tests {
     }
     #[tokio::test]
     async fn unavailable_and_disabled_instances_never_launch_executables() {
-        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false,"config":{"binaryPath":"/must-not-execute"}},"unknown":{"driver":"fork","config":{}}}})).unwrap();
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","enabled":false,"config":{"binaryPath":"/must-not-execute"}},"unknown":{"driver":"fork","config":{}}}})).unwrap();
         let registry = ProviderRegistry::discover(&settings, std::env::temp_dir().as_path())
             .await
             .unwrap();
@@ -848,7 +1201,7 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
         }
-        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":true,"config":{"enabled":false,"binaryPath":script},"environment":[{"name":"MARKER","value":marker}]},"codex_work":{"driver":"codex","enabled":false,"config":{"enabled":true,"binaryPath":script},"environment":[{"name":"MARKER","value":marker}]}}})).unwrap();
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","enabled":true,"config":{"enabled":false,"binaryPath":script,"homePath":directory.path().join("codex-home")},"environment":[{"name":"MARKER","value":marker}]},"codex_work":{"driver":"codex","enabled":false,"config":{"enabled":true,"binaryPath":script,"homePath":directory.path().join("codex-home")},"environment":[{"name":"MARKER","value":marker}]}}})).unwrap();
         let registry = ProviderRegistry::discover(&settings, directory.path())
             .await
             .unwrap();

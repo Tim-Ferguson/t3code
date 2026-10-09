@@ -165,6 +165,16 @@ impl Store {
         Self::from_connection(connection, Some(path))
     }
 
+    /// The directory holding the database file; attachments and secrets live beside it.
+    pub fn state_dir(&self) -> Option<&Path> {
+        self.database_path.as_deref().and_then(Path::parent)
+    }
+
+    /// Equal for clones of one store; lets a per-store service find its running instance.
+    pub fn identity(&self) -> usize {
+        Arc::as_ptr(&self.connection) as usize
+    }
+
     pub fn memory() -> Result<Self, StoreError> {
         Self::from_connection(Connection::open_in_memory()?, None)
     }

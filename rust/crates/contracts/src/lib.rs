@@ -66,6 +66,8 @@ pub mod acp_registry;
 pub use acp_registry::*;
 pub mod provider_setup;
 pub use provider_setup::*;
+pub mod provider_manage;
+pub use provider_manage::*;
 
 pub mod settings_rpc;
 pub use settings_rpc::*;
@@ -78,3 +80,30 @@ pub use device::*;
 
 pub mod mcp_control;
 pub use mcp_control::*;
+
+pub mod assets;
+pub use assets::*;
+
+pub mod checkpoint_diff;
+pub use checkpoint_diff::*;
+
+pub mod source_control;
+pub use source_control::*;
+
+pub mod keybindings;
+pub use keybindings::*;
+
+pub mod thread_search;
+pub use thread_search::*;
+
+pub mod scheduled_task;
+pub use scheduled_task::*;
+
+pub mod pull_request;
+pub use pull_request::*;
+
+pub mod worktree_setup;
+pub use worktree_setup::*;
+
+pub mod project_clone;
+pub use project_clone::*;

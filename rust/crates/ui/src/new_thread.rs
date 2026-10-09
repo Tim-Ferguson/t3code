@@ -1,7 +1,7 @@
 use crate::runtime::{self, UiModel, UiModelStoreExt};
 use dioxus::prelude::*;
 use serde_json::json;
-use t3_client::{models, new_thread};
+use t3_client::{lifecycle, models, new_thread};
 use t3_contracts::*;
 
 // The select value can be assigned before dynamic options are mounted. Mark
@@ -42,6 +42,81 @@ pub fn NewThreadControls(
     }
 }
 type DraftKey = (EnvironmentId, String);
+fn previous_for(state: Store<UiModel>, project: &ProjectShell, current: Option<&str>) -> Option<(Option<String>, String)> {
+    let field = state.shell();
+    let shell = field.read();
+    let snapshot = shell.snapshot.as_ref()?;
+    let threads: Vec<lifecycle::WorktreeThread<'_>> = snapshot
+        .threads
+        .iter()
+        .filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none())
+        .map(|thread| lifecycle::WorktreeThread { branch: thread.branch.as_ref().map(|branch| branch.as_str()), worktree_path: thread.worktree_path.as_ref().map(|path| path.as_str()), updated_at: thread.updated_at.0.timestamp_millis(), archived: thread.archived_at.is_some() })
+        .collect();
+    lifecycle::previous_worktree(&threads, current)
+}
+/// The project the new-thread form is for, when the form is on screen.
+fn form_project(state: Store<UiModel>) -> Option<(ProjectShell, DraftKey)> {
+    if *state.view().read() != crate::runtime::View::Chat || state.active_thread().read().is_some() {
+        return None;
+    }
+    let field = state.shell();
+    let shell = field.read();
+    let snapshot = shell.snapshot.as_ref()?;
+    let selected = state.selected_project().read().clone();
+    let project = snapshot.projects.iter().find(|project| Some(project.id.as_str()) == selected.as_deref()).or_else(|| snapshot.projects.first())?.clone();
+    let destination = state.destination().read().clone()?;
+    let key = (destination, project.id.to_string());
+    Some((project, key))
+}
+/// Whether `composer.workspace` has a form to act on.
+pub(crate) fn workspace_form_open(state: Store<UiModel>) -> bool {
+    form_project(state).is_some()
+}
+/// Whether `composer.previousWorktree` has a worktree to hop into.
+pub(crate) fn previous_worktree_available(state: Store<UiModel>) -> bool {
+    form_project(state).is_some_and(|(project, key)| {
+        let current = state.new_thread_choices().read().get(&key).and_then(|choices| choices.worktree_path.clone());
+        previous_for(state, &project, current.as_deref()).is_some()
+    })
+}
+/// `composer.previousWorktree`: the form starts in the project's previous worktree.
+pub(crate) fn use_previous_worktree(state: Store<UiModel>) {
+    let Some((project, key)) = form_project(state) else { return };
+    let current = state.new_thread_choices().peek().get(&key).and_then(|choices| choices.worktree_path.clone());
+    if let Some((branch, path)) = previous_for(state, &project, current.as_deref()) {
+        update_choices(state, Some(&key), |choices| use_worktree(choices, path, branch));
+    }
+}
+/// A pull request was prepared for a thread: the form starts on its branch, in the worktree that
+/// holds it or in the project's own checkout.
+pub(crate) fn apply_prepared(state: Store<UiModel>, project_id: &str, branch: &str, worktree_path: Option<String>) {
+    let Some(destination) = state.destination().peek().clone() else { return };
+    let key = (destination, project_id.to_owned());
+    update_choices(state, Some(&key), |choices| match worktree_path {
+        Some(path) => use_worktree(choices, path, Some(branch.to_owned())),
+        None => {
+            choices.environment_mode = Some(ThreadEnvMode::Local);
+            choices.worktree_path = None;
+            choices.base_ref = branch.to_owned();
+        }
+    });
+}
+/// The project the new thread form is for, and its folder: what a pull request checkout needs.
+pub(crate) fn form_workspace(state: Store<UiModel>) -> Option<(String, String)> {
+    form_project(state).map(|(project, _)| (project.id.to_string(), project.workspace_root.to_string()))
+}
+/// `composer.workspace`: the workspace choice takes the keyboard.
+pub(crate) fn focus_workspace() {
+    dioxus::document::eval("document.getElementById('new-thread-workspace')?.focus();");
+}
+/// Points the form at an existing worktree, remembered with the rest of the draft's choices.
+fn use_worktree(choices: &mut runtime::NewThreadChoices, path: String, branch: Option<String>) {
+    choices.environment_mode = Some(ThreadEnvMode::Worktree);
+    choices.worktree_path = Some(path);
+    if let Some(branch) = branch {
+        choices.base_ref = branch;
+    }
+}
 fn update_choices(
     state: Store<UiModel>,
     key: Option<&DraftKey>,
@@ -162,11 +237,16 @@ fn NewThreadOptions(
         .environment_mode
         .or(defaults.environment_mode)
         .unwrap_or(ThreadEnvMode::Local);
-    let environment_value = if environment == ThreadEnvMode::Worktree {
+    let worktree_path = choices.worktree_path.clone().filter(|_| environment == ThreadEnvMode::Worktree);
+    let environment_value = if worktree_path.is_some() {
+        "existing"
+    } else if environment == ThreadEnvMode::Worktree {
         "worktree"
     } else {
         "local"
     };
+    // The worktree of the project's most recent thread that this form is not already using.
+    let previous = previous_for(state, &project, worktree_path.as_deref());
     let runtime_value = serde_json::to_value(mode)
         .unwrap()
         .as_str()
@@ -183,11 +263,26 @@ fn NewThreadOptions(
             &t3_client::draft_storage::DraftTarget::project(key.0.to_string(), key.1.clone()),
         )
     });
+    let attachment_target = destination.as_ref().map(|destination| {
+        t3_client::draft_storage::DraftTarget::project(destination.to_string(), project.id.to_string())
+    });
+    let (attachment_count, attachment_block) = attachment_target
+        .as_ref()
+        .and_then(|target| {
+            state.draft_attachments().read().get(target).map(|list| {
+                (list.len(), t3_client::attachments::block_reason(list))
+            })
+        })
+        .unwrap_or_default();
+    let mut drop_files = attachment_target
+        .clone()
+        .map(|target| crate::attachments::on_drop(&transport, state, target));
     let disabled = unsupported
+        || attachment_block.is_some()
         || pending
         || !can_operate
         || selected.is_none()
-        || (environment == ThreadEnvMode::Worktree && base_ref.trim().is_empty())
+        || (environment == ThreadEnvMode::Worktree && worktree_path.is_none() && base_ref.trim().is_empty())
         || selected.as_ref().is_some_and(|s| {
             rows.iter()
                 .find(|r| r.instance_id == s.instance_id && r.model.slug == s.model.as_str())
@@ -196,7 +291,7 @@ fn NewThreadOptions(
     let launch_selection = selected.clone();
     let project_id = project.id.to_string();
     rsx! {
-        if unsupported {p {class:"error-banner",role:"alert","This draft includes saved attachments or context. They are preserved; use the original app to send this complete draft."}}
+        if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
         label { "Model"
             select {"aria-label":"Model",value:selected_key,onchange:{let rows=rows.clone();let draft_key=draft_key.clone();move|event| {
                 if let Some(row)=rows.iter().find(|r|key(&r.selection())==event.value()) {
@@ -213,20 +308,53 @@ fn NewThreadOptions(
         label {"Permissions",select {"aria-label":"Permissions",value:runtime_value,onchange:{let draft_key=draft_key.clone();move|e|{if let Ok(mode)=serde_json::from_value(json!(e.value())) {update_choices(state,draft_key.as_ref(),|choices|choices.runtime_mode=Some(mode));}}},
             for choice in modes {option {value:serde_json::to_value(choice).unwrap().as_str().unwrap(),selected:choice==mode,"{models::runtime_mode_label(choice)}"}}
         }}
-        label {"Workspace",select {"aria-label":"Workspace",value:environment_value,onchange:{let draft_key=draft_key.clone();move|e|update_choices(state,draft_key.as_ref(),|choices|choices.environment_mode=Some(if e.value()=="worktree"{ThreadEnvMode::Worktree}else{ThreadEnvMode::Local}))},option {value:"local",selected:environment==ThreadEnvMode::Local,"Local"} option {value:"worktree",selected:environment==ThreadEnvMode::Worktree,"New worktree"}}}
-        if environment==ThreadEnvMode::Worktree {label {"Base branch",input {"aria-label":"Base branch",value:"{base_ref}",placeholder:"Branch or revision",oninput:{let draft_key=draft_key.clone();move|e|update_choices(state,draft_key.as_ref(),|choices|choices.base_ref=e.value())}}}}
-        label {class:"new-thread-prompt","First message",textarea {"aria-label":"First message",placeholder:"What would you like to work on?",value:"{prompt}",oninput:move|e|{
+        label {"Workspace",select {"aria-label":"Workspace",id:"new-thread-workspace",value:environment_value,onchange:{let draft_key=draft_key.clone();let previous=previous.clone();move|e|{
+            let chosen=e.value();
+            update_choices(state,draft_key.as_ref(),|choices|match chosen.as_str() {
+                "local"=>{choices.environment_mode=Some(ThreadEnvMode::Local);choices.worktree_path=None;}
+                "worktree"=>{choices.environment_mode=Some(ThreadEnvMode::Worktree);choices.worktree_path=None;}
+                "previous"=>if let Some((branch,path))=previous.clone() {use_worktree(choices,path,branch);},
+                _=>{}
+            });
+        }},
+            option {value:"local",selected:environment_value=="local","Current checkout"}
+            option {value:"worktree",selected:environment_value=="worktree","New worktree"}
+            if worktree_path.is_some() {option {value:"existing",selected:environment_value=="existing","Existing worktree"}}
+            if let Some((branch,_))=previous.as_ref() {option {value:"previous","{lifecycle::previous_worktree_label(branch.as_deref())}"}}
+        }}
+        if let Some(path)=worktree_path.clone() {
+            p {class:"muted",role:"status","Starts in the existing worktree {path}"}
+            button {r#type:"button","aria-label":"Use a new worktree instead",onclick:{let draft_key=draft_key.clone();move|_|update_choices(state,draft_key.as_ref(),|choices|choices.worktree_path=None)},"Use a new worktree instead"}
+        }
+        if environment==ThreadEnvMode::Worktree && worktree_path.is_none() {label {"Base branch",input {"aria-label":"Base branch",value:"{base_ref}",placeholder:"Branch or revision",oninput:{let draft_key=draft_key.clone();move|e|update_choices(state,draft_key.as_ref(),|choices|choices.base_ref=e.value())}}}}
+        if environment==ThreadEnvMode::Worktree {crate::branch::BaseBranch {state,transport:transport.clone(),cwd:project.workspace_root.to_string(),on_pick:{let draft_key=draft_key.clone();let root=project.workspace_root.to_string();move|chosen:t3_client::vcs::Ref|update_choices(state,draft_key.as_ref(),|choices|{
+            // A branch that already lives in another worktree starts the thread there.
+            match chosen.worktree_path.filter(|path|*path!=root) {
+                Some(path)=>use_worktree(choices,path,Some(chosen.name)),
+                None=>{choices.base_ref=chosen.name;choices.worktree_path=None;}
+            }
+        })}}}
+        div {class:"new-thread-attachments",ondragover:move|event|event.prevent_default(),ondrop:move|event|{if let Some(handler)=drop_files.as_mut(){handler(event);}},
+        label {class:"new-thread-prompt","First message",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:move|e|{
             if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
         }}}
+        if let Some(target)=attachment_target.clone() {
+            crate::attachments::Shelf {state,transport:transport.clone(),target:target.clone(),locked:pending,can_operate,paste_target:".new-thread-prompt textarea"}
+            if can_operate {crate::attachments::AttachButton {state,transport:transport.clone(),target}}
+        }
+        }
         button {class:"primary","aria-label":"Create new thread",disabled,onclick:move|_|{
             if let Some(selection)=launch_selection.as_ref() {
-                let workspace=if environment==ThreadEnvMode::Worktree {
+                let workspace=if let Some(path)=worktree_path.clone() {
+                    let Ok(worktree_path)=TrimmedNonEmptyString::new(&path) else{return;};
+                    ThreadLaunchWorkspaceStrategy::ExistingWorktree(WorkspaceExistingWorktree {worktree_path,branch:TrimmedNonEmptyString::new(&base_ref).ok().map(Some)})
+                } else if environment==ThreadEnvMode::Worktree {
                     let Ok(base_ref)=TrimmedNonEmptyString::new(&base_ref) else{return;};
                     ThreadLaunchWorkspaceStrategy::Worktree(WorkspaceWorktree {base_ref,branch:None,start_from_origin:None})
                 } else {ThreadLaunchWorkspaceStrategy::Root(WorkspaceRoot {branch:None})};
                 runtime::launch_thread(&transport,state,&project_id,selection,mode,workspace,Some(&prompt));
             }
-        },if pending {"Creating…"} else if prompt.trim().is_empty() {"New thread"} else {"Start chat"}}
+        },if pending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 {"New thread"} else {"Start chat"}}
         if rows.is_empty() {p {class:"muted","No ready providers. Check provider setup in Settings."}}
     }
 }

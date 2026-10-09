@@ -1,0 +1,231 @@
+{"type":"detect","remoteUrl":"https://github.com/owner/repo.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"git@github.com:owner/repo.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":true}
+{"type":"detect","remoteUrl":"ssh://git@github.com/owner/repo.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":true}
+{"type":"detect","remoteUrl":"ssh://git@github.com:22/owner/repo.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":true}
+{"type":"detect","remoteUrl":"https://GitHub.com/Owner/Repo","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"  https://github.com/owner/repo  ","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://github.example.com/owner/repo","result":{"kind":"github","name":"GitHub Self-Hosted","baseUrl":"https://github.example.com"},"ssh":false}
+{"type":"detect","remoteUrl":"git@github.acme.corp:team/repo.git","result":{"kind":"github","name":"GitHub Self-Hosted","baseUrl":"https://github.acme.corp"},"ssh":true}
+{"type":"detect","remoteUrl":"https://git.github.acme.test:8443/o/r","result":{"kind":"github","name":"GitHub Self-Hosted","baseUrl":"https://git.github.acme.test:8443"},"ssh":false}
+{"type":"detect","remoteUrl":"https://githubusercontent.com/o/r","result":{"kind":"unknown","name":"githubusercontent.com","baseUrl":"https://githubusercontent.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://notgithub.com/o/r","result":{"kind":"unknown","name":"notgithub.com","baseUrl":"https://notgithub.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://github.attacker.test/o/r","result":{"kind":"github","name":"GitHub Self-Hosted","baseUrl":"https://github.attacker.test"},"ssh":false}
+{"type":"detect","remoteUrl":"https://my-github.com/o/r","result":{"kind":"unknown","name":"my-github.com","baseUrl":"https://my-github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://gitlab.com/group/sub/project.git","result":{"kind":"gitlab","name":"GitLab","baseUrl":"https://gitlab.com"},"ssh":false}
+{"type":"detect","remoteUrl":"git@gitlab.com:group/project.git","result":{"kind":"gitlab","name":"GitLab","baseUrl":"https://gitlab.com"},"ssh":true}
+{"type":"detect","remoteUrl":"https://gitlab.example.org/g/p","result":{"kind":"gitlab","name":"GitLab Self-Hosted","baseUrl":"https://gitlab.example.org"},"ssh":false}
+{"type":"detect","remoteUrl":"https://git.gitlab.internal:8443/g/p","result":{"kind":"gitlab","name":"GitLab Self-Hosted","baseUrl":"https://git.gitlab.internal:8443"},"ssh":false}
+{"type":"detect","remoteUrl":"ssh://git@gitlab.internal:2222/g/p.git","result":{"kind":"gitlab","name":"GitLab Self-Hosted","baseUrl":"https://gitlab.internal"},"ssh":true}
+{"type":"detect","remoteUrl":"https://selfhosted.example/group/project","result":{"kind":"unknown","name":"selfhosted.example","baseUrl":"https://selfhosted.example"},"ssh":false}
+{"type":"detect","remoteUrl":"https://bitbucket.org/ws/repo.git","result":{"kind":"bitbucket","name":"Bitbucket","baseUrl":"https://bitbucket.org"},"ssh":false}
+{"type":"detect","remoteUrl":"git@bitbucket.org:ws/repo.git","result":{"kind":"bitbucket","name":"Bitbucket","baseUrl":"https://bitbucket.org"},"ssh":true}
+{"type":"detect","remoteUrl":"https://bitbucket.acme.test/scm/proj/repo.git","result":{"kind":"bitbucket","name":"Bitbucket Self-Hosted","baseUrl":"https://bitbucket.acme.test"},"ssh":false}
+{"type":"detect","remoteUrl":"https://dev.azure.com/org/project/_git/repo","result":{"kind":"azure-devops","name":"Azure DevOps","baseUrl":"https://dev.azure.com"},"ssh":false}
+{"type":"detect","remoteUrl":"git@ssh.dev.azure.com:v3/org/project/repo","result":{"kind":"azure-devops","name":"Azure DevOps","baseUrl":"https://ssh.dev.azure.com"},"ssh":true}
+{"type":"detect","remoteUrl":"https://org.visualstudio.com/project/_git/repo","result":{"kind":"azure-devops","name":"Azure DevOps","baseUrl":"https://org.visualstudio.com"},"ssh":false}
+{"type":"detect","remoteUrl":"org@vs-ssh.visualstudio.com:v3/org/project/repo","result":{"kind":"azure-devops","name":"Azure DevOps","baseUrl":"https://vs-ssh.visualstudio.com"},"ssh":true}
+{"type":"detect","remoteUrl":"https://org.visualstudio.com/DefaultCollection/project/_git/repo","result":{"kind":"azure-devops","name":"Azure DevOps","baseUrl":"https://org.visualstudio.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://codeberg.org/owner/repo.git","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://codeberg.org"},"ssh":false}
+{"type":"detect","remoteUrl":"git@codeberg.org:owner/repo.git","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://codeberg.org"},"ssh":true}
+{"type":"detect","remoteUrl":"https://forgejo.example.com/owner/repo","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://forgejo.example.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://git.gitea.example/owner/repo","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://git.gitea.example"},"ssh":false}
+{"type":"detect","remoteUrl":"https://gitea.example:3000/owner/repo","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://gitea.example:3000"},"ssh":false}
+{"type":"detect","remoteUrl":"http://gitea.example:3000/sub/path/owner/repo","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"http://gitea.example:3000"},"ssh":false}
+{"type":"detect","remoteUrl":"git@forgejo.internal:owner/repo.git","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://forgejo.internal"},"ssh":true}
+{"type":"detect","remoteUrl":"ssh://git@gitea.home/owner/repo.git","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://gitea.home"},"ssh":true}
+{"type":"detect","remoteUrl":"https://forgejo.example.com:8443/base/owner/repo","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"https://forgejo.example.com:8443"},"ssh":false}
+{"type":"detect","remoteUrl":"HTTP://FORGEJO.EXAMPLE.COM/o/r","result":{"kind":"forgejo","name":"Forgejo","baseUrl":"http://forgejo.example.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://code.example.com/owner/repo","result":{"kind":"unknown","name":"code.example.com","baseUrl":"https://code.example.com"},"ssh":false}
+{"type":"detect","remoteUrl":"git@code.example.com:owner/repo.git","result":{"kind":"unknown","name":"code.example.com","baseUrl":"https://code.example.com"},"ssh":true}
+{"type":"detect","remoteUrl":"ssh://git@code.example.com:2200/owner/repo.git","result":{"kind":"unknown","name":"code.example.com","baseUrl":"https://code.example.com"},"ssh":true}
+{"type":"detect","remoteUrl":"https://code.example.com:8443/owner/repo","result":{"kind":"unknown","name":"code.example.com:8443","baseUrl":"https://code.example.com:8443"},"ssh":false}
+{"type":"detect","remoteUrl":"git@alias:owner/repo.git","result":{"kind":"unknown","name":"alias","baseUrl":"https://alias"},"ssh":true}
+{"type":"detect","remoteUrl":"ssh://alias/owner/repo","result":{"kind":"unknown","name":"alias","baseUrl":"https://alias"},"ssh":true}
+{"type":"detect","remoteUrl":"file:///srv/git/repo.git","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"/srv/git/repo.git","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"../relative/repo","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"   ","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"github.com/owner/repo","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"https://","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"https://:80/x","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"not a url","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"mailto:person@example.com","result":null,"ssh":false}
+{"type":"detect","remoteUrl":"git://github.com/owner/repo.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://user:pass@github.com/owner/repo.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://[::1]:3000/o/r","result":{"kind":"unknown","name":"[::1]:3000","baseUrl":"https://[::1]:3000"},"ssh":false}
+{"type":"detect","remoteUrl":"https://192.168.1.10:3000/o/r","result":{"kind":"unknown","name":"192.168.1.10:3000","baseUrl":"https://192.168.1.10:3000"},"ssh":false}
+{"type":"detect","remoteUrl":"http://localhost:3000/o/r","result":{"kind":"unknown","name":"localhost:3000","baseUrl":"https://localhost:3000"},"ssh":false}
+{"type":"detect","remoteUrl":"https://github.com./o/r","result":{"kind":"github","name":"GitHub Self-Hosted","baseUrl":"https://github.com."},"ssh":false}
+{"type":"detect","remoteUrl":"https://GITHUB.COM:443/o/r","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"http://github.com:80/o/r","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":false}
+{"type":"detect","remoteUrl":"https://github.com:8080/o/r","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com:8080"},"ssh":false}
+{"type":"detect","remoteUrl":"https://münchen.example/o/r","result":{"kind":"unknown","name":"xn--mnchen-3ya.example","baseUrl":"https://xn--mnchen-3ya.example"},"ssh":false}
+{"type":"detect","remoteUrl":"https://exämple.github.test/o/r","result":{"kind":"github","name":"GitHub Self-Hosted","baseUrl":"https://xn--exmple-cua.github.test"},"ssh":false}
+{"type":"detect","remoteUrl":"ssh://git@github.com:notaport/o/r","result":null,"ssh":true}
+{"type":"detect","remoteUrl":"git@host:with:colons/repo.git","result":{"kind":"unknown","name":"host","baseUrl":"https://host"},"ssh":true}
+{"type":"detect","remoteUrl":"user@host.example:repo.git","result":{"kind":"unknown","name":"host.example","baseUrl":"https://host.example"},"ssh":true}
+{"type":"detect","remoteUrl":"foo.bar@github.com:o/r.git","result":{"kind":"github","name":"GitHub","baseUrl":"https://github.com"},"ssh":true}
+{"type":"selector","identity":{"provider":"github","displayName":"owner/repo","owner":"owner","name":"repo"},"result":"owner/repo"}
+{"type":"selector","identity":{"provider":"gitlab","displayName":"group/sub/project","owner":"group","name":"project"},"result":"group/sub/project"}
+{"type":"selector","identity":{"provider":"gitlab","owner":"group","name":"project"},"result":"group/project"}
+{"type":"selector","identity":{"provider":"gitlab","displayName":"","owner":"group","name":"project"},"result":"group/project"}
+{"type":"selector","identity":{"provider":"gitlab","owner":"group"},"result":null}
+{"type":"selector","identity":{"provider":"github"},"result":null}
+{"type":"selector","identity":{"provider":"azure-devops","displayName":"org/project/_git/repo","owner":"org","name":"repo"},"result":"repo"}
+{"type":"selector","identity":{"provider":"azure-devops","displayName":"org/project/_git/repo"},"result":"repo"}
+{"type":"selector","identity":{"provider":"azure-devops","displayName":"org/project/_git/repo","name":""},"result":"repo"}
+{"type":"selector","identity":{"provider":"azure-devops","displayName":"_git"},"result":null}
+{"type":"selector","identity":{"provider":"azure-devops"},"result":null}
+{"type":"selector","identity":{"provider":"bitbucket","displayName":"ws/repo","owner":"ws","name":"repo"},"result":"ws/repo"}
+{"type":"selector","identity":{"displayName":"x/y"},"result":"x/y"}
+{"type":"selector","identity":{"owner":"o","name":"n"},"result":"o/n"}
+{"type":"selector","identity":{},"result":null}
+{"type":"selector","identity":null,"result":null}
+{"type":"canonical","key":"github.com/o/r","result":"github.com/o/r"}
+{"type":"canonical","key":"ssh.dev.azure.com/v3/org/project/repo","result":"dev.azure.com/org/project/_git/repo"}
+{"type":"canonical","key":"vs-ssh.visualstudio.com/v3/org/project/repo","result":"dev.azure.com/org/project/_git/repo"}
+{"type":"canonical","key":"org.visualstudio.com/project/_git/repo","result":"dev.azure.com/org/project/_git/repo"}
+{"type":"canonical","key":"org.visualstudio.com/defaultcollection/project/_git/repo","result":"dev.azure.com/org/project/_git/repo"}
+{"type":"canonical","key":"org.visualstudio.com/other/project/_git/repo","result":"org.visualstudio.com/other/project/_git/repo"}
+{"type":"canonical","key":"dev.azure.com/org/project/_git/repo","result":"dev.azure.com/org/project/_git/repo"}
+{"type":"canonical","key":"a.b.visualstudio.com/p/_git/r","result":"a.b.visualstudio.com/p/_git/r"}
+{"type":"canonical","key":"ssh.dev.azure.com/v3/org/project","result":"ssh.dev.azure.com/v3/org/project"}
+{"type":"canonical","key":"ssh.dev.azure.com/v3/org/project/repo/extra","result":"ssh.dev.azure.com/v3/org/project/repo/extra"}
+{"type":"transportSafe","value":"owner/repo","result":"owner/repo"}
+{"type":"transportSafe","value":"https://user:secret@github.com/o/r.git?token=abc#frag","result":"https://github.com/o/r.git"}
+{"type":"transportSafe","value":"https://github.com/o/r","result":"https://github.com/o/r"}
+{"type":"transportSafe","value":"  spaced   out\tvalue\n ","result":"spaced out value"}
+{"type":"transportSafe","value":"line1\nline2\u0007bell","result":"line1 line2 bell"}
+{"type":"transportSafe","value":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","result":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}
+{"type":"transportSafe","value":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀","result":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"}
+{"type":"transportSafe","value":"https://example.com/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp","result":"https://example.com/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"}
+{"type":"transportSafe","value":"feature/x","result":"feature/x"}
+{"type":"transportSafe","value":"","result":""}
+{"type":"transportSafe","value":"   ","result":""}
+{"type":"transportSafe","value":"github:foo","result":"github:foo"}
+{"type":"transportSafe","value":"ssh://git@host/o/r","result":"ssh://host/o/r"}
+{"type":"transportSafe","value":"http://[::1]:3000/path?x=1","result":"http://[::1]:3000/path"}
+{"type":"transportSafe","value":"c:\\path\\to","result":"c:\\path\\to"}
+{"type":"transportSafe","value":"﻿bom value﻿","result":"bom value"}
+{"type":"ownerRef","headSelector":"feature","result":null}
+{"type":"sourceRef","headSelector":"feature","source":null,"branch":"feature","ref":null}
+{"type":"sourceRef","headSelector":"feature","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"feature","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"owner:feature","result":{"owner":"owner","refName":"feature"}}
+{"type":"sourceRef","headSelector":"owner:feature","source":null,"branch":"feature","ref":{"owner":"owner","refName":"feature"}}
+{"type":"sourceRef","headSelector":"owner:feature","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"owner:feature","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":" owner : feature ","result":null}
+{"type":"sourceRef","headSelector":" owner : feature ","source":null,"branch":"owner : feature","ref":null}
+{"type":"sourceRef","headSelector":" owner : feature ","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":" owner : feature ","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"owner:feature/x","result":{"owner":"owner","refName":"feature/x"}}
+{"type":"sourceRef","headSelector":"owner:feature/x","source":null,"branch":"feature/x","ref":{"owner":"owner","refName":"feature/x"}}
+{"type":"sourceRef","headSelector":"owner:feature/x","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"owner:feature/x","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"own er:feature","result":null}
+{"type":"sourceRef","headSelector":"own er:feature","source":null,"branch":"own er:feature","ref":null}
+{"type":"sourceRef","headSelector":"own er:feature","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"own er:feature","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"owner/x:feature","result":null}
+{"type":"sourceRef","headSelector":"owner/x:feature","source":null,"branch":"owner/x:feature","ref":null}
+{"type":"sourceRef","headSelector":"owner/x:feature","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"owner/x:feature","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"owner:","result":null}
+{"type":"sourceRef","headSelector":"owner:","source":null,"branch":"owner:","ref":null}
+{"type":"sourceRef","headSelector":"owner:","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"owner:","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":":feature","result":null}
+{"type":"sourceRef","headSelector":":feature","source":null,"branch":":feature","ref":null}
+{"type":"sourceRef","headSelector":":feature","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":":feature","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"a:b:c","result":{"owner":"a","refName":"b:c"}}
+{"type":"sourceRef","headSelector":"a:b:c","source":null,"branch":"b:c","ref":{"owner":"a","refName":"b:c"}}
+{"type":"sourceRef","headSelector":"a:b:c","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"a:b:c","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"owner:fea ture","result":{"owner":"owner","refName":"fea ture"}}
+{"type":"sourceRef","headSelector":"owner:fea ture","source":null,"branch":"fea ture","ref":{"owner":"owner","refName":"fea ture"}}
+{"type":"sourceRef","headSelector":"owner:fea ture","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"owner:fea ture","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"  ","result":null}
+{"type":"sourceRef","headSelector":"  ","source":null,"branch":"","ref":null}
+{"type":"sourceRef","headSelector":"  ","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"  ","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"","result":null}
+{"type":"sourceRef","headSelector":"","source":null,"branch":"","ref":null}
+{"type":"sourceRef","headSelector":"","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"o:\nb","result":null}
+{"type":"sourceRef","headSelector":"o:\nb","source":null,"branch":"o:\nb","ref":null}
+{"type":"sourceRef","headSelector":"o:\nb","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"o:\nb","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"o:b\r","result":{"owner":"o","refName":"b"}}
+{"type":"sourceRef","headSelector":"o:b\r","source":null,"branch":"b","ref":{"owner":"o","refName":"b"}}
+{"type":"sourceRef","headSelector":"o:b\r","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"o:b\r","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"o: b","result":null}
+{"type":"sourceRef","headSelector":"o: b","source":null,"branch":"o: b","ref":null}
+{"type":"sourceRef","headSelector":"o: b","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"o: b","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":" o:b ","result":{"owner":"o","refName":"b"}}
+{"type":"sourceRef","headSelector":" o:b ","source":null,"branch":"b","ref":{"owner":"o","refName":"b"}}
+{"type":"sourceRef","headSelector":" o:b ","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":" o:b ","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"o :b","result":null}
+{"type":"sourceRef","headSelector":"o :b","source":null,"branch":"o :b","ref":null}
+{"type":"sourceRef","headSelector":"o :b","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"o :b","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"ownerRef","headSelector":"o: b","result":{"owner":"o","refName":"b"}}
+{"type":"sourceRef","headSelector":"o: b","source":null,"branch":"b","ref":{"owner":"o","refName":"b"}}
+{"type":"sourceRef","headSelector":"o: b","source":{"refName":"explicit"},"branch":"explicit","ref":{"refName":"explicit"}}
+{"type":"sourceRef","headSelector":"o: b","source":{"refName":"explicit","owner":"own","repository":"own/repo"},"branch":"explicit","ref":{"refName":"explicit","owner":"own","repository":"own/repo"}}
+{"type":"readers","text":"gh version 2.81.0 (2025-01-01)\nhttps://github.com/cli/cli/releases/tag/v2.81.0\n","firstNonEmptyLine":"gh version 2.81.0 (2025-01-01)","firstSafeAuthLine":"gh version 2.81.0 (2025-01-01)","parseCliHost":null}
+{"type":"readers","text":"\n\n  \nfirst\nsecond","firstNonEmptyLine":"first","firstSafeAuthLine":"first","parseCliHost":"first"}
+{"type":"readers","text":"\u001b[1mbold\u001b[0m\nnext","firstNonEmptyLine":"bold","firstSafeAuthLine":"\u001b[1mbold\u001b[0m","parseCliHost":"next"}
+{"type":"readers","text":"\u001b[31mred\u001b[39m","firstNonEmptyLine":"red","firstSafeAuthLine":"\u001b[31mred\u001b[39m","parseCliHost":null}
+{"type":"readers","text":"\u001b]0;title\u0007visible","firstNonEmptyLine":"visible","firstSafeAuthLine":"\u001b]0;title\u0007visible","parseCliHost":null}
+{"type":"readers","text":"glab 1.40 (abc)\r\nmore","firstNonEmptyLine":"glab 1.40 (abc)","firstSafeAuthLine":"glab 1.40 (abc)","parseCliHost":"more"}
+{"type":"readers","text":"","firstNonEmptyLine":null,"firstSafeAuthLine":null,"parseCliHost":null}
+{"type":"readers","text":"  \r\n \r\n","firstNonEmptyLine":null,"firstSafeAuthLine":null,"parseCliHost":null}
+{"type":"readers","text":"1;31mC1 style0m","firstNonEmptyLine":"C1 style","firstSafeAuthLine":"1;31mC1 style0m","parseCliHost":null}
+{"type":"readers","text":"github.com\n  ✓ Logged in to github.com account octo (keyring)\n  - Active account: true\n  - Token: gho_abcdef\n  - Token scopes: 'repo'\n","firstNonEmptyLine":"github.com","firstSafeAuthLine":"github.com","parseCliHost":"github.com"}
+{"type":"readers","text":"Token: secret\n- Token scopes: repo\nreal line","firstNonEmptyLine":"Token: secret","firstSafeAuthLine":"real line","parseCliHost":null}
+{"type":"readers","text":"token scopes: x\nTOKEN: y","firstNonEmptyLine":"token scopes: x","firstSafeAuthLine":null,"parseCliHost":null}
+{"type":"readers","text":"  - Token: x","firstNonEmptyLine":"- Token: x","firstSafeAuthLine":null,"parseCliHost":null}
+{"type":"readers","text":"gitlab.com\n  ✓ Logged in to gitlab.com as tim (token)\n","firstNonEmptyLine":"gitlab.com","firstSafeAuthLine":"gitlab.com","parseCliHost":"gitlab.com"}
+{"type":"readers","text":"✓ gitlab.example.com:8443\nmore","firstNonEmptyLine":"✓ gitlab.example.com:8443","firstSafeAuthLine":"✓ gitlab.example.com:8443","parseCliHost":"gitlab.example.com:8443"}
+{"type":"readers","text":"- host.example\n","firstNonEmptyLine":"- host.example","firstSafeAuthLine":"- host.example","parseCliHost":"host.example"}
+{"type":"readers","text":"a b\nhost.example:99","firstNonEmptyLine":"a b","firstSafeAuthLine":"a b","parseCliHost":"host.example:99"}
+{"type":"readers","text":"!! 192.168.0.1","firstNonEmptyLine":"!! 192.168.0.1","firstSafeAuthLine":"!! 192.168.0.1","parseCliHost":"192.168.0.1"}
+{"type":"readers","text":"[::1]:80","firstNonEmptyLine":"[::1]:80","firstSafeAuthLine":"[::1]:80","parseCliHost":null}
+{"type":"readers","text":"host-with-dash.example","firstNonEmptyLine":"host-with-dash.example","firstSafeAuthLine":"host-with-dash.example","parseCliHost":"host-with-dash.example"}
+{"type":"readers","text":"-.bad","firstNonEmptyLine":"-.bad","firstSafeAuthLine":"-.bad","parseCliHost":"bad"}
+{"type":"readers","text":"user@host","firstNonEmptyLine":"user@host","firstSafeAuthLine":"user@host","parseCliHost":null}
+{"type":"combined","stdout":"out","stderr":"err","exitCode":0,"result":"out\nerr"}
+{"type":"combined","stdout":"","stderr":"err","exitCode":0,"result":"err"}
+{"type":"combined","stdout":"out","stderr":"","exitCode":0,"result":"out"}
+{"type":"combined","stdout":"  ","stderr":"\n","exitCode":0,"result":""}
+{"type":"combined","stdout":"","stderr":"","exitCode":0,"result":""}
+{"type":"combined","stdout":"out\n","stderr":"err\n","exitCode":0,"result":"out\n\nerr\n"}
+{"type":"matchFirst","text":"Logged in to gitlab.com as tim (token)","result":"tim"}
+{"type":"matchFirst","text":"account: bob (x)","result":"bob"}
+{"type":"matchFirst","text":"nothing","result":null}
+{"type":"matchFirst","text":"Logged in to x as   ","result":null}
+{"type":"matchFirst","text":"account:  \n","result":null}
+{"type":"providerAuth","input":{"status":"authenticated","account":"tim","host":"github.com","detail":null},"result":{"status":"authenticated","account":{"_tag":"Some","value":"tim"},"host":{"_tag":"Some","value":"github.com"},"detail":{"_tag":"None"}}}
+{"type":"providerAuth","input":{"status":"unknown","account":null,"host":null,"detail":"  detail  "},"result":{"status":"unknown","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"Some","value":"detail"}}}
+{"type":"providerAuth","input":{"status":"unauthenticated","account":"  ","host":"","detail":""},"result":{"status":"unauthenticated","account":{"_tag":"None"},"host":{"_tag":"None"},"detail":{"_tag":"None"}}}
+{"type":"retryAt","value":null,"now":1791201600000,"result":null}
+{"type":"retryAt","value":"0","now":1791201600000,"result":1791201600000}
+{"type":"retryAt","value":"30","now":1791201600000,"result":1791201630000}
+{"type":"retryAt","value":" 30 ","now":1791201600000,"result":1791201630000}
+{"type":"retryAt","value":"-5","now":1791201600000,"result":null}
+{"type":"retryAt","value":"1.5","now":1791201600000,"result":null}
+{"type":"retryAt","value":"abc","now":1791201600000,"result":null}
+{"type":"retryAt","value":"","now":1791201600000,"result":null}
+{"type":"retryAt","value":"Mon, 05 Oct 2026 12:05:00 GMT","now":1791201600000,"result":1791201900000}
+{"type":"retryAt","value":"Mon, 05 Oct 2026 11:00:00 GMT","now":1791201600000,"result":null}
+{"type":"retryAt","value":"2026-10-05T13:00:00Z","now":1791201600000,"result":1791205200000}
+{"type":"retryAt","value":"9007199254740991","now":1791201600000,"result":null}
+{"type":"retryAt","value":"99999999999999999999","now":1791201600000,"result":null}

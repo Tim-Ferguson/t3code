@@ -1,0 +1,1026 @@
+{"kind":"compare","left":"1.0.0","right":"1.0.0","expected":0}
+{"kind":"compare","left":"1.0.0","right":"1.0.1","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"1.0.0","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"1.0.0","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"1.0.0","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"1.2","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"20","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"junk","expected":-1}
+{"kind":"compare","left":"1.0.0","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.0.0","right":"0.159.0","expected":1}
+{"kind":"compare","left":"1.0.1","right":"1.0.0","expected":1}
+{"kind":"compare","left":"1.0.1","right":"1.0.1","expected":0}
+{"kind":"compare","left":"1.0.1","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"1.0.1","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.0.1","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"1.0.1","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"1.0.1","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"1.0.1","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.0.1","right":"1.2","expected":-1}
+{"kind":"compare","left":"1.0.1","right":"20","expected":-1}
+{"kind":"compare","left":"1.0.1","right":"junk","expected":-1}
+{"kind":"compare","left":"1.0.1","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.0.1","right":"0.159.0","expected":1}
+{"kind":"compare","left":"1.2.0","right":"1.0.0","expected":1}
+{"kind":"compare","left":"1.2.0","right":"1.0.1","expected":1}
+{"kind":"compare","left":"1.2.0","right":"1.2.0","expected":0}
+{"kind":"compare","left":"1.2.0","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.2.0","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"1.2.0","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"1.2.0","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"1.2.0","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.2.0","right":"1.2","expected":0}
+{"kind":"compare","left":"1.2.0","right":"20","expected":-1}
+{"kind":"compare","left":"1.2.0","right":"junk","expected":-1}
+{"kind":"compare","left":"1.2.0","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.2.0","right":"0.159.0","expected":1}
+{"kind":"compare","left":"2.0.0","right":"1.0.0","expected":1}
+{"kind":"compare","left":"2.0.0","right":"1.0.1","expected":1}
+{"kind":"compare","left":"2.0.0","right":"1.2.0","expected":1}
+{"kind":"compare","left":"2.0.0","right":"2.0.0","expected":0}
+{"kind":"compare","left":"2.0.0","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"2.0.0","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"2.0.0","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"2.0.0","right":"v1.2.3","expected":1}
+{"kind":"compare","left":"2.0.0","right":"1.2","expected":1}
+{"kind":"compare","left":"2.0.0","right":"20","expected":-1}
+{"kind":"compare","left":"2.0.0","right":"junk","expected":-1}
+{"kind":"compare","left":"2.0.0","right":"0.156.1","expected":1}
+{"kind":"compare","left":"2.0.0","right":"0.159.0","expected":1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.0.1","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.0.0-beta.1","expected":0}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.0.0-beta.2","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"1.2","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"20","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"junk","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.0.0-beta.1","right":"0.159.0","expected":1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.0.1","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.0.0-beta.2","expected":0}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"1.2","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"20","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"junk","expected":-1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.0.0-beta.2","right":"0.159.0","expected":1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.0.1","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.0.0-beta.1","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.0.0-beta.2","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.0.0-alpha","expected":0}
+{"kind":"compare","left":"1.0.0-alpha","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"1.2","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"20","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"junk","expected":-1}
+{"kind":"compare","left":"1.0.0-alpha","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.0.0-alpha","right":"0.159.0","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"1.0.0","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"1.0.1","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"1.2.0","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"v1.2.3","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"v1.2.3","expected":0}
+{"kind":"compare","left":"v1.2.3","right":"1.2","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"20","expected":-1}
+{"kind":"compare","left":"v1.2.3","right":"junk","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"0.156.1","expected":1}
+{"kind":"compare","left":"v1.2.3","right":"0.159.0","expected":1}
+{"kind":"compare","left":"1.2","right":"1.0.0","expected":1}
+{"kind":"compare","left":"1.2","right":"1.0.1","expected":1}
+{"kind":"compare","left":"1.2","right":"1.2.0","expected":0}
+{"kind":"compare","left":"1.2","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"1.2","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"1.2","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"1.2","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"1.2","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"1.2","right":"1.2","expected":0}
+{"kind":"compare","left":"1.2","right":"20","expected":-1}
+{"kind":"compare","left":"1.2","right":"junk","expected":-1}
+{"kind":"compare","left":"1.2","right":"0.156.1","expected":1}
+{"kind":"compare","left":"1.2","right":"0.159.0","expected":1}
+{"kind":"compare","left":"20","right":"1.0.0","expected":1}
+{"kind":"compare","left":"20","right":"1.0.1","expected":1}
+{"kind":"compare","left":"20","right":"1.2.0","expected":1}
+{"kind":"compare","left":"20","right":"2.0.0","expected":1}
+{"kind":"compare","left":"20","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"20","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"20","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"20","right":"v1.2.3","expected":1}
+{"kind":"compare","left":"20","right":"1.2","expected":1}
+{"kind":"compare","left":"20","right":"20","expected":0}
+{"kind":"compare","left":"20","right":"junk","expected":-1}
+{"kind":"compare","left":"20","right":"0.156.1","expected":1}
+{"kind":"compare","left":"20","right":"0.159.0","expected":1}
+{"kind":"compare","left":"junk","right":"1.0.0","expected":1}
+{"kind":"compare","left":"junk","right":"1.0.1","expected":1}
+{"kind":"compare","left":"junk","right":"1.2.0","expected":1}
+{"kind":"compare","left":"junk","right":"2.0.0","expected":1}
+{"kind":"compare","left":"junk","right":"1.0.0-beta.1","expected":1}
+{"kind":"compare","left":"junk","right":"1.0.0-beta.2","expected":1}
+{"kind":"compare","left":"junk","right":"1.0.0-alpha","expected":1}
+{"kind":"compare","left":"junk","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"junk","right":"1.2","expected":1}
+{"kind":"compare","left":"junk","right":"20","expected":1}
+{"kind":"compare","left":"junk","right":"junk","expected":0}
+{"kind":"compare","left":"junk","right":"0.156.1","expected":1}
+{"kind":"compare","left":"junk","right":"0.159.0","expected":1}
+{"kind":"compare","left":"0.156.1","right":"1.0.0","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"1.0.1","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"1.0.0-beta.1","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"1.0.0-beta.2","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"1.0.0-alpha","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"1.2","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"20","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"junk","expected":-1}
+{"kind":"compare","left":"0.156.1","right":"0.156.1","expected":0}
+{"kind":"compare","left":"0.156.1","right":"0.159.0","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.0.0","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.0.1","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.2.0","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"2.0.0","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.0.0-beta.1","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.0.0-beta.2","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.0.0-alpha","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"v1.2.3","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"1.2","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"20","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"junk","expected":-1}
+{"kind":"compare","left":"0.159.0","right":"0.156.1","expected":1}
+{"kind":"compare","left":"0.159.0","right":"0.159.0","expected":0}
+{"kind":"range","version":"0.156.1","range":">=0.156.0","expected":true}
+{"kind":"range","version":"0.156.1","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"0.156.1","range":"<0.149.0","expected":false}
+{"kind":"range","version":"0.156.1","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.156.1","range":"^0.2.3","expected":false}
+{"kind":"range","version":"0.156.1","range":"^0.0.3","expected":false}
+{"kind":"range","version":"0.156.1","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.156.1","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.156.1","range":">1","expected":false}
+{"kind":"range","version":"0.156.1","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.156.1","range":"bad","expected":false}
+{"kind":"range","version":"0.156.1","range":"","expected":false}
+{"kind":"range","version":"0.150.0","range":">=0.156.0","expected":false}
+{"kind":"range","version":"0.150.0","range":">=0.149.0 <0.156.0","expected":true}
+{"kind":"range","version":"0.150.0","range":"<0.149.0","expected":false}
+{"kind":"range","version":"0.150.0","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.150.0","range":"^0.2.3","expected":false}
+{"kind":"range","version":"0.150.0","range":"^0.0.3","expected":false}
+{"kind":"range","version":"0.150.0","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.150.0","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.150.0","range":">1","expected":false}
+{"kind":"range","version":"0.150.0","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.150.0","range":"bad","expected":false}
+{"kind":"range","version":"0.150.0","range":"","expected":false}
+{"kind":"range","version":"0.100.0","range":">=0.156.0","expected":false}
+{"kind":"range","version":"0.100.0","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"0.100.0","range":"<0.149.0","expected":true}
+{"kind":"range","version":"0.100.0","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.100.0","range":"^0.2.3","expected":false}
+{"kind":"range","version":"0.100.0","range":"^0.0.3","expected":false}
+{"kind":"range","version":"0.100.0","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.100.0","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.100.0","range":">1","expected":false}
+{"kind":"range","version":"0.100.0","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.100.0","range":"bad","expected":false}
+{"kind":"range","version":"0.100.0","range":"","expected":false}
+{"kind":"range","version":"1.2.3","range":">=0.156.0","expected":true}
+{"kind":"range","version":"1.2.3","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"1.2.3","range":"<0.149.0","expected":false}
+{"kind":"range","version":"1.2.3","range":"^1.2.3","expected":true}
+{"kind":"range","version":"1.2.3","range":"^0.2.3","expected":false}
+{"kind":"range","version":"1.2.3","range":"^0.0.3","expected":false}
+{"kind":"range","version":"1.2.3","range":"=1.1.1","expected":false}
+{"kind":"range","version":"1.2.3","range":">=2.0.0 || <1.0.0","expected":false}
+{"kind":"range","version":"1.2.3","range":">1","expected":true}
+{"kind":"range","version":"1.2.3","range":"<=1.2","expected":false}
+{"kind":"range","version":"1.2.3","range":"bad","expected":false}
+{"kind":"range","version":"1.2.3","range":"","expected":false}
+{"kind":"range","version":"1.9.0","range":">=0.156.0","expected":true}
+{"kind":"range","version":"1.9.0","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"1.9.0","range":"<0.149.0","expected":false}
+{"kind":"range","version":"1.9.0","range":"^1.2.3","expected":true}
+{"kind":"range","version":"1.9.0","range":"^0.2.3","expected":false}
+{"kind":"range","version":"1.9.0","range":"^0.0.3","expected":false}
+{"kind":"range","version":"1.9.0","range":"=1.1.1","expected":false}
+{"kind":"range","version":"1.9.0","range":">=2.0.0 || <1.0.0","expected":false}
+{"kind":"range","version":"1.9.0","range":">1","expected":true}
+{"kind":"range","version":"1.9.0","range":"<=1.2","expected":false}
+{"kind":"range","version":"1.9.0","range":"bad","expected":false}
+{"kind":"range","version":"1.9.0","range":"","expected":false}
+{"kind":"range","version":"0.2.9","range":">=0.156.0","expected":false}
+{"kind":"range","version":"0.2.9","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"0.2.9","range":"<0.149.0","expected":true}
+{"kind":"range","version":"0.2.9","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.2.9","range":"^0.2.3","expected":true}
+{"kind":"range","version":"0.2.9","range":"^0.0.3","expected":false}
+{"kind":"range","version":"0.2.9","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.2.9","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.2.9","range":">1","expected":false}
+{"kind":"range","version":"0.2.9","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.2.9","range":"bad","expected":false}
+{"kind":"range","version":"0.2.9","range":"","expected":false}
+{"kind":"range","version":"0.3.0","range":">=0.156.0","expected":false}
+{"kind":"range","version":"0.3.0","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"0.3.0","range":"<0.149.0","expected":true}
+{"kind":"range","version":"0.3.0","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.3.0","range":"^0.2.3","expected":false}
+{"kind":"range","version":"0.3.0","range":"^0.0.3","expected":false}
+{"kind":"range","version":"0.3.0","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.3.0","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.3.0","range":">1","expected":false}
+{"kind":"range","version":"0.3.0","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.3.0","range":"bad","expected":false}
+{"kind":"range","version":"0.3.0","range":"","expected":false}
+{"kind":"range","version":"0.0.3","range":">=0.156.0","expected":false}
+{"kind":"range","version":"0.0.3","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"0.0.3","range":"<0.149.0","expected":true}
+{"kind":"range","version":"0.0.3","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.0.3","range":"^0.2.3","expected":false}
+{"kind":"range","version":"0.0.3","range":"^0.0.3","expected":true}
+{"kind":"range","version":"0.0.3","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.0.3","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.0.3","range":">1","expected":false}
+{"kind":"range","version":"0.0.3","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.0.3","range":"bad","expected":false}
+{"kind":"range","version":"0.0.3","range":"","expected":false}
+{"kind":"range","version":"0.0.4","range":">=0.156.0","expected":false}
+{"kind":"range","version":"0.0.4","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"0.0.4","range":"<0.149.0","expected":true}
+{"kind":"range","version":"0.0.4","range":"^1.2.3","expected":false}
+{"kind":"range","version":"0.0.4","range":"^0.2.3","expected":false}
+{"kind":"range","version":"0.0.4","range":"^0.0.3","expected":false}
+{"kind":"range","version":"0.0.4","range":"=1.1.1","expected":false}
+{"kind":"range","version":"0.0.4","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"0.0.4","range":">1","expected":false}
+{"kind":"range","version":"0.0.4","range":"<=1.2","expected":true}
+{"kind":"range","version":"0.0.4","range":"bad","expected":false}
+{"kind":"range","version":"0.0.4","range":"","expected":false}
+{"kind":"range","version":"1.1.1","range":">=0.156.0","expected":true}
+{"kind":"range","version":"1.1.1","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"1.1.1","range":"<0.149.0","expected":false}
+{"kind":"range","version":"1.1.1","range":"^1.2.3","expected":false}
+{"kind":"range","version":"1.1.1","range":"^0.2.3","expected":false}
+{"kind":"range","version":"1.1.1","range":"^0.0.3","expected":false}
+{"kind":"range","version":"1.1.1","range":"=1.1.1","expected":true}
+{"kind":"range","version":"1.1.1","range":">=2.0.0 || <1.0.0","expected":false}
+{"kind":"range","version":"1.1.1","range":">1","expected":true}
+{"kind":"range","version":"1.1.1","range":"<=1.2","expected":true}
+{"kind":"range","version":"1.1.1","range":"bad","expected":false}
+{"kind":"range","version":"1.1.1","range":"","expected":false}
+{"kind":"range","version":"2026.05.09","range":">=0.156.0","expected":true}
+{"kind":"range","version":"2026.05.09","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"2026.05.09","range":"<0.149.0","expected":false}
+{"kind":"range","version":"2026.05.09","range":"^1.2.3","expected":false}
+{"kind":"range","version":"2026.05.09","range":"^0.2.3","expected":false}
+{"kind":"range","version":"2026.05.09","range":"^0.0.3","expected":false}
+{"kind":"range","version":"2026.05.09","range":"=1.1.1","expected":false}
+{"kind":"range","version":"2026.05.09","range":">=2.0.0 || <1.0.0","expected":true}
+{"kind":"range","version":"2026.05.09","range":">1","expected":true}
+{"kind":"range","version":"2026.05.09","range":"<=1.2","expected":false}
+{"kind":"range","version":"2026.05.09","range":"bad","expected":false}
+{"kind":"range","version":"2026.05.09","range":"","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":">=0.156.0","expected":true}
+{"kind":"range","version":"1.0.0-beta.1","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"<0.149.0","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"^1.2.3","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"^0.2.3","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"^0.0.3","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"=1.1.1","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":">=2.0.0 || <1.0.0","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":">1","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"<=1.2","expected":true}
+{"kind":"range","version":"1.0.0-beta.1","range":"bad","expected":false}
+{"kind":"range","version":"1.0.0-beta.1","range":"","expected":false}
+{"kind":"range","version":"v1.2.3","range":">=0.156.0","expected":true}
+{"kind":"range","version":"v1.2.3","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"v1.2.3","range":"<0.149.0","expected":false}
+{"kind":"range","version":"v1.2.3","range":"^1.2.3","expected":true}
+{"kind":"range","version":"v1.2.3","range":"^0.2.3","expected":false}
+{"kind":"range","version":"v1.2.3","range":"^0.0.3","expected":false}
+{"kind":"range","version":"v1.2.3","range":"=1.1.1","expected":false}
+{"kind":"range","version":"v1.2.3","range":">=2.0.0 || <1.0.0","expected":false}
+{"kind":"range","version":"v1.2.3","range":">1","expected":true}
+{"kind":"range","version":"v1.2.3","range":"<=1.2","expected":false}
+{"kind":"range","version":"v1.2.3","range":"bad","expected":false}
+{"kind":"range","version":"v1.2.3","range":"","expected":false}
+{"kind":"range","version":"junk","range":">=0.156.0","expected":false}
+{"kind":"range","version":"junk","range":">=0.149.0 <0.156.0","expected":false}
+{"kind":"range","version":"junk","range":"<0.149.0","expected":false}
+{"kind":"range","version":"junk","range":"^1.2.3","expected":false}
+{"kind":"range","version":"junk","range":"^0.2.3","expected":false}
+{"kind":"range","version":"junk","range":"^0.0.3","expected":false}
+{"kind":"range","version":"junk","range":"=1.1.1","expected":false}
+{"kind":"range","version":"junk","range":">=2.0.0 || <1.0.0","expected":false}
+{"kind":"range","version":"junk","range":">1","expected":false}
+{"kind":"range","version":"junk","range":"<=1.2","expected":false}
+{"kind":"range","version":"junk","range":"bad","expected":false}
+{"kind":"range","version":"junk","range":"","expected":false}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=0.156.0.","recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=0.156.0.","recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"0.156.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"0.159.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"v0.160.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.43","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.156.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=0.159.0.","recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=0.159.0.","recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"0.156.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"0.159.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"v0.160.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.45","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=0.159.0.","recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=0.159.0.","recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"0.156.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"0.159.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"v0.160.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=0.159.0.","recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=0.159.0.","recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"0.156.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"0.159.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"v0.160.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"codex","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=0.159.0"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"0.100.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"0.156.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"0.159.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"v0.160.1","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"2.1.100","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"2.1.200","expected":{"status":"graceful","message":"This provider version has limited compatibility with this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"1.14.19","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"2.0.18","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.43","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"0.100.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"0.156.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"0.159.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"v0.160.1","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"2.1.100","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"2.1.200","expected":{"status":"graceful","message":"This provider version has limited compatibility with this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"1.14.19","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"2.0.18","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.45","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"0.100.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"0.156.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"0.159.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"v0.160.1","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"2.1.100","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"2.1.200","expected":{"status":"graceful","message":"This provider version has limited compatibility with this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"1.14.19","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"2.0.18","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"0.100.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"0.150.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"0.156.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"0.159.0","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"v0.160.1","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"2.1.100","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"2.1.200","expected":{"status":"graceful","message":"This provider version has limited compatibility with this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"1.14.19","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"2.0.18","expected":{"status":"unsupported","message":"This provider version is outside the supported range for this T3 Code release. Use >=2.1.280.","recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"claudeAgent","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.1.280"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"2026.05.09-abc123","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.43","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"2026.05.09-abc123","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.45","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"cursor","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2026.05.09"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.43","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.45","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=1.0.13.","recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"grok","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.13"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"2.1.100","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"2.1.200","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"2.1.280","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"2.0.18","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.43","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"2.1.100","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"2.1.200","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"2.1.280","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"2.0.18","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use 1.14.19.","recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.45","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":"1.14.19","recommendedRange":">=1.14.19 <2.0.0"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"1.14.19","expected":{"status":"graceful","message":"This provider version has limited compatibility with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"0.100.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"0.150.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"0.156.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"0.159.0","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"v0.160.1","expected":{"status":"broken","message":"This provider version is known to be incompatible with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"1.14.19","expected":{"status":"graceful","message":"This provider version has limited compatibility with this T3 Code release. Use >=2.0.18.","recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"opencode","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=2.0.18"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.43","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.45","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"0.100.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"0.150.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"0.156.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"0.159.0","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"v0.160.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"2.1.100","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"2.1.200","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"2.1.280","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"1.14.19","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"2.0.18","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"antigravity","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":"=1.1.1"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":null,"expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"0.100.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"0.150.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"0.156.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"0.159.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"v0.160.1","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"2.1.100","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"2.1.200","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"2.1.280","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"2026.05.09-abc123","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"1.14.19","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"2.0.18","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"1.0.0-beta.1","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.43","version":"junk","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":null,"expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"0.100.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"0.150.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"0.156.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"0.159.0","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"v0.160.1","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"2.1.100","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"2.1.200","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"2.1.280","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"2026.05.09-abc123","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"1.14.19","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"2.0.18","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"1.0.0-beta.1","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.0.45","version":"junk","expected":null}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"0.100.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"0.150.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"0.156.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"0.159.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"v0.160.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.1.0","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":null,"expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"0.100.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"0.150.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"0.156.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"0.159.0","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"v0.160.1","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"2.1.100","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"2.1.200","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"2.1.280","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"2026.05.09-abc123","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"1.14.19","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"2.0.18","expected":{"status":"supported","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"1.0.0-beta.1","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"pi","t3":"0.0.46","version":"junk","expected":{"status":"unknown","message":null,"recommendedVersion":null,"recommendedRange":">=1.0.0"}}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":null,"expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"0.100.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"0.150.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"0.156.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"0.159.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"v0.160.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"2.1.100","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"2.1.200","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"2.1.280","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"2026.05.09-abc123","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"agy_acp_server_1.1.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"1.14.19","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"2.0.18","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"1.0.0-beta.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.43","version":"junk","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":null,"expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"0.100.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"0.150.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"0.156.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"0.159.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"v0.160.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"2.1.100","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"2.1.200","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"2.1.280","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"2026.05.09-abc123","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"agy_acp_server_1.1.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"1.14.19","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"2.0.18","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"1.0.0-beta.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.45","version":"junk","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":null,"expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"0.100.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"0.150.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"0.156.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"0.159.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"v0.160.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"2.1.100","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"2.1.200","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"2.1.280","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"2026.05.09-abc123","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"agy_acp_server_1.1.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"1.14.19","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"2.0.18","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"1.0.0-beta.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.1.0","version":"junk","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":null,"expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"0.100.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"0.150.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"0.156.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"0.159.0","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"v0.160.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"2.1.100","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"2.1.200","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"2.1.280","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"2026.05.09-abc123","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"agy_acp_server_1.1.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"1.14.19","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"2.0.18","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"1.0.0-beta.1","expected":null}
+{"kind":"compatibility","driver":"acpRegistry","t3":"0.0.46","version":"junk","expected":null}
+{"kind":"homebrewInfo","infoJson":"{\"formulae\":[{\"versions\":{\"stable\":\"1.2.4\"}}]}","ownership":{"kind":"formula","name":"codex","prefix":"/opt/homebrew"},"expected":"1.2.4"}
+{"kind":"homebrewInfo","infoJson":"{\"casks\":[{\"version\":\"2.0.0,55\"}]}","ownership":{"kind":"cask","name":"codex","prefix":"/opt/homebrew"},"expected":"2.0.0"}
+{"kind":"homebrewInfo","infoJson":"{\"casks\":[{\"version\":\"2.0.0,55\"}]}","ownership":{"kind":"formula","name":"codex","prefix":"/opt/homebrew"},"expected":null}
+{"kind":"homebrewInfo","infoJson":"{\"formulae\":[]}","ownership":{"kind":"formula","name":"codex","prefix":"/opt/homebrew"},"expected":null}
+{"kind":"homebrewInfo","infoJson":"{\"formulae\":[{\"versions\":{\"stable\":\"  \"}}]}","ownership":{"kind":"formula","name":"codex","prefix":"/opt/homebrew"},"expected":null}
+{"kind":"homebrewInfo","infoJson":"not json","ownership":{"kind":"formula","name":"codex","prefix":"/opt/homebrew"},"expected":null}
+{"kind":"homebrewOwnership","real":"/opt/homebrew/Cellar/codex/1.2.3/bin/codex","expected":{"kind":"formula","name":"codex","prefix":"/opt/homebrew"}}
+{"kind":"homebrewOwnership","real":"/usr/local/Caskroom/codex/2.0/Codex.app/x","expected":{"kind":"cask","name":"codex","prefix":"/usr/local"}}
+{"kind":"homebrewOwnership","real":"/opt/homebrew/Cellar/codex/bin","expected":null}
+{"kind":"homebrewOwnership","real":"C:\\Homebrew\\CELLAR\\codex\\9\\x","expected":{"kind":"formula","name":"codex","prefix":"C:/Homebrew"}}
+{"kind":"homebrewOwnership","real":"/usr/bin/codex","expected":null}
+{"kind":"npmPrefix","real":"/usr/lib/node_modules/@openai/codex/bin/codex.js","packageName":"@openai/codex","expected":"/usr"}
+{"kind":"npmPrefix","real":"/home/u/.npm-global/lib/node_modules/@openai/codex/bin/codex.js","packageName":"@openai/codex","expected":"/home/u/.npm-global"}
+{"kind":"npmPrefix","real":"/home/u/proj/node_modules/.bin/lib/node_modules/@openai/codex/x","packageName":"@openai/codex","expected":null}
+{"kind":"npmPrefix","real":"/home/u/.local/share/mise/installs/node/22/lib/node_modules/@openai/codex/x","packageName":"@openai/codex","expected":"/home/u/.local/share/mise/installs/node/22"}
+{"kind":"npmPrefix","real":"/home/u/.local/share/mise/installs/codex/1/lib/node_modules/@openai/codex/x","packageName":"@openai/codex","expected":null}
+{"kind":"npmPrefix","real":"/lib/node_modules/@openai/codex/x","packageName":"@openai/codex","expected":"/"}
+{"kind":"npmPrefix","real":"C:\\Users\\u\\AppData\\Roaming\\npm\\Lib\\node_modules\\@openai\\codex\\bin\\codex.js","packageName":"@openai/codex","expected":"C:/Users/u/AppData/Roaming/npm"}
+{"kind":"npmPrefix","real":"/usr/bin/codex","packageName":"@openai/codex","expected":null}
+{"kind":"capabilities","platform":"linux","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"/usr/bin/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g --prefix '/opt/a b' @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"linux","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"/opt/my tools/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"'/opt/my tools/npm' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"/opt/my tools/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"linux","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"C:\\Program Files\\nodejs\\npm.cmd","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"'C:\\Program Files\\nodejs\\npm.cmd' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"C:\\Program Files\\nodejs\\npm.cmd","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"linux","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"it's/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"'it'\\''s/npm' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"it's/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"linux","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"npm install -g --prefix '/opt/a b' @openai/codex@latest","executable":"npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"darwin","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"/usr/bin/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g --prefix '/opt/a b' @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"darwin","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"/opt/my tools/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"'/opt/my tools/npm' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"/opt/my tools/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"darwin","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"C:\\Program Files\\nodejs\\npm.cmd","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"'C:\\Program Files\\nodejs\\npm.cmd' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"C:\\Program Files\\nodejs\\npm.cmd","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"darwin","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"it's/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"'it'\\''s/npm' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"it's/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"darwin","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"npm install -g --prefix '/opt/a b' @openai/codex@latest","executable":"npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"win32","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"/usr/bin/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g --prefix '/opt/a b' @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"win32","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"/opt/my tools/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"& '/opt/my tools/npm' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"/opt/my tools/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"win32","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"C:\\Program Files\\nodejs\\npm.cmd","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"& 'C:\\Program Files\\nodejs\\npm.cmd' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"C:\\Program Files\\nodejs\\npm.cmd","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"win32","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"it's/npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"& 'it''s/npm' install -g --prefix '/opt/a b' @openai/codex@latest","executable":"it's/npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"capabilities","platform":"win32","input":{"provider":"codex","packageName":"@openai/codex","updateExecutable":"npm","updateArgs":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"updateLockKey":"npm-global:/opt/a b"},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"npm install -g --prefix '/opt/a b' @openai/codex@latest","executable":"npm","args":["install","-g","--prefix","/opt/a b","@openai/codex@latest"],"lockKey":"npm-global:/opt/a b"}}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@1.2.3"],"lockKey":"npm-global:/x"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"npm-global:/x"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool add -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["add","-g","@openai/codex@1.2.3"],"lockKey":"npm-global:/x"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"npm-global:/x"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"npm-global:/x"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"npm-global:/x"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"npm-global:/x"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"npm-global:/x"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"npm-global:/x"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"npm-global:/x"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool i -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@1.2.3"],"lockKey":"npm-global:/x"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"npm-global:/x"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@1.2.3"],"lockKey":"bun-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"bun-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool add -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["add","-g","@openai/codex@1.2.3"],"lockKey":"bun-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"bun-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"bun-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"bun-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"bun-global"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"bun-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"bun-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"bun-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool i -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@1.2.3"],"lockKey":"bun-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"bun-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@1.2.3"],"lockKey":"pnpm-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"pnpm-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool add -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["add","-g","@openai/codex@1.2.3"],"lockKey":"pnpm-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"pnpm-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"pnpm-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"pnpm-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"pnpm-global"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"pnpm-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"pnpm-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"pnpm-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool i -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@1.2.3"],"lockKey":"pnpm-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"pnpm-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@1.2.3"],"lockKey":"vite-plus-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"vite-plus-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool add -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["add","-g","@openai/codex@1.2.3"],"lockKey":"vite-plus-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"vite-plus-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"vite-plus-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"vite-plus-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"vite-plus-global"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"vite-plus-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"vite-plus-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"vite-plus-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool i -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@1.2.3"],"lockKey":"vite-plus-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"vite-plus-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@1.2.3"],"lockKey":"yarn-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"yarn-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool add -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["add","-g","@openai/codex@1.2.3"],"lockKey":"yarn-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"yarn-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"yarn-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"yarn-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"yarn-global"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"yarn-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"yarn-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"yarn-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool i -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@1.2.3"],"lockKey":"yarn-global"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"yarn-global"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"volta"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@1.2.3"],"lockKey":"volta"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"volta"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"volta"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"volta"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"volta"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool add -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["add","-g","@openai/codex@1.2.3"],"lockKey":"volta"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"volta"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"volta"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"volta"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"volta"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"volta"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"volta"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"volta"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"volta"}},"version":"1.2.3","expected":{"command":"/usr/bin/tool i -g @openai/codex@1.2.3","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@1.2.3"],"lockKey":"volta"}}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"volta"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"volta"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"volta"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"homebrew"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"homebrew"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"homebrew"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"homebrew"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"homebrew"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"homebrew"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"homebrew"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"homebrew"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"homebrew"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool install -g --prefix /x --allow-scripts=@openai/codex @openai/codex@latest","executable":"/usr/bin/tool","args":["install","-g","--prefix","/x","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"codex-native"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"codex-native"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"codex-native"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool add -g @openai/codex","executable":"/usr/bin/tool","args":["add","-g","@openai/codex"],"lockKey":"codex-native"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"codex-native"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"codex-native"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"codex-native"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool update","executable":"/usr/bin/tool","args":["update"],"lockKey":"codex-native"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"1.2","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"1.2.3-beta","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/tool i -g @openai/codex@latest","executable":"/usr/bin/tool","args":["i","-g","@openai/codex@latest"],"lockKey":"codex-native"}},"version":"v1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"x","packageName":null,"update":{"command":"/usr/bin/npm i","executable":"/usr/bin/npm","args":["i"],"lockKey":"bun-global"}},"version":"1.2.3","expected":null}
+{"kind":"targeted","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"version":"1.2.3","expected":null}
+{"kind":"advisory","currentVersion":"1.0.0","latestVersion":"1.0.1","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"behind_latest","currentVersion":"1.0.0","latestVersion":"1.0.1","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":"Install the update now or review provider settings."}}
+{"kind":"advisory","currentVersion":"1.0.0","latestVersion":"1.0.1","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"behind_latest","currentVersion":"1.0.0","latestVersion":"1.0.1","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":"Install the update now or review provider settings."}}
+{"kind":"advisory","currentVersion":"1.0.1","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"current","currentVersion":"1.0.1","latestVersion":"1.0.0","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"1.0.1","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"current","currentVersion":"1.0.1","latestVersion":"1.0.0","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"1.0.0","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"current","currentVersion":"1.0.0","latestVersion":"1.0.0","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"1.0.0","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"current","currentVersion":"1.0.0","latestVersion":"1.0.0","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":null,"latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"unknown","currentVersion":null,"latestVersion":"1.0.0","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":null,"latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"unknown","currentVersion":null,"latestVersion":"1.0.0","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"1.0.0","latestVersion":null,"checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"unknown","currentVersion":"1.0.0","latestVersion":null,"updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"1.0.0","latestVersion":null,"checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"unknown","currentVersion":"1.0.0","latestVersion":null,"updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"1.0.0-beta","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"behind_latest","currentVersion":"1.0.0-beta","latestVersion":"1.0.0","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":"Install the update now or review provider settings."}}
+{"kind":"advisory","currentVersion":"1.0.0-beta","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"behind_latest","currentVersion":"1.0.0-beta","latestVersion":"1.0.0","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":"Install the update now or review provider settings."}}
+{"kind":"advisory","currentVersion":"v1.0.0","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"current","currentVersion":"v1.0.0","latestVersion":"1.0.0","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"v1.0.0","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"current","currentVersion":"v1.0.0","latestVersion":"1.0.0","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"junk","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":{"command":"/usr/bin/npm install -g @openai/codex@latest","executable":"/usr/bin/npm","args":["install","-g","@openai/codex@latest"],"lockKey":"npm-global:/usr"}},"expected":{"status":"current","currentVersion":"junk","latestVersion":"1.0.0","updateCommand":"/usr/bin/npm install -g @openai/codex@latest","canUpdate":true,"canInstallVersion":true,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"advisory","currentVersion":"junk","latestVersion":"1.0.0","checkedAt":"2026-01-01T00:00:00.000Z","capabilities":{"provider":"codex","packageName":"@openai/codex","update":null},"expected":{"status":"current","currentVersion":"junk","latestVersion":"1.0.0","updateCommand":null,"canUpdate":false,"canInstallVersion":false,"checkedAt":"2026-01-01T00:00:00.000Z","message":null}}
+{"kind":"resolve","label":"blank binary path","definition":"codex","binaryPath":"  ","files":[],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"binary missing","definition":"codex","binaryPath":"$ROOT/nope/codex","files":[],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"bare name not on PATH","definition":"codex","binaryPath":"codex","files":[{"path":"empty","directory":true}],"env":{"PATH":"$ROOT/empty"},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"bare name found on PATH","definition":"plain","binaryPath":"tool","files":[{"path":"bin/tool","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{"PATH":"$ROOT/bin"},"expected":{"provider":"codex","packageName":"@example/package-tool","update":{"command":"$ROOT/bin/tool self-update","executable":"$ROOT/bin/tool","args":["self-update"],"lockKey":"codex-native"}}}
+{"kind":"resolve","label":"codex standalone install","definition":"codex","binaryPath":"$ROOT/h/.codex/packages/standalone/bin/codex","files":[{"path":"h/.codex/packages/standalone/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"$ROOT/h/.codex/packages/standalone/bin/codex update","executable":"$ROOT/h/.codex/packages/standalone/bin/codex","args":["update"],"lockKey":"codex-native","env":{"CODEX_HOME":"$ROOT/codexhome"}}}}
+{"kind":"resolve","label":"claude native launcher","definition":"claude","binaryPath":"$ROOT/h/.local/bin/claude","files":[{"path":"h/.local/bin/claude","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"claudeAgent","packageName":"@anthropic-ai/claude-code","update":{"command":"$ROOT/h/.local/bin/claude update","executable":"$ROOT/h/.local/bin/claude","args":["update"],"lockKey":"claudeAgent-native"}}}
+{"kind":"resolve","label":"claude native versioned","definition":"claude","binaryPath":"$ROOT/h/.local/share/claude/versions/1/claude","files":[{"path":"h/.local/share/claude/versions/1/claude","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"claudeAgent","packageName":"@anthropic-ai/claude-code","update":{"command":"$ROOT/h/.local/share/claude/versions/1/claude update","executable":"$ROOT/h/.local/share/claude/versions/1/claude","args":["update"],"lockKey":"claudeAgent-native"}}}
+{"kind":"resolve","label":"npm global posix","definition":"codex","binaryPath":"$ROOT/npm/bin/codex","files":[{"path":"npm/lib/node_modules/@openai/codex/bin/codex.js","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"npm/bin/codex","link":"../lib/node_modules/@openai/codex/bin/codex.js"}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"npm install -g --prefix $ROOT/npm --allow-scripts=@openai/codex @openai/codex@latest","executable":"npm","args":["install","-g","--prefix","$ROOT/npm","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:$root/npm"}}}
+{"kind":"resolve","label":"npm global with spaces","definition":"codex","binaryPath":"$ROOT/np m/bin/codex","files":[{"path":"np m/lib/node_modules/@openai/codex/bin/codex.js","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"np m/bin/codex","link":"../lib/node_modules/@openai/codex/bin/codex.js"}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"npm install -g --prefix '$ROOT/np m' --allow-scripts=@openai/codex @openai/codex@latest","executable":"npm","args":["install","-g","--prefix","$ROOT/np m","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:$root/np m"}}}
+{"kind":"resolve","label":"project node_modules is manual","definition":"codex","binaryPath":"$ROOT/proj/node_modules/.bin/codex","files":[{"path":"proj/node_modules/.bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"project node_modules without native","definition":"manual","binaryPath":"$ROOT/proj/node_modules/.bin/tool","files":[{"path":"proj/node_modules/.bin/tool","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@example/package-tool","update":null}}
+{"kind":"resolve","label":"plain local install uses native updater","definition":"plain","binaryPath":"$ROOT/bin/tool","files":[{"path":"bin/tool","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@example/package-tool","update":{"command":"$ROOT/bin/tool self-update","executable":"$ROOT/bin/tool","args":["self-update"],"lockKey":"codex-native"}}}
+{"kind":"resolve","label":"plain local install without native updater","definition":"manual","binaryPath":"$ROOT/bin/tool","files":[{"path":"bin/tool","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@example/package-tool","update":null}}
+{"kind":"resolve","label":"pnpm global","definition":"codex","binaryPath":"$ROOT/.local/share/pnpm/codex","files":[{"path":".local/share/pnpm/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"pnpm add -g @openai/codex@latest","executable":"pnpm","args":["add","-g","@openai/codex@latest"],"lockKey":"pnpm-global"}}}
+{"kind":"resolve","label":"bun global","definition":"codex","binaryPath":"$ROOT/.bun/bin/codex","files":[{"path":".bun/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"bun i -g @openai/codex@latest","executable":"bun","args":["i","-g","@openai/codex@latest"],"lockKey":"bun-global"}}}
+{"kind":"resolve","label":"vite-plus global","definition":"codex","binaryPath":"$ROOT/.vite-plus/bin/codex","files":[{"path":".vite-plus/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"vp i -g @openai/codex","executable":"vp","args":["i","-g","@openai/codex"],"lockKey":"vite-plus-global"}}}
+{"kind":"resolve","label":"yarn global","definition":"codex","binaryPath":"$ROOT/.config/yarn/global/node_modules/.bin/codex","files":[{"path":".config/yarn/global/node_modules/.bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"yarn global add @openai/codex@latest","executable":"yarn","args":["global","add","@openai/codex@latest"],"lockKey":"yarn-global"}}}
+{"kind":"resolve","label":"volta package","definition":"codex","binaryPath":"$ROOT/volta/bin/codex","files":[{"path":"volta/bin/volta-shim","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"volta/bin/codex","link":"volta-shim"},{"path":"volta/tools/image/packages/@openai/codex","directory":true}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"volta install @openai/codex@latest","executable":"volta","args":["install","@openai/codex@latest"],"lockKey":"volta"}}}
+{"kind":"resolve","label":"volta shim without the package","definition":"codex","binaryPath":"$ROOT/volta/bin/codex","files":[{"path":"volta/bin/volta-shim","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"volta/bin/codex","link":"volta-shim"}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"$ROOT/volta/bin/codex update","executable":"$ROOT/volta/bin/codex","args":["update"],"lockKey":"codex-native","env":{"CODEX_HOME":"$ROOT/codexhome"}}}}
+{"kind":"resolve","label":"mise install","definition":"codex","binaryPath":"$ROOT/mise/installs/codex/1.0/bin/codex","files":[{"path":"mise/installs/codex/1.0/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"mise wrapper script","definition":"codex","binaryPath":"$ROOT/bin/codex","files":[{"path":"bin/codex","contents":"#!/bin/sh\nexec mise x codex -- codex \"$@\"\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"homebrew formula","definition":"codex","binaryPath":"$ROOT/brew/bin/codex","files":[{"path":"brew/Cellar/codex/1.2.3/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/codex","link":"../Cellar/codex/1.2.3/bin/codex"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/brew\";;\ninfo) echo '{\"formulae\":[{\"versions\":{\"stable\":\"1.2.4\"}}]}';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"brew upgrade codex","executable":"$ROOT/brew/bin/brew","args":["upgrade","codex"],"lockKey":"homebrew"},"latestVersion":"1.2.4"}}
+{"kind":"resolve","label":"homebrew cask","definition":"codex","binaryPath":"$ROOT/brew/bin/codex","files":[{"path":"brew/Caskroom/codex/2.0.0/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/codex","link":"../Caskroom/codex/2.0.0/bin/codex"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/brew\";;\ninfo) echo '{\"casks\":[{\"version\":\"2.0.0,55\"}]}';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"brew upgrade --cask codex","executable":"$ROOT/brew/bin/brew","args":["upgrade","--cask","codex"],"lockKey":"homebrew"},"latestVersion":"2.0.0"}}
+{"kind":"resolve","label":"homebrew prefix mismatch","definition":"codex","binaryPath":"$ROOT/brew/bin/codex","files":[{"path":"brew/Cellar/codex/1.2.3/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/codex","link":"../Cellar/codex/1.2.3/bin/codex"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/elsewhere\";;\ninfo) echo '{\"formulae\":[{\"versions\":{\"stable\":\"1.2.4\"}}]}';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"$ROOT/brew/bin/codex update","executable":"$ROOT/brew/bin/codex","args":["update"],"lockKey":"codex-native","env":{"CODEX_HOME":"$ROOT/codexhome"}}}}
+{"kind":"resolve","label":"homebrew prefix mismatch with native fallback","definition":"plain","binaryPath":"$ROOT/brew/bin/codex","files":[{"path":"brew/Cellar/codex/1.2.3/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/codex","link":"../Cellar/codex/1.2.3/bin/codex"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/elsewhere\";;\ninfo) echo '{\"formulae\":[{\"versions\":{\"stable\":\"1.2.4\"}}]}';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@example/package-tool","update":{"command":"$ROOT/brew/bin/codex self-update","executable":"$ROOT/brew/bin/codex","args":["self-update"],"lockKey":"codex-native"}}}
+{"kind":"resolve","label":"homebrew without brew","definition":"plain","binaryPath":"$ROOT/brew2/bin/codex","files":[{"path":"brew2/Cellar/codex/1.2.3/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew2/bin/codex","link":"../Cellar/codex/1.2.3/bin/codex"}],"env":{"PATH":"$ROOT/empty"},"expected":{"provider":"codex","packageName":"@example/package-tool","update":{"command":"$ROOT/brew2/bin/codex self-update","executable":"$ROOT/brew2/bin/codex","args":["self-update"],"lockKey":"codex-native"}}}
+{"kind":"resolve","label":"homebrew mise formula","definition":"codex","binaryPath":"$ROOT/brew/bin/mise","files":[{"path":"brew/Cellar/mise/1.0/bin/mise","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/mise","link":"../Cellar/mise/1.0/bin/mise"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/brew\";;\ninfo) echo '{\"formulae\":[{\"versions\":{\"stable\":\"1.2.4\"}}]}';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":null}}
+{"kind":"resolve","label":"homebrew node globals are npm's","definition":"codex","binaryPath":"$ROOT/brew/bin/codex","files":[{"path":"brew/Cellar/node/22/lib/node_modules/@openai/codex/bin/codex.js","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/codex","link":"../Cellar/node/22/lib/node_modules/@openai/codex/bin/codex.js"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/brew\";;\ninfo) echo '{\"formulae\":[{\"versions\":{\"stable\":\"1.2.4\"}}]}';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"npm install -g --prefix $ROOT/brew/Cellar/node/22 --allow-scripts=@openai/codex @openai/codex@latest","executable":"npm","args":["install","-g","--prefix","$ROOT/brew/Cellar/node/22","--allow-scripts=@openai/codex","@openai/codex@latest"],"lockKey":"npm-global:$root/brew/cellar/node/22"}}}
+{"kind":"resolve","label":"homebrew info failure","definition":"codex","binaryPath":"$ROOT/brew/bin/codex","files":[{"path":"brew/Cellar/codex/1.2.3/bin/codex","contents":"#!/bin/sh\nexit 0\n","mode":493},{"path":"brew/bin/codex","link":"../Cellar/codex/1.2.3/bin/codex"},{"path":"brew/bin/brew","contents":"#!/bin/sh\ncase \"$1\" in\n--prefix) echo \"$ROOT/brew\";;\ninfo) echo 'not json';;\nesac\n","mode":493}],"env":{},"expected":{"provider":"codex","packageName":"@openai/codex","update":{"command":"brew upgrade codex","executable":"$ROOT/brew/bin/brew","args":["upgrade","codex"],"lockKey":"homebrew"},"latestVersion":null}}

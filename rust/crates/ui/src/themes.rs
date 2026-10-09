@@ -2475,7 +2475,7 @@ mod tests {
         let before = browser.borrow().saved[themes::CUSTOM_KEY].clone();
         click_control(&mut dom, "Add theme");
         input_control(&mut dom, "Search Open VSX themes", "demo");
-        wait_for_rendered_text(&mut dom, "Demo Theme").await;
+        wait_for_rendered_text(&mut dom, " downloads").await;
         click_control(&mut dom, "Update Demo Theme");
         wait_for_rendered_text(&mut dom, "Update installed collection?").await;
         assert_eq!(downloads.count.get(), 1);
@@ -2569,7 +2569,7 @@ mod tests {
         .await;
         click_control(&mut dom, "Add theme");
         input_control(&mut dom, "Search Open VSX themes", "demo");
-        wait_for_rendered_text(&mut dom, "Demo Theme").await;
+        wait_for_rendered_text(&mut dom, " downloads").await;
         click_control(&mut dom, "Update Demo Theme");
         wait_for_rendered_text(&mut dom, "Update installed collection?").await;
         downloads.hold.set(true);

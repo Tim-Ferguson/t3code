@@ -1,0 +1,337 @@
+{
+  "discovery": [
+    {
+      "name": "user and project skills, user wins a collision, folder name is the skill name",
+      "files": {
+        "config/skills/alpha/SKILL.md": "---\nname: alpha\ndescription: User alpha\n---\nBody\n",
+        "work/.claude/skills/alpha/SKILL.md": "---\ndescription: Project alpha\n---\nBody\n",
+        "work/.claude/skills/beta/SKILL.md": "---\nname: other-name\ndescription: \"Quoted: beta\"\n---\nBody\n",
+        "work/.claude/skills/gamma/SKILL.md": "No frontmatter at all\n",
+        "work/.claude/skills/delta/SKILL.md": "---\ndescription: |\n  Block text\n  second line\ndisable-model-invocation: yes\n---\nBody\n",
+        "work/.claude/skills/eps/SKILL.md": "---\ndescription: >\n  Folded\n  text\nuser-invocable: no\n---\nBody\n",
+        "work/.claude/skills/zeta/SKILL.md": "---\ndescription: plain: with colon # trailing comment\n---\nBody\n",
+        "work/.claude/skills/broken/SKILL.md": "---\ndescription: \"unterminated\n---\nBody\n",
+        "work/.claude/skills/listy/SKILL.md": "---\n- a\n- b\n---\nBody\n",
+        "work/.claude/skills/nodoc/notes.txt": "not a skill",
+        "work/.agents/skills/codexonly/SKILL.md": "---\ndescription: Codex location\n---\nBody\n"
+      },
+      "homePath": "$ROOT/config",
+      "environment": {},
+      "cwd": "work",
+      "output": [
+        {
+          "name": "alpha",
+          "path": "$ROOT/config/skills/alpha/SKILL.md",
+          "enabled": true,
+          "scope": "user",
+          "description": "User alpha"
+        },
+        {
+          "name": "beta",
+          "path": "$ROOT/work/.claude/skills/beta/SKILL.md",
+          "enabled": true,
+          "scope": "project",
+          "description": "Quoted: beta"
+        },
+        {
+          "name": "delta",
+          "path": "$ROOT/work/.claude/skills/delta/SKILL.md",
+          "enabled": true,
+          "scope": "project",
+          "description": "Block text\nsecond line",
+          "userInvocationOnly": true
+        },
+        {
+          "name": "eps",
+          "path": "$ROOT/work/.claude/skills/eps/SKILL.md",
+          "enabled": true,
+          "scope": "project",
+          "description": "Folded text",
+          "userInvocable": false
+        },
+        {
+          "name": "gamma",
+          "path": "$ROOT/work/.claude/skills/gamma/SKILL.md",
+          "enabled": true,
+          "scope": "project"
+        },
+        {
+          "name": "listy",
+          "path": "$ROOT/work/.claude/skills/listy/SKILL.md",
+          "enabled": true,
+          "scope": "project"
+        },
+        {
+          "name": "zeta",
+          "path": "$ROOT/work/.claude/skills/zeta/SKILL.md",
+          "enabled": true,
+          "scope": "project",
+          "description": "plain: with colon"
+        }
+      ]
+    },
+    {
+      "name": "skillOverrides across settings files, a repository root local file, and an invalid map",
+      "files": {
+        "cfg/skills/one/SKILL.md": "---\ndescription: one\n---\nBody\n",
+        "cfg/skills/two/SKILL.md": "---\ndescription: two\n---\nBody\n",
+        "cfg/skills/three/SKILL.md": "---\ndescription: three\n---\nBody\n",
+        "cfg/settings.json": "{\"skillOverrides\":{\"one\":\"off\",\"two\":\"user-invocable-only\"}}",
+        "repo/.git/HEAD": "ref: refs/heads/main\n",
+        "repo/.claude/settings.local.json": "{ // comment\n \"skillOverrides\": { \"three\": \"off\", }, }",
+        "repo/pkg/.claude/settings.local.json": "{\"skillOverrides\":{\"three\":\"on\"}}",
+        "repo/pkg/.claude/settings.json": "{\"skillOverrides\":{\"two\":\"bogus\"}}"
+      },
+      "homePath": "",
+      "environment": {
+        "CLAUDE_CONFIG_DIR": "$ROOT/cfg"
+      },
+      "cwd": "repo/pkg",
+      "output": [
+        {
+          "name": "one",
+          "path": "$ROOT/cfg/skills/one/SKILL.md",
+          "enabled": false,
+          "scope": "user",
+          "description": "one"
+        },
+        {
+          "name": "three",
+          "path": "$ROOT/cfg/skills/three/SKILL.md",
+          "enabled": false,
+          "scope": "user",
+          "description": "three"
+        },
+        {
+          "name": "two",
+          "path": "$ROOT/cfg/skills/two/SKILL.md",
+          "enabled": true,
+          "scope": "user",
+          "description": "two",
+          "userInvocationOnly": true
+        }
+      ]
+    },
+    {
+      "name": "a relative CLAUDE_CONFIG_DIR resolves against the workspace",
+      "files": {
+        "work/rel-config/skills/rel/SKILL.md": "---\ndescription: relative\n---\nBody\n"
+      },
+      "homePath": "",
+      "environment": {
+        "CLAUDE_CONFIG_DIR": "rel-config"
+      },
+      "cwd": "work",
+      "output": [
+        {
+          "name": "rel",
+          "path": "$ROOT/work/rel-config/skills/rel/SKILL.md",
+          "enabled": true,
+          "scope": "user",
+          "description": "relative"
+        }
+      ]
+    }
+  ],
+  "dispatch": [
+    {
+      "prompt": "$review README.md",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/review README.md",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "please $review this",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "please",
+        "commandText": "/review this",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "$plan then $review it",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "/plan then",
+        "commandText": "/review it",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "$unknown stays",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": null
+    },
+    {
+      "prompt": "price is $5 and $2k",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": null
+    },
+    {
+      "prompt": "$HOME is $x done",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "$HOME is",
+        "commandText": "/x done",
+        "skillName": "x"
+      }
+    },
+    {
+      "prompt": "  $review",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/review",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "line one\n$review\nline three",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "line one",
+        "commandText": "/review\nline three",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "$review",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/review",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "text $review",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "text",
+        "commandText": "/review",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "a $plan b $review c",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "a /plan b",
+        "commandText": "/review c",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "$a-b:c go",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/a-b:c go",
+        "skillName": "a-b:c"
+      }
+    },
+    {
+      "prompt": "$1 $review",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "$1",
+        "commandText": "/review",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "€review is not it",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/review is not it",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "£review now",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/review now",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "$review\n",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "commandText": "/review",
+        "skillName": "review"
+      }
+    },
+    {
+      "prompt": "no mention",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": null
+    },
+    {
+      "prompt": "$x$x $x",
+      "skills": ["review", "plan", "a-b:c", "x"],
+      "output": {
+        "leadingText": "$x$x",
+        "commandText": "/x",
+        "skillName": "x"
+      }
+    }
+  ],
+  "settingsPaths": [
+    {
+      "configDir": "/cfg",
+      "cwd": "/w",
+      "platform": "linux",
+      "root": null,
+      "output": [
+        "/cfg/settings.json",
+        "/w/.claude/settings.json",
+        "/w/.claude/settings.local.json",
+        "/etc/claude-code/managed-settings.json"
+      ]
+    },
+    {
+      "configDir": "/cfg",
+      "cwd": "/w",
+      "platform": "linux",
+      "root": "/w",
+      "output": [
+        "/cfg/settings.json",
+        "/w/.claude/settings.json",
+        "/w/.claude/settings.local.json",
+        "/etc/claude-code/managed-settings.json"
+      ]
+    },
+    {
+      "configDir": "/cfg",
+      "cwd": "/w/pkg",
+      "platform": "linux",
+      "root": "/w",
+      "output": [
+        "/cfg/settings.json",
+        "/w/pkg/.claude/settings.json",
+        "/w/pkg/.claude/settings.local.json",
+        "/w/.claude/settings.local.json",
+        "/etc/claude-code/managed-settings.json"
+      ]
+    },
+    {
+      "configDir": "/cfg",
+      "cwd": null,
+      "platform": "darwin",
+      "root": null,
+      "output": [
+        "/cfg/settings.json",
+        "/Library/Application Support/ClaudeCode/managed-settings.json"
+      ]
+    },
+    {
+      "configDir": "/cfg",
+      "cwd": "/w",
+      "platform": "win32",
+      "root": null,
+      "output": ["/cfg/settings.json", "/w/.claude/settings.json", "/w/.claude/settings.local.json"]
+    }
+  ]
+}

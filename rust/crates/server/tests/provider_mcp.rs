@@ -68,7 +68,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
     let config = if driver.starts_with("acp") {
         json!({"driver":"acpRegistry","config":{"source":"local","commandPath":"python3","commandArgs":[fixture,driver,scenario]},"environment":[{"name":"MCP_SIGNAL","value":socket_path}]})
     } else {
-        json!({"driver":"codex","config":{"binaryPath":codex_binary},"environment":[{"name":"MCP_SIGNAL","value":socket_path}]})
+        json!({"driver":"codex","config":{"binaryPath":codex_binary,"homePath":cwd.join("codex-home")},"environment":[{"name":"MCP_SIGNAL","value":socket_path}]})
     };
     let mut config = config;
     if let Some(device) = device {
@@ -78,7 +78,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
             json!({"name":"MCP_PROVIDER_KEY","value":"preserved"}),
         ]);
     }
-    let settings=serde_json::from_value(json!({"enableAgentBrowserAccess":false,"enableAgentDeviceAccess":device.unwrap_or(false),"providerInstances":{"codex":{"driver":"codex","enabled":false},instance:config}})).unwrap();
+    let settings=serde_json::from_value(json!({"enableAgentBrowserAccess":false,"enableAgentDeviceAccess":device.unwrap_or(false),"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},instance:config}})).unwrap();
     let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
     assert_eq!(
         providers
@@ -334,7 +334,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
                             .unwrap()
                             .iter()
                             .any(|item| item["type"] == "error"
-                                && item["failure"]["class"] == "transport_error")
+                                && item["failure"]["class"] == "provider_error")
                     );
                     if driver == "codex" {
                         assert_eq!(view["runs"][0]["completedAt"], "2024-01-01T00:00:00.000Z");

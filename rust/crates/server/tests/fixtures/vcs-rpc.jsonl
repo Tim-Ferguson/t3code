@@ -1,0 +1,228 @@
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"/repo"},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"  /repo  "},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":" /repo "},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"﻿/repo"},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"/repo"},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"᠎/repo"},"ok":{"cwd":"᠎/repo"}}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"   "},"error":"Expected a non-blank string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":""},"error":"Expected a non-blank string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"\t\n"},"error":"Expected a non-blank string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":{},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":5},"error":"Expected string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":null},"error":"Expected string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":["/repo"]},"error":"Expected string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.refreshStatus","payload":null,"error":"Expected object"}
+{"type":"input","method":"vcs.refreshStatus","payload":"/repo","error":"Expected object"}
+{"type":"input","method":"vcs.refreshStatus","payload":7,"error":"Expected object"}
+{"type":"input","method":"vcs.refreshStatus","payload":[],"error":"Expected object"}
+{"type":"input","method":"vcs.refreshStatus","payload":[{"cwd":"/repo"}],"error":"Expected object"}
+{"type":"input","method":"vcs.refreshStatus","payload":{"cwd":"/repo","extra":1},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.pull","payload":{"cwd":"/repo"},"ok":{"cwd":"/repo"}}
+{"type":"input","method":"vcs.pull","payload":{"cwd":" "},"error":"Expected a non-blank string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.pull","payload":{},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.pull","payload":{"cwd":false},"error":"Expected string\n  at [\"cwd\"]"}
+{"type":"input","method":"subscribeVcsStatus","payload":{"cwd":"/r"},"ok":{"cwd":"/r"}}
+{"type":"input","method":"subscribeVcsStatus","payload":{"cwd":"/r","includeRemote":false},"ok":{"cwd":"/r","includeRemote":false}}
+{"type":"input","method":"subscribeVcsStatus","payload":{"cwd":"/r","includeRemote":true},"ok":{"cwd":"/r","includeRemote":true}}
+{"type":"input","method":"subscribeVcsStatus","payload":{"cwd":"/r","includeRemote":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"subscribeVcsStatus","payload":{"cwd":"/r","includeRemote":"no"},"error":"Expected boolean | null\n  at [\"includeRemote\"]"}
+{"type":"input","method":"subscribeVcsStatus","payload":{"cwd":"/r","includeRemote":0},"error":"Expected boolean | null\n  at [\"includeRemote\"]"}
+{"type":"input","method":"subscribeVcsStatus","payload":{"includeRemote":false},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r"},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"feat"},"ok":{"cwd":"/r","query":"feat"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"  feat  "},"ok":{"cwd":"/r","query":"feat"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"   "},"error":"Expected a non-blank string\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":""},"error":"Expected a non-blank string\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},"ok":{"cwd":"/r","query":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},"error":"Expected a value with a length of at most 256\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx "},"ok":{"cwd":"/r","query":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"},"ok":{"cwd":"/r","query":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"},"error":"Expected a value with a length of at most 256\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":5},"error":"Expected string | null\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":0},"ok":{"cwd":"/r","cursor":0}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":25},"ok":{"cwd":"/r","cursor":25}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":-1},"error":"Expected a value greater than or equal to 0\n  at [\"cursor\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":1.5},"error":"Expected an integer\n  at [\"cursor\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":"1"},"error":"Expected number | null\n  at [\"cursor\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":1e+300},"error":"Expected an integer\n  at [\"cursor\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":9007199254740991},"ok":{"cwd":"/r","cursor":9007199254740991}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":9007199254740992},"error":"Expected an integer\n  at [\"cursor\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":1},"ok":{"cwd":"/r","limit":1}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":200},"ok":{"cwd":"/r","limit":200}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":201},"error":"Expected a value less than or equal to 200\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":0},"error":"Expected a value greater than or equal to 1\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":-5},"error":"Expected a value greater than or equal to 1\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":0.5},"error":"Expected an integer\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":2.5},"error":"Expected an integer\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":"3"},"error":"Expected number | null\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":1000},"error":"Expected a value less than or equal to 200\n  at [\"limit\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":50},"ok":{"cwd":"/r","limit":50}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refKind":"all"},"ok":{"cwd":"/r","refKind":"all"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refKind":"local"},"ok":{"cwd":"/r","refKind":"local"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refKind":"remote"},"ok":{"cwd":"/r","refKind":"remote"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refKind":"ALL"},"error":"Expected \"all\" | \"local\" | \"remote\"\n  at [\"refKind\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refKind":3},"error":"Expected \"all\" | \"local\" | \"remote\" | null\n  at [\"refKind\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refKind":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","includeMatchingRemoteRefs":true},"ok":{"cwd":"/r","includeMatchingRemoteRefs":true}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","includeMatchingRemoteRefs":1},"error":"Expected boolean | null\n  at [\"includeMatchingRemoteRefs\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refresh":true},"ok":{"cwd":"/r","refresh":true}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refresh":"yes"},"error":"Expected boolean | null\n  at [\"refresh\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","refresh":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":" q ","cursor":3,"includeMatchingRemoteRefs":false,"refKind":"local","refresh":true,"limit":10},"ok":{"cwd":"/r","query":"q","cursor":3,"includeMatchingRemoteRefs":false,"refKind":"local","refresh":true,"limit":10}}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":" ","query":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"},"error":"Expected a non-blank string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","query":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","limit":0},"error":"Expected a value with a length of at most 256\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","limit":0,"cursor":-1},"error":"Expected a value greater than or equal to 0\n  at [\"cursor\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"cwd":"/r","cursor":-1,"query":"   "},"error":"Expected a non-blank string\n  at [\"query\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.listRefs","payload":{"query":"x"},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":null},"ok":{"cwd":"/r","refName":"main","path":null}}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":"/w"},"ok":{"cwd":"/r","refName":"main","path":"/w"}}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":" /r ","refName":" main ","path":" /w ","newRefName":" feat ","baseRefName":" origin/main "},"ok":{"cwd":"/r","refName":"main","newRefName":"feat","baseRefName":"origin/main","path":"/w"}}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":"  "},"error":"Expected a non-blank string\n  at [\"path\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main"},"error":"Missing key\n  at [\"path\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main"},"error":"Missing key\n  at [\"path\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":5},"error":"Expected string | null\n  at [\"path\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":null,"newRefName":"   "},"error":"Expected a non-blank string\n  at [\"newRefName\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":null,"newRefName":3},"error":"Expected string | null\n  at [\"newRefName\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":null,"baseRefName":null},"ok":{"cwd":"/r","refName":"main","path":null}}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","path":null},"error":"Missing key\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"  ","path":null},"error":"Expected a non-blank string\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"refName":"a","path":null},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.createWorktree","payload":{"cwd":"/r","refName":"main","path":null,"baseRefName":""},"error":"Expected a non-blank string\n  at [\"baseRefName\"]"}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r","path":"/w"},"ok":{"cwd":"/r","path":"/w"}}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r","path":"/w","force":true},"ok":{"cwd":"/r","path":"/w","force":true}}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r","path":"/w","force":false},"ok":{"cwd":"/r","path":"/w","force":false}}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r","path":"/w","force":"x"},"error":"Expected boolean | null\n  at [\"force\"]"}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r","path":" "},"error":"Expected a non-blank string\n  at [\"path\"]"}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r"},"error":"Missing key\n  at [\"path\"]"}
+{"type":"input","method":"vcs.removeWorktree","payload":{"path":"/w"},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.removeWorktree","payload":{"cwd":"/r","path":"/w","force":null},"ok":{"cwd":"/r","path":"/w"}}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r","refName":"feature/x"},"ok":{"cwd":"/r","refName":"feature/x"}}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r","refName":" feature/x ","switchRef":true},"ok":{"cwd":"/r","refName":"feature/x","switchRef":true}}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r","refName":"x","switchRef":false},"ok":{"cwd":"/r","refName":"x","switchRef":false}}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r","refName":"x","switchRef":1},"error":"Expected boolean | null\n  at [\"switchRef\"]"}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r","refName":""},"error":"Expected a non-blank string\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r"},"error":"Missing key\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.createRef","payload":{"refName":"x"},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.createRef","payload":{"cwd":"/r","refName":"x","switchRef":null},"ok":{"cwd":"/r","refName":"x"}}
+{"type":"input","method":"vcs.switchRef","payload":{"cwd":"/r","refName":"main"},"ok":{"cwd":"/r","refName":"main"}}
+{"type":"input","method":"vcs.switchRef","payload":{"cwd":"/r","refName":"  origin/main "},"ok":{"cwd":"/r","refName":"origin/main"}}
+{"type":"input","method":"vcs.switchRef","payload":{"cwd":"/r","refName":" "},"error":"Expected a non-blank string\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.switchRef","payload":{"cwd":"/r"},"error":"Missing key\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.switchRef","payload":{"refName":"main"},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.switchRef","payload":{"cwd":"/r","refName":3},"error":"Expected string\n  at [\"refName\"]"}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r"},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r","kind":"git"},"ok":{"cwd":"/r","kind":"git"}}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r","kind":"jj"},"ok":{"cwd":"/r","kind":"jj"}}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r","kind":"unknown"},"ok":{"cwd":"/r","kind":"unknown"}}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r","kind":"svn"},"error":"Expected \"git\" | \"jj\" | \"unknown\"\n  at [\"kind\"]"}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r","kind":null},"ok":{"cwd":"/r"}}
+{"type":"input","method":"vcs.init","payload":{"cwd":"/r","kind":3},"error":"Expected \"git\" | \"jj\" | \"unknown\" | null\n  at [\"kind\"]"}
+{"type":"input","method":"vcs.init","payload":{"cwd":" "},"error":"Expected a non-blank string\n  at [\"cwd\"]"}
+{"type":"input","method":"vcs.init","payload":{},"error":"Missing key\n  at [\"cwd\"]"}
+{"type":"vcsError","name":"VcsProcessSpawnError","json":{"_tag":"VcsProcessSpawnError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"cause":{"name":"Error","message":"spawn git ENOENT"}}}
+{"type":"vcsError","name":"VcsProcessSpawnErrorNoCount","json":{"_tag":"VcsProcessSpawnError","operation":"o","command":"git","cwd":"/repo","cause":{"name":"Error","message":"x"}}}
+{"type":"vcsError","name":"VcsProcessExitError","json":{"_tag":"VcsProcessExitError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"exitCode":128,"detail":"Process exited with a non-zero status.","failureKind":"command-failed","stderrLength":42,"stderrTruncated":false}}
+{"type":"vcsError","name":"VcsProcessExitErrorRetryable","json":{"_tag":"VcsProcessExitError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"exitCode":1,"detail":"d","failureKind":"authentication","retryable":true,"stderrLength":0,"stderrTruncated":true}}
+{"type":"vcsError","name":"VcsProcessExitErrorBare","json":{"_tag":"VcsProcessExitError","operation":"o","command":"git","cwd":"/repo","exitCode":2,"detail":"d"}}
+{"type":"vcsError","name":"VcsProcessTimeoutError","json":{"_tag":"VcsProcessTimeoutError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"timeoutMs":10000}}
+{"type":"vcsError","name":"VcsProcessStdinWriteError","json":{"_tag":"VcsProcessStdinWriteError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"stdinBytes":12,"cause":{"name":"Error","message":"EPIPE"}}}
+{"type":"vcsError","name":"VcsProcessOutputReadError","json":{"_tag":"VcsProcessOutputReadError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"stream":"exitCode","cause":{"name":"Error","message":"closed"}}}
+{"type":"vcsError","name":"VcsProcessOutputLimitError","json":{"_tag":"VcsProcessOutputLimitError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3,"stream":"stdout","maxBytes":65536,"observedBytes":70000}}
+{"type":"vcsError","name":"VcsProcessMissingExitCodeError","json":{"_tag":"VcsProcessMissingExitCodeError","operation":"GitVcsDriver.initRepository","command":"git","cwd":"/repo","argumentCount":3}}
+{"type":"vcsError","name":"VcsRepositoryDetectionError","json":{"_tag":"VcsRepositoryDetectionError","operation":"GitVcsDriver.detectRepository","cwd":"/repo","detail":"boom"}}
+{"type":"vcsError","name":"VcsUnsupportedOperationError","json":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.resolve","kind":"unknown","detail":"No supported VCS repository was detected at /repo."}}
+{"type":"vcsError","name":"VcsUnsupportedOperationErrorJj","json":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"jj","detail":"No jj VCS driver is registered."}}
+{"type":"managerError","name":"withCause","json":{"_tag":"GitManagerError","operation":"GitWorkflowService.localStatus","cwd":"/repo","detail":"Failed to detect a VCS repository for this Git workflow.","cause":{"name":"VcsRepositoryDetectionError","message":"VCS repository detection failed in GitVcsDriver.detectRepository: /repo - boom"}}}
+{"type":"managerError","name":"withoutCause","json":{"_tag":"GitManagerError","operation":"GitWorkflowService.localStatus","cwd":"/repo","detail":"Failed to detect a VCS repository for this Git workflow."}}
+{"type":"managerError","name":"unsupportedCause","json":{"_tag":"GitManagerError","operation":"GitWorkflowService.localStatus","cwd":"/repo","detail":"Failed to detect a VCS repository for this Git workflow.","cause":{"name":"VcsUnsupportedOperationError","message":"VCS operation is unsupported for unknown in VcsDriverRegistry.resolve: No supported VCS repository was detected at /repo."}}}
+{"type":"routeError","name":"withCause","json":{"_tag":"GitCommandError","operation":"GitWorkflowService.switchRef","command":"vcs-route","cwd":"/repo","detail":"Failed to resolve the VCS driver for this Git command.","cause":{"name":"VcsUnsupportedOperationError","message":"VCS operation is unsupported for unknown in VcsDriverRegistry.resolve: No supported VCS repository was detected at /repo."}}}
+{"type":"routeError","name":"withoutCause","json":{"_tag":"GitCommandError","operation":"GitWorkflowService.switchRef","command":"vcs-route","cwd":"/repo","detail":"The GitWorkflowService.switchRef command currently supports Git repositories only; detected jj."}}
+{"type":"worktreeLocationError","json":{"_tag":"GitCommandError","operation":"GitVcsDriver.createWorktree","command":"git worktree add","cwd":"/repo","detail":"The worktree location \"D:\\worktrees\" must be an absolute folder on this machine, not a drive root. Change it in Settings → Storage."}}
+{"type":"worktreesDirectory","setting":"","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/home/fixture/.t3/worktrees"}
+{"type":"worktreesDirectory","setting":"/srv/worktrees","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/srv/worktrees"}
+{"type":"worktreesDirectory","setting":"/srv/worktrees/","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/srv/worktrees"}
+{"type":"worktreesDirectory","setting":"/srv//a/./b/../c","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/srv/a/c"}
+{"type":"worktreesDirectory","setting":"~","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/home/fixture"}
+{"type":"worktreesDirectory","setting":"~/trees","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/home/fixture/trees"}
+{"type":"worktreesDirectory","setting":"~\\trees","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/home/fixture/trees"}
+{"type":"worktreesDirectory","setting":"~other/trees","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"relative/dir","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"./dir","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"D:\\worktrees","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"C:/worktrees","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"/","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"//","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"/..","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"/a/..","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"/a/../..","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"\\\\server\\share","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"  /padded ","defaultDir":"/home/fixture/.t3/worktrees","resolved":null}
+{"type":"worktreesDirectory","setting":"/srv/wörk trees","defaultDir":"/home/fixture/.t3/worktrees","resolved":"/srv/wörk trees"}
+{"type":"projectFile","contents":"{}","parsed":{"worktreeSubmodules":null}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\"}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"top-level\"}","parsed":{"worktreeSubmodules":"top-level"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"recursive\"}","parsed":{"worktreeSubmodules":"recursive"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"all\"}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":null}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":1}","parsed":null}
+{"type":"projectFile","contents":"// c\n{\"worktreeSubmodules\":\"none\",}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\", /* x */ \"unknown\":{\"a\":[1,]}}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"","parsed":null}
+{"type":"projectFile","contents":"   ","parsed":null}
+{"type":"projectFile","contents":"{nope","parsed":null}
+{"type":"projectFile","contents":"[]","parsed":null}
+{"type":"projectFile","contents":"null","parsed":null}
+{"type":"projectFile","contents":"\"x\"","parsed":null}
+{"type":"projectFile","contents":"7","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":\"\"}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":\"  \"}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":\" a.svg \"}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":\" xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"iconPath\":5}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"defaultThreadEnvMode\":\"worktree\"}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"defaultThreadEnvMode\":\"local\"}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"defaultThreadEnvMode\":\"other\"}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"$schema\":\"https://t3.codes/schema/t3.json\"}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"$schema\":5}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[]}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\",\"command\":\"b\"}]}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\" \",\"command\":\"b\"}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\"}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\",\"command\":\"b\",\"icon\":\"build\",\"runOnWorktreeCreate\":true,\"runOnSettle\":false,\"async\":true,\"previewUrl\":\"http://x\",\"autoOpenPreview\":true}]}","parsed":{"worktreeSubmodules":"none"}}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\",\"command\":\"b\",\"icon\":\"rocket\"}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\",\"command\":\"b\",\"async\":\"yes\"}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\",\"command\":\"b\",\"previewUrl\":\" \"}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[{\"name\":\"a\",\"command\":\"b\",\"autoOpenPreview\":null}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":{\"name\":\"a\"}}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":[\"a\"]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"none\",\"scripts\":null}","parsed":null}
+{"type":"projectFile","contents":"{\"scripts\":[{\"name\":\"s0\",\"command\":\"c\"},{\"name\":\"s1\",\"command\":\"c\"},{\"name\":\"s2\",\"command\":\"c\"},{\"name\":\"s3\",\"command\":\"c\"},{\"name\":\"s4\",\"command\":\"c\"},{\"name\":\"s5\",\"command\":\"c\"},{\"name\":\"s6\",\"command\":\"c\"},{\"name\":\"s7\",\"command\":\"c\"},{\"name\":\"s8\",\"command\":\"c\"},{\"name\":\"s9\",\"command\":\"c\"},{\"name\":\"s10\",\"command\":\"c\"},{\"name\":\"s11\",\"command\":\"c\"},{\"name\":\"s12\",\"command\":\"c\"},{\"name\":\"s13\",\"command\":\"c\"},{\"name\":\"s14\",\"command\":\"c\"},{\"name\":\"s15\",\"command\":\"c\"},{\"name\":\"s16\",\"command\":\"c\"},{\"name\":\"s17\",\"command\":\"c\"},{\"name\":\"s18\",\"command\":\"c\"},{\"name\":\"s19\",\"command\":\"c\"},{\"name\":\"s20\",\"command\":\"c\"},{\"name\":\"s21\",\"command\":\"c\"},{\"name\":\"s22\",\"command\":\"c\"},{\"name\":\"s23\",\"command\":\"c\"},{\"name\":\"s24\",\"command\":\"c\"},{\"name\":\"s25\",\"command\":\"c\"},{\"name\":\"s26\",\"command\":\"c\"},{\"name\":\"s27\",\"command\":\"c\"},{\"name\":\"s28\",\"command\":\"c\"},{\"name\":\"s29\",\"command\":\"c\"},{\"name\":\"s30\",\"command\":\"c\"},{\"name\":\"s31\",\"command\":\"c\"},{\"name\":\"s32\",\"command\":\"c\"},{\"name\":\"s33\",\"command\":\"c\"},{\"name\":\"s34\",\"command\":\"c\"},{\"name\":\"s35\",\"command\":\"c\"},{\"name\":\"s36\",\"command\":\"c\"},{\"name\":\"s37\",\"command\":\"c\"},{\"name\":\"s38\",\"command\":\"c\"},{\"name\":\"s39\",\"command\":\"c\"},{\"name\":\"s40\",\"command\":\"c\"},{\"name\":\"s41\",\"command\":\"c\"},{\"name\":\"s42\",\"command\":\"c\"},{\"name\":\"s43\",\"command\":\"c\"},{\"name\":\"s44\",\"command\":\"c\"},{\"name\":\"s45\",\"command\":\"c\"},{\"name\":\"s46\",\"command\":\"c\"},{\"name\":\"s47\",\"command\":\"c\"},{\"name\":\"s48\",\"command\":\"c\"},{\"name\":\"s49\",\"command\":\"c\"},{\"name\":\"s50\",\"command\":\"c\"}]}","parsed":null}
+{"type":"projectFile","contents":"{\"worktreeSubmodules\":\"top-level\",\"scripts\":[{\"name\":\"s0\",\"command\":\"c\"},{\"name\":\"s1\",\"command\":\"c\"},{\"name\":\"s2\",\"command\":\"c\"},{\"name\":\"s3\",\"command\":\"c\"},{\"name\":\"s4\",\"command\":\"c\"},{\"name\":\"s5\",\"command\":\"c\"},{\"name\":\"s6\",\"command\":\"c\"},{\"name\":\"s7\",\"command\":\"c\"},{\"name\":\"s8\",\"command\":\"c\"},{\"name\":\"s9\",\"command\":\"c\"},{\"name\":\"s10\",\"command\":\"c\"},{\"name\":\"s11\",\"command\":\"c\"},{\"name\":\"s12\",\"command\":\"c\"},{\"name\":\"s13\",\"command\":\"c\"},{\"name\":\"s14\",\"command\":\"c\"},{\"name\":\"s15\",\"command\":\"c\"},{\"name\":\"s16\",\"command\":\"c\"},{\"name\":\"s17\",\"command\":\"c\"},{\"name\":\"s18\",\"command\":\"c\"},{\"name\":\"s19\",\"command\":\"c\"},{\"name\":\"s20\",\"command\":\"c\"},{\"name\":\"s21\",\"command\":\"c\"},{\"name\":\"s22\",\"command\":\"c\"},{\"name\":\"s23\",\"command\":\"c\"},{\"name\":\"s24\",\"command\":\"c\"},{\"name\":\"s25\",\"command\":\"c\"},{\"name\":\"s26\",\"command\":\"c\"},{\"name\":\"s27\",\"command\":\"c\"},{\"name\":\"s28\",\"command\":\"c\"},{\"name\":\"s29\",\"command\":\"c\"},{\"name\":\"s30\",\"command\":\"c\"},{\"name\":\"s31\",\"command\":\"c\"},{\"name\":\"s32\",\"command\":\"c\"},{\"name\":\"s33\",\"command\":\"c\"},{\"name\":\"s34\",\"command\":\"c\"},{\"name\":\"s35\",\"command\":\"c\"},{\"name\":\"s36\",\"command\":\"c\"},{\"name\":\"s37\",\"command\":\"c\"},{\"name\":\"s38\",\"command\":\"c\"},{\"name\":\"s39\",\"command\":\"c\"},{\"name\":\"s40\",\"command\":\"c\"},{\"name\":\"s41\",\"command\":\"c\"},{\"name\":\"s42\",\"command\":\"c\"},{\"name\":\"s43\",\"command\":\"c\"},{\"name\":\"s44\",\"command\":\"c\"},{\"name\":\"s45\",\"command\":\"c\"},{\"name\":\"s46\",\"command\":\"c\"},{\"name\":\"s47\",\"command\":\"c\"},{\"name\":\"s48\",\"command\":\"c\"},{\"name\":\"s49\",\"command\":\"c\"}]}","parsed":{"worktreeSubmodules":"top-level"}}
+{"type":"projectFile","contents":"﻿{\"worktreeSubmodules\":\"none\"}","parsed":null}
+{"type":"failureDelay","failures":1,"configuredMs":1000,"delayMs":30000}
+{"type":"failureDelay","failures":2,"configuredMs":1000,"delayMs":60000}
+{"type":"failureDelay","failures":3,"configuredMs":1000,"delayMs":120000}
+{"type":"failureDelay","failures":4,"configuredMs":1000,"delayMs":240000}
+{"type":"failureDelay","failures":1,"configuredMs":300000,"delayMs":300000}
+{"type":"failureDelay","failures":2,"configuredMs":300000,"delayMs":300000}
+{"type":"failureDelay","failures":20,"configuredMs":1000,"delayMs":900000}
+{"type":"failureDelay","failures":7,"configuredMs":1000,"delayMs":900000}
+{"type":"failureDelay","failures":8,"configuredMs":1000,"delayMs":900000}
+{"type":"failureDelay","failures":3,"configuredMs":600000,"delayMs":600000}
+{"type":"failureDelay","failures":100,"configuredMs":0,"delayMs":900000}
+{"type":"registry","scenario":"caches detection per cwd and kind","root":".","setup":["repo/.git/"],"files":{},"results":[{"step":{"resolve":"repo","kind":"git"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"resolve":"repo","kind":"git"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":[]},{"step":{"detect":"repo"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"detect":"repo"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":[]}]}
+{"type":"registry","scenario":"detects again when the repository is removed","root":".","setup":["repo/.git/"],"files":{},"results":[{"step":{"detect":"repo"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"rm":"repo/.git"}},{"step":{"detect":"repo"},"ok":null,"calls":["rev-parse --is-inside-work-tree"]}]}
+{"type":"registry","scenario":"detects again when git init nests a repository","root":"parent","setup":["parent/.git/","parent/project/"],"files":{},"results":[{"step":{"detect":"parent/project"},"ok":{"kind":"git","rootPath":"parent","metadataPath":"../.git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"mkdir":"parent/project/.git"}},{"step":{"detect":"parent/project"},"ok":{"kind":"git","rootPath":"parent/project","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]}]}
+{"type":"registry","scenario":"detects again when git init lands between the cwd and its root","root":"parent","setup":["parent/.git/","parent/a/b/"],"files":{},"results":[{"step":{"detect":"parent/a/b"},"ok":{"kind":"git","rootPath":"parent","metadataPath":"../../.git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"mkdir":"parent/a/.git"}},{"step":{"detect":"parent/a/b"},"ok":{"kind":"git","rootPath":"parent/a","metadataPath":"../.git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]}]}
+{"type":"registry","scenario":"detects a repository created after a negative lookup","root":".","setup":["repo/"],"files":{},"results":[{"step":{"detect":"repo"},"ok":null,"calls":["rev-parse --is-inside-work-tree"]},{"step":{"detect":"repo"},"ok":null,"calls":["rev-parse --is-inside-work-tree"]},{"step":{"mkdir":"repo/.git"}},{"step":{"detect":"repo"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"detect":"repo"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":[]}]}
+{"type":"registry","scenario":"resolve fails with a typed error when nothing is a repository","root":".","setup":["plain/"],"files":{},"results":[{"step":{"resolve":"plain"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.resolve","kind":"unknown","detail":"No supported VCS repository was detected at $ROOT/plain."},"calls":["rev-parse --is-inside-work-tree"]},{"step":{"resolve":"plain","kind":"git"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.resolve","kind":"git","detail":"No git repository was detected at $ROOT/plain."},"calls":["rev-parse --is-inside-work-tree"]},{"step":{"resolve":"plain","kind":"unknown"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.resolve","kind":"unknown","detail":"No unknown repository was detected at $ROOT/plain."},"calls":["rev-parse --is-inside-work-tree"]},{"step":{"resolve":"plain","kind":"jj"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"jj","detail":"No jj VCS driver is registered."},"calls":[]}]}
+{"type":"registry","scenario":"kinds are cached apart","root":".","setup":["repo/.git/"],"files":{},"results":[{"step":{"detect":"repo","kind":"git"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"detect":"repo"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"detect":"repo","kind":"unknown"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]},{"step":{"detect":"repo","kind":"git"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":[]},{"step":{"detect":"repo","kind":"unknown"},"ok":{"kind":"git","rootPath":"repo","metadataPath":".git"},"calls":[]}]}
+{"type":"registry","scenario":"an unsupported kind fails detection","root":".","setup":["repo/.git/"],"files":{},"results":[{"step":{"detect":"repo","kind":"jj"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"jj","detail":"No jj VCS driver is registered."},"calls":[]},{"step":{"detect":"repo","kind":"jj"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"jj","detail":"No jj VCS driver is registered."},"calls":[]}]}
+{"type":"registry","scenario":"project config selects the kind","root":".","setup":["repo/.git/","repo/.t3code/","other/.git/"],"files":{"repo/.t3code/vcs.json":"{\"vcs\":{\"kind\":\"jj\"}}"},"results":[{"step":{"detect":"repo"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"jj","detail":"No jj VCS driver is registered."},"calls":[]},{"step":{"detect":"other"},"ok":{"kind":"git","rootPath":"other","metadataPath":".git"},"calls":["rev-parse --is-inside-work-tree","rev-parse --show-toplevel","rev-parse --git-common-dir"]}]}
+{"type":"registry","scenario":"drivers by kind","root":".","setup":[],"files":{},"results":[{"step":{"get":"git"},"ok":"git","calls":[]},{"step":{"get":"jj"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"jj","detail":"No jj VCS driver is registered."},"calls":[]},{"step":{"get":"unknown"},"error":{"_tag":"VcsUnsupportedOperationError","operation":"VcsDriverRegistry.get","kind":"unknown","detail":"No unknown VCS driver is registered."},"calls":[]}]}

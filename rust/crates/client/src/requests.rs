@@ -50,7 +50,7 @@ pub fn pending_requests(projection: &Value) -> PendingRequests {
                     .rev()
                     .find(|item| item["type"] == "user_input_request" && item["requestId"] == id)
             });
-            let Some(item) = item else {
+            let Some(item) = item.filter(|item| item["status"] != "cancelled") else {
                 continue;
             };
             result.user_inputs.push(PendingUserInput {
@@ -66,6 +66,11 @@ pub fn pending_requests(projection: &Value) -> PendingRequests {
                     .rev()
                     .find(|item| item["type"] == "approval_request" && item["requestId"] == id)
             });
+            // A request the provider withdrew is cancelled on its item before the request row
+            // follows; it is not offered in between.
+            if item.is_some_and(|item| item["status"] == "cancelled") {
+                continue;
+            }
             let options = match item.and_then(|item| item.get("options")) {
                 Some(Value::Array(options)) => options.clone(),
                 _ => vec![

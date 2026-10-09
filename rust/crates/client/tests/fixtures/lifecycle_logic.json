@@ -1,0 +1,255 @@
+[
+  {
+    "type": "confirm",
+    "message": "Delete thread \"Fix it\"?\nThis permanently clears conversation history for this thread.",
+    "copy": {
+      "title": "Delete thread \"Fix it\"?",
+      "description": "This permanently clears conversation history for this thread."
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "Archive thread \"a\"?",
+    "copy": {
+      "title": "Archive thread \"a\"?",
+      "description": null
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "Remove project \"Web\" and delete its 2 threads?\nPath: /work/web\nThis permanently clears conversation history for those threads and any archived threads.\nThis removes only this project entry.\nThis action cannot be undone.",
+    "copy": {
+      "title": "Remove project \"Web\" and delete its 2 threads?",
+      "description": "Path: /work/web\nThis permanently clears conversation history for those threads and any archived threads.\nThis removes only this project entry.\nThis action cannot be undone."
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "Remove project \"Web\"?\nPath: /work/web\nEnvironment: Laptop\nThis permanently clears any archived conversation history.\nThis removes only this project entry.",
+    "copy": {
+      "title": "Remove project \"Web\"?",
+      "description": "Path: /work/web\nEnvironment: Laptop\nThis permanently clears any archived conversation history.\nThis removes only this project entry."
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "No question here",
+    "copy": {
+      "title": "Confirm action",
+      "description": "No question here"
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "Really? Yes, really.",
+    "copy": {
+      "title": "Really?",
+      "description": "Yes, really."
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "  ",
+    "copy": {
+      "title": "Confirm action",
+      "description": "This action requires your confirmation."
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "",
+    "copy": {
+      "title": "Confirm action",
+      "description": "This action requires your confirmation."
+    }
+  },
+  {
+    "type": "confirm",
+    "message": "First line\nSecond line?\nThird line",
+    "copy": {
+      "title": "Second line?",
+      "description": "First line\nThird line"
+    }
+  },
+  {
+    "type": "previous",
+    "input": {
+      "threads": [],
+      "current": null
+    },
+    "seed": null,
+    "label": null
+  },
+  {
+    "type": "previous",
+    "input": {
+      "threads": [
+        {
+          "branch": "a",
+          "worktreePath": "/w/a",
+          "updatedAt": "2026-01-01T00:10:00.000Z"
+        },
+        {
+          "branch": "b",
+          "worktreePath": "/w/b",
+          "updatedAt": "2026-01-01T00:30:00.000Z"
+        },
+        {
+          "branch": "d",
+          "worktreePath": "/w/d",
+          "updatedAt": "2026-01-01T00:20:00.000Z"
+        }
+      ],
+      "current": null
+    },
+    "seed": {
+      "branch": "b",
+      "worktreePath": "/w/b"
+    },
+    "label": "Previous worktree (b)"
+  },
+  {
+    "type": "previous",
+    "input": {
+      "threads": [
+        {
+          "branch": "a",
+          "worktreePath": "/w/a",
+          "updatedAt": "2026-01-01T00:10:00.000Z"
+        },
+        {
+          "branch": "b",
+          "worktreePath": "/w/b",
+          "updatedAt": "2026-01-01T00:30:00.000Z"
+        },
+        {
+          "branch": "d",
+          "worktreePath": "/w/d",
+          "updatedAt": "2026-01-01T00:20:00.000Z"
+        }
+      ],
+      "current": "/w/b"
+    },
+    "seed": {
+      "branch": "d",
+      "worktreePath": "/w/d"
+    },
+    "label": "Previous worktree (d)"
+  },
+  {
+    "type": "previous",
+    "input": {
+      "threads": [
+        {
+          "branch": "c",
+          "worktreePath": "/w/c",
+          "updatedAt": "2026-01-01T00:50:00.000Z",
+          "archivedAt": "2026-01-01T00:01:00.000Z"
+        },
+        {
+          "branch": "x",
+          "worktreePath": null,
+          "updatedAt": "2026-01-01T01:30:00.000Z"
+        }
+      ],
+      "current": null
+    },
+    "seed": null,
+    "label": null
+  },
+  {
+    "type": "previous",
+    "input": {
+      "threads": [
+        {
+          "branch": null,
+          "worktreePath": "/w/n",
+          "updatedAt": "2026-01-01T00:05:00.000Z"
+        }
+      ],
+      "current": "/w/other"
+    },
+    "seed": {
+      "branch": null,
+      "worktreePath": "/w/n"
+    },
+    "label": "Previous worktree"
+  },
+  {
+    "type": "previous",
+    "input": {
+      "threads": [
+        {
+          "branch": "same",
+          "worktreePath": "/w/s",
+          "updatedAt": "2026-01-01T00:07:00.000Z"
+        },
+        {
+          "branch": "later",
+          "worktreePath": "/w/l",
+          "updatedAt": "2026-01-01T00:07:00.000Z"
+        }
+      ],
+      "current": null
+    },
+    "seed": {
+      "branch": "same",
+      "worktreePath": "/w/s"
+    },
+    "label": "Previous worktree (same)"
+  },
+  {
+    "type": "fetch",
+    "policy": {
+      "schemaVersion": 1,
+      "profile": "balanced",
+      "overrides": {}
+    },
+    "seconds": 30,
+    "preset": 30
+  },
+  {
+    "type": "fetch",
+    "policy": {
+      "schemaVersion": 1,
+      "profile": "performance",
+      "overrides": {}
+    },
+    "seconds": 15,
+    "preset": 15
+  },
+  {
+    "type": "fetch",
+    "policy": {
+      "schemaVersion": 1,
+      "profile": "battery-saver",
+      "overrides": {}
+    },
+    "seconds": 0,
+    "preset": 0
+  },
+  {
+    "type": "fetch",
+    "policy": {
+      "schemaVersion": 1,
+      "profile": "custom",
+      "baseProfile": "performance",
+      "overrides": {}
+    },
+    "seconds": 15,
+    "preset": 15
+  },
+  {
+    "type": "fetch",
+    "policy": {
+      "schemaVersion": 1,
+      "profile": "custom",
+      "baseProfile": "battery-saver",
+      "overrides": {
+        "idleClientTtl": 1000
+      }
+    },
+    "seconds": 0,
+    "preset": 0
+  }
+]

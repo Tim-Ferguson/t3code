@@ -72,6 +72,30 @@ impl ExecutionService {
     )> {
         self.runtime.pause_next_actor()
     }
+    /// Progress and cancellation of worktree setups, and the terminals setup scripts run in.
+    pub fn workspace(&self) -> std::sync::Arc<crate::workspace_prepare::WorkspaceRuntime> {
+        self.runtime.workspace().clone()
+    }
+    /// Returns once the thread has no effect left to run or running: its queued turn starts,
+    /// cleanups and detaches have all settled. For callers that must observe what an effect did.
+    pub async fn drained(&self, thread_id: &str) {
+        let mut settled = self.runtime.subscribe_settled();
+        loop {
+            let busy: u64 = self
+                .store
+                .read(|connection| {
+                    Ok(connection.query_row(
+                        "SELECT COUNT(*) FROM rust_effect_outbox WHERE thread_id=?1 AND status IN ('pending','running')",
+                        [thread_id],
+                        |row| row.get(0),
+                    )?)
+                })
+                .unwrap_or(0);
+            if busy == 0 || settled.changed().await.is_err() {
+                return;
+            }
+        }
+    }
     pub fn authentication_stop(&self) -> crate::provider_auth_service::StopInstances {
         let runtime = std::sync::Arc::downgrade(&self.runtime);
         std::sync::Arc::new(move |instances| {
@@ -136,6 +160,10 @@ impl ExecutionService {
                 authorize(transaction, &projection)?;
                 match kind {
                     "message.dispatch" => {
+                        // The provider owns a native subagent's conversation: a message has nowhere to go.
+                        if crate::subagents::is_provider_native_subagent_thread(&projection["thread"]) {
+                            return Err(StoreError::InvalidCommand(crate::subagents::READ_ONLY_REASON.into()));
+                        }
                         let model = command
                             .get("modelSelection")
                             .unwrap_or(&projection["thread"]["modelSelection"]);
@@ -143,11 +171,35 @@ impl ExecutionService {
                             .providers
                             .driver(model["instanceId"].as_str().unwrap())
                             .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
-                        plan_message_for_driver(&command, &projection, now, driver)
+                        plan_message_in_transaction(&command, &projection, transaction, now, driver)
+                    }
+                    "checkpoint.rollback" => {
+                        let instance = projection["thread"]["modelSelection"]["instanceId"]
+                            .as_str()
+                            .unwrap_or("");
+                        let driver = self
+                            .providers
+                            .driver(instance)
+                            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
+                        let capabilities = crate::checkpoint_rollback::driver_capabilities(driver)
+                            .ok_or_else(|| {
+                                StoreError::InvalidCommand(format!(
+                                    "{instance} cannot satisfy rollback for command {}: conversation rollback is unavailable",
+                                    command["commandId"].as_str().unwrap_or("")
+                                ))
+                            })?;
+                        crate::checkpoint_rollback::plan(&command, &projection, transaction, now, &capabilities)
                     }
                     "run.interrupt" => plan_interrupt(&command, &projection, now),
+                    "queued-run.cancel" => crate::queued_runs::plan_cancel(&command, &projection, now),
+                    "queued-run.edit" => crate::queued_runs::plan_edit(&command, &projection, now),
+                    "queued-run.reorder" => crate::queued_runs::plan_reorder(&command, &projection, now),
+                    "queue.resume" => crate::queued_runs::plan_resume(&command, &projection, now),
                     "runtime-request.respond" => plan_response(&command, &projection, now),
-                    "prepared-run.release" => plan_release(&command, &projection, now),
+                    "prepared-run.release" => plan_release_in(&command, &projection, now, Some(transaction)),
+                    "prepared-run.progress" => crate::prepared_run::plan_progress(&command, &projection, now),
+                    "prepared-run.fail" => crate::prepared_run::plan_fail(&command, &projection, now),
+                    "prepared-run.retry" => crate::prepared_run::plan_retry(&command, &projection, now),
                     _ => Err(StoreError::InvalidCommand(format!(
                         "Native provider command {kind} is not yet available."
                     ))),
@@ -155,6 +207,10 @@ impl ExecutionService {
             },
             thread::reduce,
         )?;
+        if kind == "queue.resume" {
+            // The released queue starts its next run; a replayed command finds it already started.
+            crate::message_queue::settle(&self.store, thread_id, None)?;
+        }
         if kind == "run.interrupt" && !replayed {
             self.runtime
                 .cancel_start(thread_id, command["runId"].as_str().unwrap());
@@ -164,7 +220,7 @@ impl ExecutionService {
     }
 }
 
-fn effect(command: &Value, request: Value, now: DateTime<Utc>) -> NewEffect {
+pub(crate) fn effect(command: &Value, request: Value, now: DateTime<Utc>) -> NewEffect {
     NewEffect {
         id: format!(
             "effect:{}:{}:{}",
@@ -183,6 +239,29 @@ fn effect(command: &Value, request: Value, now: DateTime<Utc>) -> NewEffect {
     }
 }
 
+fn encode_id(value: &str) -> String {
+    let mut result = String::new();
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&byte) {
+            result.push(byte as char);
+        } else {
+            use std::fmt::Write;
+            write!(result, "%{byte:02X}").unwrap();
+        }
+    }
+    result
+}
+fn user_item_id(message_id: &str) -> String {
+    format!("turn-item:message:{}", encode_id(message_id))
+}
+pub(crate) fn run_signal_item_id(run_id: &str, signal: &str) -> String {
+    format!(
+        "turn-item:run:{}:signal:{}",
+        encode_id(run_id),
+        encode_id(signal)
+    )
+}
+
 fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
     if let Some(capabilities) = session
         .and_then(|session| session.get("capabilities"))
@@ -194,6 +273,7 @@ fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
     // selected adapter's default capabilities, exactly as the original does.
     let encoded = match driver {
         "codex" => include_str!("codex-capabilities.json"),
+        "claudeAgent" => include_str!("claude-capabilities.json"),
         "acpRegistry" | "antigravity" => include_str!("acp-capabilities.json"),
         _ => return false,
     };
@@ -211,13 +291,14 @@ fn plan_interrupt(
         .iter()
         .find(|run| run["id"] == command["runId"])
         .ok_or_else(|| StoreError::InvalidCommand("Run not found.".into()))?;
+    // A run waiting for its checkpoint has finished its turn: only its background work is left.
     if !matches!(
         run["status"].as_str(),
         Some("preparing" | "starting" | "running" | "waiting")
-    ) {
-        return Err(StoreError::InvalidCommand(
-            "Run is no longer active.".into(),
-        ));
+    ) || (run["status"] == "waiting" && crate::background_work::run_owns_pending_work(projection, run))
+    {
+        // A settled run can still own background work; Stop ends that.
+        return crate::background_work::plan_stop(command, projection, run, now);
     }
     let thread_id = command["threadId"].as_str().unwrap();
     let command_id = command["commandId"].as_str().unwrap();
@@ -228,7 +309,7 @@ fn plan_interrupt(
         .iter()
         .find(|attempt| attempt["id"] == run["activeAttemptId"])
         .unwrap();
-    let mut item = json!({"id":format!("{}:interrupt-request",run["id"].as_str().unwrap()),"threadId":thread_id,"runId":run["id"],"nodeId":run["rootNodeId"],"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().len(),"status":"completed","title":"Interrupt requested","startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"run_interrupt_request","message":command.get("reason").cloned().unwrap_or(json!("Interrupt requested"))});
+    let mut item = json!({"id":run_signal_item_id(run["id"].as_str().unwrap(),"interrupt-request"),"threadId":thread_id,"runId":run["id"],"nodeId":run["rootNodeId"],"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().iter().filter_map(|item|item["ordinal"].as_u64()).max().map_or(0,|ordinal|ordinal+1),"status":"completed","title":"Interrupt requested","startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"run_interrupt_request","message":command.get("reason").cloned().unwrap_or(json!("Interrupt requested"))});
     let mut events = vec![event(
         thread_id,
         command_id,
@@ -254,6 +335,7 @@ fn plan_interrupt(
             ));
         }
     }
+    events.extend(crate::delegated_tasks::stop_remaining(command, projection, run, now)?);
     if attempt["providerTurnId"].is_null() {
         for preparation in projection["turnItems"]
             .as_array()
@@ -296,8 +378,14 @@ fn plan_interrupt(
             .clone();
         node["status"] = json!("interrupted");
         node["completedAt"] = json!(timestamp);
-        item["id"] = json!(format!("{}:interrupt-result", run["id"].as_str().unwrap()));
-        item["parentItemId"] = json!(format!("{}:interrupt-request", run["id"].as_str().unwrap()));
+        item["id"] = json!(run_signal_item_id(
+            run["id"].as_str().unwrap(),
+            "interrupt-result"
+        ));
+        item["parentItemId"] = json!(run_signal_item_id(
+            run["id"].as_str().unwrap(),
+            "interrupt-request"
+        ));
         item["ordinal"] = json!(run["ordinal"].as_u64().unwrap() * 100 + 98);
         item["type"] = json!("run_interrupt_result");
         item["status"] = json!("interrupted");
@@ -363,11 +451,6 @@ fn plan_response(
             "Runtime request provider session is not ready.".into(),
         ));
     }
-    if command.get("attachmentsByQuestionId").is_some() {
-        return Err(StoreError::InvalidCommand(
-            "Native answer attachment materialization is not yet available.".into(),
-        ));
-    }
     if request["kind"] == "user_input" {
         if command.get("decision").is_some()
             || !command["answers"]
@@ -429,6 +512,11 @@ fn plan_response(
         .find(|item| item["requestId"] == request["id"])
     {
         let mut item = item.clone();
+        // An answered question keeps what was answered, with the files attached to each answer.
+        if item["type"] == "user_input_request" && command.get("answers").is_some() {
+            let question_text: serde_json::Map<String, Value> = item["questions"].as_array().into_iter().flatten().map(|question| (question["id"].as_str().unwrap_or("").to_owned(), question["question"].clone())).collect();
+            item["questionAnswer"] = json!({"requestId":command["requestId"],"answers":command["answers"],"attachmentsByQuestionId":command.get("attachmentsByQuestionId").cloned().unwrap_or(json!({})),"questionTextById":question_text});
+        }
         item["status"] = json!(status);
         item["completedAt"] = json!(at(now));
         item["updatedAt"] = json!(at(now));
@@ -466,14 +554,135 @@ pub fn plan_message_for_driver(
     now: DateTime<Utc>,
     driver: &str,
 ) -> Result<Decision, StoreError> {
+    plan_message_inner(command, projection, now, driver, false, None)
+}
+
+pub(crate) fn plan_message_in_transaction(
+    command: &Value,
+    projection: &Value,
+    transaction: &rusqlite::Transaction<'_>,
+    now: DateTime<Utc>,
+    driver: &str,
+) -> Result<Decision, StoreError> {
+    plan_message_inner(command, projection, now, driver, false, Some(transaction))
+}
+
+fn plan_message_inner(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    driver: &str,
+    reuse_message: bool,
+    transaction: Option<&rusqlite::Transaction<'_>>,
+) -> Result<Decision, StoreError> {
+    // The first message of a thread names it: the seed now, a model's title once this commits.
+    let Some(title) = crate::text_generation_title::first_message_title(command, projection, reuse_message, now) else {
+        return plan_message_body(command, projection, now, driver, reuse_message, transaction);
+    };
+    let decision = plan_message_body(command, &title.projection, now, driver, reuse_message, transaction)?;
+    Ok(title.attach(decision))
+}
+
+/// The checks that apply to a message whatever way it is delivered, and the completion of the
+/// proposed plan it implements; the delivery itself is `plan_message_delivery`.
+fn plan_message_body(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    driver: &str,
+    reuse_message: bool,
+    transaction: Option<&rusqlite::Transaction<'_>>,
+) -> Result<Decision, StoreError> {
+    check_manual_continuation(command, projection)?;
+    let source_plan = source_plan_completion(command, projection, transaction)?;
+    let mut decision = plan_message_delivery(command, projection, now, driver, reuse_message, transaction)?;
+    if let Some((plan_thread, plan)) = source_plan {
+        // The plan completes right after the run it starts is created. A steered message
+        // creates no run and leaves the plan as it was.
+        let command_id = command["commandId"].as_str().unwrap_or("");
+        if let Decision::Accepted { events, .. } | Decision::AcceptedBatch { events, .. } = &mut decision {
+            if let Some(index) = events.iter().position(|event| event.event_type == "run.created") {
+                events.insert(index + 1, event(&plan_thread, command_id, "plan.updated", plan, now));
+            }
+        }
+    }
+    Ok(decision)
+}
+
+/// `manualContinuationOfRunId`: the user's "continue" from an interrupted or usage-limited run
+/// is only honoured while that run is still the thread's latest executed one.
+fn check_manual_continuation(command: &Value, projection: &Value) -> Result<(), StoreError> {
+    let Some(source_id) = command.get("manualContinuationOfRunId") else { return Ok(()) };
+    let source = projection["runs"].as_array().unwrap().iter().find(|run| run["id"] == *source_id);
+    let limited = source
+        .and_then(|run| crate::message_queue::root_failure(projection, run))
+        .is_some_and(|failure| failure["class"] == "usage_limit");
+    let continuable = source.is_some_and(|run| run["status"] == "interrupted" || (run["status"] == "failed" && limited));
+    let latest = crate::message_queue::latest_executed(projection).zip(source).is_some_and(|(latest, source)| latest["id"] == source["id"]);
+    if command["dispatchMode"]["type"] != "start_immediately"
+        || !continuable
+        || !latest
+        || !projection["thread"]["archivedAt"].is_null()
+        || !projection["thread"]["deletedAt"].is_null()
+        || projection["runtimeRequests"].as_array().unwrap().iter().any(|request| request["status"] == "pending")
+    {
+        return Err(StoreError::InvalidCommand("This thread can no longer be resumed from that run.".into()));
+    }
+    Ok(())
+}
+
+/// `sourcePlanRef`: the proposed plan this message implements, which completes with the run it
+/// starts. Returns the thread that owns the plan and the plan as completed.
+fn source_plan_completion(
+    command: &Value,
+    projection: &Value,
+    transaction: Option<&rusqlite::Transaction<'_>>,
+) -> Result<Option<(String, Value)>, StoreError> {
+    let Some(reference) = command.get("sourcePlanRef") else { return Ok(None) };
+    let (plan_thread, plan_id) = (reference["threadId"].as_str().unwrap_or(""), reference["planId"].as_str().unwrap_or(""));
+    let missing = || StoreError::InvalidCommand(format!("Proposed plan {plan_id} does not exist on thread {plan_thread}."));
+    let owner = if projection["thread"]["id"] == plan_thread {
+        projection.clone()
+    } else {
+        let transaction = transaction.ok_or_else(missing)?;
+        read_projection(transaction, "thread", plan_thread)?.ok_or_else(missing)?
+    };
+    let plan = owner["plans"].as_array().into_iter().flatten().find(|plan| plan["id"] == plan_id && plan["kind"] == "proposed_plan").ok_or_else(missing)?;
+    if owner["thread"]["projectId"] != projection["thread"]["projectId"] {
+        return Err(StoreError::InvalidCommand(format!("Proposed plan {plan_id} belongs to a different project.")));
+    }
+    if plan["status"] != "active" {
+        return Err(StoreError::InvalidCommand(format!("Proposed plan {plan_id} is not active.")));
+    }
+    let mut completed = plan.clone();
+    completed["status"] = json!("completed");
+    Ok(Some((plan_thread.to_owned(), completed)))
+}
+
+fn plan_message_delivery(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    driver: &str,
+    reuse_message: bool,
+    transaction: Option<&rusqlite::Transaction<'_>>,
+) -> Result<Decision, StoreError> {
+    let mut resolved = command.clone();
+    resolved["dispatchMode"] = crate::message_steering::resolve_dispatch_mode(command, projection);
+    if resolved["dispatchMode"]["type"] == "steer_active"
+        && crate::message_steering::completed_steer_target(
+            projection,
+            &resolved["dispatchMode"]["targetRunId"],
+        )
+    {
+        resolved["dispatchMode"] = json!({"type":"start_immediately"});
+    }
+    let command = &resolved;
+    // Needs the restart-continuation, usage-limit-recovery and delegated-task features, none of
+    // which is ported: see the report for what each one requires.
     for field in [
-        "notification",
-        "scheduledTaskId",
-        "titleSeed",
-        "sourcePlanRef",
         "restartContinuationOfRunId",
         "usageLimitContinuationOfRunId",
-        "manualContinuationOfRunId",
         "usageLimitRecoveryRequestId",
         "delegatedCompletion",
     ] {
@@ -483,37 +692,36 @@ pub fn plan_message_for_driver(
             )));
         }
     }
-    if command
-        .get("deliveryIntent")
-        .is_some_and(|intent| intent != "auto")
+    if command.get("notification").is_some()
+        && (command["createdBy"] != "agent"
+            || !matches!(command["creationSource"].as_str(), Some("server" | "provider"))
+            || command["dispatchMode"]["type"] != "queue_after_active")
     {
-        return Err(StoreError::InvalidCommand(
-            "Native deferred delivery is not yet available.".into(),
-        ));
+        return Err(StoreError::InvalidCommand("Notifications must be server- or provider-created queued messages.".into()));
     }
     let deferred = command["dispatchMode"]["type"] == "defer_start";
-    if !deferred
-        && command["dispatchMode"]["type"] != "start_immediately"
-        && command["dispatchMode"]["type"] != "queue_after_active"
-    {
+    if !matches!(
+        command["dispatchMode"]["type"].as_str(),
+        Some(
+            "defer_start"
+                | "start_immediately"
+                | "queue_after_active"
+                | "steer_active"
+                | "restart_active"
+        )
+    ) {
         return Err(StoreError::InvalidCommand(
-            "Native queue, steering and prepared-message orchestration is not yet available."
-                .into(),
+            "Unsupported message delivery mode.".into(),
         ));
     }
-    if !command["attachments"].as_array().is_some_and(Vec::is_empty)
-        || command.get("context").is_some()
-    {
-        return Err(StoreError::InvalidCommand(
-            "Native attachment/context materialization is not yet available.".into(),
-        ));
-    }
+    // Attachments were claimed into the thread's store by the transport before this plan.
     let runs = projection["runs"].as_array().unwrap();
-    if projection["messages"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|message| message["id"] == command["messageId"])
+    if !reuse_message
+        && projection["messages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|message| message["id"] == command["messageId"])
     {
         return Err(StoreError::InvalidCommand(
             "Message id already exists.".into(),
@@ -530,7 +738,17 @@ pub fn plan_message_for_driver(
             "Native provider switching via handoff is not yet available.".into(),
         ));
     }
-    if let Some(active) = runs.iter().find(|run| crate::message_queue::blocking(run)) {
+    if matches!(
+        command["dispatchMode"]["type"].as_str(),
+        Some("steer_active" | "restart_active")
+    ) {
+        return crate::message_steering::plan(command, projection, now, transaction);
+    }
+    if let Some(active) = runs
+        .iter()
+        .rev()
+        .find(|run| crate::message_queue::blocking(run))
+    {
         if projection["contextTransfers"]
             .as_array()
             .unwrap()
@@ -575,21 +793,16 @@ pub fn plan_message_for_driver(
                 model["instanceId"].as_str().unwrap()
             )));
         }
-        return crate::message_queue::allocate(
-            command,
-            projection,
-            crate::message_queue::QueueContext {
-                provider_thread: provider,
-                new_provider_thread: false,
-                checkpoint_scope: None,
-            },
-            now,
-        );
-    }
-    if deferred && command["dispatchMode"]["workspaceStrategy"]["type"] == "worktree" {
-        return Err(StoreError::InvalidCommand(
-            "Native Git worktree preparation is not yet available.".into(),
-        ));
+        let context = crate::message_queue::QueueContext {
+            provider_thread: provider,
+            new_provider_thread: false,
+            checkpoint_scope: None,
+        };
+        return if reuse_message {
+            crate::message_queue::allocate_steer_follow_up(command, projection, context, now)
+        } else {
+            crate::message_queue::allocate(command, projection, context, now)
+        };
     }
     let run_id = uuid::Uuid::new_v4().to_string();
     let node_id = uuid::Uuid::new_v4().to_string();
@@ -614,7 +827,13 @@ pub fn plan_message_for_driver(
         .map(ToOwned::to_owned)
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let mut events = vec![];
-    if model != &projection["thread"]["modelSelection"] {
+    if !crate::message_queue::model_selections_equal(model, &projection["thread"]["modelSelection"])
+    {
+        if let crate::provider_selection_transition::SelectionTransition::Reject { reason } =
+            crate::provider_selection_transition::classify_selection(projection, model)
+        {
+            return Err(StoreError::InvalidCommand(reason));
+        }
         let mut thread = projection["thread"].clone();
         thread["modelSelection"] = model.clone();
         thread["updatedAt"] = json!(timestamp);
@@ -644,28 +863,69 @@ pub fn plan_message_for_driver(
             run["workspacePreparation"] = strategy.clone();
         }
     }
+    if let Some(plan) = command.get("sourcePlanRef") {
+        run["sourcePlanRef"] = plan.clone();
+    }
     let run = checked::<t3_contracts::Run>(run)?;
     let attempt = checked::<t3_contracts::RunAttempt>(
         json!({"id":attempt_id,"runId":run_id,"attemptOrdinal":1,"rootNodeId":node_id,"providerInstanceId":model["instanceId"],"providerThreadId":provider_thread_id,"providerTurnId":null,"reason":"initial","status":"pending","startedAt":null,"completedAt":null}),
     )?;
+    // A deferred run gets its scope when the prepared workspace is released.
+    let scope = if deferred {
+        None
+    } else {
+        let fallback = std::env::current_dir().ok();
+        Some(crate::message_steering::prepare_root_scope(
+            projection,
+            &json!(run_id),
+            &json!(node_id),
+            &json!(provider_thread_id),
+            fallback.as_deref().and_then(|path| path.to_str()),
+            now,
+            transaction,
+        )?)
+    };
     let node = checked::<t3_contracts::ExecutionNode>(
-        json!({"id":node_id,"threadId":thread_id,"runId":run_id,"parentNodeId":null,"rootNodeId":node_id,"kind":"root_turn","status":"pending","countsForRun":true,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":null,"completedAt":null}),
+        json!({"id":node_id,"threadId":thread_id,"runId":run_id,"parentNodeId":null,"rootNodeId":node_id,"kind":"root_turn","status":"pending","countsForRun":true,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"runtimeRequestId":null,"checkpointScopeId":scope.as_ref().map(|scope|scope["id"].clone()),"startedAt":null,"completedAt":null}),
     )?;
-    let mut message = json!({"createdBy":command["createdBy"],"creationSource":command["creationSource"],"id":command["messageId"],"threadId":thread_id,"runId":run_id,"nodeId":node_id,"role":"user","text":command["text"],"attachments":[],"streaming":false,"createdAt":timestamp,"updatedAt":timestamp});
-    let mut item = json!({"id":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().len(),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","createdBy":command["createdBy"],"creationSource":command["creationSource"],"messageId":command["messageId"],"inputIntent":"turn_start","text":command["text"],"attachments":[]});
-    if let Some(sender) = command.get("senderThreadId") {
-        message["senderThreadId"] = sender.clone();
-        item["senderThreadId"] = sender.clone();
+    let mut message = json!({"createdBy":command["createdBy"],"creationSource":command["creationSource"],"id":command["messageId"],"threadId":thread_id,"runId":run_id,"nodeId":node_id,"role":"user","text":command["text"],"attachments":command["attachments"],"streaming":false,"createdAt":timestamp,"updatedAt":timestamp});
+    let mut item = json!({"id":user_item_id(command["messageId"].as_str().unwrap()),"threadId":thread_id,"runId":run_id,"nodeId":node_id,"providerThreadId":provider_thread_id,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":projection["turnItems"].as_array().unwrap().iter().filter_map(|item|item["ordinal"].as_u64()).max().map_or(0,|ordinal|ordinal+1),"status":"completed","title":null,"startedAt":timestamp,"completedAt":timestamp,"updatedAt":timestamp,"type":"user_message","createdBy":command["createdBy"],"creationSource":command["creationSource"],"messageId":command["messageId"],"inputIntent":"turn_start","text":command["text"],"attachments":command["attachments"]});
+    if reuse_message {
+        if let Some(existing) = projection["turnItems"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| {
+                item["type"] == "user_message" && item["messageId"] == command["messageId"]
+            })
+        {
+            item["id"] = existing["id"].clone();
+        }
     }
+    // Who sent the message and which scheduled task it came from, for the transcript and
+    // the provider's view of the turn.
+    for field in ["senderThreadId", "scheduledTaskId", "context"] {
+        if let Some(value) = command.get(field) {
+            message[field] = value.clone();
+            item[field] = value.clone();
+        }
+    }
+    if let Some(notification) = command.get("notification") {
+        message["notification"] = notification.clone();
+    }
+    // A message that reports background work is shown as that report, not as text the user wrote.
+    let item = crate::notification::notification_turn_item(item, &message);
     let message = checked::<t3_contracts::ConversationMessage>(message)?;
     let item = checked::<t3_contracts::TurnItem>(item)?;
     for (kind, payload) in [
         ("run.created", run),
         ("run-attempt.created", attempt),
         ("node.updated", node),
-        ("message.updated", message),
-        ("turn-item.updated", item),
-    ] {
+    ]
+    .into_iter()
+    .chain(scope.map(|scope| ("checkpoint-scope.created", scope)))
+    .chain([("message.updated", message), ("turn-item.updated", item)])
+    {
         events.push(event(thread_id, command_id, kind, payload, now));
     }
     if deferred {
@@ -674,9 +934,19 @@ pub fn plan_message_for_driver(
         )?;
         events.push(event(thread_id, command_id, "turn-item.updated", item, now));
     }
+    // A worktree is created after this commit, by an effect; its release starts the turn.
+    let worktree = deferred && command["dispatchMode"]["workspaceStrategy"]["type"] == "worktree";
     Ok(Decision::Accepted {
         events,
-        effects: if deferred {
+        effects: if worktree {
+            vec![NewEffect {
+                id: format!("effect:{command_id}:workspace.prepare:{run_id}"),
+                command_id: command_id.into(),
+                thread_id: thread_id.into(),
+                request: json!({"type":"workspace.prepare","baseCommandId":command_id,"runId":run_id,"workspaceStrategy":command["dispatchMode"]["workspaceStrategy"]}),
+                available_at: timestamp,
+            }]
+        } else if deferred {
             vec![]
         } else {
             vec![NewEffect {
@@ -690,10 +960,67 @@ pub fn plan_message_for_driver(
     })
 }
 
+/// Only actor delivery calls this after its recorded native steering turn has
+/// completed. The persisted effect, message and target turn are checked inside
+/// the same planning transaction; no public command admits message reuse.
+pub(crate) fn follow_up_completed_steer(
+    store: &Store,
+    effect: &crate::persistence::Effect,
+) -> Result<Receipt, StoreError> {
+    let command_id = format!("command:steer-follow-up:{}", effect.id);
+    let now = Utc::now();
+    let (receipt, _) = store.dispatch_resolved(
+        &command_id, "thread", "message.dispatch", now,
+        |transaction, _| {
+            let persisted: (String, String, String) = transaction.query_row(
+                "SELECT command_id,thread_id,request_json FROM rust_effect_outbox WHERE id=?1",
+                [&effect.id], |row| Ok((row.get(0)?,row.get(1)?,row.get(2)?)),
+            )?;
+            let request: Value = serde_json::from_str(&persisted.2)?;
+            if persisted.0 != effect.command_id || persisted.1 != effect.thread_id || request != effect.request || request["type"] != "provider-turn.steer" {
+                return Err(StoreError::InvalidCommand("Steering follow-up does not match its durable effect.".into()));
+            }
+            Ok(effect.thread_id.clone())
+        },
+        |transaction, _| {
+            let projection = read_projection(transaction,"thread",&effect.thread_id)?.ok_or_else(||StoreError::InvalidCommand("Thread not found.".into()))?;
+            if !projection["thread"]["deletedAt"].is_null() || !projection["thread"]["archivedAt"].is_null() {
+                return Err(StoreError::InvalidCommand("Thread is deleted or archived.".into()));
+            }
+            let find = |field: &str, id: &Value| projection[field].as_array().unwrap().iter().find(|row|row["id"] == *id)
+                .ok_or_else(||StoreError::InvalidCommand(format!("Recorded steering {field} identity is missing.")));
+            let message=find("messages",&effect.request["messageId"])?;
+            let run=find("runs",&message["runId"])?;
+            let turn=find("providerTurns",&effect.request["providerTurnId"])?;
+            let provider=find("providerThreads",&effect.request["providerThreadId"])?;
+            let attempt=find("attempts",&turn["runAttemptId"])?;
+            if turn["status"] != "completed" || turn["providerThreadId"] != provider["id"] || attempt["runId"] != run["id"] || provider["providerSessionId"] != effect.request["providerSessionId"] {
+                return Err(StoreError::InvalidCommand("Recorded steering target has not completed or changed session.".into()));
+            }
+            let mut command=json!({"type":"message.dispatch","commandId":command_id,"threadId":effect.thread_id,"messageId":message["id"],"text":message["text"],"attachments":message["attachments"],"createdBy":message["createdBy"],"creationSource":message["creationSource"],"dispatchMode":{"type":if message.get("delegatedCompletion").is_some(){"queue_after_active"}else{"start_immediately"}}});
+            for field in ["senderThreadId","context","delegatedCompletion","notification"] {
+                if let Some(value)=message.get(field) {command[field]=value.clone()}
+            }
+            if message.get("delegatedCompletion").is_some() {command["modelSelection"]=run["modelSelection"].clone()}
+            plan_message_inner(&command,&projection,now,provider["driver"].as_str().unwrap(),true,Some(transaction))
+        },
+        thread::reduce,
+    )?;
+    Ok(receipt)
+}
+
 pub(crate) fn plan_release(
     command: &Value,
     projection: &Value,
     now: DateTime<Utc>,
+) -> Result<Decision, StoreError> {
+    plan_release_in(command, projection, now, None)
+}
+pub(crate) fn plan_release_in(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    transaction: Option<&rusqlite::Transaction<'_>>,
 ) -> Result<Decision, StoreError> {
     let run = projection["runs"]
         .as_array()
@@ -703,11 +1030,6 @@ pub(crate) fn plan_release(
         .ok_or_else(|| {
             StoreError::InvalidCommand("Run is not awaiting workspace preparation.".into())
         })?;
-    if run["workspacePreparation"]["type"] == "worktree" {
-        return Err(StoreError::InvalidCommand(
-            "Native Git worktree preparation is not yet available.".into(),
-        ));
-    }
     let mut item = projection["turnItems"]
         .as_array()
         .unwrap()
@@ -732,8 +1054,35 @@ pub(crate) fn plan_release(
     run["status"] = json!("starting");
     let thread_id = command["threadId"].as_str().unwrap();
     let command_id = command["commandId"].as_str().unwrap();
+    // The workspace is now known: the run's root checkpoint scope is created with it.
+    let fallback = std::env::current_dir().ok();
+    let scope = crate::message_steering::prepare_root_scope(
+        projection,
+        &run["id"],
+        &run["rootNodeId"],
+        &run["providerThreadId"],
+        fallback.as_deref().and_then(|path| path.to_str()),
+        now,
+        transaction,
+    )?;
+    let mut root = projection["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["id"] == run["rootNodeId"])
+        .cloned()
+        .ok_or_else(|| StoreError::InvalidCommand("Prepared run has no root node.".into()))?;
+    root["checkpointScopeId"] = scope["id"].clone();
     Ok(Decision::Accepted {
         events: vec![
+            event(thread_id, command_id, "checkpoint-scope.created", scope, now),
+            event(
+                thread_id,
+                command_id,
+                "node.updated",
+                checked::<t3_contracts::ExecutionNode>(root)?,
+                now,
+            ),
             event(
                 thread_id,
                 command_id,
@@ -760,6 +1109,23 @@ pub(crate) fn plan_release(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_message_implementing_a_plan_completes_that_active_plan_only() {
+        let plan = |status: &str| json!({"id":"plan:1","threadId":"thread","kind":"proposed_plan","status":status});
+        let projection = |status: &str, project: &str| json!({"thread":{"id":"thread","projectId":project},"plans":[plan(status)]});
+        let reference = json!({"type":"message.dispatch","sourcePlanRef":{"threadId":"thread","planId":"plan:1"}});
+        let (owner, completed) = source_plan_completion(&reference, &projection("active", "project"), None).unwrap().unwrap();
+        assert_eq!((owner.as_str(), completed["status"].as_str()), ("thread", Some("completed")));
+        assert!(source_plan_completion(&json!({"type":"message.dispatch"}), &projection("active", "project"), None).unwrap().is_none());
+        let refused = |projection: &Value, reference: &Value| source_plan_completion(reference, projection, None).unwrap_err().to_string();
+        assert_eq!(refused(&projection("completed", "project"), &reference), "Invalid command: Proposed plan plan:1 is not active.");
+        let missing = json!({"sourcePlanRef":{"threadId":"thread","planId":"plan:2"}});
+        assert_eq!(refused(&projection("active", "project"), &missing), "Invalid command: Proposed plan plan:2 does not exist on thread thread.");
+        // A plan on another thread needs that thread's projection, which only a transaction can read.
+        let elsewhere = json!({"sourcePlanRef":{"threadId":"other","planId":"plan:1"}});
+        assert_eq!(refused(&projection("active", "project"), &elsewhere), "Invalid command: Proposed plan plan:1 does not exist on thread other.");
+    }
     use crate::{launch::ThreadLaunchService, project::ProjectService};
     fn project(store: &Store, path: &std::path::Path) {
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":path}),Utc::now()).unwrap();
@@ -1112,7 +1478,7 @@ mod tests {
         let b = Store::memory().unwrap();
         let lease = a.acquire_runtime_lease().unwrap();
         let settings: t3_contracts::ServerSettings = serde_json::from_value(
-            json!({"providerInstances":{"codex":{"driver":"codex","enabled":false}}}),
+            json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false}}}),
         )
         .unwrap();
         let providers = ProviderRegistry::discover(&settings, std::env::temp_dir().as_path())
@@ -1132,7 +1498,7 @@ mod tests {
         let signal = tokio::net::UnixDatagram::bind(&signal_path).unwrap();
         let binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/codex-provider.py");
-        let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","config":{"binaryPath":binary},"environment":[{"name":"FIXTURE_REQUEST_SIGNAL","value":signal_path}]}}})).unwrap();
+        let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_REQUEST_SIGNAL","value":signal_path}]}}})).unwrap();
         let providers = ProviderRegistry::discover(&settings, directory.path())
             .await
             .unwrap();
@@ -1272,7 +1638,7 @@ mod tests {
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":directory.path()}),Utc::now()).unwrap();
         let binary = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/codex-provider.py");
-        let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","config":{"binaryPath":binary},"environment":[{"name":"FIXTURE_NUMERIC_REQUEST_IDS","value":"1"}]}}})).unwrap();
+        let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_NUMERIC_REQUEST_IDS","value":"1"}]}}})).unwrap();
         let providers = ProviderRegistry::discover(&settings, directory.path())
             .await
             .unwrap();

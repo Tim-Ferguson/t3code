@@ -86,6 +86,10 @@ fn scope_error(scope: AuthEnvironmentScope) -> ApiError {
 }
 
 pub fn router(state: ApiState) -> Router {
+    // Setup scripts of launched worktrees run in the server's terminals.
+    if let (Some(execution), Some(terminals)) = (&state.execution, &state.terminals) {
+        execution.workspace().attach_terminals(terminals.clone());
+    }
     let cors_origins = state.cors_origins.clone();
     Router::new()
         .route("/.well-known/t3/environment", get(environment))
@@ -110,7 +114,10 @@ pub fn router(state: ApiState) -> Router {
             "/api/device-hub/{*path}",
             axum::routing::any(crate::device_hub_proxy::handle),
         )
+        .route("/api/pull-requests/diff", post(pull_request_diff))
         .route("/ws", get(upgrade))
+        .merge(crate::attachment_http::routes())
+        .merge(crate::scheduled_tasks_http::routes())
         .fallback(get(static_asset))
         .layer(axum::middleware::map_response(no_cache))
         .layer(axum::middleware::from_fn_with_state(cors_origins, cors))
@@ -638,9 +645,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeDeviceState"|"provider.auth.subscribe") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -694,6 +701,15 @@ async fn execute_session_unary(
         )
         .await;
     }
+    if crate::provider_manage_rpc::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::provider_manage_rpc::command(&state, &request.tag, request.payload)).await;
+    }
+    if crate::usage_rpc::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::usage_rpc::command(&state, &request.tag, request.payload)).await;
+    }
+    if crate::agent_sessions::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::agent_sessions::command(&state, &request.tag, request.payload)).await;
+    }
 
     if matches!(
         request.tag.as_str(),
@@ -725,6 +741,13 @@ async fn execute_session_unary(
                 Ok(serde_json::to_value(service.snapshot().await).unwrap())
             }
         };
+    }
+    if request.tag == "worktreeSetup.cancel" {
+        return crate::workspace_rpc::cancel(&state, request.payload).await;
+    }
+    if crate::scheduled_tasks_rpc::METHODS.contains(&request.tag.as_str()) {
+        let operate = session.scopes.contains(&AuthEnvironmentScope::OrchestrationOperate);
+        return crate::scheduled_tasks_rpc::command(&state, &request.tag, request.payload, operate).await;
     }
     execute_unary(state, request).await
 }
@@ -812,6 +835,9 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                 if let Some(providers) = state.providers {
                     config["providers"] = json!(providers.snapshots());
                 }
+                crate::keybindings_rpc::overlay(&mut config).await?;
+                crate::project_folders::ManagedProjectFolders::overlay_config(&state.store, &mut config).await;
+                crate::external_launcher::overlay_config(&mut config).await;
                 return Ok(config);
             }
             return Ok(settings);
@@ -912,12 +938,58 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
             }
         };
     }
+    if crate::checkpoint_diff::METHODS.contains(&request.tag.as_str()) {
+        return crate::checkpoint_diff::command(&state.store, &request.tag, request.payload).await;
+    }
+    if crate::attachment_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::attachment_rpc::command(&state.store, &request.tag, request.payload).await;
+    }
+    if crate::thread_search_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::thread_search_rpc::command(&state.store, &request.tag, request.payload).await;
+    }
+    if crate::keybindings_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::keybindings_rpc::command(state.config.as_ref(), &request.tag, request.payload).await;
+    }
+    if crate::mcp_apps::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::mcp_apps::command(&state.store, &request.tag, request.payload)).await;
+    }
+    if crate::trace_diagnostics::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::trace_diagnostics::command(&state.store, &request.tag, request.payload)).await;
+    }
+    if crate::secret_requests::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::secret_requests::command(&state.store, &request.tag, request.payload)).await;
+    }
+    if crate::external_launcher::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::external_launcher::command(&request.tag, request.payload)).await;
+    }
+    if crate::project_clone::METHODS.contains(&request.tag.as_str()) {
+        return Box::pin(crate::project_clone::command(&state, &request.tag, request.payload)).await;
+    }
+    if crate::project_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::project_rpc::command(&state.store, &request.tag, request.payload).await;
+    }
+    if crate::vcs_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::vcs_rpc::command(&state, &request.tag, request.payload).await;
+    }
+    if crate::source_control_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::source_control_rpc::command(&state, &request.tag, request.payload).await;
+    }
+    if crate::pull_request_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::pull_request_rpc::command(&state, &request.tag, request.payload).await;
+    }
+    if crate::git_workflow_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::git_workflow_rpc::command(&state, &request.tag, request.payload).await;
+    }
+    if crate::review_service::METHODS.contains(&request.tag.as_str()) {
+        return crate::review_service::command(&state, &request.tag, request.payload).await;
+    }
     if request.tag.starts_with("terminal.") {
         return terminal_rpc(&state, &request).await;
     }
     if matches!(
         request.tag.as_str(),
         "device.list"
+            | "device.testHost"
             | "device.configure"
             | "device.open"
             | "device.close"
@@ -941,11 +1013,17 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
         .unwrap_or_default()
         .to_owned();
     let write = request.tag == "projects.writeFile";
+    // Deleting a project ends its clone, and removes an unfinished checkout.
+    let deleted_project = (request.tag == "projects.mutate" && request.payload["type"] == "project.delete").then(|| request.payload["projectId"].as_str().unwrap_or_default().to_owned());
+    let store = state.store.clone();
     let result = tokio::task::spawn_blocking(move || unary(&state, &request))
         .await
         .unwrap_or_else(|error| {
             Err(json!({"_tag":"NativeServiceError","message":error.to_string()}))
         });
+    if let (Some(project), true) = (deleted_project, result.is_ok()) {
+        crate::project_clone::of(&store).discard(&project).await;
+    }
     if write && result.is_ok() {
         if let Some(workspace) = workspace {
             tokio::task::spawn_blocking(move || workspace.refresh(&cwd))
@@ -1041,24 +1119,35 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
         "server.probe"=>Ok(json!({})),
         "server.getConfig"=>state.config.clone().ok_or_else(||json!({"_tag":"NativeMethodUnsupportedError","method":request.tag,"message":"Native configuration service is not yet available."})),
         "orchestration.launchThread"=>{
+            // A project whose clone has not landed has no files to work in.
+            if let Some(refusal)=request.payload["projectId"].as_str().and_then(|project|crate::project_clone::refusal(&state.store,project)){return Err(crate::dispatch_error::launch(&request.payload,&StoreError::InvalidCommand(refusal.into())))}
             let service=match &state.providers{Some(providers)=>crate::launch::ThreadLaunchService::with_providers(state.store.clone(),providers.clone()),None=>crate::launch::ThreadLaunchService::new(state.store.clone())};
-            service.launch(request.payload.clone(),Utc::now()).map_err(error)
+            crate::attachment_claims::launch_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&request.payload,|input|service.launch(input.clone(),Utc::now())).map_err(|failure|failure.launch_wire(&request.payload,|error|crate::dispatch_error::launch(&request.payload,&error)))
         },
         "orchestration.dispatchCommand"=>{
-            let receipt=if request.payload["type"].as_str().is_some_and(|kind|kind.starts_with("thread.")) {ThreadService::new(state.store.clone()).dispatch(&request.payload,Utc::now()).map_err(error)?}else{state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?.dispatch(&request.payload,Utc::now()).map_err(error)?};
-            if receipt.status=="rejected"{return Err(json!({"_tag":"OrchestrationV2DispatchCommandError","commandId":receipt.command_id,"commandType":receipt.command_type,"message":"Command rejected.","detail":receipt.error.unwrap_or(Value::Null).to_string()}));}
+            // Every refusal reaches the client as the original's `OrchestrationV2DispatchCommandError`.
+            let refused=|error:StoreError|crate::dispatch_error::dispatch(&request.payload,&error);
+            let now=Utc::now();
+            let receipt=if request.payload["type"].as_str().is_some_and(|kind|kind.starts_with("thread.")) {ThreadService::new(state.store.clone()).dispatch(&request.payload,now).map_err(refused)?}else{let execution=state.execution.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native provider execution is not configured."}))?;crate::attachment_claims::dispatch_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,&request.payload,|command|crate::answer_attachments::respond_with_claims(crate::attachment_service::AttachmentService::for_store(&state.store).as_ref(),&state.store,command,|command|execution.dispatch(command,now)).map_err(|failure|match failure{crate::attachment_claims::ClaimedDispatchError::Store(error)=>error,crate::attachment_claims::ClaimedDispatchError::Claim(message)=>StoreError::InvalidCommand(message)})).map_err(|failure|failure.dispatch_wire(&request.payload,refused))?};
+            if receipt.status=="rejected"{return Err(crate::dispatch_error::rejected(&receipt,receipt.accepted_at==now.to_rfc3339()));}
             Ok(json!({"sequence":receipt.result_sequence}))
         },
         "orchestration.getThreadProjection"=>{
             let id=request.payload["threadId"].as_str().ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":"","message":"threadId is required."}))?;
             ThreadService::new(state.store.clone()).projection(id).map_err(error)?.map(|value|crate::wire_projection::projection(&value)).ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":id,"message":"Thread does not exist."}))
         },
+        "orchestration.getWorkflowScript"=>{
+            // `threadId` only scopes the request; the path is checked against the scripts root alone.
+            let (thread,path)=(request.payload["threadId"].as_str().filter(|text|!text.is_empty()),request.payload["scriptPath"].as_str().filter(|text|!text.is_empty()&&*text==t3_contracts::trim_wire_string(text)));
+            let (Some(_),Some(path))=(thread,path) else{return Err(json!({"_tag":"RpcServerError","reason":"Decode","message":"threadId and scriptPath are required."}))};
+            crate::workflow_script::read(crate::workflow_script::default_root().as_deref(),path).map_err(|error|error.wire())
+        },
         "orchestration.getTurnItem"=>crate::history::HistoryService::new(state.store.clone()).detail(request.payload.clone()).map_err(error),
         "orchestration.getArchivedShellSnapshot"=>{
             let mut snapshot=ThreadService::new(state.store.clone()).shell_snapshot().map_err(error)?;
             snapshot["threads"]=snapshot["archivedThreads"].take();snapshot.as_object_mut().unwrap().remove("archivedThreads");Ok(snapshot)
         },
-        "projects.mutate"=>ProjectService::new(state.store.clone()).mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":error.to_string()})),
+        "projects.mutate"=>ProjectService::new(state.store.clone()).mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)})),
         "projects.readFile"=>{
             let input:t3_contracts::ProjectReadFileInput=serde_json::from_value(request.payload.clone()).map_err(|error|json!({"_tag":"ProjectReadFileError","message":error.to_string()}))?;
             crate::workspace_files::read_file(&input).map_err(|error|error.rpc_error(false,input.cwd.as_str(),input.relative_path.0.as_str()))
@@ -1182,6 +1271,67 @@ async fn provider_auth_stream(
     let _ = output.send(message).await;
 }
 
+/// `provider.install.subscribe`: the install state now, then every change, until the client leaves.
+async fn provider_install_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let input: t3_contracts::ProviderSetupInput = serde_json::from_value(request.payload.clone()).map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))?;
+        let registry = state.providers.as_ref().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Provider registry is not configured."}))?;
+        let (mut next, mut changes) = crate::provider_install::subscribe(registry, &input.instance_id).await.map_err(crate::provider_manage_rpc::setup_wire)?;
+        loop {
+            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active, &request.tag)?;
+            let value = crate::provider_manage_rpc::install_state(next)?;
+            if !chunk(&output, &mut ack, &request.id, vec![value]).await { return Ok(()); }
+            next = loop {
+                match changes.recv().await {
+                    Ok(state) => break state.as_ref().clone(),
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(_) => return Ok::<_, Value>(()),
+                }
+            };
+        }
+    }.await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
+}
+
+/// `subscribeProjectClones`: the list of tracked clones, then the whole list after each change.
+async fn project_clone_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        if !request.payload.is_object() {
+            return Err(json!({"_tag":"SchemaDecodeError","message":"Expected an object."}));
+        }
+        let mut changes = crate::project_clone::of(&state.store).subscribe();
+        loop {
+            let active = state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active, &request.tag)?;
+            let list = changes.borrow_and_update().clone();
+            if !chunk(&output, &mut ack, &request.id, vec![serde_json::to_value(list.as_ref()).expect("typed clone list")]).await { return Ok(()); }
+            if changes.changed().await.is_err() { return Ok::<_, Value>(()); }
+        }
+    }.await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
+}
+
 async fn resource_telemetry_stream(
     request: RpcRequest,
     state: ApiState,
@@ -1218,8 +1368,27 @@ fn device_decode<T: serde::de::DeserializeOwned>(request: &RpcRequest) -> Result
     serde_json::from_value(request.payload.clone())
         .map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))
 }
+/// `device.testHost`. The host to probe is named by the client. One that resolves to this machine
+/// is the local host, summarized without opening a connection. Probing a remote host runs a script
+/// over SSH, which this server does not port, so a remote host answers with the probe's own
+/// failure envelope.
+async fn device_test_host(state: &ApiState, request: &RpcRequest, service: &crate::device_service::DeviceService) -> Result<Value, Value> {
+    let host: t3_contracts::SshDeviceHostConfig = device_decode(request)?;
+    let resolver = state.device_hosts.as_ref().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Device-host resolver is not configured."}))?;
+    let operation_error = |name: &str, message: &str| json!({"_tag":"DeviceOperationError","operation":"probe host","reason":"request_failed","cause":{"name":name,"message":message}});
+    if !resolver.is_local(&host).await {
+        return Err(operation_error("DeviceHostError", "SSH device hosts are not supported by this server."));
+    }
+    match service.inspect().await.hosts.into_iter().next() {
+        Some(summary) => Ok(serde_json::to_value(summary).unwrap()),
+        None => Err(operation_error("Error", "The local device host has no summary.")),
+    }
+}
 async fn device_rpc(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
     let service=state.devices.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Device service is not configured."}))?;
+    if request.tag == "device.testHost" {
+        return device_test_host(state, request, service).await;
+    }
     let result = match request.tag.as_str() {
         "device.list" => {
             let input: t3_contracts::DeviceListInput = device_decode(request)?;
@@ -1453,6 +1622,179 @@ async fn pump_provider_statuses(
     }
 }
 
+/// `scheduledTasks.subscribe`: the task list, then again after every change, until the client leaves.
+async fn scheduled_tasks_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let operate = session.scopes.contains(&AuthEnvironmentScope::OrchestrationOperate);
+        let mut lists = crate::scheduled_tasks_rpc::open_stream(&state, request.payload.clone(), operate)?;
+        while let Some(list) = lists.next().await {
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            if !chunk(&output, &mut ack, &request.id, vec![list?]).await {
+                break;
+            }
+        }
+        Ok::<(), Value>(())
+    }
+    .await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `subscribeWorktreeSetup`: the thread's setup snapshot (or null), then every change.
+async fn worktree_setup_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut snapshots = crate::workspace_rpc::open_stream(&state, &request.payload)?;
+        loop {
+            let snapshot = snapshots.borrow_and_update().clone();
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            let value = serde_json::to_value(snapshot).unwrap_or(Value::Null);
+            if !chunk(&output, &mut ack, &request.id, vec![value]).await {
+                break;
+            }
+            if snapshots.changed().await.is_err() {
+                break;
+            }
+        }
+        Ok::<(), Value>(())
+    }
+    .await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `subscribeVcsStatus`: a status snapshot, then every change, until the client leaves.
+async fn vcs_status_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut events = crate::vcs_rpc::open_status(&state, &request.payload).await?;
+        while let Some(event) = events.next().await {
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            if !chunk(&output, &mut ack, &request.id, vec![event]).await {
+                break;
+            }
+        }
+        Ok::<(), Value>(())
+    }
+    .await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `git.runStackedAction`: each progress event as it happens, then the outcome. The call fails with
+/// the action's error after the `action_failed` event; leaving stops the action.
+async fn git_stacked_action_stream(
+    request: RpcRequest,
+    state: ApiState,
+    _session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut run = crate::git_workflow_rpc::open_stacked_action(&state, request.payload.clone())?;
+        while let Some(event) = run.next().await {
+            if !chunk(&output, &mut ack, &request.id, vec![event]).await {
+                return Ok::<(), Value>(());
+            }
+        }
+        run.finish().await
+    }
+    .await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `pullRequests.subscribeRefreshes`: a revision whenever pull request state held anywhere may
+/// have changed, until the client leaves.
+async fn pull_request_refresh_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut revisions = crate::pull_request_rpc::open_refreshes(&request.payload)?;
+        while let Some(revision) = revisions.next().await {
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|json!({"_tag":"EnvironmentAuthorizationError","message":"Session expired or revoked."}))?;
+            authorize_rpc(&active,&request.tag)?;
+            if !chunk(&output, &mut ack, &request.id, vec![revision]).await {
+                break;
+            }
+        }
+        Ok::<(), Value>(())
+    }
+    .await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `POST /api/pull-requests/diff`: the patch, over HTTP where it compresses.
+async fn pull_request_diff(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::OrchestrationRead)?;
+    let payload = serde_json::from_slice(&body).map_err(|error| {
+        (StatusCode::BAD_REQUEST, Json(json!({"_tag":"SchemaDecodeError","message":error.to_string()})))
+    })?;
+    crate::pull_request_rpc::diff_http(&state, payload)
+        .await
+        .map(Json)
+        .map_err(|(status, error)| (StatusCode::from_u16(status).unwrap_or(StatusCode::BAD_GATEWAY), Json(error)))
+}
+
 async fn config_stream(
     request: RpcRequest,
     state: ApiState,
@@ -1473,6 +1815,9 @@ async fn config_stream(
         let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
         config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);
         if let Some(providers)=providers {config["providers"]=json!(providers);}
+        let mut keybindings=crate::keybindings_rpc::open_stream(&mut config).await?;
+        crate::project_folders::ManagedProjectFolders::overlay_config(&state.store,&mut config).await;
+        crate::external_launcher::overlay_config(&mut config).await;
         let (changes,mut provider_events)=mpsc::unbounded_channel();
         struct Abort(tokio::task::JoinHandle<()>);
         impl Drop for Abort {fn drop(&mut self) {self.0.abort();}}
@@ -1496,6 +1841,7 @@ async fn config_stream(
                     biased;
                     _=service.closed()=>return Ok(()),
                     next=settings.recv()=>break match next {Some(settings)=>json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}}),None=>return Ok(())},
+                    next=keybindings.recv()=>break match next {Some(state)=>crate::keybindings_rpc::updated_event(&state),None=>return Ok(())},
                     next=provider_events.recv(),if provider_active=>match next {
                         Some(providers)=>break json!({"version":1,"type":"providerStatuses","payload":{"providers":providers.as_ref()}}),
                         None=>provider_active=false,

@@ -1,0 +1,94 @@
+{
+  "sessions": {
+    "supportsMultipleProviderThreadsPerSession": false,
+    "supportsModelSwitchInSession": true,
+    "supportsProviderSwitchingViaHandoff": false,
+    "supportsRuntimeModeSwitchInSession": false,
+    "pendingRequestsSurviveRestart": false
+  },
+  "threads": {
+    "canCreateEmptyThread": true,
+    "canReadThreadSnapshot": false,
+    "canRollbackThread": true,
+    "canForkThread": false,
+    "canForkFromTurn": false,
+    "canForkFromSubagentThread": false,
+    "exposesNativeThreadId": true
+  },
+  "turns": {
+    "exposesNativeTurnId": false,
+    "emitsTurnStarted": true,
+    "emitsTurnCompleted": true,
+    "supportsInterrupt": true,
+    "supportsActiveSteering": true,
+    "activeSteeringInterruptsTools": true,
+    "supportsSteeringByInterruptRestart": false,
+    "supportsQueuedMessages": true,
+    "terminalStatusQuality": "strong"
+  },
+  "streaming": {
+    "streamsAssistantText": true,
+    "streamsReasoning": true,
+    "streamsToolOutput": false,
+    "streamsPlanText": false,
+    "emitsMessageCompleted": true
+  },
+  "tools": {
+    "exposesToolItemIds": true,
+    "emitsToolStarted": true,
+    "emitsToolCompleted": true,
+    "emitsToolOutput": true,
+    "supportsMcpTools": true,
+    "supportsDynamicToolCallbacks": false
+  },
+  "approvals": {
+    "supportsCommandApproval": true,
+    "supportsFileReadApproval": true,
+    "supportsFileChangeApproval": true,
+    "supportsApplyPatchApproval": false,
+    "approvalsHaveNativeRequestIds": true,
+    "approvalCallbacksAreLiveOnly": true,
+    "approvalsCanOriginateFromSubagents": false
+  },
+  "planning": {
+    "emitsPlanUpdated": true,
+    "emitsTodoList": true,
+    "emitsProposedPlan": true,
+    "supportsStructuredQuestions": true,
+    "planDeltasHaveItemIds": false
+  },
+  "subagents": {
+    "supportsSubagents": false,
+    "exposesSubagentThreadIds": false,
+    "emitsSubagentLifecycle": false,
+    "canWaitForSubagents": false,
+    "canCloseSubagents": false,
+    "canForkSubagentThread": false
+  },
+  "context": {
+    "acceptsSystemContext": true,
+    "acceptsDeveloperContext": true,
+    "acceptsSyntheticUserContext": false,
+    "canGenerateSummaries": false,
+    "canConsumeHandoffSummaries": false,
+    "supportsDeltaHandoff": false,
+    "supportsFullThreadHandoff": false,
+    "maxRecommendedHandoffChars": null
+  },
+  "checkpointing": {
+    "appCanCheckpointFilesystem": true,
+    "supportsNestedCheckpointScopes": false,
+    "providerCanRollbackConversation": true,
+    "providerRollbackReturnsSnapshot": true,
+    "providerCanReadConversationSnapshot": false
+  },
+  "identity": {
+    "nativeThreadIds": "strong",
+    "nativeTurnIds": "weak",
+    "nativeItemIds": "strong",
+    "nativeRequestIds": "strong"
+  },
+  "runtimePolicy": {
+    "enforcement": "native"
+  }
+}

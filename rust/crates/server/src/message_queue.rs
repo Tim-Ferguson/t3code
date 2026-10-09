@@ -69,7 +69,7 @@ fn execution_order(left: &Value, right: &Value) -> Ordering {
     }
 }
 
-fn latest_executed(projection: &Value) -> Option<&Value> {
+pub(crate) fn latest_executed(projection: &Value) -> Option<&Value> {
     rows(projection, "runs")
         .iter()
         .filter(|run| {
@@ -85,7 +85,7 @@ fn latest_executed(projection: &Value) -> Option<&Value> {
         })
 }
 
-fn root_failure<'a>(projection: &'a Value, run: &Value) -> Option<&'a Value> {
+pub(crate) fn root_failure<'a>(projection: &'a Value, run: &Value) -> Option<&'a Value> {
     if run["status"] != "failed" {
         return None;
     }
@@ -183,6 +183,26 @@ pub(crate) fn allocate(
     context: QueueContext<'_>,
     now: DateTime<Utc>,
 ) -> Result<Decision, StoreError> {
+    allocate_inner(command, projection, context, now, false)
+}
+
+/// Only the durable steer follow-up adapter admits an existing message identity.
+pub(crate) fn allocate_steer_follow_up(
+    command: &Value,
+    projection: &Value,
+    context: QueueContext<'_>,
+    now: DateTime<Utc>,
+) -> Result<Decision, StoreError> {
+    allocate_inner(command, projection, context, now, true)
+}
+
+fn allocate_inner(
+    command: &Value,
+    projection: &Value,
+    context: QueueContext<'_>,
+    now: DateTime<Utc>,
+    reuse_message: bool,
+) -> Result<Decision, StoreError> {
     let thread_id = command["threadId"].as_str().unwrap();
     let command_id = command["commandId"].as_str().unwrap();
     let timestamp = at(now);
@@ -194,9 +214,10 @@ pub(crate) fn allocate(
             "Queued allocation requires an active run.".into(),
         ));
     }
-    if rows(projection, "messages")
-        .iter()
-        .any(|message| message["id"] == command["messageId"])
+    if !reuse_message
+        && rows(projection, "messages")
+            .iter()
+            .any(|message| message["id"] == command["messageId"])
     {
         return Err(StoreError::InvalidCommand(
             "Message id already exists.".into(),
@@ -279,6 +300,26 @@ pub(crate) fn allocate(
             now,
         ));
     }
+    if reuse_message {
+        if let Some(existing) = rows(projection, "turnItems").iter().find(|item| {
+            item["type"] == "user_message" && item["messageId"] == command["messageId"]
+        }) {
+            let mut item = existing.clone();
+            item["runId"] = json!(run_id);
+            item["nodeId"] = json!(node_id);
+            item["providerThreadId"] = provider_thread_id.clone();
+            item["providerTurnId"] = Value::Null;
+            item["inputIntent"] = json!("queued_turn");
+            item["updatedAt"] = json!(timestamp);
+            events.push(event(
+                thread_id,
+                command_id,
+                "turn-item.updated",
+                checked::<t3_contracts::TurnItem>(item)?,
+                now,
+            ));
+        }
+    }
     // A fresh queued message deliberately has no user transcript item or effect.
     Ok(Decision::Accepted {
         events,
@@ -286,12 +327,21 @@ pub(crate) fn allocate(
     })
 }
 
-/// Promote a validated same-provider queued graph. Handoff/checkpoint services
-/// must resolve their additional events before this planner is admitted.
+/// Promote a validated same-provider queued graph and ensure its root scope.
+/// Cross-instance handoff still requires the actual context transfer service.
 pub(crate) fn promote(
     projection: &Value,
     now: DateTime<Utc>,
     failed_run_id: Option<&str>,
+) -> Result<Decision, StoreError> {
+    promote_inner(projection, now, failed_run_id, None)
+}
+
+fn promote_inner(
+    projection: &Value,
+    now: DateTime<Utc>,
+    failed_run_id: Option<&str>,
+    transaction: Option<&rusqlite::Transaction<'_>>,
 ) -> Result<Decision, StoreError> {
     let thread_id = projection["thread"]["id"].as_str().unwrap();
     let mut events = vec![];
@@ -395,6 +445,35 @@ pub(crate) fn promote(
             now,
         ));
     }
+    if root["checkpointScopeId"].is_null() {
+        let cwd = std::env::current_dir()
+            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
+        let scope = crate::message_steering::prepare_root_scope(
+            projection,
+            &run["id"],
+            &root["id"],
+            &provider["id"],
+            cwd.to_str(),
+            now,
+            transaction,
+        )?;
+        let mut root = root.clone();
+        root["checkpointScopeId"] = scope["id"].clone();
+        events.push(event(
+            thread_id,
+            &command_id,
+            "node.updated",
+            checked::<t3_contracts::ExecutionNode>(root)?,
+            now,
+        ));
+        events.push(event(
+            thread_id,
+            &command_id,
+            "checkpoint-scope.created",
+            scope,
+            now,
+        ));
+    }
     let mut provider = provider.clone();
     provider["status"] = json!("not_loaded");
     if provider["firstRunOrdinal"].is_null() {
@@ -418,6 +497,7 @@ pub(crate) fn promote(
     item["startedAt"] = json!(timestamp);
     item["completedAt"] = json!(timestamp);
     item["updatedAt"] = json!(timestamp);
+    let item = crate::notification::notification_turn_item(item, message);
     for (kind, payload) in [
         (
             "provider-thread.updated",
@@ -461,7 +541,7 @@ fn settlement_command(projection: &Value, failed_run_id: Option<&str>) -> Option
 /// Complete selections compare options canonically, as shared/model.ts does.
 /// Stable locale sorting also preserves the source's typed-value distinction
 /// when a boolean and an identically spelled string have equal sort keys.
-fn model_selections_equal(left: &Value, right: &Value) -> bool {
+pub(crate) fn model_selections_equal(left: &Value, right: &Value) -> bool {
     if left["instanceId"] != right["instanceId"] || left["model"] != right["model"] {
         return false;
     }
@@ -601,7 +681,7 @@ pub(crate) fn settle(
             },
             |transaction, _| {
                 let projection = read_projection(transaction, "thread", thread_id)?.unwrap();
-                match promote(&projection, now, failed_run_id) {
+                match promote_inner(&projection, now, failed_run_id, Some(transaction)) {
                     Ok(decision) => Ok(decision),
                     Err(cause) => {
                         let selected = ordered(&projection).first().copied().unwrap();
@@ -823,6 +903,36 @@ mod tests {
                 .unwrap()
                 .is_none()
         );
+    }
+
+    #[test]
+    fn delivery_resolves_missing_root_scope_from_fresh_project_policy() {
+        let (store, id) = fixture();
+        enqueue(&store, &id, "queued");
+        complete_first(&store, &id);
+        let directory = tempfile::tempdir().unwrap();
+        ProjectService::new(store.clone()).mutate(json!({"type":"project.meta.update","commandId":"move-project","projectId":"project","workspaceRoot":directory.path()}),Utc::now()).unwrap();
+        let before = store.projection("thread", &id).unwrap().unwrap();
+        assert!(before["nodes"][1]["checkpointScopeId"].is_null());
+        assert!(settle(&store, &id, None).unwrap());
+        let after = store.projection("thread", &id).unwrap().unwrap();
+        assert_eq!(
+            after["nodes"][1]["checkpointScopeId"],
+            after["checkpointScopes"][0]["id"]
+        );
+        assert_eq!(
+            after["checkpointScopes"][0]["runId"],
+            after["runs"][1]["id"]
+        );
+        assert_eq!(
+            after["checkpointScopes"][0]["nodeId"],
+            after["nodes"][1]["id"]
+        );
+        assert_eq!(after["checkpointScopes"][0]["cwd"], json!(directory.path()));
+        assert_eq!(after["checkpointScopes"][0]["kind"], "root_run");
+        let sequence = store.latest_sequence().unwrap();
+        assert!(!settle(&store, &id, None).unwrap());
+        assert_eq!(sequence, store.latest_sequence().unwrap());
     }
 
     #[test]

@@ -62,7 +62,8 @@ for line in sys.stdin:
                 signal.sendto(json.dumps({"pid": os.getpid()}).encode(), os.environ["T3_SIGNAL_SOCKET"])
             continue
         if scenario == "state" and not first:
-            assert params["capabilities"]["elicitation"] == {"url": {}}, params
+            # A session can ask the user a form as well as a URL consent; discovery handles URLs alone.
+            assert params["capabilities"]["elicitation"] == {"form": {}, "url": {}}, params
             initialization = request
             emit({"jsonrpc": "2.0", "id": "auth:0", "method": "elicitation/create",
                   "params": {"sessionId": session_id, "mode": "url", "message": " Sign in ",

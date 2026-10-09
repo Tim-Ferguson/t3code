@@ -1,0 +1,1960 @@
+[
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour",
+      "utilization": 0.42,
+      "resetsAt": 1800000000
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 42,
+          "resetsAt": "2027-01-15T08:00:00.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour",
+      "utilization": 0.42,
+      "resetsAt": 1800000000
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 42,
+          "resetsAt": "2027-01-15T08:00:00.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day",
+      "utilization": 1.5,
+      "resetsAt": 1800100000
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100,
+          "resetsAt": "2027-01-16T11:46:40.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day",
+      "utilization": 1.5,
+      "resetsAt": 1800100000
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100,
+          "resetsAt": "2027-01-16T11:46:40.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day",
+      "utilization": 0.1
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 10
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day",
+      "utilization": 0.1
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 10
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day_overage_included",
+      "utilization": 0.5,
+      "resetsAt": 1800000000
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "seven_day_fable",
+          "kind": "weekly",
+          "label": "Weekly · Fable",
+          "windowDurationMins": 10080,
+          "usedPercent": 50,
+          "resetsAt": "2027-01-15T08:00:00.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day_overage_included",
+      "utilization": 0.5,
+      "resetsAt": 1800000000
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day_opus",
+      "utilization": 0.5,
+      "resetsAt": 1800000000
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "seven_day_opus",
+      "utilization": 0.5,
+      "resetsAt": 1800000000
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour"
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour"
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "utilization": 0.2
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "utilization": 0.2
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": null
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour",
+      "utilization": 0.2,
+      "resetsAt": -4
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 20
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour",
+      "utilization": 0.2,
+      "resetsAt": -4
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 20
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour",
+      "utilization": 0.2,
+      "resetsAt": 9000000000000000000
+    },
+    "names": {
+      "overageIncluded": "Fable"
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 20
+        }
+      ]
+    }
+  },
+  {
+    "operation": "event",
+    "info": {
+      "rateLimitType": "five_hour",
+      "utilization": 0.2,
+      "resetsAt": 9000000000000000000
+    },
+    "names": {
+      "overageIncluded": null
+    },
+    "output": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 20
+        }
+      ]
+    }
+  },
+  {
+    "operation": "response",
+    "response": {
+      "rate_limits_available": false
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "names": {
+      "overageIncluded": null
+    }
+  },
+  {
+    "operation": "response",
+    "response": {
+      "rate_limits_available": true
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "names": {
+      "overageIncluded": null
+    }
+  },
+  {
+    "operation": "response",
+    "response": {
+      "rate_limits_available": true,
+      "rate_limits": {
+        "five_hour": {
+          "utilization": 12,
+          "resets_at": "2027-01-01T05:00:00Z"
+        },
+        "seven_day": {
+          "utilization": 130,
+          "resets_at": null
+        },
+        "model_scoped": [
+          {
+            "display_name": "Fable 5",
+            "utilization": 33,
+            "resets_at": "2027-01-05T00:00:00.000Z"
+          },
+          {
+            "display_name": "Skipped",
+            "utilization": null,
+            "resets_at": null
+          },
+          {
+            "display_name": "Second",
+            "utilization": 1,
+            "resets_at": "bad"
+          },
+          {
+            "nope": 1
+          }
+        ]
+      }
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "names": {
+      "overageIncluded": "Fable 5"
+    }
+  },
+  {
+    "operation": "response",
+    "response": {
+      "rate_limits_available": true,
+      "rate_limits": {
+        "seven_day": {
+          "utilization": "x"
+        }
+      }
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": []
+    },
+    "names": {
+      "overageIncluded": null
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": null,
+    "update": {
+      "windows": []
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": null
+  },
+  {
+    "operation": "apply",
+    "previous": null,
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": null,
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": null,
+    "update": {
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 140,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 100,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "update": {
+      "windows": []
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80,
+          "resetsAt": "2027-01-01T05:00:00.000Z",
+          "windowDurationMins": 300
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 140,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 100,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    },
+    "update": {
+      "windows": []
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80,
+          "resetsAt": "2027-01-01T05:00:00.000Z",
+          "windowDurationMins": 300
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 140,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 100,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "nextCreditId": "g1"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "update": {
+      "windows": []
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 140,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed",
+        "message": "x"
+      }
+    },
+    "update": {
+      "windows": []
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed",
+        "message": "x"
+      }
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed",
+        "message": "x"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 12,
+          "windowDurationMins": 300
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed",
+        "message": "x"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "usedPercent": 80
+        }
+      ]
+    }
+  },
+  {
+    "operation": "apply",
+    "previous": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed",
+        "message": "x"
+      }
+    },
+    "update": {
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 140,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    },
+    "checkedAt": "2026-10-09T12:05:00.000Z",
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [
+        {
+          "id": "seven_day_new",
+          "kind": "weekly",
+          "label": "Weekly · New",
+          "usedPercent": 100,
+          "resetsAt": "2027-02-01T00:00:00.000Z"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "resolve",
+    "published": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "probed": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed"
+      }
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    }
+  },
+  {
+    "operation": "resolve",
+    "published": null,
+    "probed": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed"
+      }
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed"
+      }
+    }
+  },
+  {
+    "operation": "resolve",
+    "published": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "unsupported"
+      }
+    },
+    "probed": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed"
+      }
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:05:00.000Z",
+      "windows": [],
+      "unavailable": {
+        "reason": "probeFailed"
+      }
+    }
+  },
+  {
+    "operation": "resolve",
+    "published": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "probed": null,
+    "output": null
+  },
+  {
+    "operation": "resolve",
+    "published": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "probed": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    },
+    "output": {
+      "checkedAt": "2026-10-09T12:00:00.000Z",
+      "windows": [
+        {
+          "id": "five_hour",
+          "kind": "session",
+          "label": "Session",
+          "windowDurationMins": 300,
+          "usedPercent": 12,
+          "resetsAt": "2027-01-01T05:00:00.000Z"
+        },
+        {
+          "id": "seven_day",
+          "kind": "weekly",
+          "label": "Weekly",
+          "windowDurationMins": 10080,
+          "usedPercent": 100
+        },
+        {
+          "id": "seven_day_fable_5",
+          "kind": "weekly",
+          "label": "Weekly · Fable 5",
+          "windowDurationMins": 10080,
+          "usedPercent": 33,
+          "resetsAt": "2027-01-05T00:00:00.000Z"
+        },
+        {
+          "id": "seven_day_second",
+          "kind": "weekly",
+          "label": "Weekly · Second",
+          "windowDurationMins": 10080,
+          "usedPercent": 1
+        }
+      ]
+    }
+  },
+  {
+    "operation": "credits",
+    "block": null,
+    "nowMs": 1791547200000,
+    "output": null
+  },
+  {
+    "operation": "credits",
+    "block": "x",
+    "nowMs": 1791547200000,
+    "output": null
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": false
+    },
+    "nowMs": 1791547200000,
+    "output": null
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-01-01T00:00:00Z"
+        }
+      ],
+      "next_grant_id": "g_1"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 1,
+      "nextExpiresAt": "2027-01-01T00:00:00.000Z",
+      "nextCreditId": "g_1"
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-01-01T00:00:00Z"
+        },
+        {
+          "id": "g_2",
+          "resets_left": 2,
+          "usable_now": true,
+          "ends_at": null
+        }
+      ],
+      "next_grant_id": "g_2"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 3,
+      "nextCreditId": "g_2"
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-01-01T00:00:00Z",
+          "paused": true
+        }
+      ],
+      "next_grant_id": "g_1"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2020-01-01T00:00:00Z"
+        }
+      ],
+      "next_grant_id": "g_1"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-02-30T00:00:00Z"
+        }
+      ],
+      "next_grant_id": "g_1"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": false,
+          "ends_at": "2027-01-01T00:00:00Z"
+        }
+      ],
+      "next_grant_id": "g_1"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "BAD ID",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-01-01T00:00:00Z"
+        }
+      ],
+      "next_grant_id": "BAD ID"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-01-01T00:00:00Z"
+        }
+      ],
+      "next_grant_id": "other"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  },
+  {
+    "operation": "credits",
+    "block": {
+      "eligible": true,
+      "grants": [
+        {
+          "id": "g_1",
+          "resets_left": 1,
+          "usable_now": true,
+          "ends_at": "2027-01-01 00:00:00"
+        }
+      ],
+      "next_grant_id": "g_1"
+    },
+    "nowMs": 1791547200000,
+    "output": {
+      "availableCount": 0
+    }
+  }
+]

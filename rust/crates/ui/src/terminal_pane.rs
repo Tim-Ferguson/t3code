@@ -20,6 +20,11 @@ pub(crate) const SURFACE: Asset = asset!("/assets/terminal-surface");
 pub struct Catalog {
     pub panes: Signal<ScopedPanes>,
     pub error: Signal<Option<String>>,
+    /// The terminals the server lists for each pane's thread, kept by the drawer so that a new
+    /// terminal, from any entry point, picks an id nothing else has.
+    known: Signal<std::collections::BTreeMap<String, Vec<String>>>,
+    /// The terminal a pane is asking to close, until the user answers.
+    closing: Signal<Option<(String, String)>>,
     hydrated: Signal<bool>,
     write_allowed: Signal<bool>,
     writer: futures_channel::mpsc::UnboundedSender<String>,
@@ -29,6 +34,8 @@ pub fn use_catalog() -> Catalog {
     let mut error = use_signal(|| None);
     let hydrated = use_signal(|| false);
     let write_allowed = use_signal(|| true);
+    let known = use_signal(std::collections::BTreeMap::new);
+    let closing = use_signal(|| None);
     let (sender, receiver) = use_hook(|| {
         let (sender, receiver) = futures_channel::mpsc::unbounded::<String>();
         (sender, Rc::new(RefCell::new(Some(receiver))))
@@ -50,6 +57,8 @@ pub fn use_catalog() -> Catalog {
     let catalog = Catalog {
         panes,
         error,
+        known,
+        closing,
         hydrated,
         write_allowed,
         writer: sender,
@@ -87,6 +96,66 @@ impl Catalog {
             let bytes = json!({"state":&*panes,"version":4}).to_string();
             let _ = self.writer.unbounded_send(bytes);
         }
+    }
+    /// A terminal id no terminal of this thread has, whether the pane or the server knows it.
+    fn allocate(&self, key: &str) -> String {
+        let mut ids = self.panes.peek().get(key).terminal_ids;
+        let known = self.known.peek();
+        let saved = known.get(key);
+        if let Some(rows) = saved {
+            ids.extend(rows.iter().cloned());
+        }
+        let suffix = saved.is_none().then(|| uuid::Uuid::new_v4().to_string());
+        t3_client::terminal_labels::next_id(&ids, suffix.as_deref())
+    }
+    /// Whether the active group already holds as many terminals as a split may.
+    pub(crate) fn split_blocked(&self, key: &str) -> bool {
+        let panes = self.panes.peek().get(key);
+        t3_client::terminal_drawer::displayed_groups(&panes)
+            .iter()
+            .find(|group| group.id == panes.active_terminal_group_id)
+            .is_some_and(|group| group.terminal_ids.len() >= t3_client::terminal_ui::MAX_PER_GROUP)
+    }
+    /// A new terminal in the thread's drawer, beside the active one when `split` names a
+    /// direction. The drawer opens first when it is closed. This is what the drawer's buttons,
+    /// the shortcuts and the palette all run; false when a split has no room.
+    pub(crate) fn add_terminal(&self, key: &str, split: Option<Direction>) -> bool {
+        if split.is_some() && self.split_blocked(key) {
+            return false;
+        }
+        if !self.panes.peek().get(key).terminal_open {
+            self.change(key, |panes, key| panes.set_open(key, true));
+        }
+        let id = self.allocate(key);
+        self.change(key, |panes, key| panes.upsert(key, &id, split.is_some(), split.unwrap_or(Direction::Horizontal)));
+        true
+    }
+    /// Asks to close a terminal (the active one when none is named); the drawer confirms with
+    /// the user before anything is stopped. False when there is nothing to close.
+    pub(crate) fn request_close(&self, key: &str, id: Option<&str>) -> bool {
+        let panes = self.panes.peek().get(key);
+        let id = id.map(str::to_owned).unwrap_or_else(|| panes.active_terminal_id.clone());
+        if id.is_empty() || !panes.terminal_ids.contains(&id) {
+            return false;
+        }
+        let mut closing = self.closing;
+        closing.set(Some((key.to_owned(), id)));
+        true
+    }
+    /// The drawer button's action, and the `terminal.toggle` command's.
+    pub(crate) fn toggle(&self, key: &str) {
+        let open = self.panes.peek().get(key).terminal_open;
+        self.change(key, |panes, key| panes.set_open(key, !open));
+    }
+    /// Tests have no saved layout to wait for.
+    #[cfg(test)]
+    pub(crate) fn mark_hydrated(&self) {
+        let mut hydrated = self.hydrated;
+        hydrated.set(true);
+    }
+    /// Whether the drawer for a thread is open.
+    pub(crate) fn is_open(&self, key: &str) -> bool {
+        self.panes.read().get(key).terminal_open
     }
     fn focus(&self, state: Store<UiModel>, owner: &crate::terminal_bridge::FocusOwner) {
         let model = state.peek();
@@ -265,6 +334,8 @@ pub fn Drawer(
                     {
                         catalog.change(&key, |panes, key| panes.reconcile(key, &ids));
                     }
+                    let mut known = catalog.known;
+                    known.write().insert(key.clone(), ids.clone());
                     summaries.set(Some(rows));
                 }
                 delay(250).await;
@@ -305,7 +376,9 @@ pub fn Drawer(
         .iter()
         .find(|group| group.id == active_group)
         .is_some_and(|group| group.terminal_ids.len() >= t3_client::terminal_ui::MAX_PER_GROUP);
-    let mut confirm = use_signal(|| None::<String>);
+    // The close question is the catalog's, so the shortcut and the palette ask it too.
+    let mut confirm = catalog.closing;
+    let confirming = confirm.read().clone().filter(|(pane, _)| *pane == key).map(|(_, id)| id);
     let mut height = use_signal(|| panes.terminal_height);
     let mut viewport = use_signal(|| None::<f64>);
     let mut drag = use_signal(|| None::<(i32, f64, f64)>);
@@ -378,7 +451,7 @@ pub fn Drawer(
     };
     rsx! {
      section{class:"terminal-drawer", "data-open":open, "data-thread-terminal-drawer":"", style:if open{format!("height:{}px",*height.read())}else{"height:22px".to_owned()},
-      div{class:"terminal-toggle",button{disabled:!can_read,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|catalog.change(&key,|panes,key|panes.set_open(key,!open))},if open{"Hide terminal"}else{"Terminal"}}}
+      div{class:"terminal-toggle",button{disabled:!can_read,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|catalog.toggle(&key)},if open{"Hide terminal"}else{"Terminal"}}}
       if open {
        div{id:"{resize_id}",class:"terminal-resize",role:"separator","aria-label":"Resize terminal drawer","aria-orientation":"horizontal",
         onpointerdown:{let resize_id=resize_id.clone();move |event:Event<PointerData>|{if event.trigger_button()!=Some(dioxus::html::input_data::MouseButton::Primary){return;}event.prevent_default();let pointer=event.pointer_id();drag.set(Some((pointer,event.client_coordinates().y,*height.peek())));let args=json!({"id":resize_id,"pointer":pointer});let _=document::eval(&format!("document.getElementById({args}.id)?.setPointerCapture({args}.pointer);"));}},
@@ -389,7 +462,7 @@ pub fn Drawer(
       }
       if let Some(error)=&*catalog.error.read(){p{class:"terminal-error",role:"alert","{error}"}}
       div{class:"terminal-body",style:if open{"display:flex"}else{"display:none"},
-       if groups.is_empty(){div{class:"terminal-empty",p{"No terminal sessions for this thread yet."}button{disabled:!can_operate,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,false,Direction::Horizontal));}},"New terminal"}}}
+       if groups.is_empty(){div{class:"terminal-empty",p{"No terminal sessions for this thread yet."}button{disabled:!can_operate,onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{catalog.add_terminal(&key,None);}},"New terminal"}}}
        for group in groups.iter().filter(|group|group.id==active_group) {
         div{class:"terminal-group",style:format!("flex-direction:{}",if group.split_direction==Some(Direction::Vertical){"column"}else{"row"}),
          for id in &group.terminal_ids {
@@ -401,10 +474,10 @@ pub fn Drawer(
         aside{class:if sidebar{"terminal-sidebar"}else{"terminal-floating-actions"},
          div{class:"terminal-toolbar",
           for (direction, label, icon) in [(Direction::Horizontal,"Split horizontally","horizontal"),(Direction::Vertical,"Split vertically","vertical")] {
-           button{disabled:!can_operate||split_limit,"aria-label":label,title:if split_limit{"A split group can contain up to 4 terminals"}else{label},onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,true,direction));}},TerminalIcon{kind:icon}}
+           button{disabled:!can_operate||split_limit,"aria-label":label,title:if split_limit{"A split group can contain up to 4 terminals"}else{label},onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{catalog.add_terminal(&key,Some(direction));}},TerminalIcon{kind:icon}}
           }
-          button{disabled:!can_operate,"aria-label":"New terminal",title:"New terminal",onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{let id=allocate_terminal(&catalog,&key,summaries);catalog.change(&key,|panes,key|panes.upsert(key,&id,false,Direction::Horizontal));}},TerminalIcon{kind:"plus"}}
-          button{disabled:!can_operate,"aria-label":"Close terminal",title:"Close terminal",onclick:{let id=panes.active_terminal_id.clone();move |_|confirm.set(Some(id.clone()))},TerminalIcon{kind:"trash"}}
+          button{disabled:!can_operate,"aria-label":"New terminal",title:"New terminal",onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{catalog.add_terminal(&key,None);}},TerminalIcon{kind:"plus"}}
+          button{disabled:!can_operate,"aria-label":"Close terminal",title:"Close terminal",onclick:{let catalog=catalog.clone();let key=key.clone();move |_|{catalog.request_close(&key,None);}},TerminalIcon{kind:"trash"}}
          }
          if sidebar{div{class:"terminal-session-list",
           for group in &groups {
@@ -412,7 +485,7 @@ pub fn Drawer(
             div{class:"terminal-group-label","{t3_client::terminal_drawer::group_label(group)}"," ",span{"{group.terminal_ids.len()}"}}
             for id in &group.terminal_ids{
              div{class:if panes.active_terminal_id==*id{"terminal-session selected"}else{"terminal-session"},
-              button{class:"terminal-session-close",disabled:!can_operate,"aria-label":format!("Close {}",labels(id)),title:format!("Close {}",labels(id)),onclick:{let id=id.clone();move |_|confirm.set(Some(id.clone()))},TerminalIcon{kind:"trash"}}
+              button{class:"terminal-session-close",disabled:!can_operate,"aria-label":format!("Close {}",labels(id)),title:format!("Close {}",labels(id)),onclick:{let catalog=catalog.clone();let key=key.clone();let id=id.clone();move |_|{catalog.request_close(&key,Some(&id));}},TerminalIcon{kind:"trash"}}
               button{class:"terminal-session-label",title:labels(id),onclick:{let catalog=catalog.clone();let key=key.clone();let id=id.clone();move |_|catalog.change(&key,|panes,key|{let next=panes.get(key).activate(&id);panes.set(key,next);})},"{labels(id)}"}
              }
             }
@@ -421,12 +494,12 @@ pub fn Drawer(
         }
        }
       }
-      if let Some(id)=&*confirm.read(){
+      if let Some(id)=&confirming{
        div{class:"terminal-confirm-backdrop",onclick:move |_|confirm.set(None),
-        div{class:"terminal-confirm",onkeydown:move |event|{if event.key()==Key::Escape{confirm.set(None);}},role:"alertdialog","aria-modal":"true","aria-labelledby":"terminal-close-title",onclick:move |event|event.stop_propagation(),
+        div{class:"terminal-confirm",onkeydown:move |event|{if event.key()==Key::Escape{confirm.set(None);}},role:"alertdialog","aria-modal":"true","aria-label":"Close terminal?","aria-labelledby":"terminal-close-title",onclick:move |event|event.stop_propagation(),
          h3{id:"terminal-close-title","Close terminal \"{labels(id)}\"?"}
          p{"This stops the running process and clears its history."}
-         div{button{autofocus:true,onclick:move |_|confirm.set(None),"Cancel"}button{class:"terminal-destructive",disabled:!can_operate,onclick:{let id=id.clone();let close=close.clone();move |_|{confirm.set(None);close(id.clone());}},"Close terminal"}}
+         div{button{autofocus:true,"aria-label":"Cancel close terminal",onclick:move |_|confirm.set(None),"Cancel"}button{class:"terminal-destructive","aria-label":"Confirm close terminal",disabled:!can_operate,onclick:{let id=id.clone();let close=close.clone();move |_|{confirm.set(None);close(id.clone());}},"Close terminal"}}
         }
        }
       }
@@ -858,20 +931,6 @@ fn reads(state: Store<UiModel>) -> bool {
             .environments
             .allows(id, AuthEnvironmentScope::TerminalRead)
     })
-}
-
-fn allocate_terminal(
-    catalog: &Catalog,
-    key: &str,
-    summaries: Signal<Option<Vec<t3_contracts::TerminalSummary>>>,
-) -> String {
-    let mut ids = catalog.panes.peek().get(key).terminal_ids;
-    let saved = summaries.peek();
-    if let Some(rows) = saved.as_ref() {
-        ids.extend(rows.iter().map(|row| row.terminal_id.to_string()));
-    }
-    let suffix = saved.is_none().then(|| uuid::Uuid::new_v4().to_string());
-    t3_client::terminal_labels::next_id(&ids, suffix.as_deref())
 }
 
 // Lucide v0.564.0 ISC icon paths, matching the original drawer controls.

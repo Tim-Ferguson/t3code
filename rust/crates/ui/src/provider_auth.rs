@@ -84,8 +84,11 @@ pub(crate) fn Authentication(
     #[cfg(test)]
     let probe = try_consume_context::<AuthProbe>();
     let subscription_transport = transport.clone();
+    // A provider that cannot sign in here (a managed runtime in this build) has no sign-in state to
+    // follow, and the server answers the subscription with a failure that is not the user's.
+    let can_authenticate = provider["setup"]["canAuthenticate"] != false;
     use_resource(use_reactive(
-        (&owner, &allowed, &instance),
+        (&owner, &(allowed && can_authenticate), &instance),
         move |(owner, allowed, instance)| {
             let transport = subscription_transport.clone();
             #[cfg(test)]

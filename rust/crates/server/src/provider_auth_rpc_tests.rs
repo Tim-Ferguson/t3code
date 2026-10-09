@@ -48,7 +48,7 @@ async fn phase(socket: &mut Socket, id: u32, wanted: ProviderAuthPhase) -> Provi
 async fn provider_auth_effect_socket_enforces_scope_owner_privacy_cancel_reconnect_and_logout() {
     tokio::time::timeout(std::time::Duration::from_secs(20),async{
         let root=tempfile::tempdir().unwrap();let log=root.path().join("agent.log");
-        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"agent":{"driver":"acpRegistry","enabled":true,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}}})).unwrap();
+        let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"agent":{"driver":"acpRegistry","enabled":true,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}}})).unwrap();
         let registry=ProviderRegistry::discover(&settings,root.path()).await.unwrap();
         let service=ProviderAuthService::new(registry.clone(),root.path().into(),root.path().join("caches"),Arc::new(|_|Box::pin(async{Ok(())})));
         let store=Store::memory().unwrap();let auth=AuthService::new(store.clone(),[47;32],"fixture_auth_socket".into(),"loopback-browser".into()).unwrap();

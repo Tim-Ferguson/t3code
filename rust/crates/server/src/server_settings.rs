@@ -140,6 +140,16 @@ impl Drop for Inner {
 pub struct SettingsService {
     inner: Arc<Inner>,
 }
+/// A reference that does not keep the settings alive. A process-wide singleton holds this, not a
+/// [`SettingsService`]: a clone would keep the worker's command channel open for the life of the
+/// process, and the worker (parked on that channel) would keep a runtime from shutting down.
+#[derive(Clone)]
+pub struct WeakSettings(std::sync::Weak<Inner>);
+impl WeakSettings {
+    pub fn upgrade(&self) -> Option<SettingsService> {
+        self.0.upgrade().map(|inner| SettingsService { inner }).filter(|service| !service.inner.stopped.load(Ordering::Acquire))
+    }
+}
 /// Retain this lease inside admitted native work that can outlive its caller.
 /// Dropping the last lease admits the next settings mutation.
 #[derive(Clone)]
@@ -160,6 +170,9 @@ impl Drop for StartupGuard {
     }
 }
 impl SettingsService {
+    pub fn downgrade(&self) -> WeakSettings {
+        WeakSettings(Arc::downgrade(&self.inner))
+    }
     pub fn settings_path(&self) -> &Path {
         &self.inner.path
     }
@@ -306,7 +319,7 @@ struct Owner {
     listeners: Vec<mpsc::UnboundedSender<ServerSettings>>,
     watcher: Option<SettingsWatch>,
 }
-struct SettingsWatch {
+pub(crate) struct SettingsWatch {
     watcher: notify::RecommendedWatcher,
     targets: Arc<StdMutex<Vec<PathBuf>>>,
     directories: std::collections::HashSet<PathBuf>,
@@ -320,7 +333,7 @@ fn normalized_file(path: &Path) -> PathBuf {
     }
 }
 impl SettingsWatch {
-    fn new(events: mpsc::UnboundedSender<()>) -> Result<Self, notify::Error> {
+    pub(crate) fn new(events: mpsc::UnboundedSender<()>) -> Result<Self, notify::Error> {
         let targets: Arc<StdMutex<Vec<PathBuf>>> = Arc::default();
         let matching = targets.clone();
         let watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
@@ -341,7 +354,7 @@ impl SettingsWatch {
             directories: std::collections::HashSet::new(),
         })
     }
-    fn retarget(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub(crate) fn retarget(&mut self, path: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         use notify::Watcher;
         let target = crate::server_secret_store::resolve_symlink_target(path)?;
         let files = vec![normalized_file(path), normalized_file(&target)];
@@ -623,7 +636,7 @@ fn run(
 pub fn decode_settings(bytes: &[u8]) -> Result<ServerSettings, serde_json::Error> {
     serde_json::from_value(decode_settings_document(bytes)?)
 }
-fn decode_jsonc(bytes: &[u8]) -> Result<Value, serde_json::Error> {
+pub(crate) fn decode_jsonc(bytes: &[u8]) -> Result<Value, serde_json::Error> {
     let raw = String::from_utf8_lossy(bytes);
     static COMMENTS: std::sync::OnceLock<(regex::Regex, regex::Regex, regex::Regex)> =
         std::sync::OnceLock::new();

@@ -23,12 +23,19 @@ pub enum View {
     Connections,
     Providers,
     Appearance,
+    Keybindings,
+    ScheduledTasks,
+    SourceControl,
+    TextGeneration,
+    PullRequests,
 }
 #[derive(Debug, Clone)]
 pub struct PendingMessage {
     pub destination: EnvironmentId,
     pub thread_id: String,
     pub text: String,
+    /// Local ids of the composer attachments this send claims.
+    pub attachments: Vec<String>,
 }
 #[derive(Debug, Clone)]
 pub struct PendingLaunch {
@@ -37,6 +44,7 @@ pub struct PendingLaunch {
     pub text: String,
     pub active_thread: Option<String>,
     pub choices: NewThreadChoices,
+    pub attachments: Vec<String>,
 }
 pub type NewThreadChoices = t3_client::draft_storage::DraftChoices;
 
@@ -63,6 +71,10 @@ pub struct UiModel {
     pub environments: EnvironmentCatalog,
     pub error: Option<String>,
     pub draft: String,
+    /// Composer attachments by draft; only the composer that owns a draft reads its entry.
+    pub draft_attachments:
+        std::collections::BTreeMap<t3_client::draft_storage::DraftTarget, Vec<t3_client::attachments::Attachment>>,
+    pub attachment_error: Option<(t3_client::draft_storage::DraftTarget, String)>,
     pub timeline_send: Option<(String, String)>,
     pub pending_messages: std::collections::BTreeMap<String, PendingMessage>,
     pub new_thread_drafts: std::collections::BTreeMap<(EnvironmentId, String), String>,
@@ -70,6 +82,25 @@ pub struct UiModel {
     pub thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
     pub pending_launches: std::collections::BTreeMap<String, PendingLaunch>,
     pub view: View,
+    pub diff: crate::diff_panel::DiffModel,
+    pub rewind: crate::rollback::Model,
+    pub palette: crate::command_palette::Model,
+    /// Whether the open thread's branch control offers its picker, and how often something has
+    /// asked for it to toggle (the palette, the `composer.branch` shortcut).
+    pub branch_available: bool,
+    pub branch_toggles: u64,
+    pub notices: Vec<crate::notice::Notice>,
+    /// The git action each workspace is running or last failed at, outliving the control that
+    /// started it so that leaving the thread does not interrupt a push.
+    pub git_runs: std::collections::BTreeMap<String, crate::git_control::Run>,
+    /// A notice's call to action asking the control of a workspace to run an action again.
+    pub git_follow: Option<crate::git_control::FollowRequest>,
+    /// The pull request the open thread's panel shows, and the one its branch has to offer.
+    pub pr_panel: Option<crate::pull_request_panel::Target>,
+    pub pr_available: Option<crate::pull_request_panel::Target>,
+    /// The dialog that starts a thread from a pull request, while it is open.
+    pub pr_checkout: Option<crate::pull_request_thread::Open>,
+    pub lifecycle: crate::thread_lifecycle::Model,
     pub dark: bool,
     pub sidebar_open: bool,
 }
@@ -116,6 +147,8 @@ pub struct Transport {
     unary_waiters:
         std::collections::BTreeMap<String, futures_channel::oneshot::Sender<Result<Value, String>>>,
     stream_waiters: std::collections::BTreeMap<String, StreamWaiter>,
+    /// Requests whose failure the caller shows itself, so it stays out of the app-wide banner.
+    reported: std::collections::BTreeSet<String>,
     config_subscription: Option<ConnectionOwner>,
     config_request_id: Option<String>,
     live_config_owner: Option<ConnectionOwner>,
@@ -123,9 +156,12 @@ pub struct Transport {
 struct StreamWaiter {
     sender: futures_channel::mpsc::Sender<Vec<Value>>,
     failure: Rc<RefCell<Option<String>>>,
+    /// What the server failed the stream with, as it sent it, for a caller that reads its parts.
+    cause: Rc<RefCell<Option<Value>>>,
 }
 impl Transport {
     fn fail_waiters(&mut self) {
+        self.reported.clear();
         for (_, waiter) in std::mem::take(&mut self.unary_waiters) {
             let _ = waiter.send(Err("Connection closed before the server replied.".into()));
         }
@@ -225,7 +261,10 @@ pub fn request(
     if let Some(sender) = transport.sender.as_mut() {
         sender.send(ewebsock::WsMessage::Text(frame.to_string()));
     }
-    state.error().set(None);
+    // Clearing an error that is not there would still repaint everything that shows it.
+    if state.peek().error.is_some() {
+        state.error().set(None);
+    }
     Some(id)
 }
 
@@ -291,6 +330,25 @@ pub async fn request_value(
         .map_err(|_| "Request was interrupted.".to_owned())?
 }
 
+/// `request_value` for a caller that shows the failure where it belongs (the rewind dialog, the
+/// branch control): the failure comes back as the `Err` and does not also fill the app banner.
+pub async fn request_value_reported(
+    handle: TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+) -> Result<Value, String> {
+    let id = request(&handle, state, method, payload, RequestKind::Unary).ok_or_else(|| {
+        state.peek().error.clone().unwrap_or_else(|| "Request unavailable.".into())
+    })?;
+    handle.borrow_mut().reported.insert(id.clone());
+    let (sender, receiver) = futures_channel::oneshot::channel();
+    let generation = handle.borrow().socket_generation;
+    handle.borrow_mut().unary_waiters.insert(id.clone(), sender);
+    let _guard = UnaryRequestGuard { handle: handle.clone(), id, generation };
+    receiver.await.map_err(|_| "Request was interrupted.".to_owned())?
+}
+
 struct UnaryRequestGuard {
     handle: TransportHandle,
     id: String,
@@ -304,6 +362,7 @@ impl Drop for UnaryRequestGuard {
         }
         transport.unary_waiters.remove(&self.id);
         transport.stream_waiters.remove(&self.id);
+        transport.reported.remove(&self.id);
         if let Some(frame) = transport.rpc.cancel(&self.id) {
             if let Some(sender) = transport.sender.as_mut() {
                 sender.send(ewebsock::WsMessage::Text(frame.to_string()));
@@ -317,12 +376,18 @@ impl Drop for UnaryRequestGuard {
 pub struct StreamRequest {
     receiver: futures_util::stream::Peekable<futures_channel::mpsc::Receiver<Vec<Value>>>,
     failure: Rc<RefCell<Option<String>>>,
+    cause: Rc<RefCell<Option<Value>>>,
     state: Store<UiModel>,
     destination: EnvironmentId,
     ended: bool,
     _guard: UnaryRequestGuard,
 }
 impl StreamRequest {
+    /// The error the server ended the stream with, when it did and this client has not lost the
+    /// connection instead.
+    pub(crate) fn cause(&self) -> Option<Value> {
+        self.cause.borrow().clone()
+    }
     #[cfg(test)]
     pub(crate) fn request_id(&self) -> String {
         self._guard.id.clone()
@@ -403,6 +468,7 @@ pub fn request_stream(
     // admitted chunk. Its ACK is sent on consumption, never in the socket loop.
     let (sender, receiver) = futures_channel::mpsc::channel(0);
     let failure = Rc::new(RefCell::new(None));
+    let cause = Rc::new(RefCell::new(None));
     let generation = handle.borrow().socket_generation;
     let destination = handle
         .borrow()
@@ -414,11 +480,13 @@ pub fn request_stream(
         StreamWaiter {
             sender,
             failure: failure.clone(),
+            cause: cause.clone(),
         },
     );
     Ok(StreamRequest {
         receiver: receiver.peekable(),
         failure,
+        cause,
         state,
         destination,
         ended: false,
@@ -669,6 +737,35 @@ pub fn forget_environment(
         .new_thread_choices()
         .write()
         .retain(|(owner, _), _| owner != destination);
+    state
+        .draft_attachments()
+        .write()
+        .retain(|target, _| target.environment != destination.as_str());
+    state.attachment_error().set(None);
+}
+
+/// Whether the live connection is to `environment`, so its RPCs and signed URLs apply.
+pub fn connected_to(handle: &TransportHandle, state: Store<UiModel>, environment: &str) -> bool {
+    let transport = handle.borrow();
+    state.peek().status == ConnectionStatus::Connected
+        && transport.sender.is_some()
+        && transport.destination.as_ref().map(EnvironmentId::as_str) == Some(environment)
+        && state.peek().destination.as_ref().map(EnvironmentId::as_str) == Some(environment)
+}
+/// Resolves a server-relative URL (upload and asset URLs) against the connected
+/// environment's own address, so remote and tunnelled connections work. None once the
+/// connection no longer belongs to `environment`.
+pub fn http_url(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    environment: &str,
+    relative: &str,
+) -> Option<String> {
+    if !connected_to(handle, state, environment) {
+        return None;
+    }
+    let endpoint = handle.borrow().endpoint.clone()?;
+    Some(endpoint.http(relative).to_string())
 }
 
 fn cancel_thread_subscription(handle: &TransportHandle) {
@@ -783,10 +880,20 @@ pub fn launch_thread(
         drop(owned);
         fail(
             state,
-            "This saved draft contains attachments or context that the Rust composer cannot send yet. The original draft was preserved; open it in the original app to send all content.",
+            "This saved draft contains context that the Rust composer cannot send yet. The original draft was preserved; open it in the original app to send all content.",
         );
         return None;
     }
+    let target =
+        t3_client::draft_storage::DraftTarget::project(destination.to_string(), project);
+    let (attachment_ids, attachments) = match crate::attachments::for_send(state, &target) {
+        Ok(sendable) => sendable,
+        Err(error) => {
+            drop(owned);
+            fail(state, error);
+            return None;
+        }
+    };
     let config = owned.typed_config.as_ref()?;
     let normalized =
         t3_client::new_thread::launch_selection(config, &owned.client_settings, selection, mode);
@@ -799,11 +906,20 @@ pub fn launch_thread(
         return None;
     };
     drop(owned);
-    let mut input = json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":"New thread","generateTitle":false,"modelSelection":selection,"runtimeMode":mode,"interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":workspace});
+    // The thread starts with the original's temporary title; `orchestration.launchThread` has no
+    // title generation for an initial message (the server refuses `generateTitle` there).
+    let title = {
+        let (image, file) = t3_client::thread_title::first_attachment_names(&json!(attachments));
+        t3_client::thread_title::title_seed(initial_text.unwrap_or_default(), image.as_deref(), file.as_deref())
+    };
+    let mut input = json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":title,"generateTitle":false,"modelSelection":selection,"runtimeMode":mode,"interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":workspace});
     let text = initial_text.filter(|text| !text.trim().is_empty());
-    if let Some(text) = text {
-        input["initialMessage"] =
-            json!({"messageId":uuid::Uuid::new_v4().to_string(),"text":text,"attachments":[]});
+    if text.is_some() || !attachments.is_empty() {
+        input["initialMessage"] = json!({"messageId":uuid::Uuid::new_v4().to_string(),"text":text.unwrap_or_default(),"attachments":attachments});
+        if !attachments.is_empty() {
+            // Claimed uploads are filed under the thread, which must therefore be named up front.
+            input["threadId"] = json!(uuid::Uuid::new_v4().to_string());
+        }
     }
     // Validate the complete wire shape before creating a correlated mutation.
     let input = match serde_json::from_value::<t3_contracts::ThreadLaunchInput>(input)
@@ -830,6 +946,7 @@ pub fn launch_thread(
             text: text.unwrap_or_default().into(),
             active_thread,
             choices,
+            attachments: attachment_ids,
         },
     );
     Some(id)
@@ -862,15 +979,35 @@ pub fn stop_thread(handle: &TransportHandle, state: Store<UiModel>, thread_id: &
     }
 }
 
+/// How one send differs from "send the draft": how it is delivered to a running thread, a plan it
+/// accepts, the mode it switches the thread to, the text it sends instead of the draft, or the
+/// queued message it replaces.
+#[derive(Default, Clone)]
+pub struct SendOptions {
+    /// `auto`, `queue`, `steer` or `restart` (`resolveComposerDispatchMode`); `auto` when empty.
+    pub mode: Option<&'static str>,
+    pub source_plan: Option<Value>,
+    pub interaction_mode: Option<&'static str>,
+    pub text: Option<String>,
+    pub edit_run: Option<String>,
+}
+
 pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
+    send_with(handle, state, SendOptions::default());
+}
+
+pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendOptions) {
     let model = state.peek();
     let Some(thread_id) = model.active_thread.clone() else {
         return;
     };
-    let text = model.draft.clone();
+    let text = options.text.clone().unwrap_or_else(|| model.draft.clone());
     let Some(destination) = model.destination.clone() else {
         return;
     };
+    if crate::rollback::is_rewinding(state, &(destination.to_string(), thread_id.clone())) {
+        return;
+    }
     if crate::draft_storage::has_unrendered(
         state,
         &t3_client::draft_storage::DraftTarget::thread(destination.to_string(), thread_id.clone()),
@@ -878,11 +1015,21 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
         drop(model);
         fail(
             state,
-            "This saved draft contains attachments or context that the Rust composer cannot send yet. The original draft was preserved; open it in the original app to send all content.",
+            "This saved draft contains context that the Rust composer cannot send yet. The original draft was preserved; open it in the original app to send all content.",
         );
         return;
     }
-    if text.trim().is_empty()
+    let target =
+        t3_client::draft_storage::DraftTarget::thread(destination.to_string(), thread_id.clone());
+    let (attachment_ids, attachments) = match crate::attachments::for_send(state, &target) {
+        Ok(sendable) => sendable,
+        Err(error) => {
+            drop(model);
+            fail(state, error);
+            return;
+        }
+    };
+    if (text.trim().is_empty() && attachments.is_empty())
         || model
             .pending_messages
             .values()
@@ -938,6 +1085,12 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
         &(destination.clone(), thread_id.clone()),
         &choices,
     );
+    // The server titles the thread from its first message when it is sent a seed to show until
+    // the generated title arrives; later messages leave the title alone.
+    let title_seed = {
+        let (image, file) = t3_client::thread_title::first_attachment_names(&json!(attachments));
+        t3_client::thread_title::title_seed(&text, image.as_deref(), file.as_deref())
+    };
     let pending_id = uuid::Uuid::new_v4().to_string();
     let generation = handle.borrow().generation;
     state.pending_messages().write().insert(
@@ -946,6 +1099,7 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
             destination: destination.clone(),
             thread_id: thread_id.clone(),
             text: text.clone(),
+            attachments: attachment_ids,
         },
     );
     let handle = handle.clone();
@@ -970,13 +1124,37 @@ pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
             state.pending_messages().write().remove(&pending_id);
             return;
         }
+        if let Some(mode) = options.interaction_mode.filter(|mode| serde_json::to_value(thread.interaction_mode).ok().as_ref().and_then(Value::as_str) != Some(*mode)) {
+            let result = request_value(handle.clone(),state,"orchestration.dispatchCommand",json!({"type":"thread.interaction-mode.set","commandId":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"interactionMode":mode})).await;
+            if let Err(error) = result {
+                if owns_pending_send(&handle, state, generation, &destination, &pending_id) {
+                    fail(state, error);
+                }
+                state.pending_messages().write().remove(&pending_id);
+                return;
+            }
+            if !owns_pending_send(&handle, state, generation, &destination, &pending_id) {
+                state.pending_messages().write().remove(&pending_id);
+                return;
+            }
+        }
         let message_id = uuid::Uuid::new_v4().to_string();
-        let id = command(
-            &handle,
-            state,
-            "message.dispatch",
-            json!({"threadId":thread_id,"messageId":message_id,"modelSelection":selection,"text":text,"attachments":[],"createdBy":"user","creationSource":creation_source(),"dispatchMode":{"type":"start_immediately"},"deliveryIntent":"auto"}),
-        );
+        let id = if let Some(run_id) = options.edit_run.clone() {
+            command(&handle, state, "queued-run.edit", json!({"threadId":thread_id,"runId":run_id,"text":text,"attachments":attachments}))
+        } else {
+            let mode = options.mode.unwrap_or("auto");
+            let mut payload = json!({"threadId":thread_id,"messageId":message_id,"modelSelection":selection,"text":text,"titleSeed":title_seed,"attachments":attachments,"createdBy":"user","creationSource":creation_source()});
+            if mode == "queue" {
+                payload["dispatchMode"] = json!({"type":"queue_after_active"});
+            } else {
+                payload["dispatchMode"] = json!({"type":"start_immediately"});
+                payload["deliveryIntent"] = json!(mode);
+            }
+            if let Some(plan) = options.source_plan.clone() {
+                payload["sourcePlanRef"] = plan;
+            }
+            command(&handle, state, "message.dispatch", payload)
+        };
         if id.is_some() {
             state.timeline_send().set(Some((
                 serde_json::to_string(&(destination.as_str(), &thread_id))
@@ -1112,12 +1290,17 @@ async fn authenticated_json(
     read_json(request, token, path).await
 }
 
-async fn read_json(
+async fn read_json(request: reqwest::RequestBuilder, token: &str, path: &str) -> Result<Value, String> {
+    read_json_within(request, token, path, 15).await
+}
+
+async fn read_json_within(
     mut request: reqwest::RequestBuilder,
     token: &str,
     path: &str,
+    seconds: u64,
 ) -> Result<Value, String> {
-    request = request.timeout(std::time::Duration::from_secs(15));
+    request = request.timeout(std::time::Duration::from_secs(seconds));
     if !token.is_empty() {
         request = request.bearer_auth(token);
     }
@@ -1216,7 +1399,25 @@ pub async fn load_earlier(handle: TransportHandle, state: Store<UiModel>) -> Res
     Ok(())
 }
 
-async fn delay(milliseconds: u64) {
+/// A pull request's patch, read over HTTP at the connected environment's own address (so remote
+/// and tunnelled connections work) with the connection's credential. The answer is dropped, as an
+/// error, when the connection it was asked on is no longer the one the caller is on.
+pub async fn post_environment_json(handle: &TransportHandle, state: Store<UiModel>, path: &str, payload: &Value) -> Result<Value, String> {
+    let Some(owner) = response_owner(handle, state) else { return Err("Reconnect to read this.".into()) };
+    let (endpoint, token) = {
+        let transport = handle.borrow();
+        let Some(endpoint) = transport.endpoint.clone() else { return Err("Connect to a server to read this.".into()) };
+        (endpoint, transport.bearer_token.clone())
+    };
+    let request = reqwest::Client::new().post(endpoint.http(path)).header("x-t3-orchestration-protocol", "2").json(payload);
+    let answer = read_json_within(request, &token, path, 60).await;
+    if response_owner(handle, state) != Some(owner) {
+        return Err("The connection changed while this was being read.".into());
+    }
+    answer
+}
+
+pub(crate) async fn delay(milliseconds: u64) {
     #[cfg(target_arch = "wasm32")]
     gloo_timers::future::TimeoutFuture::new(milliseconds.min(u32::MAX as u64) as u32).await;
     #[cfg(not(target_arch = "wasm32"))]
@@ -1673,6 +1874,7 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             }
         }
         RpcEvent::Complete { id, method, value } => {
+            let reported = handle.borrow().reported.contains(&id);
             handle.borrow_mut().stream_waiters.remove(&id);
             if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
                 let _ = waiter.send(Ok(value.clone()));
@@ -1721,7 +1923,11 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                     }
                 }
             }
-            finish_pending_message(state, &id, true);
+            // A reply to a request that shows its own answer is not a message's receipt, and
+            // clearing the map for it would repaint the composer for every status refresh.
+            if !reported {
+                finish_pending_message(state, &id, true);
+            }
         }
         RpcEvent::Failed { id, method, cause } => {
             let optional_config = method == "subscribeServerConfig"
@@ -1734,8 +1940,13 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
                     ],
                 );
             if let Some(waiter) = handle.borrow_mut().stream_waiters.remove(&id) {
+                *waiter.cause.borrow_mut() = Some(cause.clone());
                 if !optional_config {
-                    *waiter.failure.borrow_mut() = Some(rpc_error_message(&cause));
+                    *waiter.failure.borrow_mut() = Some(if method == t3_client::vcs::SUBSCRIBE_STATUS {
+                        t3_client::vcs::failure_message(&cause)
+                    } else {
+                        rpc_error_message(&cause)
+                    });
                 }
             }
             // The config consumer owns its epoch's errors. Optional legacy
@@ -1743,12 +1954,40 @@ fn apply_rpc_event(handle: &TransportHandle, state: Store<UiModel>, event: RpcEv
             if method == "subscribeServerConfig" {
                 return;
             }
+            // An expired or deleted attachment is an answer the attachment UI shows
+            // itself, not a request failure. So is a diff that cannot be produced: the
+            // diff panel shows the reason beside a retry, not in the app-wide banner.
+            let missing_attachment = method == "assets.createUrl"
+                && has_rpc_error_tag(&cause, &["AssetAttachmentNotFoundError"]);
+            let diff_request = matches!(
+                method.as_str(),
+                t3_client::checkpoints::TURN_DIFF | t3_client::checkpoints::FULL_THREAD_DIFF
+            );
+            // Source control failures read from their parts, and the branch control shows them.
+            let vcs_request = method.starts_with("vcs.") || method == t3_client::vcs::SUBSCRIBE_STATUS;
+            let reported = handle.borrow_mut().reported.remove(&id);
             if let Some(waiter) = handle.borrow_mut().unary_waiters.remove(&id) {
-                let _ = waiter.send(Err(rpc_error_message(&cause)));
+                let _ = waiter.send(Err(if missing_attachment {
+                    crate::attachments::ASSET_NOT_FOUND.into()
+                } else if diff_request {
+                    t3_client::checkpoints::failure_message(&cause)
+                } else if vcs_request {
+                    t3_client::vcs::failure_message(&cause)
+                } else if let Some(message) = method.starts_with("pullRequests.").then(|| t3_client::pull_request::failure_message(&cause)).flatten() {
+                    message
+                } else if let Some(message) = t3_client::provider_manage::failure_message(&cause) {
+                    message
+                } else {
+                    rpc_error_message(&cause)
+                }));
             }
             finish_pending_message(state, &id, false);
-            state.pending_launches().write().remove(&id);
-            fail(state, rpc_error_message(&cause));
+            if state.pending_launches().peek().contains_key(&id) {
+                state.pending_launches().write().remove(&id);
+            }
+            if !missing_attachment && !diff_request && !vcs_request && !reported {
+                fail(state, rpc_error_message(&cause));
+            }
         }
         RpcEvent::Defect(error) => fail(state, rpc_error_message(&error)),
         _ => {}
@@ -1798,6 +2037,16 @@ fn finish_pending_launch(
             ),
         );
     }
+    // The launch claimed these uploads, so they leave the draft whatever else changed.
+    // After the acknowledgement above, which resets the saved attachment list.
+    crate::attachments::sent(
+        state,
+        &t3_client::draft_storage::DraftTarget::project(
+            pending.destination.to_string(),
+            pending.project_id.clone(),
+        ),
+        &pending.attachments,
+    );
     let current = {
         let model = state.peek();
         model.destination.as_ref() == Some(&pending.destination)
@@ -1837,6 +2086,11 @@ fn decode_thread_stream(value: Value) -> Result<Value, String> {
 }
 
 fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
+    // Every reply passes here, and a write to the map repaints the composer even when the reply
+    // is not a message's (a refresh, a git action), so only a pending message is written.
+    if !state.pending_messages().peek().contains_key(id) {
+        return;
+    }
     let pending = state.pending_messages().write().remove(id);
     let Some(pending) = pending.filter(|_| success) else {
         return;
@@ -1855,7 +2109,7 @@ fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
     let unchanged_saved =
         state.peek().draft_storage.document.borrow().prompt(&target) == Some(pending.text.as_str());
     if unchanged_saved {
-        crate::draft_storage::acknowledge_content(state, target);
+        crate::draft_storage::acknowledge_content(state, target.clone());
     }
     if current && *state.draft().peek() == pending.text {
         state.draft().set(String::new());
@@ -1867,6 +2121,8 @@ fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
             ),
         );
     }
+    // After the acknowledgements above, which reset the saved attachment list.
+    crate::attachments::sent(state, &target, &pending.attachments);
     if let Some(record) = state
         .environments()
         .write()
@@ -1880,16 +2136,24 @@ fn finish_pending_message(state: Store<UiModel>, id: &str, success: bool) {
 }
 
 fn rpc_error_message(value: &Value) -> String {
-    if let Some(message) = value["message"].as_str() {
-        return message.to_owned();
+    // Most errors say `message`; the source control repository errors say `detail`, with what
+    // actually went wrong in their cause.
+    let text = |error: &Value| {
+        error["message"].as_str().map(str::to_owned).or_else(|| {
+            let detail = error["detail"].as_str()?;
+            Some(match error["cause"]["message"].as_str() {
+                Some(cause) if !cause.is_empty() && cause != detail => format!("{detail} {cause}"),
+                _ => detail.to_owned(),
+            })
+        })
+    };
+    if let Some(message) = text(value) {
+        return message;
     }
     if let Some(causes) = value.as_array() {
         for cause in causes {
-            if let Some(message) = cause["error"]["message"]
-                .as_str()
-                .or_else(|| cause["defect"].as_str())
-            {
-                return message.to_owned();
+            if let Some(message) = text(&cause["error"]).or_else(|| cause["defect"].as_str().map(str::to_owned)) {
+                return message;
             }
         }
     }
@@ -2010,6 +2274,7 @@ mod tests {
                 PendingMessage {
                     destination: environment_a.clone(),
                     thread_id: "same-thread".into(),
+                    attachments: vec![],
                     text: "identical text".into(),
                 },
             );
@@ -2018,6 +2283,7 @@ mod tests {
                 PendingMessage {
                     destination: environment_b.clone(),
                     thread_id: "other-thread".into(),
+                    attachments: vec![],
                     text: "original text".into(),
                 },
             );
@@ -2026,6 +2292,7 @@ mod tests {
                 PendingMessage {
                     destination: environment_b.clone(),
                     thread_id: "same-thread".into(),
+                    attachments: vec![],
                     text: "identical text".into(),
                 },
             );
@@ -2054,6 +2321,7 @@ mod tests {
             PendingMessage {
                 destination: environment_b,
                 thread_id: "same-thread".into(),
+                attachments: vec![],
                 text: "identical text".into(),
             },
         );
@@ -2082,6 +2350,7 @@ mod tests {
                 PendingLaunch {
                     destination: a.clone(),
                     project_id: "same-project".into(),
+                    attachments: vec![],
                     text: "original".into(),
                     active_thread: None,
                     choices: NewThreadChoices::default(),
@@ -2111,6 +2380,7 @@ mod tests {
             PendingLaunch {
                 destination: a,
                 project_id: "same-project".into(),
+                attachments: vec![],
                 text: "edited while pending".into(),
                 active_thread: None,
                 choices: NewThreadChoices::default(),
@@ -2135,6 +2405,7 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
+                attachments: vec![],
                 text: String::new(),
                 active_thread: None,
                 choices: NewThreadChoices::default(),
@@ -2159,6 +2430,7 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
+                attachments: vec![],
                 text: "retain after malformed receipt".into(),
                 active_thread: None,
                 choices: NewThreadChoices::default(),
@@ -2218,6 +2490,7 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
+                attachments: vec![],
                 text: "same prompt".into(),
                 active_thread: None,
                 choices: NewThreadChoices {
@@ -2351,6 +2624,7 @@ mod tests {
             StreamWaiter {
                 sender,
                 failure: Rc::default(),
+                cause: Rc::default(),
             },
         );
         drop(guard);
@@ -2378,10 +2652,74 @@ mod tests {
     }
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "fixture_server.rs"]
+pub(crate) mod fixture_server;
+
 #[cfg(test)]
 #[path = "transport_tests.rs"]
 pub(crate) mod transport_tests;
 
+#[cfg(all(test, unix))]
+#[path = "provider_manage_tests.rs"]
+mod provider_manage_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "attachment_tests.rs"]
+mod attachment_tests;
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "provider_auth_tests.rs"]
 mod provider_auth_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "diff_tests.rs"]
+pub(crate) mod diff_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "review_tests.rs"]
+mod review_tests;
+
+#[cfg(all(test, unix))]
+#[path = "git_action_tests.rs"]
+mod git_action_tests;
+
+#[cfg(all(test, unix))]
+#[path = "pull_request_tests.rs"]
+mod pull_request_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_title_tests.rs"]
+mod thread_title_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "rollback_tests.rs"]
+mod rollback_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "branch_tests.rs"]
+mod branch_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "keys_tests.rs"]
+pub(crate) mod keys_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "scheduled_tasks_tests.rs"]
+mod scheduled_tasks_tests;
+
+#[cfg(all(test, unix))]
+#[path = "source_control_tests.rs"]
+pub(crate) mod source_control_tests;
+
+#[cfg(all(test, unix))]
+#[path = "fake_github.rs"]
+pub(crate) mod fake_github;
+
+#[cfg(all(test, unix))]
+#[path = "lifecycle_tests.rs"]
+mod lifecycle_tests;
+
+#[cfg(all(test, unix))]
+#[path = "text_generation_tests.rs"]
+mod text_generation_tests;

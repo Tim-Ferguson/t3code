@@ -1,0 +1,157 @@
+{"type":"fetchDetail","stderr":"","result":null}
+{"type":"fetchDetail","stderr":"fatal: Authentication failed for","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"git@example.com: Permission denied (publickey).","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"fatal: could not read Username: terminal prompts disabled","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"fatal: could not read Password for 'https://x@y'","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"fatal: Could not resolve host: example.com","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"Could not resolve hostname example.com","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"ssh: Could not resolve hostname x","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"ssh: connect to host example.com port 22: Connection refused","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"ssh: connect to host example.com port 22: Connection timed out","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"ssh: connect to host h port 22: Network is unreachable","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"fatal: unable to access 'https://example.com/repo.git/': Could not resolve host: example.com","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"fatal: unable to access 'https://e/r.git/': Failed to connect to e port 443","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"remote: Repository not found.","result":"Git could not access the remote repository. Check the remote URL and repository permissions on the server."}
+{"type":"fetchDetail","stderr":"remote: Repository not found","result":"Git could not access the remote repository. Check the remote URL and repository permissions on the server."}
+{"type":"fetchDetail","stderr":"fatal: repository 'https://x/y.git/' not found","result":"Git could not access the remote repository. Check the remote URL and repository permissions on the server."}
+{"type":"fetchDetail","stderr":"fatal: remote does not appear to be a git repository","result":"Git could not access the remote repository. Check the remote URL and repository permissions on the server."}
+{"type":"fetchDetail","stderr":"error: cannot lock ref 'refs/remotes/origin/main': is at abc but expected def","result":"Git could not update a local reference. Another Git operation or a stale lock may be blocking the fetch; check the repository on the server, then retry."}
+{"type":"fetchDetail","stderr":"fatal: cannot lock ref x","result":"Git could not update a local reference. Another Git operation or a stale lock may be blocking the fetch; check the repository on the server, then retry."}
+{"type":"fetchDetail","stderr":"fatal: Unable to create '/repo/.git/FETCH_HEAD.lock': File exists.","result":"Git could not update a local reference. Another Git operation or a stale lock may be blocking the fetch; check the repository on the server, then retry."}
+{"type":"fetchDetail","stderr":"remote: Help: authentication failed, connection refused, cannot lock ref\nremote: unrelated service error","result":null}
+{"type":"fetchDetail","stderr":"fatal: unexpected remote failure","result":null}
+{"type":"fetchDetail","stderr":"  fatal: Authentication failed  \r\nmore","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"FATAL: AUTHENTICATION FAILED","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"warning: x\nfatal: Could not resolve host: h\n","result":"Git could not reach the remote. Check the server's network connection and remote host, then retry."}
+{"type":"fetchDetail","stderr":"fatal: Authentication failedx","result":null}
+{"type":"fetchDetail","stderr":"fatal: Authentication failed for 'https://user:secret-token@example.com/private?token=secret-token'","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"fetchDetail","stderr":"remote: fatal: Authentication failed","result":null}
+{"type":"fetchDetail","stderr":"hook: Permission denied (publickey)","result":"Git could not authenticate with the remote. Check Git credentials or SSH access on the server, then retry."}
+{"type":"reviewNumstat","stdout":"1\t2\ta.txt\u0000","result":[{"path":"a.txt","previousPath":null,"additions":1,"deletions":2}]}
+{"type":"reviewNumstat","stdout":"-\t-\tbin.dat\u0000","result":[{"path":"bin.dat","previousPath":null,"additions":0,"deletions":0}]}
+{"type":"reviewNumstat","stdout":"5\t1\t\u0000before.ts\u0000after.ts\u0000","result":[{"path":"after.ts","previousPath":"before.ts","additions":5,"deletions":1}]}
+{"type":"reviewNumstat","stdout":"1\t0\ttab\tand\nnewline.txt\u0000","result":[{"path":"tab\tand\nnewline.txt","previousPath":null,"additions":1,"deletions":0}]}
+{"type":"reviewNumstat","stdout":"1\t1\ta\u00002\t2\tb\u0000","result":[{"path":"a","previousPath":null,"additions":1,"deletions":1},{"path":"b","previousPath":null,"additions":2,"deletions":2}]}
+{"type":"reviewNumstat","stdout":"","result":[]}
+{"type":"reviewNumstat","stdout":"garbage\u0000","result":[]}
+{"type":"reviewNumstat","stdout":"3\t4\t\u0000only-previous\u0000","result":[{"path":"","previousPath":"only-previous","additions":3,"deletions":4}]}
+{"type":"reviewNumstat","stdout":"0\t0\t\u0000old name\u0000new name\u0000-\t-\t\u0000x\u0000y\u0000","result":[{"path":"new name","previousPath":"old name","additions":0,"deletions":0},{"path":"y","previousPath":"x","additions":0,"deletions":0}]}
+{"type":"reviewNumstat","stdout":"12\t34\t [literal].txt\u0000","result":[{"path":" [literal].txt","previousPath":null,"additions":12,"deletions":34}]}
+{"type":"reviewNumstat","stdout":"1\t1\t\u0000a\u0000","result":[{"path":"","previousPath":"a","additions":1,"deletions":1}]}
+{"type":"worktrees","stdout":"worktree /repo\u0000HEAD abc\u0000branch refs/heads/main\u0000\u0000worktree /repo/wt\u0000HEAD def\u0000branch refs/heads/feature/x\u0000\u0000","result":[["main","/repo"],["feature/x","/repo/wt"]]}
+{"type":"worktrees","stdout":"worktree /gone\u0000HEAD abc\u0000branch refs/heads/stale\u0000prunable gitdir file points to non-existent location\u0000\u0000","result":[]}
+{"type":"worktrees","stdout":"worktree /a\u0000HEAD abc\u0000detached\u0000\u0000worktree /b\u0000HEAD d\u0000branch refs/heads/dup\u0000\u0000worktree /c\u0000HEAD e\u0000branch refs/heads/dup\u0000\u0000","result":[["dup","/c"]]}
+{"type":"worktrees","stdout":"worktree /bare\u0000bare\u0000\u0000","result":[]}
+{"type":"worktrees","stdout":"","result":[]}
+{"type":"worktrees","stdout":"worktree /x\u0000branch refs/heads/last\u0000prunable\u0000","result":[]}
+{"type":"worktrees","stdout":"worktree /y\u0000branch refs/heads/no-terminator","result":[["no-terminator","/y"]]}
+{"type":"sanitizeRemote","value":"pingdotgg","result":"pingdotgg"}
+{"type":"sanitizeRemote","value":" My Fork ","result":"My-Fork"}
+{"type":"sanitizeRemote","value":"a/b\\c","result":"a-b-c"}
+{"type":"sanitizeRemote","value":"--x--","result":"x"}
+{"type":"sanitizeRemote","value":"","result":"fork"}
+{"type":"sanitizeRemote","value":"   ","result":"fork"}
+{"type":"sanitizeRemote","value":"é-ü","result":"fork"}
+{"type":"sanitizeRemote","value":"a.b_c-d","result":"a.b_c-d"}
+{"type":"sanitizeRemote","value":"..","result":".."}
+{"type":"sanitizeRemote","value":"-","result":"fork"}
+{"type":"sanitizeRemote","value":"o'brien","result":"o-brien"}
+{"type":"remoteUrl","url":"https://github.com/pingdotgg/t3code.git","result":"github.com/pingdotgg/t3code"}
+{"type":"remoteUrl","url":"git@github.com:pingdotgg/t3code.git","result":"github.com/pingdotgg/t3code"}
+{"type":"remoteUrl","url":"ssh://git@github.com/pingdotgg/t3code","result":"github.com/pingdotgg/t3code"}
+{"type":"remoteUrl","url":"ssh://github.com/pingdotgg/t3code","result":"github.com/pingdotgg/t3code"}
+{"type":"remoteUrl","url":"ssh://git@github.com:22/pingdotgg/t3code","result":"github.com/pingdotgg/t3code"}
+{"type":"remoteUrl","url":"ssh://git@github.com:22/pingdotgg/t3code.git","result":"github.com/pingdotgg/t3code"}
+{"type":"remoteUrl","url":"HTTPS://GitHub.com/Foo/Bar.GIT/","result":"github.com/foo/bar"}
+{"type":"remoteUrl","url":"  https://example.com/a/b/  ","result":"example.com/a/b"}
+{"type":"remoteUrl","url":"https://example.com/a","result":"https://example.com/a"}
+{"type":"remoteUrl","url":"https://example.com","result":"https://example.com"}
+{"type":"remoteUrl","url":"git://host/path/to/repo.git","result":"host/path/to/repo"}
+{"type":"remoteUrl","url":"/local/path/repo.git","result":"/local/path/repo"}
+{"type":"remoteUrl","url":"../relative/repo","result":"../relative/repo"}
+{"type":"remoteUrl","url":"C:\\repos\\x","result":"c:\\repos\\x"}
+{"type":"remoteUrl","url":"user@host:repo","result":"user@host:repo"}
+{"type":"remoteUrl","url":"user@host:a/b/c.git","result":"host/a/b/c"}
+{"type":"remoteUrl","url":"ssh://git@ssh.dev.azure.com/v3/org/proj/repo","result":"dev.azure.com/org/proj/_git/repo"}
+{"type":"remoteUrl","url":"git@ssh.dev.azure.com:v3/org/proj/repo","result":"dev.azure.com/org/proj/_git/repo"}
+{"type":"remoteUrl","url":"org@vs-ssh.visualstudio.com:v3/org/proj/repo","result":"org.visualstudio.com/proj/_git/repo"}
+{"type":"remoteUrl","url":"https://dev.azure.com/org/proj/_git/repo","result":"dev.azure.com/org/proj/_git/repo"}
+{"type":"remoteUrl","url":"https://user:pw@host.example/a/b.git","result":"host.example/a/b"}
+{"type":"remoteUrl","url":"https://host.example:8443/a/b","result":"host.example/a/b"}
+{"type":"remoteUrl","url":"ssh://","result":"ssh:"}
+{"type":"remoteUrl","url":"https://","result":"https:"}
+{"type":"remoteUrl","url":"http://[::1]/a/b","result":"[::1]/a/b"}
+{"type":"remoteUrl","url":"https://example.com/a%20b/c","result":"example.com/a%20b/c"}
+{"type":"remoteUrl","url":"https://EXAMPLE.com/A//B","result":"example.com/a/b"}
+{"type":"remoteUrl","url":"git@github.com:a","result":"git@github.com:a"}
+{"type":"remoteUrl","url":"file:///tmp/remote.git","result":"file:///tmp/remote"}
+{"type":"remoteUrl","url":"","result":""}
+{"type":"upstream","upstream":"origin/main","names":["my-org/upstream","team/fork","origin","team"],"result":{"upstreamRef":"origin/main","remoteName":"origin","branchName":"main"}}
+{"type":"upstream","upstream":"team/fork/feature","names":["my-org/upstream","team/fork","origin","team"],"result":{"upstreamRef":"team/fork/feature","remoteName":"team/fork","branchName":"feature"}}
+{"type":"upstream","upstream":"my-org/upstream/effect-atom","names":["my-org/upstream","team/fork","origin","team"],"result":{"upstreamRef":"my-org/upstream/effect-atom","remoteName":"my-org/upstream","branchName":"effect-atom"}}
+{"type":"upstream","upstream":"origin","names":["my-org/upstream","team/fork","origin","team"],"result":null}
+{"type":"upstream","upstream":"/x","names":["my-org/upstream","team/fork","origin","team"],"result":null}
+{"type":"upstream","upstream":"x/","names":["my-org/upstream","team/fork","origin","team"],"result":null}
+{"type":"upstream","upstream":" a/b ","names":["my-org/upstream","team/fork","origin","team"],"result":{"upstreamRef":" a/b ","remoteName":"a","branchName":"b"}}
+{"type":"upstream","upstream":"upstream/release/v1","names":["my-org/upstream","team/fork","origin","team"],"result":{"upstreamRef":"upstream/release/v1","remoteName":"upstream","branchName":"release/v1"}}
+{"type":"upstream","upstream":"weird//branch","names":["my-org/upstream","team/fork","origin","team"],"result":{"upstreamRef":"weird//branch","remoteName":"weird","branchName":"/branch"}}
+{"type":"sharedLocalName","name":"origin/main","result":"main"}
+{"type":"sharedLocalName","name":"origin/feature/x","result":"feature/x"}
+{"type":"sharedLocalName","name":"/leading","result":"/leading"}
+{"type":"sharedLocalName","name":"trailing/","result":"trailing/"}
+{"type":"sharedLocalName","name":"nosep","result":"nosep"}
+{"type":"sharedLocalName","name":"","result":""}
+{"type":"sharedLocalName","name":"a/","result":"a/"}
+{"type":"sharedLocalName","name":"a/b","result":"b"}
+{"type":"dedupe","refs":[{"name":"main","current":false,"isRemote":false,"isDefault":false,"worktreePath":null},{"name":"origin/main","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"},{"name":"origin/feature/x","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"},{"name":"feature/x","current":false,"isRemote":false,"isDefault":false,"worktreePath":null}],"result":[{"name":"main","current":false,"isRemote":false,"isDefault":false,"worktreePath":null},{"name":"feature/x","current":false,"isRemote":false,"isDefault":false,"worktreePath":null}]}
+{"type":"dedupe","refs":[{"name":"origin/only","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"},{"name":"upstream/main","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"upstream"},{"name":"main","current":false,"isRemote":false,"isDefault":false,"worktreePath":null}],"result":[{"name":"origin/only","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"},{"name":"upstream/main","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"upstream"},{"name":"main","current":false,"isRemote":false,"isDefault":false,"worktreePath":null}]}
+{"type":"dedupe","refs":[{"name":"a","current":false,"isRemote":false,"isDefault":false,"worktreePath":null},{"name":"origin/a","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"},{"name":"origin/origin/a","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"}],"result":[{"name":"a","current":false,"isRemote":false,"isDefault":false,"worktreePath":null},{"name":"origin/origin/a","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"}]}
+{"type":"dedupe","refs":[{"name":"x/y","current":false,"isRemote":false,"isDefault":false,"worktreePath":null},{"name":"origin/x/y","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"},{"name":"origin/y","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"}],"result":[{"name":"x/y","current":false,"isRemote":false,"isDefault":false,"worktreePath":null},{"name":"origin/y","current":false,"isRemote":true,"isDefault":false,"worktreePath":null,"remoteName":"origin"}]}
+{"type":"dedupe","refs":[{"name":"noremote","current":false,"isRemote":true,"isDefault":false,"worktreePath":null},{"name":"noremote","current":false,"isRemote":false,"isDefault":false,"worktreePath":null}],"result":[{"name":"noremote","current":false,"isRemote":true,"isDefault":false,"worktreePath":null},{"name":"noremote","current":false,"isRemote":false,"isDefault":false,"worktreePath":null}]}
+{"type":"dedupe","refs":[],"result":[]}
+{"type":"diffHash","diff":"","files":[],"result":"aa5598c670c7f9c9ab8594d942390dad96b52631bfb78d060476b9a719365947"}
+{"type":"diffHash","diff":"diff --git a/x b/x\n+line\n","files":[{"path":"x","previousPath":null,"additions":1,"deletions":0}],"result":"98871e109f3a0c96682bcc03e62a33691722ca5e02348cea352daebec1e6276a"}
+{"type":"diffHash","diff":"quote \" backslash \\ tab \t nl \n ctrl \u0001 \u001f del ","files":[{"path":"dir/é ü.txt","previousPath":"old/ü","additions":12,"deletions":3}],"result":"0626c4a6f77ea2d252a54c455f9be56dc2791a47fe17494a73dd46df75804399"}
+{"type":"diffHash","diff":"line sep     emoji 😀 astral","files":[{"path":"a\tb\nc","previousPath":null,"additions":0,"deletions":0}],"result":"ccaf343e160b8fe14dd284daef8e40fde5c71bdbb5267ab1a29cbff0740a54e3"}
+{"type":"diffHash","diff":"x","files":[{"path":"a","previousPath":null,"additions":1,"deletions":2},{"path":"b","previousPath":"c","additions":3,"deletions":4}],"result":"b9224b711f081b3dc3b13c9858508404da713ec890baf00294518daf47485a5e"}
+{"type":"cooldown","failures":0,"ms":30000}
+{"type":"cooldown","failures":1,"ms":30000}
+{"type":"cooldown","failures":2,"ms":60000}
+{"type":"cooldown","failures":3,"ms":120000}
+{"type":"cooldown","failures":4,"ms":240000}
+{"type":"cooldown","failures":5,"ms":480000}
+{"type":"cooldown","failures":6,"ms":900000}
+{"type":"cooldown","failures":7,"ms":900000}
+{"type":"cooldown","failures":8,"ms":900000}
+{"type":"cooldown","failures":9,"ms":900000}
+{"type":"cooldown","failures":10,"ms":900000}
+{"type":"cooldown","failures":11,"ms":900000}
+{"type":"cooldown","failures":12,"ms":900000}
+{"type":"cooldown","failures":13,"ms":900000}
+{"type":"cooldown","failures":14,"ms":900000}
+{"type":"cooldown","failures":15,"ms":900000}
+{"type":"cooldown","failures":16,"ms":900000}
+{"type":"cooldown","failures":17,"ms":900000}
+{"type":"cooldown","failures":18,"ms":900000}
+{"type":"cooldown","failures":19,"ms":900000}
+{"type":"cooldown","failures":20,"ms":900000}
+{"type":"cooldown","failures":21,"ms":900000}
+{"type":"cooldown","failures":22,"ms":900000}
+{"type":"cooldown","failures":23,"ms":900000}
+{"type":"cooldown","failures":24,"ms":900000}
+{"type":"cooldown","failures":25,"ms":900000}
+{"type":"cooldown","failures":26,"ms":900000}
+{"type":"cooldown","failures":27,"ms":900000}
+{"type":"cooldown","failures":28,"ms":900000}
+{"type":"cooldown","failures":29,"ms":900000}
+{"type":"cooldown","failures":30,"ms":900000}
+{"type":"cooldown","failures":31,"ms":900000}
+{"type":"cooldown","failures":32,"ms":900000}
+{"type":"cooldown","failures":33,"ms":900000}
+{"type":"cooldown","failures":34,"ms":900000}
+{"type":"cooldown","failures":35,"ms":900000}
+{"type":"cooldown","failures":36,"ms":900000}
+{"type":"cooldown","failures":37,"ms":900000}
+{"type":"cooldown","failures":38,"ms":900000}
+{"type":"cooldown","failures":39,"ms":900000}
+{"type":"cooldown","failures":40,"ms":900000}

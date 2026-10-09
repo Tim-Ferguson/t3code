@@ -30,6 +30,12 @@ pub enum SessionEvent {
         response: oneshot::Sender<Result<t3_acp::v2::RequestPermissionResponse, AcpError>>,
         written: oneshot::Receiver<Result<(), AcpError>>,
     },
+    /// A form elicitation (`elicitation/create`): the agent's structured question for the user.
+    Elicitation {
+        request: Value,
+        response: oneshot::Sender<Result<t3_acp::v2::CreateElicitationResponse, AcpError>>,
+        written: oneshot::Receiver<Result<(), AcpError>>,
+    },
     Terminated(AcpError),
 }
 pub struct AcpSession {
@@ -142,6 +148,15 @@ impl AcpSession {
         self.services.shutdown().await;
         self.peer.shutdown().await;
     }
+    /// Tells an agent that supports it the session is over, so it can release the session's state.
+    /// Best effort and short: the process is about to be reaped either way.
+    pub(crate) async fn close_session(&self) {
+        let initialized = serde_json::to_value(&self.initialize).unwrap();
+        if initialized["agentCapabilities"]["sessionCapabilities"]["close"].is_null() {
+            return;
+        }
+        let _ = tokio::time::timeout(Duration::from_secs(2), self.client.call(t3_acp::client::AgentMethod::CloseSession, json!({"sessionId":self.setup.session_id}))).await;
+    }
     pub async fn set_model(&mut self, model: &str) -> Result<(), AcpError> {
         let setup = self.live_setup.lock().unwrap().clone();
         if let Some(option) = setup["configOptions"].as_array().and_then(|options| {
@@ -204,22 +219,27 @@ impl AcpSession {
                 continue;
             }
             let setup = self.live_setup.lock().unwrap().clone();
-            let option = setup["configOptions"]
-                .as_array()
-                .and_then(|options| options.iter().find(|option| option["id"] == *id))
-                .ok_or_else(|| {
-                    AcpError::Transport(format!("ACP config option '{id}' is unavailable."))
-                })?;
+            // Tuning knobs degrade instead of failing the turn (configureSession in AcpAdapterV2): a
+            // stored selection the live session does not expose, or a value it does not offer, is
+            // skipped, and an agent that rejects a value keeps its own default for that option.
+            let Some(option) = setup["configOptions"].as_array().and_then(|options| options.iter().find(|option| option["id"] == *id)) else {
+                continue;
+            };
             let value = match (option["type"].as_str(), value) {
                 (Some("boolean"), Value::Bool(value)) => SessionConfigValue::Boolean(*value),
-                (Some("select"), Value::String(value)) => SessionConfigValue::Id(value.clone()),
+                (Some("select"), Value::String(value)) => {
+                    if !crate::acp_interaction::option_choices(option).contains(&value.as_str()) {
+                        continue;
+                    }
+                    SessionConfigValue::Id(value.clone())
+                }
                 _ => {
                     return Err(AcpError::Transport(format!(
                         "Invalid value for ACP config option '{id}'."
                     )));
                 }
             };
-            let result = self
+            let result = match self
                 .client
                 .set_session_config_option_typed(SetSessionConfigOptionRequest {
                     session_id: self.setup.session_id.clone(),
@@ -227,7 +247,12 @@ impl AcpSession {
                     value,
                     meta: Optional::Missing,
                 })
-                .await?;
+                .await
+            {
+                Ok(result) => result,
+                Err(AcpError::Failure(failure)) if matches!(failure.as_ref(), t3_acp::errors::Failure::Request(_)) => continue,
+                Err(other) => return Err(other),
+            };
             self.live_setup.lock().unwrap()["configOptions"] =
                 serde_json::to_value(result.config_options).unwrap();
         }
@@ -567,6 +592,9 @@ impl AcpInstance {
                 })
             }))
             .await;
+        let elicitation_services = services.clone();
+        let elicitation_events = events.clone();
+        let elicitation_acknowledgements = acknowledgements.clone();
         client.handle_request_permission(Arc::new(move |request, context| {
             let events = events.clone();
             let acknowledgements = acknowledgements.clone();
@@ -593,11 +621,32 @@ impl AcpInstance {
         }));
         let coordinator = self.coordinator.clone();
         let instance_id = self.instance_id.clone();
-        client.handle_elicitation(Arc::new(move |request, _context| {
+        client.handle_elicitation(Arc::new(move |request, context| {
             let coordinator = coordinator.clone();
             let instance_id = instance_id.clone();
+            let events = elicitation_events.clone();
+            let acknowledgements = elicitation_acknowledgements.clone();
+            let services = elicitation_services.clone();
             Box::pin(async move {
                 let request = request.as_value();
+                if request["mode"] == "form" {
+                    // T3's own MCP endpoint asks for tool approval this way; the policy answers unless it asks.
+                    let reply = |action: &str| serde_json::from_value(json!({"action":action,"content":{}})).map_err(|error| AcpError::Transport(error.to_string()));
+                    match services.mcp_approval(request, Some(&context.request_id)) {
+                        Some(crate::acp_client_policy::Disposition::Allow) => return reply("accept"),
+                        Some(crate::acp_client_policy::Disposition::Deny) => return serde_json::from_value(json!({"action":"decline"})).map_err(|error| AcpError::Transport(error.to_string())),
+                        _ => {}
+                    }
+                    // Discovery has no user to ask; a session hands the question to its adapter.
+                    if discovery {
+                        return serde_json::from_value(json!({"action":"decline"})).map_err(|error| AcpError::Transport(error.to_string()));
+                    }
+                    let (response, result) = oneshot::channel();
+                    let (ack, written) = oneshot::channel();
+                    acknowledgements.lock().unwrap().insert(context.request_id.clone(), ack);
+                    events.send(SessionEvent::Elicitation { request: request.clone(), response, written }).map_err(|_| AcpError::Closed)?;
+                    return result.await.map_err(|_| AcpError::Closed)?;
+                }
                 let action = (|| {
                     if request["mode"] != "url" {
                         return None;
@@ -653,8 +702,15 @@ impl AcpInstance {
                 client_capabilities: Some(ClientCapabilities {
                     terminal: services.has_terminals().then_some(true),
                     elicitation: Optional::Value(
-                        serde_json::from_value(json!({"url":{}})).unwrap(),
+                        // Only a session has a user to ask; discovery and sign-in handle URL consent alone.
+                        serde_json::from_value(if discovery { json!({"url":{}}) } else { json!({"form":{},"url":{}}) }).unwrap(),
                     ),
+                    // Devin opts into its subagent and message-grouping extensions through client metadata.
+                    meta: if self.config.source == AcpRegistrySettingsSource::Registry && self.config.agent_id.as_str() == "devin" {
+                        serde_json::from_value(json!({"cognition.ai/subagentSupport":true,"cognition.ai/messageGrouping":true})).map(Optional::Value).unwrap_or(Optional::Missing)
+                    } else {
+                        Optional::Missing
+                    },
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -698,20 +754,31 @@ impl AcpInstance {
         let setup_session = || async {
             let setup = if let Some(session_id) = saved_session {
                 let initialized = serde_json::to_value(&initialize).unwrap();
-                if initialized["agentCapabilities"]["loadSession"] != true {
+                // Loading replays the history; resuming only reattaches, so it is the fallback
+                // for an agent that cannot load (`activateSession` in AcpAdapterV2).
+                let can_load = initialized["agentCapabilities"]["loadSession"] == true;
+                let can_resume = !initialized["agentCapabilities"]["sessionCapabilities"]["resume"].is_null();
+                if !can_load && !can_resume {
                     return Err(AcpError::Transport(
-                        "This ACP agent cannot load the saved session.".into(),
+                        "This ACP agent cannot load or resume the saved session.".into(),
                     ));
                 }
-                let result = client
-                    .load_session_typed(LoadSessionRequest {
-                        session_id: session_id.into(),
-                        cwd: cwd.to_string_lossy().into(),
-                        additional_directories: None,
-                        mcp_servers: Some(mcp_servers.clone()),
-                        meta: Optional::Missing,
-                    })
-                    .await?;
+                let result = if can_load {
+                    client
+                        .load_session_typed(LoadSessionRequest {
+                            session_id: session_id.into(),
+                            cwd: cwd.to_string_lossy().into(),
+                            additional_directories: None,
+                            mcp_servers: Some(mcp_servers.clone()),
+                            meta: Optional::Missing,
+                        })
+                        .await?
+                } else {
+                    let resumed = client
+                        .call(t3_acp::client::AgentMethod::ResumeSession, json!({"sessionId":session_id,"cwd":cwd.to_string_lossy(),"mcpServers":mcp_servers}))
+                        .await?;
+                    serde_json::from_value(resumed).map_err(|error| AcpError::Transport(format!("Invalid session/resume response: {error}")))?
+                };
                 NewSessionResponse {
                     session_id: session_id.into(),
                     models: result.models,
@@ -1255,7 +1322,7 @@ mod tests {
             let root=tempfile::tempdir().unwrap();
             let configured=coordinator_instance(root.path(),"state");
             let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({
-                "providerInstances":{"codex":{"driver":"codex","enabled":false},
+                "providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
                     "local-agent":{"driver":"acpRegistry","enabled":true,"config":configured.config}}
             })).unwrap();
             let registry=crate::provider_registry::ProviderRegistry::discover(&settings,root.path()).await.unwrap();
@@ -1599,6 +1666,7 @@ mod tests {
                         }
                     }
                     SessionEvent::Terminated(error) => panic!("provider terminated: {error}"),
+                    SessionEvent::Elicitation { .. } => panic!("unexpected elicitation"),
                 }
             }
             assert_eq!(prompt_task.await.unwrap().unwrap().stop_reason, "end_turn");

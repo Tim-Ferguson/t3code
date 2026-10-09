@@ -69,6 +69,11 @@ impl Services {
     pub(crate) fn settle(&self) {
         self.policy.lock().unwrap().turn_key = None;
     }
+    /// How the runtime policy answers an MCP tool-call approval form (`acpMcpToolApprovalElicitationDisposition`);
+    /// `None` for any other elicitation.
+    pub(crate) fn mcp_approval(&self, request: &Value, native_id: Option<&str>) -> Option<Disposition> {
+        acp_client_policy::mcp_approval(&self.policy.lock().unwrap().latest, request, native_id)
+    }
     pub(crate) fn permission(&self, request: &Value) -> Disposition {
         acp_client_policy::permission(&self.policy.lock().unwrap().latest, request)
     }

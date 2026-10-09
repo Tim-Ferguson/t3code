@@ -1,0 +1,1754 @@
+[
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "thumbs-up",
+      "count": 1,
+      "actors": [],
+      "viewerHasReacted": true
+    },
+    "text": "You reacted with thumbs up emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "thumbs-up",
+      "count": 1,
+      "actors": ["bob"],
+      "viewerHasReacted": false
+    },
+    "text": "bob reacted with thumbs up emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "heart",
+      "count": 2,
+      "actors": ["bob"],
+      "viewerHasReacted": true
+    },
+    "text": "You and bob reacted with heart emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "heart",
+      "count": 2,
+      "actors": ["bob", "carol"],
+      "viewerHasReacted": true
+    },
+    "text": "bob and carol reacted with heart emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "rocket",
+      "count": 5,
+      "actors": ["a", "b", "c", "d"],
+      "viewerHasReacted": false
+    },
+    "text": "a, b, c, and 2 others reacted with rocket emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "rocket",
+      "count": 5,
+      "actors": ["a", "b"],
+      "viewerHasReacted": true
+    },
+    "text": "You, a, b, and 2 others reacted with rocket emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "eyes",
+      "count": 3,
+      "actors": [],
+      "viewerHasReacted": false
+    },
+    "text": "3 people reacted with eyes emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "laugh",
+      "count": 2,
+      "actors": ["octo", "bob"],
+      "viewerHasReacted": true
+    },
+    "text": "octo and bob reacted with laugh emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "hooray",
+      "count": 1,
+      "actors": [],
+      "viewerHasReacted": false
+    },
+    "text": "1 person reacted with hooray emoji"
+  },
+  {
+    "type": "tooltip",
+    "reaction": {
+      "content": "confused",
+      "count": 4,
+      "actors": ["x"],
+      "viewerHasReacted": true
+    },
+    "text": "You, x, and 2 others reacted with confused emoji"
+  },
+  {
+    "type": "name",
+    "content": "thumbs-up",
+    "emoji": "👍",
+    "name": "thumbs up"
+  },
+  {
+    "type": "name",
+    "content": "thumbs-down",
+    "emoji": "👎",
+    "name": "thumbs down"
+  },
+  {
+    "type": "name",
+    "content": "laugh",
+    "emoji": "😄",
+    "name": "laugh"
+  },
+  {
+    "type": "name",
+    "content": "hooray",
+    "emoji": "🎉",
+    "name": "hooray"
+  },
+  {
+    "type": "name",
+    "content": "confused",
+    "emoji": "😕",
+    "name": "confused"
+  },
+  {
+    "type": "name",
+    "content": "heart",
+    "emoji": "❤️",
+    "name": "heart"
+  },
+  {
+    "type": "name",
+    "content": "rocket",
+    "emoji": "🚀",
+    "name": "rocket"
+  },
+  {
+    "type": "name",
+    "content": "eyes",
+    "emoji": "👀",
+    "name": "eyes"
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [["thumbs-up", false]],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 1,
+        "actors": ["bob"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [["heart", true]],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 2,
+        "actors": ["carol"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [["rocket", true]],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "rocket",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [["eyes", false]],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [
+      ["rocket", true],
+      ["thumbs-up", false],
+      ["heart", true]
+    ],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 1,
+        "actors": ["bob"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "heart",
+        "count": 2,
+        "actors": ["carol"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "rocket",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [["laugh", false]],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "pending",
+    "reactions": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ],
+    "pending": [["thumbs-up", true]],
+    "shown": [
+      {
+        "content": "thumbs-up",
+        "count": 2,
+        "actors": ["bob"],
+        "viewerHasReacted": true
+      },
+      {
+        "content": "heart",
+        "count": 1,
+        "actors": ["carol"],
+        "viewerHasReacted": false
+      },
+      {
+        "content": "eyes",
+        "count": 1,
+        "actors": [],
+        "viewerHasReacted": false
+      }
+    ]
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "Octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "Octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "Octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "Octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "Octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "Octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["close"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["close"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["close"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["close"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["close"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "alice"
+      },
+      "viewerPermissions": {
+        "actions": ["close"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": false,
+          "comment": true
+        }
+      }
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": false,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": false,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": false,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": false,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": false,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": false
+        }
+      }
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": false
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": false
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": false
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": false
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": false
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {}
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {}
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {}
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {}
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {}
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {}
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": null,
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": null,
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": null,
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": null,
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": null,
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": null,
+      "author": {
+        "login": "octo"
+      },
+      "viewerPermissions": {
+        "actions": ["merge"]
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "change-request",
+    "detail": {
+      "viewer": "octo",
+      "author": null,
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": null,
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "issue-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": null,
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "OCTO "
+      },
+      "kind": "review-comment"
+    },
+    "can": true
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": null,
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "octo"
+      },
+      "kind": "review"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": null,
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": {
+        "login": "bob"
+      },
+      "kind": "issue-comment"
+    },
+    "can": false
+  },
+  {
+    "type": "comment",
+    "detail": {
+      "viewer": "octo",
+      "author": null,
+      "viewerPermissions": {
+        "actions": []
+      },
+      "capabilities": {
+        "edit": {
+          "changeRequest": true,
+          "comment": true
+        }
+      }
+    },
+    "comment": {
+      "author": null,
+      "kind": "issue-comment"
+    },
+    "can": false
+  }
+]

@@ -1,8 +1,8 @@
 {
   "sessions": {
-    "supportsMultipleProviderThreadsPerSession": true,
+    "supportsMultipleProviderThreadsPerSession": false,
     "supportsModelSwitchInSession": true,
-    "supportsProviderSwitchingViaHandoff": true,
+    "supportsProviderSwitchingViaHandoff": false,
     "supportsRuntimeModeSwitchInSession": true,
     "pendingRequestsSurviveRestart": false
   },
@@ -10,9 +10,9 @@
     "canCreateEmptyThread": true,
     "canReadThreadSnapshot": true,
     "canRollbackThread": true,
-    "canForkThread": true,
-    "canForkFromTurn": true,
-    "canForkFromSubagentThread": true,
+    "canForkThread": false,
+    "canForkFromTurn": false,
+    "canForkFromSubagentThread": false,
     "exposesNativeThreadId": true
   },
   "turns": {
@@ -62,21 +62,21 @@
     "emitsSubagentLifecycle": true,
     "canWaitForSubagents": true,
     "canCloseSubagents": true,
-    "canForkSubagentThread": true
+    "canForkSubagentThread": false
   },
   "context": {
     "acceptsSystemContext": true,
     "acceptsDeveloperContext": true,
-    "acceptsSyntheticUserContext": true,
-    "canGenerateSummaries": true,
-    "canConsumeHandoffSummaries": true,
-    "supportsDeltaHandoff": true,
-    "supportsFullThreadHandoff": true,
+    "acceptsSyntheticUserContext": false,
+    "canGenerateSummaries": false,
+    "canConsumeHandoffSummaries": false,
+    "supportsDeltaHandoff": false,
+    "supportsFullThreadHandoff": false,
     "maxRecommendedHandoffChars": null
   },
   "checkpointing": {
     "appCanCheckpointFilesystem": true,
-    "supportsNestedCheckpointScopes": true,
+    "supportsNestedCheckpointScopes": false,
     "providerCanRollbackConversation": true,
     "providerRollbackReturnsSnapshot": true,
     "providerCanReadConversationSnapshot": true

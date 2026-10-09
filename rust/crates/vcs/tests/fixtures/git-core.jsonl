@@ -1,0 +1,138 @@
+{"type":"stderr","stderr":"","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: not a git repository (or any of the parent directories): .git","reason":"not_a_repository","nonRepository":true,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"error: Not a git repository","reason":"not_a_repository","nonRepository":true,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: A branch named 'x' already exists.","reason":"branch_already_exists","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: a branch named 'feature/a b' already exists","reason":"branch_already_exists","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: 'feature' is already used by worktree at '/tmp/wt'","reason":"branch_checked_out_in_worktree","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: 'feature' is already checked out at '/tmp/wt'","reason":"branch_checked_out_in_worktree","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: '/tmp/wt' already exists","reason":"path_already_exists","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: destination path '/tmp/wt' already exists and is not an empty directory.","reason":"path_already_exists","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: tag already exists","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"! [rejected]  v1 -> v1 (would clobber existing tag)","reason":"tag_would_be_clobbered","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"error: would clobber existing tag","reason":"tag_would_be_clobbered","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: Authentication failed for 'https://example.com/repo.git/'","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: could not read Username for 'https://github.com': terminal prompts disabled","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: could not read Password for 'https://x@github.com'","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"user@host: Permission denied (publickey,password).","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"Permission denied, please try again.","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"Host key verification failed.\nfatal: Could not read from remote repository.","reason":"host_key_unverified","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights","reason":"remote_unreachable","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: 'origin' does not appear to be a git repository","reason":"remote_unreachable","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: repository 'https://example.com/x.git/' not found","reason":"remote_unreachable","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"remote: Permission denied (publickey)\nremote: fatal: Authentication failed","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"remote: fatal: could not read Username","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"hook: authentication failed (pre-push)","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"pre-push hook says: fatal: not a git repository","reason":null,"nonRepository":true,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"remote: error: a branch named x already exists","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"warning: something\nerror: pathspec 'x' did not match any file(s) known to git","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: bad revision 'HEAD'","reason":null,"nonRepository":false,"unbornHead":true,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: ambiguous argument 'HEAD': unknown revision or path not in the working tree.","reason":null,"nonRepository":false,"unbornHead":true,"missingWorktree":false}
+{"type":"stderr","stderr":"fatal: 'x' is not a working tree","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":true}
+{"type":"stderr","stderr":"fatal: cannot remove working tree 'x'","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":true}
+{"type":"stderr","stderr":"  ! [remote rejected] main -> main (hook declined)","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"! [rejected] main -> main (fetch first)\r\nerror: failed to push some refs\r\n","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"error: fatal: Authentication failed\r\nsecond","reason":"authentication_failed","nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"FATAL: AUTHENTICATION FAILED","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"Fatal: authentication failed","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"stderr","stderr":"café fatal: é","reason":null,"nonRepository":false,"unbornHead":false,"missingWorktree":false}
+{"type":"progress","line":"Updating files:  78% (2104/2700)","result":{"percent":78,"completed":2104,"total":2700}}
+{"type":"progress","line":"Updating files: 100% (5/5), done.","result":{"percent":100,"completed":5,"total":5}}
+{"type":"progress","line":"Updating files:   0% (0/9)","result":{"percent":0,"completed":0,"total":9}}
+{"type":"progress","line":"Updating files: 250% (1/2)","result":{"percent":100,"completed":1,"total":2}}
+{"type":"progress","line":"Updating files:78%(1/2)","result":null}
+{"type":"progress","line":"nothing here","result":null}
+{"type":"progress","line":"xx Updating files:  1% (2/3) yy","result":{"percent":1,"completed":2,"total":3}}
+{"type":"tracking","stdout":"main\torigin/main\nfeature\torigin/feature\n","upstream":"origin/main","result":"main"}
+{"type":"tracking","stdout":"main\torigin/main\nfeature\torigin/feature\n","upstream":"origin/feature","result":"feature"}
+{"type":"tracking","stdout":"main\torigin/main\nfeature\torigin/feature\n","upstream":"origin/x","result":null}
+{"type":"tracking","stdout":"main\torigin/main\nfeature\torigin/feature\n","upstream":"origin/y","result":null}
+{"type":"tracking","stdout":"main\torigin/main\nfeature\torigin/feature\n","upstream":"nope","result":null}
+{"type":"tracking","stdout":"a\t\nb\torigin/x\n","upstream":"origin/main","result":null}
+{"type":"tracking","stdout":"a\t\nb\torigin/x\n","upstream":"origin/feature","result":null}
+{"type":"tracking","stdout":"a\t\nb\torigin/x\n","upstream":"origin/x","result":"b"}
+{"type":"tracking","stdout":"a\t\nb\torigin/x\n","upstream":"origin/y","result":null}
+{"type":"tracking","stdout":"a\t\nb\torigin/x\n","upstream":"nope","result":null}
+{"type":"tracking","stdout":"\n  \nc\torigin/y","upstream":"origin/main","result":null}
+{"type":"tracking","stdout":"\n  \nc\torigin/y","upstream":"origin/feature","result":null}
+{"type":"tracking","stdout":"\n  \nc\torigin/y","upstream":"origin/x","result":null}
+{"type":"tracking","stdout":"\n  \nc\torigin/y","upstream":"origin/y","result":"c"}
+{"type":"tracking","stdout":"\n  \nc\torigin/y","upstream":"nope","result":null}
+{"type":"tracking","stdout":"origin/z","upstream":"origin/main","result":null}
+{"type":"tracking","stdout":"origin/z","upstream":"origin/feature","result":null}
+{"type":"tracking","stdout":"origin/z","upstream":"origin/x","result":null}
+{"type":"tracking","stdout":"origin/z","upstream":"origin/y","result":null}
+{"type":"tracking","stdout":"origin/z","upstream":"nope","result":null}
+{"type":"tracking","stdout":"d\torigin/main\ne\torigin/main","upstream":"origin/main","result":"d"}
+{"type":"tracking","stdout":"d\torigin/main\ne\torigin/main","upstream":"origin/feature","result":null}
+{"type":"tracking","stdout":"d\torigin/main\ne\torigin/main","upstream":"origin/x","result":null}
+{"type":"tracking","stdout":"d\torigin/main\ne\torigin/main","upstream":"origin/y","result":null}
+{"type":"tracking","stdout":"d\torigin/main\ne\torigin/main","upstream":"nope","result":null}
+{"type":"tracking","stdout":"\tdangling\nf\t origin/main \n","upstream":"origin/main","result":"f"}
+{"type":"tracking","stdout":"\tdangling\nf\t origin/main \n","upstream":"origin/feature","result":null}
+{"type":"tracking","stdout":"\tdangling\nf\t origin/main \n","upstream":"origin/x","result":null}
+{"type":"tracking","stdout":"\tdangling\nf\t origin/main \n","upstream":"origin/y","result":null}
+{"type":"tracking","stdout":"\tdangling\nf\t origin/main \n","upstream":"nope","result":null}
+{"type":"localName","name":"origin/main","result":"main"}
+{"type":"localName","name":"origin/feature/x","result":"feature/x"}
+{"type":"localName","name":"/leading","result":null}
+{"type":"localName","name":"trailing/","result":null}
+{"type":"localName","name":"nosep","result":null}
+{"type":"localName","name":"","result":null}
+{"type":"localName","name":"a/ ","result":null}
+{"type":"localName","name":"a/b ","result":"b"}
+{"type":"localName","name":"o/ b","result":"b"}
+{"type":"ab","value":"+3 -4","result":{"ahead":3,"behind":4}}
+{"type":"ab","value":"+0 -0","result":{"ahead":0,"behind":0}}
+{"type":"ab","value":"+10   -2","result":{"ahead":10,"behind":2}}
+{"type":"ab","value":"3 4","result":{"ahead":0,"behind":0}}
+{"type":"ab","value":"+3 -","result":{"ahead":0,"behind":0}}
+{"type":"ab","value":"","result":{"ahead":0,"behind":0}}
+{"type":"ab","value":"+1 -2 ","result":{"ahead":0,"behind":0}}
+{"type":"numstatEntries","stdout":"1\t2\ta.txt\n","result":[{"path":"a.txt","insertions":1,"deletions":2}]}
+{"type":"numstatEntries","stdout":"-\t-\tbin.png\n","result":[{"path":"bin.png","insertions":0,"deletions":0}]}
+{"type":"numstatEntries","stdout":"1\t2\told => new\n","result":[{"path":"new","insertions":1,"deletions":2}]}
+{"type":"numstatEntries","stdout":"1\t2\t{a => b}/c.txt\n","result":[{"path":"b}/c.txt","insertions":1,"deletions":2}]}
+{"type":"numstatEntries","stdout":"\n\n","result":[]}
+{"type":"numstatEntries","stdout":"x\ty\tz\n","result":[{"path":"z","insertions":0,"deletions":0}]}
+{"type":"numstatEntries","stdout":"3\t4\ta\tb\tc\n","result":[{"path":"c","insertions":3,"deletions":4}]}
+{"type":"numstatEntries","stdout":"1\t1\t\n","result":[]}
+{"type":"numstatEntries","stdout":"1\t1\r\n2\t2\tfile\r\n3\t3\t src \n","result":[{"path":"file","insertions":2,"deletions":2},{"path":"src","insertions":3,"deletions":3}]}
+{"type":"numstatEntries","stdout":"7\t8\tdir/{x => y}\n","result":[{"path":"y}","insertions":7,"deletions":8}]}
+{"type":"numstatEntries","stdout":"9\t9\t a => \n","result":[{"path":"a =>","insertions":9,"deletions":9}]}
+{"type":"porcelainPath","line":"? new file.txt","result":"new file.txt"}
+{"type":"porcelainPath","line":"! ignored.log","result":"ignored.log"}
+{"type":"porcelainPath","line":"1 .M N... 100644 100644 100644 aaa bbb src/a.ts","result":"src/a.ts"}
+{"type":"porcelainPath","line":"2 R. N... 100644 100644 100644 aaa bbb R100 new.ts\told.ts","result":"old.ts"}
+{"type":"porcelainPath","line":"u UU N... 100644 100644 100644 100644 a b c conflict.ts","result":"conflict.ts"}
+{"type":"porcelainPath","line":"# branch.head main","result":null}
+{"type":"porcelainPath","line":"","result":null}
+{"type":"porcelainPath","line":"1 .M N... 100644 100644 100644 aaa bbb dir with space/a.ts","result":"space/a.ts"}
+{"type":"porcelainPath","line":"?   ","result":null}
+{"type":"porcelainPath","line":"? ","result":null}
+{"type":"porcelainPath","line":"1 x\t path\tother","result":"path"}
+{"type":"defaultBranch","value":"refs/remotes/origin/main","remote":"origin","result":"main"}
+{"type":"defaultBranch","value":"refs/remotes/origin/","remote":"origin","result":null}
+{"type":"defaultBranch","value":"refs/remotes/upstream/dev","remote":"origin","result":null}
+{"type":"defaultBranch","value":" refs/remotes/origin/feature/x \n","remote":"origin","result":"feature/x"}
+{"type":"defaultBranch","value":"origin/main","remote":"origin","result":null}
+{"type":"defaultBranch","value":"","remote":"origin","result":null}
+{"type":"nullPaths","input":"a\u0000b\u0000c\u0000","truncated":false,"result":["a","b","c"]}
+{"type":"nullPaths","input":"a\u0000b\u0000par","truncated":true,"result":["a","b"]}
+{"type":"nullPaths","input":"a\u0000b\u0000","truncated":true,"result":["a","b"]}
+{"type":"nullPaths","input":"","truncated":false,"result":[]}
+{"type":"nullPaths","input":"\u0000\u0000","truncated":false,"result":[]}
+{"type":"nullPaths","input":"only","truncated":true,"result":[]}
+{"type":"nullPaths","input":"a\u0000\u0000b","truncated":false,"result":["a","b"]}
+{"type":"remoteNames","stdout":"origin\nupstream\n","inGitOrder":["origin","upstream"],"longestFirst":["upstream","origin"]}
+{"type":"remoteNames","stdout":" origin \n\n  team/fork\nteam\n","inGitOrder":["origin","team/fork","team"],"longestFirst":["team/fork","origin","team"]}
+{"type":"remoteNames","stdout":"","inGitOrder":[],"longestFirst":[]}
+{"type":"remoteNames","stdout":"a\nbb\nccc\ndd\ne\n","inGitOrder":["a","bb","ccc","dd","e"],"longestFirst":["ccc","bb","dd","a","e"]}
+{"type":"remoteRef","reference":"origin/main","names":["team/fork","upstream","origin","team"],"result":{"remoteRef":"origin/main","remoteName":"origin","branchName":"main"}}
+{"type":"remoteRef","reference":" team/fork/feature ","names":["team/fork","upstream","origin","team"],"result":{"remoteRef":"team/fork/feature","remoteName":"team/fork","branchName":"feature"}}
+{"type":"remoteRef","reference":"team/feature","names":["team/fork","upstream","origin","team"],"result":{"remoteRef":"team/feature","remoteName":"team","branchName":"feature"}}
+{"type":"remoteRef","reference":"origin/","names":["team/fork","upstream","origin","team"],"result":null}
+{"type":"remoteRef","reference":"other/x","names":["team/fork","upstream","origin","team"],"result":null}
+{"type":"remoteRef","reference":"","names":["team/fork","upstream","origin","team"],"result":null}
+{"type":"remoteRef","reference":"origin","names":["team/fork","upstream","origin","team"],"result":null}
+{"type":"remoteRef","reference":"upstream/a/b","names":["team/fork","upstream","origin","team"],"result":{"remoteRef":"upstream/a/b","remoteName":"upstream","branchName":"a/b"}}

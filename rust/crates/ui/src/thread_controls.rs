@@ -55,7 +55,7 @@ fn select_model(
 }
 
 #[component]
-pub fn ThreadControls(state: Store<UiModel>, thread: ThreadShell) -> Element {
+pub fn ThreadControls(state: Store<UiModel>, transport: runtime::TransportHandle, thread: ThreadShell) -> Element {
     // Text/tool streaming does not change model controls. Subscribe only to
     // the narrow reported selection, without copying the thread projection.
     let thread_id = thread.id.to_string();
@@ -94,7 +94,8 @@ pub fn ThreadControls(state: Store<UiModel>, thread: ThreadShell) -> Element {
     let rows =
         new_thread::available_models(config, &client, runtime::ui_surface(), Some(&selected));
     let selected_key = model_key(&selected);
-    let missing = !rows
+    let selected_label = rows.iter().find(|row| model_key(&row.selection()) == selected_key).map(|row| format!("{} · {}", row.provider_label, row.model.name)).unwrap_or_else(|| format!("{} · {}", selected.instance_id, selected.model));
+    let _missing = !rows
         .iter()
         .any(|row| model_key(&row.selection()) == selected_key);
     let provider = config
@@ -130,8 +131,8 @@ pub fn ThreadControls(state: Store<UiModel>, thread: ThreadShell) -> Element {
     let descriptors = models::option_descriptors(&caps, selected.options.as_deref());
     rsx! {
         div {class:"thread-controls",
-            label {"Model", select {"aria-label":"Model",value:"{selected_key}",onchange:{let key=key.clone();let thread=thread.clone();move|event| {
-                if let Some(row)=rows.iter().find(|r|model_key(&r.selection())==event.value()) {
+            crate::model_picker::ModelPicker {state,rows:rows.clone(),selected_key:selected_key.clone(),selected_label:selected_label.clone(),selected_instance:selected.instance_id.to_string(),disabled:false,on_pick:{let key=key.clone();let thread=thread.clone();let rows=rows.clone();move|index:usize| {
+                if let Some(row)=rows.get(index) {
                     let mut selection=row.selection();
                     let remembered=state.thread_model_options().peek().get(&(key.0.clone(),selection.instance_id.clone(),selection.model.to_string())).cloned().or_else(|| {
                         let handle=state.peek().draft_storage.clone();
@@ -141,11 +142,14 @@ pub fn ThreadControls(state: Store<UiModel>, thread: ThreadShell) -> Element {
                     selection.options=remembered.filter(|options|!options.is_empty());
                     select_model(state,&key,&thread,selection);
                 }
-            }},
-                if missing {option {value:"{selected_key}",selected:true,"{selected.instance_id} · {selected.model}"}}
-                for row in &rows {option {value:model_key(&row.selection()),selected:model_key(&row.selection())==selected_key,"{row.provider_label} · {row.model.name}"}}
-            }}
+            }}}
             crate::model_controls::ModelOptions {selected:Some(selected),descriptors,reported:reported(),onchange:{let key=key.clone();let thread=thread.clone();move|selection|select_model(state,&key,&thread,selection)}}
+            if client.plan_mode_enabled {
+                {let planning=thread.interaction_mode==ProviderInteractionMode::Plan;
+                let tooltip=if planning{"Plan mode — click to return to normal build mode"}else{"Default mode — click to enter plan mode"};
+                let id=thread.id.to_string();let transport=transport.clone();
+                rsx!{button {r#type:"button",class:"mode-toggle","aria-pressed":"{planning}","aria-label":"{tooltip}",title:"{tooltip}",onclick:move |_|{runtime::command(&transport,state,"thread.interaction-mode.set",serde_json::json!({"threadId":id,"interactionMode":if planning{"default"}else{"plan"}}));},if planning{"Plan"}else{"Build"}}}}
+            }
             label {"Permissions",select {"aria-label":"Permissions",value:"{runtime_value}",onchange:move|e| {
                 if let Ok(mode)=serde_json::from_value(serde_json::json!(e.value())) {update_choices(state,&key,|choices|choices.runtime_mode=Some(mode));}
             },for choice in modes {option {value:serde_json::to_value(choice).unwrap().as_str().unwrap(),selected:choice==mode,"{models::runtime_mode_label(choice)}"}}}}

@@ -25,6 +25,8 @@ pub enum Access {
     Reads,
     ReadsAsCaller,
     ActsAsCaller,
+    /// `startsThreads`: a live writing caller; the handler resolves the modes it starts at.
+    StartsThreads,
     Writes,
     WritesThreads,
     WritesEnvironment,
@@ -198,7 +200,7 @@ pub fn check(
     }
     let writes = matches!(
         access,
-        Access::ActsAsCaller | Access::Writes | Access::WritesThreads | Access::WritesEnvironment
+        Access::ActsAsCaller | Access::StartsThreads | Access::Writes | Access::WritesThreads | Access::WritesEnvironment
     );
     if writes
         && scope

@@ -111,3 +111,55 @@ async fn local_device_rpc_preserves_consent_dynamic_scopes_typed_sessions_and_st
         read.close(None).await.unwrap();write.close(None).await.unwrap();stop.send(()).unwrap();server.join_next().await.unwrap().unwrap();fixture.settings.shutdown().await;
     }).await.unwrap();
 }
+
+/// `device.testHost`: a host that resolves to this machine is summarized as the local host without
+/// a connection; a remote one fails the way a probe does (this server has no SSH probe), and a
+/// session without `settings:write` is refused before anything is resolved.
+#[cfg(unix)]
+#[tokio::test]
+async fn device_test_host_summarizes_the_local_host_and_refuses_what_it_cannot_probe() {
+    use crate::device_host_resolver::{DeviceHostResolver, DeviceHostResolverOptions};
+    use std::os::unix::fs::PermissionsExt;
+    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        let root = tempfile::tempdir().unwrap();
+        let fixture = crate::device_service::tests::fixture(root.path()).await;
+        // `ssh -G` answers for the alias: `self` is this machine, anything else is elsewhere.
+        let ssh = root.path().join("ssh-fake");
+        std::fs::write(&ssh, "#!/bin/sh\nfor last; do :; done\ncase \"$last\" in self) echo 'hostname 100.65.180.100';; *) echo 'hostname 192.0.2.1';; esac\necho 'port 22'\n").unwrap();
+        std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let resolver = DeviceHostResolver::new(DeviceHostResolverOptions { ssh_binary: ssh, local_addresses: std::sync::Arc::new(|| std::collections::HashSet::from(["100.65.180.100".into()])), lookup: std::sync::Arc::new(|_| Box::pin(async { vec![] })), ..Default::default() });
+        let store = Store::memory().unwrap();
+        let auth = AuthService::new(store.clone(), [45; 32], "device_test_host".into(), "loopback-browser".into()).unwrap();
+        let grant = |scopes| auth.issue_session("fixture", "bearer-access-token", scopes, json!({"deviceType":"unknown"}), Utc::now(), chrono::Duration::hours(1)).unwrap().1;
+        let reader = grant(vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate]);
+        let writer = grant(vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::SettingsWrite]);
+        let state = ApiState { store, auth, environment: json!({"environmentId":"device-test-host","label":"Fixture","platform":{"os":"darwin","arch":"arm64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}), config: None, settings: Some(fixture.settings.clone()), device_hosts: Some(resolver.clone()), devices: Some(fixture.service.clone()), provider_auth: None, background: None, cors_origins: None, assets: None, providers: None, execution: None, workspace: None, terminals: None, discovery: None, resource_telemetry: None, host_resources: None };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (stop, stopped) = tokio::sync::oneshot::channel();
+        let server = tokio::spawn(async move { axum::serve(listener, router(state)).with_graceful_shutdown(async { let _ = stopped.await; }).await.unwrap(); });
+        let host = |target: &str| json!({"id":format!("host-{target}"),"label":target,"target":target});
+        let mut denied = connect(address, &reader).await;
+        send(&mut denied, 1, "device.testHost", host("self")).await;
+        assert_eq!(next(&mut denied).await["exit"]["cause"][0]["error"]["requiredPermission"], "settings:write");
+        let mut socket = connect(address, &writer).await;
+        send(&mut socket, 1, "device.testHost", host("self")).await;
+        let local = next(&mut socket).await;
+        assert_eq!(local["exit"]["_tag"], "Success", "{local}");
+        assert_eq!(local["exit"]["value"]["kind"], "local");
+        let _: t3_contracts::DeviceHostSummary = serde_json::from_value(local["exit"]["value"].clone()).unwrap();
+        send(&mut socket, 2, "device.testHost", host("remote")).await;
+        let remote = next(&mut socket).await;
+        assert_eq!(remote["exit"]["cause"][0]["error"]["_tag"], "DeviceOperationError");
+        assert_eq!((remote["exit"]["cause"][0]["error"]["operation"].as_str(), remote["exit"]["cause"][0]["error"]["reason"].as_str()), (Some("probe host"), Some("request_failed")));
+        send(&mut socket, 3, "device.testHost", json!({"id":"x"})).await;
+        assert_eq!(next(&mut socket).await["exit"]["cause"][0]["_tag"], "Die");
+        socket.close(None).await.unwrap();
+        denied.close(None).await.unwrap();
+        stop.send(()).unwrap();
+        server.await.unwrap();
+        resolver.shutdown().await;
+    })
+    .await
+    .unwrap();
+}

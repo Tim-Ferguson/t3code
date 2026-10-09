@@ -91,9 +91,8 @@ impl ProjectService {
             |transaction| {
                 let project = read_projection(transaction, "project", &command.project_id)?;
                 if command.command_type == "project.delete"
-                    && project.as_ref().is_some_and(|project|project["deletedAt"].is_null())
-                    && read_projections(transaction,"thread")?.iter().any(|projection|projection["thread"]["projectId"]==command.project_id&&projection["thread"]["deletedAt"].is_null()) {
-                    return Ok(Decision::Rejected(json!({"_tag":"ProjectCommandInvariantError","commandType":command.command_type,"detail":"Project has threads; native project cascade deletion is not yet ported."})));
+                    && project.as_ref().is_some_and(|project|project["deletedAt"].is_null()) {
+                    return plan_delete(transaction, command, now);
                 }
                 let workspace_owner =
                     match command.fields.get("workspaceRoot").and_then(Value::as_str) {
@@ -118,7 +117,10 @@ impl ProjectService {
                     },
                 )
             },
-            reduce_project_event,
+            |transaction, stored| match stored.event.aggregate_kind.as_str() {
+                "project" => reduce_project_event(transaction, stored),
+                _ => crate::thread::reduce(transaction, stored),
+            },
         )
     }
 
@@ -163,6 +165,59 @@ impl ProjectService {
             .projection("project", id)?
             .filter(|row| row["deletedAt"].is_null())
             .map(to_shell))
+    }
+}
+
+/// What `projects.mutate` tells the client: the error's own text, except that the refusal of a
+/// project that still has threads reads as the original words it (`Project <id> is not empty.`).
+pub fn mutation_message(error: &StoreError) -> String {
+    match error {
+        StoreError::InvalidCommand(detail) if detail.starts_with("Project ") && detail.ends_with(" is not empty.") => detail.clone(),
+        other => other.to_string(),
+    }
+}
+
+/// `project.delete` of a live project. Its threads, archived ones included, are deleted first,
+/// each by the plan of `thread.delete` under the id `<command>:delete-thread:<thread>`, and
+/// everything commits together. Without `force` a project that has threads is refused. Deleting
+/// the threads does not remove their worktrees or checkpoint refs.
+fn plan_delete(
+    transaction: &Transaction<'_>,
+    command: &ProjectCommand,
+    now: DateTime<Utc>,
+) -> Result<Decision, StoreError> {
+    let project = read_projection(transaction, "project", &command.project_id)?;
+    let threads: Vec<Value> = read_projections(transaction, "thread")?
+        .into_iter()
+        .filter(|projection| projection["thread"]["projectId"] == command.project_id.as_str() && projection["thread"]["deletedAt"].is_null())
+        .collect();
+    if !threads.is_empty() && command.fields.get("force") != Some(&json!(true)) {
+        // Refused before anything commits, so no receipt is kept: the same command id can be
+        // sent again with `force`.
+        return Err(StoreError::InvalidCommand(format!("Project {} is not empty.", command.project_id)));
+    }
+    let mut events = vec![];
+    let mut effects = vec![];
+    for projection in &threads {
+        let thread_id = projection["thread"]["id"].as_str().unwrap_or("");
+        let child = json!({"type":"thread.delete","commandId":format!("{}:delete-thread:{thread_id}",command.command_id),"threadId":thread_id});
+        match crate::thread_deletion::plan(&child, projection, &crate::thread_deletion::attachment_ids(projection), now) {
+            Ok(plan) => {
+                events.extend(plan.events);
+                effects.extend(plan.effects);
+            }
+            Err(StoreError::InvalidCommand(detail)) => {
+                return Ok(Decision::Rejected(json!({"_tag":"ProjectCommandInvariantError","commandType":command.command_type,"detail":detail})));
+            }
+            Err(other) => return Err(other),
+        }
+    }
+    match plan_project_command(command, project.as_ref(), None, &uuid::Uuid::new_v4().to_string(), now) {
+        Ok(event) => {
+            events.push(event);
+            Ok(Decision::Accepted { events, effects })
+        }
+        Err(error) => Ok(Decision::Rejected(error)),
     }
 }
 
@@ -402,16 +457,21 @@ mod tests {
         assert!(deleting.projections("thread").unwrap().is_empty());
         let receipt=crate::thread::ThreadService::new(creating).dispatch(&json!({"type":"thread.create","commandId":"create-thread","threadId":"thread-race","projectId":"project-scripts","title":"Thread","modelSelection":{"instanceId":"codex","model":"fixture"},"runtimeMode":"approval-required","interactionMode":"default","branch":null,"worktreePath":null}),now()).unwrap();
         assert_eq!(receipt.status, "accepted");
-        let deleted = projects
+        // Refused before anything commits, as the original refuses a non-empty project: no
+        // receipt is kept, so the same command can be sent again with `force`.
+        let refused = projects
             .dispatch(&command("project.delete", "delete", json!({})), now())
-            .unwrap();
-        assert_eq!(deleted.status, "rejected");
+            .unwrap_err();
+        assert_eq!(refused.to_string(), "Invalid command: Project project-scripts is not empty.");
         assert!(projects.get("project-scripts").unwrap().is_some());
         assert_eq!(deleting.projections("thread").unwrap().len(), 1);
-        assert_eq!(
-            deleting.receipt("delete").unwrap().unwrap().status,
-            "rejected"
-        );
+        assert!(deleting.receipt("delete").unwrap().is_none());
+        let forced = projects
+            .dispatch(&command("project.delete", "delete", json!({"force":true})), now())
+            .unwrap();
+        assert_eq!(forced.status, "accepted");
+        assert!(projects.get("project-scripts").unwrap().is_none());
+        assert!(!deleting.projection("thread", "thread-race").unwrap().unwrap()["thread"]["deletedAt"].is_null());
     }
 
     #[test]

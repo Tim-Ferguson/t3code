@@ -1,7 +1,7 @@
 //! ACP effects and callbacks enter the same durable reducer as user commands.
 use crate::{
     acp_runtime::{AcpSession, SessionEvent, permission_response},
-    codex_runtime::{Work, commit, fail_run, find, projection, terminal},
+    codex_runtime::{Work, commit, fail_run_captured, fail_run_with, find, projection, terminal_captured},
     execution::at,
     persistence::{Store, StoreError},
     provider_registry::ProviderRegistry,
@@ -15,6 +15,7 @@ use t3_acp::{
 };
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod updates;
 enum Activity {
     Event(Option<SessionEvent>),
     Prompt(Result<PromptResponse, AcpError>),
@@ -40,11 +41,15 @@ mod tests {
                 .push(json!(directory.path().join("initialized")));
             entry["environment"] = json!([{"name":"FIXTURE_REQUEST_SIGNAL","value":directory.path().join("startup-signal")}]);
         }
-        let settings = serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"local-agent":entry}})).unwrap();
+        let settings = serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"local-agent":entry}})).unwrap();
         let providers = ProviderRegistry::discover(&settings, directory.path())
             .await
             .unwrap();
         assert_eq!(providers.driver("local-agent").unwrap(), "acpRegistry");
+        // Isolation guard: a driver that is probed by default (codex, claude, ...) must be
+        // disabled here, or discovery would run the developer's real CLI. A new driver fails this.
+        let leaked: Vec<_> = providers.snapshots().iter().filter(|row| row["instanceId"] != "local-agent" && row["status"] != "disabled").map(|row| row["instanceId"].clone()).collect();
+        assert!(leaked.is_empty(), "test settings leave real providers enabled: {leaked:?}");
         (directory, store, providers)
     }
     fn launch(store: &Store, providers: &ProviderRegistry, initial: bool) -> String {
@@ -265,7 +270,7 @@ mod tests {
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":directory.path()}),Utc::now()).unwrap();
         let (catalog, config) =
             crate::acp_registry_support::fixture_catalog(directory.path(), "normal");
-        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"local-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
+        let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"local-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
         let providers = ProviderRegistry::discover_with_catalog(
             &settings,
             directory.path(),
@@ -706,18 +711,40 @@ struct Callback {
     response: oneshot::Sender<Result<t3_acp::v2::RequestPermissionResponse, AcpError>>,
     written: oneshot::Receiver<Result<(), AcpError>>,
 }
+/// A native request the agent is blocked on, answered by `runtime-request.respond`.
+enum Pending {
+    Permission(Callback),
+    /// A form elicitation; only the keys its schema asked for may come back.
+    Question {
+        keys: Vec<String>,
+        response: oneshot::Sender<Result<t3_acp::v2::CreateElicitationResponse, AcpError>>,
+        written: oneshot::Receiver<Result<(), AcpError>>,
+    },
+}
 struct Actor {
     cwd: std::path::PathBuf,
     store: Store,
     thread_id: String,
     session_id: String,
     instance_id: String,
+    registry_agent_id: String,
     item_identity_v2: bool,
     session: AcpSession,
     active_run: Option<String>,
-    callbacks: HashMap<String, Callback>,
+    active_context: Option<crate::provider_turn_context::TurnContext>,
+    callbacks: HashMap<String, Pending>,
+    /// Session mode and mode-like options as they were before the last plan turn.
+    native_build: Option<crate::acp_interaction::NativeBuild>,
+    elicitations: u64,
+    /// Whether the user (or a steering restart) asked this turn to stop, as opposed to the agent cancelling it.
+    interrupt_requested: bool,
+    context_usage: Option<Value>,
+    native_metadata: Option<Value>,
+    turn_ordinal: u64,
     prompt: Option<tokio::task::JoinHandle<Result<PromptResponse, AcpError>>>,
     text_segments: HashMap<&'static str, u64>,
+    /// Streams with an open segment, and the source message id that segment was identified by.
+    text_open: HashMap<&'static str, Option<String>>,
     tools: HashMap<String, crate::acp_tools::ToolState>,
     tool_emission: HashMap<String, (Option<usize>, usize)>,
     instructions: Option<crate::provider_instructions::AcpState>,
@@ -733,6 +760,10 @@ impl Drop for Actor {
 }
 fn native_ref(id: &str, strong: bool) -> Value {
     json!({"driver":"acpRegistry","nativeId":id,"strength":if strong{"strong"}else{"weak"}})
+}
+/// Whether the agent refused `session/load` or `session/resume` of a saved session.
+fn session_activation_failed(cause: &AcpError) -> bool {
+    matches!(cause, AcpError::Failure(failure) if matches!(failure.as_ref(), t3_acp::errors::Failure::Request(request) if matches!(request.diagnostics.method.as_deref(), Some("session/load" | "session/resume"))))
 }
 fn error(error: impl std::fmt::Display) -> StoreError {
     StoreError::InvalidCommand(error.to_string())
@@ -802,39 +833,57 @@ impl Actor {
                     && thread["providerInstanceId"] == instance_id
             });
         let saved = saved_thread.and_then(|thread| thread["nativeThreadRef"]["nativeId"].as_str());
-        let item_identity_v2 = saved.is_none()
+        let mut item_identity_v2 = saved.is_none()
             || saved_thread
                 .is_some_and(|thread| thread["nativeMetadata"]["itemIdentityVersion"] == 2);
-        let mut process = instance.resolve_process(&cwd).await.map_err(error)?;
-        if let Some(mcp) = mcp {
-            mcp.apply_acp_environment(&mut process.environment);
-        }
-        let mut callback_instance = instance.clone();
-        callback_instance.environment = process.environment.clone();
-        let peer = crate::acp_peer::ProcessPeer::spawn(process).map_err(error)?;
-        // Retain the process outside this cancellable setup future. The actor
-        // shutdown path waits for its reap before releasing the runtime lease.
-        *pending_peer = Some(peer.clone());
-        let services = callback_instance.services_for(
-            &cwd,
-            crate::acp_client_callbacks::policy(&view["thread"]["runtimeMode"], &cwd),
-        );
-        // Keep callbacks outside the cancellable initialize/load future. Their
-        // owned terminals must be reaped before runtime ownership is released.
-        *pending_services = Some(services.clone());
-        let session = match mcp {
-            Some(mcp) => {
-                instance
-                    .start_peer_with_mcp(peer, &cwd, saved, services, mcp)
-                    .await
+        let mut saved = saved;
+        let session = loop {
+            let mut process = instance.resolve_process(&cwd).await.map_err(error)?;
+            if let Some(mcp) = mcp {
+                mcp.apply_acp_environment(&mut process.environment);
             }
-            None => {
-                instance
-                    .start_peer_with_services(peer, &cwd, saved, false, services)
-                    .await
+            let mut callback_instance = instance.clone();
+            callback_instance.environment = process.environment.clone();
+            let peer = crate::acp_peer::ProcessPeer::spawn(process).map_err(error)?;
+            // Retain the process outside this cancellable setup future. The actor
+            // shutdown path waits for its reap before releasing the runtime lease.
+            *pending_peer = Some(peer.clone());
+            let services = callback_instance.services_for(
+                &cwd,
+                crate::acp_client_callbacks::policy(&view["thread"]["runtimeMode"], &cwd),
+            );
+            // Keep callbacks outside the cancellable initialize/load future. Their
+            // owned terminals must be reaped before runtime ownership is released.
+            *pending_services = Some(services.clone());
+            let started = match mcp {
+                Some(mcp) => {
+                    instance
+                        .start_peer_with_mcp(peer, &cwd, saved, services, mcp)
+                        .await
+                }
+                None => {
+                    instance
+                        .start_peer_with_services(peer, &cwd, saved, false, services)
+                        .await
+                }
+            };
+            match started {
+                Ok(session) => break session,
+                // A saved session the agent will no longer load or resume starts a fresh one in a new
+                // process; its items are then identified under this instance (`itemIdentityVersion` 2).
+                Err(cause) if saved.is_some() && session_activation_failed(&cause) => {
+                    if let Some(services) = pending_services.take() {
+                        services.shutdown().await;
+                    }
+                    if let Some(peer) = pending_peer.take() {
+                        peer.shutdown().await;
+                    }
+                    saved = None;
+                    item_identity_v2 = true;
+                }
+                Err(cause) => return Err(error(cause)),
             }
-        }
-        .map_err(error)?;
+        };
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = at(Utc::now());
         let mut capabilities: Value =
@@ -844,12 +893,7 @@ impl Actor {
         // A negotiated load operation alone is not a conversation snapshot API.
         for (group, fields) in [
             ("sessions", &["supportsProviderSwitchingViaHandoff"][..]),
-            (
-                "threads",
-                &["canReadThreadSnapshot", "canRollbackThread"][..],
-            ),
-            ("turns", &["supportsSteeringByInterruptRestart"][..]),
-            ("planning", &["supportsStructuredQuestions"][..]),
+            ("threads", &["canReadThreadSnapshot"][..]),
             (
                 "context",
                 &[
@@ -863,10 +907,7 @@ impl Actor {
             (
                 "checkpointing",
                 &[
-                    "appCanCheckpointFilesystem",
                     "supportsNestedCheckpointScopes",
-                    "providerCanRollbackConversation",
-                    "providerRollbackReturnsSnapshot",
                     "providerCanReadConversationSnapshot",
                 ][..],
             ),
@@ -893,12 +934,27 @@ impl Actor {
             thread_id: thread_id.into(),
             session_id,
             instance_id,
+            registry_agent_id: if instance.config.source
+                == t3_contracts::AcpRegistrySettingsSource::Registry
+            {
+                instance.config.agent_id.to_string()
+            } else {
+                String::new()
+            },
             item_identity_v2,
             session,
             active_run: None,
+            active_context: None,
             callbacks: HashMap::new(),
+            native_build: None,
+            elicitations: 0,
+            interrupt_requested: false,
+            context_usage: None,
+            native_metadata: None,
+            turn_ordinal: 0,
             prompt: None,
             text_segments: HashMap::new(),
+            text_open: HashMap::new(),
             tools: HashMap::new(),
             tool_emission: HashMap::new(),
             instructions: None,
@@ -912,10 +968,28 @@ impl Actor {
                 self.start_turn(effect.request["runId"].as_str().unwrap())
                     .await
             }
+            Some("provider-turn.restart") => self.restart(effect).await,
+            Some("provider-turn.steer") => {
+                let view = projection(&self.store, &self.thread_id)?;
+                let message = find(&view, "messages", &effect.request["messageId"])?;
+                if !crate::provider_turn_context::steering_delivery_is_current(&view, message)
+                    || effect.request["providerSessionId"] != self.session_id
+                {
+                    return Ok(());
+                }
+                let turn = find(&view, "providerTurns", &effect.request["providerTurnId"])?;
+                if turn["status"] == "completed" {
+                    crate::execution::follow_up_completed_steer(&self.store, effect)?;
+                    return Ok(());
+                }
+                // ACP advertises interrupt/restart rather than native steering.
+                Err(error("ACP does not support active native steering."))
+            }
             Some("provider-turn.interrupt") => {
                 if self.active_run.as_deref() != effect.request["runId"].as_str() {
                     return Err(error("Target run is no longer active."));
                 }
+                self.interrupt_requested = true;
                 self.session
                     .client
                     .cancel_typed(
@@ -933,28 +1007,105 @@ impl Actor {
                     .callbacks
                     .remove(effect.request["requestId"].as_str().unwrap())
                     .ok_or_else(|| error("The live ACP callback no longer exists."))?;
-                let response = permission_response(
-                    &callback.request,
-                    effect.request["decision"].as_str().unwrap_or("cancel"),
-                );
-                self.session.services.record_approval(
-                    &serde_json::to_value(&callback.request).unwrap(),
-                    effect.request["decision"].as_str().unwrap_or("cancel"),
-                );
-                callback
-                    .response
-                    .send(response)
-                    .map_err(|_| error("The ACP callback was cancelled."))?;
+                let written = match callback {
+                    Pending::Permission(callback) => {
+                        let response = permission_response(
+                            &callback.request,
+                            effect.request["decision"].as_str().unwrap_or("cancel"),
+                        );
+                        self.session.services.record_approval(
+                            &serde_json::to_value(&callback.request).unwrap(),
+                            effect.request["decision"].as_str().unwrap_or("cancel"),
+                        );
+                        callback
+                            .response
+                            .send(response)
+                            .map_err(|_| error("The ACP callback was cancelled."))?;
+                        callback.written
+                    }
+                    Pending::Question { keys, response, written } => {
+                        let answered = effect.request.get("answers").filter(|answers| answers.is_object());
+                        let reply = match answered {
+                            Some(answers) => json!({"action":"accept","content":crate::acp_interaction::elicitation_content(answers, &keys)}),
+                            None => json!({"action":"cancel"}),
+                        };
+                        response
+                            .send(serde_json::from_value(reply).map_err(|cause| AcpError::Transport(cause.to_string())))
+                            .map_err(|_| error("The ACP callback was cancelled."))?;
+                        written
+                    }
+                };
                 // Completing the persisted effect means the actual native stdin
                 // write was acknowledged, rather than merely releasing a waiter.
-                callback
-                    .written
+                written
                     .await
                     .map_err(|_| error("ACP response acknowledgement was lost."))?
                     .map_err(error)
             }
             _ => Err(error("Unsupported ACP provider effect.")),
         }
+    }
+    async fn restart(&mut self, effect: &crate::persistence::Effect) -> Result<(), StoreError> {
+        let old = self.active_context.clone().filter(|context| {
+            effect.request["providerSessionId"] == self.session_id
+                && context.attempt_id == effect.request["interruptedAttemptId"]
+                && context.provider_turn_id == effect.request["providerTurnId"]
+        });
+        if let Some(old) = old {
+            self.interrupt_requested = true;
+            self.session
+                .client
+                .cancel_typed(
+                    serde_json::from_value(json!({"sessionId":self.session.setup.session_id}))
+                        .unwrap(),
+                )
+                .await
+                .map_err(error)?;
+            tokio::time::timeout(std::time::Duration::from_secs(10), async {
+                while self
+                    .active_context
+                    .as_ref()
+                    .is_some_and(|current| current.provider_turn_id == old.provider_turn_id)
+                {
+                    match self.next().await {
+                        Activity::Event(Some(SessionEvent::Update(update))) => {
+                            self.update(update)?
+                        }
+                        Activity::Event(Some(SessionEvent::Permission {
+                            request,
+                            response,
+                            written,
+                            ..
+                        })) => self.permission(request, response, written).await?,
+                        Activity::Event(Some(SessionEvent::Elicitation { request, response, written })) => self.elicitation(request, response, written)?,
+                        Activity::Prompt(result) => {
+                            self.prompt.take();
+                            self.finish(result)?;
+                        }
+                        Activity::Event(Some(SessionEvent::Terminated(cause))) => {
+                            if let Some(prompt) = self.prompt.take() {
+                                self.finish(prompt.await.unwrap_or_else(|error| {
+                                    Err(AcpError::Transport(error.to_string()))
+                                }))?;
+                            }
+                            return Err(error(cause));
+                        }
+                        Activity::Event(None) => {
+                            return Err(error("ACP event stream ended during restart."));
+                        }
+                    }
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|_| error("Provider turn did not terminalize before restart."))??;
+        }
+        self.start_turn(
+            effect.request["runId"]
+                .as_str()
+                .ok_or_else(|| error("Restart run is missing."))?,
+        )
+        .await
     }
     async fn start_turn(&mut self, run_id: &str) -> Result<(), StoreError> {
         // Load/new notifications are historical/bootstrap events. The ordered
@@ -979,6 +1130,9 @@ impl Actor {
                     let _ = response.send(permission_response(&request, "cancel"));
                     let _ = written.await;
                 }
+                SessionEvent::Elicitation { response, .. } => {
+                    let _ = response.send(serde_json::from_value(json!({"action":"cancel"})).map_err(|cause| AcpError::Transport(cause.to_string())));
+                }
                 SessionEvent::Terminated(cause) => return Err(error(cause)),
             }
         }
@@ -991,10 +1145,10 @@ impl Actor {
             return Err(error("ACP provider handoff is not yet available."));
         }
         let selection = &run["modelSelection"];
-        self.session
-            .set_model(selection["model"].as_str().unwrap())
-            .await
-            .map_err(error)?;
+        // "default" and "auto" mean the agent's own choice, which is never sent (AcpAdapterV2 configureSession).
+        if let Some(model) = selection["model"].as_str().filter(|model| !matches!(*model, "" | "auto" | "default")) {
+            self.session.set_model(model).await.map_err(error)?;
+        }
         let mut options = serde_json::Map::new();
         for option in selection["options"].as_array().into_iter().flatten() {
             options.insert(
@@ -1003,13 +1157,21 @@ impl Actor {
             );
         }
         self.session.set_options(&options).await.map_err(error)?;
-        if view["thread"]["interactionMode"] == "plan" {
-            return Err(error("ACP plan-mode selection is not yet available."));
+        let changes = crate::acp_interaction::interaction_changes(&serde_json::to_value(&self.session.setup).unwrap(), view["thread"]["interactionMode"] == "plan", &mut self.native_build);
+        self.session.set_options(&changes).await.map_err(error)?;
+        let user_message = find(&view, "messages", &run["userMessageId"])?;
+        let text = crate::attachment_prompt::provider_text(&self.store, user_message);
+        let images = crate::attachment_prompt::acp_image_blocks(&self.store, user_message)
+            .await
+            .map_err(error)?;
+        if !images.is_empty()
+            && self.session.initialize.agent_capabilities.as_ref()
+                .and_then(|capabilities| capabilities.prompt_capabilities.as_ref())
+                .and_then(|capabilities| capabilities.image)
+                != Some(true)
+        {
+            return Err(error("ACP driver did not negotiate image prompt support"));
         }
-        let text = find(&view, "messages", &run["userMessageId"])?["text"]
-            .as_str()
-            .unwrap()
-            .to_owned();
         let instruction_state = crate::provider_instructions::AcpState {
             plan: view["thread"]["interactionMode"] == "plan",
             mcp: self.has_mcp,
@@ -1035,15 +1197,20 @@ impl Actor {
             provider_turn_id.clone(),
         );
         let native_turn_id = format!("{}:turn:{}", self.session.setup.session_id, run["ordinal"]);
+        self.turn_ordinal = run["ordinal"].as_u64().unwrap_or(0);
         let now = at(Utc::now());
+        let mut captured = crate::provider_turn_context::TurnContext::capture(&view, run_id)?;
         commit(&self.store, &self.thread_id, |view| {
-            let mut run = find(view, "runs", &json!(run_id))?.clone();
+            if !captured.is_current(view) {
+                return Err(error("ACP admission belongs to a replaced attempt."));
+            }
+            let (mut run, attempt) = captured.rows(view)?;
             if run["status"] != "starting" {
                 return Err(error("Run was interrupted before ACP prompt admission."));
             }
-            let mut attempt = find(view, "attempts", &run["activeAttemptId"])?.clone();
-            let mut node = find(view, "nodes", &run["rootNodeId"])?.clone();
-            let mut thread = find(view, "providerThreads", &run["providerThreadId"])?.clone();
+            let mut attempt = attempt.clone();
+            let mut node = find(view, "nodes", &captured.root_node_id)?.clone();
+            let mut thread = find(view, "providerThreads", &captured.provider_thread_id)?.clone();
             run["status"] = json!("running");
             run["startedAt"] = json!(now);
             attempt["status"] = json!("running");
@@ -1076,7 +1243,10 @@ impl Actor {
         })?;
         self.pending_instructions = (prompt_text != text).then_some(instruction_state);
         self.active_run = Some(run_id.into());
+        captured.provider_turn_id = json!(provider_turn_id);
+        self.active_context = Some(captured);
         self.text_segments.clear();
+        self.text_open.clear();
         self.tools.clear();
         self.tool_emission.clear();
         let client = self.session.client.clone();
@@ -1085,24 +1255,32 @@ impl Actor {
             client
                 .prompt_typed(PromptRequest {
                     session_id,
-                    prompt: vec![
-                        serde_json::from_value(json!({"type":"text","text":prompt_text})).unwrap(),
-                        serde_json::from_value(json!({"type":"text","text":runtime_context}))
-                            .unwrap(),
-                    ],
+                    prompt: crate::attachment_prompt::acp_prompt_blocks(prompt_text, images, runtime_context)
+                        .into_iter()
+                        .map(|block| serde_json::from_value(block).unwrap())
+                        .collect(),
                     meta: Optional::Missing,
                 })
                 .await
         }));
         Ok(())
     }
-    fn context<'a>(&self, view: &'a Value) -> Result<(&'a Value, &'a Value), StoreError> {
-        let run = find(view, "runs", &json!(self.active_run))?;
-        Ok((run, find(view, "attempts", &run["activeAttemptId"])?))
+    fn context<'a>(&self, view: &'a Value) -> Result<(Value, &'a Value), StoreError> {
+        self.active_context
+            .as_ref()
+            .ok_or_else(|| error("ACP turn context is missing."))?
+            .rows(view)
+    }
+    /// The provider's items of a run take the next ordinal in the run's hundred (`resolveItemOrdinal`),
+    /// so they sort after the run's user message and before the next run's checkpoint.
+    fn next_ordinal(&self, view: &Value, run: &Value) -> u64 {
+        let base = run["ordinal"].as_u64().unwrap_or(0) * 100;
+        let used = view["turnItems"].as_array().unwrap().iter().filter(|item| item["runId"] == run["id"] && item["ordinal"].as_u64().is_some_and(|ordinal| ordinal > base && ordinal < base + 100)).count() as u64;
+        base + used + 1
     }
     fn base_item(&self, view: &Value, run: &Value, attempt: &Value, id: &str, node: &str) -> Value {
         let now = at(Utc::now());
-        json!({"id":id,"threadId":self.thread_id,"runId":run["id"],"nodeId":node,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":view["turnItems"].as_array().unwrap().len(),"status":"running","title":null,"startedAt":now,"completedAt":null,"updatedAt":now})
+        json!({"id":id,"threadId":self.thread_id,"runId":run["id"],"nodeId":node,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"parentItemId":null,"ordinal":self.next_ordinal(view,run),"status":"running","title":null,"startedAt":now,"completedAt":null,"updatedAt":now})
     }
     fn update(
         &mut self,
@@ -1111,14 +1289,21 @@ impl Actor {
         if notification.session_id != self.session.setup.session_id {
             return Err(error("ACP update belongs to another session."));
         }
-        if self.active_run.is_none() {
-            return Ok(());
-        } // Historical load replay is not a new turn.
-        let value = serde_json::to_value(notification).unwrap();
+        let mut value = serde_json::to_value(notification).unwrap();
+        if self.registry_agent_id == "devin" {
+            updates::devin_update(&mut value);
+        }
         if value["_meta"]["isReplay"] == true {
             return Ok(());
         }
         let update = &value["update"];
+        // Usage and session info belong to the thread whether or not a turn is running.
+        if self.thread_state(update)? {
+            return Ok(());
+        }
+        if self.active_run.is_none() {
+            return Ok(());
+        } // Historical load replay is not a new turn.
         match update["sessionUpdate"].as_str() {
             Some("agent_message_chunk" | "agent_thought_chunk") => {
                 let reasoning = update["sessionUpdate"] == "agent_thought_chunk";
@@ -1130,42 +1315,16 @@ impl Actor {
                 .filter(|text| !text.is_empty()) else {
                     return Ok(());
                 };
-                let run_id = self.active_run.as_deref().unwrap();
-                let stream = if reasoning { "reasoning" } else { "assistant" };
-                let id = format!(
-                    "{run_id}:{stream}:{}",
-                    self.text_segments.get(stream).copied().unwrap_or(0)
-                );
-                let node_id = format!("node:{id}");
-                let message_id = format!("message:{id}");
-                let now = at(Utc::now());
-                commit(&self.store, &self.thread_id, |view| {
-                    let (run, attempt) = self.context(view)?;
-                    let previous = view["turnItems"]
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .find(|item| item["id"] == id);
-                    let mut item = previous
-                        .cloned()
-                        .unwrap_or_else(|| self.base_item(view, run, attempt, &id, &node_id));
-                    item["type"] = json!(if reasoning {
-                        "reasoning"
-                    } else {
-                        "assistant_message"
-                    });
-                    item["text"] = json!(format!("{}{text}", item["text"].as_str().unwrap_or("")));
-                    item["streaming"] = json!(true);
-                    item["updatedAt"] = json!(now);
-                    let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":if reasoning{"reasoning"}else{"assistant_message"},"status":"running","countsForRun":false,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":item["startedAt"],"completedAt":null});
-                    let mut events = vec![("node.updated", node)];
-                    if !reasoning {
-                        item["messageId"] = json!(message_id);
-                        events.push(("message.updated",json!({"id":message_id,"threadId":self.thread_id,"runId":run["id"],"nodeId":node_id,"role":"assistant","createdBy":"agent","creationSource":"provider","text":item["text"],"attachments":[],"streaming":true,"createdAt":item["startedAt"],"updatedAt":now})));
-                    }
-                    events.push(("turn-item.updated", item));
-                    Ok(events)
-                })
+                let message_id = update["messageId"].as_str().map(str::trim).filter(|id| !id.is_empty()).map(ToOwned::to_owned);
+                self.project_text(reasoning, &text, message_id.as_deref(), false)
+            }
+            // v2 whole-message updates replace the message they name (`replaceText`).
+            Some("agent_message" | "agent_thought") => {
+                let Some(contents) = update["content"].as_array() else { return Ok(()) };
+                let reasoning = update["sessionUpdate"] == "agent_thought";
+                let text = contents.iter().filter_map(crate::acp_model::content_display_text).collect::<Vec<_>>().join("\n");
+                let Some(message_id) = update["messageId"].as_str().map(str::trim).filter(|id| !id.is_empty()) else { return Ok(()) };
+                self.project_text(reasoning, &text, Some(message_id), true)
             }
             Some("config_option_update") => {
                 self.session.setup.config_options =
@@ -1179,15 +1338,25 @@ impl Actor {
                 }
             }
             Some("tool_call" | "tool_call_update") => self.tool(update),
-            _ => Ok(()),
+            _ => self.other_update(update).map(drop),
         }
     }
     fn tool(&mut self, update: &Value) -> Result<(), StoreError> {
-        let Some(parsed) =
+        self.tool_with(update, None)
+    }
+    /// A tool update; `status` overrides the parsed one for states a wire update cannot name (`requiresAction`).
+    fn tool_with(&mut self, update: &Value, status: Option<&str>) -> Result<(), StoreError> {
+        // An identified message can stream alongside tool updates; the rest end where a tool begins.
+        let ended: Vec<&'static str> = ["assistant", "reasoning"].into_iter().filter(|stream| matches!(self.text_open.get(stream), Some(None))).collect();
+        self.close_text(&ended)?;
+        let Some(mut parsed) =
             crate::acp_tools::ToolState::parse(update, update["sessionUpdate"] == "tool_call")
         else {
             return Ok(());
         };
+        if let Some(status) = status {
+            parsed.wire["status"] = json!(status);
+        }
         let id = parsed.wire["toolCallId"].as_str().unwrap().to_owned();
         let previous = self.tools.get(&id);
         let next = crate::acp_tools::ToolState::merge(previous, parsed);
@@ -1225,7 +1394,7 @@ impl Actor {
                 .find(|item| item["id"] == item_id);
             let mut item = existing
                 .cloned()
-                .unwrap_or_else(|| self.base_item(view, run, attempt, &item_id, &node_id));
+                .unwrap_or_else(|| self.base_item(view, &run, attempt, &item_id, &node_id));
             let status = match native["status"].as_str() {
                 Some("pending") => "pending",
                 Some("requiresAction") => "waiting",
@@ -1297,7 +1466,17 @@ impl Actor {
                 .find(|entry| entry["type"] == "diff" && entry["patch"]["text"].is_string())
                 .and_then(|entry| entry["patch"]["text"].as_str().map(ToOwned::to_owned))
                 .or_else(|| output.and_then(crate::acp_tools::output_text));
-            if let Some(identity) = crate::acp_mcp_tools::identity(
+            if id.starts_with("acp-compaction:") {
+                item["type"] = json!("compaction");
+                item["driver"] = json!("acpRegistry");
+                item["title"] = native.get("title").cloned().unwrap_or(Value::Null);
+                if let Some(summary) = output.and_then(crate::acp_tools::output_text) {
+                    item["summary"] = json!(summary);
+                }
+                if let Some(used) = self.context_usage.as_ref().map(|usage| usage["usedTokens"].clone()) {
+                    item["beforeTokenCount"] = used;
+                }
+            } else if let Some(identity) = crate::acp_mcp_tools::identity(
                 native,
                 &self
                     .session
@@ -1489,7 +1668,12 @@ impl Actor {
             }
             let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":"tool_call","status":if status=="pending"{"running"}else{status},"countsForRun":true,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":item["nativeItemRef"],"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":item["startedAt"],"completedAt":item["completedAt"]});
             Ok(vec![("node.updated", node), ("turn-item.updated", item)])
-        })
+        })?;
+        // A finished compaction resets the context the usage described.
+        if id.starts_with("acp-compaction:") && self.tools.get(&id).is_some_and(|tool| tool.wire["status"] == "completed") {
+            self.context_usage = None;
+        }
+        Ok(())
     }
     fn plan(&mut self, update: &Value) -> Result<(), StoreError> {
         self.close_text_streams()?;
@@ -1525,7 +1709,7 @@ impl Actor {
             }
             let mut item = existing
                 .cloned()
-                .unwrap_or_else(|| self.base_item(view, run, attempt, &id, &node_id));
+                .unwrap_or_else(|| self.base_item(view, &run, attempt, &id, &node_id));
             let plan_id = existing
                 .and_then(|item| item["planId"].as_str())
                 .map(ToOwned::to_owned)
@@ -1594,7 +1778,8 @@ impl Actor {
         let kind = native["toolCall"]["kind"].as_str().unwrap_or("other");
         let disposition = self.session.services.permission(&native);
         if disposition == crate::acp_client_policy::Disposition::Deny {
-            let _ = response.send(permission_response(&request, "cancel"));
+            // The agent's own reject option when it offers one; cancelled otherwise.
+            let _ = response.send(permission_response(&request, "decline"));
             return written
                 .await
                 .map_err(|_| error("ACP acknowledgement lost."))?
@@ -1629,17 +1814,20 @@ impl Actor {
             let native_ref = native_ref(&request.tool_call.tool_call_id, false);
             let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":"approval_request","status":"waiting","countsForRun":false,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":native_ref,"runtimeRequestId":request_id,"checkpointScopeId":null,"startedAt":now,"completedAt":null});
             let row = json!({"id":request_id,"nodeId":node_id,"providerTurnId":attempt["providerTurnId"],"nativeRequestRef":native_ref,"kind":request_kind,"status":"pending","responseCapability":{"type":"live","providerSessionId":self.session_id},"createdAt":now,"resolvedAt":null});
-            let mut item = self.base_item(view, run, attempt, &item_id, &node_id);
+            let mut item = self.base_item(view, &run, attempt, &item_id, &node_id);
             item["nativeItemRef"] = native_ref;
             item["status"] = json!("waiting");
             item["type"] = json!("approval_request");
             item["requestId"] = json!(request_id);
             item["requestKind"] = json!(request_kind);
-            item["prompt"] = json!(
-                native["toolCall"]["title"]
-                    .as_str()
-                    .unwrap_or("Approve ACP operation?")
-            );
+            // `parsePermissionRequest`: the command, else the presented title, else the detail.
+            let parsed = crate::acp_tools::ToolState::parse(&native["toolCall"], true);
+            let prompt = parsed
+                .as_ref()
+                .and_then(|tool| ["command", "title", "detail"].iter().find_map(|key| tool.wire[*key].as_str()))
+                .map(ToOwned::to_owned)
+                .unwrap_or_else(|| format!("Session {}", request.session_id));
+            item["prompt"] = json!(prompt);
             Ok(vec![
                 ("node.updated", node),
                 ("runtime-request.updated", row),
@@ -1648,12 +1836,52 @@ impl Actor {
         })?;
         self.callbacks.insert(
             request_id,
-            Callback {
+            Pending::Permission(Callback {
                 request,
                 response,
                 written,
-            },
+            }),
         );
+        Ok(())
+    }
+    /// A form elicitation becomes a user-input request; its answers go back as the elicitation's content.
+    fn elicitation(
+        &mut self,
+        request: Value,
+        response: oneshot::Sender<Result<t3_acp::v2::CreateElicitationResponse, AcpError>>,
+        written: oneshot::Receiver<Result<(), AcpError>>,
+    ) -> Result<(), StoreError> {
+        let cancel = |response: oneshot::Sender<Result<t3_acp::v2::CreateElicitationResponse, AcpError>>| {
+            let _ = response.send(serde_json::from_value(json!({"action":"cancel"})).map_err(|cause| AcpError::Transport(cause.to_string())));
+        };
+        if self.active_run.is_none() {
+            cancel(response);
+            return Ok(());
+        }
+        self.close_text_streams()?;
+        let questions = crate::acp_interaction::elicitation_questions(&request);
+        let keys: Vec<String> = request["requestedSchema"]["properties"].as_object().into_iter().flatten().map(|(key, _)| key.clone()).collect();
+        let scope = request["sessionId"].as_str().map(ToOwned::to_owned).unwrap_or_else(|| format!("request:{}", request["requestId"].as_str().unwrap_or("")));
+        let native_id = format!("{scope}:elicitation:{}", self.elicitations);
+        self.elicitations += 1;
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let node_id = format!("node:{request_id}");
+        let item_id = format!("item:{request_id}");
+        let now = at(Utc::now());
+        commit(&self.store, &self.thread_id, |view| {
+            let (run, attempt) = self.context(view)?;
+            let native = native_ref(&native_id, false);
+            let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":"user_input_request","status":"waiting","countsForRun":false,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":native,"runtimeRequestId":request_id,"checkpointScopeId":null,"startedAt":now,"completedAt":null});
+            let row = json!({"id":request_id,"nodeId":node_id,"providerTurnId":attempt["providerTurnId"],"nativeRequestRef":native,"kind":"user_input","status":"pending","responseCapability":{"type":"live","providerSessionId":self.session_id},"createdAt":now,"resolvedAt":null});
+            let mut item = self.base_item(view, &run, attempt, &item_id, &node_id);
+            item["nativeItemRef"] = native;
+            item["status"] = json!("waiting");
+            item["type"] = json!("user_input_request");
+            item["requestId"] = json!(request_id);
+            item["questions"] = json!(questions);
+            Ok(vec![("node.updated", node), ("runtime-request.updated", row), ("turn-item.updated", item)])
+        })?;
+        self.callbacks.insert(request_id, Pending::Question { keys, response, written });
         Ok(())
     }
     fn finish(&mut self, result: Result<PromptResponse, AcpError>) -> Result<(), StoreError> {
@@ -1665,42 +1893,58 @@ impl Actor {
             self.close_text_streams()?;
         }
         match result {
-            Ok(response) => terminal(
+            Ok(response) => terminal_captured(
                 &self.store,
                 &self.thread_id,
                 self.active_run.as_deref(),
                 if response.stop_reason == "cancelled" {
-                    "interrupted"
+                    if self.interrupt_requested { "interrupted" } else { "cancelled" }
                 } else {
                     "completed"
                 },
                 None,
+                self.active_context.as_ref(),
             )?,
-            Err(cause) => fail_run(
+            // A prompt that fails reports nothing more: a tool it left running is background work,
+            // pending until Stop settles it.
+            Err(cause) => fail_run_with(
                 &self.store,
                 &self.thread_id,
                 self.active_run.as_deref(),
-                &cause.to_string(),
+                self.active_context.as_ref(),
+                &crate::provider_failure::acp_prompt(&self.registry_agent_id, &cause),
+                crate::codex_runtime::Retain::OnFailure,
             )?,
         };
         self.active_run = None;
+        self.active_context = None;
+        self.interrupt_requested = false;
         self.session.services.settle();
         self.callbacks.clear();
         crate::codex_runtime::settle_queue(&self.store, &self.thread_id, None)?;
         Ok(())
     }
     fn close_text_streams(&mut self) -> Result<(), StoreError> {
+        self.close_text(&["assistant", "reasoning"])
+    }
+    /// Ends the open segments of these streams; the next text of a stream starts a new item.
+    fn close_text(&mut self, streams: &[&'static str]) -> Result<(), StoreError> {
         if self.active_run.is_none() {
             return Ok(());
         }
         let now = at(Utc::now());
+        let types: Vec<&str> = streams.iter().map(|stream| if *stream == "reasoning" { "reasoning" } else { "assistant_message" }).collect();
         commit(&self.store, &self.thread_id, |view| {
             let mut events = vec![];
-            for item in
-                view["turnItems"].as_array().unwrap().iter().filter(|item| {
-                    item["runId"] == json!(self.active_run) && item["streaming"] == true
-                })
-            {
+            for item in view["turnItems"].as_array().unwrap().iter().filter(|item| {
+                item["runId"] == json!(self.active_run)
+                    && item["streaming"] == true
+                    && item["type"].as_str().is_some_and(|kind| types.contains(&kind))
+                    && self
+                        .active_context
+                        .as_ref()
+                        .is_some_and(|context| context.owns_item(view, item))
+            }) {
                 let mut item = item.clone();
                 item["streaming"] = json!(false);
                 item["status"] = json!("completed");
@@ -1720,10 +1964,50 @@ impl Actor {
             }
             Ok(events)
         })?;
-        for stream in ["assistant", "reasoning"] {
-            *self.text_segments.entry(stream).or_default() += 1;
+        for stream in streams {
+            if self.text_open.remove(stream).is_some() {
+                *self.text_segments.entry(stream).or_default() += 1;
+            }
         }
         Ok(())
+    }
+    /// One text chunk (or a whole-message replacement) of the assistant or reasoning stream.
+    /// Text of the other stream ends this one, and so does a different source message id.
+    fn project_text(&mut self, reasoning: bool, text: &str, message_id: Option<&str>, replace: bool) -> Result<(), StoreError> {
+        let stream: &'static str = if reasoning { "reasoning" } else { "assistant" };
+        self.close_text(&[if reasoning { "assistant" } else { "reasoning" }])?;
+        match self.text_open.get(stream) {
+            Some(Some(open)) if message_id.is_some_and(|id| id != open) => self.close_text(&[stream])?,
+            Some(None) if message_id.is_some() => {
+                // An agent that omits the id on its first chunk keeps that item and takes the first later id.
+                self.text_open.insert(stream, message_id.map(ToOwned::to_owned));
+            }
+            _ => {}
+        }
+        self.text_open.entry(stream).or_insert_with(|| message_id.map(ToOwned::to_owned));
+        // Keyed by provider turn: a steering restart re-prompts within the same run.
+        let turn = self.active_context.as_ref().and_then(|context| context.provider_turn_id.as_str()).unwrap_or_else(|| self.active_run.as_deref().unwrap());
+        let id = format!("{turn}:{stream}:{}", self.text_segments.get(stream).copied().unwrap_or(0));
+        let node_id = format!("node:{id}");
+        let message_item_id = format!("message:{id}");
+        let now = at(Utc::now());
+        commit(&self.store, &self.thread_id, |view| {
+            let (run, attempt) = self.context(view)?;
+            let previous = view["turnItems"].as_array().unwrap().iter().find(|item| item["id"] == id);
+            let mut item = previous.cloned().unwrap_or_else(|| self.base_item(view, &run, attempt, &id, &node_id));
+            item["type"] = json!(if reasoning { "reasoning" } else { "assistant_message" });
+            item["text"] = if replace { json!(text) } else { json!(format!("{}{text}", item["text"].as_str().unwrap_or(""))) };
+            item["streaming"] = json!(true);
+            item["updatedAt"] = json!(now);
+            let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":if reasoning{"reasoning"}else{"assistant_message"},"status":"running","countsForRun":false,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":null,"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":item["startedAt"],"completedAt":null});
+            let mut events = vec![("node.updated", node)];
+            if !reasoning {
+                item["messageId"] = json!(message_item_id);
+                events.push(("message.updated",json!({"id":message_item_id,"threadId":self.thread_id,"runId":run["id"],"nodeId":node_id,"role":"assistant","createdBy":"agent","creationSource":"provider","text":item["text"],"attachments":[],"streaming":true,"createdAt":item["startedAt"],"updatedAt":now})));
+            }
+            events.push(("turn-item.updated", item));
+            Ok(events)
+        })
     }
 }
 pub(crate) async fn actor(
@@ -1764,7 +2048,20 @@ pub(crate) async fn actor(
                     let _ = incoming.complete.send(Ok(()));
                     continue;
                 }
-                let starting=incoming.effect.request["type"]=="provider-turn.start";let run_id=incoming.effect.request["runId"].as_str();
+                if incoming.effect.request["type"] == "provider-thread.rollback" {
+                    // ACP has no truncation: the thread gets a fresh native session, so this actor
+                    // (bound to the old one) ends once the rollback has committed.
+                    if runtime.as_ref().is_some_and(|actor| actor.active_run.is_some()) {
+                        let _ = incoming.complete.send(Err("Cannot roll back an ACP thread while a turn is active.".into()));
+                        continue;
+                    }
+                    match crate::checkpoint_rollback::run_acp(&store, &incoming.effect).await {
+                        Ok(true) => { work.close(); interrupted = true; detached = Some(incoming.complete); break; }
+                        Ok(false) => { let _ = incoming.complete.send(Ok(())); continue; }
+                        Err(cause) => { let _ = incoming.complete.send(Err(cause)); continue; }
+                    }
+                }
+                let starting=matches!(incoming.effect.request["type"].as_str(),Some("provider-turn.start"|"provider-turn.restart"));let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
                     result=async{if starting {if let Some(mcp)=mcp.as_ref() {mcp.touch();}}if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime,mcp.as_ref()).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
@@ -1776,11 +2073,11 @@ pub(crate) async fn actor(
                 let ended=matches!(&activity,Activity::Event(Some(SessionEvent::Terminated(_)))|Activity::Event(None));
                 let actor=runtime.as_mut().unwrap();let result=match activity {
                     Activity::Event(Some(SessionEvent::Update(update)))=>actor.update(update),
-                    Activity::Event(Some(SessionEvent::Permission{request,response,written,..}))=>tokio::select!{result=actor.permission(request,response,written)=>result,_=stopped.changed()=>break},
+                    Activity::Event(Some(SessionEvent::Permission{request,response,written,..}))=>tokio::select!{result=actor.permission(request,response,written)=>result,_=stopped.changed()=>break},Activity::Event(Some(SessionEvent::Elicitation{request,response,written}))=>actor.elicitation(request,response,written),
                     Activity::Event(Some(SessionEvent::Terminated(cause)))=>{if let Some(prompt)=actor.prompt.take(){actor.finish(prompt.await.unwrap_or_else(|error|Err(AcpError::Transport(error.to_string()))))}else{Err(error(cause))}},Activity::Event(None)=>Err(error("ACP event stream ended.")),
                     Activity::Prompt(result)=>{actor.prompt.take();actor.finish(result)}
                 };
-                if let Err(cause)=result {work.close();let _=fail_run(&store,&thread_id,actor.active_run.as_deref(),&cause.to_string());break;}
+                if let Err(cause)=result {work.close();let _=fail_run_captured(&store,&thread_id,actor.active_run.as_deref(),actor.active_context.as_ref(),&crate::provider_failure::make(&json!({"message":cause.to_string(),"class":"transport_error","retryable":false})));break;}
                 if ended{work.close();break;}
             }
         }
@@ -1801,12 +2098,13 @@ pub(crate) async fn actor(
         } else {
             "failed"
         };
-        let _ = terminal(
+        let _ = terminal_captured(
             &store,
             &thread_id,
             actor.active_run.as_deref(),
             status,
             None,
+            actor.active_context.as_ref(),
         );
         let _ = commit(&store, &thread_id, |view| {
             let mut session = find(view, "providerSessions", &json!(actor.session_id))?.clone();
@@ -1821,6 +2119,9 @@ pub(crate) async fn actor(
         if let Some(prompt) = actor.prompt.take() {
             prompt.abort();
             let _ = prompt.await;
+        }
+        if !interrupted && !*stopped.borrow() && actor.active_run.is_none() && actor.callbacks.is_empty() {
+            actor.session.close_session().await;
         }
         actor.callbacks.clear();
         actor.session.shutdown().await;

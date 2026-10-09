@@ -1,7 +1,7 @@
 use crate::{
     Message,
     markdown::Markdown,
-    runtime::{self, UiModel},
+    runtime::{self, UiModel, UiModelStoreExt},
 };
 use dioxus::prelude::*;
 use serde_json::{Value, json};
@@ -15,10 +15,19 @@ pub(crate) fn TimelineItem(
     environment_key: String,
     source_thread_id: String,
     source_item_id: String,
+    /// Where "Edit from here" rewinds to, when this message's turn can be rewound.
+    rewind: Option<t3_client::rollback::Target>,
+    /// The run still going, given only to rows whose work is in progress (so a run starting does not rebuild finished rows).
+    active_run: Option<String>,
 ) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
+        probe.item.set(probe.item.get() + 1);
+    }
     let mut detail = use_signal(|| None::<(String, Value)>);
     let mut loading = use_signal(|| None::<String>);
     let mut error = use_signal(|| None::<(String, String)>);
+    let mut open = use_signal(|| false);
     #[cfg(test)]
     if let Some(probe) = try_consume_context::<DetailProbe>() {
         let environment = environment_key.clone();
@@ -41,110 +50,67 @@ pub(crate) fn TimelineItem(
         .map(|(_, detail)| work_log::overlay_detail(&item, detail))
         .unwrap_or_else(|| item.clone());
     let kind = effective["type"].as_str().unwrap_or("");
+    let attachments = effective["attachments"].as_array().filter(|list| kind == "user_message" && !list.is_empty());
+    let edit = rewind.filter(|_| kind == "user_message").and_then(|target| {
+        Some(rsx! {crate::rollback::EditFromHere {state,environment_key:environment_key.clone(),thread_id:source_thread_id.clone(),run_id:effective["runId"].as_str()?.to_owned(),
+            text:effective["text"].as_str().unwrap_or_default().to_owned(),attachments:effective["attachments"].as_array().cloned().unwrap_or_default(),target}})
+    });
+    if let Some(attachments) = attachments {
+        return rsx! {article {class:"message user",
+            if !effective["text"].as_str().unwrap_or_default().is_empty() {Markdown {text:effective["text"].as_str().unwrap_or_default().to_owned()}}
+            MessageAttachments {environment_key:environment_key.clone(),state,transport:transport.clone(),attachments:attachments.clone()}
+            {edit}
+        }};
+    }
     if matches!(kind, "assistant_message" | "user_message") {
-        return rsx! {Message {role:(if kind=="user_message"{"user"}else{"assistant"}).to_owned(),text:effective["text"].as_str().unwrap_or_default().to_owned()}};
+        return rsx! {Message {role:(if kind=="user_message"{"user"}else{"assistant"}).to_owned(),text:effective["text"].as_str().unwrap_or_default().to_owned(),{edit}}};
     }
-    if kind == "proposed_plan" {
-        return rsx! {section {class:"plan-card",h3 {"Proposed plan"}Markdown {text:effective["markdown"].as_str().unwrap_or_default().to_owned()}}};
-    }
-    if kind == "todo_list" {
-        let steps: Vec<_> = effective["steps"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .map(|step| (step["id"].as_str().unwrap_or_default().to_owned(), step))
-            .collect();
-        return rsx! {section {class:"todo-card","aria-label":"Plan progress",
-            if let Some(explanation)=effective["explanation"].as_str(){p {"{explanation}"}}
-            ol {for (id,step) in steps {li {key:"{id}",class:if step["status"]=="completed"{"completed"}else{""},
-                span {class:"step-status","aria-label":step["status"].as_str().unwrap_or("pending"),if step["status"]=="completed"{"✓"}else if step["status"]=="running"{"◉"}else{"○"}}
-                span {{step["text"].as_str().unwrap_or_default()}}
-                if let Some(duration)=step["durationMs"].as_u64(){small {"{duration / 1000}s"}}
-            }}}
-        }};
-    }
-    if matches!(
-        kind,
-        "system_notice"
-            | "run_interrupt_request"
-            | "run_interrupt_result"
-            | "notification"
-            | "error"
-    ) {
-        let message = if kind == "error" {
-            effective["failure"]["message"].as_str()
-        } else if kind == "notification" {
-            effective["detail"]
-                .as_str()
-                .or_else(|| effective["title"].as_str())
-        } else {
-            effective["message"].as_str()
+    let live = crate::item_cards::liveness(&effective, active_run.as_deref());
+    match kind {
+        "proposed_plan" => return rsx! {crate::item_cards::PlanCard {item:effective.clone(),on_copy:|text|copy_text(text),on_download:|(name,text)|download_text(name,text)}},
+        "todo_list" => return rsx! {crate::item_cards::Todo {item:effective.clone(),live}},
+        "reasoning" => return rsx! {crate::item_cards::Reasoning {item:effective.clone(),live}},
+        "compaction" => return rsx! {crate::item_cards::Compaction {item:effective.clone()}},
+        "error" => return rsx! {crate::item_cards::ErrorRow {item:effective.clone()}},
+        "run_interrupt_request" | "run_interrupt_result" => return rsx! {crate::item_cards::RunNotice {item:effective.clone()}},
+        "system_notice" | "notification" => {
+            let message = effective["message"].as_str().or_else(|| effective["detail"].as_str()).or_else(|| effective["title"].as_str()).unwrap_or_default().to_owned();
+            return rsx! {aside {class:"activity-notice",role:"note","data-item-type":kind,"{message}"}};
         }
-        .unwrap_or_default();
-        return rsx! {aside {class:if kind=="error"{"activity-notice failure"}else{"activity-notice"},role:if kind=="error"{"alert"}else{"note"},"{message}",
-            if kind=="error" {if let Some(retry)=effective.get("retry"){p {class:"muted",{if retry["willRetry"]==true{"Retrying…"}else{"Retry stopped"}}}}}
-        }};
+        _ => {}
     }
-    let label = match kind {
-        "reasoning" => "Thinking".to_owned(),
-        "command_execution" => effective["input"]
-            .as_str()
-            .unwrap_or("Command")
-            .lines()
-            .next()
-            .unwrap_or("Command")
-            .to_owned(),
-        "file_change" => effective["fileName"]
-            .as_str()
-            .unwrap_or("File changed")
-            .to_owned(),
-        "file_search" => "File search".into(),
-        "web_search" => "Web search".into(),
-        "dynamic_tool" => effective["toolName"]
-            .as_str()
-            .unwrap_or("Tool call")
-            .to_owned(),
-        "approval_request" => "Approval request".into(),
-        "user_input_request" => "User input".into(),
-        "checkpoint" => "Checkpoint".into(),
-        "compaction" => "Context compacted".into(),
-        "handoff" => "Model handoff".into(),
-        "fork" => "Thread forked".into(),
-        "thread_created" => "Thread created".into(),
-        "subagent" => "Subagent".into(),
-        "secret_request" => effective["label"]
-            .as_str()
-            .unwrap_or("Secret requested")
-            .to_owned(),
-        _ => return rsx! {},
-    };
+    if kind == "checkpoint" {
+        return rsx! {crate::changed_files::ChangedFiles {state,environment_key:environment_key.clone(),thread_id:source_thread_id.clone(),item:effective.clone()}};
+    }
+    if !matches!(kind, "command_execution" | "file_change" | "file_search" | "web_search" | "dynamic_tool" | "approval_request" | "user_input_request" | "handoff" | "fork" | "thread_created" | "subagent" | "secret_request") {
+        return rsx! {};
+    }
+    let label = crate::item_cards::label(&effective);
     let output = work_log::output_text(&effective);
     let omitted = work_log::needs_detail(&effective);
-    let status = effective["status"].as_str().unwrap_or_default();
+    let status = if kind == "subagent" { crate::item_cards::subagent_status(&effective) } else { crate::item_cards::status_word(&effective, live).unwrap_or_default() };
     let additions = effective["additions"].as_u64().unwrap_or(0);
     let deletions = effective["deletions"].as_u64().unwrap_or(0);
     let request_item = effective.clone();
     let revision_for_click = revision.clone();
     let cache_key_for_click = cache_key.clone();
     rsx! {
-        details {class:"tool-activity", "data-item-type":kind,
-            summary {span {class:"activity-title","{label}"}span {class:if status=="failed"{"activity-status failure"}else{"activity-status"},"{status}"}
+        details {class:"tool-activity", "data-item-type":kind,open:open(),
+            summary {"aria-label":"{label}","aria-expanded":"{open()}",onclick:move |event| {event.prevent_default();let now=*open.peek();open.set(!now);},span {class:"activity-title","{label}"}if !status.is_empty() {span {class:if status=="failed"{"activity-status failure"}else{"activity-status"},"{status}"}}
                 if kind=="file_change" {span {class:"diff-count additions", "+{additions}"}span {class:"diff-count deletions","−{deletions}"}}
             }
-            div {class:"activity-body",
+            if open() {div {class:"activity-body",
                 match kind {
-                    "reasoning"=>rsx!{Markdown {text:effective["text"].as_str().unwrap_or_default().to_owned()}},
-                    "command_execution"=>rsx!{pre {class:"command-input",{effective["input"].as_str().unwrap_or_default()}}if let Some(code)=effective["exitCode"].as_i64(){p {class:if code==0{"muted"}else{"failure"},"Exit code {code}"}}},
+                                        "command_execution"=>rsx!{pre {class:"command-input",{effective["input"].as_str().unwrap_or_default()}}if let Some(code)=effective["exitCode"].as_i64(){p {class:if code==0{"muted"}else{"failure"},"Exit code {code}"}}},
                     "file_change"=>rsx!{FileChange {item:effective.clone()}},
                     "dynamic_tool"=>rsx!{if let Some(input)=work_log::format_value(&effective["input"]){pre {class:"tool-input","{input}"}}},
                     "file_search"=>rsx!{if let Some(pattern)=effective["pattern"].as_str(){pre {"{pattern}"}}},
                     "web_search"=>rsx!{for pattern in effective["patterns"].as_array().into_iter().flatten(){p {{pattern.as_str().unwrap_or_default()}}}
                         for result in effective["results"].as_array().into_iter().flatten(){SearchResult {result:result.clone()}}
                     },
-                    "approval_request"=>rsx!{if let Some(prompt)=effective["prompt"].as_str(){pre {"{prompt}"}}},
-                    "user_input_request"=>rsx!{for question in effective["questions"].as_array().into_iter().flatten(){p {{question["question"].as_str().unwrap_or_default()}}}},
-                    "checkpoint"=>rsx!{ul {for file in effective["files"].as_array().into_iter().flatten(){li {{file["path"].as_str().or_else(||file["fileName"].as_str()).unwrap_or_default()}}}}},
-                    "compaction"|"handoff"=>rsx!{if let Some(summary)=effective["summary"].as_str(){pre {"{summary}"}}},
+                    "approval_request"=>rsx!{if let Some(prompt)=effective["prompt"].as_str(){pre {class:"approval-prompt","{prompt}"}}},
+                    "user_input_request"=>rsx!{AnsweredQuestions {item:effective.clone()}},
+                    "handoff"=>rsx!{if let Some(summary)=effective["summary"].as_str(){pre {"{summary}"}}},
                     "subagent"=>rsx!{p {{effective["prompt"].as_str().unwrap_or_default()}}if let Some(progress)=effective["progress"].as_str(){pre {"{progress}"}}if let Some(result)=effective["result"].as_str(){pre {"{result}"}}},
                     "secret_request"=>rsx!{p {{effective["reason"].as_str().unwrap_or_default()}}p {class:"muted",{effective["secretStatus"].as_str().unwrap_or_default()}}},
                     _=>rsx!{},
@@ -169,7 +135,8 @@ pub(crate) fn TimelineItem(
                     }},if loading.read().as_ref()==Some(&cache_key){"Loading full output…"}else{"Load full output"}}
                 }
                 if let Some((key,message))=&*error.read(){if key==&cache_key{p {class:"failure",role:"alert","{message}"}}}
-                if let Some(target)=effective["childThreadId"].as_str().or_else(||effective["targetThreadId"].as_str()) {button {onclick:{let transport=transport.clone();let target=target.to_owned();move |_|runtime::select_thread(&transport,state,target.clone())},"Open thread"}}
+                if let Some(target)=effective["childThreadId"].as_str().or_else(||effective["targetThreadId"].as_str()) {button {onclick:{let transport=transport.clone();let target=target.to_owned();move |_|runtime::select_thread(&transport,state,target.clone())},if kind=="subagent" {"Open subagent thread"} else {"Open thread"}}}
+            }
             }
         }
     }
@@ -216,4 +183,103 @@ fn FileChange(item: Value) -> Element {
         if let Some(diff)=diff {pre {class:"unified-diff",for (index,line) in diff.lines().enumerate(){div {key:"{index}",class:if line.starts_with('+')&&!line.starts_with("+++"){"additions"}else if line.starts_with('-')&&!line.starts_with("---"){"deletions"}else{""},"{line}\n"}}}}
         else {if let Some(old)=item["oldStr"].as_str(){h4 {"Before"}pre {"{old}"}}if let Some(new)=item["newStr"].as_str(){h4 {"After"}pre {"{new}"}}}
     }}
+}
+
+/// Sent attachments: image thumbnails in a fixed-aspect box, so the timeline does not
+/// move when pictures load, and download links for everything else.
+#[component]
+fn MessageAttachments(
+    environment_key: String,
+    state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    attachments: Vec<Value>,
+) -> Element {
+    let (images, others): (Vec<_>, Vec<_>) = attachments
+        .into_iter()
+        .map(|attachment| (attachment["id"].as_str().unwrap_or_default().to_owned(), attachment))
+        .partition(|(_, attachment)| attachment["type"] == "image");
+    rsx! {
+        if !images.is_empty() {div {class:"message-images",for (id,attachment) in images {SentAttachment {key:"{id}",environment_key:environment_key.clone(),state,transport:transport.clone(),attachment}}}}
+        if !others.is_empty() {div {class:"message-files",for (id,attachment) in others {SentAttachment {key:"{id}",environment_key:environment_key.clone(),state,transport:transport.clone(),attachment}}}}
+    }
+}
+
+#[component]
+fn SentAttachment(
+    environment_key: String,
+    state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    attachment: Value,
+) -> Element {
+    let mut link = use_signal(|| None::<t3_client::attachments::Preview>);
+    let mut asking = use_signal(|| false);
+    let (id, name) = (
+        attachment["id"].as_str().unwrap_or_default().to_owned(),
+        attachment["name"].as_str().unwrap_or("Attachment").to_owned(),
+    );
+    let resource = json!({"_tag":"attachment","attachmentId":id,"fileName":name,"mimeType":attachment["mimeType"]});
+    {
+        let (transport, environment_key) = (transport.clone(), environment_key.clone());
+        // The URL needs a connection; it is asked for again when one returns.
+        use_effect(move || {
+            if *state.status().read() != t3_client::connection::ConnectionStatus::Connected
+                || link.peek().is_some()
+                || *asking.peek()
+            {
+                return;
+            }
+            asking.set(true);
+            let (transport, environment_key, resource) =
+                (transport.clone(), environment_key.clone(), resource.clone());
+            spawn(async move {
+                if let Ok(preview) =
+                    crate::attachments::asset_url(&transport, state, &environment_key, resource).await
+                {
+                    link.set(Some(preview));
+                }
+                asking.set(false);
+            });
+        });
+    }
+    let size = attachment["sizeBytes"]
+        .as_u64()
+        .map(t3_client::attachments::format_size)
+        .unwrap_or_default();
+    if attachment["type"] == "image" {
+        return rsx! {
+            div {class:"message-image",
+                if let Some(preview)=link.read().as_ref() {a {href:"{preview.url}",target:"_blank",rel:"noopener","aria-label":"Open {name}",img {src:"{preview.url}",alt:"{name}",loading:"lazy"}}}
+                else {span {class:"message-image-name","{name}"}}
+            }
+        };
+    }
+    rsx! {
+        div {class:"message-file",
+            if let Some(preview)=link.read().as_ref() {a {href:"{preview.url}",download:"{name}",target:"_blank",rel:"noopener","aria-label":"Download {name}",span {"aria-hidden":"true","📄"} span {class:"attachment-name","{name}"} small {"{size}"}}}
+            else {span {span {"aria-hidden":"true","📄"} span {class:"attachment-name","{name}"} small {"{size}"}}}
+        }
+    }
+}
+
+/// Puts text on the clipboard from the click that asked for it.
+fn copy_text(text: String) {
+    let text = serde_json::to_string(&text).expect("clipboard text");
+    dioxus::document::eval(&format!("navigator.clipboard?.writeText({text});"));
+}
+/// Hands the viewer a file to save.
+fn download_text(name: String, text: String) {
+    let args = serde_json::to_string(&json!([name, text])).expect("download");
+    dioxus::document::eval(&format!("const [n,t]={args};const u=URL.createObjectURL(new Blob([t],{{type:'text/markdown;charset=utf-8'}}));const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),0);"));
+}
+
+/// Who asked what and what was answered, as the original's history of a question shows it.
+#[component]
+fn AnsweredQuestions(item: Value) -> Element {
+    let answer = &item["questionAnswer"];
+    let text = |id: &str| answer["answers"][id].as_str().map(str::to_owned).or_else(|| answer["answers"][id].as_array().map(|list| list.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")));
+    let rows: Vec<(String, String, Option<String>)> = item["questions"].as_array().into_iter().flatten().map(|question| {
+        let id = question["id"].as_str().unwrap_or_default();
+        (id.to_owned(), answer["questionTextById"][id].as_str().or_else(|| question["question"].as_str()).unwrap_or_default().to_owned(), text(id).filter(|text| !text.is_empty()))
+    }).collect();
+    rsx! {for (id,question,reply) in rows {div {key:"{id}",class:"question-history",p {"{question}"}if let Some(reply)=reply {p {class:"question-answer muted","{reply}"}}}}}
 }

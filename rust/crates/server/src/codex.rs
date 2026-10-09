@@ -27,6 +27,20 @@ pub struct CodexConnection {
 }
 impl CodexInstance {
     pub fn process_options(&self, cwd: &Path) -> Result<ProcessOptions, ProcessError> {
+        let (binary, environment, launch_args) = self.launch()?;
+        let mut args = vec!["app-server".into()];
+        args.extend(tokenize_cli_args(&launch_args));
+        Ok(ProcessOptions {
+            binary,
+            args,
+            cwd: cwd.into(),
+            environment,
+        })
+    }
+    /// What every way of starting this instance's CLI shares: the binary, the environment (the
+    /// instance's own, with `CODEX_HOME` when it has a home) and the configured launch arguments
+    /// (`T3CODE_CODEX_LAUNCH_ARGS` wins over the setting).
+    pub(crate) fn launch(&self) -> Result<(PathBuf, HashMap<String, String>, String), ProcessError> {
         if self
             .config
             .setup_mode
@@ -48,8 +62,6 @@ impl CodexInstance {
             .or_else(|| std::env::var("T3CODE_CODEX_LAUNCH_ARGS").ok())
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| self.config.launch_args.to_string());
-        let mut args = vec!["app-server".into()];
-        args.extend(tokenize_cli_args(&launch_args));
         if !self.config.home_path.as_str().trim().is_empty() {
             environment.insert(
                 "CODEX_HOME".into(),
@@ -58,12 +70,8 @@ impl CodexInstance {
                     .into_owned(),
             );
         }
-        Ok(ProcessOptions {
-            binary: expand_home(self.config.binary_path.as_str(), &environment)?,
-            args,
-            cwd: cwd.into(),
-            environment,
-        })
+        let binary = expand_home(self.config.binary_path.as_str(), &environment)?;
+        Ok((binary, environment, launch_args))
     }
     pub async fn connect(&self, cwd: &Path) -> Result<CodexConnection, ProcessError> {
         let process = ProviderProcess::spawn(self.process_options(cwd)?)?;
@@ -189,8 +197,10 @@ fn validate_snapshot(value: Value) -> Result<Value, ProcessError> {
         serde_json::from_value(value).map_err(|error| ProcessError::Protocol(error.to_string()))?;
     serde_json::to_value(typed).map_err(|error| ProcessError::Protocol(error.to_string()))
 }
+/// The client capabilities of the original adapter, less MCP Apps (not ported): `turn/diff/updated`
+/// is opted out because checkpoints, not Codex's running diff, drive the diff views.
 pub fn initialize_params() -> Value {
-    json!({"clientInfo":{"name":"T3 Code","title":"T3 Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true}})
+    json!({"clientInfo":{"name":"T3 Code","title":"T3 Code","version":env!("CARGO_PKG_VERSION")},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":["turn/diff/updated"]}})
 }
 async fn read_models(process: &ProviderProcess) -> Result<Vec<Value>, ProcessError> {
     let mut models = vec![];
@@ -562,7 +572,7 @@ mod tests {
                 display_name: "Codex".into(),
                 accent_color: None,
                 enabled: true,
-                config: serde_json::from_value(json!({"binaryPath":binary})).unwrap(),
+                config: serde_json::from_value(json!({"binaryPath":binary,"homePath":directory.path().join("codex-home")})).unwrap(),
                 environment: HashMap::new(),
             };
             let mut connection = instance.connect(directory.path()).await.unwrap();
@@ -695,7 +705,7 @@ mod tests {
             display_name: "Codex".into(),
             accent_color: None,
             enabled: true,
-            config: serde_json::from_value(json!({"binaryPath":script})).unwrap(),
+            config: serde_json::from_value(json!({"binaryPath":script,"homePath":directory.path().join("codex-home")})).unwrap(),
             environment: HashMap::new(),
         };
         let mut connection = instance.connect(directory.path()).await.unwrap();

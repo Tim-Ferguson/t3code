@@ -90,8 +90,15 @@ and sibling preservation, grant revocation and replacement connections while
 edits are pending. Account controls consume the advertised sign-in methods and
 live authentication stream, with browser consent, configured-environment guidance,
 ephemeral credential fields, an owned terminal, cancellation and sign out.
-Instance creation, command argument editing, automatic callback coordination and
-complete provider/model preferences remain unfinished.
+The page refreshes provider status, shows each provider's version advisory and runs its
+update after a confirmation that names the command, installs and removes the managed
+Codex runtime with a live progress row, manages an ACP agent's native sessions, providers
+and sign-out, adds an instance (a local ACP command included) and edits command
+arguments. Adding an instance from the ACP registry search, automatic callback
+coordination and complete provider/model preferences remain unfinished.
+The pull request panel also reacts, rewrites the title, description and your own
+remarks, files a pull request under a thread (shown in the thread header), starts a
+thread from one in a dialog, and lists the environment's pull requests.
 Pairing credentials exchange into bearer sessions;
 saved connections can be forgotten. The desktop UI defaults to the Rust server's
 port 3774, with `T3_SERVER_URL` available for another existing server. Mobile
@@ -121,17 +128,32 @@ while retaining these choices. Tests cover provider-owned reported options,
 started-session transition restrictions, model switching through actual provider
 requests, and destination changes while settings requests are pending.
 Draft recovery reads the original version-9 composer store without changing its
-bytes; supported edits use a Rust sidecar. Unsupported saved attachments and
-context hold the draft until the full composer is implemented. The original
+bytes; supported edits use a Rust sidecar. Unsupported saved context holds
+the draft until the full composer is implemented; saved attachments no longer do. The original
 shared-store writer and multiple local drafts remain unfinished.
+Composer attachments (thread and new-thread composers) are added by file picker,
+paste or drop, upload at once through `attachments.createUploadUrl` and the signed
+URL, and are claimed by the send. Limits and messages follow the original; uploads
+that finish after a thread switch stay with their own draft. Ready uploads persist
+in the Rust sidecar and are verified on reload (an expired one asks to be attached
+again); images and files saved by the original app load and re-upload instead of
+holding the draft. Sent attachments render as fixed-aspect thumbnails and download
+links from signed asset URLs. Not ported: image compression, HEIC conversion,
+pasted-text folding, inline attachment chips, upload percentage, and the in-app
+file viewer. Paste needs the webview bridge and a real window to verify.
 The desktop CloseRequested hook queues the latest serialized draft write and
 waits for its receipt before closing. Its compiled hook and writer tests pass;
 actual native-window interaction, separate OS quit, and mobile pause are still
 unverified or unimplemented.
 
 The server now has an executable with HTTP authentication and WebSocket transport.
-Configured Codex instances support text turns, streamed messages/tools, live
-approvals and input, and interruption. Native local ACP v1/v2 instances support
+Configured Codex instances support text turns, streamed messages, reasoning,
+plans and tools (commands, file changes, web search, MCP and dynamic tools with
+their presentation), live command, file-change, permission and MCP-elicitation
+approvals and input, token usage, retries and usage-limit stops, `/compact`, and
+interruption. The Codex adapter is checked against the original's recorded
+app-server transcripts (`tests/codex_replay.rs`); subagents, thread forking,
+handoff and the ChatGPT-specific pieces are not ported. Native local ACP v1/v2 instances support
 negotiated sessions, saved-session replay, assistant/reasoning text, plans, tools
 and MCP presentation, live approvals, client filesystem and owned terminal
 callbacks, model/config changes, interruption and durable recovery. Registry raw,
@@ -141,7 +163,11 @@ owner privacy, cancellation, logout cleanup and provider-health refresh. Mounted
 Rust Account controls test these flows through native RPCs, including permission
 revocation and connection replacement. Exact source policy tests cover scalar
 Unicode strings; seven isolated UTF-16 slice witnesses remain a compatibility gap.
-Complete registry management/profile transfer, other provider authentication,
+Provider refresh and one-click updates, managed Codex installation (checksummed
+official release, local `codex` preferred) and ACP registry session, provider and
+logout management are served over the socket. Importing a native ACP session still needs
+orchestration support for threads that own a native-session reference; ChatGPT-signed-in
+managed Codex sessions, ChatGPT profile transfer, other provider authentication,
 coordinator policy, handoff and checkpoint parity remain incomplete. Provider
 sessions receive thread-scoped MCP credentials before startup, with native
 stdio/HTTP transport and authenticated device tools. External MCP authentication

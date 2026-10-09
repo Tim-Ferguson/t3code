@@ -1,31 +1,71 @@
+#![cfg_attr(test, recursion_limit = "512")]
 mod appearance;
+mod attachments;
+mod branch;
+mod changed_files;
 mod client_settings;
+mod command_palette;
+mod composer_menu;
+mod composer_panels;
+mod item_cards;
+mod base_ref_picker;
+mod git_control;
+mod pull_request_edit;
+mod pull_request_links;
+mod pull_request_list;
+mod pull_request_menus;
+mod pull_request_panel;
+mod pull_request_review;
+mod pull_request_thread;
+mod pull_request_files;
+mod diff_panel;
+mod review_diff;
 mod draft_storage;
 mod font_service;
+mod keybinding_page;
+mod keys;
 mod markdown;
 mod model_controls;
+mod model_picker;
 mod new_thread;
+mod notice;
+mod project_create;
 mod provider_auth;
+mod provider_manage;
 mod provider_settings;
+mod rollback;
 mod runtime;
+mod scheduled_tasks_page;
 mod scroll_state;
+mod search;
+mod settings_common;
+mod source_control_page;
+mod syntax_highlighting;
 mod terminal_bridge;
 mod terminal_pane;
 mod terminal_stream;
+mod text_generation_page;
 mod theme_download;
 mod theme_inspector;
 mod theme_library;
 mod theme_search;
 mod themes;
 mod thread_controls;
+mod thread_lifecycle;
 mod timeline;
 mod timeline_scroll;
+mod work_rows;
+mod worktree_setup;
 use dioxus::prelude::*;
 use runtime::{UiModel, UiModelStoreExt, View};
 use serde_json::{Value, json};
-use t3_client::{connection::ConnectionStatus, rpc::RequestKind};
+use t3_client::{connection::ConnectionStatus, rpc::RequestKind, timeline_items as words};
 
 const STYLES: &str = include_str!("../assets/app.css");
+
+/// Lets the command palette open the "Add project" dialog the application shell owns.
+#[derive(Clone, Copy)]
+pub(crate) struct AddProject(pub Signal<bool>);
 
 #[component]
 pub fn App() -> Element {
@@ -63,6 +103,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let mut token = use_signal(String::new);
     let mut credential_kind = use_signal(runtime::default_credential_kind);
     let mut add_project = use_signal(|| false);
+    use_context_provider(|| AddProject(add_project));
+    let runner = keys::use_keys(state, transport.clone());
+    let new_thread_hint = runner.keys.label("chat.new");
     let mut project_title = use_signal(String::new);
     let mut project_path = use_signal(String::new);
     let shell = state.shell();
@@ -84,6 +127,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         .find(|thread| Some(thread.id.as_str()) == active_id.as_deref())
         .cloned();
     let connected = *state.status().read() == ConnectionStatus::Connected;
+    let scratch_available = project_create::scratch_available(state);
     let can_operate = connected
         && state
             .destination()
@@ -160,23 +204,28 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
                 nav { class: "sidebar-actions",
-                    button { onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
+                    button { title: match &new_thread_hint { Some(hint) => format!("New thread ({hint})"), None => "New thread".to_owned() }, onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
                     button { onclick: move |_| add_project.set(true), "＋ Add project" }
+                    button { "aria-label": "New project", disabled: !can_operate || project_create::new_projects_root(state).is_none(), onclick: move |_| command_palette::open(state, command_palette::Intent::NewProject), "＋ New project" }
                 }
+                search::SidebarSearch { state, transport: transport.clone() }
                 div { class: "project-list",
                     for project in projects.iter() {
                         div { class: "project-group", key: "{project.id}",
                             button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
                                 span { class: "project-icon", "◇" } "{project.title}"
                             }
-                            for thread in threads.iter().filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none()) {
+                            button { class: "project-remove", "aria-label": "Remove project {project.title}", title: "Remove project", disabled: !can_operate, onclick: { let id = project.id.to_string(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" }
+                            for thread in threads.iter().filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none() && thread.archived_at.is_none() && !is_subagent_thread(thread)) {
                                 button { key: "{thread.id}", class: if active.as_ref().is_some_and(|active| active.id == thread.id) { "thread-row selected" } else { "thread-row" },
                                     onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| runtime::select_thread(&transport, state, id.clone()) },
                                     span { class: if thread.status.is_active() { "status-dot busy" } else { "status-dot" } }
                                     span { class: "thread-title", "{thread.title}" }
+                                    if matches!(thread.title_regeneration, Some(Some(_))) { span { class: "sr-only", role: "status", "Regenerating title" } }
                                     if thread.pending_runtime_request.is_some() { span { class: "attention", title: "Needs your input", "!" } }
                                 }
                             }
+                            thread_lifecycle::Archived { key: "archived:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string() }
                         }
                     }
                 }
@@ -191,9 +240,30 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 header { class: "workspace-header",
                     button { class: "icon-button", "aria-label": "Toggle main sidebar", onclick: move |_| { let open=state.peek().sidebar_open; state.sidebar_open().set(!open); }, "☰" }
                     span { class: "workspace-title", "{title}" }
+                    command_palette::Button { state }
                     if let Some(active_thread) = active.clone() {
-                        if active_thread.branch.is_some() { span { class: "branch-label", "⑂ {active_thread.branch.as_ref().unwrap()}" } }
-                        button { class: "icon-button", title: "Archive thread", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=active_thread.id.to_string(); move |_| { runtime::command(&transport,state,"thread.archive",json!({"threadId":id})); } }, "Archive" }
+                        {
+                            let project_cwd = projects.iter().find(|project| project.id == active_thread.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
+                            let worktree = active_thread.worktree_path.as_ref().map(ToString::to_string);
+                            let cwd = worktree.clone().unwrap_or_else(|| project_cwd.clone());
+                            rsx! { if !cwd.is_empty() { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
+                        }
+                        diff_panel::Toggle { state, environment_key: environment_key.clone(), thread_id: active_thread.id.to_string() }
+                        {
+                            let supported = state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.thread_title_regeneration == Some(true));
+                            let regenerating = matches!(active_thread.title_regeneration, Some(Some(_)));
+                            let id = active_thread.id.to_string();
+                            let transport = transport.clone();
+                            rsx! {
+                                if supported {
+                                    button { class: "icon-button", "aria-label": "Regenerate title", "aria-busy": "{regenerating}", title: "Write a new title for this thread from its messages", disabled: !can_operate || regenerating,
+                                        onclick: move |_| { runtime::command(&transport, state, "thread.metadata.update", json!({"threadId":id,"regenerateTitle":true})); },
+                                        if regenerating { "Regenerating\u{2026}" } else { "Regenerate title" } }
+                                }
+                            }
+                        }
+                        thread_lifecycle::HeaderButtons { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
+                        pull_request_links::HeaderLinks { state, thread: active_thread.clone() }
                     }
                 }
                 if let Some(error) = error {
@@ -201,7 +271,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 }
                 match view {
                     View::Connections => rsx! {
-                        section { class: "settings-page", h1 { "Connections" } p { "Connect to a T3 Code server to work on your projects from this device." }
+                        section { class: "settings-page", settings_common::Tabs { state, current: View::Connections } h1 { "Connections" } p { "Connect to a T3 Code server to work on your projects from this device." }
                             form { onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); let transport=transport.clone(); let address=address(); let credential=token();let pairing=credential_kind()=="pairing";token.set(String::new());spawn(async move { if pairing {runtime::pair_and_connect(transport,state,address,credential).await;}else{runtime::connect(transport,state,address,credential).await;} }); } },
                                 label { r#for: "server-address", "Server address" }
                                 input { id: "server-address", r#type: "url", required: true, placeholder: "https://your-server", value: "{address}", oninput: move |event| address.set(event.value()) }
@@ -226,8 +296,13 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         }
                     },
                     View::Providers => rsx! {provider_settings::Providers {state,transport:transport.clone()}},
+                    View::Keybindings => rsx! {keybinding_page::Page {state,transport:transport.clone()}},
+                    View::ScheduledTasks => rsx! {scheduled_tasks_page::Page {state,transport:transport.clone()}},
+                    View::SourceControl => rsx! {source_control_page::Page {state,transport:transport.clone()}},
+                    View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
+                    View::PullRequests => rsx! {pull_request_list::Page {state,transport:transport.clone()}},
                     View::Appearance => rsx! {
-                        section { class: "settings-page", div { class: "settings-tabs", button { onclick: move |_| state.view().set(View::Providers), "Providers" } button { class: "selected", "Appearance" } button { onclick: move |_| state.view().set(View::Connections), "Connections" } }
+                        section { class: "settings-page", settings_common::Tabs { state, current: View::Appearance }
                             h1 { "Appearance" }
                             themes::ThemeControls {}
                             appearance::Typography {state}
@@ -237,11 +312,11 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         if active.is_none() {
                             section { class: "empty-state",
                                 h1 { "What should we work on?" }
-                                if projects.is_empty() { p { "Add a project to start your first thread." } button { class: "primary", onclick: move |_| add_project.set(true), "＋ Add project" } }
+                                if projects.is_empty() { p { "Add a project to start your first thread." } button { class: "primary", onclick: move |_| add_project.set(true), "＋ Add project" } if scratch_available { button { disabled: !can_operate, onclick: {let transport=transport.clone();move |_| project_create::start_scratch(&transport,state)}, "Start without a project" } } }
                                 else {
                                     p { "Start a new thread in your project." }
                                     new_thread::NewThreadControls {state,transport:transport.clone(),projects:projects.clone(),can_operate}
-
+                                    if scratch_available { button { disabled: !can_operate, onclick: {let transport=transport.clone();move |_| project_create::start_scratch(&transport,state)}, "Start without a project" } }
                                 }
                             }
                         } else {
@@ -249,7 +324,26 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 ThreadTimeline { key:"{timeline_key}",state, transport: transport.clone(),environment_key:environment_key.clone(), thread_id: current.id.to_string(), can_operate }
                             }
                             for current in [active.as_ref().unwrap().clone()] {
-                                Composer { key:"{timeline_key}",state, transport: transport.clone(), thread: current, can_operate }
+                                worktree_setup::Card {key:"setup:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
+                                worktree_setup::RetryBar {key:"retry:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
+                                rollback::Host {key:"rewind:{timeline_key}",state,transport:transport.clone(),environment_key:environment_key.clone(),thread_id:current.id.to_string()}
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
+                                if is_subagent_thread(&current) { ReadOnlyThread { key:"{timeline_key}", state, transport: transport.clone(), parent: current.lineage.parent_thread_id.as_ref().map(ToString::to_string) } } else { Composer { key:"{timeline_key}",state, transport: transport.clone(), thread: current, can_operate } }
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
+                                {
+                                    let project_cwd = projects.iter().find(|project| project.id == current.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
+                                    let cwd = current.worktree_path.as_ref().map(ToString::to_string).unwrap_or(project_cwd);
+                                    rsx! { diff_panel::Host {key:"diff:{timeline_key}:{cwd}",state,transport:transport.clone(),environment_key:environment_key.clone(),thread_id:current.id.to_string(),cwd} }
+                                }
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
+                                pull_request_panel::Host {key:"pr:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
                             }
                             for current in [active.as_ref().unwrap().clone()] {
                                 terminal_pane::Drawer {key:"terminal:{timeline_key}",state,transport:transport.clone(),environment:environment_key.clone(),thread_id:current.id.to_string(),cwd:projects.iter().find(|project|project.id==current.project_id).map(|p|p.workspace_root.to_string()).unwrap_or_default(),worktree:current.worktree_path.as_ref().map(ToString::to_string)}
@@ -273,6 +367,10 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             }
         }
         theme_library::ThemeEditorHost {}
+        command_palette::Host { state, transport: transport.clone() }
+        pull_request_thread::Host { state, transport: transport.clone() }
+        notice::Host { state }
+        thread_lifecycle::Host { state, transport: transport.clone() }
     }
 }
 
@@ -293,30 +391,68 @@ fn ThreadTimeline(
     let scrolling = timeline_scroll::use_scroll(state, owner);
     let mount_scroll = scrolling.clone();
     let latest_scroll = scrolling.clone();
+    rollback::provide_busy(state, (environment_key.clone(), thread_id.clone()));
     let thread = state.thread();
+    let supports_rewind = use_memo({
+        let thread_id = thread_id.clone();
+        move || {
+            let provider = state.shell().read().snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id)).map(|thread| thread.provider_instance_id.clone());
+            let field = state.typed_config();
+            let config = field.read();
+            let provider = provider.and_then(|id| config.as_ref().and_then(|config| config.providers.0.iter().find(|candidate| candidate.instance_id == id)));
+            t3_client::rollback::provider_supports_rollback(provider)
+        }
+    });
     let mut history_loading = use_signal(|| None::<String>);
     let mut history_error = use_signal(|| None::<(String, String)>);
     let domain = thread.read();
     let projection = domain.projection.as_ref();
-    let pending = projection
-        .map(t3_client::requests::pending_requests)
-        .unwrap_or_default();
-    let rows: Vec<_> = projection
-        .and_then(|projection| projection["visibleTurnItems"].as_array())
-        .into_iter()
-        .flatten()
-        .map(|row| {
-            (
-                serde_json::to_string(&(
-                    &environment_key,
-                    &row["sourceThreadId"],
-                    &row["sourceItemId"],
-                ))
-                .expect("scoped item identity"),
-                row,
-            )
-        })
-        .collect();
+    let active_run = projection.and_then(|projection| projection["runs"].as_array()).and_then(|runs| runs.iter().rev().find(|run| matches!(run["status"].as_str(), Some("preparing" | "starting" | "running" | "waiting")))).cloned();
+    let active_run_id = active_run.as_ref().and_then(|run| run["id"].as_str()).map(str::to_owned);
+    let working_since = active_run.as_ref().and_then(|run| run["startedAt"].as_str().or_else(|| run["requestedAt"].as_str())).map(str::to_owned);
+    let offers = if can_operate && supports_rewind() { projection.map(t3_client::rollback::targets).unwrap_or_default() } else { Default::default() };
+    let disclosures = work_rows::Disclosures::new();
+    // The conversation's rows: tool activity grouped, settled turns folded.
+    let empty = Vec::new();
+    let items = projection.and_then(|projection| projection["visibleTurnItems"].as_array()).unwrap_or(&empty);
+    let entries = t3_client::timeline_rows::entries(items, projection.and_then(|projection| projection["attempts"].as_array()).unwrap_or(&empty), projection.and_then(|projection| projection["nodes"].as_array()).unwrap_or(&empty));
+    let latest_run = projection.and_then(|projection| projection["runs"].as_array()).and_then(|runs| runs.last()).map(|run| t3_client::timeline_rows::LatestRun {
+        id: run["id"].as_str().unwrap_or_default().to_owned(),
+        status: run["status"].as_str().unwrap_or_default().to_owned(),
+        started_at: run["startedAt"].as_str().map(str::to_owned),
+        completed_at: run["completedAt"].as_str().map(str::to_owned),
+    });
+    // A provider's own subagent thread has no run: its work is the root turn's.
+    let runless = projection.and_then(work_rows::runless_work_started_at);
+    let is_working = active_run_id.is_some() || runless.is_some();
+    // An interrupt in this session leaves its turn open, so the reader keeps their place; the next
+    // turn folds it again.
+    let seen = use_hook(|| std::rc::Rc::new(std::cell::RefCell::new(None::<(String, String)>)));
+    let latest_key = latest_run.as_ref().map(|run| (run.id.clone(), run.status.clone()));
+    use_effect(use_reactive(&latest_key, move |latest| {
+        let previous = seen.replace(latest.clone());
+        if let (Some((before, before_status)), Some((now, now_status))) = (previous, latest) {
+            let mut runs = disclosures.runs;
+            if before == now && before_status == "running" && now_status == "interrupted" {
+                runs.with_mut(|set| set.insert(now));
+            } else if before != now {
+                runs.with_mut(|set| set.remove(&before));
+            }
+        }
+    }));
+    let mut derived = t3_client::timeline_rows::derive(&t3_client::timeline_rows::Input {
+        entries: &entries,
+        latest_run: latest_run.as_ref(),
+        running_run_id: active_run_id.as_deref(),
+        expanded_runs: &disclosures.runs.read(),
+        expanded_attempts: &disclosures.attempts.read(),
+        expanded_groups: &disclosures.groups.read(),
+        is_working,
+        runless_work_active: runless.is_some(),
+        active_turn_started_at: working_since.as_deref().or(runless.as_deref()),
+    });
+    t3_client::timeline_rows::place_left_out(&mut derived, &entries, items);
+    let rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target }.render(&derived);
     rsx! {
         div { class: "timeline", id:scrolling.id.clone(), tabindex:"0", "aria-label": "Conversation", onmounted:move |_|mount_scroll.mount(),
             if projection.is_some() {
@@ -331,11 +467,7 @@ fn ThreadTimeline(
                     }},if history_loading.read().as_ref()==Some(&thread_id){"Loading earlier messages…"}else{"Load earlier messages"} }
                     if let Some((id,error))=&*history_error.read(){if id==&thread_id {p {class:"history-error",role:"alert","{error}"}}}
                 }
-                for (key,row) in rows { div { key:"{key}","data-timeline-row":key.clone(),"data-message-id":row["item"]["messageId"].as_str().unwrap_or_default(),
-                    timeline::TimelineItem { environment_key:environment_key.clone(),item: row["item"].clone(),state,transport:transport.clone(),source_thread_id:row["sourceThreadId"].as_str().unwrap_or(&thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned() }
-                }}
-                for approval in pending.approvals.iter() { ApprovalCard { key: "{approval.id}", approval:approval.clone(), state, transport:transport.clone(),thread_id:thread_id.clone(),can_operate } }
-                for request in pending.user_inputs.iter() { UserInputCard { key: "{request.id}", request:request.clone(),state,transport:transport.clone(),thread_id:thread_id.clone(),can_operate } }
+                {rendered.into_iter()}
             } else { p { class: "muted", "Loading thread…" } }
             div {"data-timeline-spacer":"true","aria-hidden":"true"}
         }
@@ -344,43 +476,24 @@ fn ThreadTimeline(
     }
 }
 
-#[component]
-fn ApprovalCard(
-    approval: t3_client::requests::PendingApproval,
-    state: Store<UiModel>,
-    transport: runtime::TransportHandle,
-    thread_id: String,
-    can_operate: bool,
-) -> Element {
-    let options: Vec<_> = approval
-        .options
-        .iter()
-        .filter_map(|option| {
-            Some((
-                option["decision"].as_str()?.to_owned(),
-                option["label"].as_str()?.to_owned(),
-                option["warning"].as_str().map(str::to_owned),
-            ))
-        })
-        .collect();
-    rsx! {
-        section { class:"approval-card", "aria-label":"Approval required",
-            h3 { "Approval required" }
-            if let Some(app)=&approval.app_name { p { "{app}" } }
-            if let Some(detail)=&approval.detail { pre { "{detail}" } }
-            if !approval.live { p { class:"muted", "This request can no longer be answered." } }
-            for (decision,label,warning) in options {
-                div { class:"approval-option",
-                    button { disabled:!can_operate || !approval.live, onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=approval.id.clone();move |_|{runtime::command(&transport,state,"runtime-request.respond",json!({"threadId":thread_id,"requestId":id,"decision":decision}));}}, "{label}" }
-                    if let Some(warning)=warning { span { class:"approval-warning", "{warning}" } }
-                }
-            }
-        }
+/// A child thread a provider's subagent runs in: reached from its row in the parent, not listed
+/// in the sidebar, and read-only.
+fn is_subagent_thread(thread: &t3_contracts::ThreadShell) -> bool {
+    thread.lineage.relationship_to_parent == Some(t3_contracts::ThreadRelationship::Subagent)
+}
+
+/// The checkpoint "Edit from here" rewinds to for a row: a message that started a turn of this
+/// thread, whose turn has a checkpoint to go back to.
+fn edit_target(offers: &std::collections::BTreeMap<String, t3_client::rollback::Target>, thread_id: &str, row: &Value) -> Option<t3_client::rollback::Target> {
+    let item = &row["item"];
+    if item["type"] != "user_message" || row["sourceThreadId"] != thread_id || !matches!(item["inputIntent"].as_str(), Some("turn_start" | "queued_turn")) {
+        return None;
     }
+    offers.get(item["runId"].as_str()?).cloned()
 }
 
 #[component]
-fn UserInputCard(
+pub(crate) fn UserInputCard(
     request: t3_client::requests::PendingUserInput,
     state: Store<UiModel>,
     transport: runtime::TransportHandle,
@@ -465,36 +578,131 @@ fn Composer(
         probe.composer.set(probe.composer.get() + 1);
     }
     let draft = state.draft().read().clone();
+    // A rewind in flight owns the composer: its message is about to return to it.
+    let rewinding = use_memo({
+        let thread_id = thread.id.to_string();
+        move || {
+            let destination = state.destination().read().as_ref().map(ToString::to_string);
+            state.rewind().read().active.as_ref().is_some_and(|active| Some(&active.owner.0) == destination.as_ref() && active.owner.1 == thread_id)
+        }
+    });
     let pending = state.pending_messages().read().values().any(|pending| {
         pending.thread_id == thread.id.as_str()
             && state.destination().peek().as_ref() == Some(&pending.destination)
     });
-    let unsupported = state
-        .destination()
-        .read()
+    let destination = state.destination().read().clone();
+    let target = destination.as_ref().map(|destination| {
+        t3_client::draft_storage::DraftTarget::thread(destination.to_string(), thread.id.to_string())
+    });
+    let unsupported = target
         .as_ref()
-        .is_some_and(|destination| {
-            draft_storage::has_unrendered(
-                state,
-                &t3_client::draft_storage::DraftTarget::thread(
-                    destination.to_string(),
-                    thread.id.to_string(),
-                ),
-            )
-        });
-    rsx! {
-        form { class: "composer", onsubmit: { let transport=transport.clone(); move |event| { event.prevent_default(); runtime::send_message(&transport,state); } },
-            textarea { "aria-label": "Message", placeholder: "Ask anything, or describe what to build…", value: "{draft}", oninput: move |event| draft_storage::edit_thread_prompt(state,event.value()) }
-            if unsupported {p {class:"error-banner",role:"alert","This draft includes saved attachments or context. They are preserved; use the original app to send this complete draft."}}
-            div { class: "composer-toolbar",
-                crate::thread_controls::ThreadControls {state,thread:thread.clone()}
-                if thread.status.is_active() {
-                    button { r#type: "button", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::stop_thread(&transport,state,&id); } }, "Stop" }
+        .is_some_and(|target| draft_storage::has_unrendered(state, target));
+    let (attachment_count, attachment_block) = target
+        .as_ref()
+        .and_then(|target| {
+            state.draft_attachments().read().get(target).map(|list| {
+                (list.len(), t3_client::attachments::block_reason(list))
+            })
+        })
+        .unwrap_or_default();
+    let mut drop_files = target
+        .clone()
+        .map(|target| attachments::on_drop(&transport, state, target));
+    let thread_key = thread.id.to_string();
+    let running = thread.status.is_active();
+    let mut editing = use_context::<keys::QueueEdit>().0;
+    let mut restore = use_signal(|| None::<String>);
+    // The prompt that was set aside while a queued message was edited returns once the edit is
+    // saved (the box was emptied by the acknowledgement) and the send has finished.
+    use_effect(move || {
+        let sending = state.pending_messages().read().values().any(|pending| pending.thread_id == thread_key);
+        if !sending {
+            let previous = restore.peek().clone();
+            if let Some(previous) = previous {
+                restore.set(None);
+                if state.draft().peek().is_empty() {
+                    draft_storage::edit_thread_prompt(state, previous);
                 }
-                button { class: "primary", r#type: "submit", disabled: !can_operate || unsupported || pending || draft.trim().is_empty(), if pending { "Sending…" } else { "Send ↑" } }
+            }
+        }
+    });
+    let mode_name = serde_json::to_value(thread.interaction_mode).ok().and_then(|value| value.as_str().map(str::to_owned)).unwrap_or_default();
+    let follow_up = use_memo(use_reactive((&mode_name, &(attachment_count > 0)), move |(mode, has_attachments)| {
+        let field = state.thread();
+        let model = field.read();
+        let projection = model.projection.as_ref()?;
+        let run = composer_panels::latest_run_settled(projection)?;
+        let plan = words::latest_proposed_plan(projection, Some(&run));
+        let inputs = t3_client::requests::pending_requests(projection).user_inputs.len();
+        words::show_plan_follow_up(inputs, &mode, true, plan.as_ref(), has_attachments).then_some(plan).flatten()
+    }));
+    let queue_by_default = state.client_settings().read().follow_up_behavior == t3_contracts::FollowUpBehavior::Queue;
+    let has_content = !draft.trim().is_empty() || attachment_count > 0;
+    let following_up = follow_up.read().clone();
+    let submit_label = if following_up.is_some() { if has_content { "Refine" } else { "Implement" } } else if editing.read().is_some() { "Update queued message" } else if running { if queue_by_default { "Queue message" } else { "Steer message" } } else { "Submit message" };
+    let submit = {
+        let transport = transport.clone();
+        let following_up = following_up.clone();
+        let mode_thread = thread.id.to_string();
+        move |alternate: bool| {
+            let current = editing.peek().clone();
+            if let Some(current) = current {
+                restore.set(Some(current.previous_draft.clone()));
+                editing.set(None);
+                runtime::send_with(&transport, state, runtime::SendOptions { edit_run: Some(current.run_id), ..Default::default() });
+            } else if let Some(plan) = following_up.clone() {
+                let options = if state.draft().peek().trim().is_empty() && attachment_count == 0 {
+                    runtime::SendOptions { text: Some(words::plan_implementation_prompt(&plan.markdown)), interaction_mode: Some("default"), source_plan: Some(json!({"threadId":plan.thread_id,"planId":plan.id})), ..Default::default() }
+                } else {
+                    runtime::SendOptions { interaction_mode: Some("plan"), ..Default::default() }
+                };
+                runtime::send_with(&transport, state, options);
+            } else if let Some(mode) = composer_menu::standalone_mode(&state.draft().peek()) {
+                // `/plan` and `/default` on their own switch the mode; they are not a message.
+                draft_storage::edit_thread_prompt(state, String::new());
+                runtime::command(&transport, state, "thread.interaction-mode.set", json!({"threadId":mode_thread,"interactionMode":mode}));
+            } else {
+                runtime::send_with(&transport, state, runtime::SendOptions { mode: Some(words::dispatch_mode(running, alternate, queue_by_default)), ..Default::default() });
+            }
+        }
+    };
+    let blocked = !can_operate || unsupported || pending || rewinding() || attachment_block.is_some() || (!has_content && following_up.is_none());
+    let show_stop = running && !has_content && editing.read().is_none() && following_up.is_none();
+    let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
+    rsx! {
+        composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
+        composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint}
+        composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
+        if let Some(plan)=following_up.clone() { composer_panels::PlanReady {plan} }
+        form { class: "composer", onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },
+            ondragover: move |event| event.prevent_default(),
+            ondrop: move |event| { if let Some(handler)=drop_files.as_mut() { handler(event); } },
+            composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
+            if let Some(target)=target.clone() { attachments::Shelf {state,transport:transport.clone(),target,locked:pending,can_operate,paste_target:".composer textarea"} }
+            if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
+            div { class: "composer-toolbar",
+                if can_operate { if let Some(target)=target.clone() { attachments::AttachButton {state,transport:transport.clone(),target} } }
+                crate::thread_controls::ThreadControls {state,transport:transport.clone(),thread:thread.clone()}
+                composer_panels::ContextMeter {state}
+                if show_stop {
+                    button { r#type: "button", "aria-label":"Stop generation", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::stop_thread(&transport,state,&id); } }, "■ Stop" }
+                } else {
+                    button { class: "primary", r#type: "button", "aria-label":"{submit_label}", title:if rewinding() {"Rewinding the conversation\u{2026}".to_owned()} else if let Some(reason)=attachment_block.clone() {reason} else if running && editing.read().is_none() && following_up.is_none() {format!("Click to {}, Ctrl/\u{2318}-click to {}",if queue_by_default{"queue"}else{"steer"},if queue_by_default{"steer"}else{"queue"})} else {submit_label.to_owned()}, disabled: blocked,
+                        onclick:{let mut submit=submit.clone();move |event: MouseEvent| {let modifiers=event.modifiers();if !blocked {submit(modifiers.ctrl()||modifiers.meta());}}},
+                        if pending { "Sending…" } else if following_up.is_some() { "{submit_label}" } else if editing.read().is_some() { "✓ Save" } else { "Send ↑" } }
+                }
             }
         }
     }
+}
+
+/// Where the message box would be for a subagent's thread: its provider runs it, so messages go to the parent.
+#[component]
+fn ReadOnlyThread(state: Store<UiModel>, transport: runtime::TransportHandle, parent: Option<String>) -> Element {
+    rsx! {section {class:"composer-panel read-only-thread",role:"status",
+        span {class:"muted","This subagent is run by its provider and cannot take messages. Message the parent thread instead."}
+        if let Some(parent)=parent {button {"aria-label":"Open parent thread",onclick:move |_|runtime::select_thread(&transport,state,parent.clone()),"Open parent thread"}}
+    }}
 }
 
 #[component]
@@ -505,8 +713,8 @@ fn Wordmark() -> Element {
 }
 
 #[component]
-fn Message(role: String, text: String) -> Element {
-    rsx! { article { class: if role=="user" { "message user" } else { "message assistant" }, markdown::Markdown {text} } }
+fn Message(role: String, text: String, children: Element) -> Element {
+    rsx! { article { class: if role=="user" { "message user" } else { "message assistant" }, markdown::Markdown {text} {children} } }
 }
 
 /// Raw HTML and unsafe link/image schemes cannot cross into the webview. Rich
@@ -574,6 +782,9 @@ struct RenderProbe {
     application: std::rc::Rc<std::cell::Cell<usize>>,
     composer: std::rc::Rc<std::cell::Cell<usize>>,
     timeline: std::rc::Rc<std::cell::Cell<usize>>,
+    /// How many times a conversation row was built.
+    item: std::rc::Rc<std::cell::Cell<usize>>,
+    diff: std::rc::Rc<std::cell::Cell<usize>>,
 }
 
 #[cfg(test)]
@@ -648,6 +859,244 @@ mod reactive_tests {
         );
     }
 
+    #[test]
+    fn adding_and_removing_attachments_rebuilds_only_the_composer() {
+        use t3_client::attachments::{Admitted, Attachment, Kind, Upload};
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe: RenderProbe::default(),
+        };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        state
+            .destination()
+            .set(Some(serde_json::from_value(json!("environment-a")).unwrap()));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        let (root, timeline, composer) = (
+            props.probe.application.get(),
+            props.probe.timeline.get(),
+            props.probe.composer.get(),
+        );
+        let target = t3_client::draft_storage::DraftTarget::thread("environment-a", "thread");
+        let mut attachment = Attachment::new(
+            "local".into(),
+            &Admitted {
+                index: 0,
+                kind: Kind::File,
+                name: "notes.pdf".into(),
+                mime_type: "application/pdf".into(),
+            },
+            9,
+        );
+        attachment.upload = Upload::Ready;
+        state
+            .draft_attachments()
+            .write()
+            .entry(target.clone())
+            .or_default()
+            .push(attachment);
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("notes.pdf"));
+        state.draft_attachments().write().get_mut(&target).unwrap().clear();
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!(props.probe.application.get(), root);
+        assert_eq!(props.probe.timeline.get(), timeline);
+        assert_eq!(props.probe.composer.get(), composer + 2);
+    }
+
+    /// A long conversation whose thread has two completed turns, with the diff panel mounted.
+    fn diff_model() -> UiModel {
+        let mut model = large_model();
+        model.destination = Some(serde_json::from_value(json!("environment-a")).unwrap());
+        let projection = model.thread.projection.as_mut().unwrap();
+        projection["runs"] = json!([{"id":"run-1","status":"completed"},{"id":"run-2","status":"completed"}]);
+        projection["checkpoints"] = json!([
+            {"runId":"run-1","appRunOrdinal":1,"status":"ready","files":[],"capturedAt":"2026-01-01T00:00:00Z"},
+            {"runId":"run-2","appRunOrdinal":2,"status":"ready","files":[{"path":"a.rs","kind":"modified","additions":1,"deletions":0}],"capturedAt":"2026-01-02T00:00:00Z"},
+        ]);
+        model
+    }
+    fn diff_harness(props: Harness) -> Element {
+        use_context_provider(|| props.probe.clone());
+        let state = use_store(diff_model);
+        *props.state.borrow_mut() = Some(state);
+        let transport = use_hook(runtime::TransportHandle::default);
+        rsx! { Application { state, transport } }
+    }
+    #[test]
+    fn opening_using_and_closing_the_diff_never_rebuilds_the_conversation_or_sidebar() {
+        use crate::runtime::transport_tests::{click_control, control};
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe: RenderProbe::default(),
+        };
+        let mut dom = VirtualDom::new_with_props(diff_harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        let (root, timeline, composer) = (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        assert_eq!(props.probe.diff.get(), 0, "a closed panel is not mounted");
+
+        click_control(&mut dom, "Diff");
+        assert!(control(&dom, "Diff scope").is_some());
+        assert_eq!(props.probe.diff.get(), 1);
+        // Using the panel's controls re-renders the panel alone.
+        for label in ["Hide whitespace changes", "Show whitespace changes", "Disable diff line wrapping", "Show file tree"] {
+            if control(&dom, label).is_some() {
+                click_control(&mut dom, label);
+            }
+        }
+        let panel = props.probe.diff.get();
+        assert!(panel > 1);
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get()), (root, timeline, composer), "the panel's own state repaints only the panel");
+
+        // Streaming into the thread repaints the conversation, not the diff.
+        for text in ["Hel", "Hello", "Hello wor", "Hello world"] {
+            state.thread().write().projection.as_mut().unwrap()["visibleTurnItems"][0]["item"]["text"] = json!(text);
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+        assert_eq!(props.probe.diff.get(), panel, "a streaming turn must not re-render an open diff");
+        // A new completed turn changes what the panel is about, so it may repaint once.
+        let before_turn = props.probe.diff.get();
+        state.thread().write().projection.as_mut().unwrap()["checkpoints"].as_array_mut().unwrap().push(json!({"runId":"run-3","appRunOrdinal":3,"status":"ready","files":[],"capturedAt":"2026-01-03T00:00:00Z"}));
+        state.thread().write().projection.as_mut().unwrap()["runs"].as_array_mut().unwrap().push(json!({"id":"run-3","status":"completed"}));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(props.probe.diff.get() <= before_turn + 1);
+
+        click_control(&mut dom, "Close diff");
+        assert!(control(&dom, "Diff scope").is_none());
+        // Application and the sidebar inside it were never rebuilt by the panel opening, working or closing.
+        assert_eq!(props.probe.application.get(), root);
+        assert_eq!(props.probe.composer.get(), composer, "the composer is untouched by the panel");
+    }
+
+    #[test]
+    fn the_rewind_dialog_over_a_large_conversation_never_rebuilds_it_or_the_sidebar() {
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe: RenderProbe::default(),
+        };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        state.destination().set(Some(serde_json::from_value(json!("environment-a")).unwrap()));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        let (root, timeline, composer) = (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        let confirm = || rollback::Confirm {
+            owner: ("environment-a".into(), "thread".into()),
+            run_id: "run".into(),
+            text: "first".into(),
+            attachments: vec![],
+            target: t3_client::rollback::Target { checkpoint_id: "c".into(), scope_id: "s".into() },
+        };
+        for _ in 0..3 {
+            state.rewind().write().confirm = Some(confirm());
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+            assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("Edit from here?"));
+            state.rewind().write().confirm = None;
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+        // A refused rewind and a rewind in flight are the dialog's own state too.
+        state.rewind().write().error = Some((("environment-a".into(), "thread".into()), "File restore requires an isolated worktree.".into()));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("File restore requires"));
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get()), (root, timeline));
+        // Only the composer's send button follows a rewind in flight, once each way.
+        state.rewind().write().active = Some(rollback::Active { owner: ("environment-a".into(), "thread".into()), command_id: "c".into(), run_id: "run".into(), restore_files: false, accepted: false, text: String::new(), files: Default::default() });
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("Rewinding the conversation"));
+        state.rewind().write().active = None;
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get()), (root, timeline));
+        assert_eq!(props.probe.composer.get(), composer + 2);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_rewind_the_server_never_finishes_ends_with_a_timeout_instead_of_waiting_forever() {
+        crate::rollback::TIMEOUT_OVERRIDE.with(|timeout| timeout.set(Some(20)));
+        let props = Harness {
+            state: Rc::new(RefCell::new(None)),
+            probe: RenderProbe::default(),
+        };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        state.destination().set(Some(serde_json::from_value(json!("environment-a")).unwrap()));
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        let owner = ("environment-a".to_owned(), "thread".to_owned());
+        state.rewind().write().active = Some(rollback::Active { owner: owner.clone(), command_id: "c".into(), run_id: "run".into(), restore_files: true, accepted: true, text: "first".into(), files: Default::default() });
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("Rewinding the conversation and restoring files"));
+        // The wait ends on its own, with the reason, and the thread can be used again.
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while !crate::runtime::transport_tests::rendered_text(&dom).contains("Timed out waiting for the thread to rewind.") {
+                dom.wait_for_work().await;
+                dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+            }
+        })
+        .await
+        .expect("the rewind never gave up");
+        assert!(state.peek().rewind.active.is_none());
+        assert!(!crate::runtime::transport_tests::rendered_text(&dom).contains("Rewinding the conversation"));
+        // Nothing came back to the composer: the rewind did not finish.
+        assert_eq!(state.peek().draft, "");
+        crate::rollback::TIMEOUT_OVERRIDE.with(|timeout| timeout.set(None));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn opening_typing_in_and_closing_the_palette_never_rebuilds_the_conversation_the_sidebar_or_the_composer() {
+        use crate::runtime::keys_tests::{PALETTE, chord, key_on, poll_until, press};
+        use crate::runtime::transport_tests::{control, input_control};
+        let props = Harness { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default() };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let (root, timeline, composer) = (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        assert_eq!(timeline, 1);
+        // The shortcut opens it; typing, moving and running a filter repaint the palette alone.
+        assert_eq!(press(&mut dom, chord("k", false, false), t3_client::keybindings::Dom::default()).await.as_deref(), Some("commandPalette.toggle"));
+        poll_until(&mut dom, "the palette", |dom| control(dom, PALETTE).is_some()).await;
+        for text in [">", ">o", ">op", "settings", "zzz", ""] {
+            input_control(&mut dom, PALETTE, text);
+        }
+        key_on(&mut dom, PALETTE, Key::ArrowDown);
+        key_on(&mut dom, PALETTE, Key::ArrowUp);
+        key_on(&mut dom, PALETTE, Key::Escape);
+        assert!(control(&dom, PALETTE).is_none());
+        // Opening and closing again, by the shortcut and by the header button.
+        press(&mut dom, chord("k", false, false), t3_client::keybindings::Dom::default()).await;
+        poll_until(&mut dom, "the palette", |dom| control(dom, PALETTE).is_some()).await;
+        press(&mut dom, chord("k", false, false), t3_client::keybindings::Dom::default()).await;
+        poll_until(&mut dom, "closed", |dom| control(dom, PALETTE).is_none()).await;
+        crate::runtime::transport_tests::click_control(&mut dom, "Command palette");
+        assert!(control(&dom, PALETTE).is_some());
+        crate::runtime::transport_tests::click_control(&mut dom, "Command palette");
+        assert!(control(&dom, PALETTE).is_none());
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get()), (root, timeline, composer), "the palette is its own island");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn a_key_press_repaints_only_what_its_command_changes_over_a_two_thousand_item_conversation() {
+        use crate::runtime::keys_tests::{chord, poll_until, press, typed};
+        use t3_client::keybindings::{Dom, KeyEvent};
+        let props = Harness { state: Rc::new(RefCell::new(None)), probe: RenderProbe::default() };
+        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        dom.rebuild_in_place();
+        let state = props.state.borrow().unwrap();
+        let (root, timeline, composer) = (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
+        // Keys nothing names, keys typed in the message box, keys while composing, and keys the
+        // app has no feature for are all left alone, and repaint nothing.
+        let composing = KeyEvent { composing: true, ..chord("k", false, false) };
+        for (event, focus) in [(chord("q", true, true), Dom::default()), (typed("h"), Dom::default()), (typed("h"), Dom { editable_focus: true, composer_focus: true, ..Default::default() }), (composing, Dom::default()), (chord("p", false, false), Dom::default()), (chord("d", false, false), Dom::default())] {
+            assert_eq!(press(&mut dom, event, focus).await, None);
+        }
+        assert_eq!((props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get()), (root, timeline, composer));
+        // A command that changes the shell repaints the shell, and still not the conversation.
+        assert!(!*state.sidebar_open().peek());
+        assert_eq!(press(&mut dom, chord("b", false, false), Dom::default()).await.as_deref(), Some("sidebar.toggle"));
+        poll_until(&mut dom, "the sidebar", |_| *state.sidebar_open().peek()).await;
+        assert_eq!((props.probe.timeline.get(), props.probe.composer.get()), (timeline, composer));
+    }
+
     #[derive(Clone, Default)]
     struct IsolationHarness {
         state: Rc<RefCell<Option<Store<UiModel>>>>,
@@ -684,3 +1133,7 @@ mod reactive_tests {
         assert!(registrations[1].1.peek().is_none());
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "item_tests.rs"]
+mod item_tests;

@@ -1,0 +1,20 @@
+{
+  "onigurumaRevision": "08d36110c5670c815ad6d6f969e578049d209080",
+  "wrapperRevision": "716aeaa229e4ae2e3b0057377b55743e9a3e995b",
+  "originalWasmSha256": "fd885c2d12e5951e59d761ebd4a006e06254b1491fd6f530c92b69fb4d8d77d9",
+  "patchedWasmSha256": "cae207123ce242d2ea063d691e1029d2525e9fe4bf9ffe33cf911e7c3801e121",
+  "patchedWasmBytes": 463994,
+  "toolchain": {
+    "version": "3.1.73",
+    "release": "b363a836e75a245c548b7a6a021822d8c9e4c6df",
+    "bytes": 249229668,
+    "sha256": "58e6c984c5a1fb71e0871f0c3bb9e32d41e7553260c6eeb38800a4612623a99d",
+    "md5": "b6dea640f1b633c0ea63e8b824a3b7d4"
+  },
+  "compilerVersion": "emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.73-git (ac676d5e437525d15df5fd46bc2c208ec6d376a3)\nCopyright (C) 2014 the Emscripten authors (see AUTHORS.txt)\nThis is free and open source software under the MIT license.\nThere is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n",
+  "compilerSha256": "ccf06f26b2946f554893cec562ac20b073e9e2f53acfcd866f892165bb6baa02",
+  "emccSha256": "254452417681d6c7d9fafd45fea10d7ab54cfd16520315855619f05146bb8af9",
+  "buildScriptSha256": "da9e226e984d475c4b1e7e939c3fa10f3742fb4555ac9a4333a5fee7a2d6e2d7",
+  "patchSha256": "09ecc4418c83c1edb070d957134c4fcded43d591ed9668c8b714a2a57e24bbeb",
+  "repeatedBuildByteIdentical": true
+}

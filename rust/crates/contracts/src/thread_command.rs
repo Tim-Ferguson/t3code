@@ -415,6 +415,28 @@ pub struct ThreadIdentityCommand {
     pub command_id: CommandId,
     pub thread_id: ThreadId,
 }
+/// `thread.pull-request.link`: file a pull request under a thread by its host-level identity.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadPullRequestLinkCommand {
+    pub command_id: CommandId,
+    pub thread_id: ThreadId,
+    pub host: TrimmedNonEmptyString,
+    pub repository: TrimmedNonEmptyString,
+    pub number: PositiveInt,
+    pub url: TrimmedNonEmptyString,
+    pub source: ThreadPullRequestLinkSource,
+}
+/// `thread.pull-request.unlink`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThreadPullRequestUnlinkCommand {
+    pub command_id: CommandId,
+    pub thread_id: ThreadId,
+    pub host: TrimmedNonEmptyString,
+    pub repository: TrimmedNonEmptyString,
+    pub number: PositiveInt,
+}
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ThreadSettleCommand {
@@ -605,6 +627,10 @@ pub enum ThreadCommand {
     MarkUnread(ThreadIdentityCommand),
     #[serde(rename = "thread.metadata.update")]
     MetadataUpdate(ThreadMetadataUpdateCommand),
+    #[serde(rename = "thread.pull-request.link")]
+    PullRequestLink(ThreadPullRequestLinkCommand),
+    #[serde(rename = "thread.pull-request.unlink")]
+    PullRequestUnlink(ThreadPullRequestUnlinkCommand),
     #[serde(rename = "thread.runtime-mode.set")]
     RuntimeModeSet(ThreadRuntimeModeCommand),
     #[serde(rename = "thread.interaction-mode.set")]
@@ -663,6 +689,8 @@ impl ThreadCommand {
             Self::PinReorder(c) | Self::ActiveReorder(c) => &c.command_id,
             Self::Visit(c) => &c.command_id,
             Self::MetadataUpdate(c) => &c.command_id,
+            Self::PullRequestLink(c) => &c.command_id,
+            Self::PullRequestUnlink(c) => &c.command_id,
             Self::RuntimeModeSet(c) => &c.command_id,
             Self::InteractionModeSet(c) => &c.command_id,
             Self::ModelSelectionSet(c) => &c.command_id,
@@ -685,6 +713,8 @@ impl ThreadCommand {
             Self::PinReorder(c) | Self::ActiveReorder(c) => &c.thread_id,
             Self::Visit(c) => &c.thread_id,
             Self::MetadataUpdate(c) => &c.thread_id,
+            Self::PullRequestLink(c) => &c.thread_id,
+            Self::PullRequestUnlink(c) => &c.thread_id,
             Self::RuntimeModeSet(c) => &c.thread_id,
             Self::InteractionModeSet(c) => &c.thread_id,
             Self::ModelSelectionSet(c) => &c.thread_id,

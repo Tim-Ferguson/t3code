@@ -573,6 +573,7 @@ async fn run(
     fs::create_dir_all(&options.state_dir)?;
     let state_dir = fs::canonicalize(&options.state_dir)?;
     let store = Store::open(state_dir.join("rust-state.sqlite"))?;
+    t3_server::secret_requests::start_sweeper(&store);
     let environment_id = identity(&state_dir.join("rust-environment-id"))?;
     let instance_hash = format!("{:x}", Sha256::digest(environment_id.as_bytes()));
     let loopback = !t3_server::auth::is_remote_reachable_host(&options.host);
@@ -647,7 +648,7 @@ async fn run(
         "aarch64" => "arm64",
         arch => arch,
     };
-    let environment = json!({"environmentId":environment_id,"label":"T3 Code Rust","platform":{"os":os,"arch":arch},"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
+    let environment = json!({"environmentId":environment_id,"label":"T3 Code Rust","platform":{"os":os,"arch":arch},"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":t3_server::environment_capabilities::advertised()});
     let native_config = NativeConfig::load(
         &state_dir,
         &std::env::current_dir()?,
@@ -668,17 +669,25 @@ async fn run(
         t3_server::mcp_sessions::DEFAULT_LIVENESS_WINDOW_MS,
     );
     let native_executable = std::env::current_exe()?;
-    native_config
-        .providers
-        .set_mcp_sessions(t3_server::provider_mcp::ProviderMcpSessions::new(
-            mcp_registry.clone(),
-            native_executable.clone(),
-        ));
+    let mcp_sessions = t3_server::provider_mcp::ProviderMcpSessions::new(
+        mcp_registry.clone(),
+        native_executable.clone(),
+    );
+    native_config.providers.set_mcp_sessions(mcp_sessions.clone());
+    // Commit messages and pull request content for stacked git actions are written by the settings'
+    // provider; thread titles and branch names reach the same service through the effect worker.
+    t3_server::git_workflow_rpc::install_text_generation(std::sync::Arc::new(t3_server::text_generation_service::TextGenerationService::new(
+        native_config.providers.clone(),
+        store.clone(),
+    )));
     let execution = t3_server::execution::ExecutionService::try_start_with_lease(
         store.clone(),
         native_config.providers.clone(),
         runtime_lease,
     )?;
+    execution.workspace().attach_mcp(mcp_sessions);
+    // Started after execution recovery, so a run that comes due launches into a recovered runtime.
+    let scheduled_tasks = t3_server::scheduled_tasks::ScheduledTasks::start(&store, execution.clone())?;
     let telemetry = t3_server::native_telemetry::NativeTelemetryClient::new(
         t3_server::native_telemetry::NativeTelemetryOptions::host(
             std::env::current_dir()?,
@@ -852,6 +861,7 @@ async fn run(
     if let Some(runtime) = settings_runtime {
         runtime.shutdown().await;
     }
+    scheduled_tasks.shutdown().await;
     execution.shutdown().await;
     terminals.shutdown().await;
     discovery.shutdown().await;
@@ -860,5 +870,6 @@ async fn run(
     if let Some(settings) = settings_service {
         settings.shutdown().await;
     }
+    t3_server::keybindings_service::KeybindingsService::shutdown_shared().await;
     Ok(())
 }

@@ -30,6 +30,10 @@ fn label(row: &policy::InstanceRow) -> String {
         .to_owned()
 }
 
+fn environment_label(state: Store<UiModel>, destination: &str) -> String {
+    state.environments().read().records.values().find(|record| record.id.as_str() == destination).map(|record| record.label.clone()).unwrap_or_else(|| destination.to_owned())
+}
+
 fn can_manage(state: Store<UiModel>, destination: &str) -> bool {
     let connected = *state.status().read() == ConnectionStatus::Connected;
     connected
@@ -69,7 +73,7 @@ pub fn Providers(state: Store<UiModel>, transport: TransportHandle) -> Element {
     let is_current = current.as_ref().is_some_and(|id| id.as_str() == selected);
     let connected = *state.status().read() == ConnectionStatus::Connected;
     rsx! {section {class:"settings-page",
-        div {class:"settings-tabs",button {class:"selected","Providers"}button {onclick:move |_|state.view().set(View::Appearance),"Appearance"}button {onclick:move |_|state.view().set(View::Connections),"Connections"}}
+        crate::settings_common::Tabs {state,current:View::Providers}
         h1 {"Providers"}
         if !records.is_empty() {
             label {r#for:"provider-environment","Environment"}
@@ -99,6 +103,7 @@ fn EnvironmentProviders(
     let row = policy::selected_instance(&rows, selected.read().as_deref(), None).cloned();
     let allowed = can_manage(state, &destination);
     drop(config);
+    let environment_label = environment_label(state, &destination);
     let update = EventHandler::new({
         let transport = transport.clone();
         let destination = destination.clone();
@@ -154,6 +159,7 @@ fn EnvironmentProviders(
         if !allowed {p {class:"muted",role:"status","Provider settings are read-only. This connection needs providers:manage permission."}}
         if let Some(cause)=error.read().clone(){p {class:"error-banner",role:"alert","{cause}"}}
         if *pending.read(){p {role:"status","Saving provider settings…"}}
+        crate::provider_manage::Toolbar {state,transport:transport.clone(),providers:live.clone(),instance_ids:rows.iter().map(|row|row.instance_id.clone()).collect::<Vec<_>>(),environment:environment_label.clone(),allowed}
         div {class:"provider-settings-layout",
             nav {class:"provider-instance-list","aria-label":"Provider instances",
                 for instance in &rows {button {key:"{instance.instance_id}","aria-label":format!("Select provider {}",label(instance)),class:if row.as_ref().is_some_and(|row|row.instance_id==instance.instance_id){"selected"}else{""},onclick:{let id=instance.instance_id.clone();move |_|selected.set(Some(id.clone()))},
@@ -179,6 +185,7 @@ fn ProviderEditor(
     onupdate: EventHandler<Value>,
 ) -> Element {
     let display = label(&row);
+    let environment_label = environment_label(state, &environment);
     let runtime = live
         .iter()
         .find(|provider| provider["instanceId"] == row.instance_id);
@@ -203,6 +210,11 @@ fn ProviderEditor(
             let mut instance = latest.instance.clone();
             if key == "enabled" {
                 instance["enabled"] = value;
+            } else if key == "commandArgs" {
+                if !instance["config"].is_object() {
+                    instance["config"] = json!({});
+                }
+                instance["config"]["commandArgs"] = value;
             } else {
                 let Some(field) = policy::fields(&latest.driver, &instance["config"])
                     .iter()
@@ -227,11 +239,16 @@ fn ProviderEditor(
         if let Some(message)=runtime.and_then(|provider|provider["message"].as_str()).filter(|message|!message.is_empty()) {p {class:"muted","{message}"}}
         else if runtime.is_none() {p {class:"muted","This provider has not been checked."}}
         p {{runtime.and_then(|provider|provider["status"].as_str()).unwrap_or("unavailable")}}
+        if let Some(provider)=runtime {crate::provider_manage::Maintenance {state,transport:transport.clone(),provider:provider.clone(),display:display.clone(),environment:environment_label.clone(),allowed,custom_binary:row.instance["config"]["binaryPath"].as_str().is_some_and(|path|!path.trim().is_empty())}}
         for field in fields {
             ProviderField {key:"{field.key}",field:field.clone(),config:row.instance["config"].clone(),disabled,onchange:modify}
         }
-        if row.driver=="acpRegistry"&&row.instance["config"]["source"]=="local" {p {class:"muted","The executable runs on this environment."}}
-        if let Some(provider)=runtime {crate::provider_auth::Authentication {state,transport:transport.clone(),provider:provider.clone(),environment:state.environments().read().records.values().find(|record|record.id.as_str()==environment).map(|record|record.label.clone()).unwrap_or(environment.clone()),allowed}}
+        if row.driver=="acpRegistry"&&row.instance["config"]["source"]=="local" {
+            p {class:"muted","The executable runs on this environment."}
+            crate::provider_manage::CommandArguments {config:row.instance["config"].clone(),disabled,onchange:move |next:Value|modify.call(("commandArgs".into(),next["commandArgs"].clone()))}
+        }
+        if let Some(provider)=runtime {crate::provider_auth::Authentication {state,transport:transport.clone(),provider:provider.clone(),environment:environment_label.clone(),allowed}}
+        if let Some(provider)=runtime.filter(|provider|provider["driver"]=="acpRegistry") {crate::provider_manage::Acp {state,transport:transport.clone(),provider:provider.clone(),allowed}}
         div {class:"provider-editor-actions",
             if !row.is_default {button {"aria-label":"Delete instance",disabled,onclick:{let id=row.instance_id.clone();move |_|onupdate.call(json!({"patch":{},"providerInstanceMutation":{"operation":"remove","instanceId":id}}))},"Delete instance"}}
             else if row.is_dirty==Some(true) {button {"aria-label":"Reset provider settings",disabled,onclick:{let id=row.instance_id.clone();let driver=row.driver.clone();move |_|{
@@ -244,7 +261,7 @@ fn ProviderEditor(
 }
 
 #[component]
-fn ProviderField(
+pub(crate) fn ProviderField(
     field: policy::Field,
     config: Value,
     disabled: bool,

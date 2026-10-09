@@ -581,6 +581,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono-tz"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6139a8597ed92cf816dfb33f5dd6cf0bb93a6adc938f11039f371bc5bcd26c3"
+dependencies = [
+ "chrono",
+ "phf 0.12.1",
+]
+
+[[package]]
 name = "ciborium"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4354,6 +4364,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "phf"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
+dependencies = [
+ "phf_shared 0.12.1",
+]
+
+[[package]]
 name = "phf_codegen"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4453,6 +4472,15 @@ name = "phf_shared"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
+dependencies = [
+ "siphasher 1.0.4",
+]
+
+[[package]]
+name = "phf_shared"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
 dependencies = [
  "siphasher 1.0.4",
 ]
@@ -5889,6 +5917,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "flate2",
+ "icu_normalizer",
  "libm",
  "regex",
  "serde",
@@ -5912,12 +5941,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "t3-highlight"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "flate2",
+ "js-sys",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
 name = "t3-server"
 version = "0.1.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
  "chrono",
+ "chrono-tz",
  "fff-search",
  "flate2",
  "fs2",
@@ -5925,6 +5967,7 @@ dependencies = [
  "hmac",
  "icu_collator",
  "icu_locale",
+ "icu_normalizer",
  "if-addrs",
  "indexmap",
  "libc",
@@ -5939,6 +5982,7 @@ dependencies = [
  "sha2",
  "t3-acp",
  "t3-contracts",
+ "t3-vcs",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -5983,15 +6027,39 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "t3-client",
  "t3-contracts",
+ "t3-highlight",
  "t3-server",
  "tempfile",
  "tokio",
+ "tokio-tungstenite 0.28.0",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "t3-vcs"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "futures-util",
+ "icu_collator",
+ "icu_locale",
+ "libc",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "url",
+ "uuid",
 ]
 
 [[package]]

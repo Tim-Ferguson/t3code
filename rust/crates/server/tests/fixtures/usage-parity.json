@@ -1,0 +1,2702 @@
+[
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-08T10:00:00.000Z\",\"requestId\":\"req_1\",\"sessionId\":\"s1\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-sonnet-4-6\",\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":100,\"cache_creation_input_tokens\":50,\"output_tokens\":20}}}",
+    "output": {
+      "provider": "claude",
+      "timestampMs": 1791453600000,
+      "model": "claude-sonnet-4-6",
+      "sessionId": "s1",
+      "totals": {
+        "uncachedInputTokens": 10,
+        "cachedInputTokens": 100,
+        "cacheCreationTokens": 50,
+        "outputTokens": 20,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "standard",
+      "dedupeKey": "msg_1:req_1"
+    }
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-08T10:00:01.000Z\",\"requestId\":\"req_1\",\"sessionId\":\"s1\",\"message\":{\"id\":\"msg_1\",\"model\":\"claude-sonnet-4-6\",\"usage\":{\"input_tokens\":10,\"cache_read_input_tokens\":100,\"cache_creation_input_tokens\":50,\"output_tokens\":20}}}",
+    "output": {
+      "provider": "claude",
+      "timestampMs": 1791453601000,
+      "model": "claude-sonnet-4-6",
+      "sessionId": "s1",
+      "totals": {
+        "uncachedInputTokens": 10,
+        "cachedInputTokens": 100,
+        "cacheCreationTokens": 50,
+        "outputTokens": 20,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "standard",
+      "dedupeKey": "msg_1:req_1"
+    }
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-08T23:30:00.000Z\",\"sessionId\":\"s2\",\"costUSD\":0.5,\"message\":{\"id\":\"msg_2\",\"model\":\"claude-opus-4-1\",\"usage\":{\"input_tokens\":1000,\"output_tokens\":2000,\"speed\":\"fast\"}}}",
+    "output": {
+      "provider": "claude",
+      "timestampMs": 1791502200000,
+      "model": "claude-opus-4-1",
+      "sessionId": "s2",
+      "totals": {
+        "uncachedInputTokens": 1000,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 2000,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": 0.5,
+      "speed": "fast",
+      "dedupeKey": "msg_2:"
+    }
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-09T00:30:00.000Z\",\"sessionId\":\"s2\",\"message\":{\"model\":\"<synthetic>\",\"usage\":{\"input_tokens\":5}}}",
+    "output": {
+      "provider": "claude",
+      "timestampMs": 1791505800000,
+      "model": "<synthetic>",
+      "sessionId": "s2",
+      "totals": {
+        "uncachedInputTokens": 5,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "standard",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-09T01:00:00.000Z\",\"message\":{\"model\":\"claude-haiku-4-5[1m]\",\"usage\":{\"input_tokens\":7.9,\"output_tokens\":-3}}}",
+    "output": {
+      "provider": "claude",
+      "timestampMs": 1791507600000,
+      "model": "claude-haiku-4-5[1m]",
+      "sessionId": "",
+      "totals": {
+        "uncachedInputTokens": 7,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "standard",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"bad\",\"message\":{\"id\":\"x\",\"model\":\"m\",\"usage\":{}}}",
+    "output": null
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-09T01:00:00Z\",\"message\":{\"id\":\"x\",\"model\":\"\",\"usage\":{}}}",
+    "output": null
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"user\",\"timestamp\":\"2026-10-09T01:00:00Z\",\"message\":{\"usage\":{}}}",
+    "output": null
+  },
+  {
+    "operation": "claude",
+    "line": "{\"type\":\"assistant\",\"timestamp\":\"2026-10-09T01:00:00Z\",\"message\":{\"model\":\"m\"}}",
+    "output": null
+  },
+  {
+    "operation": "claude",
+    "line": "not json",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"token_count\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":5}}},\"timestamp\":\"2026-10-08T09:59:00Z\"}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"session_meta\",\"timestamp\":\"2026-10-08T10:00:00Z\",\"payload\":{\"id\":\"rollout-1\"}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"session_meta\",\"timestamp\":\"2026-10-08T10:00:00Z\",\"payload\":{\"id\":\"other\"}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"turn_context\",\"timestamp\":\"2026-10-08T10:00:01Z\",\"payload\":{\"model\":\"gpt-5\"}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:02Z\",\"payload\":{\"type\":\"thread_settings_applied\",\"thread_settings\":{\"service_tier\":\"priority\"}}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:03Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":1000,\"cached_input_tokens\":400,\"cache_write_input_tokens\":100,\"output_tokens\":50,\"reasoning_output_tokens\":80}}}}",
+    "output": {
+      "provider": "codex",
+      "timestampMs": 1791453603000,
+      "model": "gpt-5",
+      "sessionId": "rollout-1",
+      "totals": {
+        "uncachedInputTokens": 500,
+        "cachedInputTokens": 400,
+        "cacheCreationTokens": 100,
+        "outputTokens": 50,
+        "reasoningTokens": 50
+      },
+      "reportedCostUsd": null,
+      "speed": "fast",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:04Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":1000,\"cached_input_tokens\":400,\"cache_write_input_tokens\":100,\"output_tokens\":50,\"reasoning_output_tokens\":80}}}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:05Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":10}}}}",
+    "output": {
+      "provider": "codex",
+      "timestampMs": 1791453605000,
+      "model": "gpt-5",
+      "sessionId": "rollout-1",
+      "totals": {
+        "uncachedInputTokens": 10,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "fast",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:06Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{}}}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:07Z\",\"payload\":{\"type\":\"token_count\",\"info\":null}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:08Z\",\"payload\":{\"type\":\"thread_settings_applied\",\"thread_settings\":{\"service_tier\":\"ultrafast\"}}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "plain",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:09Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":20,\"output_tokens\":5}}}}",
+    "output": {
+      "provider": "codex",
+      "timestampMs": 1791453609000,
+      "model": "gpt-5",
+      "sessionId": "rollout-1",
+      "totals": {
+        "uncachedInputTokens": 20,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 5,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "ultrafast",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "codex",
+    "scenario": "fork",
+    "line": "{\"type\":\"session_meta\",\"timestamp\":\"2026-10-08T10:00:00.000Z\",\"payload\":{\"id\":\"child\",\"forked_from_id\":\"parent\"}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "fork",
+    "line": "{\"type\":\"turn_context\",\"timestamp\":\"2026-10-08T10:00:00.100Z\",\"payload\":{\"model\":\"gpt-5\"}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "fork",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:00.200Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":100}}}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "fork",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:00.500Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":200}}}}",
+    "output": null
+  },
+  {
+    "operation": "codex",
+    "scenario": "fork",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:07.000Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":300}}}}",
+    "output": {
+      "provider": "codex",
+      "timestampMs": 1791453607000,
+      "model": "gpt-5",
+      "sessionId": "child",
+      "totals": {
+        "uncachedInputTokens": 300,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "standard",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "codex",
+    "scenario": "fork",
+    "line": "{\"type\":\"event_msg\",\"timestamp\":\"2026-10-08T10:00:08.000Z\",\"payload\":{\"type\":\"token_count\",\"info\":{\"last_token_usage\":{\"input_tokens\":400}}}}",
+    "output": {
+      "provider": "codex",
+      "timestampMs": 1791453608000,
+      "model": "gpt-5",
+      "sessionId": "child",
+      "totals": {
+        "uncachedInputTokens": 400,
+        "cachedInputTokens": 0,
+        "cacheCreationTokens": 0,
+        "outputTokens": 0,
+        "reasoningTokens": 0
+      },
+      "reportedCostUsd": null,
+      "speed": "standard",
+      "dedupeKey": null
+    }
+  },
+  {
+    "operation": "table",
+    "document": {
+      "claude-sonnet-4-6": {
+        "input_cost_per_token": 0.000003,
+        "output_cost_per_token": 0.000015,
+        "cache_read_input_token_cost": 3e-7,
+        "cache_creation_input_token_cost": 0.00000375
+      },
+      "anthropic/claude-opus-4-1": {
+        "input_cost_per_token": 0.000015,
+        "output_cost_per_token": 0.000075,
+        "provider_specific_entry": {
+          "fast": 2
+        }
+      },
+      "bedrock/claude-haiku-4-5": {
+        "input_cost_per_token": 0.000001,
+        "output_cost_per_token": 0.000005
+      },
+      "vertex/claude-haiku-4-5": {
+        "input_cost_per_token": 0.000001,
+        "output_cost_per_token": 0.000005
+      },
+      "gpt-5": {
+        "input_cost_per_token": 0.00000125,
+        "output_cost_per_token": 0.00001,
+        "cache_read_input_token_cost": 1.25e-7,
+        "input_cost_per_token_priority": 0.0000025,
+        "output_cost_per_token_priority": 0.00002,
+        "input_cost_per_token_ultrafast": 0.000005,
+        "output_cost_per_token_ultrafast": 0.00004
+      },
+      "openai/dual": {
+        "input_cost_per_token": 0.000001,
+        "output_cost_per_token": 0.000002
+      },
+      "azure/dual": {
+        "input_cost_per_token": 0.000009,
+        "output_cost_per_token": 0.000002
+      },
+      "half-priced": {
+        "input_cost_per_token": 0.000001
+      },
+      "not-an-object": 4,
+      "  ": {
+        "input_cost_per_token": 1,
+        "output_cost_per_token": 1
+      }
+    },
+    "output": [
+      [
+        "anthropic/claude-opus-4-1",
+        {
+          "inputCostPerToken": 0.000015,
+          "outputCostPerToken": 0.000075,
+          "cacheReadCostPerToken": 0.000015,
+          "cacheCreationCostPerToken": 0.000015,
+          "fast": {
+            "inputCostPerToken": 0.00003,
+            "outputCostPerToken": 0.00015,
+            "cacheReadCostPerToken": 0.00003,
+            "cacheCreationCostPerToken": 0.00003
+          },
+          "ultrafast": null
+        }
+      ],
+      [
+        "azure/dual",
+        {
+          "inputCostPerToken": 0.000009,
+          "outputCostPerToken": 0.000002,
+          "cacheReadCostPerToken": 0.000009,
+          "cacheCreationCostPerToken": 0.000009,
+          "fast": null,
+          "ultrafast": null
+        }
+      ],
+      [
+        "bedrock/claude-haiku-4-5",
+        {
+          "inputCostPerToken": 0.000001,
+          "outputCostPerToken": 0.000005,
+          "cacheReadCostPerToken": 0.000001,
+          "cacheCreationCostPerToken": 0.000001,
+          "fast": null,
+          "ultrafast": null
+        }
+      ],
+      [
+        "claude-haiku-4-5",
+        {
+          "inputCostPerToken": 0.000001,
+          "outputCostPerToken": 0.000005,
+          "cacheReadCostPerToken": 0.000001,
+          "cacheCreationCostPerToken": 0.000001,
+          "fast": null,
+          "ultrafast": null
+        }
+      ],
+      [
+        "claude-opus-4-1",
+        {
+          "inputCostPerToken": 0.000015,
+          "outputCostPerToken": 0.000075,
+          "cacheReadCostPerToken": 0.000015,
+          "cacheCreationCostPerToken": 0.000015,
+          "fast": {
+            "inputCostPerToken": 0.00003,
+            "outputCostPerToken": 0.00015,
+            "cacheReadCostPerToken": 0.00003,
+            "cacheCreationCostPerToken": 0.00003
+          },
+          "ultrafast": null
+        }
+      ],
+      [
+        "claude-sonnet-4-6",
+        {
+          "inputCostPerToken": 0.000003,
+          "outputCostPerToken": 0.000015,
+          "cacheReadCostPerToken": 3e-7,
+          "cacheCreationCostPerToken": 0.00000375,
+          "fast": null,
+          "ultrafast": null
+        }
+      ],
+      [
+        "gpt-5",
+        {
+          "inputCostPerToken": 0.00000125,
+          "outputCostPerToken": 0.00001,
+          "cacheReadCostPerToken": 1.25e-7,
+          "cacheCreationCostPerToken": 0.00000125,
+          "fast": {
+            "inputCostPerToken": 0.0000025,
+            "outputCostPerToken": 0.00002,
+            "cacheReadCostPerToken": 2.5e-7,
+            "cacheCreationCostPerToken": 0.0000025
+          },
+          "ultrafast": {
+            "inputCostPerToken": 0.000005,
+            "outputCostPerToken": 0.00004,
+            "cacheReadCostPerToken": 5e-7,
+            "cacheCreationCostPerToken": 0.000005
+          }
+        }
+      ],
+      [
+        "openai/dual",
+        {
+          "inputCostPerToken": 0.000001,
+          "outputCostPerToken": 0.000002,
+          "cacheReadCostPerToken": 0.000001,
+          "cacheCreationCostPerToken": 0.000001,
+          "fast": null,
+          "ultrafast": null
+        }
+      ],
+      [
+        "vertex/claude-haiku-4-5",
+        {
+          "inputCostPerToken": 0.000001,
+          "outputCostPerToken": 0.000005,
+          "cacheReadCostPerToken": 0.000001,
+          "cacheCreationCostPerToken": 0.000001,
+          "fast": null,
+          "ultrafast": null
+        }
+      ]
+    ]
+  },
+  {
+    "operation": "overrides",
+    "overrides": {
+      "Custom/Model-X": {
+        "inputCostPerMillionTokens": 2,
+        "outputCostPerMillionTokens": 8
+      },
+      "cached": {
+        "inputCostPerMillionTokens": 1,
+        "outputCostPerMillionTokens": 2,
+        "cacheReadCostPerMillionTokens": 0.1,
+        "cacheWriteCostPerMillionTokens": 1.5
+      }
+    },
+    "output": [
+      [
+        "Custom/Model-X",
+        {
+          "inputCostPerToken": 0.000002,
+          "outputCostPerToken": 0.000008,
+          "cacheReadCostPerToken": 0.000002,
+          "cacheCreationCostPerToken": 0.000002,
+          "fast": null,
+          "ultrafast": null
+        }
+      ],
+      [
+        "cached",
+        {
+          "inputCostPerToken": 0.000001,
+          "outputCostPerToken": 0.000002,
+          "cacheReadCostPerToken": 1.0000000000000001e-7,
+          "cacheCreationCostPerToken": 0.0000015,
+          "fast": null,
+          "ultrafast": null
+        }
+      ]
+    ]
+  },
+  {
+    "operation": "price",
+    "model": "claude-sonnet-4-6",
+    "totals": {
+      "uncachedInputTokens": 10,
+      "cachedInputTokens": 100,
+      "cacheCreationTokens": 50,
+      "outputTokens": 20,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0.0005475,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.00003,
+        "cacheRead": 0.000029999999999999997,
+        "cacheWrite": 0.0001875,
+        "output": 0.00030000000000000003
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0.00027
+  },
+  {
+    "operation": "price",
+    "model": "claude-sonnet-4-6",
+    "totals": {
+      "uncachedInputTokens": 10,
+      "cachedInputTokens": 100,
+      "cacheCreationTokens": 50,
+      "outputTokens": 20,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": 0.5,
+    "output": {
+      "costUsd": 0.5,
+      "costSource": "providerReported",
+      "categoryCostUsd": {
+        "input": 0.027397260273972605,
+        "cacheRead": 0.0273972602739726,
+        "cacheWrite": 0.17123287671232876,
+        "output": 0.27397260273972607
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0.00027
+  },
+  {
+    "operation": "price",
+    "model": "claude-sonnet-4-6",
+    "totals": {
+      "uncachedInputTokens": 0,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 0,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": 0.5,
+    "output": {
+      "costUsd": 0.5,
+      "costSource": "providerReported",
+      "categoryCostUsd": null,
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "claude-opus-4-1",
+    "totals": {
+      "uncachedInputTokens": 1000,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 2000,
+      "reasoningTokens": 0
+    },
+    "speed": "fast",
+    "reported": null,
+    "output": {
+      "costUsd": 0.33,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.030000000000000002,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0.3
+      },
+      "speedPremiumUsd": 0.165
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "claude-opus-4-1",
+    "totals": {
+      "uncachedInputTokens": 1000,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 2000,
+      "reasoningTokens": 0
+    },
+    "speed": "fast",
+    "reported": 0.5,
+    "output": {
+      "costUsd": 0.5,
+      "costSource": "providerReported",
+      "categoryCostUsd": {
+        "input": 0.045454545454545456,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0.45454545454545453
+      },
+      "speedPremiumUsd": 0.25
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "gpt-5",
+    "totals": {
+      "uncachedInputTokens": 500,
+      "cachedInputTokens": 400,
+      "cacheCreationTokens": 100,
+      "outputTokens": 50,
+      "reasoningTokens": 80
+    },
+    "speed": "fast",
+    "reported": null,
+    "output": {
+      "costUsd": 0.0026,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.00125,
+        "cacheRead": 0.00009999999999999999,
+        "cacheWrite": 0.00025,
+        "output": 0.001
+      },
+      "speedPremiumUsd": 0.0013
+    },
+    "savings": 0.0009
+  },
+  {
+    "operation": "price",
+    "model": "gpt-5",
+    "totals": {
+      "uncachedInputTokens": 500,
+      "cachedInputTokens": 400,
+      "cacheCreationTokens": 100,
+      "outputTokens": 50,
+      "reasoningTokens": 80
+    },
+    "speed": "ultrafast",
+    "reported": null,
+    "output": {
+      "costUsd": 0.0052,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.0025,
+        "cacheRead": 0.00019999999999999998,
+        "cacheWrite": 0.0005,
+        "output": 0.002
+      },
+      "speedPremiumUsd": 0.0039
+    },
+    "savings": 0.0018
+  },
+  {
+    "operation": "price",
+    "model": "gpt-5",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 1,
+      "cacheCreationTokens": 1,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0.000012625000000000002,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.00000125,
+        "cacheRead": 1.25e-7,
+        "cacheWrite": 0.00000125,
+        "output": 0.00001
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0.000001125
+  },
+  {
+    "operation": "price",
+    "model": "unknown-model",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 1,
+      "cacheCreationTokens": 1,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0,
+      "costSource": "unpriced",
+      "categoryCostUsd": null,
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "unknown-model",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 1,
+      "cacheCreationTokens": 1,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": 1.25,
+    "output": {
+      "costUsd": 1.25,
+      "costSource": "providerReported",
+      "categoryCostUsd": null,
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "<synthetic>",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 1,
+      "cacheCreationTokens": 1,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": 2,
+    "output": {
+      "costUsd": 2,
+      "costSource": "providerReported",
+      "categoryCostUsd": null,
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "opus",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 1,
+      "cacheCreationTokens": 1,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0,
+      "costSource": "unpriced",
+      "categoryCostUsd": null,
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "claude-haiku-4-5[1m]",
+    "totals": {
+      "uncachedInputTokens": 10,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 10,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0.00006,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.000009999999999999999,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0.00005
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "CLAUDE-SONNET-4-6",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 2,
+      "cacheCreationTokens": 3,
+      "outputTokens": 4,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0.00007485,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.000003,
+        "cacheRead": 6e-7,
+        "cacheWrite": 0.00001125,
+        "output": 0.00006
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0.0000054
+  },
+  {
+    "operation": "price",
+    "model": "Custom/Model-X",
+    "totals": {
+      "uncachedInputTokens": 1000,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 1000,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": 9,
+    "output": {
+      "costUsd": 0.01,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.002,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0.008
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "cached",
+    "totals": {
+      "uncachedInputTokens": 1000,
+      "cachedInputTokens": 1000,
+      "cacheCreationTokens": 1000,
+      "outputTokens": 1000,
+      "reasoningTokens": 0
+    },
+    "speed": "fast",
+    "reported": null,
+    "output": {
+      "costUsd": 0.0046,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.001,
+        "cacheRead": 0.0001,
+        "cacheWrite": 0.0015,
+        "output": 0.002
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0.0009
+  },
+  {
+    "operation": "price",
+    "model": "anthropic/claude-opus-4-1",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0.00008999999999999999,
+      "costSource": "modelPriced",
+      "categoryCostUsd": {
+        "input": 0.000015,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "output": 0.000075
+      },
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "price",
+    "model": "dual",
+    "totals": {
+      "uncachedInputTokens": 1,
+      "cachedInputTokens": 0,
+      "cacheCreationTokens": 0,
+      "outputTokens": 1,
+      "reasoningTokens": 0
+    },
+    "speed": "standard",
+    "reported": null,
+    "output": {
+      "costUsd": 0,
+      "costSource": "unpriced",
+      "categoryCostUsd": null,
+      "speedPremiumUsd": 0
+    },
+    "savings": 0
+  },
+  {
+    "operation": "aliases",
+    "aliases": {
+      "a": "b",
+      "b": "c",
+      "x": "y",
+      "y": "x",
+      "solo": "target"
+    },
+    "output": [
+      ["a", "c"],
+      ["b", "c"],
+      ["solo", "target"]
+    ]
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "UTC",
+      "sinceDay": "2026-10-08",
+      "untilDay": "2026-10-09",
+      "resolution": "day"
+    },
+    "sourcePath": "/h/.claude/projects",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [true, false, true, true, true, true, true, true],
+      "buckets": [
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-opus-4-1",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 1000,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 2000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.5,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.045455,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0.454545
+          },
+          "fastCostUsd": 0.5,
+          "speedPremiumUsd": 0.25,
+          "costSource": "providerReported",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 10,
+            "cachedInputTokens": 100,
+            "cacheCreationTokens": 50,
+            "outputTokens": 20,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.0005475,
+          "cacheSavingsUsd": 0.00027,
+          "categoryCostUsd": {
+            "input": 0.00003,
+            "cacheRead": 0.00003,
+            "cacheWrite": 0.000188,
+            "output": 0.0003
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "codex",
+          "model": "gpt-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 530,
+            "cachedInputTokens": 400,
+            "cacheCreationTokens": 100,
+            "outputTokens": 55,
+            "reasoningTokens": 50
+          },
+          "costUsd": 0.0029249999999999996,
+          "cacheSavingsUsd": 0.0009,
+          "categoryCostUsd": {
+            "input": 0.001375,
+            "cacheRead": 0.0001,
+            "cacheWrite": 0.00025,
+            "output": 0.0012
+          },
+          "fastCostUsd": 0.002625,
+          "ultrafastCostUsd": 0.0003,
+          "speedPremiumUsd": 0.001537,
+          "costSource": "modelPriced",
+          "records": 3,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "<synthetic>",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0,
+          "cacheSavingsUsd": 0,
+          "costSource": "unpriced",
+          "records": 1,
+          "unpricedRecords": 1,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-haiku-4-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 7,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.000007,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.000007,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 0
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 0
+    }
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "America/Los_Angeles",
+      "sinceDay": "2026-10-08",
+      "untilDay": "2026-10-09",
+      "resolution": "day"
+    },
+    "sourcePath": "/h/.claude/projects",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [true, false, true, true, true, true, true, true],
+      "buckets": [
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "<synthetic>",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0,
+          "cacheSavingsUsd": 0,
+          "costSource": "unpriced",
+          "records": 1,
+          "unpricedRecords": 1,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-haiku-4-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 7,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.000007,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.000007,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 0
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-opus-4-1",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 1000,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 2000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.5,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.045455,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0.454545
+          },
+          "fastCostUsd": 0.5,
+          "speedPremiumUsd": 0.25,
+          "costSource": "providerReported",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 10,
+            "cachedInputTokens": 100,
+            "cacheCreationTokens": 50,
+            "outputTokens": 20,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.0005475,
+          "cacheSavingsUsd": 0.00027,
+          "categoryCostUsd": {
+            "input": 0.00003,
+            "cacheRead": 0.00003,
+            "cacheWrite": 0.000188,
+            "output": 0.0003
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "codex",
+          "model": "gpt-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 530,
+            "cachedInputTokens": 400,
+            "cacheCreationTokens": 100,
+            "outputTokens": 55,
+            "reasoningTokens": 50
+          },
+          "costUsd": 0.0029249999999999996,
+          "cacheSavingsUsd": 0.0009,
+          "categoryCostUsd": {
+            "input": 0.001375,
+            "cacheRead": 0.0001,
+            "cacheWrite": 0.00025,
+            "output": 0.0012
+          },
+          "fastCostUsd": 0.002625,
+          "ultrafastCostUsd": 0.0003,
+          "speedPremiumUsd": 0.001537,
+          "costSource": "modelPriced",
+          "records": 3,
+          "unpricedRecords": 0,
+          "sessions": 1
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 0
+    }
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "Asia/Kolkata",
+      "sinceDay": "2026-10-08",
+      "untilDay": "2026-10-09",
+      "resolution": "day"
+    },
+    "sourcePath": "/h/.claude/projects",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [true, false, true, true, true, true, true, true],
+      "buckets": [
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 10,
+            "cachedInputTokens": 100,
+            "cacheCreationTokens": 50,
+            "outputTokens": 20,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.0005475,
+          "cacheSavingsUsd": 0.00027,
+          "categoryCostUsd": {
+            "input": 0.00003,
+            "cacheRead": 0.00003,
+            "cacheWrite": 0.000188,
+            "output": 0.0003
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "codex",
+          "model": "gpt-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 530,
+            "cachedInputTokens": 400,
+            "cacheCreationTokens": 100,
+            "outputTokens": 55,
+            "reasoningTokens": 50
+          },
+          "costUsd": 0.0029249999999999996,
+          "cacheSavingsUsd": 0.0009,
+          "categoryCostUsd": {
+            "input": 0.001375,
+            "cacheRead": 0.0001,
+            "cacheWrite": 0.00025,
+            "output": 0.0012
+          },
+          "fastCostUsd": 0.002625,
+          "ultrafastCostUsd": 0.0003,
+          "speedPremiumUsd": 0.001537,
+          "costSource": "modelPriced",
+          "records": 3,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "<synthetic>",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0,
+          "cacheSavingsUsd": 0,
+          "costSource": "unpriced",
+          "records": 1,
+          "unpricedRecords": 1,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-haiku-4-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 7,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.000007,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.000007,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 0
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-opus-4-1",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 1000,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 2000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.5,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.045455,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0.454545
+          },
+          "fastCostUsd": 0.5,
+          "speedPremiumUsd": 0.25,
+          "costSource": "providerReported",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 0
+    }
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "+05:30",
+      "sinceDay": "2026-10-08",
+      "untilDay": "2026-10-09",
+      "resolution": "day"
+    },
+    "sourcePath": "/h/.claude/projects",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [true, false, true, true, true, true, true, true],
+      "buckets": [
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 10,
+            "cachedInputTokens": 100,
+            "cacheCreationTokens": 50,
+            "outputTokens": 20,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.0005475,
+          "cacheSavingsUsd": 0.00027,
+          "categoryCostUsd": {
+            "input": 0.00003,
+            "cacheRead": 0.00003,
+            "cacheWrite": 0.000188,
+            "output": 0.0003
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "codex",
+          "model": "gpt-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 530,
+            "cachedInputTokens": 400,
+            "cacheCreationTokens": 100,
+            "outputTokens": 55,
+            "reasoningTokens": 50
+          },
+          "costUsd": 0.0029249999999999996,
+          "cacheSavingsUsd": 0.0009,
+          "categoryCostUsd": {
+            "input": 0.001375,
+            "cacheRead": 0.0001,
+            "cacheWrite": 0.00025,
+            "output": 0.0012
+          },
+          "fastCostUsd": 0.002625,
+          "ultrafastCostUsd": 0.0003,
+          "speedPremiumUsd": 0.001537,
+          "costSource": "modelPriced",
+          "records": 3,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "<synthetic>",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0,
+          "cacheSavingsUsd": 0,
+          "costSource": "unpriced",
+          "records": 1,
+          "unpricedRecords": 1,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-haiku-4-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 7,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.000007,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.000007,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 0
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-opus-4-1",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 1000,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 2000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.5,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.045455,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0.454545
+          },
+          "fastCostUsd": 0.5,
+          "speedPremiumUsd": 0.25,
+          "costSource": "providerReported",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 0
+    }
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "Not/AZone",
+      "sinceDay": "2026-10-08",
+      "untilDay": "2026-10-09",
+      "resolution": "day"
+    },
+    "sourcePath": "/h/.claude/projects",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [true, false, true, true, true, true, true, true],
+      "buckets": [
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-opus-4-1",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 1000,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 2000,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.5,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.045455,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0.454545
+          },
+          "fastCostUsd": 0.5,
+          "speedPremiumUsd": 0.25,
+          "costSource": "providerReported",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 10,
+            "cachedInputTokens": 100,
+            "cacheCreationTokens": 50,
+            "outputTokens": 20,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.0005475,
+          "cacheSavingsUsd": 0.00027,
+          "categoryCostUsd": {
+            "input": 0.00003,
+            "cacheRead": 0.00003,
+            "cacheWrite": 0.000188,
+            "output": 0.0003
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "provider": "codex",
+          "model": "gpt-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 530,
+            "cachedInputTokens": 400,
+            "cacheCreationTokens": 100,
+            "outputTokens": 55,
+            "reasoningTokens": 50
+          },
+          "costUsd": 0.0029249999999999996,
+          "cacheSavingsUsd": 0.0009,
+          "categoryCostUsd": {
+            "input": 0.001375,
+            "cacheRead": 0.0001,
+            "cacheWrite": 0.00025,
+            "output": 0.0012
+          },
+          "fastCostUsd": 0.002625,
+          "ultrafastCostUsd": 0.0003,
+          "speedPremiumUsd": 0.001537,
+          "costSource": "modelPriced",
+          "records": 3,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "<synthetic>",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0,
+          "cacheSavingsUsd": 0,
+          "costSource": "unpriced",
+          "records": 1,
+          "unpricedRecords": 1,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-haiku-4-5",
+          "sourcePath": "/h/.claude/projects",
+          "totals": {
+            "uncachedInputTokens": 7,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.000007,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.000007,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 0
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 0
+    }
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "UTC",
+      "sinceDay": "2026-10-08",
+      "untilDay": "2026-10-09",
+      "resolution": "hour",
+      "sinceTimeMs": 1791451800000,
+      "untilTimeMs": 1791457200000
+    },
+    "sourcePath": "",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [true, false, false, false, false, true, true, true],
+      "buckets": [
+        {
+          "day": "2026-10-08",
+          "hourStart": "2026-10-08T09:30:00.000Z",
+          "provider": "claude",
+          "model": "claude-sonnet-4-6",
+          "totals": {
+            "uncachedInputTokens": 10,
+            "cachedInputTokens": 100,
+            "cacheCreationTokens": 50,
+            "outputTokens": 20,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.0005475,
+          "cacheSavingsUsd": 0.00027,
+          "categoryCostUsd": {
+            "input": 0.00003,
+            "cacheRead": 0.00003,
+            "cacheWrite": 0.000188,
+            "output": 0.0003
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-08",
+          "hourStart": "2026-10-08T09:30:00.000Z",
+          "provider": "codex",
+          "model": "gpt-5",
+          "totals": {
+            "uncachedInputTokens": 530,
+            "cachedInputTokens": 400,
+            "cacheCreationTokens": 100,
+            "outputTokens": 55,
+            "reasoningTokens": 50
+          },
+          "costUsd": 0.0029249999999999996,
+          "cacheSavingsUsd": 0.0009,
+          "categoryCostUsd": {
+            "input": 0.001375,
+            "cacheRead": 0.0001,
+            "cacheWrite": 0.00025,
+            "output": 0.0012
+          },
+          "fastCostUsd": 0.002625,
+          "ultrafastCostUsd": 0.0003,
+          "speedPremiumUsd": 0.001537,
+          "costSource": "modelPriced",
+          "records": 3,
+          "unpricedRecords": 0,
+          "sessions": 1
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 3
+    }
+  },
+  {
+    "operation": "aggregate",
+    "options": {
+      "timeZone": "UTC",
+      "sinceDay": "2026-10-09",
+      "untilDay": "2026-10-09",
+      "resolution": "day"
+    },
+    "sourcePath": "",
+    "records": [
+      {
+        "provider": "claude",
+        "timestampMs": 1791453600000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791453601000,
+        "model": "claude-sonnet-4-6",
+        "sessionId": "s1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 100,
+          "cacheCreationTokens": 50,
+          "outputTokens": 20,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": "msg_1:req_1"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791502200000,
+        "model": "claude-opus-4-1",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 1000,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 2000,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": 0.5,
+        "speed": "fast",
+        "dedupeKey": "msg_2:"
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791505800000,
+        "model": "<synthetic>",
+        "sessionId": "s2",
+        "totals": {
+          "uncachedInputTokens": 5,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "claude",
+        "timestampMs": 1791507600000,
+        "model": "claude-haiku-4-5[1m]",
+        "sessionId": "",
+        "totals": {
+          "uncachedInputTokens": 7,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "standard",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453603000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 500,
+          "cachedInputTokens": 400,
+          "cacheCreationTokens": 100,
+          "outputTokens": 50,
+          "reasoningTokens": 50
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453605000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 10,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 0,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "fast",
+        "dedupeKey": null
+      },
+      {
+        "provider": "codex",
+        "timestampMs": 1791453609000,
+        "model": "gpt-5",
+        "sessionId": "rollout-1",
+        "totals": {
+          "uncachedInputTokens": 20,
+          "cachedInputTokens": 0,
+          "cacheCreationTokens": 0,
+          "outputTokens": 5,
+          "reasoningTokens": 0
+        },
+        "reportedCostUsd": null,
+        "speed": "ultrafast",
+        "dedupeKey": null
+      }
+    ],
+    "output": {
+      "contributed": [false, false, false, true, true, false, false, false],
+      "buckets": [
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "<synthetic>",
+          "totals": {
+            "uncachedInputTokens": 5,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0,
+          "cacheSavingsUsd": 0,
+          "costSource": "unpriced",
+          "records": 1,
+          "unpricedRecords": 1,
+          "sessions": 1
+        },
+        {
+          "day": "2026-10-09",
+          "provider": "claude",
+          "model": "claude-haiku-4-5",
+          "totals": {
+            "uncachedInputTokens": 7,
+            "cachedInputTokens": 0,
+            "cacheCreationTokens": 0,
+            "outputTokens": 0,
+            "reasoningTokens": 0
+          },
+          "costUsd": 0.000007,
+          "cacheSavingsUsd": 0,
+          "categoryCostUsd": {
+            "input": 0.000007,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "output": 0
+          },
+          "costSource": "modelPriced",
+          "records": 1,
+          "unpricedRecords": 0,
+          "sessions": 0
+        }
+      ],
+      "duplicatesDropped": 1,
+      "outOfWindow": 5
+    }
+  }
+]

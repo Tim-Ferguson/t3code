@@ -1,0 +1,2718 @@
+{
+  "secret": "be83551ad99b05676743bcbd313bcd34c2de3374fb14a345c23883b4f5cf9b4b",
+  "stage": [
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000001.png",
+      "hex": "89504e470d0a1a0a0000000d494844520000000300000005080808080808080808"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000002-mp4.mp4",
+      "hex": "010203"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+      "hex": "010203"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000004-wav.wav",
+      "hex": "010203"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000005-zip.zip",
+      "hex": "010203"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000006-html.html",
+      "hex": "3c623e68693c2f623e"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000007-txt.txt",
+      "hex": "706c61696e"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000008.jpg",
+      "hex": "ffd8ffe000104a46494600010100000100010000ffc000110801e0028003012200021101031101"
+    },
+    {
+      "file": "thread-1-00000000-0000-4000-8000-000000000009.bin",
+      "hex": "090909"
+    },
+    {
+      "file": "pending-00000000-0000-4000-8000-00000000000a.png",
+      "hex": "89504e470d0a1a0a0000000d494844520000000100000001080808080808080808"
+    }
+  ],
+  "uploads": [
+    {
+      "input": {
+        "name": "screenshot.png",
+        "mimeType": "image/png",
+        "sizeBytes": 6
+      },
+      "issued": {
+        "attachmentId": "pending-6f20a061-58a9-4308-a8b8-b58efca203ac",
+        "relativeUrl": "/api/attachments/upload/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudC11cGxvYWQiLCJ0eXBlIjoiaW1hZ2UiLCJhdHRhY2htZW50SWQiOiJwZW5kaW5nLTZmMjBhMDYxLTU4YTktNDMwOC1hOGI4LWI1OGVmY2EyMDNhYyIsIm5hbWUiOiJzY3JlZW5zaG90LnBuZyIsIm1pbWVUeXBlIjoiaW1hZ2UvcG5nIiwic2l6ZUJ5dGVzIjo2LCJleHBpcmVzQXQiOjE3OTE1MDUzMzM1OTF9.DPr3q4wRQzyFvgvhUxJSGNSYNHG8N6loo4_3o23J090",
+        "expiresAt": 1791505333591
+      },
+      "claims": {
+        "version": 1,
+        "kind": "attachment-upload",
+        "type": "image",
+        "attachmentId": "pending-6f20a061-58a9-4308-a8b8-b58efca203ac",
+        "name": "screenshot.png",
+        "mimeType": "image/png",
+        "sizeBytes": 6,
+        "expiresAt": 1791505333591
+      },
+      "payload": "{\"version\":1,\"kind\":\"attachment-upload\",\"type\":\"image\",\"attachmentId\":\"pending-6f20a061-58a9-4308-a8b8-b58efca203ac\",\"name\":\"screenshot.png\",\"mimeType\":\"image/png\",\"sizeBytes\":6,\"expiresAt\":1791505333591}"
+    },
+    {
+      "input": {
+        "type": "image",
+        "name": "a b.PNG",
+        "mimeType": "image/jpeg",
+        "sizeBytes": 1048576
+      },
+      "issued": {
+        "attachmentId": "pending-41317c72-b99c-4a12-8df8-bec0c3256b99",
+        "relativeUrl": "/api/attachments/upload/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudC11cGxvYWQiLCJ0eXBlIjoiaW1hZ2UiLCJhdHRhY2htZW50SWQiOiJwZW5kaW5nLTQxMzE3YzcyLWI5OWMtNGExMi04ZGY4LWJlYzBjMzI1NmI5OSIsIm5hbWUiOiJhIGIuUE5HIiwibWltZVR5cGUiOiJpbWFnZS9qcGVnIiwic2l6ZUJ5dGVzIjoxMDQ4NTc2LCJleHBpcmVzQXQiOjE3OTE1MDUzMzM1OTN9.H8K1POLlp7plqrRZBtpa5ucsrfKOK-8wQFvfZXWNtck",
+        "expiresAt": 1791505333593
+      },
+      "claims": {
+        "version": 1,
+        "kind": "attachment-upload",
+        "type": "image",
+        "attachmentId": "pending-41317c72-b99c-4a12-8df8-bec0c3256b99",
+        "name": "a b.PNG",
+        "mimeType": "image/jpeg",
+        "sizeBytes": 1048576,
+        "expiresAt": 1791505333593
+      },
+      "payload": "{\"version\":1,\"kind\":\"attachment-upload\",\"type\":\"image\",\"attachmentId\":\"pending-41317c72-b99c-4a12-8df8-bec0c3256b99\",\"name\":\"a b.PNG\",\"mimeType\":\"image/jpeg\",\"sizeBytes\":1048576,\"expiresAt\":1791505333593}"
+    },
+    {
+      "input": {
+        "type": "file",
+        "name": "report.PDF",
+        "mimeType": "application/pdf",
+        "sizeBytes": 6
+      },
+      "issued": {
+        "attachmentId": "pending-f66b6c9e-3fb6-4a3e-a849-5ad67957930c-pdf",
+        "relativeUrl": "/api/attachments/upload/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudC11cGxvYWQiLCJ0eXBlIjoiZmlsZSIsImF0dGFjaG1lbnRJZCI6InBlbmRpbmctZjY2YjZjOWUtM2ZiNi00YTNlLWE4NDktNWFkNjc5NTc5MzBjLXBkZiIsIm5hbWUiOiJyZXBvcnQuUERGIiwibWltZVR5cGUiOiJhcHBsaWNhdGlvbi9wZGYiLCJzaXplQnl0ZXMiOjYsImV4cGlyZXNBdCI6MTc5MTUwNTMzMzU5NH0.t_I9U2rqEhtGgMkgibRD687AhRMel6sQXncEZvNUsiQ",
+        "expiresAt": 1791505333594
+      },
+      "claims": {
+        "version": 1,
+        "kind": "attachment-upload",
+        "type": "file",
+        "attachmentId": "pending-f66b6c9e-3fb6-4a3e-a849-5ad67957930c-pdf",
+        "name": "report.PDF",
+        "mimeType": "application/pdf",
+        "sizeBytes": 6,
+        "expiresAt": 1791505333594
+      },
+      "payload": "{\"version\":1,\"kind\":\"attachment-upload\",\"type\":\"file\",\"attachmentId\":\"pending-f66b6c9e-3fb6-4a3e-a849-5ad67957930c-pdf\",\"name\":\"report.PDF\",\"mimeType\":\"application/pdf\",\"sizeBytes\":6,\"expiresAt\":1791505333594}"
+    },
+    {
+      "input": {
+        "type": "file",
+        "name": "archive.part",
+        "mimeType": "application/octet-stream",
+        "sizeBytes": 1
+      },
+      "issued": {
+        "attachmentId": "pending-55f9ee2d-81cb-4486-81b8-eae0dfccc90e-bin",
+        "relativeUrl": "/api/attachments/upload/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudC11cGxvYWQiLCJ0eXBlIjoiZmlsZSIsImF0dGFjaG1lbnRJZCI6InBlbmRpbmctNTVmOWVlMmQtODFjYi00NDg2LTgxYjgtZWFlMGRmY2NjOTBlLWJpbiIsIm5hbWUiOiJhcmNoaXZlLnBhcnQiLCJtaW1lVHlwZSI6ImFwcGxpY2F0aW9uL29jdGV0LXN0cmVhbSIsInNpemVCeXRlcyI6MSwiZXhwaXJlc0F0IjoxNzkxNTA1MzMzNTk0fQ.PjJNNnMtypsmYH_MREh1uPNsw3YqA8wGiOTnIc-rkYs",
+        "expiresAt": 1791505333594
+      },
+      "claims": {
+        "version": 1,
+        "kind": "attachment-upload",
+        "type": "file",
+        "attachmentId": "pending-55f9ee2d-81cb-4486-81b8-eae0dfccc90e-bin",
+        "name": "archive.part",
+        "mimeType": "application/octet-stream",
+        "sizeBytes": 1,
+        "expiresAt": 1791505333594
+      },
+      "payload": "{\"version\":1,\"kind\":\"attachment-upload\",\"type\":\"file\",\"attachmentId\":\"pending-55f9ee2d-81cb-4486-81b8-eae0dfccc90e-bin\",\"name\":\"archive.part\",\"mimeType\":\"application/octet-stream\",\"sizeBytes\":1,\"expiresAt\":1791505333594}"
+    },
+    {
+      "input": {
+        "type": "file",
+        "name": "noext",
+        "mimeType": "text/plain",
+        "sizeBytes": 52428800
+      },
+      "issued": {
+        "attachmentId": "pending-92649f19-cc9a-4c1b-af83-6dd4f7f99d83-bin",
+        "relativeUrl": "/api/attachments/upload/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudC11cGxvYWQiLCJ0eXBlIjoiZmlsZSIsImF0dGFjaG1lbnRJZCI6InBlbmRpbmctOTI2NDlmMTktY2M5YS00YzFiLWFmODMtNmRkNGY3Zjk5ZDgzLWJpbiIsIm5hbWUiOiJub2V4dCIsIm1pbWVUeXBlIjoidGV4dC9wbGFpbiIsInNpemVCeXRlcyI6NTI0Mjg4MDAsImV4cGlyZXNBdCI6MTc5MTUwNTMzMzU5NX0.160fDS3oNXrDJGBVW_02-XqovcGLi9hUF2hH2SfGzTM",
+        "expiresAt": 1791505333595
+      },
+      "claims": {
+        "version": 1,
+        "kind": "attachment-upload",
+        "type": "file",
+        "attachmentId": "pending-92649f19-cc9a-4c1b-af83-6dd4f7f99d83-bin",
+        "name": "noext",
+        "mimeType": "text/plain",
+        "sizeBytes": 52428800,
+        "expiresAt": 1791505333595
+      },
+      "payload": "{\"version\":1,\"kind\":\"attachment-upload\",\"type\":\"file\",\"attachmentId\":\"pending-92649f19-cc9a-4c1b-af83-6dd4f7f99d83-bin\",\"name\":\"noext\",\"mimeType\":\"text/plain\",\"sizeBytes\":52428800,\"expiresAt\":1791505333595}"
+    },
+    {
+      "input": {
+        "type": "file",
+        "name": "we\"ird é😀.tar.gz",
+        "mimeType": "application/gzip",
+        "sizeBytes": 99
+      },
+      "issued": {
+        "attachmentId": "pending-f3a46fc1-35d7-4975-ad95-3ba009cafa43-gz",
+        "relativeUrl": "/api/attachments/upload/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudC11cGxvYWQiLCJ0eXBlIjoiZmlsZSIsImF0dGFjaG1lbnRJZCI6InBlbmRpbmctZjNhNDZmYzEtMzVkNy00OTc1LWFkOTUtM2JhMDA5Y2FmYTQzLWd6IiwibmFtZSI6IndlXCJpcmQgw6nwn5iALnRhci5neiIsIm1pbWVUeXBlIjoiYXBwbGljYXRpb24vZ3ppcCIsInNpemVCeXRlcyI6OTksImV4cGlyZXNBdCI6MTc5MTUwNTMzMzU5Nn0.I3YDzG6rRYkuQyjkGOaUTvHibkEy0eikqp93raM_xiA",
+        "expiresAt": 1791505333596
+      },
+      "claims": {
+        "version": 1,
+        "kind": "attachment-upload",
+        "type": "file",
+        "attachmentId": "pending-f3a46fc1-35d7-4975-ad95-3ba009cafa43-gz",
+        "name": "we\"ird é😀.tar.gz",
+        "mimeType": "application/gzip",
+        "sizeBytes": 99,
+        "expiresAt": 1791505333596
+      },
+      "payload": "{\"version\":1,\"kind\":\"attachment-upload\",\"type\":\"file\",\"attachmentId\":\"pending-f3a46fc1-35d7-4975-ad95-3ba009cafa43-gz\",\"name\":\"we\\\"ird é😀.tar.gz\",\"mimeType\":\"application/gzip\",\"sizeBytes\":99,\"expiresAt\":1791505333596}"
+    }
+  ],
+  "assets": [
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000001"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsImV4cGlyZXNBdCI6MTc5MTUwODMzMzU5Nn0.U1xaMBj3xsmCjKOMt2WZEInP-MpOn_-Ztjiuxy5s0tA/thread-1-00000000-0000-4000-8000-000000000001.png",
+        "expiresAt": 1791508333596,
+        "imageDimensions": {
+          "width": 3,
+          "height": 5
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000001.png"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000001",
+        "fileName": "sc reen.png",
+        "mimeType": "image/png"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsImZpbGVOYW1lIjoic2MgcmVlbi5wbmciLCJtaW1lVHlwZSI6ImltYWdlL3BuZyIsImV4cGlyZXNBdCI6MTc5MTUwODMzMzU5OX0.963xx7SmHJabW6lCgh6fIiaD2oPmGsdXOEUXLVeYpsI/sc%20reen.png",
+        "expiresAt": 1791508333599,
+        "imageDimensions": {
+          "width": 3,
+          "height": 5
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000001.png",
+        "fileName": "sc reen.png",
+        "mimeType": "image/png"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000001",
+        "fileName": "we\"ird\\nåme😀 (1)*.png",
+        "mimeType": "image/png"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsImZpbGVOYW1lIjoid2VcImlyZFxcbsOlbWXwn5iAICgxKSoucG5nIiwibWltZVR5cGUiOiJpbWFnZS9wbmciLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDB9.IQ-7FipMuYP19tUQHjGq59fJpOI1qmUYJOy8tvUOmWg/we%22ird%5Cn%C3%A5me%F0%9F%98%80%20(1)*.png",
+        "expiresAt": 1791508333600,
+        "imageDimensions": {
+          "width": 3,
+          "height": 5
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000001.png",
+        "fileName": "we\"ird\\nåme😀 (1)*.png",
+        "mimeType": "image/png"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000001",
+        "disposition": "inline"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMSIsImV4cGlyZXNBdCI6MTc5MTUwODMzMzYwMX0.E-_A0oBcblQh14kBdltv8ye8o0UzkTxKfMf3RiJz9GU/thread-1-00000000-0000-4000-8000-000000000001.png",
+        "expiresAt": 1791508333601,
+        "imageDimensions": {
+          "width": 3,
+          "height": 5
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000001.png"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000002-mp4",
+        "fileName": "clip.mp4",
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMi1tcDQiLCJmaWxlTmFtZSI6ImNsaXAubXA0IiwibWltZVR5cGUiOiJ2aWRlby9tcDQiLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDJ9.3F6jhPkDgKfk_9yFsYkVm8VPQHfZyWTLdFevq_82h-g/clip.mp4",
+        "expiresAt": 1791508333602
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000002-mp4.mp4",
+        "fileName": "clip.mp4",
+        "mimeType": "video/mp4"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000002-mp4"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMi1tcDQiLCJkb3dubG9hZCI6dHJ1ZSwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjAzfQ.-N8Bf8NVkmPmvQ9C1mwudDRhVcl6Zyjs5fSaHT0a430/thread-1-00000000-0000-4000-8000-000000000002-mp4.mp4",
+        "expiresAt": 1791508333603
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000002-mp4.mp4",
+        "download": true
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000002-mp4",
+        "mimeType": "video/"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMi1tcDQiLCJkb3dubG9hZCI6dHJ1ZSwibWltZVR5cGUiOiJ2aWRlby8iLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDR9.XcQro-5mpB-u8etI_3kQblG7vi2V4DyyffWTvb3flxk/thread-1-00000000-0000-4000-8000-000000000002-mp4.mp4",
+        "expiresAt": 1791508333604
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000002-mp4.mp4",
+        "download": true,
+        "mimeType": "video/"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000003-pdf",
+        "fileName": "Report é.pdf",
+        "mimeType": "application/pdf"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMy1wZGYiLCJkb3dubG9hZCI6dHJ1ZSwiZmlsZU5hbWUiOiJSZXBvcnQgw6kucGRmIiwibWltZVR5cGUiOiJhcHBsaWNhdGlvbi9wZGYiLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDR9._NUrHFqxro7rZtSfrbihnuvPjz6CkXgl6nI7Jbb7vDY/Report%20%C3%A9.pdf",
+        "expiresAt": 1791508333604
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+        "download": true,
+        "fileName": "Report é.pdf",
+        "mimeType": "application/pdf"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000003-pdf",
+        "fileName": "r.pdf",
+        "mimeType": "application/pdf",
+        "disposition": "inline"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMy1wZGYiLCJmaWxlTmFtZSI6InIucGRmIiwibWltZVR5cGUiOiJhcHBsaWNhdGlvbi9wZGYiLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDV9.2tvxooMLKOdLUo_5P23Uqr8Dk5eKwaAMs7sAUcAdQpw/r.pdf",
+        "expiresAt": 1791508333605
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+        "fileName": "r.pdf",
+        "mimeType": "application/pdf"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000003-pdf",
+        "disposition": "attachment"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMy1wZGYiLCJkb3dubG9hZCI6dHJ1ZSwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjA2fQ.jOCFER2aNRBsUvN45FSb4uUxv_3bXzI_n-UK15sr0wk/thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+        "expiresAt": 1791508333606
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+        "download": true
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000003-pdf"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMy1wZGYiLCJkb3dubG9hZCI6dHJ1ZSwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjA2fQ.jOCFER2aNRBsUvN45FSb4uUxv_3bXzI_n-UK15sr0wk/thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+        "expiresAt": 1791508333606
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000003-pdf.pdf",
+        "download": true
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000004-wav",
+        "fileName": "a.wav",
+        "mimeType": "audio/wav",
+        "disposition": "inline"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNC13YXYiLCJmaWxlTmFtZSI6ImEud2F2IiwibWltZVR5cGUiOiJhdWRpby93YXYiLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDd9.P1AvjPJnrUCouETu9yA8wh3B-uIiLe5uJYSA36jQBM0/a.wav",
+        "expiresAt": 1791508333607
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000004-wav.wav",
+        "fileName": "a.wav",
+        "mimeType": "audio/wav"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000004-wav",
+        "fileName": "a.wav",
+        "mimeType": "audio/wav",
+        "disposition": "attachment"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNC13YXYiLCJkb3dubG9hZCI6dHJ1ZSwiZmlsZU5hbWUiOiJhLndhdiIsIm1pbWVUeXBlIjoiYXVkaW8vd2F2IiwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjA3fQ.Tn3zpI-PCX5yHeitJa0tN9YY-7eaCZcxNL5U69Gd2xg/a.wav",
+        "expiresAt": 1791508333607
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000004-wav.wav",
+        "download": true,
+        "fileName": "a.wav",
+        "mimeType": "audio/wav"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000005-zip",
+        "fileName": "a.zip",
+        "mimeType": "application/zip",
+        "disposition": "inline"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNS16aXAiLCJkb3dubG9hZCI6dHJ1ZSwiZmlsZU5hbWUiOiJhLnppcCIsIm1pbWVUeXBlIjoiYXBwbGljYXRpb24vemlwIiwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjA4fQ.vvW15n2bJM8FgwJg9ZeOng0o1382RJQLTcM49cxJYhU/a.zip",
+        "expiresAt": 1791508333608
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000005-zip.zip",
+        "download": true,
+        "fileName": "a.zip",
+        "mimeType": "application/zip"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000006-html",
+        "fileName": "p.html",
+        "mimeType": "text/html",
+        "disposition": "inline"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNi1odG1sIiwiZmlsZU5hbWUiOiJwLmh0bWwiLCJtaW1lVHlwZSI6InRleHQvaHRtbCIsImV4cGlyZXNBdCI6MTc5MTUwODMzMzYwOH0.uIKSnOweL31DnW8zTcuzK065bdOuSEWQQPSR0UL4oQo/p.html",
+        "expiresAt": 1791508333608
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000006-html.html",
+        "fileName": "p.html",
+        "mimeType": "text/html"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000006-html",
+        "fileName": "p.html",
+        "mimeType": "text/html"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNi1odG1sIiwiZG93bmxvYWQiOnRydWUsImZpbGVOYW1lIjoicC5odG1sIiwibWltZVR5cGUiOiJ0ZXh0L2h0bWwiLCJleHBpcmVzQXQiOjE3OTE1MDgzMzM2MDl9.QytKD9OWe-34G6dK77a4c0EHgJcJwNalatgeMrm9_Q8/p.html",
+        "expiresAt": 1791508333609
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000006-html.html",
+        "download": true,
+        "fileName": "p.html",
+        "mimeType": "text/html"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000007-txt"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNy10eHQiLCJkb3dubG9hZCI6dHJ1ZSwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjA5fQ.UmZ07YxXoJEFBXASfSxtQ5uO6X3N6BXHYb-UpF9Yqjw/thread-1-00000000-0000-4000-8000-000000000007-txt.txt",
+        "expiresAt": 1791508333609
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000007-txt.txt",
+        "download": true
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000007-txt",
+        "mimeType": "text/plain",
+        "fileName": "n.txt"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwNy10eHQiLCJkb3dubG9hZCI6dHJ1ZSwiZmlsZU5hbWUiOiJuLnR4dCIsIm1pbWVUeXBlIjoidGV4dC9wbGFpbiIsImV4cGlyZXNBdCI6MTc5MTUwODMzMzYxMH0.61jH-uxpWsCBLKdQmZoqUkEP8rXLgEh1blt2FiTDg08/n.txt",
+        "expiresAt": 1791508333610
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000007-txt.txt",
+        "download": true,
+        "fileName": "n.txt",
+        "mimeType": "text/plain"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000008",
+        "fileName": "photo.jpg",
+        "mimeType": "image/jpeg"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwOCIsImZpbGVOYW1lIjoicGhvdG8uanBnIiwibWltZVR5cGUiOiJpbWFnZS9qcGVnIiwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjEwfQ.sP96tn_N6prN5tJBmaFTgJG4SzeTkPptNHGT93ZjNA8/photo.jpg",
+        "expiresAt": 1791508333610,
+        "imageDimensions": {
+          "width": 640,
+          "height": 480
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000008.jpg",
+        "fileName": "photo.jpg",
+        "mimeType": "image/jpeg"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000009",
+        "fileName": "blob",
+        "mimeType": "application/octet-stream"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InRocmVhZC0xLTAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwOSIsImZpbGVOYW1lIjoiYmxvYiIsIm1pbWVUeXBlIjoiYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtIiwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjEyfQ.1kBepyXrAQJ8ny1esEju3u75a89nDcjqfEpZDEddfD4/blob",
+        "expiresAt": 1791508333612
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000009.bin",
+        "fileName": "blob",
+        "mimeType": "application/octet-stream"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "pending-00000000-0000-4000-8000-00000000000a"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6InBlbmRpbmctMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDBhIiwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjEzfQ.X7vEUzDikgjnvPq00qjzcodEx0_IrgyCu8DSQbJYCbg/pending-00000000-0000-4000-8000-00000000000a.png",
+        "expiresAt": 1791508333613,
+        "imageDimensions": {
+          "width": 1,
+          "height": 1
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "pending-00000000-0000-4000-8000-00000000000a.png"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "thread-1-00000000-0000-4000-8000-000000000063"
+      },
+      "error": {
+        "_tag": "AssetAttachmentNotFoundError",
+        "resource": {
+          "_tag": "attachment",
+          "attachmentId": "thread-1-00000000-0000-4000-8000-000000000063"
+        }
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "../../etc/passwd"
+      },
+      "error": {
+        "_tag": "AssetAttachmentNotFoundError",
+        "resource": {
+          "_tag": "attachment",
+          "attachmentId": "../../etc/passwd"
+        }
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "x/../thread-1-00000000-0000-4000-8000-000000000001"
+      },
+      "issued": {
+        "relativeUrl": "/api/assets/eyJ2ZXJzaW9uIjoxLCJraW5kIjoiYXR0YWNobWVudCIsImF0dGFjaG1lbnRJZCI6IngvLi4vdGhyZWFkLTEtMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwiZXhwaXJlc0F0IjoxNzkxNTA4MzMzNjE0fQ.8DnKu1nhTOy7kdtIBm_OvpAGiKhazFzFDJtsomR1e7E/thread-1-00000000-0000-4000-8000-000000000001.png",
+        "expiresAt": 1791508333614,
+        "imageDimensions": {
+          "width": 3,
+          "height": 5
+        }
+      },
+      "resolved": {
+        "kind": "file",
+        "file": "thread-1-00000000-0000-4000-8000-000000000001.png"
+      }
+    },
+    {
+      "resource": {
+        "_tag": "attachment",
+        "attachmentId": "not-an-id"
+      },
+      "error": {
+        "_tag": "AssetAttachmentNotFoundError",
+        "resource": {
+          "_tag": "attachment",
+          "attachmentId": "not-an-id"
+        }
+      }
+    }
+  ],
+  "dispositions": [
+    {
+      "fileName": "report.pdf",
+      "value": "attachment; filename=\"report.pdf\""
+    },
+    {
+      "fileName": "Report é.pdf",
+      "value": "attachment; filename=\"Report _.pdf\"; filename*=UTF-8''Report%20%C3%A9.pdf"
+    },
+    {
+      "fileName": "we\"ird\\name.pdf",
+      "value": "attachment; filename=\"we_ird_name.pdf\""
+    },
+    {
+      "fileName": "a\u0000bc.txt",
+      "value": "attachment; filename=\"a_b__c.txt\""
+    },
+    {
+      "fileName": "😀.png",
+      "value": "attachment; filename=\"__.png\"; filename*=UTF-8''%F0%9F%98%80.png"
+    },
+    {
+      "fileName": "o'neil (1)*.txt",
+      "value": "attachment; filename=\"o'neil (1)*.txt\""
+    },
+    {
+      "fileName": "",
+      "value": "attachment; filename=\"\""
+    },
+    {
+      "fileName": "a/b.txt",
+      "value": "attachment; filename=\"a/b.txt\""
+    },
+    {
+      "fileName": "lone�.txt",
+      "value": "attachment; filename=\"lone_.txt\"; filename*=UTF-8''lone%EF%BF%BD.txt"
+    },
+    {
+      "fileName": " spaced name .txt",
+      "value": "attachment; filename=\" spaced name .txt\""
+    },
+    {
+      "fileName": "üñí.pdf",
+      "value": "attachment; filename=\"___.pdf\"; filename*=UTF-8''%C3%BC%C3%B1%C3%AD.pdf"
+    },
+    {
+      "fileName": null,
+      "value": "attachment"
+    }
+  ],
+  "headerCases": [
+    {
+      "path": "/x/a.png",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.png",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.svg",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.SVG",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.html",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.HTM",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.pdf",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": null,
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {},
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "fileName": "n é.pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n _.pdf\"; filename*=UTF-8''n%20%C3%A9.pdf",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "fileName": "n.pdf",
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment; filename=\"n.pdf\"",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "mimeType": "image/svg+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "mimeType": "text/xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "mimeType": "application/xhtml+xml"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "mimeType": "not a mime"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/octet-stream"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "download": true,
+        "mimeType": "application/vnd.ms-excel"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Disposition": "attachment",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+        "Content-Type": "application/vnd.ms-excel"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "video/mp4"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "video/mp4; codecs=\"avc1\""
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "video/mp4"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "audio/wav"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "audio/wav;x=y"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "audio/wav"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "text/html"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "TEXT/HTML"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": "sandbox allow-scripts allow-forms allow-popups"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "application/pdf"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "application/PDF"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Type": "application/pdf"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "image/png"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "video/"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "video/a b"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "mimeType": "text/plain"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    },
+    {
+      "path": "/x/a.bin",
+      "options": {
+        "fileName": "x"
+      },
+      "headers": {
+        "Cache-Control": "private, max-age=3600",
+        "X-Content-Type-Options": "nosniff"
+      }
+    }
+  ]
+}

@@ -138,9 +138,7 @@ fn root(props: Props) -> Element {
 }
 struct Fixture {
     directory: tempfile::TempDir,
-    service: ProviderAuthService,
-    settings: t3_server::server_settings::SettingsService,
-    server: tokio::task::JoinHandle<()>,
+    server: crate::runtime::fixture_server::Server,
     dom: VirtualDom,
     props: Props,
     browser: Rc<RefCell<Browser>>,
@@ -216,8 +214,6 @@ impl Fixture {
         dom.rebuild_in_place();
         let mut fixture = Self {
             directory,
-            service,
-            settings,
             server,
             dom,
             props,
@@ -268,10 +264,7 @@ impl Fixture {
     }
     async fn stop(self) {
         drop(self.dom);
-        self.service.shutdown().await;
-        self.settings.shutdown().await;
-        self.server.abort();
-        let _ = self.server.await;
+        self.server.await;
     }
     fn state(&self) -> Store<UiModel> {
         self.props.state.borrow().unwrap()

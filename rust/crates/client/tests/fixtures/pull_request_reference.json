@@ -1,0 +1,162 @@
+[
+  {
+    "input": "",
+    "reference": null
+  },
+  {
+    "input": "   ",
+    "reference": null
+  },
+  {
+    "input": "7",
+    "reference": "7"
+  },
+  {
+    "input": "#7",
+    "reference": "7"
+  },
+  {
+    "input": " #42 ",
+    "reference": "42"
+  },
+  {
+    "input": "##7",
+    "reference": null
+  },
+  {
+    "input": "7a",
+    "reference": null
+  },
+  {
+    "input": "-3",
+    "reference": null
+  },
+  {
+    "input": "https://github.com/acme/web/pull/12",
+    "reference": "https://github.com/acme/web/pull/12"
+  },
+  {
+    "input": "https://github.com/acme/web/pull/12/files",
+    "reference": "https://github.com/acme/web/pull/12/files"
+  },
+  {
+    "input": "https://github.com/acme/web/pull/12?diff=split#x",
+    "reference": "https://github.com/acme/web/pull/12?diff=split#x"
+  },
+  {
+    "input": "http://github.com/acme/web/pull/12",
+    "reference": null
+  },
+  {
+    "input": "https://github.com/acme/web/pulls/12",
+    "reference": "https://github.com/acme/web/pulls/12"
+  },
+  {
+    "input": "https://github.com/acme/pull/12",
+    "reference": null
+  },
+  {
+    "input": "https://gitlab.com/acme/web/-/merge_requests/9",
+    "reference": "https://gitlab.com/acme/web/-/merge_requests/9"
+  },
+  {
+    "input": "https://gitlab.example.com/group/sub/web/-/merge_requests/9/diffs",
+    "reference": "https://gitlab.example.com/group/sub/web/-/merge_requests/9/diffs"
+  },
+  {
+    "input": "https://example.com/acme/web/-/merge_requests/9",
+    "reference": null
+  },
+  {
+    "input": "https://dev.azure.com/org/project/_git/repo/pullrequest/5",
+    "reference": "https://dev.azure.com/org/project/_git/repo/pullrequest/5"
+  },
+  {
+    "input": "https://org.visualstudio.com/project/_git/repo/pullrequest/5?_a=files",
+    "reference": "https://org.visualstudio.com/project/_git/repo/pullrequest/5?_a=files"
+  },
+  {
+    "input": "https://codeberg.org/acme/web/pulls/3",
+    "reference": "https://codeberg.org/acme/web/pulls/3"
+  },
+  {
+    "input": "https://git.example.com/a/b/c/pulls/3",
+    "reference": "https://git.example.com/a/b/c/pulls/3"
+  },
+  {
+    "input": "http://forgejo.local/acme/web/pulls/3/files",
+    "reference": "http://forgejo.local/acme/web/pulls/3/files"
+  },
+  {
+    "input": "gh pr checkout 12",
+    "reference": "12"
+  },
+  {
+    "input": "gh pr checkout https://github.com/acme/web/pull/12",
+    "reference": "https://github.com/acme/web/pull/12"
+  },
+  {
+    "input": "GH PR CHECKOUT #12",
+    "reference": "12"
+  },
+  {
+    "input": "gh pr checkout",
+    "reference": null
+  },
+  {
+    "input": "gh pr checkout  ",
+    "reference": null
+  },
+  {
+    "input": "glab mr checkout 9",
+    "reference": "9"
+  },
+  {
+    "input": "glab mr checkout https://gitlab.com/acme/web/-/merge_requests/9",
+    "reference": "https://gitlab.com/acme/web/-/merge_requests/9"
+  },
+  {
+    "input": "tea pr checkout 4",
+    "reference": "4"
+  },
+  {
+    "input": "tea pulls checkout https://codeberg.org/acme/web/pulls/4",
+    "reference": "https://codeberg.org/acme/web/pulls/4"
+  },
+  {
+    "input": "az repos pr checkout --id 5",
+    "reference": "5"
+  },
+  {
+    "input": "az repos pr checkout -i 5",
+    "reference": "5"
+  },
+  {
+    "input": "az repos pr checkout --id=5",
+    "reference": "5"
+  },
+  {
+    "input": "az repos pr checkout --id=",
+    "reference": null
+  },
+  {
+    "input": "az repos pr checkout 5",
+    "reference": "5"
+  },
+  {
+    "input": "az repos pr checkout --detect true 5",
+    "reference": null
+  },
+  {
+    "input": "az repos pr checkout --id",
+    "reference": null
+  },
+  {
+    "input": "hello world",
+    "reference": null
+  },
+  {
+    "input": "feature-branch",
+    "reference": null
+  }
+]

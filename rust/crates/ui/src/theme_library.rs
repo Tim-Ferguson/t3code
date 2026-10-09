@@ -21,7 +21,10 @@ struct Editing {
 }
 #[component]
 pub fn ThemeEditorHost() -> Element {
-    let service = use_context::<Themes>();
+    // Hosts without a theme service (bare Application harnesses) have no editor.
+    let Some(service) = try_consume_context::<Themes>() else {
+        return rsx! {};
+    };
     let session = service.editor.read().clone();
     let catalog = service.catalog.read().clone();
     let mut editor = service.editor;
@@ -58,6 +61,25 @@ pub fn ThemeEditorHost() -> Element {
         initial_appearance: session.initial_appearance,
     };
     rsx! {ThemeEditor {key:"{session.id}",edit,onclose:move |_|editor.set(None)}}
+}
+/// `themeEditor.toggle`: closes the theme editor when it is open, and otherwise opens it on a new
+/// theme seeded from the one in use, as the Create theme button does.
+pub(crate) fn toggle_editor(service: &Themes) {
+    let mut editor = service.editor;
+    if editor.peek().is_some() {
+        editor.set(None);
+        return;
+    }
+    if matches!(&*service.library.peek(), Some(library::Library::Unavailable { .. })) {
+        return;
+    }
+    let mode = service.snapshot.peek().resolved_theme;
+    let seed = {
+        let catalog = service.catalog.peek();
+        let snapshot = service.snapshot.peek();
+        catalog.definition(catalog.half(&snapshot.theme, snapshot.theme_halves.as_ref(), mode)).map(|theme| theme.id.clone())
+    };
+    open_editor(service.clone(), None, seed, None, mode);
 }
 fn open_editor(
     mut service: Themes,

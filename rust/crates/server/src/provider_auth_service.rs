@@ -527,7 +527,7 @@ mod tests {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
-                "codex":{"driver":"codex","enabled":false},
+                "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
                 "agent":{"driver":"acpRegistry","enabled":false,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}
             }})).unwrap();
             let registry = ProviderRegistry::discover(&settings,root.path()).await.unwrap();
@@ -552,7 +552,7 @@ mod tests {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
-                "codex":{"driver":"codex","enabled":false},
+                "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
                 "agent":{"driver":"acpRegistry","enabled":false,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}
             }})).unwrap();
             let registry = ProviderRegistry::discover(&settings,root.path()).await.unwrap();
@@ -595,7 +595,7 @@ mod tests {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
-                "codex":{"driver":"codex","enabled":false},
+                "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
                 "agent":{"driver":"acpRegistry","enabled":true,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}
             }})).unwrap();
             let registry = ProviderRegistry::discover(&settings,root.path()).await.unwrap();
@@ -658,7 +658,7 @@ mod tests {
     }
     fn health_settings(log: &std::path::Path, environment: Value) -> ServerSettings {
         serde_json::from_value(json!({"providerInstances":{
-            "codex":{"driver":"codex","enabled":false},
+            "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
             "agent":{"driver":"acpRegistry","enabled":true,"environment":environment,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}
         }})).unwrap()
     }

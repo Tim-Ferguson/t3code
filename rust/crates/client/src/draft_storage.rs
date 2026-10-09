@@ -26,6 +26,10 @@ pub struct DraftChoices {
     pub runtime_mode: Option<t3_contracts::RuntimeMode>,
     pub environment_mode: Option<t3_contracts::ThreadEnvMode>,
     pub base_ref: String,
+    /// An existing worktree the thread starts in, instead of a new one (with `environment_mode`
+    /// `worktree`), as the original's draft context carries it.
+    #[serde(default)]
+    pub worktree_path: Option<String>,
 }
 impl DraftTarget {
     pub fn thread(environment: impl Into<String>, thread: impl Into<String>) -> Self {
@@ -53,6 +57,10 @@ pub struct DraftChanges {
     pub prompt: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub choices: Option<Value>,
+    /// The attachment list as last edited here. `None` defers to the original draft,
+    /// so an intentionally emptied list is `Some(vec![])`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attachments: Option<Vec<crate::attachments::Persisted>>,
     #[serde(default)]
     pub acknowledged: bool,
 }
@@ -62,6 +70,13 @@ struct Sidecar {
     version: u64,
     entries: Vec<(DraftTarget, DraftChanges)>,
     forgotten_environments: BTreeSet<String>,
+}
+#[derive(Debug)]
+pub enum SavedAttachments<'a> {
+    None,
+    Edited(&'a [crate::attachments::Persisted]),
+    /// The original draft record, which still carries image data URLs.
+    Original(&'a Value),
 }
 #[derive(Debug, Default)]
 pub struct DraftStorage {
@@ -137,6 +152,9 @@ impl DraftStorage {
                                     if early.choices.is_none() {
                                         early.choices = changes.choices;
                                     }
+                                    if early.attachments.is_none() {
+                                        early.attachments = changes.attachments;
+                                    }
                                     early.acknowledged = changes.acknowledged;
                                 }
                             }
@@ -158,6 +176,14 @@ impl DraftStorage {
         self.changes.entry(target).or_default().choices = Some(choices);
         self.revision += 1;
     }
+    pub fn edit_attachments(
+        &mut self,
+        target: DraftTarget,
+        attachments: Vec<crate::attachments::Persisted>,
+    ) {
+        self.changes.entry(target).or_default().attachments = Some(attachments);
+        self.revision += 1;
+    }
     pub fn acknowledge(&mut self, target: DraftTarget) {
         self.changes.insert(
             target,
@@ -173,6 +199,7 @@ impl DraftStorage {
     pub fn acknowledge_content(&mut self, target: DraftTarget) {
         let changes = self.changes.entry(target).or_default();
         changes.prompt = None;
+        changes.attachments = None;
         changes.acknowledged = true;
         self.revision += 1;
     }
@@ -249,6 +276,23 @@ impl DraftStorage {
                     .and_then(|draft| draft["prompt"].as_str())
             })
     }
+    /// Attachments to show for a draft: this client's edits, else the original's.
+    pub fn attachments(&self, target: &DraftTarget) -> SavedAttachments<'_> {
+        if let Some(saved) = self
+            .changes
+            .get(target)
+            .and_then(|changes| changes.attachments.as_ref())
+        {
+            return SavedAttachments::Edited(saved);
+        }
+        self.recovered(target)
+            .filter(|draft| {
+                ["attachments", "files"]
+                    .iter()
+                    .any(|key| draft[*key].as_array().is_some_and(|list| !list.is_empty()))
+            })
+            .map_or(SavedAttachments::None, SavedAttachments::Original)
+    }
     pub fn dirty(&self) -> bool {
         self.revision != self.saved_revision
     }
@@ -320,4 +364,70 @@ fn decode_sidecar(bytes: &str) -> Result<Sidecar, String> {
         );
     }
     Ok(sidecar)
+}
+
+#[cfg(test)]
+mod attachment_tests {
+    use super::*;
+    use crate::attachments::{Kind, Persisted};
+    use serde_json::json;
+
+    fn saved(id: &str, attachment_id: Option<&str>) -> Persisted {
+        Persisted {
+            id: id.into(),
+            r#type: Kind::File,
+            name: "notes.pdf".into(),
+            mime_type: "application/pdf".into(),
+            size_bytes: 9,
+            attachment_id: attachment_id.map(Into::into),
+        }
+    }
+    fn original() -> String {
+        let image = json!({"id":"img","name":"s.png","mimeType":"image/png","sizeBytes":5,"dataUrl":"data:image/png;base64,iVBORw0="});
+        json!({"version":9,"state":{"draftsByThreadKey":{"a:thread":{"prompt":"hi","attachments":[image]}}}}).to_string()
+    }
+    fn target() -> DraftTarget {
+        DraftTarget::thread("a", "thread")
+    }
+
+    #[test]
+    fn original_attachments_show_until_this_client_edits_the_list() {
+        let mut storage = DraftStorage::default();
+        storage.hydrate(Some(original()), None, "2026-10-08T12:00:00.000Z");
+        assert!(matches!(storage.attachments(&target()), SavedAttachments::Original(_)));
+        assert!(
+            storage.recovered(&target()).is_some_and(|draft| !crate::drafts::has_unrendered_content(draft)),
+            "attachments no longer hold a draft; contexts still do"
+        );
+        // An emptied list is an edit, not an absence: the original's images stay removed.
+        storage.edit_attachments(target(), vec![]);
+        assert!(matches!(storage.attachments(&target()), SavedAttachments::Edited([])));
+        storage.edit_attachments(target(), vec![saved("a", Some("pending-1"))]);
+        let (_, bytes) = storage.prepare_write().unwrap().unwrap();
+        let mut reloaded = DraftStorage::default();
+        reloaded.hydrate(Some(original()), Some(bytes), "2026-10-08T12:00:00.000Z");
+        let SavedAttachments::Edited(list) = reloaded.attachments(&target()) else {
+            panic!("the saved list wins over the original")
+        };
+        assert_eq!(list, [saved("a", Some("pending-1"))]);
+    }
+
+    #[test]
+    fn sending_content_clears_original_and_edited_attachments() {
+        let mut storage = DraftStorage::default();
+        storage.hydrate(Some(original()), None, "2026-10-08T12:00:00.000Z");
+        storage.edit_attachments(target(), vec![saved("a", None)]);
+        storage.acknowledge_content(target());
+        assert!(matches!(storage.attachments(&target()), SavedAttachments::None));
+        // Attachments added after the send are saved again.
+        storage.edit_attachments(target(), vec![saved("b", None)]);
+        assert!(matches!(storage.attachments(&target()), SavedAttachments::Edited([_])));
+    }
+
+    #[test]
+    fn contexts_still_hold_a_draft_for_the_original_app() {
+        let draft = json!({"prompt":"","attachments":[{"id":"x"}],"terminalContexts":[{"id":"t"}]});
+        assert!(crate::drafts::has_unrendered_content(&draft));
+        assert!(!crate::drafts::has_unrendered_content(&json!({"prompt":"","attachments":[{"id":"x"}],"files":[{"id":"f"}]})));
+    }
 }

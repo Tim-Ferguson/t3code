@@ -1,0 +1,2921 @@
+[
+  {
+    "name": "simple",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Respond with the following text: fixture simple ok"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                },
+                {
+                  "modelId": "grok-composer-2.5-fast",
+                  "name": "Grok Composer 2.5 Fast"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nRespond with the following text: fixture simple ok\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "reasoning.1",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_thought_chunk",
+              "content": {
+                "type": "text",
+                "text": "I should "
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "reasoning.2",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_thought_chunk",
+              "content": {
+                "type": "text",
+                "text": "answer exactly."
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.1",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "fixture simple "
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.2",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "ok"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed"],
+      "attempts": ["completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Respond with the following text: fixture simple ok"
+        },
+        {
+          "type": "reasoning",
+          "status": "completed",
+          "title": null,
+          "text": "I should answer exactly.",
+          "streaming": false
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "fixture simple ok",
+          "streaming": false
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "multi_turn",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Respond with exactly: first fixture turn complete"
+      },
+      {
+        "type": "message",
+        "text": "Respond with exactly: second fixture turn complete"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "first.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nRespond with exactly: first fixture turn complete\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "first.assistant",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "first fixture turn complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "first.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "second.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "Respond with exactly: second fixture turn complete"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "second.assistant",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "second fixture turn complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "second.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed", "completed"],
+      "attempts": ["completed", "completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        },
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Respond with exactly: first fixture turn complete"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "first fixture turn complete",
+          "streaming": false
+        },
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Respond with exactly: second fixture turn complete"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "second fixture turn complete",
+          "streaming": false
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "queued_turn",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Respond with exactly: first fixture turn complete"
+      },
+      {
+        "type": "queue_message",
+        "text": "Respond with exactly: second fixture turn complete"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "first.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nRespond with exactly: first fixture turn complete\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "first.assistant",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "first fixture turn complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "first.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "queued.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "Respond with exactly: second fixture turn complete"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "queued.assistant",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "second fixture turn complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "queued.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed", "completed"],
+      "attempts": ["completed", "completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        },
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Respond with exactly: first fixture turn complete"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "first fixture turn complete",
+          "streaming": false
+        },
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Respond with exactly: second fixture turn complete"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "second fixture turn complete",
+          "streaming": false
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "todo_list",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Use the update_plan tool to track exactly three steps: inspect package.json, inspect tsconfig.json, report completion. Then read package.json and tsconfig.json, and answer exactly: todo list fixture complete"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nUse the update_plan tool to track exactly three steps: inspect package.json, inspect tsconfig.json, report completion. Then read package.json and tsconfig.json, and answer exactly: todo list fixture complete\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.progress",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "I'll track the three steps and inspect both files."
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "plan.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "plan",
+              "entries": [
+                {
+                  "content": "Inspect package.json",
+                  "priority": "high",
+                  "status": "in_progress"
+                },
+                {
+                  "content": "Inspect tsconfig.json",
+                  "priority": "high",
+                  "status": "pending"
+                },
+                {
+                  "content": "Report completion",
+                  "priority": "high",
+                  "status": "pending"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.package.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "read-package",
+              "title": "Read package.json",
+              "kind": "read",
+              "status": "pending",
+              "rawInput": {
+                "path": "package.json"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.package.completed",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "read-package",
+              "status": "completed",
+              "rawOutput": {
+                "content": "{\"name\":\"t3\"}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.tsconfig.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "read-tsconfig",
+              "title": "Read tsconfig.json",
+              "kind": "read",
+              "status": "pending",
+              "rawInput": {
+                "path": "tsconfig.json"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.tsconfig.completed",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "read-tsconfig",
+              "status": "completed",
+              "rawOutput": {
+                "content": "{\"compilerOptions\":{}}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "plan.completed",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "plan",
+              "entries": [
+                {
+                  "content": "Inspect package.json",
+                  "priority": "high",
+                  "status": "completed"
+                },
+                {
+                  "content": "Inspect tsconfig.json",
+                  "priority": "high",
+                  "status": "completed"
+                },
+                {
+                  "content": "Report completion",
+                  "priority": "high",
+                  "status": "completed"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.final",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "todo list fixture complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed"],
+      "attempts": ["completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Use the update_plan tool to track exactly three steps: inspect package.json, inspect tsconfig.json, report completion. Then read package.json and tsconfig.json, and answer exactly: todo list fixture complete"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "I'll track the three steps and inspect both files.",
+          "streaming": false
+        },
+        {
+          "type": "todo_list",
+          "status": "completed",
+          "title": null,
+          "steps": [
+            {
+              "id": "acp-step-1",
+              "text": "Inspect package.json",
+              "status": "completed"
+            },
+            {
+              "id": "acp-step-2",
+              "text": "Inspect tsconfig.json",
+              "status": "completed"
+            },
+            {
+              "id": "acp-step-3",
+              "text": "Report completion",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "type": "dynamic_tool",
+          "status": "completed",
+          "title": "Read package.json",
+          "toolName": "Read",
+          "input": {
+            "path": "package.json"
+          },
+          "output": {
+            "content": "{\"name\":\"t3\"}"
+          }
+        },
+        {
+          "type": "dynamic_tool",
+          "status": "completed",
+          "title": "Read tsconfig.json",
+          "toolName": "Read",
+          "input": {
+            "path": "tsconfig.json"
+          },
+          "output": {
+            "content": "{\"compilerOptions\":{}}"
+          }
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "todo list fixture complete",
+          "streaming": false
+        }
+      ],
+      "requests": [],
+      "plans": [
+        {
+          "kind": "todo_list",
+          "status": "completed",
+          "steps": [
+            {
+              "id": "acp-step-1",
+              "text": "Inspect package.json",
+              "status": "completed"
+            },
+            {
+              "id": "acp-step-2",
+              "text": "Inspect tsconfig.json",
+              "status": "completed"
+            },
+            {
+              "id": "acp-step-3",
+              "text": "Report completion",
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "message_steering",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Respond with exactly: steering fixture initial response"
+      },
+      {
+        "type": "steer",
+        "text": "Actually, respond with exactly: steering fixture observed",
+        "targetRunIndex": 1
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt.1",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nRespond with exactly: steering fixture initial response\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.partial",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "ste"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.cancel",
+        "frame": {
+          "kind": "notification",
+          "method": "session/cancel",
+          "params": {
+            "sessionId": "grok-replay-session-1"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.cancelled",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "cancelled"
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt.2",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "Actually, respond with exactly: steering fixture observed"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.1",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "steering fixture "
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.2",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "observed"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed"],
+      "attempts": ["superseded", "completed"],
+      "providerTurns": [
+        {
+          "status": "interrupted",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        },
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Respond with exactly: steering fixture initial response"
+        },
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Actually, respond with exactly: steering fixture observed"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "ste",
+          "streaming": false
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "steering fixture observed",
+          "streaming": false
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "turn_interrupt",
+    "approvalPolicy": "never",
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Do not answer immediately. First run the local shell command `sleep 30`, then respond with exactly: interrupt fixture should not finish naturally."
+      },
+      {
+        "type": "interrupt",
+        "targetRunIndex": 1
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nDo not answer immediately. First run the local shell command `sleep 30`, then respond with exactly: interrupt fixture should not finish naturally.\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.cancel",
+        "frame": {
+          "kind": "notification",
+          "method": "session/cancel",
+          "params": {
+            "sessionId": "grok-replay-session-1"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.cancelled",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "cancelled"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["interrupted"],
+      "attempts": ["interrupted"],
+      "providerTurns": [
+        {
+          "status": "interrupted",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Do not answer immediately. First run the local shell command `sleep 30`, then respond with exactly: interrupt fixture should not finish naturally."
+        },
+        {
+          "type": "run_interrupt_request",
+          "status": "completed",
+          "title": "Interrupt requested",
+          "message": "Interrupt requested"
+        },
+        {
+          "type": "run_interrupt_result",
+          "status": "interrupted",
+          "title": "Interrupted",
+          "message": "Run interrupted by user"
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "tool_call_read_only",
+    "approvalPolicy": "never",
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Read /tmp/claude-replay-tool_call_read_only/package.json and /tmp/claude-replay-tool_call_read_only/tsconfig.json, then answer exactly: read only tool fixture complete"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nRead /tmp/claude-replay-tool_call_read_only/package.json and /tmp/claude-replay-tool_call_read_only/tsconfig.json, then answer exactly: read only tool fixture complete\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.progress",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "Reading both files now.\n"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.package.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "read-package",
+              "title": "Read package.json",
+              "kind": "read",
+              "status": "pending",
+              "rawInput": {
+                "path": "/tmp/claude-replay-tool_call_read_only/package.json"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.package.running",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "read-package",
+              "status": "in_progress"
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.package.completed",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "read-package",
+              "status": "completed",
+              "rawOutput": {
+                "content": "{\"name\":\"cursor-read-only-fixture\"}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.tsconfig.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "read-tsconfig",
+              "title": "Read tsconfig.json",
+              "kind": "read",
+              "status": "pending",
+              "rawInput": {
+                "path": "/tmp/claude-replay-tool_call_read_only/tsconfig.json"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.tsconfig.completed",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "read-tsconfig",
+              "status": "completed",
+              "rawOutput": {
+                "content": "{\"compilerOptions\":{\"target\":\"ES2022\"}}"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.final",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "read only tool fixture complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed"],
+      "attempts": ["completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Read /tmp/claude-replay-tool_call_read_only/package.json and /tmp/claude-replay-tool_call_read_only/tsconfig.json, then answer exactly: read only tool fixture complete"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "Reading both files now.\n",
+          "streaming": false
+        },
+        {
+          "type": "dynamic_tool",
+          "status": "completed",
+          "title": "Read /tmp/claude-replay-tool_call_read_only/package.json",
+          "toolName": "Read",
+          "input": {
+            "path": "/tmp/claude-replay-tool_call_read_only/package.json"
+          },
+          "output": {
+            "content": "{\"name\":\"cursor-read-only-fixture\"}"
+          }
+        },
+        {
+          "type": "dynamic_tool",
+          "status": "completed",
+          "title": "Read /tmp/claude-replay-tool_call_read_only/tsconfig.json",
+          "toolName": "Read",
+          "input": {
+            "path": "/tmp/claude-replay-tool_call_read_only/tsconfig.json"
+          },
+          "output": {
+            "content": "{\"compilerOptions\":{\"target\":\"ES2022\"}}"
+          }
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "read only tool fixture complete",
+          "streaming": false
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "tool_call_read_only_on_request",
+    "approvalPolicy": "on-request",
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Create or overwrite .codex-probe-write-action.txt with exactly this text: codex app-server approval fixture. Use a local shell command or file edit only, then briefly report what happened. Do not read package metadata, use GitHub, use web, or use MCP."
+      },
+      {
+        "type": "approve_next_runtime_request"
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nCreate or overwrite .codex-probe-write-action.txt with exactly this text: codex app-server approval fixture. Use a local shell command or file edit only, then briefly report what happened. Do not read package metadata, use GitHub, use web, or use MCP.\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "write-probe",
+              "title": "Write probe file",
+              "kind": "execute",
+              "status": "pending",
+              "rawInput": {
+                "command": "printf 'codex app-server approval fixture' > .codex-probe-write-action.txt"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "permission.request",
+        "frame": {
+          "kind": "request",
+          "method": "session/request_permission",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "toolCall": {
+              "toolCallId": "write-probe",
+              "title": "Write probe file",
+              "kind": "execute",
+              "status": "pending",
+              "content": [
+                {
+                  "type": "content",
+                  "content": {
+                    "type": "text",
+                    "text": "Write .codex-probe-write-action.txt"
+                  }
+                }
+              ]
+            },
+            "options": [
+              {
+                "optionId": "allow-once",
+                "name": "Allow once",
+                "kind": "allow_once"
+              },
+              {
+                "optionId": "allow-always",
+                "name": "Allow for session",
+                "kind": "allow_always"
+              },
+              {
+                "optionId": "reject-once",
+                "name": "Reject",
+                "kind": "reject_once"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "permission.response",
+        "frame": {
+          "kind": "response",
+          "method": "session/request_permission",
+          "result": {
+            "outcome": {
+              "outcome": "selected",
+              "optionId": "allow-once"
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.completed",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "write-probe",
+              "status": "completed",
+              "rawOutput": {
+                "exitCode": 0,
+                "stdout": "",
+                "stderr": ""
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.final",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "Created the requested probe file."
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed"],
+      "attempts": ["completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Create or overwrite .codex-probe-write-action.txt with exactly this text: codex app-server approval fixture. Use a local shell command or file edit only, then briefly report what happened. Do not read package metadata, use GitHub, use web, or use MCP."
+        },
+        {
+          "type": "command_execution",
+          "status": "completed",
+          "title": "Ran command",
+          "input": "printf 'codex app-server approval fixture' > .codex-probe-write-action.txt",
+          "exitCode": 0
+        },
+        {
+          "type": "approval_request",
+          "status": "completed",
+          "title": null,
+          "requestKind": "command",
+          "prompt": "Ran command"
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "Created the requested probe file.",
+          "streaming": false
+        }
+      ],
+      "requests": [
+        {
+          "kind": "command",
+          "status": "resolved"
+        }
+      ],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "acp_elicitation",
+    "approvalPolicy": "never",
+    "model": "default",
+    "interactionMode": "plan",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Use request_user_input to ask one multiple-choice clarifying question about whether this fixture should prefer strict schemas or UI flexibility. After receiving the answer, respond exactly: plan questions fixture complete"
+      },
+      {
+        "type": "answer_next_user_input_request",
+        "answers": {
+          "schema_vs_ui_flexibility": "Strict schemas (Recommended)",
+          "schema_preference": "Strict schemas (Recommended)",
+          "question-0-schema-vs-flexibility": "Strict schemas"
+        }
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "generic-acp-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "registry-replay-session-1"
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "registry-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nUse request_user_input to ask one multiple-choice clarifying question about whether this fixture should prefer strict schemas or UI flexibility. After receiving the answer, respond exactly: plan questions fixture complete\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "elicitation.request",
+        "frame": {
+          "kind": "request",
+          "method": "elicitation/create",
+          "params": {
+            "sessionId": "registry-replay-session-1",
+            "mode": "form",
+            "message": "Choose the fixture preference.",
+            "requestedSchema": {
+              "type": "object",
+              "title": "Fixture preference",
+              "properties": {
+                "schema_vs_ui_flexibility": {
+                  "type": "string",
+                  "title": "Fixture",
+                  "description": "Should this fixture prefer strict schemas or UI flexibility?",
+                  "enum": ["Strict schemas (Recommended)", "UI flexibility"]
+                }
+              },
+              "required": ["schema_vs_ui_flexibility"]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "elicitation.response",
+        "frame": {
+          "kind": "response",
+          "method": "elicitation/create",
+          "result": {
+            "action": "accept",
+            "content": {
+              "schema_vs_ui_flexibility": "Strict schemas (Recommended)"
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "assistant.final",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "registry-replay-session-1",
+            "update": {
+              "sessionUpdate": "agent_message_chunk",
+              "content": {
+                "type": "text",
+                "text": "plan questions fixture complete"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.completed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "result": {
+            "stopReason": "end_turn"
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["completed"],
+      "attempts": ["completed"],
+      "providerTurns": [
+        {
+          "status": "completed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Use request_user_input to ask one multiple-choice clarifying question about whether this fixture should prefer strict schemas or UI flexibility. After receiving the answer, respond exactly: plan questions fixture complete"
+        },
+        {
+          "type": "user_input_request",
+          "status": "completed",
+          "title": null,
+          "questions": [
+            {
+              "id": "schema_vs_ui_flexibility",
+              "header": "Fixture",
+              "question": "Should this fixture prefer strict schemas or UI flexibility?",
+              "options": [
+                {
+                  "label": "Strict schemas (Recommended)",
+                  "description": "Strict schemas (Recommended)"
+                },
+                {
+                  "label": "UI flexibility",
+                  "description": "UI flexibility"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "assistant_message",
+          "status": "completed",
+          "title": null,
+          "text": "plan questions fixture complete",
+          "streaming": false
+        }
+      ],
+      "requests": [
+        {
+          "kind": "user_input",
+          "status": "resolved"
+        }
+      ],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "stop_background_work_after_failed_turn",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Start the dev server in the background with `bun run dev` and keep it running."
+      },
+      {
+        "type": "stop_background_work",
+        "targetRunIndex": 1
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nStart the dev server in the background with `bun run dev` and keep it running.\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "dev-server",
+              "title": "Start dev server",
+              "kind": "execute",
+              "status": "pending",
+              "rawInput": {
+                "command": "bun run dev"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.running",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "dev-server",
+              "status": "in_progress"
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.failed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "error": {
+            "code": -32603,
+            "message": "Internal error",
+            "data": {
+              "message": "API error (status 400 Bad Request): invalid_request_error: grok prompt error fixture",
+              "http_status": 400
+            }
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["failed"],
+      "attempts": ["failed"],
+      "providerTurns": [
+        {
+          "status": "failed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Start the dev server in the background with `bun run dev` and keep it running."
+        },
+        {
+          "type": "command_execution",
+          "status": "interrupted",
+          "title": "Ran command",
+          "input": "bun run dev"
+        },
+        {
+          "type": "error",
+          "status": "failed",
+          "title": "Provider error",
+          "failure": {
+            "class": "provider_error",
+            "message": "Internal error",
+            "code": "-32603",
+            "retryable": null
+          }
+        },
+        {
+          "type": "run_interrupt_request",
+          "status": "completed",
+          "title": "Interrupt requested",
+          "message": "Interrupt requested"
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  },
+  {
+    "name": "stop_background_work_after_release",
+    "approvalPolicy": null,
+    "model": "default",
+    "interactionMode": "default",
+    "steps": [
+      {
+        "type": "message",
+        "text": "Start the dev server in the background with `bun run dev` and keep it running."
+      },
+      {
+        "type": "advance_clock",
+        "duration": "31 minutes"
+      },
+      {
+        "type": "stop_background_work",
+        "targetRunIndex": 1
+      }
+    ],
+    "transcript": [
+      {
+        "type": "expect_outbound",
+        "label": "initialize",
+        "frame": {
+          "kind": "request",
+          "method": "initialize",
+          "params": {
+            "protocolVersion": 2,
+            "info": "<any>",
+            "capabilities": "<any>",
+            "clientCapabilities": "<any>",
+            "clientInfo": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "initialized",
+        "frame": {
+          "kind": "response",
+          "method": "initialize",
+          "result": {
+            "protocolVersion": 1,
+            "agentCapabilities": {
+              "loadSession": true,
+              "mcpCapabilities": {
+                "http": true,
+                "sse": true
+              },
+              "promptCapabilities": {
+                "audio": false,
+                "embeddedContext": true,
+                "image": false
+              }
+            },
+            "authMethods": [
+              {
+                "id": "replay",
+                "name": "Replay"
+              }
+            ],
+            "agentInfo": {
+              "name": "grok-replay",
+              "version": "1"
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.new",
+        "frame": {
+          "kind": "request",
+          "method": "session/new",
+          "params": {
+            "cwd": "<workspace>",
+            "mcpServers": "<any>"
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "session.created",
+        "frame": {
+          "kind": "response",
+          "method": "session/new",
+          "result": {
+            "sessionId": "grok-replay-session-1",
+            "models": {
+              "currentModelId": "grok-build",
+              "availableModels": [
+                {
+                  "modelId": "grok-build",
+                  "name": "Grok Build"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "type": "expect_outbound",
+        "label": "session.prompt",
+        "frame": {
+          "kind": "request",
+          "method": "session/prompt",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "prompt": [
+              {
+                "type": "text",
+                "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nStart the dev server in the background with `bun run dev` and keep it running.\n</user_request>"
+              },
+              {
+                "type": "text",
+                "text": "<runtime_info>In case you're asked: you are running in T3 Code through the acpRegistry harness. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.started",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call",
+              "toolCallId": "dev-server",
+              "title": "Start dev server",
+              "kind": "execute",
+              "status": "pending",
+              "rawInput": {
+                "command": "bun run dev"
+              }
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "tool.running",
+        "frame": {
+          "kind": "notification",
+          "method": "session/update",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "update": {
+              "sessionUpdate": "tool_call_update",
+              "toolCallId": "dev-server",
+              "status": "in_progress"
+            }
+          }
+        }
+      },
+      {
+        "type": "emit_inbound",
+        "label": "prompt.failed",
+        "frame": {
+          "kind": "response",
+          "method": "session/prompt",
+          "error": {
+            "code": -32603,
+            "message": "Internal error",
+            "data": {
+              "message": "API error (status 400 Bad Request): invalid_request_error: grok prompt error fixture",
+              "http_status": 400
+            }
+          }
+        }
+      },
+      {
+        "type": "runtime_exit",
+        "status": "success"
+      }
+    ],
+    "expected": {
+      "runs": ["failed"],
+      "attempts": ["failed"],
+      "providerTurns": [
+        {
+          "status": "failed",
+          "turnTokenUsage": null,
+          "tokenUsage": null
+        }
+      ],
+      "items": [
+        {
+          "type": "user_message",
+          "status": "completed",
+          "title": null,
+          "text": "Start the dev server in the background with `bun run dev` and keep it running."
+        },
+        {
+          "type": "command_execution",
+          "status": "interrupted",
+          "title": "Ran command",
+          "input": "bun run dev"
+        },
+        {
+          "type": "error",
+          "status": "failed",
+          "title": "Provider error",
+          "failure": {
+            "class": "provider_error",
+            "message": "Internal error",
+            "code": "-32603",
+            "retryable": null
+          }
+        },
+        {
+          "type": "run_interrupt_request",
+          "status": "completed",
+          "title": "Interrupt requested",
+          "message": "Interrupt requested"
+        }
+      ],
+      "requests": [],
+      "plans": [],
+      "providerThread": ["idle"]
+    }
+  }
+]
