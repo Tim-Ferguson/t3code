@@ -76,8 +76,8 @@ def assistant(content, message_id, parent=None):
     send({"type": "assistant", "message": {"id": message_id, "type": "message", "role": "assistant", "model": flag("--model"), "content": content, "usage": USAGE, "stop_reason": None}, "parent_tool_use_id": parent, "session_id": SESSION, "uuid": uid()})
 
 
-def user_result(tool_use_id, content, is_error=False, structured=None):
-    frame = {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error}]}, "parent_tool_use_id": None, "session_id": SESSION, "uuid": uid()}
+def user_result(tool_use_id, content, is_error=False, structured=None, parent=None):
+    frame = {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error}]}, "parent_tool_use_id": parent, "session_id": SESSION, "uuid": uid()}
     if structured is not None:
         frame["tool_use_result"] = structured
     send(frame)
@@ -159,6 +159,10 @@ def scenario_question(message):
 def scenario_hang(message):
     system_init()
     assistant([{"type": "tool_use", "id": "toolu_h_" + uid(), "name": "Bash", "input": {"command": "sleep 600"}}], "msg_h_" + uid())
+    scenario_hang_loop()
+
+
+def scenario_hang_loop():
     while True:
         incoming = receive()
         if incoming is None:
@@ -212,7 +216,63 @@ def scenario_warning(message):
     result("fine")
 
 
-SCENARIOS = {"limit": scenario_limit, "warning": scenario_warning, "turn": scenario_turn, "approval": scenario_approval, "question": scenario_question, "hang": scenario_hang, "steer": scenario_steer, "crash": scenario_crash, "error": scenario_error}
+def task_frame(subtype, task_id, **fields):
+    frame = {"type": "system", "subtype": subtype, "task_id": task_id, "uuid": uid(), "session_id": SESSION}
+    frame.update(fields)
+    send(frame)
+
+
+def launch_agent(tool_use_id, prompt, **fields):
+    assistant([{"type": "tool_use", "id": tool_use_id, "name": "Agent", "input": {"description": "Inspect", "prompt": prompt, "subagent_type": "general-purpose"}}], "msg_" + tool_use_id)
+    task_frame("task_started", "task_" + tool_use_id, tool_use_id=tool_use_id, description="Inspect", task_type="local_agent", prompt=prompt, **fields)
+
+
+def scenario_subagent_approval(message):
+    """A subagent asks to run a command; the request is raised on the parent and answered there."""
+    system_init()
+    launch_agent("toolu_agent", "Run ls")
+    child = {"command": "ls", "description": "list"}
+    assistant([{"type": "tool_use", "id": "toolu_child", "name": "Bash", "input": child}], "msg_child", parent="toolu_agent")
+    answer = can_use_tool("req-child", "Bash", child, "toolu_child", title="Claude wants to run ls")
+    allowed = answer.get("behavior") == "allow"
+    user_result("toolu_child", "a.txt\n" if allowed else "User declined tool execution.", is_error=not allowed, parent="toolu_agent")
+    assistant([{"type": "text", "text": "listed" if allowed else "declined"}], "msg_child_text", parent="toolu_agent")
+    task_frame("task_notification", "task_toolu_agent", tool_use_id="toolu_agent", status="completed", summary="Inspect", output_file="")
+    user_result("toolu_agent", [{"type": "text", "text": "listed" if allowed else "declined"}], structured={"status": "completed", "content": [{"type": "text", "text": "listed" if allowed else "declined"}]})
+    assistant([{"type": "text", "text": "finished"}], "msg_done")
+    result("finished")
+
+
+def scenario_children_running(message):
+    """A subagent has a command open when the parent turn is stopped."""
+    system_init()
+    launch_agent("toolu_agent", "Sleep")
+    assistant([{"type": "tool_use", "id": "toolu_child", "name": "Bash", "input": {"command": "sleep 600"}}], "msg_child", parent="toolu_agent")
+    scenario_hang_loop()
+
+
+def scenario_background_task(message):
+    """A background command outlives the turn that started it; the CLI keeps running until it is closed."""
+    system_init()
+    assistant([{"type": "tool_use", "id": "toolu_bg", "name": "Bash", "input": {"command": "sleep 600", "run_in_background": True}}], "msg_bg")
+    task_frame("task_started", "bg_1", tool_use_id="toolu_bg", description="sleep 600", task_type="local_bash", is_backgrounded=True)
+    send({"type": "system", "subtype": "background_tasks_changed", "tasks": [{"task_id": "bg_1", "task_type": "local_bash", "description": "sleep 600"}], "uuid": uid(), "session_id": SESSION})
+    user_result("toolu_bg", "started in the background")
+    assistant([{"type": "text", "text": "started"}], "msg_started")
+    result("started")
+
+
+def scenario_background_wake(message):
+    """The background command finishes after the turn ended; Claude wakes itself to report it."""
+    scenario_background_task(message)
+    send({"type": "system", "subtype": "background_tasks_changed", "tasks": [], "uuid": uid(), "session_id": SESSION})
+    task_frame("task_notification", "bg_1", tool_use_id="toolu_bg", status="completed", summary="sleep 600 finished", output_file="")
+    system_init()
+    assistant([{"type": "text", "text": "the command finished"}], "msg_wake")
+    result("the command finished")
+
+
+SCENARIOS = {"subagent_approval": scenario_subagent_approval, "children_running": scenario_children_running, "background_task": scenario_background_task, "background_wake": scenario_background_wake, "limit": scenario_limit, "warning": scenario_warning, "turn": scenario_turn, "approval": scenario_approval, "question": scenario_question, "hang": scenario_hang, "steer": scenario_steer, "crash": scenario_crash, "error": scenario_error}
 
 
 def serve_scenario():
@@ -220,6 +280,7 @@ def serve_scenario():
     while True:
         message = receive()
         if message is None:
+            log({"stdin": "closed"})
             return
         log({"received": message})
         if message.get("type") == "control_request":
@@ -250,6 +311,7 @@ def serve_transcript():
     else:
         sys.stderr.write("transcript has no query.open for this launch at %d\n" % cursor)
         sys.exit(4)
+    store_subagent_sidecars(entries)
     while True:
         message = receive()
         if message is None:
@@ -265,6 +327,9 @@ def serve_transcript():
             if expected is None:
                 sys.stderr.write("unexpected prompt at transcript cursor %d\n" % cursor)
                 sys.exit(5)
+            offered = entry["frame"]["message"].get("uuid")
+            if offered and message.get("uuid"):
+                PROMPT_UUIDS[offered] = message["uuid"]
             cursor += 1
             save()
             pump(entries)
@@ -284,6 +349,21 @@ def serve_transcript():
             continue
 
 
+def store_subagent_sidecars(entries):
+    """What the CLI keeps from an earlier process: a subagent's launching call, beside its transcript."""
+    config = os.environ.get("CLAUDE_CONFIG_DIR")
+    for index, entry in enumerate(entries):
+        if entry["type"] != "expect_outbound" or entry["frame"]["type"] != "subagent.lookup":
+            continue
+        found = next((later["frame"] for later in entries[index + 1:] if later["type"] == "emit_inbound" and later["frame"]["type"] == "subagent.found"), None)
+        if not config or not found or not found.get("toolUseId"):
+            continue
+        directory = os.path.join(config, "projects", "-fixture", SESSION, "subagents")
+        os.makedirs(directory, exist_ok=True)
+        with open(os.path.join(directory, "agent-%s.meta.json" % entry["frame"]["agentId"]), "w") as handle:
+            json.dump({"toolUseId": found["toolUseId"]}, handle)
+
+
 def pump(entries):
     """Emit recorded inbound frames until the next expected outbound frame (or the end)."""
     global cursor
@@ -299,6 +379,11 @@ def pump(entries):
                 return
             if frame["type"] == "permission.response":
                 return
+            if frame["type"] == "subagent.lookup":
+                # The adapter reads the launch call from session storage; the sidecar is written at launch.
+                cursor += 1
+                save()
+                continue
             sys.stderr.write("unsupported outbound frame %s\n" % frame["type"])
             sys.exit(6)
         frame = entry["frame"]
@@ -334,7 +419,23 @@ def pump(entries):
         if hold:
             with open(hold) as released:
                 released.read()
-        send(frame)
+        send(with_prompt_uuids(frame))
+
+
+PROMPT_UUIDS = {}
+
+
+def with_prompt_uuids(frame):
+    """A recorded frame names the prompt uuid of the recording; the adapter offered its own."""
+    if not PROMPT_UUIDS or not isinstance(frame, dict):
+        return frame
+    frame = dict(frame)
+    for key in ("command_uuid", "user_message_uuid"):
+        if isinstance(frame.get(key), str):
+            frame[key] = PROMPT_UUIDS.get(frame[key], frame[key])
+    if isinstance(frame.get("user_message_uuids"), list):
+        frame["user_message_uuids"] = [PROMPT_UUIDS.get(uuid, uuid) for uuid in frame["user_message_uuids"]]
+    return frame
 
 
 GATES = json.loads(os.environ.get("CLAUDE_FIXTURE_GATES", "{}"))

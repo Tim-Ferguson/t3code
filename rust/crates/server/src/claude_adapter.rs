@@ -48,7 +48,19 @@ impl Pending {
     }
 }
 /// The live CLI process and what it was opened for.
+/// Whether this CLI process echoes a prompt's uuid on the first frame of the turn answering it
+/// ("early") or only on its result. Learned from the first prompt turn; "acknowledged": the CLI
+/// confirmed it took a prompt's uuid before any echo, so it echoes, but a resume's own turns can
+/// still run ahead of that prompt.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EchoMode {
+    Unknown,
+    Acknowledged,
+    Early,
+    ResultOnly,
+}
 struct Live {
+    echo_mode: EchoMode,
     process: ClaudeProcess,
     events: mpsc::UnboundedReceiver<Event>,
     key: String,
@@ -57,6 +69,14 @@ struct Live {
     mode: String,
 }
 struct Turn {
+    /// The uuid the prompt was offered with; Claude echoes it on the turn answering it. None for a continuation.
+    prompt_uuid: Option<String>,
+    echo_confirmed: bool,
+    /// Claude acknowledged starting the prompt (`command_lifecycle` "started").
+    prompt_started: bool,
+    /// Root frames seen before the echo; held only when the CLI echoes early.
+    gated_before_echo: u32,
+    held: Vec<Value>,
     /// The run ingests output the CLI already produced instead of answering a prompt.
     continuation: bool,
     projector: Projector,
@@ -199,12 +219,14 @@ impl Actor {
         if !reusable && !continuation {
             if let Some(live) = self.live.take() {
                 live.process.shutdown().await;
+                // What the old process ran, and what it left to report, is not the new one's.
+                self.process_ended().map_err(|e| e.to_string())?;
             }
             let (process, events) = ClaudeProcess::spawn(&options.launch())?;
             process.write(&json!({"request_id":format!("t3-init-{}", uuid::Uuid::new_v4().simple()),"type":"control_request","request":options.initialize_request()}))?;
             self.opened.insert(native_id.clone());
-            self.live = Some(Live { process, events, key, native_thread_id: native_id.clone(), opened_mode: options.permission_mode.clone(), mode: options.permission_mode.clone() });
-        } else if let Some(live) = self.live.as_mut().filter(|live| live.mode != live.opened_mode) {
+            self.live = Some(Live { echo_mode: EchoMode::Unknown, process, events, key, native_thread_id: native_id.clone(), opened_mode: options.permission_mode.clone(), mode: options.permission_mode.clone() });
+        } else if let Some(live) = self.live.as_mut().filter(|live| live.mode != live.opened_mode && !continuation) {
             // Claude can switch its own mode (EnterPlanMode); put the thread's mode back.
             live.process.request(json!({"subtype":"set_permission_mode","mode":live.opened_mode}), Duration::from_secs(10)).await?;
             live.mode = live.opened_mode.clone();
@@ -251,13 +273,14 @@ impl Actor {
         self.settled = None;
         self.ignored_tasks.clear();
         self.route = Some(run["providerThreadId"].clone());
-        self.turn = Some(Turn { continuation, projector, interrupted: false, steered: false, mode_ask_user: ask_user });
+        let prompt_uuid = (!continuation).then(|| uuid::Uuid::new_v4().to_string());
+        self.turn = Some(Turn { prompt_uuid: prompt_uuid.clone(), echo_confirmed: continuation, prompt_started: false, gated_before_echo: 0, held: vec![], continuation, projector, interrupted: false, steered: false, mode_ask_user: ask_user });
         if continuation {
             return self.drain_wake().map_err(|e| e.to_string());
         }
         self.bg.start_user_turn();
         // Written after the running state is durable: the CLI answers immediately.
-        let uuid = uuid::Uuid::new_v4().to_string();
+        let uuid = prompt_uuid.unwrap_or_default();
         if let Err(cause) = self.live.as_ref().unwrap().process.write(&user_message(content, None, Some(&uuid))) {
             return Err(cause);
         }
@@ -347,6 +370,7 @@ impl Actor {
             let native = prepared.provider_thread["nativeThreadRef"]["nativeId"].as_str().ok_or_else(|| format!("Provider thread {} is missing a native Claude session id.", prepared.provider_thread["id"].as_str().unwrap_or("")))?;
             if let Some(live) = self.live.take() {
                 live.process.shutdown().await;
+                self.process_ended().map_err(|e| e.to_string())?;
             }
             self.pending.clear();
             let rewound = claude_rewind(&prepared)?;
@@ -373,6 +397,7 @@ impl Actor {
         }
         if let Some(live) = self.live.take() {
             live.process.shutdown().await;
+            self.process_ended().map_err(|e| e.to_string())?;
         }
         self.live = None;
         self.pending.clear();
@@ -430,8 +455,101 @@ impl Actor {
         live.process.respond(pending.control_id(), Ok(response))
     }
 
-    /// One message from the CLI for the active turn.
+    /// One message from the CLI. A prompt offered while Claude has a turn of its own queued (a
+    /// background task or subagent finished, a peer message arrived, a resume reports work the previous
+    /// process left) is answered only after that turn runs, and the two look alike until each turn's
+    /// result. Claude echoes the prompt's uuid on the turn that answers it, so a result for another turn
+    /// never settles this one. On a CLI that echoes on the turn's first frame, root output that arrives
+    /// before the echo is held: the echo releases it to this turn, and another turn's result sends it to
+    /// the wake buffer and so to a continuation run. A CLI that echoes only on the result (or not at
+    /// all) is never held.
     fn message(&mut self, message: &Value) -> Result<MessageOutcome, StoreError> {
+        let Some((prompt, echoed, mode)) = self.turn.as_ref().filter(|turn| !turn.echo_confirmed).zip(self.live.as_ref()).and_then(|(turn, live)| Some((turn.prompt_uuid.clone()?, echoed_uuids(message), live.echo_mode))) else { return self.route(message) };
+        if echoed.contains(&prompt) {
+            if let Some(live) = self.live.as_mut().filter(|live| matches!(live.echo_mode, EchoMode::Unknown | EchoMode::Acknowledged)) {
+                live.echo_mode = if message["type"] != "result" && self.turn.as_ref().is_some_and(|turn| turn.gated_before_echo == 0) { EchoMode::Early } else { EchoMode::ResultOnly };
+            }
+            self.release_held()?;
+            return self.route(message);
+        }
+        if message["type"] == "command_lifecycle" && message["command_uuid"].as_str() == Some(prompt.as_str()) {
+            if let Some(live) = self.live.as_mut().filter(|live| live.echo_mode == EchoMode::Unknown) {
+                live.echo_mode = EchoMode::Acknowledged;
+            }
+            let turn = self.turn.as_mut().unwrap();
+            match message["state"].as_str() {
+                Some("started") => turn.prompt_started = true,
+                // Claude finishes a prompt whose uuid its transcript already holds without starting it.
+                Some("completed") if !turn.prompt_started => {
+                    let failure = crate::provider_failure::make(&json!({"class":"provider_error","message":"Claude acknowledged the message but never started a turn for it."}));
+                    self.finish_turn(None, "failed", Some(failure))?;
+                    return Ok(MessageOutcome::Finished);
+                }
+                _ => {}
+            }
+        }
+        let gated = match message["type"].as_str() {
+            Some("assistant" | "stream_event" | "user") => message["parent_tool_use_id"].is_null(),
+            Some("result") => true,
+            _ => false,
+        };
+        let turn = self.turn.as_mut().unwrap();
+        if !gated {
+            // Frames the held turn produced through its own tool uses (a subagent it launched, its task
+            // lifecycle) follow that turn; anything else keeps its own owner.
+            if !turn.held.is_empty() && frame_tool_use_ids(message).iter().any(|id| held_tool_use_ids(&turn.held).contains(id)) {
+                turn.held.push(message.clone());
+                return Ok(MessageOutcome::Continue);
+            }
+            return self.route(message);
+        }
+        turn.gated_before_echo += 1;
+        if message["type"] == "result" && result_for_other_turn(message, &prompt, mode) {
+            let mut held = std::mem::take(&mut turn.held);
+            // The prompt's own turn follows, so echo timing is learned from it alone.
+            turn.gated_before_echo = 0;
+            // Lifecycle debris, not a turn: any held output stays held for its real owner.
+            if message["num_turns"] == 0 {
+                turn.held.append(&mut held);
+                return Ok(MessageOutcome::Continue);
+            }
+            if mode == EchoMode::Early {
+                // The held turn ran before this prompt's turn, which still follows on the same stream.
+                held.push(message.clone());
+                for frame in &held {
+                    self.buffer_wake(frame)?;
+                }
+                return Ok(MessageOutcome::Continue);
+            }
+            // Its output already streamed into this turn, so only its result stays out: settling here
+            // would end the turn before its prompt runs. The prompt's own turn ends it.
+            if message["origin"]["kind"] == "task-notification" {
+                self.bg.take_reports();
+            }
+            return Ok(MessageOutcome::Continue);
+        }
+        if mode != EchoMode::Early {
+            return self.route(message);
+        }
+        if message["type"] != "result" {
+            turn.held.push(message.clone());
+            return Ok(MessageOutcome::Continue);
+        }
+        // A result from no other turn (an interrupt, a startup failure) settles the prompt's turn.
+        self.release_held()?;
+        self.route(message)
+    }
+    /// Gives held root output to the pending prompt turn.
+    fn release_held(&mut self) -> Result<(), StoreError> {
+        let Some(turn) = self.turn.as_mut() else { return Ok(()) };
+        turn.echo_confirmed = true;
+        for frame in std::mem::take(&mut turn.held) {
+            self.route(&frame)?;
+        }
+        Ok(())
+    }
+    /// One message for the active turn, once any prompt-echo gate has let it through.
+    fn route(&mut self, message: &Value) -> Result<MessageOutcome, StoreError> {
         // Before any routing: a Monitor started during an idle wake reports its task before the drain
         // replays the tool call.
         self.bg.track_monitor_calls(message);
@@ -610,21 +728,32 @@ impl Actor {
         self.process_ended().map_err(|e| e.to_string())?;
         self.write_roster(false).map_err(|e| e.to_string())
     }
-    /// Whether an idle frame belongs to a subagent that is still running.
+    /// Whether an idle frame belongs to a subagent that is still running (`settledTurnForSubagentFrame`).
     fn settled_takes(&self, message: &Value) -> bool {
+        let kind = message["type"].as_str().unwrap_or_default();
         let parent = message["parent_tool_use_id"].as_str();
-        match message["type"].as_str() {
-            Some("assistant" | "user") => {
-                let results = projection::tool_results(message);
-                // The result of a call already shown as a row only ends that row.
-                if message["type"] == "user" && !results.is_empty() && results.len() == message["message"]["content"].as_array().map_or(0, Vec::len) && results.iter().all(|result| result["tool_use_id"].as_str().is_some_and(|id| self.subagents.child_has_tool(id))) {
-                    return true;
-                }
-                parent.is_some_and(|parent| self.subagents.resolve_tool_use(parent).and_then(|task| self.subagents.task(task)).is_some_and(|task| task["status"] == "running"))
-            }
-            Some("system") if message["subtype"] == "task_progress" => message["task_id"].as_str().is_some_and(|task| self.subagents.is_running(task)),
-            _ => false,
+        let results = projection::tool_results(message);
+        // The result of a call already shown as a row only ends that row, so it never waits.
+        if kind == "user" && !results.is_empty() && results.len() == message["message"]["content"].as_array().map_or(0, Vec::len) && results.iter().all(|result| result["tool_use_id"].as_str().is_some_and(|id| self.subagents.child_has_tool(id))) {
+            return true;
         }
+        // A subagent's `task_started` still in the wake buffer registers it only when a continuation
+        // drains it, and only that run stores the work that follows. So that subagent's own frames, and
+        // the result of the `Agent` call that launched it, wait behind it.
+        let starts: Vec<&Value> = self.bg.buffer.iter().filter(|entry| entry["type"] == "system" && entry["subtype"] == "task_started" && !is_opaque_task(entry)).collect();
+        let progress = kind == "system" && message["subtype"] == "task_progress";
+        let task_id = if progress { message["task_id"].as_str() } else { parent.and_then(|parent| self.subagents.task_of_tool_use(parent)) };
+        let returned: Vec<&str> = results.iter().filter_map(|result| result["tool_use_id"].as_str()).collect();
+        if starts.iter().any(|start| start["task_id"].as_str() == task_id && task_id.is_some() || start["tool_use_id"].as_str().is_some_and(|id| Some(id) == parent || returned.contains(&id))) {
+            return false;
+        }
+        // An owner named later waits in the hold used during a turn.
+        let Some(task_id) = task_id else { return parent.is_some() && matches!(kind, "assistant" | "user") };
+        // Without the launching call's id, any result may be its launch.
+        if !returned.is_empty() && starts.iter().any(|start| start["tool_use_id"].is_null()) {
+            return false;
+        }
+        matches!(kind, "assistant" | "user" | "system") && self.subagents.is_running(task_id)
     }
     /// The frames that are not the turn's own text: task lifecycle, subagent output, `Agent` calls.
     fn frame(&mut self, message: &Value, replayed: bool) -> Result<(), StoreError> {
@@ -646,7 +775,16 @@ impl Actor {
                 "task_started" => {
                     // A nested subagent's end goes to its owner, so it never wakes the root.
                     if message["is_backgrounded"] == true && !self.nested.contains(&task_id) {
-                        self.bg.backgrounded.insert(task_id);
+                        self.bg.backgrounded.insert(task_id.clone());
+                    }
+                    // A task started under a call the turn has open is a resume of a subagent this process never saw.
+                    let resumed_by = message["tool_use_id"].as_str().filter(|id| self.turn.as_ref().is_some_and(|turn| turn.projector.has_tool(id)) && !self.subagents.is_registered(&task_id));
+                    if let Some(resumed_by) = resumed_by {
+                        let launch = self.live.as_ref().and_then(|live| subagent_launch_tool_use(&self.instance.config_dir(), &live.native_thread_id, &task_id));
+                        if let Some(launch) = launch.filter(|launch| launch != resumed_by) {
+                            let title = message["description"].as_str().unwrap_or_default();
+                            self.with_parent(|parent, subagents, root| subagents.recover_resumed(parent, root, &task_id, title, &launch))?;
+                        }
                     }
                     self.with_parent(|parent, subagents, root| subagents.task_started(parent, root, message))?;
                 }
@@ -704,6 +842,9 @@ impl Actor {
         }
         let turn = self.turn.as_mut().unwrap();
         let view = view(&self.store, &self.thread_id)?;
+        // Which results answer a call the turn has open: those are tools', whatever else they name.
+        let results = projection::tool_results(message);
+        let open: Vec<bool> = results.iter().map(|result| result["tool_use_id"].as_str().is_some_and(|id| turn.projector.has_tool(id))).collect();
         let events = turn.projector.plan(&view, message)?;
         let launches = turn.projector.take_launches();
         let model = turn.projector.selection()["model"].as_str().unwrap_or_default().to_owned();
@@ -712,11 +853,10 @@ impl Actor {
             self.subagents.remember_launch(&id, &input, None, &model);
         }
         // The result of an `Agent` call ends its subagent; the result of a call the turn has open is a tool's.
-        let results = projection::tool_results(message);
         let structured = (results.len() == 1).then(|| message.get("tool_use_result")).flatten().filter(|value| !value.is_null()).cloned();
-        for result in &results {
+        for (result, was_open) in results.iter().zip(open) {
             let Some(id) = result["tool_use_id"].as_str() else { continue };
-            if self.subagents.resolve_tool_use(id).is_some() && self.turn.as_ref().is_some_and(|turn| !turn.projector.has_tool(id)) {
+            if self.subagents.resolve_tool_use(id).is_some() && !was_open {
                 self.with_parent(|parent, subagents, root| subagents.agent_result(parent, root, result, structured.as_ref()))?;
             }
         }
@@ -887,9 +1027,18 @@ impl Actor {
         let tool_name = request["tool_name"].as_str().unwrap_or("").to_owned();
         let tool_use_id = request["tool_use_id"].as_str().unwrap_or("").to_owned();
         let input = request["input"].clone();
-        let Some(turn) = self.turn.as_mut() else {
+        if self.turn.is_none() {
             return Ok(Some(json!(PermissionResult::Deny { message: "Claude V2 adapter has no active turn for this tool request.".into(), interrupt: None, tool_use_id: Some(tool_use_id), decision_classification: None })));
-        };
+        }
+        // While root output awaits its prompt echo, its frames are held and may belong to a queued wake
+        // turn, so the callback attaches nothing to the pending prompt turn. A request the user must
+        // answer cannot wait for the echo, which the held turn is blocked on: the held output goes with it.
+        let mut held_for_echo = self.turn.as_ref().is_some_and(|turn| !turn.held.is_empty());
+        if held_for_echo && tool_name != "ExitPlanMode" && (tool_name == "AskUserQuestion" || self.turn.as_ref().is_some_and(|turn| turn.mode_ask_user)) {
+            self.release_held()?;
+            held_for_echo = false;
+        }
+        let turn = self.turn.as_mut().unwrap();
         let view = view(&self.store, &self.thread_id)?;
         // An `Agent` call is a subagent, not a tool; a tool a subagent runs is already in its thread.
         let mut events = if tool_name == "Agent" {
@@ -897,7 +1046,7 @@ impl Actor {
             turn.projector.skip_tools.insert(tool_use_id.clone());
             self.subagents.remember_launch(&tool_use_id, &input, None, &model);
             vec![]
-        } else if self.subagents.child_has_tool(&tool_use_id) {
+        } else if held_for_echo || self.subagents.child_has_tool(&tool_use_id) {
             vec![]
         } else {
             turn.projector.ensure_tool(&view, &tool_use_id, &tool_name, &input)?
@@ -963,9 +1112,59 @@ impl Actor {
         })
     }
 }
+/// The tool call that launched a subagent, which the CLI keeps with the subagent's transcript in its
+/// session storage (`<config>/projects/<project>/<session>/subagents/**/agent-<id>.meta.json`).
+fn subagent_launch_tool_use(config_dir: &std::path::Path, session: &str, agent: &str) -> Option<String> {
+    fn find(directory: &std::path::Path, name: &str) -> Option<std::path::PathBuf> {
+        for entry in std::fs::read_dir(directory).ok()?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(found) = find(&path, name) {
+                    return Some(found);
+                }
+            } else if path.file_name().is_some_and(|file| file == name) {
+                return Some(path);
+            }
+        }
+        None
+    }
+    let name = format!("agent-{agent}.meta.json");
+    std::fs::read_dir(config_dir.join("projects")).ok()?.flatten().find_map(|project| {
+        let found = find(&project.path().join(session).join("subagents"), &name)?;
+        let meta: Value = serde_json::from_str(&std::fs::read_to_string(found).ok()?).ok()?;
+        meta["toolUseId"].as_str().map(str::to_owned)
+    })
+}
 /// A `local_bash` task: a background command, which the provider thread's roster lists, not a subagent.
 fn is_opaque_task(message: &Value) -> bool {
     background::is_opaque_task(message)
+}
+/// The prompts a frame says its turn consumed.
+fn echoed_uuids(message: &Value) -> Vec<String> {
+    if let Some(uuids) = message["user_message_uuids"].as_array() {
+        return uuids.iter().filter_map(Value::as_str).map(str::to_owned).collect();
+    }
+    message["user_message_uuid"].as_str().map(str::to_owned).into_iter().collect()
+}
+/// The tool use a non-root frame belongs to: a subagent frame's parent, or a task lifecycle frame's call.
+fn frame_tool_use_ids(message: &Value) -> Vec<String> {
+    let mut ids: Vec<String> = message["parent_tool_use_id"].as_str().map(str::to_owned).into_iter().collect();
+    if message["type"] == "system" {
+        ids.extend(message["tool_use_id"].as_str().map(str::to_owned));
+    }
+    ids
+}
+fn held_tool_use_ids(held: &[Value]) -> Vec<String> {
+    held.iter().filter(|frame| frame["parent_tool_use_id"].is_null()).flat_map(|frame| frame["message"]["content"].as_array().into_iter().flatten().filter(|block| block["type"] == "tool_use").filter_map(|block| block["id"].as_str().map(str::to_owned))).collect()
+}
+/// A result that answers a turn other than the pending prompt's. An echo names the prompts its turn
+/// consumed. Without one, only a process known to echo proves the turn foreign by its non-human origin.
+fn result_for_other_turn(message: &Value, prompt: &str, mode: EchoMode) -> bool {
+    let echoed = echoed_uuids(message);
+    if !echoed.is_empty() {
+        return !echoed.iter().any(|uuid| uuid == prompt);
+    }
+    mode != EchoMode::Unknown && message["origin"].is_object() && message["origin"]["kind"] != "human"
 }
 pub(crate) const RESUME_NEVER: &str = "Keep full history and never ask again";
 enum MessageOutcome {

@@ -245,20 +245,18 @@ pub(crate) struct Projector {
 }
 
 impl Projector {
-    /// A projector for a subagent's child thread, whose rows have no run and no provider turn. The
-    /// prompt takes position 100; what the child does follows from 101.
+    /// A projector for a subagent's child thread, whose rows have no run and no provider turn.
     pub(crate) fn for_child(thread_id: &str, child_root_node_id: &str, instance_id: &Value, selection: Value) -> Self {
         let ctx = TurnContext { run_id: String::new(), attempt_id: Value::Null, root_node_id: json!(child_root_node_id), provider_thread_id: Value::Null, provider_turn_id: Value::Null, provider_instance_id: instance_id.clone() };
         let mut projector = Self::blank(thread_id, ctx, selection);
         projector.child = true;
-        projector.next_ordinal = Some(101);
         projector
     }
-    /// The next position in the child thread, which a child's prompt, text, tools and results share.
-    pub(crate) fn child_ordinal(&mut self) -> u64 {
-        let next = self.next_ordinal.unwrap_or(101);
-        self.next_ordinal = Some(next + 1);
-        next
+    /// The position a new item of a child thread takes: after everything the thread holds. An item
+    /// already written keeps its own.
+    pub(crate) fn arrival(view: &Value, item_id: &str) -> u64 {
+        let items = view["turnItems"].as_array().map(Vec::as_slice).unwrap_or(&[]);
+        items.iter().find(|item| item["id"] == item_id).and_then(|item| item["ordinal"].as_u64()).unwrap_or_else(|| items.iter().filter_map(|item| item["ordinal"].as_u64()).max().map_or(0, |max| max + 1))
     }
     /// The next position of the turn's items, for a row an adapter adds beside the projector's own.
     pub(crate) fn position(&mut self, view: &Value, native: &str) -> u64 {
@@ -333,7 +331,14 @@ impl Projector {
         if let Some(existing) = self.ordinals.get(native) {
             return *existing;
         }
-        let next = self.next_ordinal.unwrap_or_else(|| view["turnItems"].as_array().into_iter().flatten().filter_map(|item| item["ordinal"].as_u64()).max().map_or(0, |max| max + 1));
+        let from_view = || view["turnItems"].as_array().into_iter().flatten().filter_map(|item| item["ordinal"].as_u64()).max().map_or(0, |max| max + 1);
+        // A subagent's thread has several writers, so each new item takes the position after what the thread holds.
+        if self.child {
+            let next = from_view();
+            self.ordinals.insert(native.to_owned(), next);
+            return next;
+        }
+        let next = self.next_ordinal.unwrap_or_else(from_view);
         self.next_ordinal = Some(next + 1);
         self.ordinals.insert(native.to_owned(), next);
         next

@@ -122,9 +122,6 @@ impl Subagents {
     pub(crate) fn is_running(&self, task_id: &str) -> bool {
         self.by_task.get(task_id).is_some_and(|subagent| subagent.task["status"] == "running")
     }
-    pub(crate) fn any_running(&self) -> bool {
-        self.by_task.values().any(|subagent| subagent.task["status"] == "running")
-    }
     pub(crate) fn task_of_tool_use(&self, tool_use_id: &str) -> Option<&str> {
         self.task_by_tool_use.get(tool_use_id).map(String::as_str)
     }
@@ -138,14 +135,18 @@ impl Subagents {
     pub(crate) fn child_has_tool(&self, tool_use_id: &str) -> bool {
         self.by_task.values().any(|subagent| subagent.projector.has_tool(tool_use_id))
     }
-    /// Subagents that were running when the process that ran them ended: they never report again.
-    pub(crate) fn running_tasks(&self) -> Vec<String> {
-        self.by_task.iter().filter(|(_, subagent)| subagent.task["status"] == "running").map(|(id, _)| id.clone()).collect()
-    }
-    pub(crate) fn has_open_calls(&self) -> bool {
-        self.by_task.values().any(|subagent| subagent.projector.has_open_tools())
-    }
 
+    /// Whether a subagent's child thread still takes events. The run that owns a subagent routes
+    /// what it does to its child thread while that run is live, or while any subagent the run owns is
+    /// running; once the run has settled and its subagents have all ended, a late frame of a child
+    /// (its call's last result, its final answer) has no run to be written under and is dropped.
+    fn child_open(&self, p: &Parent, task_id: &str) -> Result<bool, StoreError> {
+        let Some(subagent) = self.by_task.get(task_id) else { return Ok(false) };
+        let run = &subagent.task["runId"];
+        let view = thread_view(p.store, p.app_thread["id"].as_str().unwrap_or_default())?;
+        let live = view["runs"].as_array().into_iter().flatten().any(|candidate| candidate["id"] == *run && matches!(candidate["status"].as_str(), Some("preparing" | "starting" | "running" | "waiting")));
+        Ok(live || self.by_task.values().any(|other| other.task["runId"] == *run && other.task["status"] == "running"))
+    }
     fn resolve(&self, task_id: &str, tool_use_id: Option<&str>) -> Option<String> {
         if self.by_task.contains_key(task_id) {
             return Some(task_id.to_owned());
@@ -332,7 +333,7 @@ impl Subagents {
         // that resumes the subagent.
         let prompt_native = if is_new { Some(format!("{native_item}:prompt")) } else { resume_tool_use.as_ref().map(|tool_use| format!("{native_item}:prompt:{tool_use}")) };
         if let Some(prompt_native) = prompt_native {
-            let ordinal = if is_new { 100 } else { subagent.projector.child_ordinal() };
+            let ordinal = Projector::arrival(&thread_view(p.store, &child_thread_id)?, &item_id(&prompt_native));
             let (message, item) = subagents::conversation_artifacts(
                 &json!({"senderThreadId":p.app_thread["id"],"messageId":message_id(&prompt_native),"turnItemId":item_id(&prompt_native),"threadId":child_thread_id,"rootNodeId":child_root_node,"providerThreadId":null,"providerTurnId":null,"nativeItemRef":native_ref(&prompt_native),"role":"user","text":task["prompt"],"ordinal":ordinal}),
                 &now,
@@ -350,18 +351,13 @@ impl Subagents {
 
         // A completed subagent's result is normally its final assistant message, already in the child
         // thread when its text was routed there. Failures and cancellations always get the message.
-        if let (Some(result), true) = (u.result, u.status != "running") {
+        if let (Some(result), true) = (u.result, u.status != "running" && self.child_open(p, u.task_id)?) {
+            let subagent = self.by_task.get_mut(key.as_deref().unwrap_or(&task_key)).unwrap();
             let already_shown = u.status == "completed" && normalize_text(subagent.last_assistant_text.as_deref().unwrap_or_default()) == normalize_text(result);
             if !result.trim().is_empty() && !already_shown {
                 let result_native = format!("{native_item}:result");
-                let ordinal = match subagent.result_item_ordinal {
-                    Some(ordinal) => ordinal,
-                    None => {
-                        let ordinal = subagent.projector.child_ordinal();
-                        subagent.result_item_ordinal = Some(ordinal);
-                        ordinal
-                    }
-                };
+                let ordinal = Projector::arrival(&thread_view(p.store, &child_thread_id)?, &item_id(&result_native));
+                subagent.result_item_ordinal = Some(ordinal);
                 let (message, item) = subagents::conversation_artifacts(
                     &json!({"messageId":message_id(&result_native),"turnItemId":item_id(&result_native),"threadId":child_thread_id,"rootNodeId":child_root_node,"providerThreadId":null,"providerTurnId":null,"nativeItemRef":native_ref(&result_native),"role":"assistant","text":result,"ordinal":ordinal}),
                     &now,
@@ -369,6 +365,45 @@ impl Subagents {
                 commit(p.store, &child_thread_id, |_| Ok(vec![("message.updated", message), ("turn-item.updated", item)]))?;
             }
         }
+        Ok(())
+    }
+
+    /// A subagent launched before a server restart is missing from the registry when `SendMessage`
+    /// resumes it. The resume's `task_started` names only the `SendMessage` call, while the resumed
+    /// run's frames carry the launch call as their parent, which only the CLI's session storage still
+    /// records. Registering the subagent as a finished run lets the resume reopen it like an
+    /// in-session one: the same child thread, the launch prompt kept, the new prompt appended.
+    pub(crate) fn recover_resumed(&mut self, p: &Parent, root: &mut Projector, task_id: &str, title: &str, launch_tool_use: &str) -> Result<(), StoreError> {
+        if self.by_task.contains_key(task_id) {
+            return Ok(());
+        }
+        let now = at(Utc::now());
+        let native_item = format!("task:{task_id}");
+        let provider_thread = p.ctx.provider_thread_id.as_str().unwrap_or_default();
+        let child_thread_id = format!("thread:provider:{DRIVER}:native-thread:{}", enc(&format!("{provider_thread}:{task_id}")));
+        let child_root = node_id(&format!("{native_item}:thread-root"));
+        let parent_view = thread_view(p.store, p.app_thread["id"].as_str().unwrap_or_default())?;
+        let task = json!({
+            "id": node_id(&native_item), "threadId": p.app_thread["id"], "runId": p.ctx.run_id, "parentNodeId": p.ctx.root_node_id,
+            "origin": "provider_native", "createdBy": "agent", "driver": DRIVER, "providerInstanceId": p.ctx.provider_instance_id,
+            "providerThreadId": null, "childThreadId": child_thread_id, "nativeTaskRef": native_task_ref(task_id),
+            "prompt": "", "title": title, "model": null, "result": null, "status": "completed", "startedAt": now, "completedAt": now, "updatedAt": now,
+        });
+        let subagent = Subagent {
+            task,
+            root_node_id: p.ctx.root_node_id.clone(),
+            child_thread_id: child_thread_id.clone(),
+            child_root_node_id: child_root.clone(),
+            turn_item_id: item_id(&format!("{native_item}:subagent")),
+            turn_item_ordinal: root.position(&parent_view, &format!("{native_item}:subagent")),
+            run_tool_use_id: Some(launch_tool_use.to_owned()),
+            result_item_ordinal: None,
+            last_assistant_text: None,
+            last_assistant_message_id: None,
+            projector: Projector::for_child(&child_thread_id, &child_root, &p.ctx.provider_instance_id, p.selection.clone()),
+        };
+        self.by_task.insert(task_id.to_owned(), subagent);
+        self.task_by_tool_use.insert(launch_tool_use.to_owned(), task_id.to_owned());
         Ok(())
     }
 
@@ -447,9 +482,6 @@ impl Subagents {
         }
         self.release(p, root, message)
     }
-    pub(crate) fn is_held(&self, parent_tool_use: &str) -> bool {
-        self.held.contains_key(parent_tool_use)
-    }
     /// An assistant or user frame of a subagent. Its text, thinking and tools belong to the child
     /// thread, never the parent's transcript. An owner not registered yet holds the frame.
     pub(crate) fn child_frame(&mut self, p: &Parent, root: &mut Projector, message: &Value, replayed: bool) -> Result<(), StoreError> {
@@ -478,6 +510,9 @@ impl Subagents {
             }
             return Ok(());
         };
+        if !self.child_open(p, &task_id)? {
+            return Ok(());
+        }
         let blocks = message["message"]["content"].as_array().map(Vec::as_slice).unwrap_or(&[]);
         if assistant {
             for block in blocks.iter().filter(|block| block["id"].is_string() && block["name"].is_string() && block.get("input").is_some()) {
@@ -524,7 +559,7 @@ impl Subagents {
             for (index, text) in thinking.into_iter().enumerate() {
                 let native = format!("{uuid}:thinking:{index}");
                 let subagent = self.by_task.get_mut(&task_id).unwrap();
-                let ordinal = subagent.projector.child_ordinal();
+                let ordinal = Projector::arrival(&thread_view(p.store, &subagent.child_thread_id)?, &item_id(&native));
                 let item = json!({"id":item_id(&native),"threadId":subagent.child_thread_id,"runId":null,"nodeId":subagent.child_root_node_id,"providerThreadId":null,"providerTurnId":null,"nativeItemRef":native_ref(&native),"parentItemId":null,"ordinal":ordinal,"type":"reasoning","title":"Thinking","text":text,"streaming":false,"status":"completed","startedAt":now,"completedAt":now,"updatedAt":now});
                 commit(p.store, &subagent.child_thread_id, |_| Ok(vec![("turn-item.updated", item)]))?;
             }
@@ -537,7 +572,7 @@ impl Subagents {
                     _ => text.clone(),
                 });
                 subagent.last_assistant_message_id = native_message;
-                let ordinal = subagent.projector.child_ordinal();
+                let ordinal = Projector::arrival(&thread_view(p.store, &subagent.child_thread_id)?, &item_id(uuid));
                 let (row, item) = subagents::conversation_artifacts(
                     &json!({"messageId":message_id(uuid),"turnItemId":item_id(uuid),"threadId":subagent.child_thread_id,"rootNodeId":subagent.child_root_node_id,"providerThreadId":null,"providerTurnId":null,"nativeItemRef":native_ref(uuid),"role":"assistant","text":text,"ordinal":ordinal}),
                     &now,

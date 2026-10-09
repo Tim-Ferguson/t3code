@@ -17,7 +17,7 @@ import {
 } from "../../apps/server/src/orchestration-v2/testkit/ReplayTranscriptNdjson.ts";
 
 // Every recorded Claude scenario of the original's replay registry, except the ones that need
-// subagent child threads or the background-task roster and wake turns (see EXCLUDED).
+// thread forking (see EXCLUDED) and the one replayed across a restart (see `recovery`).
 const SUBAGENT_AND_WAKE = [
   "subagent",
   "claude_nested_subagent_model",
@@ -56,12 +56,8 @@ const NAMES = [
   "claude_compact_after_peer_turn_no_echo",
   ...SUBAGENT_AND_WAKE,
 ];
-const SUBAGENT = "needs native subagent child threads, which the Rust orchestrator does not have";
-const ROSTER =
-  "needs the background-task roster and the wake turns it raises through the provider continuation worker, which the Rust orchestrator does not have";
 const FORK = "needs thread forking or merge-back, which the Rust orchestrator does not have";
 const EXCLUDED = [
-  ["claude_subagent_resume_after_restart", SUBAGENT],
   ["thread_fork_native", FORK],
   ["thread_fork_native_continue", FORK],
   ["thread_fork_native_fork_local_rollback", FORK],
@@ -220,14 +216,38 @@ const recorded = readdirSync(fixtures).filter((directory) =>
   existsSync(`${fixtures}${directory}/claude_transcript.ndjson`),
 );
 const unaccounted = recorded.filter(
-  (name) => !NAMES.includes(name) && !EXCLUDED.some((entry) => entry.name === name),
+  (name) =>
+    !NAMES.includes(name) &&
+    name !== "claude_subagent_resume_after_restart" &&
+    !EXCLUDED.some((entry) => entry.name === name),
 );
 if (unaccounted.length > 0)
   throw new Error(`recordings neither replayed nor excluded: ${unaccounted}`);
+// A subagent launched before a server restart and resumed after it. The original replays it as two
+// runtimes over one database (OrchestratorReplayRecovery.integration.test.ts), so it has no projection
+// here; the Rust test restarts its server between the prompts and checks what that test checks.
+const resumeEntries = readFileSync(
+  `${fixtures}claude_subagent_resume_after_restart/claude_transcript.ndjson`,
+  "utf8",
+)
+  .split("\n")
+  .filter(Boolean)
+  .map((line) => JSON.parse(line));
+const recovery = [
+  {
+    name: "claude_subagent_resume_after_restart",
+    model: resumeEntries[0].metadata.model,
+    prompts: resumeEntries[0].metadata.prompts,
+    transcript: resumeEntries,
+  },
+];
 writeFileSync(
   new URL("../crates/server/tests/fixtures/claude-replay.json", import.meta.url),
-  JSON.stringify({ recorded: recorded.length, scenarios: rows, excluded: EXCLUDED }, null, 1) +
-    "\n",
+  JSON.stringify(
+    { recorded: recorded.length, scenarios: rows, recovery, excluded: EXCLUDED },
+    null,
+    1,
+  ) + "\n",
 );
 console.log(`${rows.length} replay scenarios`);
 process.exit(0);

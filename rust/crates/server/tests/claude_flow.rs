@@ -94,7 +94,11 @@ impl Harness {
             }
         })
         .await
-        .expect("timed out waiting for a persisted event")
+        .unwrap_or_else(|_| {
+            let view = self.view();
+            let summary = |rows: &str, fields: &[&str]| view[rows].as_array().unwrap().iter().map(|row| fields.iter().map(|field| row[*field].to_string()).collect::<Vec<_>>().join("/")).collect::<Vec<_>>().join(" ");
+            panic!("timed out waiting for a persisted event; runs: {}; items: {}; roster: {}; log: {}", summary("runs", &["status"]), summary("turnItems", &["type", "status"]), summary("providerThreads", &["pendingBackgroundTasks"]), view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "error").map(|item| item["failure"]["message"].to_string()).collect::<Vec<_>>().join(" | "))
+        })
     }
     pub async fn settled(&self, ordinal: usize) -> Value {
         self.until(|view| view["runs"].get(ordinal - 1).filter(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled"))).cloned()).await
@@ -437,7 +441,14 @@ fn assert_threads(name: &str, harness: &Harness, expected: &[Value]) {
             row.insert("child".into(), title_of(&task["childThreadId"]));
             Value::Object(row)
         }).collect();
-        assert_eq!(Value::Array(subagents), want["subagents"], "{label}: subagents");
+        // The projection lists subagents by start time, then id. The original's recordings replay on a
+        // frozen clock, where the id decides; here starts differ, so the rows are compared as a set.
+        let by_child = |rows: &Value| {
+            let mut rows = rows.as_array().unwrap().clone();
+            rows.sort_by_key(|row| row["child"].as_str().unwrap_or_default().to_owned());
+            Value::Array(rows)
+        };
+        assert_eq!(by_child(&Value::Array(subagents)), by_child(&want["subagents"]), "{label}: subagents");
         assert_item_rows(&label, &normalize(view), &want["expected"]);
     }
 }
@@ -479,6 +490,9 @@ async fn replay(row: &Value) {
     let mut harness = Harness::start_titled(environment, "approval-required", row["model"].as_str().unwrap(), rolls_back, &format!("Replay fixture: {name}")).await;
     let mut runs = 0;
     for (position, step) in steps.iter().enumerate() {
+        if std::env::var("CLAUDE_REPLAY_TRACE").is_ok() {
+            eprintln!("{name}: step {position} {}", step["type"]);
+        }
         match step["type"].as_str().unwrap() {
             "message" => {
                 runs = harness.send(step["text"].as_str().unwrap());
@@ -535,14 +549,12 @@ async fn replay(row: &Value) {
             }
             "interrupt" => {
                 // The recording interrupts after the model started a tool when it had emitted one.
-                if let Some(kind) = step.get("waitForTurnItemType").and_then(Value::as_str) {
-                    harness.until(|view| view["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == kind && item["status"] == "running").cloned()).await;
-                }
                 let entries = row["transcript"].as_array().unwrap();
                 let at = entries.iter().position(|entry| entry["frame"]["type"] == "query.interrupt").unwrap();
-                let tool_started = entries[..at].iter().any(|entry| entry["frame"]["message"]["content"].as_array().is_some_and(|content| content.iter().any(|block| block["type"] == "tool_use")));
-                if tool_started {
-                    harness.until(|view| view["turnItems"].as_array().unwrap().iter().find(|item| item["status"] == "running" && matches!(item["type"].as_str(), Some("command_execution" | "dynamic_tool" | "file_change" | "web_search"))).cloned()).await;
+                // The recording interrupts after the model started its last tool: wait until that tool shows.
+                let last_tool = entries[..at].iter().rev().filter(|entry| entry["frame"]["parent_tool_use_id"].is_null()).find_map(|entry| entry["frame"]["message"]["content"].as_array().and_then(|content| content.iter().rev().find(|block| block["type"] == "tool_use" && block["name"] != "Agent")).map(|block| block["id"].clone()));
+                if let Some(id) = last_tool {
+                    harness.until(|view| view["turnItems"].as_array().unwrap().iter().find(|item| item["nativeItemRef"]["nativeId"] == id).cloned()).await;
                 }
                 let run = harness.until(|view| view["runs"].get(step["targetRunIndex"].as_u64().unwrap() as usize - 1).filter(|run| run["status"] == "running").cloned()).await;
                 harness.execution.dispatch(&json!({"type":"run.interrupt","commandId":"stop","threadId":harness.thread,"runId":run["id"]}), Utc::now()).unwrap();
@@ -604,5 +616,53 @@ fn every_excluded_recording_names_why_the_port_does_not_replay_it() {
         assert!(entry["reason"].as_str().is_some_and(|reason| reason.len() > 20), "{entry}");
         assert!(!scenarios.iter().any(|row| row["name"] == entry["name"]), "{entry} is both replayed and excluded");
     }
-    assert_eq!(scenarios.len() + excluded.len(), file["recorded"].as_u64().unwrap() as usize, "every recording is accounted for");
+    let recovery = file["recovery"].as_array().unwrap();
+    assert_eq!(scenarios.len() + recovery.len() + excluded.len(), file["recorded"].as_u64().unwrap() as usize, "every recording is accounted for");
+}
+
+/// The recording of a subagent launched, finished, and resumed by `SendMessage` after the server
+/// restarted (the original replays it as two runtimes over one database). The resumed subagent keeps
+/// its child thread: the launch call is found in the CLI's session storage, the new prompt is appended
+/// to the thread, and nothing the subagent says reaches the parent.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_subagent_resumed_after_a_server_restart_keeps_its_own_thread() {
+    let file: Value = serde_json::from_str(include_str!("fixtures/claude-replay.json")).unwrap();
+    let row = &file["recovery"][0];
+    let scratch = tempfile::tempdir().unwrap();
+    let transcript = scratch.path().join("transcript.ndjson");
+    std::fs::write(&transcript, row["transcript"].as_array().unwrap().iter().map(|entry| entry.to_string() + "\n").collect::<String>()).unwrap();
+    let environment = vec![("CLAUDE_FIXTURE_TRANSCRIPT", transcript.to_string_lossy().into_owned()), ("CLAUDE_FIXTURE_STATE", scratch.path().join("cursor").to_string_lossy().into_owned())];
+    let mut harness = Harness::start_titled(environment, "approval-required", row["model"].as_str().unwrap(), false, "Subagent resume").await;
+    let prompts = row["prompts"].as_array().unwrap();
+    let runs = harness.send(prompts[0].as_str().unwrap());
+    harness.settled(runs).await;
+    harness.until(|view| view["runs"].as_array().unwrap().iter().all(finished).then_some(())).await;
+    // The server stops and starts again over the same state: the process, the registry of subagents and
+    // the running turn are gone, the conversation and the subagent's thread are not.
+    harness.execution.shutdown().await;
+    harness.execution = ExecutionService::start(harness.store.clone(), harness.providers.clone());
+    let runs = harness.send(prompts[1].as_str().unwrap());
+    harness.settled(runs).await;
+    harness.until(|view| view["runs"].as_array().unwrap().iter().all(finished).then_some(())).await;
+
+    let view = harness.view();
+    let tasks = view["subagents"].as_array().unwrap();
+    assert_eq!(tasks.len(), 1, "the resumed subagent is the one launched before");
+    assert_eq!(tasks[0]["status"], "completed");
+    let child = harness.store.projection("thread", tasks[0]["childThreadId"].as_str().unwrap()).unwrap().unwrap();
+    let mut items: Vec<&Value> = child["turnItems"].as_array().unwrap().iter().collect();
+    items.sort_by_key(|item| item["ordinal"].as_u64());
+    let conversation: Vec<(String, String)> = items.iter().filter(|item| matches!(item["type"].as_str(), Some("user_message" | "assistant_message"))).map(|item| (item["type"].as_str().unwrap().to_owned(), item["text"].as_str().unwrap().to_owned())).collect();
+    assert_eq!(conversation.iter().map(|(kind, _)| kind.as_str()).collect::<Vec<_>>(), ["user_message", "assistant_message", "user_message", "assistant_message"]);
+    assert!(conversation[0].1.contains("Your job is just the file"), "{}", conversation[0].1);
+    assert!(conversation[1].1.contains("is 1 line long"));
+    assert!(conversation[2].1.contains("Look again at"));
+    assert!(conversation[3].1.contains("Bug/edge case found and fixed"));
+    // The resumed run's own tool calls land in the child thread too.
+    assert_eq!(items.iter().filter(|item| item["type"] == "command_execution").count(), 3);
+    assert!(
+        !view["turnItems"].as_array().unwrap().iter().any(|item| item["type"] == "assistant_message" && item["text"].as_str().is_some_and(|text| text.contains("Bug/edge case found"))),
+        "the resumed subagent's reply leaked into the parent thread"
+    );
+    harness.stop().await;
 }

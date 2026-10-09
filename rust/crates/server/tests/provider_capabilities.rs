@@ -27,8 +27,6 @@ const LACKING: &[(&str, &[&str])] = &[
         "context.supportsDeltaHandoff",
         "context.supportsFullThreadHandoff",
         "sessions.supportsProviderSwitchingViaHandoff",
-        "subagents.emitsSubagentLifecycle",
-        "subagents.supportsSubagents",
         "threads.canForkFromTurn",
         "threads.canForkThread",
         "tools.supportsDynamicToolCallbacks",

@@ -138,6 +138,25 @@ pub(crate) fn notification_turn_item(mut item: Value, message: &Value) -> Value 
 mod tests {
     use super::*;
 
+    /// Notifications and notification items agree with the unchanged original on scripted reports.
+    #[test]
+    fn notifications_and_items_match_the_original() {
+        let mut compared = 0;
+        for line in include_str!("../tests/fixtures/notification.jsonl").lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            let name = row["name"].as_str().unwrap();
+            let actual = match row["kind"].as_str().unwrap() {
+                "notification" => background_work_notification(row["input"].as_array().unwrap()).unwrap_or(Value::Null),
+                "item" => notification_turn_item(row["input"]["item"].clone(), &row["input"]["message"]),
+                other => panic!("{other}"),
+            };
+            assert_eq!(actual, row["output"], "{name}");
+            compared += 1;
+        }
+        assert_eq!(compared, include_str!("../tests/fixtures/notification.jsonl").lines().count());
+        assert!(compared >= 12);
+    }
+
     #[test]
     fn reports_read_as_the_user_should() {
         let one = background_work_notification(&[json!({"kind":"command","label":"sleep 5\nrest","outcome":"completed","exitCode":0})]).unwrap();

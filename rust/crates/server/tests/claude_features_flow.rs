@@ -410,6 +410,8 @@ async fn the_probe_draws_usage_windows_and_a_blocked_turn_announces_the_limit_on
     let mut operator = fixture.connect(&fixture.operator.clone()).await;
     let run = fixture.turn(&mut operator, "work", 1).await;
     assert_eq!(run["status"], "failed");
+    // The failure item is written just after the run settles.
+    fixture.until(|view| view["turnItems"].as_array().unwrap().iter().any(|item| item["type"] == "error").then_some(())).await;
     let view = fixture.view();
     let notices: Vec<&Value> = view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "system_notice").collect();
     assert_eq!(notices.len(), 1, "a repeated window is announced once: {notices:?}");
@@ -680,4 +682,133 @@ async fn claude_history_is_scanned_into_project_candidates_and_a_session_imports
     assert!(arg_value(launches.last().unwrap(), "--session-id=").is_none());
     assert_eq!(flag(launches.last().unwrap(), "--model").as_deref(), Some("claude-sonnet-4-6"));
     fixture.finish().await;
+}
+
+// --- subagents and background work ------------------------------------------------------------
+// Each scenario is a script of the fake `claude` (`claude-provider.py`): a subagent that asks for
+// approval, a subagent still running when the parent is stopped, a background command that outlives
+// its turn, and one whose end makes Claude wake itself.
+impl Fixture {
+    async fn command(&mut self, socket: &mut Socket, command: Value) {
+        self.next += 1;
+        let exit = rpc(socket, 2000 + self.next as u64, "orchestration.dispatchCommand", command).await;
+        assert!(success(&exit)["sequence"].is_number(), "{exit}");
+    }
+    async fn send(&mut self, socket: &mut Socket, text: &str) {
+        let id = format!("message-{}", self.next + 1);
+        let command = json!({"type":"message.dispatch","commandId":id,"threadId":self.thread,"messageId":id,"text":text,"attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}});
+        self.command(socket, command).await;
+    }
+    fn child_threads(&self) -> Vec<Value> {
+        self.view()["subagents"].as_array().unwrap().iter().map(|task| self.store.projection("thread", task["childThreadId"].as_str().unwrap()).unwrap().unwrap()).collect()
+    }
+}
+fn settled(run: &Value) -> bool {
+    matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled"))
+}
+
+/// A subagent's approval is raised on the parent thread, where the user sees and answers it; the
+/// child thread holds the work but never a request.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_subagents_approval_is_asked_on_the_parent_and_answered_there() {
+    let mut fixture = Fixture::start(Options::new("subagent_approval")).await;
+    let mut socket = fixture.connect(&fixture.operator.clone()).await;
+    fixture.send(&mut socket, "Inspect the directory").await;
+    let request = fixture.until(|view| view["runtimeRequests"].as_array().unwrap().iter().find(|request| request["status"] == "pending").cloned()).await;
+    assert_eq!(request["kind"], "command");
+    let view = fixture.view();
+    let item = view["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "approval_request").unwrap();
+    assert_eq!(item["prompt"], "Claude wants to run ls");
+    let children = fixture.child_threads();
+    assert_eq!(children.len(), 1);
+    assert!(children[0]["runtimeRequests"].as_array().unwrap().is_empty(), "the child thread holds no request");
+    assert_eq!(children[0]["thread"]["lineage"]["relationshipToParent"], "subagent");
+    assert!(children[0]["turnItems"].as_array().unwrap().iter().any(|item| item["type"] == "command_execution" && item["status"] == "running"));
+
+    let thread = fixture.thread.clone();
+    fixture.command(&mut socket, json!({"type":"runtime-request.respond","commandId":"approve-child","threadId":thread,"requestId":request["id"],"decision":"accept"})).await;
+    let run = fixture.until(|view| view["runs"].get(0).filter(|run| settled(run)).cloned()).await;
+    assert_eq!(run["status"], "completed");
+    let task = fixture.view()["subagents"][0].clone();
+    assert_eq!((task["status"].as_str(), task["result"].as_str()), (Some("completed"), Some("listed")));
+    let child = &fixture.child_threads()[0];
+    let tool = child["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "command_execution").unwrap();
+    assert_eq!((tool["status"].as_str(), tool["output"].as_str()), (Some("completed"), Some("a.txt\n")));
+    // The CLI was told what the user decided.
+    let answered: Vec<Value> = fixture.entries().iter().filter_map(|entry| entry["received"]["response"]["response"].as_object().cloned()).map(Value::Object).collect();
+    assert!(answered.iter().any(|response| response["behavior"] == "allow"), "{answered:?}");
+    fixture.finish().await;
+}
+
+/// Stop on a settled run closes the CLI that owns a background command, which is what ends it; the
+/// roster then clears and the work the thread listed is settled.
+#[tokio::test(flavor = "multi_thread")]
+async fn stop_ends_a_live_background_task_by_closing_the_process_that_runs_it() {
+    let mut fixture = Fixture::start(Options::new("background_task")).await;
+    let mut socket = fixture.connect(&fixture.operator.clone()).await;
+    fixture.send(&mut socket, "Start a background command").await;
+    let roster = fixture.until(|view| view["runs"].get(0).filter(|run| run["status"] == "completed")?.get("id").and(view["providerThreads"][0]["pendingBackgroundTasks"].as_array().filter(|tasks| !tasks.is_empty()).cloned())).await;
+    assert_eq!((roster[0]["taskId"].as_str(), roster[0]["kind"].as_str()), (Some("bg_1"), Some("command")));
+    assert!(t3_server::thread::shell(&fixture.view())["pendingBackgroundTasks"].as_array().unwrap().iter().any(|task| task["taskId"] == "bg_1"));
+    assert!(!fixture.entries().iter().any(|entry| entry["stdin"] == "closed"), "the process runs until Stop");
+
+    let (thread, run) = (fixture.thread.clone(), fixture.view()["runs"][0]["id"].clone());
+    fixture.command(&mut socket, json!({"type":"run.interrupt","commandId":"stop-background","threadId":thread,"runId":run})).await;
+    fixture.until(|view| view["providerThreads"][0]["pendingBackgroundTasks"].as_array().unwrap().is_empty().then_some(())).await;
+    // The roster clears only after the process is closed, so its stdin was closed by then.
+    assert!(fixture.entries().iter().any(|entry| entry["stdin"] == "closed"), "Stop closed the process that ran the task");
+    assert!(t3_server::thread::shell(&fixture.view())["pendingBackgroundTasks"].as_array().unwrap().is_empty());
+    assert_eq!(fixture.view()["runs"][0]["status"], "completed");
+    fixture.finish().await;
+}
+
+/// A background command that ends after the turn did wakes Claude; the wake runs as a run of its
+/// own, shown as the report of the work and carrying what Claude said about it.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_wake_turn_starts_after_a_background_task_finishes() {
+    let mut fixture = Fixture::start(Options::new("background_wake")).await;
+    let mut socket = fixture.connect(&fixture.operator.clone()).await;
+    fixture.send(&mut socket, "Start a background command").await;
+    fixture.until(|view| (view["runs"].as_array().unwrap().len() == 2 && view["runs"].as_array().unwrap().iter().all(settled)).then_some(())).await;
+    let view = fixture.view();
+    assert_eq!(view["runs"].as_array().unwrap().iter().map(|run| run["status"].clone()).collect::<Vec<_>>(), vec![json!("completed"), json!("completed")]);
+    let wake_run = view["runs"][1]["id"].clone();
+    let items: Vec<&Value> = view["turnItems"].as_array().unwrap().iter().filter(|item| item["runId"] == wake_run && item["type"] != "checkpoint").collect();
+    let notification = items.iter().find(|item| item["type"] == "notification").expect("the wake is shown as a report");
+    assert_eq!((notification["source"]["kind"].as_str(), notification["outcome"].as_str()), (Some("background_command"), Some("completed")));
+    assert_eq!(notification["summary"], "Command \"sleep 600\" finished");
+    assert!(items.iter().any(|item| item["type"] == "assistant_message" && item["text"] == "the command finished"));
+    // The wake is the CLI's own turn: no second prompt reached it.
+    let prompts = fixture.entries().iter().filter(|entry| entry["received"]["type"] == "user").count();
+    assert_eq!(prompts, 1);
+    assert!(view["providerThreads"][0]["pendingBackgroundTasks"].as_array().unwrap().is_empty());
+    fixture.finish().await;
+}
+
+/// Stopping a parent whose subagent still has a command open ends the subagent, its nodes and the
+/// command, in the child thread as well as the parent's.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_parent_interrupted_with_children_running_ends_them_too() {
+    let mut fixture = Fixture::start(Options::new("children_running")).await;
+    let mut socket = fixture.connect(&fixture.operator.clone()).await;
+    fixture.send(&mut socket, "Run a long command in a subagent").await;
+    fixture.until(|view| view["subagents"].as_array().unwrap().first().and_then(|task| fixture_child_has_running_tool(&fixture, task)).map(|_| ())).await;
+    let (thread, run) = (fixture.thread.clone(), fixture.view()["runs"][0]["id"].clone());
+    fixture.command(&mut socket, json!({"type":"run.interrupt","commandId":"stop-parent","threadId":thread,"runId":run})).await;
+    fixture.until(|view| view["runs"].get(0).filter(|run| settled(run)).map(|_| ())).await;
+    // Everything the run started settles with it, in each thread: the child's own commit follows the parent's.
+    fixture.until(|view| (view["subagents"][0]["status"] == "interrupted").then_some(())).await;
+    fixture.until(|view| view["subagents"].as_array().unwrap().first().and_then(|task| fixture.store.projection("thread", task["childThreadId"].as_str()?).ok()??["nodes"].as_array().map(|nodes| nodes.iter().all(|node| node["status"] == "interrupted"))).filter(|settled| *settled).map(|_| ())).await;
+    let view = fixture.view();
+    assert_eq!(view["runs"][0]["status"], "interrupted");
+    assert!(view["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "subagent").all(|item| item["status"] == "interrupted"));
+    let child = &fixture.child_threads()[0];
+    assert!(child["nodes"].as_array().unwrap().iter().all(|node| node["status"] == "interrupted"), "{}", child["nodes"]);
+    let tool = child["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "command_execution").unwrap();
+    assert_eq!(tool["status"], "interrupted");
+    fixture.finish().await;
+}
+fn fixture_child_has_running_tool(fixture: &Fixture, task: &Value) -> Option<()> {
+    let child = fixture.store.projection("thread", task["childThreadId"].as_str()?).ok()??;
+    child["turnItems"].as_array()?.iter().any(|item| item["type"] == "command_execution" && item["status"] == "running").then_some(())
 }

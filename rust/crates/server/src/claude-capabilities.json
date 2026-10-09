@@ -58,9 +58,9 @@
     "planDeltasHaveItemIds": false
   },
   "subagents": {
-    "supportsSubagents": false,
+    "supportsSubagents": true,
     "exposesSubagentThreadIds": false,
-    "emitsSubagentLifecycle": false,
+    "emitsSubagentLifecycle": true,
     "canWaitForSubagents": false,
     "canCloseSubagents": false,
     "canForkSubagentThread": false
