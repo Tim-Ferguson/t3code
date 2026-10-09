@@ -13,7 +13,7 @@ fn codex_instance(binary: &Path, home: &Path) -> Value {
 /// Reads the config stream until a `providerStatuses` event satisfies `wanted`, acknowledging each chunk.
 async fn provider_event(socket: &mut Socket, id: u64, wanted: impl Fn(&Value) -> bool) -> Value {
     loop {
-        let message = next(socket).await;
+        let message = next_while(socket, "waiting for the provider list stream to publish the expected providerStatuses").await;
         assert_ne!(message["_tag"], "Exit", "stream ended: {message}");
         if message["_tag"] != "Chunk" {
             continue;
@@ -74,13 +74,15 @@ async fn refresh_reprobes_providers_and_republishes_them_to_the_provider_list_st
     let fixture = fixture("0.156.1", Some("0.158.0")).await;
     let harness = &fixture.harness;
     let mut manager = harness.connect(&harness.manager).await;
+    // The stream has a socket of its own: unary replies on a shared one would swallow chunks nobody acknowledges.
+    let mut watcher = harness.connect(&harness.manager).await;
 
     // The list a client already holds: the startup probe, without advisories.
-    send(&mut manager, json!({"_tag":"Request","id":1,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
+    send(&mut watcher, json!({"_tag":"Request","id":1,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
     let snapshot = loop {
-        let message = next(&mut manager).await;
+        let message = next_while(&mut watcher, "waiting for the server config snapshot").await;
         if message["_tag"] == "Chunk" && message["values"][0]["type"] == "snapshot" {
-            send(&mut manager, json!({"_tag":"Ack","requestId":1})).await;
+            send(&mut watcher, json!({"_tag":"Ack","requestId":1})).await;
             break message["values"][0]["config"]["providers"].clone();
         }
     };
@@ -100,7 +102,7 @@ async fn refresh_reprobes_providers_and_republishes_them_to_the_provider_list_st
     assert_eq!(codex["versionAdvisory"]["updateCommand"], format!("npm install -g --prefix {} --allow-scripts=@openai/codex @openai/codex@latest", fixture.prefix.display()));
     assert_eq!(codex["compatibilityAdvisory"]["status"], "supported");
     assert_eq!(provider(providers, "claudeAgent")["enabled"], false);
-    let pushed = provider_event(&mut manager, 1, |providers| provider(providers, "codex")["version"] == "0.157.0").await;
+    let pushed = provider_event(&mut watcher, 1, |providers| provider(providers, "codex")["version"] == "0.157.0").await;
     assert_eq!(provider(&pushed, "codex")["versionAdvisory"]["latestVersion"], "0.158.0");
     assert_eq!(fixture.registry.count(), 1);
 
@@ -123,8 +125,7 @@ async fn refresh_reprobes_providers_and_republishes_them_to_the_provider_list_st
     // Refreshing needs only the read scope: it re-reads status, it does not change anything.
     let mut reader = harness.connect(&harness.reader).await;
     assert_eq!(success(&rpc(&mut reader, 1, "server.refreshProviders", json!({})).await)["providers"].as_array().unwrap().len(), 8);
-    drop(reader);
-    drop(manager);
+    drop((reader, manager, watcher));
     fixture.harness.finish().await;
 }
 
@@ -157,10 +158,11 @@ async fn update_runs_the_owning_package_manager_and_reports_progress_through_the
     let harness = &fixture.harness;
     fake_npm(&fixture.tools, &fixture.prefix, "0.200.0", "");
     let mut manager = harness.connect(&harness.manager).await;
-    send(&mut manager, json!({"_tag":"Request","id":1,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
-    let first = next(&mut manager).await;
+    let mut watcher = harness.connect(&harness.manager).await;
+    send(&mut watcher, json!({"_tag":"Request","id":1,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
+    let first = next_while(&mut watcher, "waiting for the server config snapshot").await;
     assert_eq!(first["values"][0]["type"], "snapshot");
-    send(&mut manager, json!({"_tag":"Ack","requestId":1})).await;
+    send(&mut watcher, json!({"_tag":"Ack","requestId":1})).await;
 
     // Scope: managing providers is not reading them, nor operating threads.
     let mut operator = harness.connect(&harness.operator).await;
@@ -176,7 +178,7 @@ async fn update_runs_the_owning_package_manager_and_reports_progress_through_the
     assert_eq!(codex["version"], "0.200.0");
     assert_eq!(codex["versionAdvisory"]["status"], "current");
     assert_eq!(npm_log(&fixture.tools), [format!("install -g --prefix {} --allow-scripts=@openai/codex @openai/codex@latest", fixture.prefix.display())]);
-    let pushed = provider_event(&mut manager, 1, |providers| provider(providers, "codex")["updateState"]["status"] == "succeeded").await;
+    let pushed = provider_event(&mut watcher, 1, |providers| provider(providers, "codex")["updateState"]["status"] == "succeeded").await;
     assert_eq!(provider(&pushed, "codex")["version"], "0.200.0");
 
     // An instance with another driver, an unknown instance, and a provider with nothing to run are refused.
@@ -186,7 +188,7 @@ async fn update_runs_the_owning_package_manager_and_reports_progress_through_the
     assert_eq!(failure(&missing)["reason"], "This provider does not support one-click updates.");
     assert_eq!(npm_log(&fixture.tools).len(), 1);
     assert!(defect(&rpc(&mut manager, 5, "server.updateProvider", json!({"provider":"codex","targetVersion":""})).await).as_str().is_some());
-    drop((manager, operator));
+    drop((manager, operator, watcher));
     fixture.harness.finish().await;
 }
 
@@ -259,15 +261,15 @@ async fn only_one_update_runs_per_instance_and_a_manual_install_cannot_be_update
     let mut second = harness.connect(&harness.manager).await;
     send(&mut first, json!({"_tag":"Request","id":1,"tag":"server.updateProvider","payload":{"provider":"codex"},"headers":[]})).await;
     let started_reader = started.clone();
-    tokio::task::spawn_blocking(move || std::fs::read_to_string(started_reader).unwrap()).await.unwrap();
+    blocking_step("waiting for the fake npm to announce itself on the started FIFO", move || std::fs::read_to_string(started_reader).unwrap()).await;
     let busy = rpc(&mut second, 1, "server.updateProvider", json!({"provider":"codex"})).await;
     assert_eq!(failure(&busy), &json!({"_tag":"ServerProviderUpdateError","provider":"codex","reason":"An update is already running for this provider."}));
     // While it runs, the instance reads as running to everyone.
     assert_eq!(provider(&harness.registry.snapshots().into(), "codex")["updateState"]["status"], "running");
     let go_writer = go.clone();
-    tokio::task::spawn_blocking(move || std::fs::write(go_writer, "go\n").unwrap()).await.unwrap();
+    blocking_step("releasing the fake npm through the go FIFO", move || std::fs::write(go_writer, "go\n").unwrap()).await;
     let done = loop {
-        let message = next(&mut first).await;
+        let message = next_while(&mut first, "waiting for the first updateProvider to finish").await;
         if message["_tag"] == "Exit" {
             break message["exit"].clone();
         }

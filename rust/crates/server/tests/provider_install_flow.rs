@@ -60,7 +60,7 @@ async fn fixture_with(archive_bytes: Option<Vec<u8>>, adjust: impl FnOnce(&mut R
 async fn states_until(socket: &mut Socket, id: u64, wanted: impl Fn(&Value) -> bool) -> Vec<Value> {
     let mut seen = vec![];
     loop {
-        let message = next(socket).await;
+        let message = next_while(socket, "waiting for the install subscription to publish the expected state").await;
         assert_ne!(message["_tag"], "Exit", "stream ended: {message}");
         if message["_tag"] != "Chunk" {
             continue;
@@ -137,7 +137,7 @@ async fn a_managed_install_downloads_verifies_reports_progress_republishes_provi
     // The provider list every client holds now reads the install.
     let mut seen = None;
     loop {
-        let message = next(&mut watcher).await;
+        let message = next_while(&mut watcher, "waiting for the provider list stream to report the install").await;
         if message["_tag"] != "Chunk" {
             continue;
         }
@@ -278,13 +278,15 @@ async fn cancelling_mid_download_stops_it_and_leaves_the_previous_runtime_unchan
     let (started, release) = (Arc::new(tokio::sync::Notify::new()), Arc::new(tokio::sync::Notify::new()));
     fixture.releases.serve("/package.tgz", Route::Gated { body: good.clone(), first: good.len() / 2, started: started.clone(), release: release.clone() });
     let mut socket = fixture.harness.connect(&fixture.harness.manager).await;
-    subscribe(&mut socket, 1, "codex").await;
+    // The subscription has a socket of its own: unary replies on a shared one would swallow its chunks unacknowledged.
+    let mut events = fixture.harness.connect(&fixture.harness.manager).await;
+    subscribe(&mut events, 1, "codex").await;
     let begun = rpc(&mut socket, 2, "provider.install.start", json!({"instanceId":"codex"})).await;
     let operation = success(&begun)["operationId"].clone();
     // A second start while one runs joins it.
     let joined = rpc(&mut socket, 3, "provider.install.start", json!({"instanceId":"codex"})).await;
     assert_eq!(success(&joined)["operationId"], operation);
-    started.notified().await;
+    within("waiting for the gated download to begin streaming", started.notified()).await;
     assert!(std::fs::read_dir(&fixture.managed).unwrap().any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with(".install-")));
 
     // Only the current operation can be cancelled, and the install cannot be removed while it runs.
@@ -301,7 +303,8 @@ async fn cancelling_mid_download_stops_it_and_leaves_the_previous_runtime_unchan
     // Cancelling again, once it is over, is a no-op that reports the state.
     let again = rpc(&mut socket, 7, "provider.install.cancel", json!({"instanceId":"codex","operationId":operation})).await;
     assert_eq!(success(&again)["phase"], "cancelled");
-    drop(socket);
+    states_until(&mut events, 1, |state| state["phase"] == "cancelled").await;
+    drop((socket, events));
     fixture.harness.finish().await;
 }
 

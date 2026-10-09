@@ -122,16 +122,45 @@ impl Harness {
 pub async fn send(socket: &mut Socket, value: Value) {
     socket.send(Message::Text(value.to_string().into())).await.unwrap();
 }
+/// How long any one step of a flow may wait for the server or a fake tool before the test fails naming it.
+/// Every wait here is on a real milestone; this bound exists only so a regression that never delivers the
+/// milestone fails with a message instead of hanging the whole suite.
+pub const STEP_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
+/// Runs `step` under [`STEP_DEADLINE`]; on expiry the test fails with `what`.
+pub async fn within<T>(what: impl std::fmt::Display, step: impl std::future::Future<Output = T>) -> T {
+    match tokio::time::timeout(STEP_DEADLINE, step).await {
+        Ok(value) => value,
+        Err(_) => panic!("no progress within {STEP_DEADLINE:?} while {what}"),
+    }
+}
 pub async fn next(socket: &mut Socket) -> Value {
-    let message = socket.next().await.unwrap().unwrap();
+    next_while(socket, "waiting for the next WebSocket message").await
+}
+/// [`next`], naming the step in the failure message.
+pub async fn next_while(socket: &mut Socket, what: impl std::fmt::Display) -> Value {
+    let message = within(what, socket.next()).await.unwrap().unwrap();
     serde_json::from_str(message.to_text().unwrap()).unwrap()
 }
+/// Runs a blocking closure (a FIFO open or read, which has no timeout of its own) on a thread the runtime
+/// does not join, so a step that never completes fails the test at [`STEP_DEADLINE`] instead of keeping the
+/// runtime from shutting down.
+pub async fn blocking_step<T: Send + 'static>(what: impl std::fmt::Display, work: impl FnOnce() -> T + Send + 'static) -> T {
+    let (done, finished) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        let _ = done.send(work());
+    });
+    within(what, finished).await.unwrap()
+}
 /// One unary request and its `Exit`. Boxed: debug-build futures of a long flow would otherwise overflow a stack.
+/// A server stream holds back its next chunk until the previous one is acknowledged, so a stream cannot
+/// share a socket with this: a chunk read here would never be acknowledged and its stream would go quiet.
+/// That is refused loudly instead of discarded.
 pub fn rpc<'a>(socket: &'a mut Socket, id: u64, tag: &'a str, payload: Value) -> futures_util::future::BoxFuture<'a, Value> {
     Box::pin(async move {
         send(socket, json!({"_tag":"Request","id":id,"tag":tag,"payload":payload,"headers":[]})).await;
         loop {
-            let value = next(socket).await;
+            let value = next_while(socket, format!("waiting for the `{tag}` (request {id}) reply")).await;
+            assert_ne!(value["_tag"], "Chunk", "`{tag}` (request {id}) shares a socket with a stream: its chunk {value} would never be acknowledged. Subscribe on a socket of its own.");
             if value["_tag"] == "Exit" && value["requestId"] == id {
                 return value["exit"].clone();
             }
@@ -193,8 +222,12 @@ impl Registry {
         let version = std::sync::Arc::new(std::sync::Mutex::new(version.map(str::to_owned)));
         type Shared = (std::sync::Arc<std::sync::atomic::AtomicUsize>, std::sync::Arc<std::sync::Mutex<Option<String>>>);
         async fn latest(State((requests, version)): State<Shared>, uri: axum::http::Uri) -> impl IntoResponse {
+            // Anything else on a loopback port (a stray probe from another process) is not a registry lookup.
+            // A panic here would only kill the connection task, so it answers 404 and is not counted.
+            if !uri.path().ends_with("/latest") {
+                return StatusCode::NOT_FOUND.into_response();
+            }
             requests.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            assert!(uri.path().ends_with("/latest"), "{uri}");
             match version.lock().unwrap().clone() {
                 Some(version) => (StatusCode::OK, json!({"name":"x","version":version}).to_string()).into_response(),
                 None => StatusCode::NOT_FOUND.into_response(),
