@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """The GitHub API of the browser fixture, for the host github.t3code-test.invalid. Loopback only.
 
-The server reads GitHub over HTTPS (REST and GraphQL), not through `gh`, and a server started by hand cannot be
-pointed at a fake: see README.md, "Missing server hook". This process is what the hook would point it at. It answers
-as the redirect used by the test suite does: REST under /rest/<host>/..., GraphQL at /graphql/<host>.
+The server reads GitHub over HTTPS (REST and GraphQL), not through `gh`. A server started with `--fixture` and
+T3CODE_FIXTURE_GITHUB_API_ORIGIN pointing here sends it all there (README.md, "Server hooks"); this process answers as
+the redirect used by the test suite does: REST under /rest/<host>/..., GraphQL at /graphql/<host>.
 
 GraphQL documents are recognised by the query text itself: the constants in
 crates/server/src/pull_request_queries.rs are read at start, so an answer is chosen by the document the server

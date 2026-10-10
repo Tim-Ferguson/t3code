@@ -53,7 +53,8 @@ await check("server.getConfig: providers ready", async () => {
       ready.includes(wanted),
       `${wanted} is not ready (${config.providers.map((p) => `${p.instanceId}:${p.status}`).join(", ")})`,
     );
-  return `ready: ${ready.join(", ")}`;
+  // With --hook the server offers no editors; without it, whatever this machine has installed.
+  return `ready: ${ready.join(", ")}; editors offered: ${(config.availableEditors ?? []).join(", ") || "none"}`;
 });
 
 // -- projects and threads -------------------------------------------------------------------------------------------
@@ -273,12 +274,16 @@ if (threads.some((t) => t.title.startsWith("Grok:"))) {
     const v = await view(thread("Grok: a finished turn"));
     assert(withdrawn(v).join() === "completed", `runs ${withdrawn(v)}`);
   });
-  await check("thread Grok: a background command", async () =>
+  // Grok keeps no roster of background tasks (that is Claude and Codex): the adapter holds the run open while the
+  // command lives, so the run is still running and the command's item is still running.
+  await check("thread Grok: a background command", async () => {
+    const v = await view(thread("Grok: a background command"));
     assert(
-      (thread("Grok: a background command").pendingBackgroundTasks ?? []).length > 0,
-      "no background task",
-    ),
-  );
+      withdrawn(v).join() === "running" &&
+        items(v, "command_execution").some((item) => item.status === "running"),
+      `runs ${withdrawn(v)}, no command left running`,
+    );
+  });
 }
 
 // -- the dirty working tree --------------------------------------------------------------------------------------------
@@ -350,8 +355,7 @@ await check("GitLab: pullRequests.activity", async () => {
   );
   return `${activity.comments.length} comments, ${activity.reviewThreads.length} threads, ${activity.commits.length} commits`;
 });
-const hostHint =
-  'The server needs the GitHub fixture hook (README, "Missing server hooks", item 1)';
+const hostHint = 'Start the fixture with --hook (README, "Server hooks")';
 await check("GitHub: pullRequests.list", async () => {
   const page = await need(rpc, "pullRequests.list", { state: "all", projectId: github.id });
   const mine = page.entries.filter((entry) => entry.provider === "github");

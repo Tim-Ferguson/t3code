@@ -4,7 +4,7 @@ import { writeFileSync } from "node:fs";
 import { PI_T3_MCP_EXTENSION_SOURCE } from "../../apps/server/src/orchestration-v2/Adapters/piT3McpExtensionSource.ts";
 
 writeFileSync(
-  new URL("../crates/server/src/pi-t3-mcp-extension.ts", import.meta.url),
+  new URL("../crates/server/src/pi-t3-mcp-extension.ts.txt", import.meta.url),
   PI_T3_MCP_EXTENSION_SOURCE,
 );
 console.log("wrote the Pi extension source");

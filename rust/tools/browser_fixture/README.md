@@ -85,7 +85,7 @@ Every project is named `t3code-rust-port-test-...` and its README says "Created 
   state (success, failure, in progress, skipped, neutral, queued, cancelled, two commit statuses), three review threads
   (open, resolved, outdated), comments and reviews with reactions, labels, reviewers including a team, four commits, four
   changed files; #41 draft; #40 merged; #39 closed. It recognises GraphQL documents by reading
-  `crates/server/src/pull_request_queries.rs`. **It is idle until the server has the hook below.**
+  `crates/server/src/pull_request_queries.rs`. **It is idle unless the server was started with `--hook` (see Server hooks).**
 - `fakes/fake_refuse.py`, installed as `open`: records and refuses.
 
 ## Seeded conversations
@@ -113,32 +113,23 @@ usage-limit stop, a pending question.
 - The server's PID is the process that was started (no shell wraps it); `stop.sh` checks its command and working directory first.
 - Nothing is committed, pushed or changed in this repository.
 
-## Missing server hooks
+## Server hooks (testing only)
 
-Found by trying, and not worked around in the server (this tool does not edit `rust/crates`):
+- **`--hook`** passes `--fixture` to `t3-server serve` and sets `T3CODE_FIXTURE_GITHUB_API_ORIGIN` to the fake GitHub API's
+  loopback origin. `--fixture` is a testing flag: the server then offers no editors (no `/Applications` scan, no file
+  manager) and sends GitHub requests to the fake as `{origin}/rest/{host}` and `{origin}/graphql/{host}`, instead of
+  `https://api.github.com` or `https://<host>/api/v3`. The server refuses to start if the variable is set without the flag,
+  or if it is not `http://127.0.0.1:<port>`, `http://[::1]:<port>` or `http://localhost:<port>` with nothing after the port.
+  Without `--hook` the GitHub panel fails with "Could not reach GitHub at github.t3code-test.invalid." (the correct,
+  contained failure) and `availableEditors` lists what the machine has; the sandbox above still stops a launch.
+- **`--with-grok`** enables the fake Grok (`grok-fake-cli.py` with `grok-turn-agent.py`) and seeds two Grok threads: a tool
+  call, and a background command. The adapter holds that run open while the command lives, so the thread is _running_;
+  Grok keeps no `pendingBackgroundTasks` roster (Claude and Codex do).
 
-1. **GitHub.** The server reads GitHub over HTTPS (`https://api.github.com`, or `https://<host>/api/v3` for another host)
-   with a bundled root store, so a server started by hand cannot be redirected by settings, `PATH`, proxy or
-   certificate variables. The pull request list, detail, checks, activity, files and actions for GitHub therefore fail with
-   "Could not reach GitHub at github.t3code-test.invalid." (which is the correct, contained failure). The test suite
-   redirects it with `Host::install(Host::new(HostOptions { github_api: Some(..), .. }))`. The smallest safe hook: in
-   `main.rs`, accept an explicit `--fixture` flag, and only with it read `T3CODE_FIXTURE_GITHUB_API_ORIGIN` (refusing a
-   non-loopback origin) and, before anything calls `Host::process_default()`, install a host whose `github_api` resolver
-   returns `("{origin}/rest/{host}", "{origin}/graphql/{host}")`. Start this tool with `--hook` once that exists: it passes
-   `--fixture` and sets the variable to the fake API's origin.
-2. **Grok.** A Grok thread fails with "Invalid command: This provider instance is no longer available." in a server
-   started by hand, because `acp_adapter::connect` asks the provider authentication service to admit the session, and
-   `ProviderRegistry::acp_auth_entry` only knows `acpRegistry` instances (`state.acp`), not Grok's (`state.grok`). The tests
-   do not attach that service. Fix: make `acp_auth_entry` (and `antigravity_auth_entry` for Antigravity) return the Grok
-   instance's ACP instance, or let `connect` skip admission when there is no entry. Until then Grok is disabled here;
-   `--with-grok` enables the fake Grok (`grok-fake-cli.py` with `grok-turn-agent.py`) and seeds two Grok threads (a tool call,
-   a background command) for when it works.
-3. **Editors (macOS).** `Probe::host()` hard-codes `/Applications` as the place to find editors, so `availableEditors`
-   lists whatever is installed. A hook: with `--fixture`, use no application directories. The sandbox above stops a
-   launch meanwhile (the fake `open` catches the file manager).
-
-Also seen: `vcs.refreshStatus` reports the staged rename in `-dirty` as two paths, `src/util.ts` and `helpers.ts}`
-(the `{old => new}` form of `git diff --numstat` is not parsed).
+Also seen: `vcs.refreshStatus` reports the staged rename in `-dirty` as two paths, `src/util.ts` and `helpers.ts}`. That is
+the original's behaviour, reproduced exactly: its status path reads plain `git diff-index -M --numstat` and keeps what
+follows the first `=>`, and the porcelain entry adds the old path. The review and checkpoint diffs read `-z` output and
+are right. `crates/vcs/tests/git_rename_parity.rs` records it.
 
 Not faked, and possible without any hook: Azure DevOps (a fake `az` on `PATH`), Forgejo (`fj`/`tea`), Bitbucket (an HTTP server
 at `T3CODE_BITBUCKET_API_BASE_URL`, with `T3CODE_BITBUCKET_EMAIL` and `T3CODE_BITBUCKET_API_TOKEN` in the server environment),

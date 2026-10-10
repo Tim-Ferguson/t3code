@@ -222,7 +222,7 @@ export function serverEnvironment(paths, { githubApiOrigin }) {
     no_proxy: "127.0.0.1,localhost,::1",
     // Read by the fake CLIs.
     T3_FIXTURE_CALL_LOG: paths.calls,
-    // Read only by a server that has the fixture hook for GitHub (see README, "Missing server hook").
+    // Read only by `serve --fixture`, which the server insists on (the variable alone is an error). Set only with --hook.
     ...(githubApiOrigin ? { T3CODE_FIXTURE_GITHUB_API_ORIGIN: githubApiOrigin } : {}),
     RUST_LOG: "warn,t3_server=info",
   };
@@ -302,9 +302,11 @@ export async function waitForRoot(origin, child, timeoutMs = 60_000) {
 }
 
 export function mintCredential({ server, paths, env }) {
+  // `pair` is not a fixture server: it refuses the GitHub origin variable, which only `serve --fixture` reads.
+  const { T3CODE_FIXTURE_GITHUB_API_ORIGIN: _origin, ...pairEnv } = env;
   return execFileSync(server, ["pair", "--state-dir", paths.state], {
     cwd: paths.serverCwd,
-    env,
+    env: pairEnv,
     encoding: "utf8",
   }).trim();
 }

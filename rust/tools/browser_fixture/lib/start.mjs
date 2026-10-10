@@ -35,8 +35,8 @@ function usage(message) {
   --no-seed   start the server and the projects but create no conversations
   --no-github-api  do not start the fake GitHub API process
   --no-sandbox     do not wrap the server in the macOS sandbox profile (loopback-only network, no editor launches)
-  --hook      pass --fixture to the server, for a server that has the GitHub fixture hook (README, "Missing server hook")
-  --with-grok enable the fake Grok and seed two Grok threads (a server started by hand cannot run Grok sessions yet; see README)`);
+  --hook      pass --fixture to the server and point it at the fake GitHub API (README, "Server hooks")
+  --with-grok enable the fake Grok and seed two Grok threads`);
   process.exit(2);
 }
 
@@ -224,7 +224,10 @@ export async function main(argv) {
     githubApi = { origin: `http://127.0.0.1:${apiPort}`, pid: child.pid, port: apiPort };
   }
 
-  const env = serverEnvironment(paths, { githubApiOrigin: githubApi?.origin });
+  // The server refuses the variable without --fixture, so it is set only with the hook.
+  const env = serverEnvironment(paths, {
+    githubApiOrigin: options.hook ? githubApi?.origin : undefined,
+  });
   const origin = `http://127.0.0.1:${options.port}`;
   const child = launchServer({
     server,

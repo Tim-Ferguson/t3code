@@ -197,7 +197,13 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
     title: "Usage limit reached, recovery armed",
     text: "Keep going. [usage-limit]",
   });
-  const limitedView = await projection(limited);
+  // The run is failed a moment before its failure is in the projection; arming a recovery needs both.
+  const limitedView = await until(limited, "the usage-limit failure to be recorded", (view) =>
+    (view.turnItems ?? []).some(
+      (item) =>
+        item.type === "error" && item.status === "failed" && item.failure?.class === "usage_limit",
+    ),
+  );
   const limitRun = limitedView.runs.at(-1);
   await dispatch({
     type: "thread.metadata.update",
@@ -317,11 +323,18 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
       title: "Grok: a finished turn with a tool call",
       text: "List the files.",
     });
-    await launch({
+    // Grok holds the run open while its background command lives, so it is running, not settled.
+    const building = await launch({
       provider: "grok",
       title: "Grok: a background command",
       text: "Start the build.",
+      wait: "running",
     });
+    await until(building, "the background command to be running", (view) =>
+      (view.turnItems ?? []).some(
+        (item) => item.type === "command_execution" && item.status === "running",
+      ),
+    );
   }
 
   say(`  ${created.length} threads created`);

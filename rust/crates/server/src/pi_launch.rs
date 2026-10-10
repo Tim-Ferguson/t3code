@@ -5,7 +5,7 @@
 use std::{collections::HashMap, path::{Path, PathBuf}};
 
 pub const EXTENSION_FILENAME: &str = "pi-t3-mcp-extension.ts";
-pub const EXTENSION_SOURCE: &str = include_str!("pi-t3-mcp-extension.ts");
+pub const EXTENSION_SOURCE: &str = include_str!("pi-t3-mcp-extension.ts.txt");
 pub const MCP_URL_ENV: &str = "T3_MCP_URL";
 pub const MCP_BEARER_ENV: &str = "T3_MCP_BEARER_TOKEN";
 pub const RUNTIME_MODE_ENV: &str = "T3_PI_RUNTIME_MODE";
