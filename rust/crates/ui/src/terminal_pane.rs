@@ -291,6 +291,9 @@ pub fn Drawer(
     let metadata_transport = transport.clone();
     let metadata_key = key.clone();
     let metadata_catalog = catalog.clone();
+    // The list is followed while the connection can read terminals. The future reads this memo, so it
+    // starts again when the connection returns instead of looking at the clock until it does.
+    let readable = use_memo(move || *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|id| state.environments().read().allows(id, AuthEnvironmentScope::TerminalRead)));
     use_future(move || {
         let environment = metadata_environment.clone();
         let thread = metadata_thread.clone();
@@ -302,9 +305,8 @@ pub fn Drawer(
                 if !owns_pane(state, &environment, &thread) {
                     return;
                 }
-                if *state.status().peek() != ConnectionStatus::Connected || !reads(state) {
-                    delay(250).await;
-                    continue;
+                if !readable() {
+                    return;
                 }
                 let mut stream = match MetadataStream::subscribe(&transport, state) {
                     Ok(stream) => stream,
@@ -789,6 +791,9 @@ fn CanvasPane(
     let stream_terminal = terminal_id.clone();
     let stream_ack = receipt.clone();
     let exit_catalog = catalog.clone();
+    // Attached while the connection is up. The future reads this memo, so it starts again when the
+    // connection returns instead of looking at the clock until it does.
+    let linked = use_memo(move || *state.status().read() == ConnectionStatus::Connected);
     use_future(move || {
         let handle = stream_transport.clone();
         let thread = stream_thread.clone();
@@ -807,9 +812,8 @@ fn CanvasPane(
                 if !owns_pane(state, &environment, &thread) {
                     return;
                 }
-                if *state.status().peek() != ConnectionStatus::Connected {
-                    delay(200).await;
-                    continue;
+                if !linked() {
+                    return;
                 }
                 let input: TerminalAttachInput = match serde_json::from_value(
                     json!({"threadId":thread,"terminalId":terminal,"cwd":cwd,"worktreePath":worktree}),
@@ -941,14 +945,6 @@ fn operates(state: Store<UiModel>) -> bool {
                 .environments
                 .allows(id, AuthEnvironmentScope::TerminalOperate)
         })
-}
-fn reads(state: Store<UiModel>) -> bool {
-    let model = state.peek();
-    model.destination.as_ref().is_some_and(|id| {
-        model
-            .environments
-            .allows(id, AuthEnvironmentScope::TerminalRead)
-    })
 }
 
 // Lucide v0.564.0 ISC icon paths, matching the original drawer controls.

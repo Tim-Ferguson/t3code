@@ -28,6 +28,13 @@ async fn say(dom: &mut VirtualDom, props: &super::diff_tests::Harness, state: St
 fn menu(dom: &mut VirtualDom) {
     key_on(dom, "Thread Quiet work", Key::ContextMenu);
 }
+/// Picks a choice of the open menu once its row has the server's answer to the last write: the event that
+/// shows a change can reach the page before the answer does, and until then the row keeps its choices off,
+/// where a click from a person does nothing.
+async fn choose(dom: &mut VirtualDom, label: &str) {
+    until(dom, label, |dom| control(dom, label).is_some() && !disabled(dom, label)).await;
+    click_control(dom, label);
+}
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_thread_with_a_live_session_settles_and_its_line_and_a_message_bring_it_back() {
@@ -103,14 +110,14 @@ async fn a_thread_can_opt_out_of_automatic_settling_and_the_sweep_settles_the_ot
     // The choice is a setting with the current one marked; it is on by default.
     assert_eq!(control_attribute(&dom, "Auto-settle behavior: Enabled", "aria-checked").and_then(|(_, value)| value).as_deref(), Some("true"));
     assert_eq!(control_attribute(&dom, "Auto-settle behavior: Disabled", "aria-checked").and_then(|(_, value)| value).as_deref(), Some("false"));
-    click_control(&mut dom, "Auto-settle behavior: Disabled");
+    choose(&mut dom, "Auto-settle behavior: Disabled").await;
     until(&mut dom, "the opt-out", |_| thread(state).auto_settle_disabled_at.flatten().is_some()).await;
     menu(&mut dom);
     assert_eq!(control_attribute(&dom, "Auto-settle behavior: Disabled", "aria-checked").and_then(|(_, value)| value).as_deref(), Some("true"));
-    click_control(&mut dom, "Auto-settle behavior: Enabled");
+    choose(&mut dom, "Auto-settle behavior: Enabled").await;
     until(&mut dom, "enabled again", |_| thread(state).auto_settle_disabled_at.flatten().is_none()).await;
     menu(&mut dom);
-    click_control(&mut dom, "Auto-settle behavior: Disabled");
+    choose(&mut dom, "Auto-settle behavior: Disabled").await;
     until(&mut dom, "the opt-out again", |_| thread(state).auto_settle_disabled_at.flatten().is_some()).await;
 
     // Past the quiet days, the sweep settles the thread that did not opt out, and only it.

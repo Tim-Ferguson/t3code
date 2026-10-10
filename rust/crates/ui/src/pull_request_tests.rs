@@ -619,6 +619,64 @@ async fn the_list_comes_from_the_hosts_shows_their_sizes_and_the_threads_filed_u
     .await;
 }
 
+/// The page opened at its address is mounted before the connection can read anything. It reads when the
+/// connection becomes ready, and again when a lost connection returns: the rows stay, marked old, meanwhile.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_list_opened_by_its_address_reads_once_the_connection_is_ready_and_again_when_it_returns() {
+    let world = world();
+    let _alone = world.exclusive().lock().await;
+    world.reset_everything_signed_in();
+    let _github = Github::install(world, 71);
+    let fixture = Fixture::start(true).await;
+    git(&fixture.workspace, &["remote", "add", "origin", "https://github.com/acme/web.git"]);
+    git(&fixture.workspace, &["checkout", "-q", "-b", "feature"]);
+    // The project is the server's, from an earlier visit.
+    let (mut first, props) = fixture.client(Gate::default(), &WRITER);
+    seed(&mut first, &props, &fixture.workspace).await;
+    drop(first);
+
+    let (mut dom, _props, state, _browser) = super::routing_tests::cold(&fixture, "/pull-requests", &WRITER, |_| {});
+    until(&mut dom, "the page named by the address", |_| state.peek().view == View::PullRequests).await;
+    assert!(!state.peek().shell.synchronized, "the page was mounted before the server had said anything");
+    // The server keeps a list by state across the servers of this test binary, so whichever pull request another test
+    // listed first may be the one that answers; the number is read from the page.
+    wait_for_rendered_text(&mut dom, "Fix it #").await;
+    assert!(!rendered_text(&dom).contains("Loading pull requests"), "{}", rendered_text(&dom));
+    let text = rendered_text(&dom);
+    let number: String = text[text.find("Fix it #").unwrap() + "Fix it #".len()..].chars().take_while(char::is_ascii_digit).collect();
+    let (start, refresh) = (format!("Start a thread from pull request #{number}"), "Refresh pull requests");
+
+    // The connection is lost: what was read stays, marked old, and nothing can be started from it.
+    state.status().set(ConnectionStatus::Interrupted("test".into()));
+    wait_for_rendered_text(&mut dom, "Offline. This is the last list read.").await;
+    assert!(rendered_text(&dom).contains("Fix it #") && disabled(&dom, &start) && disabled(&dom, refresh));
+    // It returns: the list is read again, which is what takes the mark away.
+    state.status().set(ConnectionStatus::Connected);
+    until(&mut dom, "a fresh list", |dom| !rendered_text(dom).contains("Offline. This is the last list read.") && !disabled(dom, refresh)).await;
+    assert!(rendered_text(&dom).contains("Fix it #") && !disabled(&dom, &start));
+    assert_eq!(error(state), None);
+    fixture.finish(dom).await;
+}
+
+/// The files of a pull request are read again at each notice, and once the connection is back: the revision
+/// and the grant are the tab's inputs, and a copy of them taken at mount would never read again.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_files_tab_reads_the_patch_again_at_a_refresh_notice() {
+    with_app(72, &WRITER, async |app| {
+        app.open_panel().await;
+        click_control(&mut app.dom, "Files changed");
+        wait_for_rendered_text(&mut app.dom, "+b").await;
+        app.github.set(|data| data.patch = "diff --git a/c.ts b/c.ts\n--- a/c.ts\n+++ b/c.ts\n@@ -1 +1 @@\n-x\n+changed in review\n".into());
+        let payload = json!({"reference":reference(app)});
+        app.dom.in_scope(ScopeId::APP, || request(&app.props.transport, app.state, "pullRequests.invalidate", payload, RequestKind::Unary)).unwrap();
+        wait_for_rendered_text(&mut app.dom, "changed in review").await;
+        assert_eq!(error(app.state), None);
+    })
+    .await;
+}
+
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn a_thread_starts_from_a_pull_request_in_a_dialog_that_checks_what_is_typed_and_leaves_with_escape() {

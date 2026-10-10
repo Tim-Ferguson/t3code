@@ -58,6 +58,16 @@ pub(crate) async fn until(dom: &mut VirtualDom, label: &str, ready: impl Fn(&Vir
     .unwrap_or_else(|_| panic!("diff milestone {label} timed out; rendered: {}", rendered_text(dom)));
 }
 
+/// Lets what is already woken run: the tasks, and the effects a render queued. For a step whose only result is
+/// one the page does not draw (an address read, an effect that found nothing to do), where `until` has no
+/// change to wake it. It yields to the runtime and never waits on a clock.
+pub(crate) async fn pump(dom: &mut VirtualDom) {
+    for _ in 0..3 {
+        tokio::select! { biased; _ = dom.wait_for_work() => {}, _ = tokio::task::yield_now() => {} }
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    }
+}
+
 /// What a render-isolation test measures: how often the app, the conversation and the composer
 /// were built, and how many events the server has delivered to the shell and to the thread.
 pub(crate) type Repaints = ((usize, usize, usize), (u64, u64));

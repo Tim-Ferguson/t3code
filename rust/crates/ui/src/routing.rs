@@ -108,7 +108,17 @@ fn apply(transport: &runtime::TransportHandle, state: Store<UiModel>, page: Opti
                 notice::push(state, Level::Warning, "Thread not found", "That address names a thread this server does not have. Showing the start screen.");
                 replace("/");
             } else if !open {
-                runtime::select_thread(transport, state, thread);
+                // Back from a settings page to the thread that was open: its conversation is still the server's
+                // current word, so only the view changes, as the page's own way back does.
+                let here = {
+                    let model = state.peek();
+                    model.active_thread.as_deref() == Some(thread.as_str()) && model.thread.synchronized
+                };
+                if here {
+                    state.view().set(View::Chat);
+                } else {
+                    runtime::select_thread(transport, state, thread);
+                }
             }
         }
     }

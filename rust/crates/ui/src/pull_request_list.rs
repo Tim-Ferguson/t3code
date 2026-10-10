@@ -1,9 +1,10 @@
 //! The pull requests of the environment's projects, from their hosts: a page of rows that open the
 //! thread filed under one, or start a thread from it. Port of the list of `PullRequestListPage`.
 //!
-//! The list is read when the page opens and when asked for; nothing polls. A page of the host's
-//! answer is a signal of this page, so reading it repaints the page and nothing else. After a lost
-//! connection the rows stay, marked old, and nothing can be started from them.
+//! The list is read when the connection can read it (the page may open before it does, from an address
+//! or while offline) and when asked for; nothing polls. A page of the host's answer is a signal of
+//! this page, so reading it repaints the page and nothing else. After a lost connection the rows stay,
+//! marked old, and nothing can be started from them; the connection returning reads the list again.
 use crate::{
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View},
     settings_common::connected_allows,
@@ -35,15 +36,18 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
     let mut pending = use_signal(|| true);
     let mut failure = use_signal(|| None::<String>);
     let mut more = use_signal(|| false);
-    let readable = connected_allows(state, AuthEnvironmentScope::OrchestrationRead);
+    // A memo, not a copy of the flag: the read below restarts when the connection that can read changes,
+    // and a closure that captured the flag at mount would keep the answer it had before connecting.
+    let connection = use_memo(move || (connected_allows(state, AuthEnvironmentScope::OrchestrationRead), state.destination().read().clone()));
+    let readable = connection.read().0;
     let writable = connected_allows(state, AuthEnvironmentScope::SourceControlWrite) && !listed.read().stale;
 
-    // The first page of the chosen state: when the page opens, when the state changes, when asked.
+    // The first page of the chosen state: when the connection can read, when the state changes, when asked.
     // A newer read drops the one in flight, and a lost connection only marks the rows old.
     {
         let transport = transport.clone();
         use_resource(move || {
-            let (transport, readable, chosen, _) = (transport.clone(), readable, filter(), reads());
+            let (transport, (readable, _), chosen, _) = (transport.clone(), connection(), filter(), reads());
             async move {
                 if !readable {
                     pending.set(false);

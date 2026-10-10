@@ -74,8 +74,7 @@ pub(crate) fn Host(state: Store<UiModel>) -> Element {
                         Some(Follow::Git { label, cwd, action }) => rsx! {
                             button { class: "notice-follow", r#type: "button", onclick: { let id = notice.id; move |_| {
                                 state.notices().write().retain(|notice| notice.id != id);
-                                let next = state.peek().git_follow.as_ref().map_or(1, |follow| follow.id + 1);
-                                state.git_follow().set(Some(crate::git_control::FollowRequest { id: next, cwd: cwd.clone(), action }));
+                                crate::git_control::ask(state, &cwd, crate::git_control::Ask::Start(crate::git_control::Spec::of(action)));
                             } }, "{label}" }
                         },
                         _ => rsx! {},

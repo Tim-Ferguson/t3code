@@ -15,6 +15,17 @@ use t3_client::timeline_scroll::{
 
 #[derive(Clone, Default, Debug)]
 pub(crate) struct Positions(Rc<RefCell<PositionCache>>);
+#[cfg(test)]
+impl Positions {
+    /// Puts a position away from the end in the cache, as reading up the conversation and leaving would.
+    pub(crate) fn remember_reading(&self, owner: &str) {
+        let anchor = RowAnchor { row_id: "message".into(), offset_within_row: 4.0, scroll_offset: 120.0 };
+        self.0.borrow_mut().remember(owner.to_owned(), RememberedPosition { anchor, at_end: false, disclosures: None });
+    }
+    pub(crate) fn recalls(&self, owner: &str) -> bool {
+        self.0.borrow().read(owner).is_some_and(|position| !position.at_end)
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

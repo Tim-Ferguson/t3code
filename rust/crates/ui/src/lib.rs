@@ -323,6 +323,14 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                       }
                     }
                 }
+                // A failed git action of the open thread's workspace hangs from here, inside this column.
+                if let Some(active_thread) = active.as_ref().filter(|_| view == View::Chat) {
+                    {
+                        let project_cwd = projects.iter().find(|project| project.id == active_thread.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
+                        let cwd = active_thread.worktree_path.as_ref().map(ToString::to_string).unwrap_or(project_cwd);
+                        rsx! { if !cwd.is_empty() { git_control::FailureCard { key: "git-failure:{timeline_key}:{cwd}", state, cwd } } }
+                    }
+                }
                 if let Some(error) = error {
                     div { class: "error-banner", role: "alert", error_text::ErrorText { text: error } button { "aria-label": "Dismiss error", onclick: move |_| state.error().set(None), "×" } }
                 }

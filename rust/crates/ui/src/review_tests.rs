@@ -2,7 +2,7 @@
 //! server and temporary git repositories: the default scope, the scope menu, the base-ref picker,
 //! expansion of unchanged lines, a truncated preview read file by file, refresh, and a connection
 //! that may not read files. Waits are on text or controls that only the awaited step produces.
-use super::diff_tests::{Fixture, Harness, error, git, open_thread, rendered_text, seed, until, wait_for_rendered_text};
+use super::diff_tests::{Fixture, Harness, error, git, open_thread, pump, rendered_text, seed, until, wait_for_rendered_text};
 use super::*;
 use crate::diff_panel::Gate;
 use crate::runtime::transport_tests::{change_control, click_control, control};
@@ -68,6 +68,29 @@ async fn changes_is_the_default_scope_and_uncommitted_shows_the_working_tree() {
     assert!(!rendered_text(&dom).contains("and again"), "nothing reads on its own without a trigger");
     click_control(&mut dom, "Refresh diff");
     wait_for_rendered_text(&mut dom, "and again").await;
+    assert_eq!(error(state), None);
+    fixture.finish(dom).await;
+}
+
+/// The checkout is read again when a lost connection returns: an edit made while it was away appears without
+/// asking, where the offline mark would otherwise just be lifted from a page that is out of date.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_working_tree_is_read_again_when_a_lost_connection_returns() {
+    let fixture = Fixture::start(true).await;
+    repository(&fixture);
+    let (mut dom, _props, state) = open_panel(&fixture).await;
+    change_control(&mut dom, "Diff scope", "unstaged");
+    until(&mut dom, "the working tree", |dom| control(dom, "Expand README.md").is_some()).await;
+    click_control(&mut dom, "Expand README.md");
+    assert!(rendered_text(&dom).contains("uncommitted") && !rendered_text(&dom).contains("made while away"));
+    state.status().set(ConnectionStatus::Interrupted("test".into()));
+    wait_for_rendered_text(&mut dom, "Reconnect to load this diff.").await;
+    // The page has drawn the loss and its effects have seen it, as they would before the connection returns.
+    pump(&mut dom).await;
+    fixture.write("README.md", "hello\nuncommitted\nmade while away\n");
+    state.status().set(ConnectionStatus::Connected);
+    wait_for_rendered_text(&mut dom, "made while away").await;
     assert_eq!(error(state), None);
     fixture.finish(dom).await;
 }

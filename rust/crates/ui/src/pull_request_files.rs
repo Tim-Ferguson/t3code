@@ -66,11 +66,13 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
     let mut toggled = use_signal(BTreeSet::<String>::new);
     let mut shown = use_signal(|| FILES_PER_PAGE);
 
-    // The first page, read now and again at each new revision.
+    // The first page, read now, again at each new revision, and when the connection returns. The
+    // revision and the grant are props, so they are dependencies by `use_reactive`: a copy captured
+    // at mount would never start the read again.
     {
         let (transport, reference) = (transport.clone(), reference.clone());
-        use_resource(move || {
-            let (transport, reference, readable, _revision) = (transport.clone(), reference.clone(), readable, revision);
+        use_resource(use_reactive((&revision, &readable), move |(_revision, readable)| {
+            let (transport, reference) = (transport.clone(), reference.clone());
             async move {
                 if !readable {
                     return;
@@ -90,13 +92,13 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
                     }
                 }
             }
-        });
+        }));
     }
     // Which files the reader has marked viewed; marking one reads this again.
     {
         let (transport, reference) = (transport.clone(), reference.clone());
-        use_resource(move || {
-            let (transport, reference, readable, _a, _b, kept) = (transport.clone(), reference.clone(), readable, revision, viewed_revision(), has_store);
+        use_resource(use_reactive((&revision, &readable, &has_store), move |(_revision, readable, kept)| {
+            let (transport, reference, _viewed) = (transport.clone(), reference.clone(), viewed_revision());
             async move {
                 // A host that keeps no marks has none to read, and offers no checkbox.
                 if !readable || !kept {
@@ -114,7 +116,7 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
                     }
                 }
             }
-        });
+        }));
     }
     let load_more = {
         let (transport, reference) = (transport.clone(), reference.clone());

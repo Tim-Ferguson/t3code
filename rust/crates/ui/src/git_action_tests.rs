@@ -199,11 +199,15 @@ async fn a_text_generation_failure_shows_its_detail_and_offers_retry_or_a_messag
         spec: crate::git_control::Spec { action: t3_client::git_actions::Action::Commit, message: None, feature_branch: false, file_paths: None },
         running: false,
         previous_branch: None,
+        seen: crate::git_control::Seen { has_changes: true, provider_kind: None },
     });
     until(&mut dom, "the failure", |dom| control(dom, "Retry action").is_some()).await;
     let text = rendered_text(&dom);
     assert!(text.contains("Could not write the commit message: No provider is configured to write text."), "{text}");
     assert!(!text.contains("environment cannot generate text"), "no special-cased wording");
+    // The card follows the header's last control: it hangs under the header in the conversation column, and is not
+    // inside the header's group, whose wrapping and whose neighbour (the diff panel) it would otherwise answer to.
+    assert!(text.find("Could not write the commit message").unwrap() > text.find("DeleteArchive").unwrap(), "{text}");
     // Writing the message yourself opens the dialog and clears the failure.
     click_control(&mut dom, "Write a commit message");
     until(&mut dom, "the dialog", |dom| control(dom, "Commit message").is_some()).await;
@@ -283,6 +287,7 @@ async fn a_long_failure_is_shown_once_clamped_and_escape_dismisses_it() {
         spec: crate::git_control::Spec { action: t3_client::git_actions::Action::Commit, message: None, feature_branch: false, file_paths: None },
         running: false,
         previous_branch: None,
+        seen: Default::default(),
     });
     until(&mut dom, "the failure", |dom| control(dom, "Retry action").is_some()).await;
     assert!(control(&dom, "Dismiss notice").is_none(), "no second copy in a toast");

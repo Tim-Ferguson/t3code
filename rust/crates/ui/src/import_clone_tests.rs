@@ -161,7 +161,9 @@ async fn a_clone_in_flight_shows_its_progress_where_the_person_is_and_can_be_can
 
     // Retry starts the same clone again.
     click_control(&mut dom, "Retry clone");
-    until(&mut dom, "the clone running again", |dom| control(dom, "Cancel clone").is_some()).await;
+    // The stream's word that the clone runs again can reach the page before the answer to the retry does,
+    // and the control stays off until that answer: a person's click on it would do nothing either.
+    until(&mut dom, "the clone running again, with the retry answered", |dom| control(dom, "Cancel clone").is_some() && !disabled(dom, "Cancel clone")).await;
     click_control(&mut dom, "Cancel clone");
     wait_for_rendered_text(&mut dom, "Cancelled cloning repo").await;
     fixture.finish(dom).await;

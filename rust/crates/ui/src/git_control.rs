@@ -32,7 +32,7 @@ pub(crate) struct Spec {
     pub file_paths: Option<Vec<String>>,
 }
 impl Spec {
-    fn of(action: Action) -> Self {
+    pub(crate) fn of(action: Action) -> Self {
         Self { action, message: None, feature_branch: false, file_paths: None }
     }
 }
@@ -45,17 +45,38 @@ pub(crate) struct Run {
     pub running: bool,
     /// What the thread named as its branch before, to compare when a new one was created.
     pub(crate) previous_branch: Option<String>,
+    /// What the workspace was when the run began, for the failure card, which is not inside the control.
+    pub(crate) seen: Seen,
+}
+/// The part of the branch status a failure is worded from: a commit message that could not be written can
+/// be written by hand only when there is something to commit, and a GitLab workspace says "merge request".
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct Seen {
+    pub has_changes: bool,
+    pub provider_kind: Option<String>,
+}
+/// What the workspace's control is asked to do for a notice or for the failure card, which are not
+/// inside it: it alone knows whether the status is live and owns the commit dialog.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Ask {
+    Start(Spec),
+    WriteMessage,
 }
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct FollowRequest {
     pub id: u64,
     pub cwd: String,
-    pub action: Action,
+    pub ask: Ask,
+}
+/// Sends the request to the control of `cwd`, whichever component raised it.
+pub(crate) fn ask(state: Store<UiModel>, cwd: &str, ask: Ask) {
+    let id = state.peek().git_follow.as_ref().map_or(1, |follow| follow.id + 1);
+    state.git_follow().set(Some(FollowRequest { id, cwd: cwd.to_owned(), ask }));
 }
 
 /// Starts the action unless the workspace is already running one, which is what makes a double
 /// click send it once. The control re-enables from the run ending, never from a timer.
-pub(crate) fn begin(state: Store<UiModel>, transport: &TransportHandle, cwd: &str, thread_id: &str, project_id: Option<&str>, spec: Spec, previous_branch: Option<String>) {
+pub(crate) fn begin(state: Store<UiModel>, transport: &TransportHandle, cwd: &str, thread_id: &str, project_id: Option<&str>, spec: Spec, previous_branch: Option<String>, seen: Seen) {
     if state.peek().git_runs.get(cwd).is_some_and(|run| run.running) {
         return;
     }
@@ -76,7 +97,7 @@ pub(crate) fn begin(state: Store<UiModel>, transport: &TransportHandle, cwd: &st
     if let Some(paths) = spec.file_paths.as_ref().filter(|paths| !paths.is_empty()) {
         payload["filePaths"] = json!(paths);
     }
-    state.git_runs().write().insert(cwd.to_owned(), Run { progress: Progress::started(&action_id, spec.action), spec: spec.clone(), running: true, previous_branch: previous_branch.clone() });
+    state.git_runs().write().insert(cwd.to_owned(), Run { progress: Progress::started(&action_id, spec.action), spec: spec.clone(), running: true, previous_branch: previous_branch.clone(), seen });
     let (transport, cwd, thread_id) = (transport.clone(), cwd.to_owned(), thread_id.to_owned());
     dioxus::dioxus_core::spawn_forever(async move {
         let mut failure: Option<String> = None;
@@ -147,6 +168,47 @@ fn finish(state: Store<UiModel>, transport: &TransportHandle, cwd: &str, thread_
     });
 }
 
+/// A failed action of the workspace, under the header and inside the conversation column: it is not part of the
+/// control, whose nearest positioned ancestor is the header's own group, so it hangs from the zero-height anchor
+/// that follows the header however many rows the header wraps to, and never over the diff panel, which has
+/// the column's right edge to itself. Its text scrolls inside it; Retry and the close button stay in reach.
+#[component]
+pub(crate) fn FailureCard(state: Store<UiModel>, cwd: String) -> Element {
+    let can_write = use_memo(move || {
+        let destination = state.destination().read().clone();
+        *state.status().read() == ConnectionStatus::Connected && destination.is_some_and(|destination| state.environments().read().allows(&destination, AuthEnvironmentScope::SourceControlWrite))
+    });
+    let run = use_memo({
+        let cwd = cwd.clone();
+        move || state.git_runs().read().get(&cwd).cloned()
+    });
+    let Some(run) = run().filter(|run| !run.running) else { return rsx! {} };
+    let Some(Outcome::Failed { phase, message, generation }) = run.progress.outcome.clone() else { return rsx! {} };
+    let terms = git_actions::terms(run.seen.provider_kind.as_deref());
+    let text = match (generation.clone(), &phase) {
+        (Some(generation), _) => format!("Could not write the {}: {}", git_actions::generation_subject(&generation.operation, terms), generation.detail),
+        (None, Some(phase)) => format!("Action failed while {}: {message}", match phase.as_str() { "branch" => "preparing the branch", "commit" => "committing", "push" => "pushing", "pr" => "creating the pull request", other => other }),
+        (None, None) => format!("Action failed: {message}"),
+    };
+    let writes_commit_message = generation.as_ref().is_some_and(|generation| generation.operation == "generateCommitMessage") && run.seen.has_changes;
+    let writable = can_write();
+    let spec = run.spec.clone();
+    rsx! {
+        div { class: "git-failure-anchor",
+            div { class: "git-failure", role: "alert", tabindex: "-1",
+                onmounted: move |_| { dioxus::document::eval("const p=document.querySelector('.git-failure');const a=document.activeElement;if(p&&(!a||a===document.body||a.closest('.git-actions')))p.focus();"); },
+                onkeydown: { let key = cwd.clone(); move |event| { if event.key() == Key::Escape { event.stop_propagation(); state.git_runs().write().remove(&key); } } },
+                div { class: "git-failure-text", crate::error_text::ErrorText { text } }
+                button { class: "git-failure-close", r#type: "button", "aria-label": "Dismiss git action message", onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); } }, "\u{d7}" }
+                div { class: "git-failure-actions",
+                    button { r#type: "button", "aria-label": "Retry action", disabled: !writable, onclick: { let cwd = cwd.clone(); move |_| ask(state, &cwd, Ask::Start(spec.clone())) }, "Retry" }
+                    if writes_commit_message { button { r#type: "button", "aria-label": "Write a commit message", disabled: !writable, onclick: { let cwd = cwd.clone(); move |_| { state.git_runs().write().remove(&cwd); ask(state, &cwd, Ask::WriteMessage); } }, "Write a message" } }
+                }
+            }
+        }
+    }
+}
+
 /// The files the commit dialog offers, and which of them are left out.
 #[derive(Debug, Clone, PartialEq, Default)]
 struct CommitDraft {
@@ -209,7 +271,7 @@ pub(crate) fn Actions(
                 }
             }
             let previous = status.local.ref_name.clone();
-            begin(state, &transport, &cwd, &thread_id, (!project_id.is_empty()).then_some(project_id.as_str()), spec, previous);
+            begin(state, &transport, &cwd, &thread_id, (!project_id.is_empty()).then_some(project_id.as_str()), spec, previous, Seen { has_changes: !status.local.changed.is_empty(), provider_kind: status.local.provider_kind.clone() });
         })
     };
 
@@ -245,7 +307,10 @@ pub(crate) fn Actions(
                 return;
             }
             state.git_follow().set(None);
-            start.call((Spec::of(request.action), false));
+            match request.ask {
+                Ask::Start(spec) => start.call((spec, false)),
+                Ask::WriteMessage => commit.set(Some(CommitDraft::default())),
+            }
         });
     }
     let snapshot = view.read().clone();
@@ -269,10 +334,6 @@ pub(crate) fn Actions(
         None
     };
     let progress = run().filter(|run| run.running).map(|run| run.progress);
-    let failed = run().filter(|run| !run.running).and_then(|run| match &run.progress.outcome {
-        Some(Outcome::Failed { phase, message, generation }) => Some((run.spec.clone(), phase.clone(), message.clone(), generation.clone())),
-        _ => None,
-    });
     let files = status_ref.local.changed.clone();
     let branch_name = status_ref.local.ref_name.clone().unwrap_or_else(|| "(detached HEAD)".to_owned());
     let is_default = status_ref.local.is_default_ref;
@@ -362,28 +423,6 @@ pub(crate) fn Actions(
                                     span { class: "branch-row-name", "{label}" }
                                     if let Some(reason) = title.clone() { span { class: "branch-row-badge git-why", "{reason}" } }
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-            if let Some((spec, phase, message, generation)) = failed {
-                {
-                    let text = match (generation.clone(), &phase) {
-                        (Some(generation), _) => format!("Could not write the {}: {}", git_actions::generation_subject(&generation.operation, terms), generation.detail),
-                        (None, Some(phase)) => format!("Action failed while {}: {message}", match phase.as_str() { "branch" => "preparing the branch", "commit" => "committing", "push" => "pushing", "pr" => "creating the pull request", other => other }),
-                        (None, None) => format!("Action failed: {message}"),
-                    };
-                    let writes_commit_message = generation.as_ref().is_some_and(|generation| generation.operation == "generateCommitMessage") && !files.is_empty();
-                    rsx! {
-                        div { class: "branch-notice failure git-failure", role: "alert", tabindex: "-1",
-                            onmounted: move |_| { dioxus::document::eval("const p=document.querySelector('.git-failure');const a=document.activeElement;if(p&&(!a||a===document.body||a.closest('.git-actions')))p.focus();"); },
-                            onkeydown: { let key = cwd.clone(); move |event| { if event.key() == Key::Escape { event.stop_propagation(); state.git_runs().write().remove(&key); } } },
-                            div { class: "git-failure-text", crate::error_text::ErrorText { text } }
-                            button { class: "git-failure-close", r#type: "button", "aria-label": "Dismiss git action message", onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); } }, "\u{d7}" }
-                            div { class: "git-failure-actions",
-                                button { r#type: "button", "aria-label": "Retry action", disabled: !writable, onclick: { let spec = spec.clone(); move |_| start.call((spec.clone(), false)) }, "Retry" }
-                                if writes_commit_message { button { r#type: "button", "aria-label": "Write a commit message", disabled: !writable, onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); commit.set(Some(CommitDraft::default())); } }, "Write a message" } }
                             }
                         }
                     }

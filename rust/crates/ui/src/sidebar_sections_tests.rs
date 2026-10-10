@@ -140,8 +140,9 @@ async fn active_threads_move_from_the_menu_by_writing_active_order_keys() {
     key_on(&mut dom, &format!("Thread {}", first[0]), Key::ContextMenu);
     assert_eq!(control_attribute(&dom, "Move thread up", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"), "the top one cannot go higher");
     click_control(&mut dom, "Move thread down");
-    until(&mut dom, "the new order", |_| listed(state, Section::Active) == vec![first[1].clone(), first[0].clone()]).await;
-    assert!(state.peek().shell.snapshot.as_ref().unwrap().threads.iter().all(|thread| thread.active_order_key.clone().flatten().is_some()));
+    // Neither thread had a key, so the move writes one to each, as two commands: the order is already the new one when
+    // the first has landed, and the second key is still on its way.
+    until(&mut dom, "the new order, with a key on each", |_| listed(state, Section::Active) == vec![first[1].clone(), first[0].clone()] && state.peek().shell.snapshot.as_ref().unwrap().threads.iter().all(|thread| thread.active_order_key.clone().flatten().is_some())).await;
     fixture.finish(dom).await;
 }
 

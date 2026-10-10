@@ -163,11 +163,17 @@ pub(crate) fn use_review(
     let can_files = use_can_files(state);
     let task = use_hook(|| Rc::new(RefCell::new(None::<Task>)));
     let seen_refresh = use_hook(|| Rc::new(Cell::new(0u32)));
+    // Whether the connection could read the checkout the last time the read below was decided.
+    let was_up = use_hook(|| Rc::new(Cell::new(false)));
 
     {
-        let (task, transport, cwd, seen) = (task.clone(), transport.clone(), cwd.clone(), seen_refresh);
+        let (task, transport, cwd, seen, was_up) = (task.clone(), transport.clone(), cwd.clone(), seen_refresh, was_up);
         use_effect(move || {
-            let (wanted, base, whitespace, attempt) = (active() && can_files(), base_ref.read().clone(), *ignore_whitespace.read(), refresh_count());
+            let (up, base, whitespace, attempt) = (can_files(), base_ref.read().clone(), *ignore_whitespace.read(), refresh_count());
+            let wanted = active() && up;
+            // A connection that returns reads the checkout again: what is shown was read before it was lost.
+            let was = was_up.replace(up);
+            let returned = up && !was;
             if let Some(previous) = task.borrow_mut().take() {
                 previous.cancel();
             }
@@ -179,7 +185,7 @@ pub(crate) fn use_review(
             }
             let key = preview_key(&cwd, base.as_deref(), whitespace);
             let have = matches!(preview.peek().shown(&key), Shown::Ready(_));
-            if have && attempt == seen.get() {
+            if have && attempt == seen.get() && !returned {
                 return;
             }
             seen.set(attempt);

@@ -2370,21 +2370,38 @@ html[data-theme-token-probe] *::after {
 .branch-notice.failure {
   color: #dc2626;
 }
-/* A failed git action: one bounded panel under the header, on the right, beside nothing it
-   could cover. Its text scrolls inside it; Retry and the close button stay in reach. */
-.branch-notice.git-failure {
-  position: fixed;
-  top: 56px;
+/* A failed git action: one bounded panel under the header, in the conversation column, beside nothing it
+   could cover. It hangs from a zero-height anchor that follows the header in the column, so a header that
+   wraps to two rows moves it down with it, and the diff panel (which takes the column's right edge) is
+   never under it. Its text scrolls inside it; Retry and the close button stay in reach. */
+.git-failure-anchor {
+  position: relative;
+  height: 0;
+  /* Under the panels (5), which on a phone cover the whole column and the header with it. */
+  z-index: 4;
+}
+.git-failure {
+  position: absolute;
+  top: 6px;
   right: 14px;
-  left: auto;
-  width: min(420px, calc(100vw - 28px));
-  max-width: none;
+  width: min(420px, calc(100% - 28px));
   max-height: min(60vh, 440px);
+  box-sizing: border-box;
+  padding: 8px 10px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px 8px;
   align-items: start;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  background: var(--card);
+  color: #dc2626;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px #0002;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .git-failure:focus {
   outline: none;
@@ -2404,9 +2421,14 @@ html[data-theme-token-probe] *::after {
   flex-wrap: wrap;
   gap: 6px;
 }
-.branch-notice .git-failure-actions button {
+.git-failure .git-failure-actions button {
   border: 1px solid var(--border);
+  background: transparent;
   padding: 3px 10px;
+}
+.git-failure .git-failure-close {
+  border: 0;
+  background: transparent;
 }
 .branch-notice button {
   border: 0;
@@ -2499,7 +2521,7 @@ html[data-theme-token-probe] *::after {
     width: auto;
     max-width: none;
   }
-  .branch-notice.git-failure {
+  .git-failure {
     left: 12px;
     right: 12px;
     width: auto;
