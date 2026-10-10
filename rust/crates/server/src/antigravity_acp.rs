@@ -500,6 +500,10 @@ const REMOVED_ENVIRONMENT_KEYS: [&str; 17] = [
     "GOOGLE_GENAI_USE_VERTEXAI", "GCLOUD_PROJECT", "CLOUDSDK_CORE_PROJECT", "AGY_ACP_CCPA_PROJECT", "AGY_ACP_ENABLE_OAUTH", "GEMINI_HOME",
     "AGY_ACP_FORCE_FILE_STORAGE", "ANTIGRAVITY_HARNESS_PATH", "BROWSER", "PYTHONUNBUFFERED", "ELECTRON_RUN_AS_NODE",
 ];
+/// Whether an environment variable is one the agent must not inherit from the server: any that selects a credential.
+pub fn is_removed_key(key: &str) -> bool {
+    REMOVED_ENVIRONMENT_KEYS.contains(&key.to_uppercase().as_str())
+}
 /// The instance's credentials for the non-personal sign-in methods. Empty strings mean "not set".
 #[derive(Clone, Debug, PartialEq)]
 pub struct AuthConfig {
@@ -594,4 +598,119 @@ pub fn user_skill_directories(gemini_home: &std::path::Path) -> [std::path::Path
 /// Whether an error from the agent means Google sign-in is needed.
 pub fn is_sign_in_required(code: i64) -> bool {
     code == -32000
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn fixture() -> Value {
+        serde_json::from_str(include_str!("../tests/fixtures/antigravity-pure.json")).unwrap()
+    }
+    #[test]
+    fn tool_payload_bounds_and_native_tool_fields_match_the_source() {
+        let fixture = fixture();
+        for case in fixture["sanitize"].as_array().unwrap() {
+            assert_eq!(sanitize_tool_payload(&case["payload"]).unwrap_or(Value::Null), case["result"], "{}", case["payload"].to_string().chars().take(200).collect::<String>());
+        }
+        for case in fixture["normalizeToolCall"].as_array().unwrap() {
+            assert_eq!(normalize_tool_call(&case["tool"]), case["result"], "{}", case["tool"].to_string().chars().take(300).collect::<String>());
+        }
+        for case in fixture["sessionUpdates"].as_array().unwrap() {
+            let mut notification = case["notification"].clone();
+            normalize_session_update(&mut notification);
+            assert_eq!(notification, case["result"], "{}", case["notification"].to_string().chars().take(300).collect::<String>());
+        }
+    }
+    #[test]
+    fn approvals_questions_and_subagents_match_the_source() {
+        let fixture = fixture();
+        for case in fixture["approvalOptions"].as_array().unwrap() {
+            assert_eq!(json!(approval_options(&case["request"])), case["result"], "{}", case["request"]);
+        }
+        for case in fixture["questions"].as_array().unwrap() {
+            assert_eq!(user_input_question(&case["request"]).unwrap_or(Value::Null), case["question"], "{}", case["request"]);
+            for answer in case["answers"].as_array().unwrap() {
+                assert_eq!(user_input_response(&case["request"], &answer["answers"]).unwrap_or(Value::Null), answer["response"], "{} {}", case["request"], answer["answers"]);
+            }
+        }
+        for case in fixture["subagents"].as_array().unwrap() {
+            let update = subagent_update(&case["tool"]).map_or(Value::Null, |update| json!({"nativeTaskId":update.native_task_id,"prompt":update.prompt,"title":update.title,"model":update.model,"status":update.status,"childSessionId":update.child_session_id,"result":update.result}));
+            assert_eq!(update, case["result"], "{}", case["tool"]);
+        }
+        for case in fixture["permissionModes"].as_array().unwrap() {
+            assert_eq!(json!(permission_mode(case["mode"].as_str().unwrap())), case["result"]);
+        }
+    }
+    #[test]
+    fn model_selection_follows_the_source() {
+        for case in fixture()["modelSelection"].as_array().unwrap() {
+            let options = &case["configOptions"];
+            let current = options.as_array().and_then(|options| options.iter().find(|option| option["id"] == "model")).map_or(Value::Null, |option| option["currentValue"].clone());
+            let outcome = resolve_model(options, case["model"].as_str(), case["defaultModel"].as_str());
+            let (calls, result) = match outcome {
+                // The source returns the model the session now runs on.
+                Ok(Some(model)) => (vec![json!(model)], json!({"ok":model})),
+                Ok(None) => (vec![], json!({"ok":current})),
+                Err(message) => (vec![], json!({"error":message})),
+            };
+            assert_eq!(case["calls"].as_array().unwrap(), &calls, "{case}");
+            assert_eq!(case["result"], result, "{case}");
+        }
+    }
+    #[test]
+    fn google_sign_in_urls_and_callbacks_are_checked_as_the_source_does() {
+        let fixture = fixture();
+        for case in fixture["authorizationUrls"].as_array().unwrap() {
+            let parsed = parse_authorization_url(case["url"].as_str().unwrap()).map_or(Value::Null, |url| json!({"authorizationUrl":url.authorization_url,"redirectUri":url.redirect_uri,"state":url.state}));
+            assert_eq!(parsed, case["result"], "{}", case["url"].as_str().unwrap().chars().take(200).collect::<String>());
+        }
+        let pending = AuthorizationUrl { authorization_url: String::new(), redirect_uri: "http://127.0.0.1:46353/".into(), state: "opaque".into() };
+        for case in fixture["callbacks"].as_array().unwrap() {
+            let result = match validate_callback_url(&pending, case["callbackUrl"].as_str().unwrap()) {
+                Ok(url) => json!({"ok":url.as_str()}),
+                Err(message) => json!({"error":message}),
+            };
+            assert_eq!(result, case["result"], "{}", case["callbackUrl"].as_str().unwrap().chars().take(100).collect::<String>());
+        }
+        for case in fixture["stderrLines"].as_array().unwrap() {
+            let line = case["line"].as_str().unwrap().trim_end_matches('\n');
+            let found: Vec<String> = authorization_url_in_line(line).and_then(|url| parse_authorization_url(&url)).map(|url| url.authorization_url).into_iter().collect();
+            assert_eq!(json!(found), case["urls"], "{line}");
+        }
+    }
+    #[test]
+    fn profile_settings_and_the_spawn_environment_match_the_source() {
+        let fixture = fixture();
+        let config = |value: &Value| AuthConfig { auth_method: value["authMethod"].as_str().unwrap().into(), api_key: value["apiKey"].as_str().unwrap().into(), gcp_project: value["gcpProject"].as_str().unwrap().into(), gcp_location: value["gcpLocation"].as_str().unwrap().into() };
+        for case in fixture["authConfigs"].as_array().unwrap() {
+            let auth = config(&case["auth"]);
+            assert_eq!(json!(auth.config_issue()), case["issue"]);
+            assert_eq!(json!(auth.label()), case["label"]);
+            assert_eq!(json!(auth.uses_browser()), case["usesBrowser"]);
+            assert_eq!(auth.profile_settings(), case["settings"].as_str().unwrap());
+        }
+        for case in fixture["directories"].as_array().unwrap() {
+            let (profile, temp) = instance_directories(std::path::Path::new("/state"), case["id"].as_str().unwrap());
+            assert_eq!(json!({"profile":profile,"runtimeTemp":temp}), case["result"]);
+        }
+        for case in fixture["spawnInputs"].as_array().unwrap() {
+            let base: HashMap<String, String> = case["baseEnv"].as_object().unwrap().iter().map(|(key, value)| (key.clone(), value.as_str().unwrap().to_owned())).collect();
+            let mut environment = environment(&base, std::path::Path::new("/p"), "BROWSERCMD", &config(&case["auth"]), std::path::Path::new("/tmp/run-1"));
+            environment.insert("ANTIGRAVITY_HARNESS_PATH".into(), "/x/localharness_external".into());
+            // The source also sets ELECTRON_RUN_AS_NODE for the Node helper that suppresses the browser; there is none here.
+            let expected: HashMap<String, String> = case["result"]["env"].as_object().unwrap().iter().filter(|(key, _)| !matches!(key.as_str(), "TEMP" | "TMP" | "ELECTRON_RUN_AS_NODE")).map(|(key, value)| (key.clone(), value.as_str().unwrap().to_owned())).collect();
+            // The source's environment is the whole of it; here what it removed is unset by the launcher, not dropped.
+            let mut kept = environment.clone();
+            for key in base.keys().filter(|key| is_removed_key(key)) {
+                if !expected.contains_key(key) {
+                    assert!(!kept.contains_key(key), "{key} reached the agent");
+                }
+            }
+            kept.remove("TMPDIR");
+            let mut expected = expected;
+            expected.remove("TMPDIR");
+            assert_eq!(kept, expected);
+            assert_eq!(environment["TMPDIR"], case["result"]["env"]["TMPDIR"]);
+        }
+    }
 }

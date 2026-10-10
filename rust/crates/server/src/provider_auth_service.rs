@@ -20,7 +20,8 @@ struct Controller {
     fingerprint: String,
     binding: String,
     flow: AuthFlow,
-    backend: AcpAuth,
+    /// The ACP agent's sign-in; an Antigravity instance's lives in its flow.
+    backend: Option<AcpAuth>,
 }
 struct Inner {
     registry: ProviderRegistry,
@@ -206,6 +207,23 @@ impl ProviderAuthService {
             ));
         }
         let mut controllers = self.0.controllers.lock().await;
+        if let Some((entry, antigravity)) = self.0.registry.antigravity_auth_entry(instance) {
+            let fingerprint = structural_fingerprint(serde_json::to_value(&entry).expect("typed provider settings"));
+            if let Some(controller) = controllers.get(instance).filter(|controller| controller.fingerprint == fingerprint) {
+                return Ok(controller.clone());
+            }
+            if let Some(previous) = controllers.remove(instance) {
+                drop(controllers);
+                previous.flow.shutdown().await;
+                controllers = self.0.controllers.lock().await;
+            }
+            if *self.0.stopped.borrow() {
+                return Err(failure(instance, operation, "This provider instance is no longer available."));
+            }
+            let controller = Controller { fingerprint, binding: format!("antigravity:{instance}"), flow: crate::antigravity_auth::AntigravityAuth::new(antigravity, self.0.registry.clone()).controller(), backend: None };
+            controllers.insert(instance.into(), controller.clone());
+            return Ok(controller);
+        }
         let (entry, captured) = self.0.registry.acp_auth_entry(instance).ok_or_else(|| {
             failure(
                 instance,
@@ -273,7 +291,7 @@ impl ProviderAuthService {
             fingerprint,
             binding: binding(instance, &captured.config),
             flow: backend.controller(),
-            backend,
+            backend: Some(backend),
         };
         controllers.insert(instance.into(), controller.clone());
         Ok(controller)
@@ -343,7 +361,9 @@ impl ProviderAuthService {
                     .collect::<Vec<_>>();
                 for controller in other {
                     controller.flow.invalidate().await;
-                    controller.backend.invalidate_confirmation().await;
+                    if let Some(backend) = &controller.backend {
+                        backend.invalidate_confirmation().await;
+                    }
                 }
                 Ok(())
             })
@@ -716,7 +736,7 @@ mod tests {
                     .fingerprint,
                 controller.fingerprint
             );
-            assert!(controller.backend.confirmation().get());
+            assert!(controller.backend.as_ref().unwrap().confirmation().get());
             assert!(registry.acp("agent").is_ok());
             service.logout("agent").await.unwrap();
             let readiness =
@@ -733,7 +753,7 @@ mod tests {
                 signed_out["message"],
                 "Sign in in provider settings using \"Browser login\"."
             );
-            assert!(!controller.backend.confirmation().get());
+            assert!(!controller.backend.as_ref().unwrap().confirmation().get());
             assert!(!log.with_extension("log.credentials").exists());
             service.shutdown().await;
             reaped(&log);
@@ -767,7 +787,7 @@ mod tests {
             })
             .await;
             let controller = service.controller("agent", "get").await.unwrap();
-            let confirmation = controller.backend.confirmation();
+            let confirmation = controller.backend.as_ref().unwrap().confirmation();
             let mut writes = confirmation.hold_writes();
             let mut admitted = registry.observe_health_refreshes();
             std::fs::remove_file(format!("{}.credentials", log.display())).unwrap();
@@ -855,7 +875,7 @@ mod tests {
                     assert_eq!(unsafe{libc::kill(pid,0)},-1);
                     let controller=service.controller("agent","get").await.unwrap();
                     let expected=derive_instance_configs(&settings).get(&"agent".parse().unwrap()).unwrap().clone();
-                    registry.authentication_changed("agent",&expected,&path,controller.backend.confirmation(),true).await;
+                    registry.authentication_changed("agent",&expected,&path,controller.backend.as_ref().unwrap().confirmation(),true).await;
                 }
                 coordinator.publish_configuration("agent",serde_json::from_value(json!({"models":[{"id":"foreground-model","name":"Foreground model","description":null}],"currentModelId":"foreground-model","configOptions":[]})).unwrap());
                 let foreground_snapshot=provider_health(&mut changes,|row|row["models"][0]["slug"]=="foreground-model").await;

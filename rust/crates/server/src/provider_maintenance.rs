@@ -494,6 +494,10 @@ pub fn grok_definition(env: BTreeMap<String, String>) -> Definition {
         native: Some(Native { args: vec!["update".into()], is_command_path: Some(|_| true), env: Some(env).filter(|env| !env.is_empty()) }),
     }
 }
+/// A driver with no updater and no package: its version advisory is always manual.
+pub fn manual_definition(provider: &'static str) -> Definition {
+    Definition { provider, npm_package_name: "", native: None }
+}
 pub fn claude_definition() -> Definition {
     Definition {
         provider: "claudeAgent",

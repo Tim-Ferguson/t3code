@@ -3,6 +3,7 @@ use crate::{
     acp_runtime::AcpInstance,
     claude_instance::ClaudeInstance,
     grok_instance::GrokInstance,
+    antigravity_instance::AntigravityInstance,
     codex::{CodexConfig, CodexInstance},
     provider_process::ProcessError,
 };
@@ -33,12 +34,14 @@ pub fn derive_instance_configs(settings: &ServerSettings) -> ProviderInstanceCon
 enum RegisteredInstance {
     Claude(ClaudeInstance),
     Grok(GrokInstance),
+    Antigravity(AntigravityInstance),
     Codex(CodexInstance),
     Acp(AcpInstance),
 }
 struct RegistryState {
     claude: HashMap<String, ClaudeInstance>,
     grok: HashMap<String, GrokInstance>,
+    antigravity: HashMap<String, AntigravityInstance>,
     codex: HashMap<String, CodexInstance>,
     acp: HashMap<String, AcpInstance>,
     snapshots: Vec<Value>,
@@ -252,6 +255,7 @@ impl ProviderRegistry {
         let mut codex = HashMap::new();
         let mut claude = HashMap::new();
         let mut grok = HashMap::new();
+        let mut antigravity = HashMap::new();
         let mut acp = HashMap::new();
         let mut snapshots = vec![];
         for (id, instance, snapshot) in results {
@@ -262,6 +266,9 @@ impl ProviderRegistry {
                     }
                     RegisteredInstance::Grok(instance) => {
                         grok.insert(id, instance);
+                    }
+                    RegisteredInstance::Antigravity(instance) => {
+                        antigravity.insert(id, instance);
                     }
                     RegisteredInstance::Codex(instance) => {
                         codex.insert(id, instance);
@@ -287,6 +294,7 @@ impl ProviderRegistry {
             state: Arc::new(RwLock::new(RegistryState {
                 claude,
                 grok,
+                antigravity,
                 codex,
                 acp,
                 snapshots,
@@ -585,6 +593,10 @@ impl ProviderRegistry {
         if state_driver(&state, instance_id)? == "grok" {
             return state.grok.get(instance_id).map(GrokInstance::acp_instance).ok_or_else(|| ProcessError::Protocol("Grok provider instance is unavailable.".into()));
         }
+        // So does an Antigravity session, through the generic ACP instance of its resolved executable.
+        if state_driver(&state, instance_id)? == "antigravity" {
+            return state.antigravity.get(instance_id).map(AntigravityInstance::acp_instance).ok_or_else(|| ProcessError::Protocol("Antigravity provider instance is unavailable.".into()));
+        }
         if state_driver(&state, instance_id)? != "acpRegistry" {
             return Err(ProcessError::Protocol(
                 "Provider instance is not ACP Registry.".into(),
@@ -602,6 +614,34 @@ impl ProviderRegistry {
             return Err(ProcessError::Protocol("Provider instance is not Grok.".into()));
         }
         state.grok.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Grok provider instance is unavailable.".into()))
+    }
+    pub fn antigravity(&self, instance_id: &str) -> Result<AntigravityInstance, ProcessError> {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "antigravity" {
+            return Err(ProcessError::Protocol("Provider instance is not Antigravity.".into()));
+        }
+        state.antigravity.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Antigravity provider instance is unavailable.".into()))
+    }
+    /// The Antigravity instance behind a sign-in, ready or not: credential setup is available before readiness.
+    pub(crate) fn antigravity_auth_entry(&self, instance_id: &str) -> Option<(ProviderInstanceConfig, AntigravityInstance)> {
+        let state = self.state.read().unwrap();
+        let entry = derive_instance_configs(&state.settings).into_iter().find(|(id, _)| id.as_str() == instance_id)?.1;
+        Some((entry, state.antigravity.get(instance_id)?.clone()))
+    }
+    /// What a session learned (`onSessionStarted`, `onAvailableCommands`, `onSignedOut`) is folded into the instance's
+    /// snapshot and published; an instance that is gone, or that is not Antigravity, is left alone.
+    pub fn antigravity_update(&self, instance_id: &str, change: impl FnOnce(&AntigravityInstance, &mut Value, &str)) {
+        let mut state = self.state.write().unwrap();
+        let Some(instance) = state.antigravity.get(instance_id).cloned() else { return };
+        let Some(snapshot) = state.snapshots.iter_mut().find(|snapshot| snapshot["instanceId"] == instance_id) else { return };
+        let before = snapshot.clone();
+        change(&instance, snapshot, &chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true));
+        if *snapshot == before {
+            return;
+        }
+        let snapshots = state.snapshots.clone();
+        drop(state);
+        self.publish(snapshots);
     }
     pub fn claude(&self, instance_id: &str) -> Result<ClaudeInstance, ProcessError> {
         let state = self.state.read().unwrap();
@@ -664,13 +704,16 @@ impl ProviderRegistry {
     /// The update target of a live Codex, Claude or Grok instance; other drivers cannot be updated here.
     pub(crate) fn maintenance_target(&self, instance_id: &str) -> Option<crate::provider_manage::Target> {
         let state = self.state.read().unwrap();
-        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target)).or_else(|| state.grok.get(instance_id).map(crate::provider_manage::grok_target))
+        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target)).or_else(|| state.grok.get(instance_id).map(crate::provider_manage::grok_target)).or_else(|| state.antigravity.get(instance_id).map(crate::provider_manage::antigravity_target))
     }
     pub(crate) fn codex_instance(&self, instance_id: &str) -> Option<CodexInstance> {
         self.state.read().unwrap().codex.get(instance_id).cloned()
     }
     pub(crate) fn acp_instance(&self, instance_id: &str) -> Option<AcpInstance> {
         self.state.read().unwrap().acp.get(instance_id).cloned()
+    }
+    pub(crate) fn antigravity_instance_ids(&self) -> Vec<String> {
+        self.state.read().unwrap().antigravity.keys().cloned().collect()
     }
     pub(crate) fn codex_instance_ids(&self) -> Vec<String> {
         self.state.read().unwrap().codex.keys().cloned().collect()
@@ -758,6 +801,7 @@ impl ProviderRegistry {
                 Some(RegisteredInstance::Codex(codex)) => Some(crate::provider_manage::codex_target(codex)),
                 Some(RegisteredInstance::Claude(claude)) => Some(crate::provider_manage::claude_target(claude)),
                 Some(RegisteredInstance::Grok(grok)) => Some(crate::provider_manage::grok_target(grok)),
+                Some(RegisteredInstance::Antigravity(antigravity)) => Some(crate::provider_manage::antigravity_target(antigravity)),
                 _ => None,
             };
             self.management.finish_snapshot(&mut snapshot, target.as_ref(), checks).await;
@@ -768,6 +812,7 @@ impl ProviderRegistry {
         for (id, instance, snapshot) in finished {
             state.claude.remove(&id);
             state.grok.remove(&id);
+            state.antigravity.remove(&id);
             state.codex.remove(&id);
             state.acp.remove(&id);
             match instance {
@@ -776,6 +821,9 @@ impl ProviderRegistry {
                 }
                 Some(RegisteredInstance::Grok(instance)) => {
                     state.grok.insert(id.clone(), instance);
+                }
+                Some(RegisteredInstance::Antigravity(instance)) => {
+                    state.antigravity.insert(id.clone(), instance);
                 }
                 Some(RegisteredInstance::Codex(instance)) => {
                     state.codex.insert(id.clone(), instance);
@@ -797,6 +845,11 @@ impl ProviderRegistry {
                                 snapshot.as_object_mut().map(|snapshot| snapshot.remove("usageLimits"));
                             }
                         }
+                    }
+                    // The health check only initializes the agent, so what a session proved about the account is carried.
+                    if snapshot["driver"] == "antigravity" {
+                        crate::antigravity_instance::carry_saved_account(existing, &mut snapshot);
+                        crate::antigravity_instance::keep_signed_out(existing, &mut snapshot);
                     }
                     if snapshot.get("workspaceSnapshots").is_none() {
                         if let Some(kept) = existing.get("workspaceSnapshots").cloned() {
@@ -1007,6 +1060,23 @@ async fn discover_entry(
             let snapshot = instance.discover_scoped(cwd, !workspace).await?;
             return Ok((id, Some(RegisteredInstance::Grok(instance)), snapshot));
         }
+        if entry.driver.as_str() == "antigravity" {
+            let config = match serde_json::from_value::<t3_contracts::AntigravitySettings>(entry.config.clone().unwrap_or(json!({}))) {
+                Ok(config) => config,
+                Err(error) => return Ok((id.clone(), None, unavailable(&id, &entry, format!("Invalid config for instance '{id}': {error}"))?)),
+            };
+            let instance = AntigravityInstance {
+                instance_id: id.clone(),
+                display_name: entry.display_name.as_ref().and_then(Option::as_ref).map(ToString::to_string).unwrap_or_else(|| "Antigravity".into()),
+                accent_color: entry.accent_color.as_ref().and_then(Option::as_ref).map(ToString::to_string),
+                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                config,
+                environment: entry.environment.as_ref().map(|variables| variables.iter().map(|variable| (variable.name.to_string(), variable.value.clone())).collect()).unwrap_or_default(),
+                management: management.clone(),
+            };
+            let snapshot = instance.discover(cwd).await?;
+            return Ok((id, Some(RegisteredInstance::Antigravity(instance)), snapshot));
+        }
         if entry.driver.as_str() != "codex" {
             return Ok((
                 id.clone(),
@@ -1142,7 +1212,9 @@ fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str
         .ok_or_else(|| {
             ProcessError::Protocol(format!("Provider instance '{instance_id}' is unavailable."))
         })?;
-    if snapshot["enabled"] != true || snapshot["status"] != "ready" {
+    // Antigravity's health check does not sign in, so it is never ready before a session; the session itself reports
+    // a missing installation or a signed-out account.
+    if snapshot["enabled"] != true || (snapshot["status"] != "ready" && snapshot["driver"] != "antigravity") {
         return Err(ProcessError::Protocol(
             snapshot["message"]
                 .as_str()
@@ -1154,6 +1226,7 @@ fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str
         Some("codex") => Ok("codex"),
         Some("claudeAgent") => Ok("claudeAgent"),
         Some("grok") => Ok("grok"),
+        Some("antigravity") => Ok("antigravity"),
         Some("acpRegistry") => Ok("acpRegistry"),
         _ => Err(ProcessError::Protocol(
             "Provider driver is not registered.".into(),

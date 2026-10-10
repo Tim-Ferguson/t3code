@@ -37,6 +37,8 @@ icu_normalizer = "2"
 unicode-segmentation = "1.12"
 hmac.workspace = true
 sha2.workspace = true
+# Inflates the entries of Antigravity's release archive.
+flate2.workspace = true
 base64.workspace = true
 rand.workspace = true
 # Named zones: usage buckets days in the zone the client names. Also drives the schedule fixtures.

@@ -347,11 +347,15 @@ impl ProviderProcess {
             });
             let diagnostic = Arc::new(Mutex::new(Vec::<u8>::new()));
             let diagnostic_writer = diagnostic.clone();
+            let stderr_observer = protocol_options.on_stderr.clone();
             let mut stderr_task = tokio::spawn(async move {
                 let mut buffer = [0; 1024];
                 while let Ok(size) = stderr.read(&mut buffer).await {
                     if size == 0 {
                         break;
+                    }
+                    if let Some(observer) = &stderr_observer {
+                        observer(&buffer[..size]);
                     }
                     let mut tail = diagnostic_writer.lock().unwrap();
                     tail.extend_from_slice(&buffer[..size]);

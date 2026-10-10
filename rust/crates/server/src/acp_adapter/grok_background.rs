@@ -390,7 +390,7 @@ impl Actor {
     fn session_environment(&self) -> std::collections::HashMap<String, String> {
         match &self.flavor {
             crate::acp_flavor::Flavor::Grok(grok) => grok.instance.process_environment(),
-            crate::acp_flavor::Flavor::Registry => Default::default(),
+            crate::acp_flavor::Flavor::Registry | crate::acp_flavor::Flavor::Antigravity(_) => Default::default(),
         }
     }
     /// A frame of the agent's own turn about finished work, arriving while the settled root turn is still held for

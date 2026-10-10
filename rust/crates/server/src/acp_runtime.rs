@@ -82,10 +82,18 @@ pub(crate) struct ExtensionContext {
 pub(crate) struct StartHooks {
     pub(crate) initialize: Option<InitializeRequest>,
     pub(crate) register: Option<Arc<dyn Fn(ExtensionContext) -> futures_util::future::BoxFuture<'static, ()> + Send + Sync>>,
+    /// The sign-in method to `authenticate` with before the session is set up, whether or not it asks for one
+    /// (Antigravity accepts methods it does not list at `initialize`).
+    pub(crate) authenticate: Option<String>,
+    /// A saved session is reattached with `session/resume` when the agent offers it, not replayed with `session/load`.
+    pub(crate) prefer_resume: bool,
+    /// Directories beyond the workspace the agent may read.
+    pub(crate) additional_directories: Vec<String>,
 }
 pub(crate) struct InitializedPeer {
     forward_children: Arc<std::sync::atomic::AtomicBool>,
     mcp_servers: Vec<t3_acp::types::McpServer>,
+    launch: StartHooks,
     pub(crate) acknowledgements: Acknowledgements,
     pub(crate) client: Client,
     pub(crate) initialize: InitializeResponse,
@@ -503,6 +511,7 @@ impl AcpInstance {
         let retained = services.clone();
         let result = async {
             let mut initialized = self.initialize_only(peer, false, services, None, hooks.initialize.clone()).await?;
+            initialized.launch = StartHooks { initialize: None, register: None, ..hooks.clone() };
             if let Some(register) = &hooks.register {
                 register(ExtensionContext { forward_children: initialized.forward_children.clone(), client: initialized.client.clone(), events: initialized.startup_events.clone(), acknowledgements: initialized.acknowledgements.clone() }).await;
             }
@@ -808,6 +817,7 @@ impl AcpInstance {
             command_receiver,
             startup_events,
             mcp_servers: vec![],
+            launch: StartHooks::default(),
         })
     }
     pub(crate) async fn finish_initialized(
@@ -832,13 +842,14 @@ impl AcpInstance {
             command_receiver,
             startup_events,
             mcp_servers,
+            launch,
         } = initialized;
         let setup_session = || async {
             let setup = if let Some(session_id) = saved_session {
                 let initialized = serde_json::to_value(&initialize).unwrap();
                 // Loading replays the history; resuming only reattaches, so it is the fallback
                 // for an agent that cannot load (`activateSession` in AcpAdapterV2).
-                let can_load = initialized["agentCapabilities"]["loadSession"] == true;
+                let can_load = initialized["agentCapabilities"]["loadSession"] == true && !launch.prefer_resume;
                 let can_resume = !initialized["agentCapabilities"]["sessionCapabilities"]["resume"].is_null();
                 if !can_load && !can_resume {
                     return Err(AcpError::Transport(
@@ -850,14 +861,20 @@ impl AcpInstance {
                         .load_session_typed(LoadSessionRequest {
                             session_id: session_id.into(),
                             cwd: cwd.to_string_lossy().into(),
-                            additional_directories: None,
+                            additional_directories: Some(launch.additional_directories.clone()).filter(|directories| !directories.is_empty()),
                             mcp_servers: Some(mcp_servers.clone()),
                             meta: Optional::Missing,
                         })
                         .await?
                 } else {
                     let resumed = client
-                        .call(t3_acp::client::AgentMethod::ResumeSession, json!({"sessionId":session_id,"cwd":cwd.to_string_lossy(),"mcpServers":mcp_servers}))
+                        .call(t3_acp::client::AgentMethod::ResumeSession, {
+                            let mut request = json!({"sessionId":session_id,"cwd":cwd.to_string_lossy(),"mcpServers":mcp_servers});
+                            if !launch.additional_directories.is_empty() {
+                                request["additionalDirectories"] = json!(launch.additional_directories);
+                            }
+                            request
+                        })
                         .await?;
                     serde_json::from_value(resumed).map_err(|error| AcpError::Transport(format!("Invalid session/resume response: {error}")))?
                 };
@@ -872,7 +889,7 @@ impl AcpInstance {
                 client
                     .create_session_typed(NewSessionRequest {
                         cwd: cwd.to_string_lossy().into(),
-                        additional_directories: None,
+                        additional_directories: Some(launch.additional_directories.clone()).filter(|directories| !directories.is_empty()),
                         mcp_servers: mcp_servers.clone(),
                         meta: Optional::Missing,
                     })
@@ -880,6 +897,9 @@ impl AcpInstance {
             };
             Ok::<_, AcpError>(setup)
         };
+        if let Some(method) = &launch.authenticate {
+            client.authenticate_typed(serde_json::from_value(json!({"methodId":method})).expect("configured ACP method")).await?;
+        }
         let setup = match setup_session().await {
             Err(required) if authenticate_configured && authentication_required(&required) => {
                 let configured =

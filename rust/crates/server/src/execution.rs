@@ -315,7 +315,8 @@ fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
     let encoded = match driver {
         "codex" => include_str!("codex-capabilities.json"),
         "claudeAgent" => include_str!("claude-capabilities.json"),
-        "acpRegistry" | "antigravity" => include_str!("acp-capabilities.json"),
+        "acpRegistry" => include_str!("acp-capabilities.json"),
+        "antigravity" => include_str!("antigravity-capabilities.json"),
         "grok" => include_str!("grok-capabilities.json"),
         _ => return false,
     };

@@ -184,6 +184,7 @@ impl Grok {
                 let prompts = prompts.clone();
                 Box::pin(register_extensions(context, prompts))
             })),
+            ..Default::default()
         }
     }
     /// Whether this permission request is one the user must answer: in Auto mode every prompt Grok sends is

@@ -40,7 +40,8 @@ pub(crate) fn driver_capabilities(driver: &str) -> Option<Value> {
     let encoded = match driver {
         "codex" => include_str!("codex-capabilities.json"),
         "claudeAgent" => include_str!("claude-capabilities.json"),
-        "acpRegistry" | "antigravity" => include_str!("acp-capabilities.json"),
+        "acpRegistry" => include_str!("acp-capabilities.json"),
+        "antigravity" => include_str!("antigravity-capabilities.json"),
         "grok" => include_str!("grok-capabilities.json"),
         _ => return None,
     };

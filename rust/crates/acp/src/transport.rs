@@ -12,6 +12,7 @@ use serde_json::{Value, json};
 use std::{pin::Pin, sync::Arc};
 
 pub type StdoutStream = Pin<Box<dyn Stream<Item = Result<Vec<u8>, AcpError>> + Send>>;
+pub type StderrObserver = Arc<dyn Fn(&[u8]) + Send + Sync>;
 pub type StdoutTransform = Arc<dyn Fn(StdoutStream) -> StdoutStream + Send + Sync>;
 pub type ProtocolLogger = Arc<dyn Fn(ProtocolLogEvent) -> BoxFuture<'static, ()> + Send + Sync>;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,6 +42,8 @@ pub struct ProtocolOptions {
     pub log_outgoing: bool,
     pub logger: Option<ProtocolLogger>,
     pub transform_stdout: Option<StdoutTransform>,
+    /// Sees what the process writes to stderr as it is written (Antigravity reports its Google sign-in URL there).
+    pub on_stderr: Option<StderrObserver>,
 }
 impl ProtocolOptions {
     pub fn enabled(&self, direction: LogDirection) -> bool {

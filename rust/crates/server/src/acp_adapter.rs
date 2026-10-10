@@ -15,6 +15,7 @@ use t3_acp::{
 };
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod antigravity;
 mod grok;
 mod grok_background;
 mod grok_subagents;
@@ -726,6 +727,12 @@ enum Pending {
         /// The request's params, to build the answer from.
         params: Value,
     },
+    /// A permission request whose choices are a question; the answer picks one of them.
+    PermissionQuestion {
+        request: RequestPermissionRequest,
+        response: oneshot::Sender<Result<t3_acp::v2::RequestPermissionResponse, AcpError>>,
+        written: oneshot::Receiver<Result<(), AcpError>>,
+    },
     /// A form elicitation; only the keys its schema asked for may come back.
     Question {
         keys: Vec<String>,
@@ -760,6 +767,8 @@ struct Actor {
     context_usage: Option<Value>,
     native_metadata: Option<Value>,
     turn_ordinal: u64,
+    /// The running turn is a `/compact`, which leaves a compaction item when it completes.
+    compacting: bool,
     prompt: Option<tokio::task::JoinHandle<Result<PromptResponse, AcpError>>>,
     text_segments: HashMap<&'static str, u64>,
     /// Streams with an open segment, and the source message id that segment was identified by.
@@ -870,6 +879,7 @@ impl Actor {
             let mut process = match &flavor {
                 crate::acp_flavor::Flavor::Grok(grok) => grok.instance.session_process(&cwd, Some(&grok.launch_mode)),
                 crate::acp_flavor::Flavor::Registry => instance.resolve_process(&cwd).await.map_err(error)?,
+                crate::acp_flavor::Flavor::Antigravity(antigravity) => antigravity.instance.spawn_options(&cwd, &antigravity.holds, &HashMap::new()).await.map_err(error)?,
             };
             if let Some(mcp) = mcp {
                 mcp.apply_acp_environment(&mut process.environment);
@@ -877,7 +887,12 @@ impl Actor {
             let mut callback_instance = instance.clone();
             callback_instance.environment = process.environment.clone();
             // Grok's tools may detach from it; its process group is ended with it.
-            let peer = if matches!(flavor, crate::acp_flavor::Flavor::Grok(_)) { crate::acp_peer::ProcessPeer::spawn_grouped(process) } else { crate::acp_peer::ProcessPeer::spawn(process) }.map_err(error)?;
+            let peer = match &flavor {
+                crate::acp_flavor::Flavor::Grok(_) => crate::acp_peer::ProcessPeer::spawn_grouped(process),
+                crate::acp_flavor::Flavor::Antigravity(antigravity) => crate::acp_peer::ProcessPeer::spawn_with_options(process, antigravity.protocol_options()),
+                crate::acp_flavor::Flavor::Registry => crate::acp_peer::ProcessPeer::spawn(process),
+            }
+            .map_err(error)?;
             // Retain the process outside this cancellable setup future. The actor
             // shutdown path waits for its reap before releasing the runtime lease.
             *pending_peer = Some(peer.clone());
@@ -890,6 +905,7 @@ impl Actor {
             *pending_services = Some(services.clone());
             let started = match (&flavor, mcp) {
                 (crate::acp_flavor::Flavor::Grok(grok), _) => Box::pin(instance.start_peer_flavored(peer, &cwd, saved, services, mcp, &grok.hooks())).await,
+                (crate::acp_flavor::Flavor::Antigravity(antigravity), _) => Box::pin(instance.start_peer_flavored(peer, &cwd, saved, services, mcp, &antigravity.hooks(&cwd))).await,
                 (_, Some(mcp)) => {
                     instance
                         .start_peer_with_mcp(peer, &cwd, saved, services, mcp)
@@ -915,9 +931,17 @@ impl Actor {
                     saved = None;
                     item_identity_v2 = true;
                 }
-                Err(cause) => return Err(error(cause)),
+                Err(cause) => {
+                    if let crate::acp_flavor::Flavor::Antigravity(antigravity) = &flavor {
+                        antigravity.sign_in_failed(&instance_id, &cause);
+                    }
+                    return Err(error(cause));
+                }
             }
         };
+        if let crate::acp_flavor::Flavor::Antigravity(antigravity) = &flavor {
+            antigravity.session_started(&instance_id, &session, &cwd);
+        }
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = at(Utc::now());
         let mut capabilities: Value = flavor.capabilities();
@@ -989,6 +1013,7 @@ impl Actor {
             context_usage: None,
             native_metadata: None,
             turn_ordinal: 0,
+            compacting: false,
             prompt: None,
             text_segments: HashMap::new(),
             text_open: HashMap::new(),
@@ -1073,6 +1098,14 @@ impl Actor {
                             None => crate::xai_extension::ask_user_cancelled_response(),
                         };
                         response.send(Ok(reply)).map_err(|_| error("The ACP callback was cancelled."))?;
+                        written
+                    }
+                    Pending::PermissionQuestion { request, response, written } => {
+                        let native = serde_json::to_value(&request).unwrap();
+                        let reply = effect.request.get("answers").filter(|answers| answers.is_object()).and_then(|answers| self.flavor.permission_question_response(&native, answers)).unwrap_or_else(|| json!({"outcome":{"outcome":"cancelled"}}));
+                        response
+                            .send(serde_json::from_value(reply).map_err(|cause| AcpError::Transport(cause.to_string())))
+                            .map_err(|_| error("The ACP callback was cancelled."))?;
                         written
                     }
                     Pending::Question { keys, response, written } => {
@@ -1188,7 +1221,10 @@ impl Actor {
             SessionEvent::Grok(crate::grok_flavor::Event::Task(lifecycle)) if self.turn_ordinal > 0 => self.task_lifecycle(lifecycle)?,
             SessionEvent::Grok(crate::grok_flavor::Event::SubagentFinished(notice)) if self.turn_ordinal > 0 => self.subagent_finished(notice)?,
             SessionEvent::Update(update) => {
-                let value = serde_json::to_value(update).unwrap();
+                let mut value = serde_json::to_value(update).unwrap();
+                if let crate::acp_flavor::Flavor::Antigravity(antigravity) = &self.flavor {
+                    antigravity.update_seen(&self.instance_id, &mut value, &self.cwd);
+                }
                 if value["update"]["sessionUpdate"] == "config_option_update" {
                     self.session.setup.config_options =
                         serde_json::from_value(value["update"]["configOptions"].clone())
@@ -1243,6 +1279,8 @@ impl Actor {
         let requested = match &self.flavor {
             crate::acp_flavor::Flavor::Grok(_) => Some(crate::grok_acp::base_model_id(selection["model"].as_str())).filter(|model| model != crate::grok_acp::DEFAULT_MODEL_SLUG),
             crate::acp_flavor::Flavor::Registry => selection["model"].as_str().filter(|model| !matches!(*model, "" | "auto" | "default")).map(ToOwned::to_owned),
+            // Its provider-default alias resolves against the account's models instead of being sent.
+            crate::acp_flavor::Flavor::Antigravity(_) => crate::antigravity_acp::resolve_model(&serde_json::to_value(&self.session.setup).unwrap()["configOptions"], selection["model"].as_str(), Some(crate::antigravity_instance::MANIFEST_DEFAULT_MODEL)).map_err(error)?,
         };
         if let Some(model) = requested {
             // Grok speaks ACP v1, where the session's model is set with `session/set_model`.
@@ -1260,9 +1298,14 @@ impl Actor {
             );
         }
         self.session.set_options(&options).await.map_err(error)?;
+        if let crate::acp_flavor::Flavor::Antigravity(antigravity) = &self.flavor {
+            let mode = antigravity.session_mode(view["thread"]["runtimeMode"].as_str().unwrap_or("full-access"));
+            self.set_policy_mode(mode).await.map_err(error)?;
+        }
         let changes = crate::acp_interaction::interaction_changes(&serde_json::to_value(&self.session.setup).unwrap(), view["thread"]["interactionMode"] == "plan", &mut self.native_build);
         self.session.set_options(&changes).await.map_err(error)?;
         let user_message = find(&view, "messages", &run["userMessageId"])?;
+        self.compacting = self.antigravity() && user_message["attachments"].as_array().is_none_or(Vec::is_empty) && user_message["text"].as_str().is_some_and(|text| t3_contracts::trim_wire_string(text) == crate::antigravity_acp::COMPACT_COMMAND);
         // A run the provider asked for attaches to what Grok produced on its own; it never prompts.
         let continuation = self.grok() && crate::provider_continuation::is_continuation(user_message);
         let text = crate::attachment_prompt::provider_text(&self.store, user_message);
@@ -1400,7 +1443,7 @@ impl Actor {
         // Grok settles a prompt with a completion notification as well as the reply: they race.
         let race = match &self.flavor {
             crate::acp_flavor::Flavor::Grok(grok) => Some(grok.prompts.clone()),
-            crate::acp_flavor::Flavor::Registry => None,
+            crate::acp_flavor::Flavor::Registry | crate::acp_flavor::Flavor::Antigravity(_) => None,
         };
         self.prompt = Some(tokio::spawn(async move {
             match race {
@@ -1440,6 +1483,9 @@ impl Actor {
     fn update_value(&mut self, mut value: Value) -> Result<(), StoreError> {
         if self.registry_agent_id == "devin" {
             updates::devin_update(&mut value);
+        }
+        if let crate::acp_flavor::Flavor::Antigravity(antigravity) = &self.flavor {
+            antigravity.update_seen(&self.instance_id, &mut value, &self.cwd);
         }
         if value["sessionId"] != self.session.setup.session_id.as_str() {
             // A subagent runs in a session of its own (Grok's on this connection, Devin's tagged on the root's).
@@ -1518,11 +1564,12 @@ impl Actor {
     }
     /// Whether this agent's tool calls and sessions can describe subagents: Grok, and Devin.
     fn runs_subagents(&self) -> bool {
-        matches!(self.flavor, crate::acp_flavor::Flavor::Grok(_)) || self.registry_agent_id == "devin"
+        matches!(self.flavor, crate::acp_flavor::Flavor::Grok(_) | crate::acp_flavor::Flavor::Antigravity(_)) || self.registry_agent_id == "devin"
     }
     fn subagent_update(&self, tool: &Value) -> Option<crate::xai_extension::SubagentUpdate> {
         match &self.flavor {
             crate::acp_flavor::Flavor::Grok(_) => crate::xai_extension::subagent_update(tool),
+            crate::acp_flavor::Flavor::Antigravity(_) => self.flavor.subagent_update(tool),
             crate::acp_flavor::Flavor::Registry if self.registry_agent_id == "devin" => crate::devin_acp::subagent_update(tool),
             crate::acp_flavor::Flavor::Registry => None,
         }
@@ -1976,6 +2023,9 @@ impl Actor {
             return Ok(());
         }
         let native = serde_json::to_value(&request).unwrap();
+        if let Some(question) = self.flavor.permission_question(&native) {
+            return self.permission_question(question, request, response, written);
+        }
         let kind = native["toolCall"]["kind"].as_str().unwrap_or("other");
         let mut disposition = self.session.services.permission(&native);
         // Grok's Auto mode only asks about what its own classifier refused, so those reach the user.
@@ -2098,11 +2148,23 @@ impl Actor {
             if let Some(instructions) = pending_instructions {
                 self.instructions = Some(instructions);
             }
-            self.close_text_streams()?;
         }
+        // The turn's text is complete whether the turn succeeded or failed (`closeTextStreams` in `finalizeTurn`).
+        self.close_text_streams()?;
         // The turn is ending: nothing it shows from here on re-arms a quiet window.
         self.bg.turn.finalizing = true;
         let completed = matches!(&result, Ok(response) if response.stop_reason != "cancelled");
+        if self.flavor.subagents_idle_on_turn_completion() {
+            let settled = match &result {
+                Ok(response) if response.stop_reason == "cancelled" => if self.interrupt_requested { "interrupted" } else { "cancelled" },
+                Ok(_) => "completed",
+                Err(_) => "failed",
+            };
+            self.settle_open_subagents(settled)?;
+        }
+        if std::mem::take(&mut self.compacting) && completed {
+            self.emit_compaction()?;
+        }
         if self.grok() && completed {
             self.terminalize_foreground_tools()?;
         }

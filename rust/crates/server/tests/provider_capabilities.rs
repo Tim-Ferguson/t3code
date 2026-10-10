@@ -67,3 +67,34 @@ fn the_capability_files_differ_from_the_original_only_where_the_port_lacks_a_fea
         }
     }
 }
+
+/// Antigravity is the ACP adapter plus its flavour. What the port lacks is what ACP lacks, and MCP tools, which
+/// are negotiated per session (true when the thread has the T3 endpoint) and which no scripted Antigravity
+/// session runs with, so the default stays off. The declared set is `generate_antigravity_capability_fixtures.mjs`'s.
+const ANTIGRAVITY_LACKING: &[&str] = &[
+    "checkpointing.supportsNestedCheckpointScopes",
+    "context.canGenerateSummaries",
+    "tools.supportsMcpTools",
+];
+#[test]
+fn the_antigravity_capability_file_differs_from_the_original_only_where_the_port_lacks_a_feature() {
+    let original: Value = serde_json::from_str(include_str!("fixtures/antigravity-capabilities-declared.json")).unwrap();
+    let (mut declared, mut ported) = (vec![], vec![]);
+    flat("", &original, &mut declared);
+    flat("", &serde_json::from_str::<Value>(include_str!("../src/antigravity-capabilities.json")).unwrap(), &mut ported);
+    assert_eq!(declared.len(), ported.len(), "the same capabilities are declared");
+    for ((key, original), (ported_key, ported)) in declared.iter().zip(&ported) {
+        assert_eq!(key, ported_key);
+        if ANTIGRAVITY_LACKING.contains(&key.as_str()) {
+            assert_eq!((original, ported), (&Value::Bool(true), &Value::Bool(false)), "antigravity {key} is documented as not ported");
+        } else {
+            assert_eq!(original, ported, "antigravity {key} differs from the original without being documented as not ported");
+        }
+    }
+    // Every capability the port claims that the generic ACP adapter does not is one a scripted session covers.
+    let acp: Value = serde_json::from_str(include_str!("../src/acp-capabilities.json")).unwrap();
+    let mut generic = vec![];
+    flat("", &acp, &mut generic);
+    let claimed: Vec<&str> = ported.iter().zip(&generic).filter(|((_, ours), (_, theirs))| ours != theirs).map(|((key, _), _)| key.as_str()).collect();
+    assert_eq!(claimed, ["sessions.supportsModelSwitchInSession", "sessions.supportsRuntimeModeSwitchInSession", "subagents.supportsSubagents"]);
+}

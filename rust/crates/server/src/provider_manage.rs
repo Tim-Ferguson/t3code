@@ -38,12 +38,15 @@ pub struct Options {
     pub codex_release: Option<Option<crate::provider_install::ReleaseAsset>>,
     /// Searched instead of the process `PATH` for a `codex` already installed.
     pub codex_path: Option<String>,
+    /// Code-level substitute for the pinned Antigravity release (`Some(None)`: none for this platform). The server
+    /// binary never sets it; it lifts the official-host rule for whatever it names.
+    pub antigravity_release: Option<Option<crate::antigravity_install::ReleaseAsset>>,
     /// How long one ACP session or provider management request may take.
     pub acp_timeout: Duration,
 }
 impl Options {
     fn new(tools_dir: Option<PathBuf>) -> Self {
-        Self { registry_url: "https://registry.npmjs.org".into(), path: None, update_timeout: Duration::from_secs(5 * 60), tools_dir, http: reqwest::Client::new(), codex_release: None, codex_path: None, acp_timeout: Duration::from_secs(60) }
+        Self { registry_url: "https://registry.npmjs.org".into(), path: None, update_timeout: Duration::from_secs(5 * 60), tools_dir, http: reqwest::Client::new(), codex_release: None, codex_path: None, antigravity_release: None, acp_timeout: Duration::from_secs(60) }
     }
 }
 
@@ -66,6 +69,7 @@ struct Inner {
     capabilities: Mutex<HashMap<String, (std::time::Instant, String, Capabilities)>>,
     latest: Mutex<HashMap<String, (i64, Option<String>)>>,
     pub(crate) install: crate::provider_install::Slot,
+    pub(crate) antigravity: tokio::sync::OnceCell<crate::antigravity_install::AntigravityInstallation>,
 }
 #[derive(Clone, Default)]
 pub struct Management(Arc<Inner>);
@@ -120,6 +124,10 @@ pub fn grok_target(instance: &crate::grok_instance::GrokInstance) -> Target {
     let own = instance.environment.iter().map(|(name, value)| (name.clone(), value.clone())).collect();
     Target { instance_id: instance.instance_id.clone(), driver: "grok", definition: maintenance::grok_definition(own), binary: expand_home(&instance.binary_path().to_string_lossy(), &env), env }
 }
+/// Antigravity updates by installing a new pinned release, not by an updater of its own, so nothing here can update it.
+pub fn antigravity_target(instance: &crate::antigravity_instance::AntigravityInstance) -> Target {
+    Target { instance_id: instance.instance_id.clone(), driver: "antigravity", definition: maintenance::manual_definition("antigravity"), binary: String::new(), env: HashMap::new() }
+}
 pub fn claude_target(instance: &crate::claude_instance::ClaudeInstance) -> Target {
     let env = merged_environment(&instance.environment);
     Target { instance_id: instance.instance_id.clone(), driver: "claudeAgent", definition: maintenance::claude_definition(), binary: expand_home(instance.config.binary_path.as_str(), &env), env }
@@ -141,6 +149,9 @@ impl Management {
     }
     pub(crate) fn install_slot(&self) -> &crate::provider_install::Slot {
         &self.0.install
+    }
+    pub(crate) fn antigravity_slot(&self) -> &tokio::sync::OnceCell<crate::antigravity_install::AntigravityInstallation> {
+        &self.0.antigravity
     }
 
     // ---- update state (volatile; never persisted) ----
@@ -183,6 +194,9 @@ impl Management {
                     return caps.clone();
                 }
             }
+        }
+        if target.driver == "antigravity" {
+            return Capabilities::manual("antigravity", None);
         }
         let caps = maintenance::resolve_capabilities(&target.definition, Some(&target.binary), &target.env, Platform::host()).await;
         self.0.capabilities.lock().unwrap().insert(target.instance_id.clone(), (std::time::Instant::now(), key, caps.clone()));

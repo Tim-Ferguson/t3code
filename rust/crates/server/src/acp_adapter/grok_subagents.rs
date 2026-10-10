@@ -46,6 +46,11 @@ impl Children {
     pub(super) fn blocks_settlement(&self) -> bool {
         self.by_task.values().any(|child| matches!(child.task["status"].as_str(), Some("running" | "pending")))
     }
+    /// The subagents still running, as (task, child session): what a flavour without completion signals closes when
+    /// the turn that launched them ends.
+    pub(super) fn open_tasks(&self) -> Vec<(Value, Option<String>)> {
+        self.by_task.values().filter(|child| matches!(child.task["status"].as_str(), Some("running" | "pending"))).map(|child| (child.task.clone(), child.child_session_id.clone())).collect()
+    }
     /// The subagent that runs in this child session.
     pub(super) fn by_child_session(&self, session: &str) -> Option<&Child> {
         self.by_session.get(session).and_then(|key| self.by_task.get(key))

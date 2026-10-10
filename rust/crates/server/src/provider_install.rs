@@ -693,6 +693,28 @@ impl Management {
         Ok(installation.clone())
     }
 }
+impl Management {
+    /// The Antigravity installation service, opened on first use from the tools directory. Without one nothing
+    /// can be installed, but a custom executable or one on the `PATH` still resolves.
+    pub async fn antigravity_installation(&self) -> Result<crate::antigravity_install::AntigravityInstallation, crate::antigravity_install::InstallError> {
+        use crate::antigravity_install as antigravity;
+        let options = self.options();
+        let installation = self
+            .antigravity_slot()
+            .get_or_init(|| async move {
+                let tools = options.tools_dir.clone().unwrap_or_else(|| std::env::temp_dir().join("t3-unmanaged-tools"));
+                match options.antigravity_release {
+                    Some(asset) => {
+                        let (platform, arch) = antigravity::host_names();
+                        antigravity::AntigravityInstallation::open(antigravity::InstallOptions { managed_directory: tools.join("antigravity-acp").join(format!("{platform}-{arch}")), asset, trusted_asset: true, platform, arch }).await
+                    }
+                    None => antigravity::AntigravityInstallation::open_for_host(&tools).await,
+                }
+            })
+            .await;
+        Ok(installation.clone())
+    }
+}
 fn setup_error(instance: &ProviderInstanceId, operation: &str, detail: &str) -> ProviderSetupError {
     ProviderSetupError { tag: ProviderSetupErrorTag::ProviderSetupError, instance_id: instance.clone(), operation: operation.into(), detail: detail.into(), cause: None }
 }
@@ -716,7 +738,44 @@ async fn require_instance(registry: &ProviderRegistry, instance: &ProviderInstan
 fn failure(instance: &ProviderInstanceId) -> impl Fn(InstallError) -> ProviderSetupError + '_ {
     move |error| setup_error(instance, &error.operation, &error.detail)
 }
+/// The Antigravity installation behind an instance, when it is one (`ProviderInstallation.requireInstance`). A custom
+/// executable is not T3's to install or remove.
+async fn antigravity_installation(registry: &ProviderRegistry, instance: &ProviderInstanceId, operation: &str, managed_only: bool) -> Result<Option<crate::antigravity_install::AntigravityInstallation>, ProviderSetupError> {
+    let Some((_, antigravity)) = registry.antigravity_auth_entry(instance.as_str()) else { return Ok(None) };
+    if managed_only && !antigravity.config.binary_path.as_str().is_empty() {
+        return Err(setup_error(instance, operation, "This instance uses a custom executable. Clear its binary path to manage installation in T3 Code."));
+    }
+    antigravity.installation().await.map(Some).map_err(|failure| setup_error(instance, &failure.operation, &failure.detail))
+}
+fn antigravity_failure(instance: &ProviderInstanceId) -> impl Fn(crate::antigravity_install::InstallError) -> ProviderSetupError + '_ {
+    move |error| setup_error(instance, &error.operation, &error.detail)
+}
 pub async fn start(registry: &ProviderRegistry, instance: &ProviderInstanceId) -> Result<Value, ProviderSetupError> {
+    if let Some(installation) = antigravity_installation(registry, instance, "install", true).await? {
+        let state = installation.start().await.map_err(antigravity_failure(instance))?;
+        // The provider list reads "installed" once the download lands, without waiting for a manual refresh.
+        let (registry, instance) = (registry.clone(), instance.clone());
+        let (current, mut changes) = installation.subscribe();
+        let operation = state["operationId"].clone();
+        tokio::spawn(async move {
+            let mut seen = current;
+            loop {
+                if seen["phase"] == "succeeded" && (operation.is_null() || seen["operationId"] == operation) {
+                    let _ = registry.refresh_instance(instance.as_str()).await;
+                    return;
+                }
+                if matches!(seen["phase"].as_str(), Some("failed" | "cancelled")) || (!operation.is_null() && seen["operationId"] != operation && seen["phase"] == "idle") {
+                    return;
+                }
+                match changes.recv().await {
+                    Ok(next) => seen = next.as_ref().clone(),
+                    Err(broadcast::error::RecvError::Lagged(_)) => seen = installation.state(),
+                    Err(_) => return,
+                }
+            }
+        });
+        return Ok(state);
+    }
     let installation = require_instance(registry, instance, "install", true).await?;
     let state = installation.start().await.map_err(failure(instance))?;
     // The provider list reads "installed" once the download lands, without waiting for a manual refresh.
@@ -743,14 +802,33 @@ pub async fn start(registry: &ProviderRegistry, instance: &ProviderInstanceId) -
     Ok(state)
 }
 pub async fn cancel(registry: &ProviderRegistry, input: &ProviderInstallCancelInput) -> Result<Value, ProviderSetupError> {
+    if let Some(installation) = antigravity_installation(registry, &input.instance_id, "cancel-install", false).await? {
+        return installation.cancel(input.operation_id.0.as_str()).await.map_err(antigravity_failure(&input.instance_id));
+    }
     let installation = require_instance(registry, &input.instance_id, "cancel-install", false).await?;
     installation.cancel(input.operation_id.0.as_str()).await.map_err(failure(&input.instance_id))
 }
 /// The current state and its changes. The first error is the stream's failure.
 pub async fn subscribe(registry: &ProviderRegistry, instance: &ProviderInstanceId) -> Result<(Value, broadcast::Receiver<Arc<Value>>), ProviderSetupError> {
+    if let Some(installation) = antigravity_installation(registry, instance, "observe-install", false).await? {
+        return Ok(installation.subscribe());
+    }
     Ok(require_instance(registry, instance, "observe-install", false).await?.subscribe())
 }
 pub async fn remove(registry: &ProviderRegistry, instance: &ProviderInstanceId) -> Result<Value, ProviderSetupError> {
+    if let Some(installation) = antigravity_installation(registry, instance, "remove-install", true).await? {
+        // Binaries other instances are configured to run, resolved as they would be launched.
+        let protected: Vec<String> = registry.settings_binaries().into_iter().flat_map(|(binary, env)| {
+            let resolved = maintenance::resolve_command_path(&binary, &env, Platform::host());
+            std::iter::once(binary).chain(resolved)
+        }).collect();
+        installation.remove(&protected).await.map_err(antigravity_failure(instance))?;
+        // Every Antigravity instance now reads the runtime as gone.
+        for id in registry.antigravity_instance_ids() {
+            let _ = registry.refresh_instance(&id).await;
+        }
+        return Ok(installation.state());
+    }
     let installation = require_instance(registry, instance, "remove-install", true).await?;
     // Binaries other instances are configured to run, resolved as they would be launched.
     let protected: Vec<String> = registry

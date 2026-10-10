@@ -321,12 +321,13 @@ async fn only_managed_codex_instances_install_and_removal_never_touches_paths_in
     };
     let other = |instance: &str| json!({"instanceId":instance});
     let unavailable = "Managed installation is not available for this provider instance.";
-    // Other drivers, a driver this build has no adapter for, and an instance that does not exist.
-    for instance in ["claudeAgent", "agy", "nope"] {
+    // Other drivers, and an instance that does not exist. (Antigravity has a managed installation of its own.)
+    for instance in ["claudeAgent", "nope"] {
         assert_eq!(detail(&rpc(&mut manager, 1, "provider.install.start", other(instance)).await, "install"), unavailable, "{instance}");
         assert_eq!(detail(&rpc(&mut manager, 2, "provider.install.remove", other(instance)).await, "remove-install"), unavailable);
     }
-    assert_eq!(detail(&rpc(&mut manager, 3, "provider.install.cancel", json!({"instanceId":"agy","operationId":"x"})).await, "cancel-install"), unavailable);
+    // Antigravity's installation answers for an instance of its driver; there is nothing to cancel.
+    assert_eq!(detail(&rpc(&mut manager, 3, "provider.install.cancel", json!({"instanceId":"agy","operationId":"x"})).await, "cancel"), "This installation is no longer current. Refresh its status before cancelling.");
     // Codex that is not set up as managed, or runs a custom executable.
     assert_eq!(detail(&rpc(&mut manager, 4, "provider.install.start", other("existing")).await, "install"), "Choose managed setup to install Codex in T3 Code.");
     assert!(!fixture.managed.exists());
