@@ -5,7 +5,7 @@
 use chrono::Utc;
 use serde_json::{Value, json};
 use std::{path::PathBuf, time::Duration};
-use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, thread::ThreadService};
+use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_auth_service::ProviderAuthService, provider_registry::ProviderRegistry, thread::ThreadService};
 
 const AGENT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/acp-turn-agent.py");
 
@@ -15,6 +15,8 @@ struct Turn {
     store: Store,
     execution: ExecutionService,
     providers: ProviderRegistry,
+    /// Attached as `main.rs` attaches it: each session of the `acpRegistry` instance is admitted by it.
+    auth: ProviderAuthService,
     thread: String,
     next: usize,
 }
@@ -39,7 +41,8 @@ impl Turn {
             .unwrap()
             .to_owned();
         let execution = ExecutionService::start(store.clone(), providers.clone());
-        Self { _root: root, log, store, execution, providers, thread, next: 0 }
+        let auth = ProviderAuthService::for_server(&execution, &providers, cwd.clone(), &cwd);
+        Self { _root: root, log, store, execution, providers, auth, thread, next: 0 }
     }
     fn view(&self) -> Value {
         self.store.projection("thread", &self.thread).unwrap().unwrap()
@@ -76,6 +79,8 @@ impl Turn {
     async fn restart(&mut self) {
         self.execution.shutdown().await;
         self.execution = ExecutionService::start(self.store.clone(), self.providers.clone());
+        let directory = self._root.path().to_owned();
+        self.auth = ProviderAuthService::for_server(&self.execution, &self.providers, directory.clone(), &directory);
     }
     fn methods(&self) -> Vec<String> {
         self.received().iter().filter_map(|message| message["method"].as_str().map(ToOwned::to_owned)).filter(|method| method.starts_with("session/") && method != "session/prompt").collect()

@@ -75,7 +75,18 @@ mod antigravity_flavor;
 pub mod antigravity_instance;
 pub mod antigravity_install;
 pub mod grok_instance;
+pub mod opencode_api;
+pub mod opencode_server;
+pub mod opencode_instance;
+mod opencode_projection;
+mod opencode_adapter;
 mod grok_flavor;
+mod pi_protocol;
+mod pi_launch;
+mod pi_commands;
+pub mod pi_instance;
+mod pi_projection;
+mod pi_adapter;
 mod grok_background;
 mod acp_flavor;
 mod text_diff;
@@ -295,6 +306,8 @@ mod checkpoint_rollback;
 
 mod project_folders;
 pub mod external_launcher;
+/// What `--fixture` changes, for testing only.
+pub mod fixture;
 pub mod mcp_apps;
 mod codex_live;
 pub mod provider_live;

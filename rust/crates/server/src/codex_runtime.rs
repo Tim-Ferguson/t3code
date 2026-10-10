@@ -511,6 +511,10 @@ async fn actor(
         .await;
     } else if instance_id.as_deref().and_then(|id| providers.driver(id).ok()) == Some("claudeAgent") {
         crate::claude_adapter::actor(store, providers, thread_id, work, stopped, canceled, lifetime, mcp).await;
+    } else if instance_id.as_deref().and_then(|id| providers.driver(id).ok()) == Some("opencode") {
+        crate::opencode_adapter::actor(store, providers, thread_id, work, stopped, canceled, lifetime, mcp).await;
+    } else if instance_id.as_deref().and_then(|id| providers.driver(id).ok()) == Some("pi") {
+        crate::pi_adapter::actor(store, providers, thread_id, work, stopped, canceled, lifetime, mcp).await;
     } else {
         codex_actor(store, providers, thread_id, work, stopped, canceled, mcp).await;
     }

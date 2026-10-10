@@ -498,11 +498,29 @@ pub fn grok_definition(env: BTreeMap<String, String>) -> Definition {
 pub fn manual_definition(provider: &'static str) -> Definition {
     Definition { provider, npm_package_name: "", native: None }
 }
+/// `PiDriver.ts` `UPDATE`: Pi's own updater (`pi update --self`) covers its installer and the npm, pnpm, yarn and bun
+/// globals, and no path is one only its installer owns.
+pub fn pi_definition() -> Definition {
+    Definition { provider: "pi", npm_package_name: "@earendil-works/pi-coding-agent", native: Some(Native { args: vec!["update".into(), "--self".into()], is_command_path: None, env: None }) }
+}
 pub fn claude_definition() -> Definition {
     Definition {
         provider: "claudeAgent",
         npm_package_name: "@anthropic-ai/claude-code",
         native: Some(Native { args: vec!["update".into()], is_command_path: Some(is_claude_native), env: None }),
+    }
+}
+pub fn is_opencode_native(path: &str) -> bool {
+    let normalized = normalize_command_path(path);
+    normalized.ends_with("/.opencode/bin/opencode") || normalized.ends_with("/.opencode/bin/opencode.exe")
+}
+/// OpenCode 1.x ships as `opencode-ai` and 2.x as `@opencode/cli`; an install is only ever updated within its own
+/// package, since 2.x converts the shared database in place (`openCodeUpdateFor`).
+pub fn opencode_definition(v2: bool) -> Definition {
+    Definition {
+        provider: "opencode",
+        npm_package_name: if v2 { "@opencode/cli" } else { "opencode-ai" },
+        native: Some(Native { args: vec!["upgrade".into()], is_command_path: Some(is_opencode_native), env: None }),
     }
 }
 

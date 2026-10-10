@@ -26,6 +26,8 @@ struct Harness {
     store: Store,
     execution: ExecutionService,
     providers: ProviderRegistry,
+    /// Attached as `main.rs` attaches it: each session is admitted by it.
+    _auth: t3_server::provider_auth_service::ProviderAuthService,
     thread: String,
     next: usize,
 }
@@ -52,7 +54,8 @@ impl Harness {
             .unwrap()
             .to_owned();
         let execution = ExecutionService::start(store.clone(), providers.clone());
-        Self { status, store, execution, providers, thread, next: 0 }
+        let auth = t3_server::provider_auth_service::ProviderAuthService::for_server(&execution, &providers, cwd.clone(), &cwd);
+        Self { status, store, execution, providers, _auth: auth, thread, next: 0 }
     }
     fn view(&self) -> Value {
         t3_server::rpc_response::checked_thread(self.store.projection("thread", &self.thread).unwrap().unwrap())

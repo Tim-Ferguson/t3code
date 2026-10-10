@@ -76,9 +76,20 @@ const LOOKUP_ENV: [&str; 19] = [
     "PATH", "Path", "path", "PATHEXT", "HOME", "LOCALAPPDATA", "ProgramFiles", "ProgramW6432", "XDG_DATA_HOME", "ProgramFiles(x86)",
 ];
 
+/// Set by `--fixture` (see `fixture`): the host then has no editors and no file manager.
+static NO_EDITORS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// For a server started with `--fixture`: `Probe::host()` finds nothing, so no application of the machine is offered or launched.
+pub(crate) fn offer_no_editors() {
+    NO_EDITORS.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 impl Probe {
     /// The real host: the variables the original reads, no others.
     pub fn host() -> Self {
+        if NO_EDITORS.load(std::sync::atomic::Ordering::Relaxed) {
+            return Self { platform: Platform::host(), env: HashMap::new(), applications: vec![], linux_dirs: vec![] };
+        }
         Self {
             platform: Platform::host(),
             env: LOOKUP_ENV.iter().filter_map(|name| std::env::var(name).ok().map(|value| ((*name).to_owned(), value))).collect(),

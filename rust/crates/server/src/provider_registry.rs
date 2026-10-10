@@ -4,7 +4,9 @@ use crate::{
     claude_instance::ClaudeInstance,
     grok_instance::GrokInstance,
     antigravity_instance::AntigravityInstance,
+    opencode_instance::OpenCodeInstance,
     codex::{CodexConfig, CodexInstance},
+    pi_instance::PiInstance,
     provider_process::ProcessError,
 };
 use futures_util::StreamExt;
@@ -35,15 +37,19 @@ enum RegisteredInstance {
     Claude(ClaudeInstance),
     Grok(GrokInstance),
     Antigravity(AntigravityInstance),
+    OpenCode(OpenCodeInstance),
     Codex(CodexInstance),
     Acp(AcpInstance),
+    Pi(PiInstance),
 }
 struct RegistryState {
     claude: HashMap<String, ClaudeInstance>,
     grok: HashMap<String, GrokInstance>,
     antigravity: HashMap<String, AntigravityInstance>,
+    opencode: HashMap<String, OpenCodeInstance>,
     codex: HashMap<String, CodexInstance>,
     acp: HashMap<String, AcpInstance>,
+    pi: HashMap<String, PiInstance>,
     snapshots: Vec<Value>,
     settings: ServerSettings,
     /// Where the instances were last probed; a refresh probes from here again.
@@ -256,7 +262,9 @@ impl ProviderRegistry {
         let mut claude = HashMap::new();
         let mut grok = HashMap::new();
         let mut antigravity = HashMap::new();
+        let mut opencode = HashMap::new();
         let mut acp = HashMap::new();
+        let mut pi = HashMap::new();
         let mut snapshots = vec![];
         for (id, instance, snapshot) in results {
             if let Some(instance) = instance {
@@ -270,11 +278,17 @@ impl ProviderRegistry {
                     RegisteredInstance::Antigravity(instance) => {
                         antigravity.insert(id, instance);
                     }
+                    RegisteredInstance::OpenCode(instance) => {
+                        opencode.insert(id, instance);
+                    }
                     RegisteredInstance::Codex(instance) => {
                         codex.insert(id, instance);
                     }
                     RegisteredInstance::Acp(instance) => {
                         acp.insert(id, instance);
+                    }
+                    RegisteredInstance::Pi(instance) => {
+                        pi.insert(id, instance);
                     }
                 }
             }
@@ -295,8 +309,10 @@ impl ProviderRegistry {
                 claude,
                 grok,
                 antigravity,
+                opencode,
                 codex,
                 acp,
+                pi,
                 snapshots,
                 settings: settings.clone(),
                 cwd: cwd.to_path_buf(),
@@ -622,6 +638,13 @@ impl ProviderRegistry {
         }
         state.antigravity.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Antigravity provider instance is unavailable.".into()))
     }
+    pub fn opencode(&self, instance_id: &str) -> Result<OpenCodeInstance, ProcessError> {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "opencode" {
+            return Err(ProcessError::Protocol("Provider instance is not OpenCode.".into()));
+        }
+        state.opencode.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("OpenCode provider instance is unavailable.".into()))
+    }
     /// The Antigravity instance behind a sign-in, ready or not: credential setup is available before readiness.
     pub(crate) fn antigravity_auth_entry(&self, instance_id: &str) -> Option<(ProviderInstanceConfig, AntigravityInstance)> {
         let state = self.state.read().unwrap();
@@ -649,6 +672,13 @@ impl ProviderRegistry {
             return Err(ProcessError::Protocol("Provider instance is not Claude.".into()));
         }
         state.claude.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Claude provider instance is unavailable.".into()))
+    }
+    pub fn pi(&self, instance_id: &str) -> Result<PiInstance, ProcessError> {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "pi" {
+            return Err(ProcessError::Protocol("Provider instance is not Pi.".into()));
+        }
+        state.pi.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Pi provider instance is unavailable.".into()))
     }
     pub fn codex(&self, instance_id: &str) -> Result<CodexInstance, ProcessError> {
         let state = self.state.read().unwrap();
@@ -704,7 +734,7 @@ impl ProviderRegistry {
     /// The update target of a live Codex, Claude or Grok instance; other drivers cannot be updated here.
     pub(crate) fn maintenance_target(&self, instance_id: &str) -> Option<crate::provider_manage::Target> {
         let state = self.state.read().unwrap();
-        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target)).or_else(|| state.grok.get(instance_id).map(crate::provider_manage::grok_target)).or_else(|| state.antigravity.get(instance_id).map(crate::provider_manage::antigravity_target))
+        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target)).or_else(|| state.grok.get(instance_id).map(crate::provider_manage::grok_target)).or_else(|| state.antigravity.get(instance_id).map(crate::provider_manage::antigravity_target)).or_else(|| state.pi.get(instance_id).map(crate::provider_manage::pi_target)).or_else(|| state.opencode.get(instance_id).and_then(crate::opencode_instance::update_target))
     }
     pub(crate) fn codex_instance(&self, instance_id: &str) -> Option<CodexInstance> {
         self.state.read().unwrap().codex.get(instance_id).cloned()
@@ -732,7 +762,7 @@ impl ProviderRegistry {
     /// Every live instance that has an npm package, as (instance, package).
     pub(crate) fn maintenance_packages(&self) -> Vec<(String, String)> {
         let state = self.state.read().unwrap();
-        state.codex.keys().map(|id| (id.clone(), "@openai/codex".to_owned())).chain(state.claude.keys().map(|id| (id.clone(), "@anthropic-ai/claude-code".to_owned()))).collect()
+        state.codex.keys().map(|id| (id.clone(), "@openai/codex".to_owned())).chain(state.claude.keys().map(|id| (id.clone(), "@anthropic-ai/claude-code".to_owned()))).chain(state.pi.keys().map(|id| (id.clone(), "@earendil-works/pi-coding-agent".to_owned()))).collect()
     }
     /// Set (or clear) an instance's volatile update state and republish it. Returns the new list.
     pub async fn set_update_state(&self, instance: &str, update: Option<Value>) -> Vec<Value> {
@@ -802,6 +832,8 @@ impl ProviderRegistry {
                 Some(RegisteredInstance::Claude(claude)) => Some(crate::provider_manage::claude_target(claude)),
                 Some(RegisteredInstance::Grok(grok)) => Some(crate::provider_manage::grok_target(grok)),
                 Some(RegisteredInstance::Antigravity(antigravity)) => Some(crate::provider_manage::antigravity_target(antigravity)),
+                Some(RegisteredInstance::Pi(pi)) => Some(crate::provider_manage::pi_target(pi)),
+                Some(RegisteredInstance::OpenCode(opencode)) => crate::opencode_instance::update_target(opencode),
                 _ => None,
             };
             self.management.finish_snapshot(&mut snapshot, target.as_ref(), checks).await;
@@ -813,8 +845,10 @@ impl ProviderRegistry {
             state.claude.remove(&id);
             state.grok.remove(&id);
             state.antigravity.remove(&id);
+            state.opencode.remove(&id);
             state.codex.remove(&id);
             state.acp.remove(&id);
+            state.pi.remove(&id);
             match instance {
                 Some(RegisteredInstance::Claude(instance)) => {
                     state.claude.insert(id.clone(), instance);
@@ -825,11 +859,17 @@ impl ProviderRegistry {
                 Some(RegisteredInstance::Antigravity(instance)) => {
                     state.antigravity.insert(id.clone(), instance);
                 }
+                Some(RegisteredInstance::OpenCode(instance)) => {
+                    state.opencode.insert(id.clone(), instance);
+                }
                 Some(RegisteredInstance::Codex(instance)) => {
                     state.codex.insert(id.clone(), instance);
                 }
                 Some(RegisteredInstance::Acp(instance)) => {
                     state.acp.insert(id.clone(), instance);
+                }
+                Some(RegisteredInstance::Pi(instance)) => {
+                    state.pi.insert(id.clone(), instance);
                 }
                 None => {}
             }
@@ -1060,6 +1100,22 @@ async fn discover_entry(
             let snapshot = instance.discover_scoped(cwd, !workspace).await?;
             return Ok((id, Some(RegisteredInstance::Grok(instance)), snapshot));
         }
+        if entry.driver.as_str() == "pi" {
+            let config = match serde_json::from_value::<t3_contracts::PiSettings>(entry.config.clone().unwrap_or(json!({}))) {
+                Ok(config) => config,
+                Err(error) => return Ok((id.clone(), None, unavailable(&id, &entry, format!("Invalid config for instance '{id}': {error}"))?)),
+            };
+            let instance = PiInstance {
+                instance_id: id.clone(),
+                display_name: entry.display_name.as_ref().and_then(Option::as_ref).map(ToString::to_string).unwrap_or_else(|| "Pi".into()),
+                accent_color: entry.accent_color.as_ref().and_then(Option::as_ref).map(ToString::to_string),
+                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                config,
+                environment: entry.environment.as_ref().map(|variables| variables.iter().map(|variable| (variable.name.to_string(), variable.value.clone())).collect()).unwrap_or_default(),
+            };
+            let snapshot = instance.discover_scoped(cwd, !workspace).await?;
+            return Ok((id, Some(RegisteredInstance::Pi(instance)), snapshot));
+        }
         if entry.driver.as_str() == "antigravity" {
             let config = match serde_json::from_value::<t3_contracts::AntigravitySettings>(entry.config.clone().unwrap_or(json!({}))) {
                 Ok(config) => config,
@@ -1076,6 +1132,22 @@ async fn discover_entry(
             };
             let snapshot = instance.discover(cwd).await?;
             return Ok((id, Some(RegisteredInstance::Antigravity(instance)), snapshot));
+        }
+        if entry.driver.as_str() == "opencode" {
+            let config = match serde_json::from_value::<t3_contracts::OpenCodeSettings>(entry.config.clone().unwrap_or(json!({}))) {
+                Ok(config) => config,
+                Err(error) => return Ok((id.clone(), None, unavailable(&id, &entry, format!("Invalid config for instance '{id}': {error}"))?)),
+            };
+            let instance = OpenCodeInstance::new(
+                id.clone(),
+                entry.display_name.as_ref().and_then(Option::as_ref).map(ToString::to_string).unwrap_or_else(|| "OpenCode".into()),
+                entry.accent_color.as_ref().and_then(Option::as_ref).map(ToString::to_string),
+                t3_contracts::resolve_provider_instance_enabled(&entry),
+                config,
+                entry.environment.as_ref().map(|variables| variables.iter().map(|variable| (variable.name.to_string(), variable.value.clone())).collect()).unwrap_or_default(),
+            );
+            let snapshot = instance.discover_scoped(cwd, !workspace).await?;
+            return Ok((id, Some(RegisteredInstance::OpenCode(instance)), snapshot));
         }
         if entry.driver.as_str() != "codex" {
             return Ok((
@@ -1226,7 +1298,9 @@ fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str
         Some("codex") => Ok("codex"),
         Some("claudeAgent") => Ok("claudeAgent"),
         Some("grok") => Ok("grok"),
+        Some("pi") => Ok("pi"),
         Some("antigravity") => Ok("antigravity"),
+        Some("opencode") => Ok("opencode"),
         Some("acpRegistry") => Ok("acpRegistry"),
         _ => Err(ProcessError::Protocol(
             "Provider driver is not registered.".into(),

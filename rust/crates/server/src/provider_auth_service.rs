@@ -130,6 +130,17 @@ fn structural_fingerprint(value: serde_json::Value) -> String {
     serde_json::to_string(&canonical(value)).expect("JSON fingerprint")
 }
 impl ProviderAuthService {
+    /// The service a running server attaches to its providers, so that every session of an instance with a
+    /// sign-in is admitted by it (`acp_adapter::connect`). `main.rs` and the flow-test harnesses that serve an
+    /// execution service all build it here; a server without it admits sessions nobody is gating.
+    pub fn for_server(
+        execution: &crate::execution::ExecutionService,
+        providers: &ProviderRegistry,
+        cwd: PathBuf,
+        state_dir: &std::path::Path,
+    ) -> Self {
+        Self::new(providers.clone(), cwd, state_dir.join("caches"), execution.authentication_stop())
+    }
     pub fn new(
         registry: ProviderRegistry,
         cwd: PathBuf,
@@ -478,16 +489,27 @@ impl ProviderAuthService {
         });
         Ok(ProviderAuthChanges { receiver, stop })
     }
+    /// Admits a session of an instance that has a sign-in. `ProviderAdapterRegistry` gates a session on
+    /// `instance.auth`, and only the ACP Registry and Antigravity drivers build one; Grok's has none, so its
+    /// sessions are not gated and `None` is returned. An instance that is gone is still an error.
     pub async fn admit_session(
         &self,
         instance: &str,
         stop: StopSession,
-    ) -> AuthResult<SessionAccess> {
+    ) -> AuthResult<Option<SessionAccess>> {
+        let driver = derive_instance_configs(&self.0.registry.settings())
+            .into_iter()
+            .find(|(id, _)| id.as_str() == instance)
+            .map(|(_, entry)| entry.driver);
+        if driver.is_some_and(|driver| !matches!(driver.as_str(), "acpRegistry" | "antigravity")) {
+            return Ok(None);
+        }
         self.controller(instance, "session")
             .await?
             .flow
             .admit_session(stop)
             .await
+            .map(Some)
     }
     pub async fn shutdown(&self) {
         self.0.stopped.send_replace(true);
@@ -540,6 +562,26 @@ mod tests {
                 Some(libc::ESRCH)
             );
         }
+    }
+    /// A real server attaches this service to every provider registry, and `acp_adapter::connect` asks it to admit
+    /// each ACP session. The original gates a session on `instance.auth`, which Grok does not have: its instance
+    /// is not "no longer available" to the service, it simply has nothing to admit.
+    #[tokio::test]
+    async fn sessions_of_instances_without_a_sign_in_are_not_gated_and_unknown_ones_are_refused() {
+        let root = tempfile::tempdir().unwrap();
+        let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
+            "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
+            "grok":{"driver":"grok","enabled":false},
+            "agent":{"driver":"acpRegistry","enabled":false,"config":{"source":"local","commandPath":"python3"}}
+        }})).unwrap();
+        let registry = ProviderRegistry::discover(&settings, root.path()).await.unwrap();
+        let service = ProviderAuthService::new(registry, root.path().into(), root.path().join("caches"), Arc::new(|_| Box::pin(async { Ok(()) })));
+        let stop = || -> StopSession { Arc::new(|| Box::pin(async {})) };
+        assert!(service.admit_session("grok", stop()).await.unwrap().is_none());
+        assert!(service.admit_session("agent", stop()).await.unwrap().is_some());
+        let error = service.admit_session("missing", stop()).await.err().unwrap();
+        assert_eq!(error.detail, "This provider instance is no longer available.");
+        service.shutdown().await;
     }
     #[tokio::test]
     async fn shutdown_rejects_controller_lookup_queued_before_factory_admission_without_spawning() {

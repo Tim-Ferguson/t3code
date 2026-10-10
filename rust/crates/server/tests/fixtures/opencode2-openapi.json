@@ -1,0 +1,2935 @@
+{
+  "source": "@opencode/protocol makeDefaultApi, OpenApi.fromApi",
+  "operations": [
+    {
+      "method": "GET",
+      "path": "/api/info",
+      "id": "server.info",
+      "parameters": [],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/agent",
+      "id": "agent.list",
+      "parameters": [
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "directory": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session",
+      "id": "session.list",
+      "parameters": [
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "description": "Maximum number of sessions to return. Defaults to the newest 50 sessions."
+          }
+        },
+        {
+          "name": "order",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string", "enum": ["asc", "desc"] }, { "type": "null" }],
+            "description": "Session order for the first page. Use desc for newest first or asc for oldest first."
+          }
+        },
+        {
+          "name": "search",
+          "in": "query",
+          "required": false,
+          "schema": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        {
+          "name": "parentID",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "anyOf": [
+                  { "type": "string", "pattern": "^ses" },
+                  { "type": "string", "enum": ["null"] }
+                ],
+                "description": "Filter by parent session. Use null to return only root sessions."
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        {
+          "name": "directory",
+          "in": "query",
+          "required": false,
+          "schema": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        {
+          "name": "project",
+          "in": "query",
+          "required": false,
+          "schema": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        {
+          "name": "subpath",
+          "in": "query",
+          "required": false,
+          "schema": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response."
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session",
+      "id": "session.create",
+      "parameters": [],
+      "body": {
+        "type": "object",
+        "properties": {
+          "id": { "anyOf": [{ "type": "string", "pattern": "^ses" }, { "type": "null" }] },
+          "parentID": { "anyOf": [{ "type": "string", "pattern": "^ses" }, { "type": "null" }] },
+          "title": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "agent": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "model": { "anyOf": [{ "$ref": "#/components/schemas/Model.Ref" }, { "type": "null" }] },
+          "location": {
+            "anyOf": [{ "$ref": "#/components/schemas/Location.PublicRef" }, { "type": "null" }]
+          },
+          "metadata": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Metadata" }, { "type": "null" }]
+          },
+          "permissions": {
+            "anyOf": [{ "$ref": "#/components/schemas/Permission.Ruleset" }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/active",
+      "id": "session.active",
+      "parameters": [],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}",
+      "id": "session.get",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/session/{sessionID}",
+      "id": "session.remove",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/session/{sessionID}",
+      "id": "session.update",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "title": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "metadata": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Metadata" }, { "type": "null" }]
+          },
+          "permissions": {
+            "anyOf": [{ "$ref": "#/components/schemas/Permission.Ruleset" }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/fork",
+      "id": "session.fork",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "before": { "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }] }
+        },
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/agent",
+      "id": "session.switchAgent",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": { "agent": { "type": "string" } },
+        "required": ["agent"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/model",
+      "id": "session.switchModel",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": { "model": { "$ref": "#/components/schemas/Model.Ref" } },
+        "required": ["model"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/move",
+      "id": "session.move",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "directory": { "type": "string" },
+          "delivery": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Inbox.Delivery" }, { "type": "null" }]
+          }
+        },
+        "required": ["directory"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/prompt",
+      "id": "session.prompt",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "id": { "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }] },
+          "text": { "type": "string" },
+          "files": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PromptInput.FileAttachment" }
+          },
+          "agents": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Prompt.AgentAttachment" }
+          },
+          "skills": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PromptInput.SkillAttachment" }
+          },
+          "metadata": { "type": "object" },
+          "delivery": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Inbox.Delivery" }, { "type": "null" }]
+          },
+          "resume": { "anyOf": [{ "type": "boolean" }, { "type": "null" }] }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/command",
+      "id": "session.command",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "text": { "type": "string" },
+          "files": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PromptInput.FileAttachment" }
+          },
+          "agents": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Prompt.AgentAttachment" }
+          },
+          "skills": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PromptInput.SkillAttachment" }
+          },
+          "delivery": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Inbox.Delivery" }, { "type": "null" }]
+          }
+        },
+        "required": ["name", "text"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/synthetic",
+      "id": "session.synthetic",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "id": { "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }] },
+          "text": { "type": "string" },
+          "description": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "metadata": { "type": "object" },
+          "delivery": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Inbox.Delivery" }, { "type": "null" }]
+          },
+          "resume": { "anyOf": [{ "type": "boolean" }, { "type": "null" }] }
+        },
+        "required": ["text"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/shell",
+      "id": "session.shell",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "id": { "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }] },
+          "command": { "type": "string" }
+        },
+        "required": ["command"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/compact",
+      "id": "session.compact",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "id": { "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }] },
+          "delivery": {
+            "anyOf": [{ "$ref": "#/components/schemas/Session.Inbox.Delivery" }, { "type": "null" }]
+          }
+        },
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/revert/stage",
+      "id": "session.revert.stage",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "messageID": { "type": "string", "pattern": "^msg_" },
+          "files": { "anyOf": [{ "type": "boolean" }, { "type": "null" }] }
+        },
+        "required": ["messageID"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/session/{sessionID}/revert",
+      "id": "session.revert.clear",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/revert/commit",
+      "id": "session.revert.commit",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/context",
+      "id": "session.context",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/diff",
+      "id": "session.diff",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "from",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }],
+            "description": "User message whose turn to diff. Defaults to the turn of the newest user message."
+          }
+        },
+        {
+          "name": "to",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string", "pattern": "^msg_" }, { "type": "null" }],
+            "description": "Later user message whose turn ends the range. Defaults to the turn of `from` alone."
+          }
+        },
+        {
+          "name": "context",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "description": "Unchanged lines around each hunk. Omit for full-file patches."
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/inbox",
+      "id": "session.inbox.list",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/session/{sessionID}/inbox/{inboxID}",
+      "id": "session.inbox.cancel",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "inboxID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^msg_" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/session/{sessionID}/inbox/{inboxID}",
+      "id": "session.inbox.update",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "inboxID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^msg_" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": { "delivery": { "$ref": "#/components/schemas/Session.Inbox.Delivery" } },
+        "required": ["delivery"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/experimental/session/{sessionID}/instructions/entries",
+      "id": "experimental.session.instructions.entry.list",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/experimental/session/{sessionID}/instructions/entries/{key}",
+      "id": "experimental.session.instructions.entry.put",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "schema": { "$ref": "#/components/schemas/InstructionEntry.Key" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": { "value": {} },
+        "required": ["value"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/experimental/session/{sessionID}/instructions/entries/{key}",
+      "id": "experimental.session.instructions.entry.remove",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "key",
+          "in": "path",
+          "required": true,
+          "schema": { "$ref": "#/components/schemas/InstructionEntry.Key" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/generate",
+      "id": "session.generate",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": { "prompt": { "type": "string" } },
+        "required": ["prompt"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/interrupt",
+      "id": "session.interrupt",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "resume",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string", "enum": ["true", "false"] }, { "type": "null" }]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/background",
+      "id": "session.background",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/message/{messageID}",
+      "id": "session.message.get",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "messageID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^msg_" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/form",
+      "id": "session.form.list",
+      "parameters": [
+        { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/form",
+      "id": "session.form.create",
+      "parameters": [
+        { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "body": { "$ref": "#/components/schemas/Form.CreatePayload" },
+      "bodyRequired": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/form/{formID}",
+      "id": "session.form.get",
+      "parameters": [
+        { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } },
+        {
+          "name": "formID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^frm_" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/session/{sessionID}/form/{formID}",
+      "id": "session.form.cancel",
+      "parameters": [
+        { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } },
+        {
+          "name": "formID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^frm_" }
+        },
+        {
+          "name": "message",
+          "in": "query",
+          "required": false,
+          "schema": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/form/{formID}/reply",
+      "id": "session.form.reply",
+      "parameters": [
+        { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } },
+        {
+          "name": "formID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^frm_" }
+        }
+      ],
+      "body": { "$ref": "#/components/schemas/Form.Reply" },
+      "bodyRequired": true
+    },
+    {
+      "method": "PUT",
+      "path": "/api/session/{sessionID}/environment",
+      "id": "session.environment",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "variables": { "type": "object", "additionalProperties": { "type": "string" } }
+        },
+        "required": ["variables"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/view",
+      "id": "session.view",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": { "idle": { "type": "number" } },
+        "required": ["idle"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/message",
+      "id": "session.message.list",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "limit",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string" }, { "type": "null" }],
+            "description": "Maximum number of messages to return. When omitted, the endpoint returns its default page size."
+          }
+        },
+        {
+          "name": "order",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [{ "type": "string", "enum": ["asc", "desc"] }, { "type": "null" }],
+            "description": "Message order for the first page. Use desc for newest first or asc for oldest first."
+          }
+        },
+        {
+          "name": "cursor",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "description": "Opaque pagination cursor returned as cursor.previous or cursor.next in the previous response. Do not combine with order."
+              },
+              { "type": "null" }
+            ]
+          }
+        },
+        {
+          "name": "type",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "agent-switched",
+                  "model-switched",
+                  "location-switched",
+                  "user",
+                  "synthetic",
+                  "system",
+                  "skill",
+                  "shell",
+                  "assistant",
+                  "compaction"
+                ]
+              },
+              { "type": "null" }
+            ],
+            "description": "Filter by message type before pagination. When omitted, all message types are returned. Pass the same type when following cursors."
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/model",
+      "id": "model.list",
+      "parameters": [
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "directory": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "PUT",
+      "path": "/api/experimental/mcp/{server}",
+      "id": "experimental.mcp.add",
+      "parameters": [
+        { "name": "server", "in": "path", "required": true, "schema": { "type": "string" } },
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "directory": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/Mcp.LocalConfigEncoded" },
+              { "$ref": "#/components/schemas/Mcp.RemoteConfigEncoded" }
+            ]
+          }
+        },
+        "required": ["config"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/experimental/mcp/{server}",
+      "id": "experimental.mcp.remove",
+      "parameters": [
+        { "name": "server", "in": "path", "required": true, "schema": { "type": "string" } },
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "directory": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/permission",
+      "id": "session.permission.create",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "id": { "anyOf": [{ "type": "string", "pattern": "^per" }, { "type": "null" }] },
+          "action": { "type": "string" },
+          "resources": { "type": "array", "items": { "type": "string" } },
+          "save": { "type": "array", "items": { "type": "string" } },
+          "metadata": { "type": "object" },
+          "source": { "$ref": "#/components/schemas/Permission.Source" },
+          "agent": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["action", "resources"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/permission",
+      "id": "session.permission.list",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/session/{sessionID}/permission/{requestID}",
+      "id": "session.permission.get",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "requestID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^per" }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/session/{sessionID}/permission/{requestID}/reply",
+      "id": "session.permission.reply",
+      "parameters": [
+        {
+          "name": "sessionID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^ses" }
+        },
+        {
+          "name": "requestID",
+          "in": "path",
+          "required": true,
+          "schema": { "type": "string", "pattern": "^per" }
+        }
+      ],
+      "body": {
+        "type": "object",
+        "properties": {
+          "decision": { "$ref": "#/components/schemas/Permission.Reply" },
+          "message": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+        },
+        "required": ["decision"],
+        "additionalProperties": false
+      },
+      "bodyRequired": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/command",
+      "id": "command.list",
+      "parameters": [
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "directory": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/skill",
+      "id": "skill.list",
+      "parameters": [
+        {
+          "name": "location",
+          "in": "query",
+          "required": false,
+          "schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "directory": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                },
+                "additionalProperties": false
+              },
+              { "type": "null" }
+            ]
+          }
+        }
+      ],
+      "body": null,
+      "bodyRequired": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/event",
+      "id": "event.subscribe",
+      "parameters": [],
+      "body": null,
+      "bodyRequired": false
+    }
+  ],
+  "schemas": {
+    "Agent.Color": { "type": "string" },
+    "Agent.Info": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "model": { "$ref": "#/components/schemas/Model.Ref" },
+        "request": { "$ref": "#/components/schemas/Provider.Request" },
+        "system": { "type": "string" },
+        "description": { "type": "string" },
+        "mode": { "type": "string", "enum": ["subagent", "primary", "all"] },
+        "hidden": { "type": "boolean" },
+        "color": { "$ref": "#/components/schemas/Agent.Color" },
+        "steps": { "type": "integer", "exclusiveMinimum": 0 },
+        "permissions": { "$ref": "#/components/schemas/Permission.Ruleset" }
+      },
+      "required": ["id", "name", "request", "mode", "hidden", "permissions"],
+      "additionalProperties": false
+    },
+    "Command.Info": {
+      "type": "object",
+      "properties": { "name": { "type": "string" }, "description": { "type": "string" } },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "CommandExecutionErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["CommandExecutionError"] },
+        "command": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "command", "message"],
+      "additionalProperties": false
+    },
+    "CommandNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["CommandNotFoundError"] },
+        "command": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "command", "message"],
+      "additionalProperties": false
+    },
+    "ConflictErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["ConflictError"] },
+        "message": { "type": "string" },
+        "resource": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "required": ["_tag", "message"],
+      "additionalProperties": false
+    },
+    "FileDiff.Info": {
+      "type": "object",
+      "properties": {
+        "file": { "type": "string" },
+        "patch": { "type": "string" },
+        "additions": { "type": "integer", "minimum": 0 },
+        "deletions": { "type": "integer", "minimum": 0 },
+        "status": { "type": "string", "enum": ["added", "deleted", "modified"] }
+      },
+      "required": ["file", "patch", "additions", "deletions", "status"],
+      "additionalProperties": false
+    },
+    "Form.Answer": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/components/schemas/Form.Value" }
+    },
+    "Form.BooleanField": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "when": { "type": "array", "items": { "$ref": "#/components/schemas/Form.When" } },
+        "type": { "type": "string", "enum": ["boolean"] },
+        "default": { "type": "boolean" }
+      },
+      "required": ["key", "type"],
+      "additionalProperties": false
+    },
+    "Form.CreatePayload": {
+      "type": "object",
+      "properties": {
+        "id": { "anyOf": [{ "type": "string", "pattern": "^frm_" }, { "type": "null" }] },
+        "title": { "type": "string" },
+        "metadata": { "$ref": "#/components/schemas/Form.Metadata" },
+        "fields": { "$ref": "#/components/schemas/Form.Fields" }
+      },
+      "required": ["title", "fields"],
+      "additionalProperties": false
+    },
+    "Form.Detail": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^frm_" },
+        "sessionID": { "type": "string" },
+        "title": { "type": "string" },
+        "metadata": { "$ref": "#/components/schemas/Form.Metadata" },
+        "fields": { "$ref": "#/components/schemas/Form.Fields" },
+        "state": { "$ref": "#/components/schemas/Form.State" }
+      },
+      "required": ["id", "sessionID", "title", "fields", "state"],
+      "additionalProperties": false
+    },
+    "Form.ExternalField": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "type": { "type": "string", "enum": ["external"] },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["key", "type", "url"],
+      "additionalProperties": false
+    },
+    "Form.Field": {
+      "anyOf": [
+        { "$ref": "#/components/schemas/Form.StringField" },
+        { "$ref": "#/components/schemas/Form.NumberField" },
+        { "$ref": "#/components/schemas/Form.IntegerField" },
+        { "$ref": "#/components/schemas/Form.BooleanField" },
+        { "$ref": "#/components/schemas/Form.MultiselectField" },
+        { "$ref": "#/components/schemas/Form.ExternalField" }
+      ]
+    },
+    "Form.Fields": {
+      "type": "array",
+      "prefixItems": [{ "$ref": "#/components/schemas/Form.Field" }],
+      "minItems": 1,
+      "items": { "$ref": "#/components/schemas/Form.Field" }
+    },
+    "Form.Info": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^frm_" },
+        "sessionID": { "type": "string" },
+        "title": { "type": "string" },
+        "metadata": { "$ref": "#/components/schemas/Form.Metadata" },
+        "fields": { "$ref": "#/components/schemas/Form.Fields" }
+      },
+      "required": ["id", "sessionID", "title", "fields"],
+      "additionalProperties": false
+    },
+    "Form.IntegerField": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "when": { "type": "array", "items": { "$ref": "#/components/schemas/Form.When" } },
+        "type": { "type": "string", "enum": ["integer"] },
+        "minimum": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        },
+        "maximum": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        },
+        "default": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        }
+      },
+      "required": ["key", "type"],
+      "additionalProperties": false
+    },
+    "Form.Metadata": { "type": "object" },
+    "Form.MultiselectField": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "when": { "type": "array", "items": { "$ref": "#/components/schemas/Form.When" } },
+        "type": { "type": "string", "enum": ["multiselect"] },
+        "options": { "type": "array", "items": { "$ref": "#/components/schemas/Form.Option" } },
+        "minItems": { "type": "integer", "minimum": 0 },
+        "maxItems": { "type": "integer", "minimum": 0 },
+        "custom": { "type": "boolean" },
+        "default": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["key", "type", "options"],
+      "additionalProperties": false
+    },
+    "Form.NumberField": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "when": { "type": "array", "items": { "$ref": "#/components/schemas/Form.When" } },
+        "type": { "type": "string", "enum": ["number"] },
+        "minimum": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        },
+        "maximum": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        },
+        "default": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        }
+      },
+      "required": ["key", "type"],
+      "additionalProperties": false
+    },
+    "Form.Option": {
+      "type": "object",
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["value", "label"],
+      "additionalProperties": false
+    },
+    "Form.Reply": {
+      "type": "object",
+      "properties": { "answer": { "$ref": "#/components/schemas/Form.Answer" } },
+      "required": ["answer"],
+      "additionalProperties": false
+    },
+    "Form.State": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": { "status": { "type": "string", "enum": ["pending"] } },
+          "required": ["status"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["answered"] },
+            "answer": { "$ref": "#/components/schemas/Form.Answer" }
+          },
+          "required": ["status", "answer"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["cancelled"] },
+            "message": { "type": "string" }
+          },
+          "required": ["status"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Form.StringField": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" },
+        "hidden": { "type": "boolean" },
+        "when": { "type": "array", "items": { "$ref": "#/components/schemas/Form.When" } },
+        "type": { "type": "string", "enum": ["string"] },
+        "format": { "type": "string", "enum": ["email", "uri", "date", "date-time"] },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "pattern": { "type": "string" },
+        "placeholder": { "type": "string" },
+        "default": { "type": "string" },
+        "options": { "type": "array", "items": { "$ref": "#/components/schemas/Form.Option" } },
+        "custom": { "type": "boolean" }
+      },
+      "required": ["key", "type"],
+      "additionalProperties": false
+    },
+    "Form.Value": {
+      "anyOf": [
+        { "type": "string" },
+        {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        },
+        { "type": "boolean" },
+        { "type": "array", "items": { "type": "string" } }
+      ]
+    },
+    "Form.When": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "op": { "type": "string", "enum": ["eq", "neq"] },
+        "value": {
+          "anyOf": [
+            { "type": "string" },
+            {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+              ]
+            },
+            { "type": "boolean" }
+          ]
+        }
+      },
+      "required": ["key", "op", "value"],
+      "additionalProperties": false
+    },
+    "FormAlreadySettledErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["FormAlreadySettledError"] },
+        "id": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "id", "message"],
+      "additionalProperties": false
+    },
+    "FormInvalidAnswerErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["FormInvalidAnswerError"] },
+        "id": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "id", "message"],
+      "additionalProperties": false
+    },
+    "FormNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["FormNotFoundError"] },
+        "id": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "id", "message"],
+      "additionalProperties": false
+    },
+    "InstructionEntry.Info": {
+      "type": "object",
+      "properties": {
+        "key": { "$ref": "#/components/schemas/InstructionEntry.Key" },
+        "value": { "description": "JSON value attached to the session's instructions" }
+      },
+      "required": ["key", "value"],
+      "additionalProperties": false
+    },
+    "InstructionEntry.Key": {
+      "type": "string",
+      "description": "Instruction entry key (lowercase alphanumerics plus . _ -)"
+    },
+    "InstructionEntryValueTooLargeErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["InstructionEntryValueTooLargeError"] },
+        "actualBytes": { "type": "integer" },
+        "maxBytes": { "type": "integer" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "actualBytes", "maxBytes", "message"],
+      "additionalProperties": false
+    },
+    "InvalidCursorErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["InvalidCursorError"] },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "message"],
+      "additionalProperties": false
+    },
+    "InvalidRequestErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["InvalidRequestError"] },
+        "message": { "type": "string" },
+        "kind": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "field": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "required": ["_tag", "message"],
+      "additionalProperties": false
+    },
+    "Location.PublicRef": {
+      "type": "object",
+      "properties": { "directory": { "type": "string" } },
+      "required": ["directory"],
+      "additionalProperties": false
+    },
+    "LocationNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["LocationNotFoundError"] },
+        "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "location", "message"],
+      "additionalProperties": false
+    },
+    "Mcp.LocalConfigEncoded": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["local"] },
+        "command": { "type": "array", "items": { "type": "string" } },
+        "cwd": { "type": "string" },
+        "environment": { "type": "object", "additionalProperties": { "type": "string" } },
+        "disabled": { "type": "boolean" },
+        "codemode": { "type": "boolean" },
+        "timeout": {
+          "type": "object",
+          "properties": {
+            "startup": { "type": "integer", "exclusiveMinimum": 0 },
+            "catalog": { "type": "integer", "exclusiveMinimum": 0 },
+            "execution": { "type": "integer", "exclusiveMinimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "protocol": { "$ref": "#/components/schemas/Mcp.Protocol" }
+      },
+      "required": ["type", "command"],
+      "additionalProperties": false
+    },
+    "Mcp.OAuthConfigEncoded": {
+      "type": "object",
+      "properties": {
+        "client_id": { "type": "string" },
+        "client_secret": { "type": "string" },
+        "scope": { "type": "string" },
+        "callback_port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "redirect_uri": { "type": "string" },
+        "auth_server_metadata_url": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "Mcp.Protocol": {
+      "type": "string",
+      "enum": ["legacy", "auto", "2026-07-28"],
+      "description": "MCP protocol negotiation. \"legacy\" (default) opens with the initialize handshake and speaks protocol revisions up to 2025-11-25. \"auto\" probes for the 2026-07-28 revision and falls back to legacy when the server does not support it. \"2026-07-28\" requires that revision and fails otherwise."
+    },
+    "Mcp.RemoteConfigEncoded": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["remote"] },
+        "url": { "type": "string" },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "oauth": {
+          "anyOf": [
+            { "$ref": "#/components/schemas/Mcp.OAuthConfigEncoded" },
+            { "type": "boolean", "enum": [false] }
+          ]
+        },
+        "disabled": { "type": "boolean" },
+        "codemode": { "type": "boolean" },
+        "timeout": {
+          "type": "object",
+          "properties": {
+            "startup": { "type": "integer", "exclusiveMinimum": 0 },
+            "catalog": { "type": "integer", "exclusiveMinimum": 0 },
+            "execution": { "type": "integer", "exclusiveMinimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "protocol": { "$ref": "#/components/schemas/Mcp.Protocol" }
+      },
+      "required": ["type", "url"],
+      "additionalProperties": false
+    },
+    "McpServerNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["McpServerNotFoundError"] },
+        "server": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "server", "message"],
+      "additionalProperties": false
+    },
+    "MessageNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["MessageNotFoundError"] },
+        "sessionID": { "type": "string" },
+        "messageID": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "sessionID", "messageID", "message"],
+      "additionalProperties": false
+    },
+    "Model.Capabilities": {
+      "type": "object",
+      "properties": {
+        "tools": { "type": "boolean" },
+        "input": { "type": "array", "items": { "type": "string" } },
+        "output": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["tools", "input", "output"],
+      "additionalProperties": false
+    },
+    "Model.Compatibility": {
+      "type": "object",
+      "properties": {
+        "reasoningField": { "$ref": "#/components/schemas/Model.ReasoningField" },
+        "requireReasoning": { "type": "boolean" },
+        "maxTokensField": { "$ref": "#/components/schemas/Model.MaxTokensField" },
+        "requireFinishReason": { "type": "boolean" },
+        "requireAssistantAfterTool": { "type": "boolean" },
+        "supportsPromptCacheKey": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "Model.Cost": {
+      "type": "object",
+      "properties": {
+        "tier": {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["context"] },
+            "size": { "type": "integer" }
+          },
+          "required": ["type", "size"],
+          "additionalProperties": false
+        },
+        "input": { "$ref": "#/components/schemas/Money.USDPerMillionTokens" },
+        "output": { "$ref": "#/components/schemas/Money.USDPerMillionTokens" },
+        "cache": {
+          "type": "object",
+          "properties": {
+            "read": { "$ref": "#/components/schemas/Money.USDPerMillionTokens" },
+            "write": { "$ref": "#/components/schemas/Money.USDPerMillionTokens" }
+          },
+          "required": ["read", "write"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["input", "output", "cache"],
+      "additionalProperties": false
+    },
+    "Model.Info": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "modelID": { "type": "string" },
+        "providerID": { "type": "string" },
+        "canonical": { "type": "string" },
+        "family": { "type": "string" },
+        "name": { "type": "string" },
+        "compatibility": { "$ref": "#/components/schemas/Model.Compatibility" },
+        "package": { "type": "string" },
+        "settings": { "$ref": "#/components/schemas/Model.Settings" },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "type": "object" },
+        "capabilities": { "$ref": "#/components/schemas/Model.Capabilities" },
+        "variants": { "type": "array", "items": { "$ref": "#/components/schemas/Model.Variant" } },
+        "time": {
+          "type": "object",
+          "properties": { "released": { "type": "number" } },
+          "required": ["released"],
+          "additionalProperties": false
+        },
+        "cost": { "type": "array", "items": { "$ref": "#/components/schemas/Model.Cost" } },
+        "status": { "type": "string", "enum": ["alpha", "beta", "deprecated", "active"] },
+        "enabled": { "type": "boolean" },
+        "limit": {
+          "type": "object",
+          "properties": {
+            "context": { "type": "integer" },
+            "input": { "type": "integer" },
+            "output": { "type": "integer" }
+          },
+          "required": ["context", "output"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "modelID",
+        "providerID",
+        "name",
+        "capabilities",
+        "variants",
+        "time",
+        "cost",
+        "status",
+        "enabled",
+        "limit"
+      ],
+      "additionalProperties": false
+    },
+    "Model.MaxTokensField": { "type": "string", "enum": ["max_completion_tokens", "max_tokens"] },
+    "Model.ReasoningField": {
+      "anyOf": [
+        { "type": "string", "enum": ["reasoning", "reasoning_content", "reasoning_text"] },
+        { "type": "string" }
+      ]
+    },
+    "Model.Ref": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "providerID": { "type": "string" },
+        "variant": { "type": "string" }
+      },
+      "required": ["id", "providerID"],
+      "additionalProperties": false
+    },
+    "Model.Settings": {
+      "type": "object",
+      "properties": { "compaction": { "$ref": "#/components/schemas/Provider.Compaction" } },
+      "allOf": [{ "type": "object", "additionalProperties": {} }]
+    },
+    "Model.Variant": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "settings": { "$ref": "#/components/schemas/Model.Settings" },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "type": "object" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "Money.USD": { "type": "number" },
+    "Money.USDPerMillionTokens": { "type": "number" },
+    "Permission.Effect": { "type": "string", "enum": ["allow", "deny", "ask"] },
+    "Permission.Reply": { "type": "string", "enum": ["once", "always", "reject"] },
+    "Permission.Request": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^per" },
+        "sessionID": { "type": "string", "pattern": "^ses" },
+        "action": { "type": "string" },
+        "resources": { "type": "array", "items": { "type": "string" } },
+        "save": { "type": "array", "items": { "type": "string" } },
+        "metadata": { "type": "object" },
+        "source": { "$ref": "#/components/schemas/Permission.Source" },
+        "message": { "type": "string" }
+      },
+      "required": ["id", "sessionID", "action", "resources"],
+      "additionalProperties": false
+    },
+    "Permission.Rule": {
+      "type": "object",
+      "properties": {
+        "action": { "type": "string" },
+        "resource": { "type": "string" },
+        "effect": { "$ref": "#/components/schemas/Permission.Effect" }
+      },
+      "required": ["action", "resource", "effect"],
+      "additionalProperties": false
+    },
+    "Permission.Ruleset": {
+      "type": "array",
+      "items": { "$ref": "#/components/schemas/Permission.Rule" }
+    },
+    "Permission.Source": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["tool"] },
+            "messageID": { "type": "string" },
+            "id": { "type": "string" }
+          },
+          "required": ["type", "messageID", "id"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PermissionNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["PermissionNotFoundError"] },
+        "requestID": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "requestID", "message"],
+      "additionalProperties": false
+    },
+    "Prompt.AgentAttachment": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "mention": { "$ref": "#/components/schemas/Prompt.Mention" }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "Prompt.Base64": { "type": "string" },
+    "Prompt.FileAttachment": {
+      "type": "object",
+      "properties": {
+        "data": { "$ref": "#/components/schemas/Prompt.Base64" },
+        "mime": { "type": "string" },
+        "source": { "$ref": "#/components/schemas/Prompt.FileSource" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "mention": { "$ref": "#/components/schemas/Prompt.Mention" }
+      },
+      "required": ["data", "mime", "source"],
+      "additionalProperties": false
+    },
+    "Prompt.FileSource": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": { "type": { "type": "string", "enum": ["inline"] } },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["uri"] },
+            "uri": { "type": "string" }
+          },
+          "required": ["type", "uri"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Prompt.Mention": {
+      "type": "object",
+      "properties": {
+        "start": { "type": "number" },
+        "end": { "type": "number" },
+        "text": { "type": "string" }
+      },
+      "required": ["start", "end", "text"],
+      "additionalProperties": false
+    },
+    "Prompt.SkillAttachment": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "text": { "type": "string" },
+        "mention": { "$ref": "#/components/schemas/Prompt.Mention" }
+      },
+      "required": ["id", "name"],
+      "additionalProperties": false
+    },
+    "PromptInput.FileAttachment": {
+      "type": "object",
+      "properties": {
+        "uri": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "mention": { "$ref": "#/components/schemas/Prompt.Mention" }
+      },
+      "required": ["uri"],
+      "additionalProperties": false
+    },
+    "PromptInput.SkillAttachment": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mention": { "$ref": "#/components/schemas/Prompt.Mention" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "Provider.Compaction": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": { "type": { "type": "string", "enum": ["summary"] } },
+          "required": ["type"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "type": { "type": "string", "enum": ["native"] } },
+          "required": ["type"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Provider.Request": {
+      "type": "object",
+      "properties": {
+        "settings": { "$ref": "#/components/schemas/Provider.Settings" },
+        "headers": { "type": "object", "additionalProperties": { "type": "string" } },
+        "body": { "type": "object" }
+      },
+      "required": ["settings", "headers", "body"],
+      "additionalProperties": false
+    },
+    "Provider.Settings": {
+      "type": "object",
+      "properties": {
+        "timeout": { "anyOf": [{ "type": "number" }, { "type": "boolean", "enum": [false] }] },
+        "headerTimeout": {
+          "anyOf": [{ "type": "number" }, { "type": "boolean", "enum": [false] }]
+        },
+        "chunkTimeout": { "anyOf": [{ "type": "number" }, { "type": "boolean", "enum": [false] }] },
+        "compaction": { "$ref": "#/components/schemas/Provider.Compaction" },
+        "transport": { "$ref": "#/components/schemas/Provider.Transport" }
+      },
+      "allOf": [{ "type": "object", "additionalProperties": {} }]
+    },
+    "Provider.Transport": { "type": "string", "enum": ["http", "websocket"] },
+    "ServerInfo": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "string" },
+        "pid": { "type": "integer", "minimum": 0 },
+        "urls": { "type": "array", "items": { "type": "string" } },
+        "paths": {
+          "type": "object",
+          "properties": { "tmp": { "type": "string" } },
+          "required": ["tmp"],
+          "additionalProperties": false
+        },
+        "capabilities": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "persistentPty": { "anyOf": [{ "type": "boolean" }, { "type": "null" }] }
+              },
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ]
+        }
+      },
+      "required": ["version", "pid", "urls", "paths"],
+      "additionalProperties": false
+    },
+    "ServiceUnavailableErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["ServiceUnavailableError"] },
+        "message": { "type": "string" },
+        "service": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "required": ["_tag", "message"],
+      "additionalProperties": false
+    },
+    "Session.ForkBoundary": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["before"] },
+            "messageID": { "type": "string", "pattern": "^msg_" }
+          },
+          "required": ["type", "messageID"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": { "type": "string", "enum": ["through"] },
+            "messageID": { "type": "string", "pattern": "^msg_" }
+          },
+          "required": ["type", "messageID"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Session.Inbox.Compaction": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "sessionID": { "type": "string", "pattern": "^ses" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["compaction"] },
+        "payload": { "$ref": "#/components/schemas/Session.Inbox.CompactionPayload" },
+        "delivery": { "$ref": "#/components/schemas/Session.Inbox.Delivery" }
+      },
+      "required": ["id", "sessionID", "time", "type", "payload", "delivery"],
+      "additionalProperties": false
+    },
+    "Session.Inbox.CompactionPayload": { "not": { "type": "null" } },
+    "Session.Inbox.Delivery": { "type": "string", "enum": ["steer", "queue"] },
+    "Session.Inbox.Info": {
+      "anyOf": [
+        { "$ref": "#/components/schemas/Session.Inbox.User" },
+        { "$ref": "#/components/schemas/Session.Inbox.Synthetic" },
+        { "$ref": "#/components/schemas/Session.Inbox.Compaction" },
+        { "$ref": "#/components/schemas/Session.Inbox.Move" }
+      ]
+    },
+    "Session.Inbox.Move": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "sessionID": { "type": "string", "pattern": "^ses" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["move"] },
+        "delivery": { "$ref": "#/components/schemas/Session.Inbox.Delivery" },
+        "payload": { "$ref": "#/components/schemas/Session.Inbox.MovePayload" }
+      },
+      "required": ["id", "sessionID", "time", "type", "delivery", "payload"],
+      "additionalProperties": false
+    },
+    "Session.Inbox.MovePayload": {
+      "type": "object",
+      "properties": {
+        "projectID": { "type": "string" },
+        "subpath": { "type": "string" },
+        "location": { "$ref": "#/components/schemas/Location.PublicRef" }
+      },
+      "required": ["projectID", "location"],
+      "additionalProperties": false
+    },
+    "Session.Inbox.Synthetic": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "sessionID": { "type": "string", "pattern": "^ses" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["synthetic"] },
+        "payload": { "$ref": "#/components/schemas/Session.Inbox.SyntheticPayload" },
+        "delivery": { "$ref": "#/components/schemas/Session.Inbox.Delivery" }
+      },
+      "required": ["id", "sessionID", "time", "type", "payload", "delivery"],
+      "additionalProperties": false
+    },
+    "Session.Inbox.SyntheticPayload": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["text"],
+      "additionalProperties": false
+    },
+    "Session.Inbox.User": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "sessionID": { "type": "string", "pattern": "^ses" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["user"] },
+        "payload": { "$ref": "#/components/schemas/Session.Inbox.UserPayload" },
+        "delivery": { "$ref": "#/components/schemas/Session.Inbox.Delivery" }
+      },
+      "required": ["id", "sessionID", "time", "type", "payload", "delivery"],
+      "additionalProperties": false
+    },
+    "Session.Inbox.UserPayload": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Prompt.FileAttachment" }
+        },
+        "agents": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Prompt.AgentAttachment" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Prompt.SkillAttachment" }
+        },
+        "metadata": { "type": "object" }
+      },
+      "required": ["text"],
+      "additionalProperties": false
+    },
+    "Session.Info": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^ses" },
+        "parentID": { "type": "string", "pattern": "^ses" },
+        "fork": {
+          "type": "object",
+          "properties": {
+            "sessionID": { "type": "string", "pattern": "^ses" },
+            "boundary": { "$ref": "#/components/schemas/Session.ForkBoundary" }
+          },
+          "required": ["sessionID", "boundary"],
+          "additionalProperties": false
+        },
+        "projectID": { "type": "string" },
+        "agent": { "type": "string" },
+        "model": { "$ref": "#/components/schemas/Model.Ref" },
+        "cost": { "$ref": "#/components/schemas/Money.USD" },
+        "tokens": { "$ref": "#/components/schemas/TokenUsage.Info" },
+        "outcome": { "type": "string", "enum": ["succeeded", "failed", "interrupted"] },
+        "time": {
+          "type": "object",
+          "properties": {
+            "created": { "type": "number" },
+            "updated": { "type": "number" },
+            "idle": { "type": "number" },
+            "viewed": { "type": "number" },
+            "archived": { "type": "number" }
+          },
+          "required": ["created", "updated"],
+          "additionalProperties": false
+        },
+        "title": { "type": "string" },
+        "subpath": { "type": "string" },
+        "metadata": { "$ref": "#/components/schemas/Session.Metadata" },
+        "permissions": { "$ref": "#/components/schemas/Permission.Ruleset" },
+        "revert": { "$ref": "#/components/schemas/Session.Revert" },
+        "location": { "$ref": "#/components/schemas/Location.PublicRef" }
+      },
+      "required": ["id", "projectID", "cost", "tokens", "time", "location"],
+      "additionalProperties": false
+    },
+    "Session.Message.AgentSelected": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["agent-switched"] },
+        "agent": { "type": "string" },
+        "previous": { "type": "string" }
+      },
+      "required": ["id", "time", "type", "agent"],
+      "additionalProperties": false
+    },
+    "Session.Message.Assistant": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": {
+            "created": { "type": "number" },
+            "streamed": { "type": "number" },
+            "completed": { "type": "number" }
+          },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["assistant"] },
+        "agent": { "type": "string" },
+        "model": { "$ref": "#/components/schemas/Model.Ref" },
+        "content": {
+          "type": "array",
+          "items": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/Session.Message.Assistant.Text" },
+              { "$ref": "#/components/schemas/Session.Message.Assistant.Reasoning" },
+              { "$ref": "#/components/schemas/Session.Message.Assistant.Tool" }
+            ]
+          }
+        },
+        "snapshot": {
+          "type": "object",
+          "properties": {
+            "start": { "type": "string" },
+            "end": { "type": "string" },
+            "files": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "finish": {
+          "type": "string",
+          "enum": ["stop", "length", "tool-calls", "content-filter", "error", "unknown"]
+        },
+        "rawFinish": { "type": "string" },
+        "providerState": { "$ref": "#/components/schemas/Session.Message.ProviderState_4" },
+        "cost": { "$ref": "#/components/schemas/Money.USD" },
+        "tokens": { "$ref": "#/components/schemas/TokenUsage.Info" },
+        "error": { "$ref": "#/components/schemas/Session.StructuredError" },
+        "retry": { "$ref": "#/components/schemas/Session.Message.Assistant.Retry" }
+      },
+      "required": ["id", "time", "type", "agent", "model", "content"],
+      "additionalProperties": false
+    },
+    "Session.Message.Assistant.Reasoning": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["reasoning"] },
+        "text": { "type": "string" },
+        "state": { "$ref": "#/components/schemas/Session.Message.ProviderState_1" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" }, "completed": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["type", "text"],
+      "additionalProperties": false
+    },
+    "Session.Message.Assistant.Retry": {
+      "type": "object",
+      "properties": {
+        "attempt": { "type": "integer", "exclusiveMinimum": 0 },
+        "at": { "type": "number" },
+        "error": { "$ref": "#/components/schemas/Session.StructuredError" }
+      },
+      "required": ["attempt", "at", "error"],
+      "additionalProperties": false
+    },
+    "Session.Message.Assistant.Text": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["text"] },
+        "text": { "type": "string" },
+        "state": { "$ref": "#/components/schemas/Session.Message.ProviderState" }
+      },
+      "required": ["type", "text"],
+      "additionalProperties": false
+    },
+    "Session.Message.Assistant.Tool": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["tool"] },
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "executed": { "type": "boolean" },
+        "providerState": { "$ref": "#/components/schemas/Session.Message.ProviderState_2" },
+        "providerResultState": { "$ref": "#/components/schemas/Session.Message.ProviderState_3" },
+        "state": {
+          "anyOf": [
+            { "$ref": "#/components/schemas/Session.Message.ToolState.Streaming" },
+            { "$ref": "#/components/schemas/Session.Message.ToolState.Running" },
+            { "$ref": "#/components/schemas/Session.Message.ToolState.Completed" },
+            { "$ref": "#/components/schemas/Session.Message.ToolState.Error" }
+          ]
+        },
+        "time": {
+          "type": "object",
+          "properties": {
+            "created": { "type": "number" },
+            "ran": { "type": "number" },
+            "completed": { "type": "number" }
+          },
+          "required": ["created"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["type", "id", "name", "state", "time"],
+      "additionalProperties": false
+    },
+    "Session.Message.Compaction": {
+      "anyOf": [
+        { "$ref": "#/components/schemas/Session.Message.Compaction.Running" },
+        { "$ref": "#/components/schemas/Session.Message.Compaction.Completed" },
+        { "$ref": "#/components/schemas/Session.Message.Compaction.Failed" }
+      ]
+    },
+    "Session.Message.Compaction.Completed": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["compaction"] },
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "status": { "type": "string", "enum": ["completed"] },
+        "reason": { "type": "string", "enum": ["auto", "manual"] },
+        "model": { "$ref": "#/components/schemas/Model.Ref" },
+        "providerState": { "$ref": "#/components/schemas/Session.Message.ProviderState_5" },
+        "summary": { "type": "string" },
+        "recent": { "type": "string" },
+        "providerContext": { "$ref": "#/components/schemas/Session.ProviderContext" },
+        "cost": { "$ref": "#/components/schemas/Money.USD" },
+        "tokens": { "$ref": "#/components/schemas/TokenUsage.Info" }
+      },
+      "required": ["type", "id", "time", "status", "reason", "summary", "recent"],
+      "additionalProperties": false
+    },
+    "Session.Message.Compaction.Failed": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["compaction"] },
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "status": { "type": "string", "enum": ["failed"] },
+        "reason": { "type": "string", "enum": ["auto", "manual"] },
+        "error": { "$ref": "#/components/schemas/Session.StructuredError" },
+        "cost": { "$ref": "#/components/schemas/Money.USD" },
+        "tokens": { "$ref": "#/components/schemas/TokenUsage.Info" }
+      },
+      "required": ["type", "id", "time", "status", "reason", "error"],
+      "additionalProperties": false
+    },
+    "Session.Message.Compaction.Running": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["compaction"] },
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "status": { "type": "string", "enum": ["running"] },
+        "reason": { "type": "string", "enum": ["auto", "manual"] },
+        "summary": { "type": "string" },
+        "recent": { "type": "string" }
+      },
+      "required": ["type", "id", "time", "status", "reason", "summary", "recent"],
+      "additionalProperties": false
+    },
+    "Session.Message.Idle": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["idle"] },
+        "outcome": { "type": "string", "enum": ["succeeded", "failed", "interrupted"] }
+      },
+      "required": ["id", "time", "type", "outcome"],
+      "additionalProperties": false
+    },
+    "Session.Message.Info": {
+      "anyOf": [
+        { "$ref": "#/components/schemas/Session.Message.AgentSelected" },
+        { "$ref": "#/components/schemas/Session.Message.ModelSelected" },
+        { "$ref": "#/components/schemas/Session.Message.LocationSwitched" },
+        { "$ref": "#/components/schemas/Session.Message.User" },
+        { "$ref": "#/components/schemas/Session.Message.Synthetic" },
+        { "$ref": "#/components/schemas/Session.Message.System" },
+        { "$ref": "#/components/schemas/Session.Message.Skill" },
+        { "$ref": "#/components/schemas/Session.Message.Shell" },
+        { "$ref": "#/components/schemas/Session.Message.Assistant" },
+        { "$ref": "#/components/schemas/Session.Message.Compaction" },
+        { "$ref": "#/components/schemas/Session.Message.Idle" }
+      ]
+    },
+    "Session.Message.LocationSwitched": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["location-switched"] },
+        "projectID": { "type": "string" },
+        "subpath": { "type": "string" },
+        "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+        "previous": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+                "projectID": { "type": "string" },
+                "subpath": { "type": "string" }
+              },
+              "required": ["location"],
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ]
+        }
+      },
+      "required": ["id", "time", "type", "location"],
+      "additionalProperties": false
+    },
+    "Session.Message.ModelSelected": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["model-switched"] },
+        "model": { "$ref": "#/components/schemas/Model.Ref" },
+        "previous": { "$ref": "#/components/schemas/Model.Ref" }
+      },
+      "required": ["id", "time", "type", "model"],
+      "additionalProperties": false
+    },
+    "Session.Message.ProviderState": { "type": "object" },
+    "Session.Message.ProviderState_1": { "type": "object" },
+    "Session.Message.ProviderState_2": { "type": "object" },
+    "Session.Message.ProviderState_3": { "type": "object" },
+    "Session.Message.ProviderState_4": { "type": "object" },
+    "Session.Message.ProviderState_5": { "type": "object" },
+    "Session.Message.Shell": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" }, "completed": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["shell"] },
+        "shellID": { "type": "string", "pattern": "^sh_" },
+        "command": { "type": "string" },
+        "status": { "type": "string", "enum": ["running", "exited", "timeout", "killed"] },
+        "exit": {
+          "anyOf": [
+            { "type": "number" },
+            { "type": "string", "enum": ["Infinity", "-Infinity", "NaN"] }
+          ]
+        },
+        "output": {
+          "type": "object",
+          "properties": {
+            "output": { "type": "string" },
+            "cursor": { "type": "integer", "minimum": 0 },
+            "size": { "type": "integer", "minimum": 0 },
+            "truncated": { "type": "boolean" }
+          },
+          "required": ["output", "cursor", "size", "truncated"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["id", "time", "type", "shellID", "command", "status"],
+      "additionalProperties": false
+    },
+    "Session.Message.Skill": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["skill"] },
+        "skill": { "type": "string" },
+        "name": { "type": "string" },
+        "text": { "type": "string" }
+      },
+      "required": ["id", "time", "type", "skill", "name", "text"],
+      "additionalProperties": false
+    },
+    "Session.Message.Synthetic": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "text": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string", "enum": ["synthetic"] }
+      },
+      "required": ["id", "time", "text", "type"],
+      "additionalProperties": false
+    },
+    "Session.Message.System": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "type": { "type": "string", "enum": ["system"] },
+        "text": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "time", "type", "text"],
+      "additionalProperties": false
+    },
+    "Session.Message.ToolState.Completed": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["completed"] },
+        "input": { "type": "object" },
+        "content": {
+          "type": "array",
+          "prefixItems": [{ "$ref": "#/components/schemas/Tool.Content" }],
+          "minItems": 1,
+          "items": { "$ref": "#/components/schemas/Tool.Content" }
+        },
+        "metadata": { "type": "object" }
+      },
+      "required": ["status", "input", "content"],
+      "additionalProperties": false
+    },
+    "Session.Message.ToolState.Error": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["error"] },
+        "input": { "type": "object" },
+        "error": { "$ref": "#/components/schemas/Session.StructuredError" },
+        "content": {
+          "type": "array",
+          "prefixItems": [{ "$ref": "#/components/schemas/Tool.Content" }],
+          "minItems": 1,
+          "items": { "$ref": "#/components/schemas/Tool.Content" }
+        },
+        "metadata": { "type": "object" }
+      },
+      "required": ["status", "input", "error"],
+      "additionalProperties": false
+    },
+    "Session.Message.ToolState.Running": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["running"] },
+        "input": { "type": "object" },
+        "metadata": { "type": "object" }
+      },
+      "required": ["status", "input", "metadata"],
+      "additionalProperties": false
+    },
+    "Session.Message.ToolState.Streaming": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["streaming"] },
+        "input": { "type": "string" }
+      },
+      "required": ["status", "input"],
+      "additionalProperties": false
+    },
+    "Session.Message.User": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^msg_" },
+        "metadata": { "type": "object" },
+        "time": {
+          "type": "object",
+          "properties": { "created": { "type": "number" } },
+          "required": ["created"],
+          "additionalProperties": false
+        },
+        "text": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Prompt.FileAttachment" }
+        },
+        "agents": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Prompt.AgentAttachment" }
+        },
+        "skills": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Prompt.SkillAttachment" }
+        },
+        "type": { "type": "string", "enum": ["user"] }
+      },
+      "required": ["id", "time", "text", "type"],
+      "additionalProperties": false
+    },
+    "Session.Metadata": { "type": "object" },
+    "Session.ProviderContext": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "number", "enum": [1] },
+        "provenance": { "$ref": "#/components/schemas/Session.ProviderContext.Provenance" },
+        "messages": {}
+      },
+      "required": ["version", "provenance", "messages"],
+      "additionalProperties": false
+    },
+    "Session.ProviderContext.Provenance": {
+      "type": "object",
+      "properties": {
+        "providerID": { "type": "string" },
+        "provider": { "type": "string" },
+        "modelID": { "type": "string" },
+        "route": { "type": "string" },
+        "protocol": { "type": "string" },
+        "endpoint": { "type": "string" }
+      },
+      "required": ["providerID", "provider", "modelID", "route", "protocol", "endpoint"],
+      "additionalProperties": false
+    },
+    "Session.Revert": {
+      "type": "object",
+      "properties": {
+        "messageID": { "type": "string", "pattern": "^msg_" },
+        "partID": { "type": "string" },
+        "snapshot": { "type": "string" },
+        "files": { "type": "array", "items": { "$ref": "#/components/schemas/FileDiff.Info" } }
+      },
+      "required": ["messageID"],
+      "additionalProperties": false
+    },
+    "Session.StructuredError": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "integer", "minimum": 100, "maximum": 599 },
+        "response": {
+          "type": "object",
+          "properties": { "body": { "type": "string" } },
+          "required": ["body"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["type", "message"],
+      "additionalProperties": false
+    },
+    "SessionActive": {
+      "type": "object",
+      "properties": { "type": { "type": "string", "enum": ["running"] } },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "SessionBusyErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["SessionBusyError"] },
+        "sessionID": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "sessionID", "message"],
+      "additionalProperties": false
+    },
+    "SessionGenerateResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "object",
+          "properties": { "text": { "type": "string" } },
+          "required": ["text"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["data"],
+      "additionalProperties": false
+    },
+    "SessionInterruptResponse": {
+      "type": "object",
+      "properties": {
+        "interrupted": {
+          "type": "boolean",
+          "description": "Whether an active execution owned by this OpenCode process was interrupted."
+        }
+      },
+      "required": ["interrupted"],
+      "additionalProperties": false
+    },
+    "SessionMessagesResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": { "$ref": "#/components/schemas/Session.Message.Info" }
+        },
+        "cursor": {
+          "type": "object",
+          "properties": {
+            "previous": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+            "next": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["data", "cursor"],
+      "additionalProperties": false
+    },
+    "SessionNotFoundErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["SessionNotFoundError"] },
+        "sessionID": { "type": "string" },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "sessionID", "message"],
+      "additionalProperties": false
+    },
+    "SessionsResponse": {
+      "type": "object",
+      "properties": {
+        "data": { "type": "array", "items": { "$ref": "#/components/schemas/Session.Info" } },
+        "cursor": {
+          "type": "object",
+          "properties": {
+            "previous": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+            "next": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["data", "cursor"],
+      "additionalProperties": false
+    },
+    "Skill.Info": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "autoinvoke": { "type": "boolean" },
+        "path": { "type": "string" },
+        "content": { "type": "string" }
+      },
+      "required": ["id", "name", "path", "content"],
+      "additionalProperties": false
+    },
+    "TokenUsage.Info": {
+      "type": "object",
+      "properties": {
+        "input": { "type": "number" },
+        "output": { "type": "number" },
+        "reasoning": { "type": "number" },
+        "cache": {
+          "type": "object",
+          "properties": { "read": { "type": "number" }, "write": { "type": "number" } },
+          "required": ["read", "write"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["input", "output", "reasoning", "cache"],
+      "additionalProperties": false
+    },
+    "Tool.Content": {
+      "anyOf": [
+        { "$ref": "#/components/schemas/Tool.TextContent" },
+        { "$ref": "#/components/schemas/Tool.FileContent" }
+      ]
+    },
+    "Tool.FileContent": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["file"] },
+        "uri": { "type": "string" },
+        "mime": { "type": "string" },
+        "name": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "required": ["type", "uri", "mime"],
+      "additionalProperties": false
+    },
+    "Tool.TextContent": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["text"] },
+        "text": { "type": "string" }
+      },
+      "required": ["type", "text"],
+      "additionalProperties": false
+    },
+    "UnauthorizedErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["UnauthorizedError"] },
+        "message": { "type": "string" }
+      },
+      "required": ["_tag", "message"],
+      "additionalProperties": false
+    },
+    "UnknownErrorEncoded": {
+      "type": "object",
+      "properties": {
+        "_tag": { "type": "string", "enum": ["UnknownError"] },
+        "message": { "type": "string" },
+        "ref": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      },
+      "required": ["_tag", "message"],
+      "additionalProperties": false
+    },
+    "V2EventEncoded": { "type": "string", "contentMediaType": "application/json" }
+  }
+}

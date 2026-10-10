@@ -318,6 +318,8 @@ fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
         "acpRegistry" => include_str!("acp-capabilities.json"),
         "antigravity" => include_str!("antigravity-capabilities.json"),
         "grok" => include_str!("grok-capabilities.json"),
+        "opencode" => include_str!("opencode-capabilities.json"),
+        "pi" => include_str!("pi-capabilities.json"),
         _ => return false,
     };
     let capabilities: Value = serde_json::from_str(encoded).expect("static provider capabilities");

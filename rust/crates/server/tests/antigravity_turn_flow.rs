@@ -244,6 +244,8 @@ async fn a_stop_cancels_the_prompt_in_the_same_session_and_a_restarted_server_re
     flow.served.stop().await;
     flow.execution.shutdown().await;
     let execution = ExecutionService::start(store.clone(), providers.clone());
+    // The restarted server attaches the authentication service to its new execution service, as `main.rs` does.
+    let auth = grok_support::attach_auth(&execution, &providers, &flow.state);
     execution.dispatch(&json!({"type":"message.dispatch","commandId":"message-after-restart","threadId":base_thread,"messageId":"message-after-restart","text":"After the restart","attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}}), Utc::now()).unwrap();
     let mut events = store.subscribe();
     let reached = tokio::time::timeout(std::time::Duration::from_secs(20), async {
@@ -268,4 +270,5 @@ async fn a_stop_cancels_the_prompt_in_the_same_session_and_a_restarted_server_re
     assert_eq!(method(&received, "session/new").len(), 1);
     assert_eq!(method(&received, "authenticate").len(), 2, "each launch signs in with the configured method first");
     execution.shutdown().await;
+    auth.shutdown().await;
 }

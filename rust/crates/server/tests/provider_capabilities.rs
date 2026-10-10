@@ -31,6 +31,23 @@ const LACKING: &[(&str, &[&str])] = &[
         "threads.canReadThreadSnapshot",
         "tools.supportsMcpTools",
     ]),
+    // Pi is driven over its own RPC. What the port does not do: read the conversation back (`get_messages`, for
+    // handoffs and snapshots) and fork a thread natively (a `--fork` process of Pi's own), so a Pi thread forks and hands
+    // over as a portable context. Every other capability the original declares is exercised by `pi_replay_flow.rs` (turns,
+    // streaming, tools, compaction, steering, interruption, rollback, resume), `pi_ws_flow.rs` (approvals, questions,
+    // file-change approvals, the subagent extension, handoff by message, MCP) or `pi_launch` (the MCP injection).
+    ("pi", &[
+        "checkpointing.providerCanReadConversationSnapshot",
+        "threads.canForkFromTurn",
+        "threads.canForkThread",
+        "threads.canReadThreadSnapshot",
+    ]),
+    // OpenCode 2.x steers a running turn by queueing the message into it (`supportsActiveSteering`, covered by the
+    // `opencode2_inbox` replay); the restart-by-interrupt form the original also declares is never needed, so the
+    // port does not offer it. 1.x, which the port does not drive, declares another set.
+    ("opencode", &[
+        "turns.supportsSteeringByInterruptRestart",
+    ]),
 ];
 
 fn flat(prefix: &str, value: &Value, out: &mut Vec<(String, Value)>) {
@@ -50,6 +67,8 @@ fn the_capability_files_differ_from_the_original_only_where_the_port_lacks_a_fea
         ("claudeAgent", include_str!("../src/claude-capabilities.json")),
         ("acpRegistry", include_str!("../src/acp-capabilities.json")),
         ("grok", include_str!("../src/grok-capabilities.json")),
+        ("pi", include_str!("../src/pi-capabilities.json")),
+        ("opencode", include_str!("../src/opencode-capabilities.json")),
     ];
     for (driver, file) in files {
         let (mut declared, mut ported) = (vec![], vec![]);

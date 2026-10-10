@@ -26,6 +26,10 @@ struct Options {
     bootstrap_fd: Option<i32>,
     bootstrap: Option<t3_contracts::DesktopBackendBootstrap>,
     overrides: std::collections::HashSet<String>,
+    /// `--fixture`, for testing only: see `t3_server::fixture`.
+    fixture: bool,
+    /// The validated `T3CODE_FIXTURE_GITHUB_API_ORIGIN`; only ever set together with `fixture`.
+    fixture_github_api_origin: Option<String>,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     parse_options(std::env::args().skip(1), |key| std::env::var(key).ok())
@@ -50,6 +54,8 @@ fn parse_options(
             .transpose()?,
         bootstrap: None,
         overrides: Default::default(),
+        fixture: false,
+        fixture_github_api_origin: None,
     };
     for (key, name) in [
         ("T3CODE_HOST", "--host"),
@@ -146,15 +152,17 @@ fn parse_options(
                         .parse()?,
                 )
             }
+            "--fixture" => options.fixture = true,
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes."
+                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
                 );
                 std::process::exit(0)
             }
             _ => return Err(format!("Unknown argument: {arg}").into()),
         }
     }
+    options.fixture_github_api_origin = t3_server::fixture::github_api_origin(options.fixture, env(t3_server::fixture::GITHUB_API_ORIGIN_VARIABLE))?;
     Ok(options)
 }
 
@@ -310,6 +318,24 @@ mod tests {
         serde_json::from_value(json!({"mode":"desktop","noBrowser":true,"port":3773,"host":"127.0.0.1","t3Home":" /tmp/bootstrap-home ","desktopBootstrapToken":"fixture-IPC","tailscaleServeEnabled":false,"tailscaleServePort":443})).unwrap()
     }
     #[test]
+    fn the_fixture_origin_is_an_error_without_the_flag_and_is_checked_with_it() {
+        let origin = |value: &'static str| move |key: &str| (key == "T3CODE_FIXTURE_GITHUB_API_ORIGIN").then(|| value.to_owned());
+        // A normal start asks for nothing and changes nothing.
+        let normal = parse_options(Vec::new(), |_| None).unwrap();
+        assert!(!normal.fixture && normal.fixture_github_api_origin.is_none());
+        // The variable alone is refused, not ignored.
+        let error = parse_options(Vec::new(), origin("http://127.0.0.1:47851")).err().unwrap().to_string();
+        assert!(error.contains("--fixture"), "{error}");
+        assert!(parse_options(["serve".to_owned()], origin("http://127.0.0.1:47851")).is_err());
+        // With the flag a loopback origin is taken, and nothing else.
+        let fixture = parse_options(["--fixture".to_owned()], origin("http://[::1]:47851")).unwrap();
+        assert_eq!(fixture.fixture_github_api_origin.as_deref(), Some("http://[::1]:47851"));
+        assert!(parse_options(["--fixture".to_owned()], |_| None).unwrap().fixture_github_api_origin.is_none());
+        for bad in ["https://127.0.0.1:1", "http://api.github.com:80", "http://127.0.0.1:1/x", "http://user@127.0.0.1:1", "http://127.0.0.1"] {
+            assert!(parse_options(["--fixture".to_owned()], origin(bad)).is_err(), "{bad}");
+        }
+    }
+    #[test]
     fn bootstrap_startup_precedence_keeps_explicit_flags_then_environment_then_envelope() {
         let mut defaults = parse_options(Vec::new(), |_| None).unwrap();
         apply_bootstrap(&mut defaults, envelope()).unwrap();
@@ -411,6 +437,8 @@ mod tests {
             bootstrap_fd: None,
             bootstrap: None,
             overrides: Default::default(),
+            fixture: false,
+            fixture_github_api_origin: None,
         };
         let descriptors = adopt_desktop_descriptors(&options, None).unwrap();
         assert_ne!(
@@ -570,6 +598,10 @@ async fn run(
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
+    // Before anything uses the process's source control host.
+    if options.fixture {
+        t3_server::fixture::install(options.fixture_github_api_origin.as_deref())?;
+    }
     fs::create_dir_all(&options.state_dir)?;
     let state_dir = fs::canonicalize(&options.state_dir)?;
     let store = Store::open(state_dir.join("rust-state.sqlite"))?;
@@ -780,11 +812,11 @@ async fn run(
         None
     };
     let device_hosts = t3_server::device_host_resolver::DeviceHostResolver::new(Default::default());
-    let provider_auth = t3_server::provider_auth_service::ProviderAuthService::new(
-        native_config.providers.clone(),
+    let provider_auth = t3_server::provider_auth_service::ProviderAuthService::for_server(
+        &execution,
+        &native_config.providers,
         std::env::current_dir()?,
-        state_dir.join("caches"),
-        execution.authentication_stop(),
+        &state_dir,
     );
     let devices = if let Some(settings) = &settings_service {
         let tools = t3_server::device_toolchain::DeviceToolchain::new(

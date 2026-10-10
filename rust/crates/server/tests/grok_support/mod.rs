@@ -10,6 +10,7 @@ use t3_server::{
     auth::AuthService,
     execution::ExecutionService,
     persistence::Store,
+    provider_auth_service::ProviderAuthService,
     provider_registry::ProviderRegistry,
     transport::{ApiState, router},
 };
@@ -20,6 +21,9 @@ pub type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 pub struct Served {
     pub address: std::net::SocketAddr,
     pub token: String,
+    /// What `main.rs` attaches beside the execution service: every session of an instance with a sign-in is admitted by it.
+    pub provider_auth: ProviderAuthService,
+    _caches: tempfile::TempDir,
     stop: Option<tokio::sync::oneshot::Sender<()>>,
     server: Option<tokio::task::JoinHandle<()>>,
 }
@@ -30,11 +34,20 @@ impl Served {
     pub async fn stop(mut self) {
         self.stop.take().unwrap().send(()).unwrap();
         self.server.take().unwrap().await.unwrap();
+        self.provider_auth.shutdown().await;
     }
 }
 
-/// Serves `execution` and `providers` on a loopback port with a session that may read and operate.
+/// The provider authentication service a restarted execution service needs, built the way `main.rs` builds it.
+pub fn attach_auth(execution: &ExecutionService, providers: &ProviderRegistry, directory: &std::path::Path) -> ProviderAuthService {
+    ProviderAuthService::for_server(execution, providers, directory.to_owned(), directory)
+}
+
+/// Serves `execution` and `providers` on a loopback port with a session that may read and operate, with the
+/// provider authentication service attached as `main.rs` attaches it.
 pub async fn serve(store: &Store, providers: &ProviderRegistry, execution: &ExecutionService) -> Served {
+    let caches = tempfile::tempdir().unwrap();
+    let provider_auth = attach_auth(execution, providers, caches.path());
     let auth = AuthService::new(store.clone(), [7; 32], "t3_session_grok".into(), "loopback-browser".into()).unwrap();
     let token = auth.issue_session("fixture", "bearer-access-token", vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate], json!({"deviceType":"unknown"}), Utc::now(), chrono::Duration::hours(1)).unwrap().1;
     let state = ApiState {
@@ -55,7 +68,7 @@ pub async fn serve(store: &Store, providers: &ProviderRegistry, execution: &Exec
         background: None,
         device_hosts: None,
         devices: None,
-        provider_auth: None,
+        provider_auth: Some(provider_auth.clone()),
     };
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -63,7 +76,7 @@ pub async fn serve(store: &Store, providers: &ProviderRegistry, execution: &Exec
     let server = tokio::spawn(async move {
         axum::serve(listener, router(state)).with_graceful_shutdown(async { let _ = stopped.await; }).await.unwrap();
     });
-    Served { address, token, stop: Some(stop), server: Some(server) }
+    Served { address, token, provider_auth, _caches: caches, stop: Some(stop), server: Some(server) }
 }
 
 pub async fn connect(address: std::net::SocketAddr, token: &str) -> Socket {

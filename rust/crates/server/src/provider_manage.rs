@@ -124,6 +124,11 @@ pub fn grok_target(instance: &crate::grok_instance::GrokInstance) -> Target {
     let own = instance.environment.iter().map(|(name, value)| (name.clone(), value.clone())).collect();
     Target { instance_id: instance.instance_id.clone(), driver: "grok", definition: maintenance::grok_definition(own), binary: expand_home(&instance.binary_path().to_string_lossy(), &env), env }
 }
+/// Pi updates itself (`pi update --self`) wherever it was installed.
+pub fn pi_target(instance: &crate::pi_instance::PiInstance) -> Target {
+    let env = merged_environment(&instance.environment);
+    Target { instance_id: instance.instance_id.clone(), driver: "pi", definition: maintenance::pi_definition(), binary: expand_home(&instance.binary_path().to_string_lossy(), &env), env }
+}
 /// Antigravity updates by installing a new pinned release, not by an updater of its own, so nothing here can update it.
 pub fn antigravity_target(instance: &crate::antigravity_instance::AntigravityInstance) -> Target {
     Target { instance_id: instance.instance_id.clone(), driver: "antigravity", definition: maintenance::manual_definition("antigravity"), binary: String::new(), env: HashMap::new() }

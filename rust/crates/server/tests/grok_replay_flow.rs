@@ -34,6 +34,8 @@ struct Harness {
     gate: Option<PathBuf>,
     /// The scenario driven through the WebSocket transport instead of in process.
     remote: Option<Remote>,
+    /// In process, the authentication service `main.rs` attaches (`serve` attaches its own).
+    _auth: Option<t3_server::provider_auth_service::ProviderAuthService>,
 }
 struct Remote {
     served: Served,
@@ -132,7 +134,8 @@ impl Harness {
         } else {
             None
         };
-        Self { status, store, execution, providers, clock, thread, next: 0, barriers, finishes: (finishes, 0), gate, remote }
+        let auth = (!over_socket).then(|| grok_support::attach_auth(&execution, &providers, &cwd));
+        Self { status, store, execution, providers, clock, thread, next: 0, barriers, finishes: (finishes, 0), gate, remote, _auth: auth }
     }
     /// The projection once the actor has taken in every frame up to barrier `number`.
     async fn barrier(&self, number: u64) {

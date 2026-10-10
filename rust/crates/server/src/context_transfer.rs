@@ -20,6 +20,8 @@ pub(crate) fn capabilities(driver: &str) -> Option<Value> {
         "acpRegistry" => include_str!("acp-capabilities.json"),
         "antigravity" => include_str!("antigravity-capabilities.json"),
         "grok" => include_str!("grok-capabilities.json"),
+        "opencode" => include_str!("opencode-capabilities.json"),
+        "pi" => include_str!("pi-capabilities.json"),
         _ => return None,
     };
     serde_json::from_str(encoded).ok()

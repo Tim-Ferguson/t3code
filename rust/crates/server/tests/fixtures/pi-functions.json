@@ -1,0 +1,1316 @@
+[
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compact"
+    },
+    "output": {}
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "  /compact  "
+    },
+    "output": {}
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compact keep the marker"
+    },
+    "output": {
+      "customInstructions": "keep the marker"
+    }
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compact\tkeep it"
+    },
+    "output": {
+      "customInstructions": "keep it"
+    }
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compact   "
+    },
+    "output": {}
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compactx"
+    },
+    "output": null
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compactx y"
+    },
+    "output": null
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "compact"
+    },
+    "output": null
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "please /compact"
+    },
+    "output": null
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/Compact"
+    },
+    "output": null
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": ""
+    },
+    "output": null
+  },
+  {
+    "operation": "compact",
+    "input": {
+      "text": "/compact\nmulti\nline"
+    },
+    "output": {
+      "customInstructions": "multi\nline"
+    }
+  },
+  {
+    "operation": "discovered",
+    "input": {
+      "data": {
+        "commands": []
+      }
+    },
+    "output": {
+      "slashCommands": [],
+      "skills": []
+    }
+  },
+  {
+    "operation": "discovered",
+    "input": {
+      "data": {
+        "commands": [
+          {
+            "name": "review",
+            "description": " Review it "
+          },
+          {
+            "name": "",
+            "description": "x"
+          },
+          {
+            "name": "  "
+          },
+          {
+            "description": "no name"
+          },
+          "junk",
+          null
+        ]
+      }
+    },
+    "output": {
+      "slashCommands": [
+        {
+          "name": "review",
+          "description": "Review it"
+        }
+      ],
+      "skills": []
+    }
+  },
+  {
+    "operation": "discovered",
+    "input": {
+      "data": {
+        "commands": [
+          {
+            "name": "skill:deploy",
+            "source": "skill",
+            "description": "Deploy",
+            "sourceInfo": {
+              "path": "/s/deploy/SKILL.md",
+              "scope": "global"
+            }
+          },
+          {
+            "name": "plain-skill",
+            "source": "skill",
+            "path": "/p/SKILL.md",
+            "location": "workspace",
+            "displayName": "Plain",
+            "interface": {
+              "shortDescription": "Short"
+            }
+          },
+          {
+            "name": "skill:",
+            "source": "skill"
+          },
+          {
+            "name": "nopath",
+            "source": "skill",
+            "sourceInfo": {
+              "scope": "elsewhere",
+              "displayName": "NP"
+            }
+          },
+          {
+            "name": "skill:x",
+            "source": "skill",
+            "sourceInfo": {
+              "scope": "Personal"
+            }
+          },
+          {
+            "name": "compact",
+            "description": "mine"
+          },
+          {
+            "name": "ext",
+            "source": "extension",
+            "description": "an extension command"
+          }
+        ]
+      }
+    },
+    "output": {
+      "slashCommands": [
+        {
+          "name": "compact",
+          "description": "mine"
+        },
+        {
+          "name": "ext",
+          "description": "an extension command"
+        }
+      ],
+      "skills": [
+        {
+          "name": "deploy",
+          "path": "/s/deploy/SKILL.md",
+          "enabled": true,
+          "description": "Deploy",
+          "scope": "user"
+        },
+        {
+          "name": "plain-skill",
+          "path": "/p/SKILL.md",
+          "enabled": true,
+          "scope": "project",
+          "displayName": "Plain",
+          "shortDescription": "Short"
+        },
+        {
+          "name": "nopath",
+          "path": "pi:skill:nopath",
+          "enabled": true,
+          "scope": "elsewhere",
+          "displayName": "NP"
+        },
+        {
+          "name": "x",
+          "path": "pi:skill:x",
+          "enabled": true,
+          "scope": "user"
+        }
+      ]
+    }
+  },
+  {
+    "operation": "discovered",
+    "input": {
+      "data": {
+        "commands": "nope"
+      }
+    },
+    "output": {
+      "slashCommands": [],
+      "skills": []
+    }
+  },
+  {
+    "operation": "discovered",
+    "input": {
+      "data": {}
+    },
+    "output": {
+      "slashCommands": [],
+      "skills": []
+    }
+  },
+  {
+    "operation": "discovered",
+    "input": {
+      "data": null
+    },
+    "output": {
+      "slashCommands": [],
+      "skills": []
+    }
+  },
+  {
+    "operation": "builtins",
+    "input": {
+      "commands": []
+    },
+    "output": [
+      {
+        "name": "compact",
+        "description": "Summarize the conversation and reduce context usage",
+        "input": {
+          "hint": "Optional instructions"
+        }
+      }
+    ]
+  },
+  {
+    "operation": "builtins",
+    "input": {
+      "commands": [
+        {
+          "name": "a"
+        },
+        {
+          "name": "compact",
+          "description": "theirs"
+        },
+        {
+          "name": "b",
+          "description": "bee"
+        }
+      ]
+    },
+    "output": [
+      {
+        "name": "compact",
+        "description": "Summarize the conversation and reduce context usage",
+        "input": {
+          "hint": "Optional instructions"
+        }
+      },
+      {
+        "name": "a"
+      },
+      {
+        "name": "b",
+        "description": "bee"
+      }
+    ]
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "no skills here",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "no skills here"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$deploy",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$deploy and then ship",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy and then ship"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "ship it $deploy",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy ship it"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "run $review then $deploy now",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:review /skill:deploy run  then  now"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$unknown $deploy",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy $unknown"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$unknown only",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "$unknown only"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "cost is $5 and $deploy",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy cost is $5 and"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$deploy $deploy twice",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy twice"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "a$deploy b",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "a$deploy b"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "  $deploy  ",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$deploy\n$review\nbody text",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy /skill:review body text"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "tab\t$review\tafter",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:review tab\t\tafter"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$a.b works",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:a.b works"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$ alone",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "$ alone"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "end $deploy",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "/skill:deploy end"
+  },
+  {
+    "operation": "expand",
+    "input": {
+      "text": "$review$deploy",
+      "skills": ["deploy", "review", "a.b"]
+    },
+    "output": "$review$deploy"
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "openrouter/deepseek/deepseek-v4-flash"
+    },
+    "output": {
+      "provider": "openrouter",
+      "modelId": "deepseek/deepseek-v4-flash"
+    }
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "anthropic/claude-x"
+    },
+    "output": {
+      "provider": "anthropic",
+      "modelId": "claude-x"
+    }
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "default"
+    },
+    "output": null
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "/model"
+    },
+    "output": null
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "provider/"
+    },
+    "output": null
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "a/b/c"
+    },
+    "output": {
+      "provider": "a",
+      "modelId": "b/c"
+    }
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": ""
+    },
+    "output": null
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "/"
+    },
+    "output": null
+  },
+  {
+    "operation": "slug",
+    "input": {
+      "slug": "ünï/çode"
+    },
+    "output": {
+      "provider": "ünï",
+      "modelId": "çode"
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "off": "none",
+          "minimal": null,
+          "low": null,
+          "medium": "medium",
+          "high": "high"
+        }
+      },
+      "default": "high"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true
+      },
+      "default": "medium"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium",
+              "isDefault": true
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true
+      },
+      "default": "xhigh"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "xhigh": "x"
+        }
+      },
+      "default": "xhigh"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            },
+            {
+              "id": "xhigh",
+              "label": "Extra High",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "xhigh": "x",
+          "max": "m"
+        }
+      },
+      "default": "max"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            },
+            {
+              "id": "xhigh",
+              "label": "Extra High"
+            },
+            {
+              "id": "max",
+              "label": "Max",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "xhigh": null,
+          "max": "m"
+        }
+      },
+      "default": "xhigh"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            },
+            {
+              "id": "max",
+              "label": "Max",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "off": null,
+          "minimal": null,
+          "low": null,
+          "medium": null,
+          "high": null
+        }
+      },
+      "default": "off"
+    },
+    "output": {
+      "optionDescriptors": []
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "minimal": null,
+          "low": null
+        }
+      },
+      "default": "minimal"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "medium",
+              "label": "Medium",
+              "isDefault": true
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": []
+      },
+      "default": "low"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low",
+              "isDefault": true
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": false
+      },
+      "default": "high"
+    },
+    "output": {
+      "optionDescriptors": []
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {},
+      "default": "high"
+    },
+    "output": {
+      "optionDescriptors": []
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": null,
+      "default": "high"
+    },
+    "output": {
+      "optionDescriptors": []
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true
+      },
+      "default": "bogus"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true
+      },
+      "default": 5
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low"
+            },
+            {
+              "id": "medium",
+              "label": "Medium"
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "off": null,
+          "minimal": null,
+          "low": null
+        }
+      },
+      "default": "off"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "medium",
+              "label": "Medium",
+              "isDefault": true
+            },
+            {
+              "id": "high",
+              "label": "High"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "thinking",
+    "input": {
+      "model": {
+        "reasoning": true,
+        "thinkingLevelMap": {
+          "medium": null,
+          "high": null
+        }
+      },
+      "default": "high"
+    },
+    "output": {
+      "optionDescriptors": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "type": "select",
+          "options": [
+            {
+              "id": "off",
+              "label": "Off"
+            },
+            {
+              "id": "minimal",
+              "label": "Minimal"
+            },
+            {
+              "id": "low",
+              "label": "Low",
+              "isDefault": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": ""
+    },
+    "output": {
+      "args": []
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--provider openrouter --model deepseek/deepseek-v4-flash --no-extensions --no-skills --no-prompt-templates --no-context-files --approve"
+    },
+    "output": {
+      "args": [
+        "--provider",
+        "openrouter",
+        "--model",
+        "deepseek/deepseek-v4-flash",
+        "--no-extensions",
+        "--no-skills",
+        "--no-prompt-templates",
+        "--no-context-files",
+        "--approve"
+      ]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--mode json"
+    },
+    "output": {
+      "message": "Pi launch argument '--mode' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--session=/x"
+    },
+    "output": {
+      "message": "Pi launch argument '--session' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "-c"
+    },
+    "output": {
+      "message": "Pi launch argument '-c' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--no-session"
+    },
+    "output": {
+      "message": "Pi launch argument '--no-session' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--fork a"
+    },
+    "output": {
+      "message": "Pi launch argument '--fork' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--resume"
+    },
+    "output": {
+      "message": "Pi launch argument '--resume' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "-- hello"
+    },
+    "output": {
+      "message": "Pi launch arguments cannot include positional prompts."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "hello"
+    },
+    "output": {
+      "message": "Pi launch arguments cannot include positional prompt 'hello'."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "-z"
+    },
+    "output": {
+      "message": "Pi launch argument '-z' is not supported by T3 Code."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--model"
+    },
+    "output": {
+      "message": "Pi launch argument '--model' requires a value."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--provider openrouter"
+    },
+    "output": {
+      "message": "Pi launch argument '--provider' requires '--model'."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--model=a/b --provider=x --foo=bar --flag value --bare"
+    },
+    "output": {
+      "args": ["--model", "a/b", "--provider", "x", "--foo=bar", "--flag", "value", "--bare"]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--tools 'read,bash' --offline"
+    },
+    "output": {
+      "args": ["--tools", "read,bash", "--offline"]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--flag @file --other"
+    },
+    "output": {
+      "message": "Pi launch arguments cannot include positional prompt '@file'."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--flag -x"
+    },
+    "output": {
+      "message": "Pi launch argument '-x' is not supported by T3 Code."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--extension /a.ts -e /b.ts"
+    },
+    "output": {
+      "args": ["--extension", "/a.ts", "-e", "/b.ts"]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--thinking high --name 'my session'"
+    },
+    "output": {
+      "args": ["--thinking", "high", "--name", "my session"]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--api-key"
+    },
+    "output": {
+      "message": "Pi launch argument '--api-key' requires a value."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "-t read -xt write"
+    },
+    "output": {
+      "args": ["-t", "read", "-xt", "write"]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--verbose --no-tools"
+    },
+    "output": {
+      "args": ["--verbose", "--no-tools"]
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--help"
+    },
+    "output": {
+      "message": "Pi launch argument '--help' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--version"
+    },
+    "output": {
+      "message": "Pi launch argument '--version' is controlled by T3 Code and cannot be overridden."
+    }
+  },
+  {
+    "operation": "launch",
+    "input": {
+      "launchArgs": "--session-dir /tmp/x"
+    },
+    "output": {
+      "args": ["--session-dir", "/tmp/x"]
+    }
+  }
+]

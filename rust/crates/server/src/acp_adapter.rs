@@ -831,8 +831,8 @@ impl Actor {
         if pending_access.is_none() {
             if let Some(auth) = providers.authentication_service() {
                 let lifetime = lifetime.clone();
-                *pending_access = Some(
-                    auth.admit_session(
+                *pending_access = auth
+                    .admit_session(
                         &instance_id,
                         Arc::new(move || {
                             let lifetime = lifetime.clone();
@@ -840,8 +840,7 @@ impl Actor {
                         }),
                     )
                     .await
-                    .map_err(error)?,
-                );
+                    .map_err(error)?;
             }
         }
         let instance = providers.acp(&instance_id).map_err(error)?;
