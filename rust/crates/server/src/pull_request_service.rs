@@ -1003,12 +1003,25 @@ impl PullRequestService {
 
     /// `pullRequestSyncKey`: the host-level identity a thread link is filed under.
     pub async fn sync_key(&self, env: &Env, reference: &PullRequestRef) -> Option<Value> {
+        let project = self.projects(env).await.into_iter().find(|project| project.id == reference.project_id);
+        // An Azure DevOps reference names its repository alone; a linked thread is keyed by the
+        // organisation and project too, which the checkout's canonical key carries.
+        if let Some(project) = &project
+            && let Some(identity) = self.identity(env, &project.workspace_root).await
+            && identity.kind == SourceControlProviderKind::AzureDevops
+            && !reference.repository.as_str().contains('/')
+        {
+            if !identity.repository_selector().is_some_and(|selector| selector.eq_ignore_ascii_case(reference.repository.as_str()))
+                || reference.host.as_ref().is_some_and(|host| !host.as_str().eq_ignore_ascii_case(&identity.host()))
+            {
+                return None;
+            }
+            let (host, repository) = identity.canonical_key.split_once('/').filter(|(host, repository)| !host.is_empty() && !repository.is_empty())?;
+            return Some(crate::thread_pull_requests::normalize(&json!({"host": host, "repository": repository, "number": reference.number})));
+        }
         let host = match &reference.host {
             Some(host) => host.as_str().to_string(),
-            None => {
-                let project = self.projects(env).await.into_iter().find(|project| project.id == reference.project_id)?;
-                self.identity(env, &project.workspace_root).await?.host()
-            }
+            None => self.identity(env, &project?.workspace_root).await?.host(),
         };
         Some(crate::thread_pull_requests::normalize(&json!({
             "host": host,

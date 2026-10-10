@@ -158,8 +158,10 @@ fn to_mergeability(status: Option<&str>) -> PullRequestMergeability {
 /// One row of the schema, or `None` when it carries too little to place the pull request: no
 /// browser url, or no branch left after its prefix is dropped.
 fn to_pull_request(o: &Fields) -> R<Option<AzurePullRequest>> {
+    // `Schema.Int`, but a change request is numbered from one on the wire (`PositiveInt`), so a row
+    // with any other id could not be carried and is not read.
     let number = match o.get("pullRequestId") {
-        Some(value) => int_of(value)?,
+        Some(value) => int_of(value).ok().filter(|number| *number >= 1).ok_or(())?,
         None => return Err(()),
     };
     let title = match o.get("title") {

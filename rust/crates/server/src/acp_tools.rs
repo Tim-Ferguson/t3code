@@ -623,6 +623,22 @@ impl ToolState {
             raw_output: next.raw_output.or_else(|| previous.raw_output.clone()),
         }
     }
+    /// `setToolOutputText`: the tool's output becomes this text, whatever it was.
+    pub fn set_output_text(&mut self, text: &str) {
+        let output = json!({"type":"Text","text":text});
+        self.wire["data"]["rawOutput"] = output.clone();
+        self.raw_output = Some(Arc::new(output));
+    }
+    /// The text of the tool's raw output (`toolOutputText`), empty when it has none.
+    pub fn output_text_or_empty(&self) -> String {
+        let output = &self.wire["data"]["rawOutput"];
+        match output {
+            Value::String(text) => text.clone(),
+            Value::Object(map) if map.get("text").is_some_and(Value::is_string) => map["text"].as_str().unwrap().to_owned(),
+            Value::Null => String::new(),
+            other => output_text(other).unwrap_or_default(),
+        }
+    }
     pub fn progress_length(&self) -> usize {
         let content = self.wire["data"]["content"]
             .as_array()

@@ -49,6 +49,7 @@ async fn routes_a_checkout_to_its_host_and_reports_unregistered_ones() {
         ("https://gitlab.com/g/p.git", "gitlab", "GitLab"),
         ("https://dev.azure.com/o/p/_git/r", "azure-devops", "Azure DevOps"),
         ("https://bitbucket.org/w/r.git", "bitbucket", "Bitbucket"),
+        ("https://codeberg.org/o/r.git", "forgejo", "Forgejo"),
     ] {
         let (_repo, path) = repo_with_remotes(&[("origin", url)]);
         let handle = registry.resolve_handle(path.to_str().unwrap(), None).await.unwrap();
@@ -57,6 +58,8 @@ async fn routes_a_checkout_to_its_host_and_reports_unregistered_ones() {
         assert_eq!(handle.provider.kind().as_str(), kind);
     }
     // A host with no registered provider fails each operation by name, with the working directory.
+    let without_forgejo = t3_server::source_control_registry::default_registrations(&test.host).into_iter().filter(|registration| registration.kind != t3_contracts::SourceControlProviderKind::Forgejo).collect();
+    let registry = t3_server::source_control_registry::SourceControlRegistry::with_registrations(test.host.clone(), without_forgejo);
     let (_repo, path) = repo_with_remotes(&[("origin", "https://codeberg.org/o/r.git")]);
     let cwd = path.to_str().unwrap().to_string();
     let provider = registry.resolve(&cwd).await.unwrap();

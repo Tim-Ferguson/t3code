@@ -2,9 +2,12 @@
 //! routes name the files an iteration changed and the contents are a separate read per side, so a
 //! unified patch is made out of both sides of every changed file. The line diff is the one the
 //! original gets from the `diff` package (`structuredPatch` over `diffLines`, v8), reproduced here
-//! with the same edit ceiling and timeout, so a change is sliced the same way as in the original.
+//! with the same edit ceiling, so a change is sliced the same way as in the original. The
+//! original also has a two second wall-clock backstop for a slow machine; it is left out, because
+//! a limit that fires on a busy host would slice the same change differently from one run to the
+//! next, and the edit ceiling alone already bounds the work.
 use crate::{pull_request_azure_json::{ChangeEntry, ChangeKind}, pull_request_decode::quote_git_patch_path};
-use std::{collections::HashMap, time::{Duration, Instant}};
+use std::collections::HashMap;
 
 /// Beyond this a file is shown as changed without its hunks.
 const MAX_FILE_BYTES: usize = 512 * 1024;
@@ -12,8 +15,6 @@ const MAX_FILE_BYTES: usize = 512 * 1024;
 const PATCH_CONTEXT_LINES: usize = 3;
 /// How far apart one file's two sides may be before it is listed without its hunks.
 pub const MAX_FILE_DIFF_EDITS: usize = 2_000;
-/// A backstop for a machine slower than the edit ceiling was tuned for.
-const MAX_FILE_DIFF_TIME: Duration = Duration::from_millis(2_000);
 /// How much diff work one slice does before the rest is left for the next request.
 pub const MAX_DIFF_SLICE_EDITS: usize = 6_000;
 /// How much patch one slice carries before the rest is left for the next request.
@@ -130,8 +131,8 @@ fn build<'a>(arena: &[Component], last: Option<usize>, new_tokens: &[&'a str], o
 }
 
 /// `Diff.diff` over lines: the shortest edit script, or `None` when it needs more than `max_edits`
-/// edits or runs past `deadline`.
-fn diff_lines<'a>(old_tokens: &[&'a str], new_tokens: &[&'a str], max_edits: usize, deadline: Option<Instant>) -> Option<Vec<Run<'a>>> {
+/// edits.
+fn diff_lines<'a>(old_tokens: &[&'a str], new_tokens: &[&'a str], max_edits: usize) -> Option<Vec<Run<'a>>> {
     let (new_len, old_len) = (new_tokens.len() as i64, old_tokens.len() as i64);
     let mut arena: Vec<Component> = vec![];
     let max_edit_length = (new_len + old_len).min(max_edits as i64);
@@ -161,9 +162,6 @@ fn diff_lines<'a>(old_tokens: &[&'a str], new_tokens: &[&'a str], max_edits: usi
     let (mut min_diagonal, mut max_diagonal) = (i64::MIN, i64::MAX);
     let mut edit_length = 1;
     while edit_length <= max_edit_length {
-        if deadline.is_some_and(|deadline| Instant::now() > deadline) {
-            return None;
-        }
         let mut diagonal = min_diagonal.max(-edit_length);
         while diagonal <= max_diagonal.min(edit_length) {
             let remove_path = best.remove(&(diagonal - 1));
@@ -210,9 +208,9 @@ struct Hunk {
 }
 
 /// `structuredPatch(…, {context})`: the hunks of a line diff, `None` when it gave up.
-fn structured_hunks(old: &str, new: &str, context: usize, max_edits: usize, deadline: Option<Instant>) -> Option<Vec<Hunk>> {
+fn structured_hunks(old: &str, new: &str, context: usize, max_edits: usize) -> Option<Vec<Hunk>> {
     let (old_tokens, new_tokens) = (tokens(old), tokens(new));
-    let mut diff = diff_lines(&old_tokens, &new_tokens, max_edits, deadline)?;
+    let mut diff = diff_lines(&old_tokens, &new_tokens, max_edits)?;
     diff.push((false, false, vec![]));
     let mut hunks: Vec<Hunk> = vec![];
     let (mut old_range_start, mut new_range_start) = (0i64, 0i64);
@@ -385,7 +383,7 @@ pub fn file_patch(change: &ChangeEntry, texts: &FileTexts) -> FilePatch {
         }
         return FilePatch { section, truncated: false, abandoned: false, edits: lines };
     }
-    let Some(hunks) = structured_hunks(old, new, PATCH_CONTEXT_LINES, MAX_FILE_DIFF_EDITS, Some(Instant::now() + MAX_FILE_DIFF_TIME)) else {
+    let Some(hunks) = structured_hunks(old, new, PATCH_CONTEXT_LINES, MAX_FILE_DIFF_EDITS) else {
         // The ceiling lists the file without hunks rather than falling back to a full replacement.
         return header_only(&header, true, true, MAX_FILE_DIFF_EDITS);
     };

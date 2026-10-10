@@ -483,6 +483,17 @@ pub fn codex_definition(shared_home: &str) -> Definition {
         native: Some(Native { args: vec!["update".into()], is_command_path: Some(is_codex_standalone), env: Some(BTreeMap::from([("CODEX_HOME".to_owned(), shared_home.to_owned())])) }),
     }
 }
+/// `grok update` finds the installer that owns the binary itself, so the resolved executable is its own updater,
+/// whatever the path (`GrokDriver.ts` `UPDATE`). It installs under `GROK_HOME`, so it runs with the instance's own
+/// environment: `env` is that, and it stays in memory (it is never part of an advisory or a state). With no
+/// executable there is nothing to update.
+pub fn grok_definition(env: BTreeMap<String, String>) -> Definition {
+    Definition {
+        provider: "grok",
+        npm_package_name: "@xai-official/grok",
+        native: Some(Native { args: vec!["update".into()], is_command_path: Some(|_| true), env: Some(env).filter(|env| !env.is_empty()) }),
+    }
+}
 pub fn claude_definition() -> Definition {
     Definition {
         provider: "claudeAgent",

@@ -16,11 +16,14 @@ use t3_acp::{
 use tokio::sync::{mpsc, oneshot, watch};
 
 mod grok;
+mod grok_background;
 mod grok_subagents;
 mod updates;
 enum Activity {
     Event(Option<SessionEvent>),
     Prompt(Result<PromptResponse, AcpError>),
+    /// A hold or the quiet window of a turn held open for background work ran out.
+    Timer,
 }
 
 #[cfg(test)]
@@ -766,6 +769,9 @@ struct Actor {
     instructions: Option<crate::provider_instructions::AcpState>,
     pending_instructions: Option<crate::provider_instructions::AcpState>,
     has_mcp: bool,
+    /// Grok's background work: the tasks that run, the wake traffic, and what keeps a settled turn open.
+    bg: crate::grok_background::Background,
+    providers: ProviderRegistry,
 }
 impl Drop for Actor {
     fn drop(&mut self) {
@@ -786,10 +792,16 @@ fn error(error: impl std::fmt::Display) -> StoreError {
 }
 impl Actor {
     async fn next(&mut self) -> Activity {
+        // Events first: a window that ran out never beats a frame already waiting.
+        let timer: futures_util::future::BoxFuture<'static, ()> = match self.next_deadline() {
+            Some(at) => crate::scheduled_tasks::SchedulerClock::sleep_until(&*self.providers.idle_release().clock(), at),
+            None => Box::pin(std::future::pending()),
+        };
         tokio::select! {
             biased;
             event=self.session.events.recv()=>Activity::Event(event),
             result=async{self.prompt.as_mut().unwrap().await},if self.prompt.is_some()=>Activity::Prompt(result.unwrap_or_else(|error|Err(AcpError::Transport(error.to_string())))),
+            _=timer=>Activity::Timer,
         }
     }
     async fn connect(
@@ -864,7 +876,8 @@ impl Actor {
             }
             let mut callback_instance = instance.clone();
             callback_instance.environment = process.environment.clone();
-            let peer = crate::acp_peer::ProcessPeer::spawn(process).map_err(error)?;
+            // Grok's tools may detach from it; its process group is ended with it.
+            let peer = if matches!(flavor, crate::acp_flavor::Flavor::Grok(_)) { crate::acp_peer::ProcessPeer::spawn_grouped(process) } else { crate::acp_peer::ProcessPeer::spawn(process) }.map_err(error)?;
             // Retain the process outside this cancellable setup future. The actor
             // shutdown path waits for its reap before releasing the runtime lease.
             *pending_peer = Some(peer.clone());
@@ -984,6 +997,8 @@ impl Actor {
             instructions: None,
             pending_instructions: None,
             has_mcp: mcp.is_some(),
+            bg: Default::default(),
+            providers: providers.clone(),
         })
     }
     async fn effect(&mut self, effect: &crate::persistence::Effect) -> Result<(), StoreError> {
@@ -1020,6 +1035,13 @@ impl Actor {
                     return self.hard_interrupt();
                 }
                 self.cancel_session().await
+            }
+            // Stop on a run that already settled: what Grok started in the background goes with its process group.
+            Some("background-work.stop") => {
+                if self.grok() && self.active_run.is_none() {
+                    self.stop_background();
+                }
+                Ok(())
             }
             Some("runtime-request.respond") => {
                 if effect.request["providerSessionId"] != self.session_id {
@@ -1092,7 +1114,7 @@ impl Actor {
         if let crate::acp_flavor::Flavor::Grok(grok) = &self.flavor {
             grok.prompts.abort_all();
         }
-        self.hard_stopped = true;
+        self.stop_background();
         self.finish(Ok(serde_json::from_value(json!({"stopReason":"cancelled"})).expect("cancelled prompt response")))
     }
     async fn restart(&mut self, effect: &crate::persistence::Effect) -> Result<(), StoreError> {
@@ -1103,7 +1125,12 @@ impl Actor {
         });
         if let Some(old) = old {
             self.interrupt_requested = true;
-            self.cancel_session().await?;
+            // A turn held open for background work has no prompt to cancel: it ends here.
+            if self.grok() && self.bg.turn.settled.is_some() {
+                self.finalize_held()?;
+            } else {
+                self.cancel_session().await?;
+            }
             tokio::time::timeout(std::time::Duration::from_secs(10), async {
                 while self
                     .active_context
@@ -1124,8 +1151,9 @@ impl Actor {
                         Activity::Event(Some(SessionEvent::Grok(event))) => self.grok_event(event).await?,
                         Activity::Prompt(result) => {
                             self.prompt.take();
-                            self.finish(result)?;
+                            self.settle_prompt(result)?;
                         }
+                        Activity::Timer => self.timers_due()?,
                         Activity::Event(Some(SessionEvent::Terminated(cause))) => {
                             if let Some(prompt) = self.prompt.take() {
                                 self.finish(prompt.await.unwrap_or_else(|error| {
@@ -1151,41 +1179,55 @@ impl Actor {
         )
         .await
     }
+    /// An event that arrives while no turn runs. After its first turn what Grok says is wake traffic; before that
+    /// it is the replay of the session just loaded.
+    async fn absorb_between_turns(&mut self, event: SessionEvent) -> Result<(), StoreError> {
+        match event {
+            // After its first turn, what Grok says between turns is wake traffic, not load replay.
+            SessionEvent::Update(update) if self.grok() && self.turn_ordinal > 0 => self.update(update)?,
+            SessionEvent::Grok(crate::grok_flavor::Event::Task(lifecycle)) if self.turn_ordinal > 0 => self.task_lifecycle(lifecycle)?,
+            SessionEvent::Grok(crate::grok_flavor::Event::SubagentFinished(notice)) if self.turn_ordinal > 0 => self.subagent_finished(notice)?,
+            SessionEvent::Update(update) => {
+                let value = serde_json::to_value(update).unwrap();
+                if value["update"]["sessionUpdate"] == "config_option_update" {
+                    self.session.setup.config_options =
+                        serde_json::from_value(value["update"]["configOptions"].clone())
+                            .map_err(error)?;
+                }
+            }
+            SessionEvent::Permission {
+                request,
+                response,
+                written,
+                ..
+            } => {
+                let _ = response.send(permission_response(&request, "cancel"));
+                let _ = written.await;
+            }
+            SessionEvent::Grok(crate::grok_flavor::Event::Question { response, .. }) => {
+                let _ = response.send(Ok(crate::xai_extension::ask_user_cancelled_response()));
+            }
+            SessionEvent::Grok(crate::grok_flavor::Event::ExitPlan { response, .. }) => {
+                let _ = response.send(Ok(crate::xai_extension::exit_plan_captured_response()));
+            }
+            SessionEvent::Grok(crate::grok_flavor::Event::PromptSettled | crate::grok_flavor::Event::Task(_) | crate::grok_flavor::Event::SubagentFinished(_)) => {}
+            SessionEvent::Elicitation { response, .. } => {
+                let _ = response.send(serde_json::from_value(json!({"action":"cancel"})).map_err(|cause| AcpError::Transport(cause.to_string())));
+            }
+            SessionEvent::Terminated(cause) => return Err(error(cause)),
+        }
+        Ok(())
+    }
     async fn start_turn(&mut self, run_id: &str) -> Result<(), StoreError> {
         // Load/new notifications are historical/bootstrap events. The ordered
         // response barrier guarantees earlier replay is queued before setup
         // returns; consume it before assigning the next turn's active context.
+        // A continuation run first waits, taking events in, until a test lets it attach.
+        if self.grok() && self.is_continuation_run(run_id) {
+            self.wait_attach_gate().await?;
+        }
         while let Ok(event) = self.session.events.try_recv() {
-            match event {
-                SessionEvent::Update(update) => {
-                    let value = serde_json::to_value(update).unwrap();
-                    if value["update"]["sessionUpdate"] == "config_option_update" {
-                        self.session.setup.config_options =
-                            serde_json::from_value(value["update"]["configOptions"].clone())
-                                .map_err(error)?;
-                    }
-                }
-                SessionEvent::Permission {
-                    request,
-                    response,
-                    written,
-                    ..
-                } => {
-                    let _ = response.send(permission_response(&request, "cancel"));
-                    let _ = written.await;
-                }
-                SessionEvent::Grok(crate::grok_flavor::Event::Question { response, .. }) => {
-                    let _ = response.send(Ok(crate::xai_extension::ask_user_cancelled_response()));
-                }
-                SessionEvent::Grok(crate::grok_flavor::Event::ExitPlan { response, .. }) => {
-                    let _ = response.send(Ok(crate::xai_extension::exit_plan_captured_response()));
-                }
-                SessionEvent::Grok(crate::grok_flavor::Event::PromptSettled) => {}
-                SessionEvent::Elicitation { response, .. } => {
-                    let _ = response.send(serde_json::from_value(json!({"action":"cancel"})).map_err(|cause| AcpError::Transport(cause.to_string())));
-                }
-                SessionEvent::Terminated(cause) => return Err(error(cause)),
-            }
+            self.absorb_between_turns(event).await?;
         }
         let view = projection(&self.store, &self.thread_id)?;
         let run = find(&view, "runs", &json!(run_id))?;
@@ -1221,16 +1263,16 @@ impl Actor {
         let changes = crate::acp_interaction::interaction_changes(&serde_json::to_value(&self.session.setup).unwrap(), view["thread"]["interactionMode"] == "plan", &mut self.native_build);
         self.session.set_options(&changes).await.map_err(error)?;
         let user_message = find(&view, "messages", &run["userMessageId"])?;
+        // A run the provider asked for attaches to what Grok produced on its own; it never prompts.
+        let continuation = self.grok() && crate::provider_continuation::is_continuation(user_message);
         let text = crate::attachment_prompt::provider_text(&self.store, user_message);
         // What the run's handoffs say (a fork, a merge-back, a provider switch) goes ahead of the message.
-        let inline = crate::claude_fork::plan_inline(&view, run, user_message["text"].as_str().unwrap_or(""), &user_message["attachments"]).map_err(error)?;
+        let inline = if continuation { None } else { crate::claude_fork::plan_inline(&view, run, user_message["text"].as_str().unwrap_or(""), &user_message["attachments"]).map_err(error)? };
         let text = match &inline {
             Some(inline) => crate::claude_fork::with_context(&inline.context, &text),
             None => text,
         };
-        let images = crate::attachment_prompt::acp_image_blocks(&self.store, user_message)
-            .await
-            .map_err(error)?;
+        let images = if continuation { vec![] } else { crate::attachment_prompt::acp_image_blocks(&self.store, user_message).await.map_err(error)? };
         if !images.is_empty()
             && !self.flavor.sends_images_regardless()
             && self.session.initialize.agent_capabilities.as_ref()
@@ -1309,10 +1351,30 @@ impl Actor {
                 ("node.updated", node),
             ])
         })?;
-        self.pending_instructions = (prompt_text != text).then_some(instruction_state);
+        self.pending_instructions = (!continuation && prompt_text != text).then_some(instruction_state);
         // Recorded as pending first: a prompt the agent took and then lost is found by the next turn.
         if let Some(inline) = &inline {
             inline.mark(&self.store, &self.thread_id, "pending").map_err(error)?;
+        }
+        // The previous turn's holds, marks and wake traffic do not carry into a user's turn; an app-owned wake
+        // owns none of this session's work, so it leaves them alone.
+        let mut offered = false;
+        if self.grok() {
+            let app_owned = user_message["createdBy"] == "agent" && user_message["creationSource"] == "server";
+            self.bg.start_turn();
+            if !app_owned {
+                self.bg.unreported.clear();
+            }
+            offered = self.bg.requested;
+            let preserved = crate::grok_background::preserves_continuation(self.bg.requested, continuation, self.bg.wake.len());
+            if !continuation && !app_owned && !preserved {
+                self.bg.wake.clear();
+                self.bg.clear_reports();
+            }
+            if !preserved {
+                self.bg.requested = false;
+            }
+            self.bg.turn.continuation = continuation;
         }
         self.active_run = Some(run_id.into());
         captured.provider_turn_id = json!(provider_turn_id);
@@ -1332,6 +1394,9 @@ impl Actor {
                 .collect(),
             meta: Optional::Missing,
         };
+        if continuation {
+            return self.attach_continuation(offered);
+        }
         // Grok settles a prompt with a completion notification as well as the reply: they race.
         let race = match &self.flavor {
             crate::acp_flavor::Flavor::Grok(grok) => Some(grok.prompts.clone()),
@@ -1369,7 +1434,10 @@ impl Actor {
         &mut self,
         notification: t3_acp::types::SessionNotification,
     ) -> Result<(), StoreError> {
-        let mut value = serde_json::to_value(notification).unwrap();
+        self.update_value(serde_json::to_value(notification).unwrap())
+    }
+    /// A session update as the wire carries it; also how a continuation run replays the traffic it attaches to.
+    fn update_value(&mut self, mut value: Value) -> Result<(), StoreError> {
         if self.registry_agent_id == "devin" {
             updates::devin_update(&mut value);
         }
@@ -1389,9 +1457,19 @@ impl Actor {
             return Ok(());
         }
         if self.active_run.is_none() {
-            return Ok(());
-        } // Historical load replay is not a new turn.
-        match update["sessionUpdate"].as_str() {
+            // What Grok says while no turn runs is wake traffic; elsewhere it is historical load replay.
+            return if self.grok() { self.post_settle(&value) } else { Ok(()) };
+        }
+        if self.grok() {
+            // A monitor event after the real end starts an internal prompt whose chatter wakes nothing.
+            if self.bg.suppress_monitor_prompt && matches!(update["sessionUpdate"].as_str(), Some("agent_message_chunk" | "agent_thought_chunk")) {
+                return Ok(());
+            }
+            if self.wake_while_held(&value)? {
+                return Ok(());
+            }
+        }
+        let outcome = match update["sessionUpdate"].as_str() {
             Some("agent_message_chunk" | "agent_thought_chunk") => {
                 let reasoning = update["sessionUpdate"] == "agent_thought_chunk";
                 let Some(text) = (if reasoning {
@@ -1403,8 +1481,13 @@ impl Actor {
                     return Ok(());
                 };
                 let message_id = update["messageId"].as_str().map(str::trim).filter(|id| !id.is_empty()).map(ToOwned::to_owned);
+                if !reasoning {
+                    let starts_segment = !self.text_open.contains_key("assistant");
+                    self.assistant_chunk_seen(starts_segment);
+                }
                 self.project_text(reasoning, &text, message_id.as_deref(), false)
             }
+            Some("user_message_chunk") if self.grok() => self.user_chunk(update),
             // v2 whole-message updates replace the message they name (`replaceText`).
             Some("agent_message" | "agent_thought") => {
                 let Some(contents) = update["content"].as_array() else { return Ok(()) };
@@ -1426,7 +1509,12 @@ impl Actor {
             }
             Some("tool_call" | "tool_call_update") => self.tool(update),
             _ => self.other_update(update).map(drop),
+        };
+        // Keeps the quiet window of a held turn fresh while wake traffic lands.
+        if outcome.is_ok() {
+            self.rearm();
         }
+        outcome
     }
     /// Whether this agent's tool calls and sessions can describe subagents: Grok, and Devin.
     fn runs_subagents(&self) -> bool {
@@ -1473,16 +1561,28 @@ impl Actor {
             ),
         );
         self.tools.insert(id.clone(), next.clone());
-        // A `Task` call (or a poll of one) is a subagent, not a tool item.
-        if let Some(subagent) = self.subagent_update(&next.wire) {
-            self.emit_subagent(&subagent)?;
-            if subagent.suppress_normal_tool {
-                return Ok(());
+        let hydrated = self.tool_hooks(&next, None)?;
+        // A `Task` call (or a poll of one) is a subagent, not a tool item; a poll of a registered task is neither.
+        if !hydrated {
+            if let Some(subagent) = self.subagent_update(&next.wire) {
+                self.emit_subagent(&subagent)?;
+                if subagent.suppress_normal_tool {
+                    self.rearm();
+                    return Ok(());
+                }
             }
         }
         if !emit {
+            self.rearm();
             return Ok(());
         }
+        self.project_tool_item(&id, &next, None)?;
+        self.rearm();
+        Ok(())
+    }
+    /// The timeline item a tool state projects as: the turn item and its node.
+    fn project_tool_item(&mut self, id: &str, next: &crate::acp_tools::ToolState, projected: Option<&str>) -> Result<(), StoreError> {
+        let id = id.to_owned();
         let native = &next.wire;
         let now = at(Utc::now());
         commit(&self.store, &self.thread_id, |view| {
@@ -1502,7 +1602,7 @@ impl Actor {
             let mut item = existing
                 .cloned()
                 .unwrap_or_else(|| self.base_item(view, &run, attempt, &item_id, &node_id));
-            let status = match native["status"].as_str() {
+            let status = match projected.or(native["status"].as_str()) {
                 Some("pending") => "pending",
                 Some("requiresAction") => "waiting",
                 Some("completed") => "completed",
@@ -2000,19 +2100,23 @@ impl Actor {
             }
             self.close_text_streams()?;
         }
+        // The turn is ending: nothing it shows from here on re-arms a quiet window.
+        self.bg.turn.finalizing = true;
+        let completed = matches!(&result, Ok(response) if response.stop_reason != "cancelled");
+        if self.grok() && completed {
+            self.terminalize_foreground_tools()?;
+        }
         match result {
-            Ok(response) => terminal_captured(
-                &self.store,
-                &self.thread_id,
-                self.active_run.as_deref(),
-                if response.stop_reason == "cancelled" {
+            Ok(response) => {
+                let status = if response.stop_reason == "cancelled" {
                     if self.interrupt_requested { "interrupted" } else { "cancelled" }
                 } else {
                     "completed"
-                },
-                None,
-                self.active_context.as_ref(),
-            )?,
+                };
+                // Grok's background commands and subagents go on after the turn and report when they end.
+                let retain = if self.grok() && completed { crate::codex_runtime::Retain::CommandsOnCompletion } else { crate::codex_runtime::Retain::Nothing };
+                crate::codex_runtime::terminal_with(&self.store, &self.thread_id, self.active_run.as_deref(), status, None, self.active_context.as_ref(), retain)?
+            }
             // A prompt that fails reports nothing more: a tool it left running is background work,
             // pending until Stop settles it.
             Err(cause) => fail_run_with(
@@ -2030,6 +2134,7 @@ impl Actor {
         self.session.services.settle();
         self.callbacks.clear();
         crate::codex_runtime::settle_queue(&self.store, &self.thread_id, None)?;
+        self.after_finalize(completed);
         Ok(())
     }
     fn close_text_streams(&mut self) -> Result<(), StoreError> {
@@ -2171,7 +2276,7 @@ pub(crate) async fn actor(
                 }
                 let starting=matches!(incoming.effect.request["type"].as_str(),Some("provider-turn.start"|"provider-turn.restart"));let run_id=incoming.effect.request["runId"].as_str();
                 let result=tokio::select! {
-                    result=async{if starting {if let Some(mcp)=mcp.as_ref() {mcp.touch();}}if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime,mcp.as_ref()).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
+                    result=async{if starting {if let Some(mcp)=mcp.as_ref() {mcp.touch();}}if runtime.is_none()&&incoming.effect.request["type"]=="background-work.stop"{return Ok(());}if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_peer,&mut pending_services,&mut pending_startup,&mut access,&lifetime,mcp.as_ref()).await?);pending_services.take();pending_peer.take();pending_startup.take();}runtime.as_mut().unwrap().effect(&incoming.effect).await}=>result,
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };
@@ -2184,7 +2289,8 @@ pub(crate) async fn actor(
                     Activity::Event(Some(SessionEvent::Update(update)))=>actor.update(update),
                     Activity::Event(Some(SessionEvent::Permission{request,response,written,..}))=>tokio::select!{result=actor.permission(request,response,written)=>result,_=stopped.changed()=>break},Activity::Event(Some(SessionEvent::Elicitation{request,response,written}))=>actor.elicitation(request,response,written),Activity::Event(Some(SessionEvent::Grok(event)))=>actor.grok_event(event).await,
                     Activity::Event(Some(SessionEvent::Terminated(cause)))=>{if let Some(prompt)=actor.prompt.take(){actor.finish(prompt.await.unwrap_or_else(|error|Err(AcpError::Transport(error.to_string()))))}else{Err(error(cause))}},Activity::Event(None)=>Err(error("ACP event stream ended.")),
-                    Activity::Prompt(result)=>{actor.prompt.take();actor.finish(result)}
+                    Activity::Prompt(result)=>{actor.prompt.take();actor.settle_prompt(result)}
+                    Activity::Timer=>actor.timers_due(),
                 };
                 if let Err(cause)=result {work.close();let _=fail_run_captured(&store,&thread_id,actor.active_run.as_deref(),actor.active_context.as_ref(),&crate::provider_failure::make(&json!({"message":cause.to_string(),"class":"transport_error","retryable":false})));break;}
                 if ended{work.close();break;}

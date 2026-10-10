@@ -279,10 +279,10 @@ pub fn start(
                     // provider could still report on, so this needs no provider process.
                     if effect.request["type"] == "background-work.stop" {
                         let (store, owner) = (store.clone(), owner.clone());
-                        // Codex keeps a settled turn's commands running in its own terminals, and Claude's
-                        // background shells belong to its CLI process; a live actor of either stops those
-                        // first. The other adapters hold nothing to stop.
-                        let has_native_work = projection(&store, &effect.thread_id).ok().and_then(|view| view["thread"]["modelSelection"]["instanceId"].as_str().and_then(|id| providers.driver(id).ok()).map(|driver| matches!(driver, "codex" | "claudeAgent"))).unwrap_or(false);
+                        // Codex keeps a settled turn's commands running in its own terminals, Claude's background
+                        // shells belong to its CLI process and Grok's to its process group; a live actor of any
+                        // of those stops them first. The other adapters hold nothing to stop.
+                        let has_native_work = projection(&store, &effect.thread_id).ok().and_then(|view| view["thread"]["modelSelection"]["instanceId"].as_str().and_then(|id| providers.driver(id).ok()).map(crate::provider_registry::holds_background_work)).unwrap_or(false);
                         let live = actors.get(&effect.thread_id).filter(|actor| !actor.is_closed() && has_native_work).cloned();
                         effects.spawn(async move {
                             if let Some(actor) = live {

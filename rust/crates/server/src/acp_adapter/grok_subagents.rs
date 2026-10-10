@@ -33,7 +33,23 @@ pub(super) struct Children {
     by_session: HashMap<String, String>,
     pending: HashMap<String, Vec<Value>>,
 }
+impl Child {
+    pub(super) fn task(&self) -> &Value {
+        &self.task
+    }
+    pub(super) fn child_thread(&self) -> String {
+        self.child_thread_id.clone()
+    }
+}
 impl Children {
+    /// Whether a subagent is still running: it holds the turn that launched it open.
+    pub(super) fn blocks_settlement(&self) -> bool {
+        self.by_task.values().any(|child| matches!(child.task["status"].as_str(), Some("running" | "pending")))
+    }
+    /// The subagent that runs in this child session.
+    pub(super) fn by_child_session(&self, session: &str) -> Option<&Child> {
+        self.by_session.get(session).and_then(|key| self.by_task.get(key))
+    }
     pub(super) fn clear(&mut self) {
         *self = Self::default();
     }

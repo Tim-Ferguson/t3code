@@ -60,6 +60,11 @@ pub fn default_registrations(host: &Host) -> Vec<Registration> {
             provider: Arc::new(crate::source_control_bitbucket::BitbucketProvider::new(host.clone())),
             discovery: DiscoverySpec::Api(Arc::new(crate::source_control_bitbucket::BitbucketProbe::new(host.clone()))),
         },
+        Registration {
+            kind: SourceControlProviderKind::Forgejo,
+            provider: Arc::new(crate::source_control_forgejo::ForgejoProvider::new(host.clone())),
+            discovery: DiscoverySpec::Managed(Arc::new(crate::source_control_forgejo::ForgejoProbe::new(host.clone()))),
+        },
     ]
 }
 

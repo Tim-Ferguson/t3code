@@ -27,6 +27,10 @@ pub enum Event {
     /// A completion notification settled the active prompt. It rides the same ordered queue as the session
     /// updates, so the turn ends after every update that preceded the completion and before any that followed.
     PromptSettled,
+    /// `x.ai/task_backgrounded` or `x.ai/task_completed`: a background task started or ended.
+    Task(xai::Lifecycle),
+    /// `subagent_finished` on the parent session: a background subagent ended.
+    SubagentFinished(xai::SubagentFinished),
 }
 struct Pending {
     session_id: String,
@@ -216,6 +220,26 @@ async fn register_extensions(context: ExtensionContext, prompts: Arc<PromptRace>
                     if let Some(complete) = xai::prompt_complete_from_session_update(&params) {
                         if prompts.settle(&complete) {
                             let _ = events.send(SessionEvent::Grok(Event::PromptSettled));
+                        }
+                    }
+                    if let Some(finished) = xai::subagent_finished_notice(&params) {
+                        let _ = events.send(SessionEvent::Grok(Event::SubagentFinished(finished)));
+                    }
+                    Ok(())
+                })
+            }))
+            .await;
+    }
+    // The lifecycle of background tasks rides the same ordered queue as the updates around it.
+    for (method, status) in xai::TASK_LIFECYCLE_METHODS {
+        let events = events.clone();
+        client
+            .handle_extension_notification(method, passthrough(), Arc::new(move |params: Value| -> BoxFuture<'static, Result<(), AcpError>> {
+                let events = events.clone();
+                Box::pin(async move {
+                    if params["update"].is_object() {
+                        if let Some(lifecycle) = xai::lifecycle_mutation(&params, status) {
+                            let _ = events.send(SessionEvent::Grok(Event::Task(lifecycle)));
                         }
                     }
                     Ok(())

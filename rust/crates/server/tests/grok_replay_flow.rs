@@ -6,10 +6,16 @@
 //! The driver runs `fixtures/grok-fake-cli.py`, which plays a recording through `fixtures/acp-replay-agent.py`:
 //! it compares every frame the Rust client sends with the recorded one and fails the scenario on the first
 //! difference. No real `grok` runs. Tests wait on persisted events, never on sleeps.
+mod grok_support;
+mod provider_manage_support;
 use chrono::Utc;
+use grok_support::{Served, Socket, Stream, serve};
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
-use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
+use std::{path::PathBuf, sync::Arc, time::Duration};
+use t3_server::{
+    deferred_finalize::DEBOUNCE_MS, execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_idle::{IDLE_TIMEOUT_MS, MAX_PIN_MS},
+    provider_registry::ProviderRegistry, scheduled_tasks::ManualClock,
+};
 
 const CLI: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/grok-fake-cli.py");
 
@@ -17,16 +23,75 @@ struct Harness {
     status: PathBuf,
     store: Store,
     execution: ExecutionService,
+    providers: ProviderRegistry,
+    /// The clock the quiet window of a held turn runs on: only the test moves it.
+    clock: Arc<ManualClock>,
     thread: String,
     next: usize,
+    /// The barriers the recording has, the `finish_held_run` steps the scenario has, and how many of those ran.
+    barriers: usize,
+    finishes: (usize, usize),
+    gate: Option<PathBuf>,
+    /// The scenario driven through the WebSocket transport instead of in process.
+    remote: Option<Remote>,
+}
+struct Remote {
+    served: Served,
+    command: Socket,
+    next: u64,
+    /// The thread's stream, on a socket of its own, every chunk acknowledged.
+    stream: Stream,
+}
+
+/// Where a barrier's marker shows: the context usage a frame the recording does not have reports.
+const BARRIER_USAGE: u64 = 424_240;
+/// The recording as the test plays it. A held turn settles when the clock moves past its quiet window, and the
+/// test must move the clock only after every frame before that point has been taken in, so it places a barrier
+/// there: a usage update that the actor handles in order with the frames around it. It stands before the frame a
+/// `release_replay_gate` step holds back and before the session close the recording ends with. A gate holds its
+/// frame until the test writes to a pipe.
+fn with_barriers(transcript: &Value, gates: &[&str], root: &std::path::Path) -> (Value, Option<PathBuf>) {
+    let entries = transcript.as_array().unwrap();
+    let session = entries.iter().find(|entry| entry["label"] == "response:session/new").map(|entry| entry["frame"]["result"]["sessionId"].clone()).unwrap();
+    let close = entries.iter().rposition(|entry| entry["type"] == "expect_outbound" && entry["frame"]["method"] == "session/close");
+    let mut out = vec![];
+    let mut marked = 0;
+    // Every chunk of a turn shares its label; the gate holds the first.
+    let mut open: Vec<&str> = gates.to_vec();
+    for (index, entry) in entries.iter().enumerate() {
+        let gated = open.iter().position(|label| entry["label"] == *label).map(|at| open.remove(at)).is_some();
+        if gated || Some(index) == close {
+            marked += 1;
+            out.push(json!({"type":"emit_inbound","label":format!("barrier:{marked}"),"frame":{"kind":"notification","method":"session/update","params":{"sessionId":session,"update":{"sessionUpdate":"usage_update","used":BARRIER_USAGE + marked,"size":1_000_000}}}}));
+        }
+        out.push(entry.clone());
+    }
+    let fifo = (!gates.is_empty()).then(|| {
+        let fifo = root.join("replay-gate.fifo");
+        let path = std::ffi::CString::new(fifo.to_string_lossy().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(path.as_ptr(), 0o600) }, 0);
+        fifo
+    });
+    (Value::Array(out), fifo)
 }
 
 impl Harness {
-    async fn start(root: &std::path::Path, row: &Value, transcript: &Value) -> Self {
+    async fn start(root: &std::path::Path, row: &Value, transcript: &Value, over_socket: bool) -> Self {
         let cwd = std::fs::canonicalize(root).unwrap();
         let status = cwd.join("replay-status.json");
         let path = cwd.join("transcript.json");
-        std::fs::write(&path, json!({"scenario":row["name"],"entries":transcript}).to_string()).unwrap();
+        let steps = row["steps"].as_array().unwrap();
+        let gates: Vec<&str> = steps.iter().filter(|step| step["type"] == "release_replay_gate").filter_map(|step| step["label"].as_str()).collect();
+        assert!(gates.len() <= 1, "the replay agent holds one gate");
+        // Only a scenario that holds a run open needs the clock moved, and so needs the barriers.
+        let holding = steps.iter().any(|step| step["type"] == "finish_held_run");
+        let gates_or_holds = holding;
+        let (transcript, gate) = if holding { with_barriers(transcript, &gates, &cwd) } else { (transcript.clone(), None) };
+        let mut recording = json!({"scenario":row["name"],"entries":transcript});
+        if let (Some(label), Some(fifo)) = (gates.first(), &gate) {
+            recording["gate"] = json!({"label":label,"fifo":fifo});
+        }
+        std::fs::write(&path, recording.to_string()).unwrap();
         // The executable is a wrapper at an absolute path in the scratch directory; HOME and GROK_HOME stay inside it.
         let wrapper = cwd.join("bin-grok");
         std::fs::write(&wrapper, format!("#!/bin/sh\nexec python3 {CLI} \"$@\"\n")).unwrap();
@@ -40,6 +105,13 @@ impl Harness {
                 {"name":"GROK_FIXTURE_TRANSCRIPT","value":path},{"name":"GROK_FIXTURE_STATUS","value":status},{"name":"GROK_FIXTURE_WORKSPACE","value":cwd}]}}}))
         .unwrap();
         let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
+        let clock = ManualClock::new(Utc::now().timestamp_millis());
+        providers.idle_release().configure(clock.clone(), IDLE_TIMEOUT_MS, MAX_PIN_MS);
+        // The original's in-memory replay delivers a whole recorded flood before the run that reports it can start;
+        // a process pipe does not, so the run waits at the gate until the flood has been taken in.
+        if gates_or_holds {
+            providers.attach_gate().close();
+        }
         let store = Store::open(cwd.join("state.db")).unwrap();
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Fixture","workspaceRoot":cwd}), Utc::now()).unwrap();
         let runtime_mode = if row["approvalPolicy"] == "on-request" { "approval-required" } else { row["runtimeMode"].as_str().unwrap() };
@@ -49,19 +121,99 @@ impl Harness {
             .as_str()
             .unwrap()
             .to_owned();
-        let execution = ExecutionService::start(store.clone(), providers);
-        Self { status, store, execution, thread, next: 0 }
+        let execution = ExecutionService::start(store.clone(), providers.clone());
+        let finishes = row["steps"].as_array().unwrap().iter().filter(|step| step["type"] == "finish_held_run").count();
+        let barriers = if finishes == 0 { 0 } else { gates.len() + 1 };
+        let remote = if over_socket {
+            let served = serve(&store, &providers, &execution).await;
+            let stream = Stream::open(&served, "orchestration.subscribeThread", json!({"threadId":thread})).await;
+            let command = served.connect().await;
+            Some(Remote { served, command, next: 0, stream })
+        } else {
+            None
+        };
+        Self { status, store, execution, providers, clock, thread, next: 0, barriers, finishes: (finishes, 0), gate, remote }
+    }
+    /// The projection once the actor has taken in every frame up to barrier `number`.
+    async fn barrier(&self, number: u64) {
+        self.until(|view| view["providerThreads"].as_array().unwrap().iter().any(|thread| thread["contextUsage"]["usedTokens"].as_u64().is_some_and(|used| used >= BARRIER_USAGE + number)).then_some(())).await
+    }
+    fn run_status(&self, ordinal: usize) -> Value {
+        self.view()["runs"].get(ordinal - 1).map_or(Value::Null, |run| run["status"].clone())
+    }
+    /// `finish_held_run`: a run the adapter holds open for background work settles when its quiet window passes.
+    /// The window is moved past only once the frames before it have been taken in (a barrier), and as often as
+    /// late frames arm it again. A run that settles by itself (the agent's own wake turn ends it) needs no move:
+    /// the barriers belong to the last steps, so the first of a scenario with fewer barriers than steps has none.
+    async fn finish_held_run(&mut self, ordinal: usize, status: &str) {
+        let (total, ran) = self.finishes;
+        self.finishes.1 += 1;
+        let done = |harness: &Self| harness.run_status(ordinal) == status;
+        let mut events = self.store.subscribe();
+        let by_itself = async {
+            loop {
+                if done(self) {
+                    return;
+                }
+                let _ = events.recv().await;
+            }
+        };
+        let needed = (self.barriers + ran + 1).saturating_sub(total) as u64;
+        if needed == 0 {
+            by_itself.await;
+            return;
+        }
+        let reached = self.barrier(needed);
+        tokio::select! {
+            _ = by_itself => return,
+            _ = reached => {}
+        }
+        // The last of the flood is in: the run that reports it may attach.
+        if ran + 1 == total {
+            self.providers.attach_gate().open();
+        }
+        let mut armed = self.providers.finish_debounce().armed();
+        let mut consumed = 0;
+        loop {
+            if done(self) {
+                return;
+            }
+            let _ = tokio::time::timeout(Duration::from_secs(20), armed.wait_for(|count| *count > consumed)).await.expect("the held run never armed its quiet window");
+            consumed = *armed.borrow();
+            self.clock.advance(DEBOUNCE_MS);
+            let mut events = self.store.subscribe();
+            tokio::select! {
+                _ = async { loop { if done(self) { break; } let _ = events.recv().await; } } => return,
+                _ = armed.wait_for(|count| *count > consumed) => {}
+            }
+        }
+    }
+    /// `release_replay_gate`: the frame the recording held back is let through.
+    async fn release_gate(&self) {
+        let fifo = self.gate.clone().expect("the scenario names a gate");
+        tokio::task::spawn_blocking(move || {
+            use std::io::Write;
+            std::fs::OpenOptions::new().write(true).open(fifo).unwrap().write_all(b"release").unwrap();
+        })
+        .await
+        .unwrap();
     }
     fn view(&self) -> Value {
         t3_server::rpc_response::checked_thread(self.store.projection("thread", &self.thread).unwrap().unwrap())
     }
-    fn dispatch(&self, command: Value) {
+    async fn dispatch(&mut self, command: Value) {
+        if let Some(remote) = &mut self.remote {
+            remote.next += 1;
+            let exit = provider_manage_support::rpc(&mut remote.command, remote.next, "orchestration.dispatchCommand", command).await;
+            provider_manage_support::success(&exit);
+            return;
+        }
         self.execution.dispatch(&command, Utc::now()).unwrap();
     }
-    fn send(&mut self, text: &str, mode: Value) -> usize {
+    async fn send(&mut self, text: &str, mode: Value) -> usize {
         self.next += 1;
         let id = format!("message-{}", self.next);
-        self.dispatch(json!({"type":"message.dispatch","commandId":id,"threadId":self.thread,"messageId":id,"text":text,"attachments":[],"dispatchMode":mode}));
+        self.dispatch(json!({"type":"message.dispatch","commandId":id,"threadId":self.thread,"messageId":id,"text":text,"attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":mode})).await;
         self.view()["runs"].as_array().unwrap().len()
     }
     async fn until_raw<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
@@ -88,7 +240,7 @@ impl Harness {
             }
         })
         .await;
-        outcome.unwrap_or_else(|_| panic!("timed out waiting for a persisted event\nstatus: {}\nprojection: {}", std::fs::read_to_string(&self.status).unwrap_or_default(), normalize(&self.view())))
+        outcome.unwrap_or_else(|_| panic!("timed out waiting for a persisted event\nstatus: {}\nthreads: {}\nsessions: {}\nprojection: {}", std::fs::read_to_string(&self.status).unwrap_or_default(), self.view()["providerThreads"], self.view()["providerSessions"], normalize(&self.view())))
     }
     async fn settled(&self, ordinal: usize) -> Value {
         self.until(|view| view["runs"].get(ordinal - 1).filter(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled"))).cloned()).await
@@ -150,14 +302,8 @@ fn normalize(view: &Value) -> Value {
     })
 }
 
-/// Scenarios whose behaviour belongs to the orchestration features the port does not have.
-/// Each is named with the reason it is not replayed.
-const EXCLUDED: &[(&str, &str)] = &[
-    ("grok_background_bash", "holds the run open for a backgrounded command, then continues in Grok's own wake run: deferred finalize, background-task tracking and wake continuation are not in the Grok layer yet"),
-    ("grok_background_bash_fast_wake", "as grok_background_bash, with the wake starting inside the finish debounce"),
-    ("grok_background_subagent", "holds the run open for a background subagent and its `subagent_finished` wake: the same missing deferred finalize and wake continuation"),
-    ("grok_monitor", "holds the run open for a Monitor tool, fed by monitor events, then continues in Grok's wake run: the same missing layer"),
-];
+/// Scenarios that are not replayed, each with the reason. All sixteen are.
+const EXCLUDED: &[(&str, &str)] = &[];
 /// Scenarios whose source snapshot predates the frames that follow the last reply. The original's adapter
 /// republishes the provider thread as it last cached it (active) when such a title arrives, and its snapshot
 /// for this scenario was taken before that: the thread the Rust adapter leaves after the same frames is active.
@@ -165,7 +311,7 @@ const SNAPSHOT_BEFORE_LATE_FRAMES: &[&str] = &["grok_prompt_error"];
 /// The scenarios of the original's Grok replay registry.
 const SCENARIOS: [&str; 16] = ["simple", "multi_turn", "queued_turn", "todo_list", "message_steering", "turn_interrupt", "tool_call_read_only", "tool_call_read_only_on_request", "plan_questions", "grok_prompt_error", "grok_auto_blocked_command", "grok_subagent_lineage", "grok_background_bash", "grok_background_bash_fast_wake", "grok_background_subagent", "grok_monitor"];
 
-async fn replay(row: Value) -> Result<(), String> {
+async fn replay(row: Value, over_socket: bool) -> Result<(), String> {
     let row = &row;
     let name = row["name"].as_str().unwrap();
     let scratch = tempfile::tempdir().unwrap();
@@ -174,7 +320,7 @@ async fn replay(row: Value) -> Result<(), String> {
     let recorded = row["workspace"].as_str().unwrap_or("").to_owned();
     let rewrite = |value: &Value| serde_json::from_str::<Value>(&value.to_string().replace(&recorded, &workspace.to_string_lossy())).unwrap();
     let (transcript, row) = (rewrite(&row["transcript"]), rewrite(row));
-    let mut harness = Harness::start(scratch.path(), &row, &transcript).await;
+    let mut harness = Harness::start(scratch.path(), &row, &transcript, over_socket).await;
     let steps = row["steps"].as_array().unwrap();
     let messages = steps.iter().filter(|step| step["type"] == "message" || step["type"] == "queue_message").count();
     let mut runs = 0;
@@ -182,41 +328,43 @@ async fn replay(row: Value) -> Result<(), String> {
         let next = steps.get(index + 1).map(|step| step["type"].as_str().unwrap());
         match step["type"].as_str().unwrap() {
             "message" => {
-                runs = harness.send(step["text"].as_str().unwrap(), json!({"type":"start_immediately"}));
-                if !matches!(next, None | Some("interrupt" | "steer" | "queue_message" | "approve_next_runtime_request" | "answer_next_user_input_request" | "stop_background_work")) {
+                runs = harness.send(step["text"].as_str().unwrap(), json!({"type":"start_immediately"})).await;
+                if !matches!(next, None | Some("interrupt" | "steer" | "queue_message" | "approve_next_runtime_request" | "answer_next_user_input_request" | "stop_background_work" | "finish_held_run" | "release_replay_gate")) {
                     harness.settled(runs).await;
                 }
             }
             "queue_message" => {
-                runs = harness.send(step["text"].as_str().unwrap(), json!({"type":"queue_after_active"}));
+                runs = harness.send(step["text"].as_str().unwrap(), json!({"type":"queue_after_active"})).await;
             }
             "steer" => {
                 let target = harness.view()["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1]["id"].clone();
                 // The recording waits for the cancel the steer causes, so the steer may follow the run's start.
                 harness.until_raw(|view| view["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1].get("status").filter(|status| *status == "running").map(|_| ())).await;
-                harness.send(step["text"].as_str().unwrap(), json!({"type":"steer_active","targetRunId":target}));
+                harness.send(step["text"].as_str().unwrap(), json!({"type":"steer_active","targetRunId":target})).await;
             }
             "approve_next_runtime_request" => {
                 let request = harness.pending_request().await;
-                harness.dispatch(json!({"type":"runtime-request.respond","commandId":format!("approve-{index}"),"threadId":harness.thread,"requestId":request["id"],"decision":step["decision"].as_str().unwrap_or("accept")}));
+                harness.dispatch(json!({"type":"runtime-request.respond","commandId":format!("approve-{index}"),"threadId":harness.thread,"requestId":request["id"],"decision":step["decision"].as_str().unwrap_or("accept")})).await;
             }
             "answer_next_user_input_request" => {
                 let request = harness.pending_request().await;
-                harness.dispatch(json!({"type":"runtime-request.respond","commandId":format!("answer-{index}"),"threadId":harness.thread,"requestId":request["id"],"answers":step["answers"]}));
+                harness.dispatch(json!({"type":"runtime-request.respond","commandId":format!("answer-{index}"),"threadId":harness.thread,"requestId":request["id"],"answers":step["answers"]})).await;
             }
             "interrupt" => {
                 let target = step["targetRunIndex"].as_u64().unwrap() as usize;
                 let run = harness.until(|view| view["runs"].get(target - 1).filter(|run| run["status"] == "running").cloned()).await;
-                harness.dispatch(json!({"type":"run.interrupt","commandId":"stop","threadId":harness.thread,"runId":run["id"]}));
+                harness.dispatch(json!({"type":"run.interrupt","commandId":"stop","threadId":harness.thread,"runId":run["id"]})).await;
             }
             "stop_background_work" => {
                 harness.idle().await;
                 let target = step["targetRunIndex"].as_u64().unwrap() as usize;
                 let run = harness.view()["runs"][target - 1]["id"].clone();
-                harness.dispatch(json!({"type":"run.interrupt","commandId":"stop-background","threadId":harness.thread,"runId":run,"holdQueue":true}));
+                harness.dispatch(json!({"type":"run.interrupt","commandId":"stop-background","threadId":harness.thread,"runId":run,"holdQueue":true})).await;
                 // Stop ends the work in an effect; its result is what the projection shows.
                 harness.execution.drained(&harness.thread).await;
             }
+            "finish_held_run" => harness.finish_held_run(step["targetRunIndex"].as_u64().unwrap() as usize, step["status"].as_str().unwrap()).await,
+            "release_replay_gate" => harness.release_gate().await,
             "advance_clock" => {}
             other => return Err(format!("{name}: unsupported step {other}")),
         }
@@ -242,7 +390,15 @@ async fn replay(row: Value) -> Result<(), String> {
     let view = harness.view();
     let ordinals: Vec<String> = view["turnItems"].as_array().unwrap().iter().map(|item| format!("{}#{}@{}", item["type"].as_str().unwrap(), item["ordinal"], item["runId"].as_str().unwrap_or("-").len())).collect();
     let actual = normalize(&view);
+    // What the thread's own stream delivered over its socket includes the run that reported the wake.
+    if let Some(remote) = &mut harness.remote {
+        remote.stream.until("the notification the wake run starts with", |chunks| chunks.iter().any(|chunk| chunk.to_string().contains("\"type\":\"notification\""))).await;
+    }
+    if let Some(remote) = harness.remote.take() {
+        remote.served.stop().await;
+    }
     // Shutting down closes the session, which the recording ends with.
+    harness.providers.attach_gate().open();
     harness.execution.shutdown().await;
     let status = harness.replay_status();
     let consumed = status["failure"].is_null() && status["cursor"] == status["total"];
@@ -333,7 +489,7 @@ async fn recorded_grok_sessions_persist_what_the_source_adapter_persisted() {
             continue;
         }
         // A scenario that stalls panics inside `until`; report it with the others.
-        match tokio::spawn(replay(row.clone())).await {
+        match tokio::spawn(replay(row.clone(), false)).await {
             Ok(Ok(())) => {}
             Ok(Err(failure)) => failures.push(failure),
             Err(cause) => failures.push(format!("{name}: {}", cause.try_into_panic().ok().and_then(|payload| payload.downcast_ref::<String>().cloned()).unwrap_or_default())),
@@ -342,10 +498,10 @@ async fn recorded_grok_sessions_persist_what_the_source_adapter_persisted() {
     assert!(failures.is_empty(), "{} of {} scenarios differ:\n{}", failures.len(), rows.len(), failures.join("\n"));
 }
 
-/// The exclusion list is exactly the scenarios that hold a run open for background work: those are the ones
-/// whose steps release a held run, and no other scenario has such a step.
+/// The scenarios that hold a run open for background work are the ones whose steps release a held run, and no
+/// other scenario has such a step. Each of them is replayed, none excluded.
 #[test]
-fn exclusions_are_exactly_the_scenarios_that_hold_a_run_open_for_background_work() {
+fn every_scenario_that_holds_a_run_open_for_background_work_is_replayed() {
     let mut holding = vec![];
     for name in SCENARIOS {
         let row: Value = serde_json::from_str(&std::fs::read_to_string(format!("{}/tests/fixtures/grok-replay/{name}.json", env!("CARGO_MANIFEST_DIR"))).unwrap()).unwrap();
@@ -353,12 +509,9 @@ fn exclusions_are_exactly_the_scenarios_that_hold_a_run_open_for_background_work
             holding.push(name);
         }
     }
-    let mut excluded: Vec<&str> = EXCLUDED.iter().map(|(name, _)| *name).collect();
-    excluded.sort_unstable();
     holding.sort_unstable();
-    assert_eq!(excluded, holding);
-    assert_eq!(excluded, ["grok_background_bash", "grok_background_bash_fast_wake", "grok_background_subagent", "grok_monitor"]);
-    assert!(EXCLUDED.iter().all(|(name, reason)| SCENARIOS.contains(name) && !reason.is_empty()));
+    assert!(EXCLUDED.is_empty(), "all sixteen recorded sessions are replayed");
+    assert_eq!(holding, ["grok_background_bash", "grok_background_bash_fast_wake", "grok_background_subagent", "grok_monitor"]);
     // The late-frame allowance names one scenario whose recording really has a title after its last reply.
     for name in SNAPSHOT_BEFORE_LATE_FRAMES {
         let row: Value = serde_json::from_str(&std::fs::read_to_string(format!("{}/tests/fixtures/grok-replay/{name}.json", env!("CARGO_MANIFEST_DIR"))).unwrap()).unwrap();
@@ -367,4 +520,17 @@ fn exclusions_are_exactly_the_scenarios_that_hold_a_run_open_for_background_work
         assert!(entries[last_reply..].iter().any(|entry| entry["frame"]["params"]["update"]["sessionUpdate"] == "session_info_update"));
     }
     assert_eq!(SNAPSHOT_BEFORE_LATE_FRAMES, ["grok_prompt_error"]);
+}
+
+/// The same recorded session, the commands going over the real WebSocket transport: a message starts the
+/// run, the quiet window passes on the test's clock, and the subagent's end wakes a continuation run. The
+/// thread's own stream is read on a socket of its own, every chunk acknowledged.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_background_subagent_and_the_run_its_end_wakes_over_the_real_socket() {
+    let row: Value = serde_json::from_str(&std::fs::read_to_string(format!("{}/tests/fixtures/grok-replay/grok_background_subagent.json", env!("CARGO_MANIFEST_DIR"))).unwrap()).unwrap();
+    match tokio::spawn(replay(row, true)).await {
+        Ok(Ok(())) => {}
+        Ok(Err(failure)) => panic!("{failure}"),
+        Err(cause) => std::panic::resume_unwind(cause.into_panic()),
+    }
 }

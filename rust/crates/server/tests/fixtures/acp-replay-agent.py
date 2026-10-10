@@ -7,6 +7,7 @@ written as soon as the cursor reaches them, and the cursor is written to a statu
 test can prove the whole transcript was consumed. Usage: acp-replay-agent.py TRANSCRIPT STATUS WORKSPACE
 """
 import json
+import os
 import sys
 
 transcript = json.load(open(sys.argv[1]))
@@ -24,8 +25,11 @@ def write_status(failure=None):
     body = {"scenario": transcript["scenario"], "cursor": cursor, "total": len(entries)}
     if failure is not None:
         body["failure"] = failure
-    with open(status_path, "w") as handle:
+    # Replaced whole, so a reader never sees a file that is half written.
+    scratch = status_path + ".tmp"
+    with open(scratch, "w") as handle:
         json.dump(body, handle)
+    os.replace(scratch, status_path)
 
 
 def expand(value):
@@ -70,8 +74,9 @@ def fail(detail, actual=None):
 
 
 def send(message):
+    # Frames leave in bursts: `flush` hands over what it has played when it stops, so a recorded flood reaches the
+    # client as fast as the client reads it, and the client's own work (starting a run) cannot interleave with it.
     sys.stdout.write(json.dumps(message) + "\n")
-    sys.stdout.flush()
 
 
 def materialize(value):
@@ -114,6 +119,15 @@ def emit(recorded):
 
 
 def flush():
+    try:
+        play()
+    finally:
+        if not stopped:
+            sys.stdout.flush()
+            write_status()
+
+
+def play():
     global cursor
     while not stopped:
         if cursor >= len(entries):
@@ -132,6 +146,8 @@ def flush():
         gate = transcript.get("gate")
         if gate and entry.get("label") == gate["label"] and not gate.get("passed"):
             gate["passed"] = True
+            sys.stdout.flush()
+            write_status()
             with open(gate["fifo"], "r") as pipe:
                 pipe.read()
         # A trailing runtime exit needs nothing from the client, and the client may stop this process the
@@ -144,7 +160,6 @@ def flush():
             return
         emit(entry["frame"])
         cursor += 1
-        write_status()
 
 
 def logical(message):

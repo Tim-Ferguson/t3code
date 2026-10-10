@@ -93,6 +93,12 @@ pub struct Shared {
     /// A Bitbucket pull request's file versions, parsed out of its patch and shared by the ticks that
     /// follow one another (`BitbucketPullRequestApi`'s `revisionPatches`).
     pub(crate) bitbucket_patches: TtlCache<String, Arc<crate::pull_request_bitbucket::ParsedPatch>, crate::pull_request_github::PrFailure>,
+    /// What an Azure DevOps provider remembers between requests: the registry builds a provider
+    /// per request here, where the original builds one once, so the allowance of `az` processes and
+    /// the pull request locations live with the host.
+    pub(crate) azure: crate::pull_request_azure::AzureShared,
+    /// The token `fj` last renewed for each server, believed for thirty seconds.
+    pub(crate) forgejo: crate::source_control_forgejo::ForgejoShared,
 }
 
 static PROCESS_HOST: std::sync::OnceLock<Host> = std::sync::OnceLock::new();
@@ -118,6 +124,8 @@ impl Host {
                 github: GitHubShared::new(options.clock.clone()),
                 contexts: TtlCache::new(PROVIDER_DETECTION_CACHE_CAPACITY, options.clock.clone()),
                 bitbucket_patches: TtlCache::new(crate::pull_request_bitbucket::REVISION_PATCH_CAPACITY, options.clock.clone()),
+                azure: Default::default(),
+                forgejo: Default::default(),
                 clock: options.clock,
                 http: reqwest::Client::new(),
                 github_api: options.github_api,

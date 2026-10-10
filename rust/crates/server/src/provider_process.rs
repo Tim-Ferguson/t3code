@@ -24,7 +24,31 @@ use tokio::{
 };
 
 const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
+/// How long a process group has to wind down after SIGTERM before SIGKILL (`processGroupTerminationGrace`).
+#[cfg(unix)]
+const GROUP_GRACE: Duration = Duration::from_secs(1);
 const MAX_PENDING: usize = 128;
+
+/// Ends the process group a grouped process led: SIGTERM, then SIGKILL once the grace has passed. The leader is
+/// reaped before this runs, so the group is whatever it started and detached.
+#[cfg(unix)]
+async fn end_group(leader: Option<u32>) {
+    let Some(group) = leader.and_then(|pid| i32::try_from(pid).ok()) else { return };
+    // SAFETY: plain signal delivery to the process group this process led.
+    if unsafe { libc::kill(-group, libc::SIGTERM) } != 0 {
+        return;
+    }
+    let deadline = tokio::time::Instant::now() + GROUP_GRACE;
+    while tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        // SAFETY: signal 0 only reports whether the group still has members.
+        if unsafe { libc::kill(-group, 0) } != 0 {
+            return;
+        }
+    }
+    // SAFETY: as above.
+    unsafe { libc::kill(-group, libc::SIGKILL) };
+}
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum ProcessError {
@@ -177,7 +201,7 @@ impl Drop for PendingGuard {
 
 impl ProviderProcess {
     pub fn spawn(options: ProcessOptions) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, false, ProtocolOptions::default())
+        Self::spawn_protocol(options, false, ProtocolOptions::default(), false)
     }
     /// ACP uses versioned JSON-RPC envelopes; Codex's raw envelopes retain their
     /// existing encoding through `spawn`. Both modes share owned process cleanup.
@@ -188,12 +212,18 @@ impl ProviderProcess {
         options: ProcessOptions,
         protocol_options: ProtocolOptions,
     ) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, true, protocol_options)
+        Self::spawn_protocol(options, true, protocol_options, false)
+    }
+    /// A versioned JSON-RPC process that owns its process group: what it starts and detaches is ended with it
+    /// (`ownDetachedProcessGroup`).
+    pub fn spawn_json_rpc_grouped(options: ProcessOptions) -> Result<Self, ProcessError> {
+        Self::spawn_protocol(options, true, ProtocolOptions::default(), true)
     }
     fn spawn_protocol(
         options: ProcessOptions,
         json_rpc: bool,
         protocol_options: ProtocolOptions,
+        grouped: bool,
     ) -> Result<Self, ProcessError> {
         let mut builder = if json_rpc && cfg!(windows) {
             let mut environment: indexmap::IndexMap<String, String> = std::env::vars().collect();
@@ -208,6 +238,10 @@ impl ProviderProcess {
             builder.args(&options.args).envs(&options.environment);
             builder
         };
+        #[cfg(unix)]
+        if grouped {
+            builder.process_group(0);
+        }
         let mut child = builder
             .current_dir(options.cwd)
             .stdin(Stdio::piped())
@@ -384,6 +418,10 @@ impl ProviderProcess {
             writer.abort();
             let _ = child.kill().await;
             let _ = child.wait().await;
+            #[cfg(unix)]
+            if grouped {
+                end_group(pid).await;
+            }
             stderr_task.abort();
             let _ = events.send(ProcessEvent::Closed(failure));
         });

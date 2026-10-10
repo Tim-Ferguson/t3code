@@ -8,10 +8,12 @@ impl Actor {
             Event::PromptSettled => {
                 // The prompt's task has its result; the turn ends here, in order with the updates around it.
                 match self.prompt.take() {
-                    Some(prompt) => self.finish(prompt.await.unwrap_or_else(|error| Err(AcpError::Transport(error.to_string())))),
+                    Some(prompt) => self.settle_prompt(prompt.await.unwrap_or_else(|error| Err(AcpError::Transport(error.to_string())))),
                     None => Ok(()),
                 }
             }
+            Event::Task(lifecycle) => self.task_lifecycle(lifecycle),
+            Event::SubagentFinished(notice) => self.subagent_finished(notice),
             Event::Question { params, response, written } => self.grok_question(params, response, written),
             Event::ExitPlan { params, response } => {
                 // Grok intercepts exit_plan_mode and asks the client to approve. The plan becomes T3's

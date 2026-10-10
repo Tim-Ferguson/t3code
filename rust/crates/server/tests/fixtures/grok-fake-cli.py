@@ -16,15 +16,26 @@ if log:
     with open(log, "a") as handle:
         handle.write(json.dumps(args) + "\n")
 here = os.path.dirname(os.path.abspath(__file__))
+version_file = os.environ.get("GROK_FIXTURE_VERSION_FILE")
 if args == ["--version"]:
-    print(os.environ.get("GROK_FIXTURE_VERSION", "grok 1.0.41"))
+    if version_file and os.path.exists(version_file):
+        print(open(version_file).read().strip())
+    else:
+        print(os.environ.get("GROK_FIXTURE_VERSION", "grok 1.0.41"))
+elif args == ["update"]:
+    # `grok update` installs the release GROK_FIXTURE_UPDATE_TO under GROK_HOME; the version file stands for it.
+    if version_file:
+        with open(version_file, "w") as handle:
+            handle.write("grok " + os.environ.get("GROK_FIXTURE_UPDATE_TO", "1.0.50"))
+    print("Updated")
 elif args == ["models"]:
     if os.environ.get("GROK_FIXTURE_LOGGED_OUT"):
         print("Not authenticated. Run `grok login`.")
     else:
         print("You are logged in with grok.com.\nDefault model: grok-4.7\nAvailable models:\n  * grok-4.7 (default)\n  - grok-4.6")
 elif args[:2] == ["inspect", "--json"]:
-    print(json.dumps({"skills": [{"name": "review", "description": "Review a change", "source": {"type": "user", "path": "/skills/review/SKILL.md"}, "userInvocable": True}]}))
+    # The second skill is the directory the CLI was asked about, so a workspace scan shows its own.
+    print(json.dumps({"skills": [{"name": "review", "description": "Review a change", "source": {"type": "user", "path": "/skills/review/SKILL.md"}, "userInvocable": True}, {"name": "here", "description": os.getcwd(), "source": {"type": "project", "path": "/skills/here/SKILL.md"}, "userInvocable": True}]}))
 elif args == ["agent", "stdio"]:
     if os.environ.get("GROK_FIXTURE_PROBE_FAILS"):
         sys.exit(3)

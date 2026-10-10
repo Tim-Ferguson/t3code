@@ -34,12 +34,19 @@ impl ProcessPeer {
     pub fn spawn(options: ProcessOptions) -> Result<Self, AcpError> {
         Self::spawn_with_options(options, t3_acp::transport::ProtocolOptions::default())
     }
+    /// Spawns a process that leads its own process group, ended with it: Grok's detached tools do not outlive a Stop.
+    pub fn spawn_grouped(options: ProcessOptions) -> Result<Self, AcpError> {
+        Self::from_process(ProviderProcess::spawn_json_rpc_grouped(options).map_err(error)?)
+    }
     pub fn spawn_with_options(
         options: ProcessOptions,
         protocol_options: t3_acp::transport::ProtocolOptions,
     ) -> Result<Self, AcpError> {
         let process = ProviderProcess::spawn_json_rpc_with_options(options, protocol_options)
             .map_err(error)?;
+        Self::from_process(process)
+    }
+    fn from_process(process: ProviderProcess) -> Result<Self, AcpError> {
         // Register before initialization; the forwarder retains no process clone,
         // so releasing the peer also releases and reaps the owned child.
         let mut incoming = process.subscribe();

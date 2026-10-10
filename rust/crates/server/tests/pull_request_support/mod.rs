@@ -13,11 +13,25 @@ pub fn shell_quote(text: &str) -> String {
 /// A `glab` that numbers each call by claiming a directory, keeps its arguments and stdin, and answers from
 /// the first route whose fragments its arguments (and stdin) contain.
 pub fn install_glab(dir: &FakeCliDir, routes: &[Value]) {
+    install_routed(dir, "glab", routes, ["glab auth login", "HTTP 429", "404 Not Found"]);
+}
+
+/// The same fake under the name of `az`, whose failures read as the Azure CLI's do.
+pub fn install_az(dir: &FakeCliDir, routes: &[Value]) {
+    install_routed(dir, "az", routes, ["Please run az login to setup account.", "HTTP 429 Too Many Requests", "TF401180: The requested pull request was not found"]);
+}
+
+/// A fake host CLI named `executable`; `failures` is what it prints on stderr in the `auth`, `rate`
+/// and `notfound` modes.
+pub fn install_routed(dir: &FakeCliDir, executable: &str, routes: &[Value], failures: [&str; 3]) {
     if routes.iter().all(|route| route["spawn"] == true) {
         return;
     }
-    let mut body = String::from(
-        "d=\"${0%/*}\"\nn=1\nwhile ! mkdir \"$d/claim.$n\" 2>/dev/null; do n=$((n+1)); done\ntrap 'trap - EXIT; exit 143' TERM\ntrap 'printf \"%s\\037\" \"$@\" > \"$d/call.$n.args\"' EXIT\ncat > \"$d/call.$n.stdin\"\njoined=\"$*\"\nin=$(cat \"$d/call.$n.stdin\")\nmode=ok\nif [ -f \"$d/mode\" ]; then read -r mode < \"$d/mode\"; fi\ncase \"$mode\" in\nauth) echo 'glab auth login' >&2; exit 1;;\nrate) echo 'HTTP 429' >&2; exit 1;;\nnotfound) echo '404 Not Found' >&2; exit 1;;\nesac\n",
+    let mut body = format!(
+        "d=\"${{0%/*}}\"\nn=1\nwhile ! mkdir \"$d/claim.$n\" 2>/dev/null; do n=$((n+1)); done\ntrap 'trap - EXIT; exit 143' TERM\ntrap 'printf \"%s\\037\" \"$@\" > \"$d/call.$n.args\"' EXIT\ncat > \"$d/call.$n.stdin\"\njoined=\"$*\"\nin=$(cat \"$d/call.$n.stdin\")\nmode=ok\nif [ -f \"$d/mode\" ]; then read -r mode < \"$d/mode\"; fi\ncase \"$mode\" in\nauth) echo {} >&2; exit 1;;\nrate) echo {} >&2; exit 1;;\nnotfound) echo {} >&2; exit 1;;\nesac\n",
+        shell_quote(failures[0]),
+        shell_quote(failures[1]),
+        shell_quote(failures[2]),
     );
     for (index, route) in routes.iter().enumerate() {
         std::fs::write(dir.dir.path().join(format!("route.{index}.out")), route["stdout"].as_str().unwrap_or("")).unwrap();
@@ -43,7 +57,7 @@ pub fn install_glab(dir: &FakeCliDir, routes: &[Value]) {
         body.push_str(&format!("case \"$joined\" in *{}*) {inner};; esac\n", shell_quote(route["match"].as_str().unwrap())));
     }
     body.push_str("echo \"no route: $joined\" >&2\nexit 97\n");
-    let path = dir.dir.path().join("glab");
+    let path = dir.dir.path().join(executable);
     std::fs::write(&path, format!("#!/bin/sh\n{body}")).unwrap();
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -110,8 +124,13 @@ pub const FIXTURE_ORIGIN: &str = "https://api.bitbucket.org/2.0";
 
 impl RouteServer {
     pub async fn start(routes: &[Value]) -> RouteServer {
+        Self::start_at(routes, API_PREFIX).await
+    }
+
+    /// The same server for an API that lives under `prefix` (none, for a host that serves from its root).
+    pub async fn start_at(routes: &[Value], prefix: &'static str) -> RouteServer {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let base = format!("http://{}{API_PREFIX}", listener.local_addr().unwrap());
+        let base = format!("http://{}{prefix}", listener.local_addr().unwrap());
         let state = std::sync::Arc::new(std::sync::Mutex::new(RouteState {
             routes: routes.to_vec(),
             hits: vec![0; routes.len()],
@@ -128,7 +147,7 @@ impl RouteServer {
                     _ = &mut stopped => break,
                     accepted = listener.accept() => {
                         let Ok((stream, _)) = accepted else { continue };
-                        tokio::spawn(serve(stream, served.clone(), origin.clone()));
+                        tokio::spawn(serve(stream, served.clone(), origin.clone(), prefix));
                     }
                 }
             }
@@ -167,7 +186,7 @@ impl Drop for RouteServer {
     }
 }
 
-async fn serve(mut stream: tokio::net::TcpStream, state: std::sync::Arc<std::sync::Mutex<RouteState>>, origin: String) {
+async fn serve(mut stream: tokio::net::TcpStream, state: std::sync::Arc<std::sync::Mutex<RouteState>>, origin: String, prefix: &'static str) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let mut received = Vec::new();
     let mut chunk = [0u8; 8192];
@@ -194,7 +213,7 @@ async fn serve(mut stream: tokio::net::TcpStream, state: std::sync::Arc<std::syn
         }
     }
     let body_text = String::from_utf8_lossy(&received[head_end + 4..head_end + 4 + length]).into_owned();
-    let relative = target.strip_prefix(API_PREFIX).unwrap_or(&target).to_string();
+    let relative = target.strip_prefix(prefix).unwrap_or(&target).to_string();
     // What to answer: a step of the first matching route, or a failure mode.
     let step = {
         let mut state = state.lock().unwrap();
@@ -224,14 +243,18 @@ async fn serve(mut stream: tokio::net::TcpStream, state: std::sync::Arc<std::syn
         return;
     }
     let status = step["status"].as_u64().unwrap_or(200);
-    let mut body = step["body"].as_str().unwrap_or("").replace(FIXTURE_ORIGIN, &origin);
+    let mut body = step["body"].as_str().unwrap_or("").replace(FIXTURE_ORIGIN, &origin).replace("{origin}", origin.strip_suffix(prefix).unwrap_or(&origin));
     if step["truncated"] == true {
         // A body past the byte ceiling the diff read is cut at.
         body.push_str(&"\n".repeat((8 << 20) + 1 - body.len().min(8 << 20)));
     }
     let retry = step["retryAfter"].as_u64().map(|seconds| format!("retry-after: {seconds}\r\n")).unwrap_or_default();
     let retry = match step["location"].as_str() {
-        Some(location) => format!("{retry}location: {}\r\n", location.replace("{origin}", origin.strip_suffix(API_PREFIX).unwrap_or(&origin))),
+        Some(location) => format!("{retry}location: {}\r\n", location.replace("{origin}", origin.strip_suffix(prefix).unwrap_or(&origin))),
+        None => retry,
+    };
+    let retry = match step["headers"].as_object() {
+        Some(headers) => headers.iter().fold(retry, |text, (name, value)| format!("{text}{name}: {}\r\n", value.as_str().unwrap_or(""))),
         None => retry,
     };
     let head = format!("HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\n{retry}connection: close\r\n\r\n", body.len());

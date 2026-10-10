@@ -70,6 +70,11 @@ impl Drop for ProviderChanges {
         }
     }
 }
+/// Whether a live process of this driver may hold work a settled turn started, which Stop must end before it
+/// settles what the thread shows: Codex's terminals, Claude's background shells, Grok's process group.
+pub(crate) fn holds_background_work(driver: &str) -> bool {
+    matches!(driver, "codex" | "claudeAgent" | "grok")
+}
 #[derive(Clone)]
 pub struct ProviderRegistry {
     state: Arc<RwLock<RegistryState>>,
@@ -84,6 +89,8 @@ pub struct ProviderRegistry {
     text_generation: Arc<RwLock<crate::text_generation_run::Options>>,
     management: crate::provider_manage::Management,
     idle: crate::provider_idle::IdleRelease,
+    finalize: crate::deferred_finalize::FinishDebounce,
+    attach: crate::deferred_finalize::AttachGate,
     /// The refresh of every instance now running; callers arriving meanwhile share its result.
     inflight: Arc<Mutex<Option<futures_util::future::Shared<futures_util::future::BoxFuture<'static, Result<Vec<Value>, String>>>>>>,
 }
@@ -91,6 +98,14 @@ impl ProviderRegistry {
     /// The clock and windows on which an idle provider process is released.
     pub fn idle_release(&self) -> &crate::provider_idle::IdleRelease {
         &self.idle
+    }
+    /// The windows a held turn waits out before it settles, on the idle release's clock.
+    pub fn finish_debounce(&self) -> &crate::deferred_finalize::FinishDebounce {
+        &self.finalize
+    }
+    /// When a continuation run attaches to the traffic buffered for it; open unless a test closes it.
+    pub fn attach_gate(&self) -> &crate::deferred_finalize::AttachGate {
+        &self.attach
     }
     pub fn set_mcp_sessions(&self, sessions: crate::provider_mcp::ProviderMcpSessions) {
         *self.mcp.write().unwrap() = Some(sessions);
@@ -289,6 +304,8 @@ impl ProviderRegistry {
             text_generation: Default::default(),
             management,
             idle: Default::default(),
+            finalize: Default::default(),
+            attach: Default::default(),
             inflight: Default::default(),
         })
     }
@@ -644,10 +661,10 @@ impl ProviderRegistry {
         let published = Arc::new(snapshots);
         self.changes.lock().unwrap().senders.retain(|_, sender| sender.send(published.clone()).is_ok());
     }
-    /// The update target of a live Codex or Claude instance; other drivers cannot be updated here.
+    /// The update target of a live Codex, Claude or Grok instance; other drivers cannot be updated here.
     pub(crate) fn maintenance_target(&self, instance_id: &str) -> Option<crate::provider_manage::Target> {
         let state = self.state.read().unwrap();
-        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target))
+        state.codex.get(instance_id).map(crate::provider_manage::codex_target).or_else(|| state.claude.get(instance_id).map(crate::provider_manage::claude_target)).or_else(|| state.grok.get(instance_id).map(crate::provider_manage::grok_target))
     }
     pub(crate) fn codex_instance(&self, instance_id: &str) -> Option<CodexInstance> {
         self.state.read().unwrap().codex.get(instance_id).cloned()
@@ -740,6 +757,7 @@ impl ProviderRegistry {
             let target = match &instance {
                 Some(RegisteredInstance::Codex(codex)) => Some(crate::provider_manage::codex_target(codex)),
                 Some(RegisteredInstance::Claude(claude)) => Some(crate::provider_manage::claude_target(claude)),
+                Some(RegisteredInstance::Grok(grok)) => Some(crate::provider_manage::grok_target(grok)),
                 _ => None,
             };
             self.management.finish_snapshot(&mut snapshot, target.as_ref(), checks).await;

@@ -114,6 +114,12 @@ pub fn codex_target(instance: &crate::codex::CodexInstance) -> Target {
     let shared_home = codex_shared_home(instance.config.home_path.as_str(), &env);
     Target { instance_id: instance.instance_id.clone(), driver: "codex", definition: maintenance::codex_definition(&shared_home), binary: expand_home(instance.config.binary_path.as_str(), &env), env }
 }
+/// Grok installs under `GROK_HOME`, so its updater runs with the instance's environment.
+pub fn grok_target(instance: &crate::grok_instance::GrokInstance) -> Target {
+    let env = merged_environment(&instance.environment);
+    let own = instance.environment.iter().map(|(name, value)| (name.clone(), value.clone())).collect();
+    Target { instance_id: instance.instance_id.clone(), driver: "grok", definition: maintenance::grok_definition(own), binary: expand_home(&instance.binary_path().to_string_lossy(), &env), env }
+}
 pub fn claude_target(instance: &crate::claude_instance::ClaudeInstance) -> Target {
     let env = merged_environment(&instance.environment);
     Target { instance_id: instance.instance_id.clone(), driver: "claudeAgent", definition: maintenance::claude_definition(), binary: expand_home(instance.config.binary_path.as_str(), &env), env }

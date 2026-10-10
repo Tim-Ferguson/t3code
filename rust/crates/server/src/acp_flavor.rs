@@ -45,7 +45,6 @@ impl Flavor {
         }
         tool
     }
-    #[allow(dead_code)]
     /// Grok writes its plan to a file mid-turn; the markdown a tool call carries shows as the proposed-plan card.
     pub(crate) fn proposed_plan(&self, tool: &ToolState, environment: &std::collections::HashMap<String, String>) -> Option<String> {
         let Self::Grok(_) = self else { return None };

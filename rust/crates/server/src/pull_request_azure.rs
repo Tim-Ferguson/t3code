@@ -209,8 +209,9 @@ struct ListPage {
     cursor_advance: usize,
 }
 
-pub struct AzurePullRequests {
-    cli: AzureDevOpsCli,
+/// What is held across requests, once per host (`Shared::azure`): the build's whole allowance of
+/// `az` processes for diff reads, and where each pull request's repository lives.
+pub struct AzureShared {
     spawns: Semaphore,
     /// Where a pull request's repository lives, which is the route every other read of it needs and
     /// the one thing only the pull request states. A pull request cannot move between
@@ -219,9 +220,24 @@ pub struct AzurePullRequests {
     locations: Mutex<IndexMap<String, Location>>,
 }
 
+impl Default for AzureShared {
+    fn default() -> Self {
+        Self { spawns: Semaphore::new(MAX_DIFF_SPAWNS), locations: Mutex::new(IndexMap::new()) }
+    }
+}
+
+pub struct AzurePullRequests {
+    cli: AzureDevOpsCli,
+    host: Host,
+}
+
 impl AzurePullRequests {
     pub fn new(host: Host) -> Self {
-        Self { cli: AzureDevOpsCli::new(host), spawns: Semaphore::new(MAX_DIFF_SPAWNS), locations: Mutex::new(IndexMap::new()) }
+        Self { cli: AzureDevOpsCli::new(host.clone()), host }
+    }
+
+    fn shared(&self) -> &AzureShared {
+        &self.host.shared.azure
     }
 
     /// `az <args> --only-show-errors --output json`.
@@ -355,7 +371,7 @@ impl AzurePullRequests {
 
     /// One file's text at one commit, held to the build's allowance of `az` processes.
     async fn read_item_content(&self, cwd: &str, location: &Location, path: &str, commit: &str) -> Read<ItemContent> {
-        let _permit = self.spawns.acquire().await.expect("the diff semaphore is never closed");
+        let _permit = self.shared().spawns.acquire().await.expect("the diff semaphore is never closed");
         let query = vec![
             format!("path={}", to_item_path(path)),
             "versionDescriptor.versionType=commit".to_string(),
@@ -374,7 +390,7 @@ impl AzurePullRequests {
     async fn location_of(&self, cwd: &str, number: u64) -> Read<Option<Location>> {
         let key = format!("{cwd} {number}");
         {
-            let mut held = self.locations.lock().unwrap();
+            let mut held = self.shared().locations.lock().unwrap();
             if let Some(location) = held.shift_remove(&key) {
                 held.insert(key, location.clone());
                 return Ok(Some(location));
@@ -382,7 +398,7 @@ impl AzurePullRequests {
         }
         let location = self.get_pull_request(cwd, number).await?.location;
         if let Some(location) = &location {
-            let mut held = self.locations.lock().unwrap();
+            let mut held = self.shared().locations.lock().unwrap();
             if held.len() >= LOCATION_CACHE_CAPACITY {
                 held.shift_remove_index(0);
             }
@@ -416,7 +432,10 @@ impl AzurePullRequests {
             }
             self.read_item_content(cwd, location, path, &iteration.head_commit).await
         };
-        let (old, new) = tokio::try_join!(Box::pin(old), Box::pin(new))?;
+        // Both sides are always asked for, whichever answers first: a side that fails does not end
+        // the other's process half-way, and the failure reported is the old side's before the new's.
+        let (old, new) = tokio::join!(Box::pin(old), Box::pin(new));
+        let (old, new) = (old?, new?);
         // Azure hands a file it calls binary over in an encoding of its own, so its own word on
         // that is taken rather than looked for in bytes it may never have sent verbatim.
         Ok(FileTexts { binary: old.is_binary || new.is_binary, old_contents: old.contents, new_contents: new.contents })
