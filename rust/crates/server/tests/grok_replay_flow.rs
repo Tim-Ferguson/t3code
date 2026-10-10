@@ -17,6 +17,10 @@ use t3_server::{
     provider_registry::ProviderRegistry, scheduled_tasks::ManualClock,
 };
 
+/// How long a wait for a persisted state may take before the test calls it a hang: far beyond any loaded machine, and no
+/// part of what a passing run depends on.
+const HANG_BOUND: Duration = Duration::from_secs(120);
+
 const CLI: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/grok-fake-cli.py");
 
 struct Harness {
@@ -181,7 +185,7 @@ impl Harness {
             if done(self) {
                 return;
             }
-            let _ = tokio::time::timeout(Duration::from_secs(20), armed.wait_for(|count| *count > consumed)).await.expect("the held run never armed its quiet window");
+            let _ = tokio::time::timeout(HANG_BOUND, armed.wait_for(|count| *count > consumed)).await.expect("the held run never armed its quiet window");
             consumed = *armed.borrow();
             self.clock.advance(DEBOUNCE_MS);
             let mut events = self.store.subscribe();
@@ -221,7 +225,7 @@ impl Harness {
     }
     async fn until_raw<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = self.store.projection("thread", &self.thread).unwrap().and_then(|view| check(&view)) {
                     return found;
@@ -234,7 +238,7 @@ impl Harness {
     }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        let outcome = tokio::time::timeout(Duration::from_secs(20), async {
+        let outcome = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;
@@ -384,7 +388,7 @@ async fn replay(row: Value, over_socket: bool) -> Result<(), String> {
     }
     let wanted = expected_row["providerThread"].clone();
     let mut events = harness.store.subscribe();
-    let _ = tokio::time::timeout(Duration::from_secs(5), async {
+    let _ = tokio::time::timeout(HANG_BOUND, async {
         while normalize(&harness.view())["providerThread"] != wanted {
             let _ = events.recv().await;
         }

@@ -1592,9 +1592,11 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'length':len(data
 "#,
             Default::default(),
         );
-        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        // Both bounds only end a hang. Moving 16 MB each way through an unoptimized serde_json costs about a CPU-second,
+        // and a loaded machine stretches that to however long it likes, so the response is what the test waits for.
+        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(600));
         let value = tokio::time::timeout(
-            Duration::from_secs(5),
+            Duration::from_secs(600),
             client.raw_request("x/large", json!({"data":"x".repeat(length)})),
         )
         .await

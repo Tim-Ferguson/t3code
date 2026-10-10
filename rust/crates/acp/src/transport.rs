@@ -106,10 +106,9 @@ impl NdjsonDecoder {
         }
         let mut start = 0;
         let mut frames = Vec::new();
-        for end in self.scanned..self.buffer.len() {
-            if self.buffer[end] != b'\n' {
-                continue;
-            }
+        let mut from = self.scanned;
+        while let Some(end) = next_newline(&self.buffer, from) {
+            from = end + 1;
             if end - start > self.max_frame_bytes {
                 return Err(wire_parse_error("ACP input frame exceeds byte budget"));
             }
@@ -126,6 +125,20 @@ impl NdjsonDecoder {
         self.scanned = self.buffer.len();
         Ok(frames)
     }
+}
+/// The index of the first newline at or after `from`. A frame can be megabytes of one string, so the search goes through
+/// `contains` a block at a time, which std runs word-wise even in an unoptimized build; a byte-by-byte loop costs a debug
+/// build a fifth of a second per 16 MB frame.
+fn next_newline(bytes: &[u8], from: usize) -> Option<usize> {
+    const BLOCK: usize = 4096;
+    let mut at = from;
+    for block in bytes.get(from..)?.chunks(BLOCK) {
+        if block.contains(&b'\n') {
+            return block.iter().position(|byte| *byte == b'\n').map(|index| at + index);
+        }
+        at += block.len();
+    }
+    None
 }
 pub fn wire_parse_error(cause: impl Into<String>) -> AcpError {
     ProtocolParseError {

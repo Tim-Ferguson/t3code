@@ -15,6 +15,10 @@ use t3_server::{
     execution::ExecutionService, launch::ThreadLaunchService, thread::ThreadService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, scheduled_tasks::ManualClock,
 };
 
+/// How long a wait for a persisted state may take before the test calls it a hang: far beyond any loaded machine, and no
+/// part of what a passing run depends on.
+const HANG_BOUND: Duration = Duration::from_secs(120);
+
 struct Harness {
     server: FakeServer,
     store: Store,
@@ -124,7 +128,7 @@ impl Harness {
     }
     async fn until_in<T>(&self, thread: &str, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        let outcome = tokio::time::timeout(Duration::from_secs(30), async {
+        let outcome = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view_of(thread)) {
                     return found;
@@ -143,6 +147,19 @@ impl Harness {
     }
     async fn idle_in(&self, thread: &str) {
         self.until_in(thread, |view| view["runs"].as_array().unwrap().iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled" | "rolled_back"))).then_some(())).await
+    }
+    /// Waits until `check` holds of what is persisted, looking again after every persisted event. The bound only ends a
+    /// hang; what the wait is for is the state, not the time it takes.
+    async fn until_persisted(&self, mut check: impl FnMut() -> bool) {
+        let mut events = self.store.subscribe();
+        let outcome = tokio::time::timeout(HANG_BOUND, async {
+            while !check() {
+                let _ = events.recv().await;
+            }
+        })
+        .await;
+        // On a timeout the caller compares what is there and reports how it differs.
+        let _ = outcome;
     }
     async fn pending_request(&self) -> Value {
         self.until(|view| view["runtimeRequests"].as_array().unwrap().iter().find(|request| request["status"] == "pending").cloned()).await
@@ -314,6 +331,12 @@ async fn replay(row: Value) -> Result<(), String> {
         actual["plans"].as_array_mut().unwrap().iter_mut().for_each(|plan| mask(&mut plan["steps"]));
     }
     let forked = harness.target.clone().map(|target| harness.view_of(&target));
+    // The root's run ends when the root's turn does; what a subagent was left running (a background one reports back
+    // after it) is persisted afterwards, and shutting down before it is would stop it mid-turn. The tree is compared again
+    // below, once shut down.
+    if let Some(threads) = row.get("threads") {
+        harness.until_persisted(|| assert_threads(&name, &harness, threads.as_array().unwrap()).is_ok()).await;
+    }
     harness.execution.shutdown().await;
     let status = harness.server.replay_status();
     let consumed = status["failure"].is_null() && status["settled"] == true;
@@ -427,7 +450,7 @@ async fn recorded_opencode_sessions_persist_what_the_source_adapters_persisted()
             continue;
         }
         // A scenario that stalls panics inside `until`; report it with the others.
-        match tokio::time::timeout(Duration::from_secs(25), tokio::spawn(replay(row_of(name)))).await.unwrap_or_else(|_| panic!("{name} did not finish in 25s")) {
+        match tokio::time::timeout(HANG_BOUND * 2, tokio::spawn(replay(row_of(name)))).await.unwrap_or_else(|_| panic!("{name} did not finish within the hang bound")) {
             Ok(Ok(())) => {}
             Ok(Err(failure)) => failures.push(failure),
             Err(cause) => failures.push(format!("{name}: {}", cause.try_into_panic().ok().and_then(|payload| payload.downcast_ref::<String>().cloned()).unwrap_or_default())),
@@ -696,7 +719,7 @@ async fn one_x_sessions_the_recordings_do_not_hold_persist_what_the_adapter_is_m
     let mut failures = vec![];
     for row in synthetic_rows() {
         let name = row["name"].as_str().unwrap().to_owned();
-        match tokio::time::timeout(Duration::from_secs(25), tokio::spawn(replay(row))).await.unwrap_or_else(|_| panic!("{name} did not finish in 25s")) {
+        match tokio::time::timeout(HANG_BOUND * 2, tokio::spawn(replay(row))).await.unwrap_or_else(|_| panic!("{name} did not finish within the hang bound")) {
             Ok(Ok(())) => {}
             Ok(Err(failure)) => failures.push(failure),
             Err(cause) => failures.push(format!("{name}: {}", cause.try_into_panic().ok().and_then(|payload| payload.downcast_ref::<String>().cloned()).unwrap_or_default())),

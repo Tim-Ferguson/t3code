@@ -3,7 +3,7 @@
 //! costs on the hottest and the largest payloads is measured (`T3_PRINT_RPC_COST=1` prints it).
 use crate::rpc_decode_tests::cases;
 use serde_json::{Value, json};
-use std::time::Instant;
+use std::time::Duration;
 
 /// The largest payload of `method` (under 200 kB) the original accepts.
 fn accepted(method: &str) -> Value {
@@ -62,10 +62,11 @@ fn a_payload_with_more_nodes_than_any_real_one_is_refused_quickly() {
     let mut payload = accepted("provider.chatgpt.import-profile");
     let scopes = find_mut(&mut payload, "scopes").expect("a list of scopes");
     *scopes = Value::Array(vec![json!("openid"); 1_500_000]);
-    let started = Instant::now();
+    let started = thread_cpu_time();
     let refusal = crate::rpc_admission::admit("provider.chatgpt.import-profile", &payload).expect_err("too many nodes");
     assert!(refusal["message"].as_str().unwrap().starts_with("The payload is too large to decode"), "{refusal}");
-    assert!(started.elapsed().as_secs() < 10, "{:?}", started.elapsed());
+    let spent = thread_cpu_time() - started;
+    assert!(spent.as_secs() < 10, "{spent:?}");
     // Fewer is fine.
     *find_mut(&mut payload, "scopes").unwrap() = Value::Array(vec![json!("openid"); 50_000]);
     assert!(crate::rpc_admission::admit("provider.chatgpt.import-profile", &payload).is_ok());
@@ -89,22 +90,39 @@ fn the_gate_is_cheap_on_hot_and_large_payloads() {
     ];
     for (name, payload, rounds) in hot {
         let method = name.split(' ').next().unwrap();
-        let started = Instant::now();
+        // CPU time of this thread, not wall time: the budget is about the work the gate does, which a loaded machine
+        // does not change, where the time a test waits for a core is anything.
+        let started = thread_cpu_time();
         for _ in 0..rounds {
             let _ = std::hint::black_box(crate::rpc_admission::admit(method, std::hint::black_box(&payload)));
         }
-        let per_call = started.elapsed() / rounds as u32;
-        // What the handler's own serde decode costs on the same payload, for scale.
-        let decoder = crate::rpc_handler_decoders::handler_decoder(method);
-        let started = Instant::now();
-        for _ in 0..rounds {
-            let _ = std::hint::black_box(decoder.map(|decode| decode(std::hint::black_box(&payload))));
-        }
-        let handler = started.elapsed() / rounds as u32;
+        let per_call = (thread_cpu_time() - started) / rounds as u32;
         if std::env::var("T3_PRINT_RPC_COST").is_ok() {
+            // What the handler's own serde decode costs on the same payload, for scale.
+            let decoder = crate::rpc_handler_decoders::handler_decoder(method);
+            let started = thread_cpu_time();
+            for _ in 0..rounds {
+                let _ = std::hint::black_box(decoder.map(|decode| decode(std::hint::black_box(&payload))));
+            }
+            let handler = (thread_cpu_time() - started) / rounds as u32;
             eprintln!("COST {name}: gate {per_call:?} per call, handler decode {handler:?} ({} bytes)", payload.to_string().len());
         }
         // A debug build of an interpreter: far from a budget, but it catches a per-call rebuild of a table.
         assert!(per_call.as_millis() < if name.contains("5 MB") { 500 } else { 20 }, "{name}: {per_call:?}");
     }
+}
+
+/// CPU time this thread has used, which does not advance while it waits for a core.
+#[cfg(unix)]
+fn thread_cpu_time() -> Duration {
+    let mut now = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `now` is a valid timespec for the call to fill.
+    let status = unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut now) };
+    assert_eq!(status, 0, "the thread CPU clock is readable");
+    Duration::new(now.tv_sec as u64, now.tv_nsec as u32)
+}
+#[cfg(not(unix))]
+fn thread_cpu_time() -> Duration {
+    static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+    START.get_or_init(std::time::Instant::now).elapsed()
 }
