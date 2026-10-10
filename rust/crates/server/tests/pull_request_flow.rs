@@ -324,7 +324,7 @@ async fn scenario() {
 
     let (_web, web_path) = repo_with_remotes(&[("origin", "https://github.com/acme/web.git")]);
     let (_other, other_path) = repo_with_remotes(&[("origin", "https://github.example.com/acme/other.git")]);
-    let (_gitlab, gitlab_path) = repo_with_remotes(&[("origin", "https://gitlab.com/acme/lab.git")]);
+    let (_gitlab, gitlab_path) = repo_with_remotes(&[("origin", "https://bitbucket.org/acme/lab.git")]);
     let store = Store::open(base.join("rust-state.sqlite")).unwrap();
     for (id, path) in [("web", &web_path), ("other", &other_path), ("lab", &gitlab_path)] {
         ProjectService::new(store.clone())
@@ -537,7 +537,7 @@ async fn scenario() {
     let providers = page["providers"].as_array().unwrap();
     assert!(providers.iter().any(|provider| provider["host"] == "github.com" && provider["configured"] == true && provider["searchesOnHost"] == true));
     assert!(providers.iter().any(|provider| provider["host"] == "github.example.com" && provider["configured"] == false && provider["detail"].as_str().unwrap().contains("GitHub")));
-    assert!(providers.iter().any(|provider| provider["host"] == "gitlab.com" && provider["detail"] == "This host cannot be browsed here yet."));
+    assert!(providers.iter().any(|provider| provider["host"] == "bitbucket.org" && provider["detail"] == "This host cannot be browsed here yet."));
     let search = search_requests().last().unwrap().body.clone().unwrap();
     let q = search["variables"]["q"].as_str().unwrap();
     for part in ["is:pr", "is:open", "review-requested:octo", "\"fix \\\"it\\\"\"", "label:\"bug\"", "author:\"alice\"", "draft:false", "sort:updated-desc", "repo:acme/web"] {

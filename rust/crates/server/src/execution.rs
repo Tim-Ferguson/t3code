@@ -77,6 +77,7 @@ impl ExecutionService {
         // Finalizes delegated tasks whose runs end, and delivers their completion to the parent.
         if tokio::runtime::Handle::try_current().is_ok() {
             crate::usage_limits::start(&execution);
+            crate::thread_settlement::start(&execution);
             crate::delegated_completion::start_listener(&execution);
         }
         Ok(execution)
@@ -621,6 +622,32 @@ pub(crate) fn plan_message_in_transaction(
 }
 
 fn plan_message_inner(
+    command: &Value,
+    projection: &Value,
+    now: DateTime<Utc>,
+    driver: &str,
+    reuse_message: bool,
+    transaction: Option<&rusqlite::Transaction<'_>>,
+) -> Result<Decision, StoreError> {
+    // A message to a settled or snoozed thread brings it back first. The automatic continuations decide
+    // for themselves whether they still apply, and a stale one changes nothing.
+    let automatic = command.get("usageLimitContinuationOfRunId").is_some() || command.get("restartContinuationOfRunId").is_some();
+    let unparked = if automatic { None } else { crate::thread_settlement::unpark(command["commandId"].as_str().unwrap_or_default(), projection, now) };
+    let (projection, brought_back) = match &unparked {
+        Some((adjusted, events)) => (adjusted, events.clone()),
+        None => (projection, vec![]),
+    };
+    let decision = plan_message_titled(command, projection, now, driver, reuse_message, transaction)?;
+    Ok(match decision {
+        Decision::Accepted { mut events, effects } if !brought_back.is_empty() => {
+            events.splice(0..0, brought_back);
+            Decision::Accepted { events, effects }
+        }
+        other => other,
+    })
+}
+
+fn plan_message_titled(
     command: &Value,
     projection: &Value,
     now: DateTime<Utc>,

@@ -7,8 +7,8 @@
 //! pull request, so bumping an epoch strands every entry made under the old one.
 use crate::{
     persistence::Store,
-    pull_request_decode as decode,
     pull_request_github::{self as github, GitHub, PrFailure, Reason, Target},
+    pull_request_provider::{PullRequestProvider, Subject},
     source_control_detect::{RepositoryIdentityParts, detect_provider_from_remote_url, repository_selector},
     source_control_host::Host,
     source_control_provider::ProviderContext,
@@ -184,7 +184,7 @@ pub fn list_cursor_key(host: &str, repository: &str) -> String {
 }
 
 fn is_supported(kind: SourceControlProviderKind) -> bool {
-    kind == SourceControlProviderKind::Github
+    crate::pull_request_registry::supported(kind)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -203,6 +203,16 @@ pub struct Resolved {
 impl Resolved {
     pub fn target(&self) -> Target {
         Target { host: self.project.host.clone(), repository: self.project.repository.clone(), number: self.number }
+    }
+
+    /// The change request as a provider is asked about it.
+    pub fn subject(&self) -> Subject {
+        Subject {
+            cwd: self.project.project.workspace_root.clone(),
+            host: self.project.host.clone(),
+            repository: self.project.repository.clone(),
+            number: self.number,
+        }
     }
 }
 
@@ -303,6 +313,10 @@ impl<T: Clone> LastGood<T> {
 
 pub struct PullRequestService {
     pub(crate) clock: Arc<dyn Clock>,
+    /// The pause every host but GitHub is held to after a rate-limited answer.
+    limits: Arc<crate::source_control_rate_limit::RateLimit>,
+    /// What an environment-backed viewed-files record holds between reads and presses.
+    pub(crate) viewed: crate::pull_request_viewed::ViewedState,
     pub(crate) lists: TtlCache<String, PullRequestListResult, PrError>,
     pub(crate) recent_stats: Mutex<HashMap<String, (Duration, PullRequestDiffStat)>>,
     identities: TtlCache<String, Option<Identity>, ()>,
@@ -326,6 +340,8 @@ pub struct PullRequestService {
 impl PullRequestService {
     pub fn new(clock: Arc<dyn Clock>) -> Self {
         Self {
+            limits: Arc::default(),
+            viewed: Default::default(),
             identities: TtlCache::new(512, clock.clone()),
             lists: TtlCache::new(64, clock.clone()),
             recent_stats: Mutex::default(),
@@ -506,18 +522,29 @@ impl PullRequestService {
     // --- viewer and routing --------------------------------------------------------------
 
     /// Who is signed in on a host; a success is believed for ten minutes, a failure never.
-    pub(crate) async fn viewer_of(&self, env: &Env, gh_host: &str) -> Result<String, PrFailure> {
+    pub(crate) async fn viewer_of(&self, env: &Env, kind: SourceControlProviderKind, cwd: &str, host: &str) -> Result<String, PrFailure> {
+        let held = format!("{kind}\0{host}");
         {
             let viewers = self.viewers.lock().unwrap();
-            if let Some((at, viewer)) = viewers.get(gh_host) {
+            if let Some((at, viewer)) = viewers.get(&held) {
                 if self.now().saturating_sub(*at) <= VIEWER_CACHE_TTL {
                     return Ok(viewer.clone());
                 }
             }
         }
-        let viewer = github_for(env).viewer_login(gh_host).await?;
-        self.viewers.lock().unwrap().insert(gh_host.to_string(), (self.now(), viewer.clone()));
+        let provider = self.provider(env, kind).ok_or_else(|| PrFailure::failed("This host cannot be read."))?;
+        let viewer = provider.viewer(cwd, host).await?;
+        self.viewers.lock().unwrap().insert(held, (self.now(), viewer.clone()));
         Ok(viewer)
+    }
+
+    /// The provider that serves a kind of host, or none for a host with no implementation.
+    pub(crate) fn provider(&self, env: &Env, kind: SourceControlProviderKind) -> Option<Arc<dyn PullRequestProvider>> {
+        crate::pull_request_registry::provider(&env.host, kind, &self.limits, &self.clock)
+    }
+
+    pub(crate) fn provider_of(&self, env: &Env, resolved: &Resolved) -> PrResult<Arc<dyn PullRequestProvider>> {
+        self.provider(env, resolved.project.kind).ok_or_else(PrError::unsupported)
     }
 
     /// The signed-in account and the credential namespace its reads are cached under.
@@ -650,7 +677,8 @@ impl PullRequestService {
 
     pub(crate) async fn summary_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestSummary> {
         let observed_at = self.now_ms();
-        let read = github_for(&env).summary(&resolved.target()).await.map_err(|failure| PrError::from_failure("summary", failure, resolved.project.kind))?;
+        let provider = self.provider_of(&env, &resolved)?;
+        let read = provider.summary(&resolved.subject()).await.map_err(|failure| PrError::from_failure("summary", failure, resolved.project.kind))?;
         Ok(PullRequestSummary {
             provider: resolved.project.kind,
             project_id: resolved.project.project.id.clone(),
@@ -659,20 +687,20 @@ impl PullRequestService {
             title: read.title,
             url: read.url,
             state: read.state,
-            is_draft: Some(read.is_draft),
+            is_draft: read.is_draft,
             head_branch: read.head_branch,
             base_branch: read.base_branch,
             closed_at: Some(read.closed_at),
             merged_at: Some(read.merged_at),
             updated_at: read.updated_at,
             observed_at: Some(observed_at),
-            author: Some(with_avatar(read.author, &resolved.project.host)),
-            additions: Some(read.additions),
-            deletions: Some(read.deletions),
-            changed_files: Some(read.changed_files),
-            review_decision: Some(read.review_decision),
-            checks_state: Some(read.checks_state),
-            mergeability: Some(read.mergeability),
+            author: read.author,
+            additions: read.additions,
+            deletions: read.deletions,
+            changed_files: read.changed_files,
+            review_decision: read.review_decision,
+            checks_state: read.checks_state,
+            mergeability: read.mergeability,
             stack: read.stack,
         })
     }
@@ -723,66 +751,50 @@ impl PullRequestService {
     async fn detail_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestDetail> {
         let observed_at = self.now_ms();
         let kind = resolved.project.kind;
-        let (gh, target) = (github_for(&env), resolved.target());
-        let (core, viewer) = tokio::join!(gh.detail(&target), self.viewer_of(&env, &resolved.project.host));
-        let core = core.map_err(|failure| PrError::from_failure("detail", failure, kind))?;
+        let provider = self.provider_of(&env, &resolved)?;
+        let subject = resolved.subject();
+        let (read, viewer) = tokio::join!(provider.detail(&subject), self.viewer_of(&env, kind, &subject.cwd, &resolved.project.host));
+        let read = read.map_err(|failure| PrError::from_failure("detail", failure, kind))?;
         let viewer = viewer.ok().filter(|viewer| !viewer.trim().is_empty());
-        // A fork's pull request also shows the workflows waiting for a maintainer's approval.
-        let (checks, workflow_approvals_required) =
-            crate::pull_request_actions::read_workflow_approvals(&gh, &target, &core).await.map_err(|failure| PrError::from_failure("detail", failure, kind))?;
-        let (item, extra) = (&core.detail.item, &core.detail);
-        let mut access = core.viewer_access.clone();
-        access.can_update_branch = Some(core.comparison.as_ref().is_some_and(|comparison| comparison.viewer_can_update));
-        let (comparison, behind_by) = match &core.comparison {
-            Some(comparison) => match comparison.behind_by {
-                None => (PullRequestBaseComparison::Unknown, None),
-                Some(0) => (PullRequestBaseComparison::UpToDate, Some(0)),
-                Some(behind) => (PullRequestBaseComparison::Behind, Some(behind)),
-            },
-            None => (PullRequestBaseComparison::Unknown, None),
-        };
+        let item = read.row;
         Ok(PullRequestDetail {
             provider: kind,
-            capabilities: github::capabilities(),
-            viewer_permissions: github::viewer_permissions(&access),
+            capabilities: provider.capabilities(),
+            viewer_permissions: read.viewer_permissions,
             project_id: resolved.project.project.id.clone(),
             project_title: resolved.project.project.title.clone(),
             workspace_root: resolved.project.project.workspace_root.clone(),
             repository: resolved.project.repository.clone(),
             number: item.number,
-            title: item.title.clone(),
-            body: extra.body.clone(),
-            url: item.url.clone(),
-            author: with_avatar(item.author.clone(), &resolved.project.host),
+            title: item.title,
+            body: read.body,
+            url: item.url,
+            author: item.author,
             state: item.state,
             is_draft: item.is_draft,
             mergeability: item.mergeability,
             additions: item.additions,
             deletions: item.deletions,
-            changed_files: extra.changed_files,
-            head_branch: item.head_branch.clone(),
-            head_repository_name_with_owner: None,
-            head_sha: extra.head_sha.clone().filter(|sha| !sha.is_empty()),
-            base_branch: item.base_branch.clone(),
-            created_at: item.created_at.clone(),
-            updated_at: item.updated_at.clone(),
+            changed_files: read.changed_files,
+            head_branch: item.head_branch,
+            head_repository_name_with_owner: item.head_repository_name_with_owner,
+            head_sha: read.head_sha.filter(|sha| !sha.is_empty()),
+            base_branch: item.base_branch,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
             observed_at: Some(observed_at),
-            merged_at: extra.merged_at.clone(),
-            closed_at: extra.closed_at.clone(),
-            reviewers: item
-                .review_request_logins
-                .iter()
-                .filter_map(|login| Some(PullRequestActor { is_bot: None, login: TrimmedNonEmptyString::new(login).ok()?, name: None, avatar_url: None }))
-                .collect(),
-            labels: item.labels.clone(),
-            checks,
-            merge_capabilities: core.viewer_access.merge_capabilities,
+            merged_at: read.merged_at,
+            closed_at: read.closed_at,
+            reviewers: read.reviewers,
+            labels: item.labels,
+            checks: read.checks,
+            merge_capabilities: read.merge_capabilities,
             viewer,
-            base_comparison: Some(comparison),
-            behind_by,
-            auto_merge_enabled: extra.auto_merge_enabled,
-            auto_merge_method: extra.auto_merge_method,
-            workflow_approvals_required,
+            base_comparison: read.base_comparison,
+            behind_by: read.behind_by,
+            auto_merge_enabled: read.auto_merge_enabled,
+            auto_merge_method: read.auto_merge_method,
+            workflow_approvals_required: read.workflow_approvals_required,
         })
     }
 
@@ -815,14 +827,15 @@ impl PullRequestService {
     }
 
     async fn preview_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestPreview> {
-        let read = github_for(&env).preview(&resolved.target()).await.map_err(|failure| PrError::from_failure("preview", failure, resolved.project.kind))?;
+        let provider = self.provider_of(&env, &resolved)?;
+        let read = provider.preview(&resolved.subject()).await.map_err(|failure| PrError::from_failure("preview", failure, resolved.project.kind))?;
         Ok(PullRequestPreview {
             project_id: resolved.project.project.id.clone(),
             repository: resolved.project.repository.clone(),
             number: read.number,
             title: read.title,
             url: read.url,
-            author: with_avatar(read.author, &resolved.project.host),
+            author: read.author,
             state: read.state,
             is_draft: read.is_draft,
             created_at: read.created_at,
@@ -838,10 +851,8 @@ impl PullRequestService {
     }
 
     async fn checks_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestChecks> {
-        let (gh, target, kind) = (github_for(&env), resolved.target(), resolved.project.kind);
-        let core = gh.detail(&target).await.map_err(|failure| PrError::from_failure("checks", failure, kind))?;
-        let (checks, _) = crate::pull_request_actions::read_workflow_approvals(&gh, &target, &core).await.map_err(|failure| PrError::from_failure("checks", failure, kind))?;
-        Ok(PullRequestChecks { state: core.detail.item.state, checks })
+        let provider = self.provider_of(&env, &resolved)?;
+        provider.checks(&resolved.subject()).await.map_err(|failure| PrError::from_failure("checks", failure, resolved.project.kind))
     }
 
     pub async fn activity(&self, env: &Env, reference: &PullRequestRef, namespace: Option<String>) -> PrResult<PullRequestActivity> {
@@ -855,20 +866,15 @@ impl PullRequestService {
     }
 
     async fn activity_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestActivity> {
-        let gh = github_for(&env);
-        let target = resolved.target();
-        let host = resolved.project.host.clone();
-        let (activity, threads) = tokio::join!(gh.activity(&target), gh.review_threads(&target));
-        let activity = activity.map_err(|failure| PrError::from_failure("activity", failure, resolved.project.kind))?;
-        // A GraphQL hiccup degrades to a truncated conversation rather than blanking activity.
-        let threads = threads.unwrap_or_else(|_| degraded_threads());
-        Ok(assemble_activity(activity, threads, &host))
+        let provider = self.provider_of(&env, &resolved)?;
+        provider.activity(&resolved.subject()).await.map_err(|failure| PrError::from_failure("activity", failure, resolved.project.kind))
     }
 
     pub async fn thread_comments(&self, env: &Env, input: &PullRequestThreadCommentsInput) -> PrResult<PullRequestThreadCommentsResult> {
         let resolved = self.resolve(env, &input.reference, None).await?;
-        github_for(env)
-            .thread_comments(&resolved.target(), input.thread_id.as_str(), input.cursor.as_str())
+        let provider = self.provider_of(env, &resolved)?;
+        provider
+            .thread_comments(&resolved.subject(), input.thread_id.as_str(), input.cursor.as_str())
             .await
             .map_err(|failure| PrError::from_failure("threadComments", failure, resolved.project.kind))
     }
@@ -890,16 +896,24 @@ impl PullRequestService {
     }
 
     async fn diff_uncached(&self, env: Env, resolved: Resolved, cursor: Option<TrimmedNonEmptyString>, commit: Option<TrimmedNonEmptyString>) -> PrResult<PullRequestDiffResult> {
-        github_for(&env)
-            .diff(&resolved.target(), cursor.as_ref().map(|c| c.as_str()), commit.as_ref().map(|c| c.as_str()))
+        let provider = self.provider_of(&env, &resolved)?;
+        if !provider.capabilities().diff {
+            return Err(PrError::operation("diff", "This host cannot provide a diff for a change request."));
+        }
+        provider
+            .diff(&resolved.subject(), cursor.as_ref().map(|c| c.as_str()), commit.as_ref().map(|c| c.as_str()))
             .await
             .map_err(|failure| PrError::from_failure("diff", failure, resolved.project.kind))
     }
 
     pub async fn diff_file_contents(&self, env: &Env, input: &PullRequestDiffFileContentsInput) -> PrResult<PullRequestDiffFileContentsResult> {
         let resolved = self.resolve(env, &input.reference, None).await?;
-        github_for(env)
-            .diff_file_contents(&resolved.target(), input.commit.as_ref().map(|c| c.as_str()), input.change_type, input.old_path.as_str(), input.new_path.as_str())
+        let provider = self.provider_of(env, &resolved)?;
+        if !provider.capabilities().diff {
+            return Err(PrError::operation("diffFileContents", "This host cannot expand unchanged pull request lines."));
+        }
+        provider
+            .diff_file_contents(&resolved.subject(), input.commit.as_ref().map(|c| c.as_str()), input.change_type, input.old_path.as_str(), input.new_path.as_str())
             .await
             .map_err(|failure| PrError::from_failure("diffFileContents", failure, resolved.project.kind))
     }
@@ -917,7 +931,12 @@ impl PullRequestService {
     }
 
     async fn files_viewed_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestFilesViewedResult> {
-        github_for(&env).files_viewed(&resolved.target()).await.map_err(|failure| PrError::from_failure("filesViewed", failure, resolved.project.kind))
+        let provider = self.provider_of(&env, &resolved)?;
+        match provider.capabilities().viewed_files {
+            Some(PullRequestViewedFilesStore::Host) => provider.files_viewed(&resolved.subject()).await.map_err(|failure| PrError::from_failure("filesViewed", failure, resolved.project.kind)),
+            Some(PullRequestViewedFilesStore::Environment) => Box::pin(self.environment_files_viewed(&env, &resolved)).await,
+            None => Err(PrError::operation("filesViewed", "This host does not track which files a reader has seen.")),
+        }
     }
 
     pub async fn stack(&self, env: &Env, reference: &PullRequestRef, namespace: Option<String>, include_details: bool) -> PrResult<Option<PullRequestStack>> {
@@ -929,7 +948,8 @@ impl PullRequestService {
     }
 
     async fn stack_uncached(&self, env: Env, resolved: Resolved, include_details: bool) -> PrResult<Option<PullRequestStack>> {
-        github_for(&env).stack(&resolved.target(), include_details).await.map_err(|failure| PrError::from_failure("stack", failure, resolved.project.kind))
+        let provider = self.provider_of(&env, &resolved)?;
+        provider.stack(&resolved.subject(), include_details).await.map_err(|failure| PrError::from_failure("stack", failure, resolved.project.kind))
     }
 
     /// Threads that link the pull request, newest first, archived ones included.
@@ -1154,141 +1174,6 @@ fn summary_from_detail(detail: &PullRequestDetail, previous: Option<PullRequestS
         updated_at: detail.updated_at.clone(),
         observed_at: detail.observed_at,
         ..previous
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Activity assembly
-// ---------------------------------------------------------------------------------------------
-
-fn degraded_threads() -> github::ThreadsRead {
-    github::ThreadsRead {
-        comments: vec![],
-        dismissals_by_review_id: BTreeMap::new(),
-        review_threads: vec![],
-        comment_count: 0,
-        truncated: true,
-        review_threads_truncated: true,
-        page: decode::ReviewThreadPage {
-            threads: vec![],
-            next_cursor: None,
-            reactions: vec![],
-            reactions_by_id: BTreeMap::new(),
-            edited_at_by_id: BTreeMap::new(),
-            reviewers: vec![],
-            avatars_by_login: BTreeMap::new(),
-            bot_logins: Default::default(),
-            commit_stats: BTreeMap::new(),
-            commits: vec![],
-            viewer: decode::ThreadViewer { can_update: true, did_author: false },
-            dismissals_by_review_id: BTreeMap::new(),
-            next_dismissal_cursor: None,
-        },
-        avatars_by_login: BTreeMap::new(),
-        bot_logins: Default::default(),
-    }
-}
-
-/// The login's picture as the review read collected it, else the one every install serves; and
-/// whether GitHub says the account is an app.
-fn avatar_for(actor: Option<PullRequestActor>, avatars: &BTreeMap<String, String>, host: &str, bots: &std::collections::BTreeSet<String>) -> Option<PullRequestActor> {
-    let mut actor = actor?;
-    if bots.contains(actor.login.as_str()) {
-        actor.is_bot = Some(Some(true));
-    }
-    if actor.avatar_url.is_some() {
-        return Some(actor);
-    }
-    actor.avatar_url = avatars.get(actor.login.as_str()).cloned().or_else(|| github::login_avatar_url(actor.login.as_str(), host));
-    Some(actor)
-}
-
-/// True where markdown would render nothing: whitespace, or only HTML comments.
-fn renders_empty(body: &str) -> bool {
-    let mut rest = body;
-    let mut visible = String::new();
-    while let Some(start) = rest.find("<!--") {
-        visible.push_str(&rest[..start]);
-        match rest[start + 4..].find("-->") {
-            Some(end) => rest = &rest[start + 4 + end + 3..],
-            None => {
-                rest = "";
-                break;
-            }
-        }
-    }
-    visible.push_str(rest);
-    visible.trim().is_empty()
-}
-
-fn assemble_activity(activity: github::ActivityRead, threads: github::ThreadsRead, host: &str) -> PullRequestActivity {
-    let (avatars, bots) = (&threads.avatars_by_login, &threads.bot_logins);
-    let commits_source = if threads.page.commits.is_empty() { activity.commits.clone() } else { threads.page.commits.clone() };
-    let commits = commits_source
-        .into_iter()
-        .map(|commit| {
-            let stat = threads.page.commit_stats.get(&commit.oid);
-            PullRequestCommit {
-                additions: stat.map(|stat| stat.additions).or(commit.additions),
-                deletions: stat.map(|stat| stat.deletions).or(commit.deletions),
-                authors: commit.authors.as_ref().map(|authors| {
-                    authors.iter().map(|author| avatar_for(Some(author.clone()), avatars, host, bots).unwrap_or_else(|| author.clone())).collect()
-                }),
-                ..commit
-            }
-        })
-        .collect();
-    let comment_count = (activity.comments.len() + threads.comment_count as usize) as u64;
-    let mut comments: Vec<PullRequestComment> = activity
-        .comments
-        .iter()
-        .cloned()
-        .chain(threads.comments.iter().cloned())
-        .map(|comment| {
-            // GitHub keeps the dismissal reason on the timeline event, not on the review, so a
-            // dismissed review with nothing visible of its own reads its words from there.
-            let body = if comment.kind == PullRequestCommentKind::Review
-                && comment.review_state.as_deref().is_some_and(|state| state.eq_ignore_ascii_case("DISMISSED"))
-                && renders_empty(&comment.body)
-            {
-                threads.dismissals_by_review_id.get(&comment.id).cloned().unwrap_or(comment.body.clone())
-            } else {
-                comment.body.clone()
-            };
-            PullRequestComment {
-                body,
-                author: avatar_for(comment.author.clone(), avatars, host, bots),
-                reactions: Some(comment.reactions.clone().or_else(|| threads.page.reactions_by_id.get(&comment.id).cloned()).unwrap_or_default()),
-                edited_at: Some(threads.page.edited_at_by_id.get(&comment.id).cloned().or_else(|| comment.edited_at.clone().flatten())),
-                ..comment
-            }
-        })
-        .collect();
-    comments.sort_by(|left, right| left.created_at.cmp(&right.created_at));
-    let review_threads = threads
-        .review_threads
-        .iter()
-        .cloned()
-        .map(|thread| PullRequestReviewThread {
-            comments: thread
-                .comments
-                .iter()
-                .cloned()
-                .map(|comment| PullRequestThreadComment { author: avatar_for(comment.author.clone(), avatars, host, bots), ..comment })
-                .collect(),
-            ..thread
-        })
-        .collect();
-    PullRequestActivity {
-        author: Some(avatar_for(activity.author, avatars, host, bots)),
-        reviewers: Some(threads.page.reviewers.clone()),
-        comments,
-        comment_count,
-        comments_truncated: threads.truncated,
-        review_threads_truncated: Some(threads.review_threads_truncated),
-        review_threads,
-        commits,
-        reactions: Some(threads.page.reactions.clone()),
     }
 }
 

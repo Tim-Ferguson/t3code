@@ -6,8 +6,9 @@
 //! once its rows are on screen.
 use crate::{
     pull_request_decode::GitHubListItem,
-    pull_request_github::{self as github, Reason, SEARCH_MAX_ROWS, SearchInput},
-    pull_request_service::{Env, PrError, PrResult, PullRequestService, Supported, provider_detail, with_avatar},
+    pull_request_github::{self as github, Reason},
+    pull_request_provider::{ProviderChangeRequest, ChangeRequestStat, ListRequest, ProviderCursor},
+    pull_request_service::{Env, PrError, PrResult, PullRequestService, Supported, provider_detail},
 };
 use serde_json::json;
 use std::{
@@ -47,12 +48,65 @@ pub fn parse_list_cursor(raw: &str) -> Option<ListCursor> {
     })
 }
 
+/// What a cursor and the row filters read of a row, whichever host produced it.
+pub trait ListRow {
+    fn number(&self) -> u64;
+    fn updated_at(&self) -> &str;
+    fn is_draft(&self) -> bool;
+    fn labels(&self) -> &[PullRequestLabel];
+    /// Outer `None`: the host does not summarise its reviews at all.
+    fn review_decision(&self) -> Option<Option<PullRequestReviewDecision>>;
+    fn author(&self) -> Option<&PullRequestActor>;
+}
+
+impl ListRow for GitHubListItem {
+    fn number(&self) -> u64 {
+        self.number
+    }
+    fn updated_at(&self) -> &str {
+        &self.updated_at
+    }
+    fn is_draft(&self) -> bool {
+        self.is_draft
+    }
+    fn labels(&self) -> &[PullRequestLabel] {
+        &self.labels
+    }
+    fn review_decision(&self) -> Option<Option<PullRequestReviewDecision>> {
+        Some(self.review_decision)
+    }
+    fn author(&self) -> Option<&PullRequestActor> {
+        self.author.as_ref()
+    }
+}
+
+impl ListRow for ProviderChangeRequest {
+    fn number(&self) -> u64 {
+        self.number
+    }
+    fn updated_at(&self) -> &str {
+        &self.updated_at
+    }
+    fn is_draft(&self) -> bool {
+        self.is_draft
+    }
+    fn labels(&self) -> &[PullRequestLabel] {
+        &self.labels
+    }
+    fn review_decision(&self) -> Option<Option<PullRequestReviewDecision>> {
+        self.review_decision
+    }
+    fn author(&self) -> Option<&PullRequestActor> {
+        self.author.as_ref()
+    }
+}
+
 /// The same cursor against a boundary chosen for the whole slice (`listCursorAt`): every
 /// repository in it is read up to the oldest row of the slice, including the ones that
 /// contributed nothing — their rows are simply all older.
-pub fn list_cursor_at(previous: Option<&ListCursor>, boundary: &str, fetched: &[&GitHubListItem], delivered_count: usize) -> String {
+pub fn list_cursor_at<T: ListRow>(previous: Option<&ListCursor>, boundary: &str, fetched: &[&T], delivered_count: usize) -> String {
     let mut seen_at: Vec<u64> = previous.filter(|previous| previous.updated_before == boundary).map(|previous| previous.seen_at.clone()).unwrap_or_default();
-    seen_at.extend(fetched.iter().filter(|item| item.updated_at == boundary).map(|item| item.number));
+    seen_at.extend(fetched.iter().filter(|item| item.updated_at() == boundary).map(|item| item.number()));
     format!(
         "{boundary}|{}|{}",
         previous.map_or(0, |previous| previous.delivered) as usize + delivered_count,
@@ -60,28 +114,37 @@ pub fn list_cursor_at(previous: Option<&ListCursor>, boundary: &str, fetched: &[
     )
 }
 
+/// Where a repository carries on after a slice read on its own (`nextListCursor`): from the oldest
+/// row the host answered with, or nowhere when it answered with nothing.
+pub fn next_list_cursor<T: ListRow>(previous: Option<&ListCursor>, fetched: &[&T], delivered_count: usize) -> Option<String> {
+    let oldest = fetched.iter().map(|item| item.updated_at()).min()?;
+    Some(list_cursor_at(previous, oldest, fetched, delivered_count))
+}
+
 /// The narrowings a row can be judged by from its own fields, applied here rather than trusted
-/// to the host. `checks` is the host's alone: no listed row carries its check state.
-pub fn matches_row_filters(item: &GitHubListItem, filters: Option<&PullRequestListFilters>, viewer: &str) -> bool {
+/// to the host. `checks` is the host's alone: no listed row carries its check state. A row whose
+/// host does not summarise reviews cannot be judged by a review filter and is left alone.
+pub fn matches_row_filters<T: ListRow>(item: &T, filters: Option<&PullRequestListFilters>, viewer: &str) -> bool {
     let Some(filters) = filters else { return true };
-    let labels: std::collections::HashSet<String> = item.labels.iter().map(|label| label.name.trim().to_lowercase()).collect();
+    let labels: std::collections::HashSet<String> = item.labels().iter().map(|label| label.name.trim().to_lowercase()).collect();
     let holds = |label: &TrimmedNonEmptyString| labels.contains(&label.as_str().trim().to_lowercase());
-    let draft = filters.draft.is_none_or(|draft| item.is_draft == (draft == PullRequestDraftFilter::Only));
-    let review = filters.review.is_none_or(|review| match review {
-        PullRequestReviewFilter::None => item.review_decision.is_none(),
-        PullRequestReviewFilter::Approved => item.review_decision == Some(PullRequestReviewDecision::Approved),
-        PullRequestReviewFilter::ChangesRequested => item.review_decision == Some(PullRequestReviewDecision::ChangesRequested),
-        PullRequestReviewFilter::ReviewRequired => item.review_decision == Some(PullRequestReviewDecision::ReviewRequired),
+    let draft = filters.draft.is_none_or(|draft| item.is_draft() == (draft == PullRequestDraftFilter::Only));
+    let review = filters.review.is_none_or(|review| match (item.review_decision(), review) {
+        (None, _) => true,
+        (Some(decision), PullRequestReviewFilter::None) => decision.is_none(),
+        (Some(decision), PullRequestReviewFilter::Approved) => decision == Some(PullRequestReviewDecision::Approved),
+        (Some(decision), PullRequestReviewFilter::ChangesRequested) => decision == Some(PullRequestReviewDecision::ChangesRequested),
+        (Some(decision), PullRequestReviewFilter::ReviewRequired) => decision == Some(PullRequestReviewDecision::ReviewRequired),
     });
     let wanted_labels = filters.labels.as_ref().is_none_or(|groups| groups.iter().all(|group| group.iter().any(holds)));
     let excluded = filters.excluded_labels.as_ref().is_none_or(|excluded| !excluded.iter().any(holds));
     let author = filters.author.as_ref().is_none_or(|author| {
-        item.author.as_ref().map(|actor| actor.login.as_str().to_lowercase()) == Some(github::resolve_author_filter(author.as_str(), viewer).to_lowercase())
+        item.author().map(|actor| actor.login.as_str().to_lowercase()) == Some(github::resolve_author_filter(author.as_str(), viewer).to_lowercase())
     });
     draft && review && wanted_labels && excluded && author
 }
 
-fn to_entry(project: &Supported, item: &GitHubListItem, viewer: &str, observed_at: i64) -> PullRequestListEntry {
+fn to_entry(project: &Supported, item: &ProviderChangeRequest, viewer: &str, observed_at: i64) -> PullRequestListEntry {
     let viewer = viewer.to_lowercase();
     PullRequestListEntry {
         stack: item.stack.clone(),
@@ -93,7 +156,7 @@ fn to_entry(project: &Supported, item: &GitHubListItem, viewer: &str, observed_a
         number: item.number,
         title: item.title.clone(),
         url: item.url.clone(),
-        author: with_avatar(item.author.clone(), &project.host),
+        author: item.author.clone(),
         head_branch: item.head_branch.clone(),
         base_branch: item.base_branch.clone(),
         state: item.state,
@@ -104,11 +167,11 @@ fn to_entry(project: &Supported, item: &GitHubListItem, viewer: &str, observed_a
         created_at: item.created_at.clone(),
         updated_at: item.updated_at.clone(),
         observed_at: Some(observed_at),
-        checks_state: item.checks_state,
+        checks_state: item.checks_state.flatten(),
         viewer_review_requested: item.author.as_ref().map(|author| author.login.as_str().to_lowercase()) != Some(viewer.clone())
             && item.review_request_logins.iter().any(|login| login.to_lowercase() == viewer),
         labels: item.labels.clone(),
-        review_decision: item.review_decision,
+        review_decision: item.review_decision.flatten(),
     }
 }
 
@@ -157,29 +220,30 @@ impl PullRequestService {
         // Who is signed in, per host: two GitHub hosts are two accounts, and the wrong login
         // would misattribute every review request. The failure doubles as the answer to "is this
         // host set up", which is what the provider switcher shows.
-        let mut hosts: Vec<(String, SourceControlProviderKind)> = vec![];
+        let mut hosts: Vec<(String, SourceControlProviderKind, String)> = vec![];
         for project in &projects {
-            if !hosts.iter().any(|(host, _)| *host == project.host) {
-                hosts.push((project.host.clone(), project.kind));
+            if !hosts.iter().any(|(host, ..)| *host == project.host) {
+                hosts.push((project.host.clone(), project.kind, project.project.workspace_root.clone()));
             }
         }
         let mut viewers = BTreeMap::new();
-        let mut failures: Vec<(String, github::PrFailure)> = vec![];
+        let mut failures: Vec<(String, SourceControlProviderKind, github::PrFailure)> = vec![];
         let mut providers = vec![];
-        for (host, kind) in &hosts {
+        for (host, kind, cwd) in &hosts {
             let count = projects.iter().filter(|project| project.host == *host).count() as u64;
-            let (configured, detail) = match self.viewer_of(&env, host).await {
+            let searches = self.provider(&env, *kind).is_some_and(|provider| provider.capabilities().search);
+            let (configured, detail) = match self.viewer_of(&env, *kind, cwd, host).await {
                 Ok(viewer) => {
                     viewers.insert(host.clone(), viewer);
                     (true, None)
                 }
                 Err(failure) => {
                     let detail = provider_detail(&failure, *kind);
-                    failures.push((host.clone(), failure));
+                    failures.push((host.clone(), *kind, failure));
                     (false, Some(detail))
                 }
             };
-            providers.push(PullRequestProviderSummary { host: host.clone(), kind: *kind, searches_on_host: true, project_count: count, configured, detail });
+            providers.push(PullRequestProviderSummary { host: host.clone(), kind: *kind, searches_on_host: searches, project_count: count, configured, detail });
         }
         for (host, (kind, count)) in &unimplemented {
             providers.push(PullRequestProviderSummary {
@@ -209,22 +273,27 @@ impl PullRequestService {
         if readable.is_empty() {
             let blocking = failures
                 .iter()
-                .filter(|(host, _)| selected.iter().any(|project| project.host == *host))
-                .map(|(_, failure)| failure)
-                .min_by_key(|failure| !matches!(failure.reason, Reason::MissingTool | Reason::Unauthenticated));
-            if let Some(failure) = blocking {
-                return Err(PrError::from_failure("list", failure.clone(), SourceControlProviderKind::Github));
+                .filter(|(host, ..)| selected.iter().any(|project| project.host == *host))
+                .min_by_key(|(_, _, failure)| !matches!(failure.reason, Reason::MissingTool | Reason::Unauthenticated));
+            if let Some((_, kind, failure)) = blocking {
+                return Err(PrError::from_failure("list", failure.clone(), *kind));
             }
             return Ok(PullRequestListResult { viewers, providers, entries: vec![], errors: vec![], truncated: false, next_cursors: Default::default() });
         }
 
         let limit = input.limit.unwrap_or(DEFAULT_REPOSITORY_LIST_LIMIT);
         let cursor_of = |project: &Supported| continuation.as_ref().and_then(|cursors| cursors.get(&project.cursor_key)).cloned();
-        let gh = crate::pull_request_service::github_for(&env);
+        let provider_cursor = |cursor: Option<ListCursor>| cursor.map(|cursor| ProviderCursor { updated_before: cursor.updated_before, delivered: cursor.delivered });
 
-        // One search per host and slice boundary, a hundred repositories at a time.
+        // A host with a search across repositories is asked once per slice boundary, a hundred
+        // repositories at a time; everyone else is asked once each.
         let mut groups: Vec<((String, String), Vec<&Supported>)> = vec![];
+        let mut separate: Vec<&Supported> = vec![];
         for project in &readable {
+            if !self.provider(&env, project.kind).is_some_and(|provider| provider.lists_across()) {
+                separate.push(project);
+                continue;
+            }
             let slice = (project.host.clone(), cursor_of(project).map(|cursor| cursor.updated_before).unwrap_or_default());
             match groups.iter_mut().find(|(key, _)| *key == slice) {
                 Some((_, group)) => group.push(project),
@@ -232,28 +301,59 @@ impl PullRequestService {
             }
         }
         let mut batches: Vec<Batch> = vec![];
+        let request_of = |first: &Supported, repositories: Vec<String>, viewer: &str, cursor: Option<ListCursor>| ListRequest {
+            cwd: first.project.workspace_root.clone(),
+            host: first.host.clone(),
+            repositories,
+            state: input.state,
+            involvement,
+            viewer: viewer.to_string(),
+            limit,
+            query: input.query.as_ref().map(|query| query.as_str().to_string()),
+            cursor: provider_cursor(cursor),
+            filters: input.filters.clone(),
+        };
+        for project in separate {
+            let (viewer, observed_at) = (viewers[&project.host].clone(), self.now_ms());
+            let cursor = cursor_of(project);
+            let provider = self.provider(&env, project.kind).expect("a readable project has a provider");
+            let request = request_of(project, vec![project.repository.clone()], &viewer, cursor.clone());
+            // One unreachable repository must not blank the page. A host-level failure is already
+            // reported through `providers`, so it degrades the same way here.
+            let page = match Box::pin(provider.list(&request)).await {
+                Ok(page) => page,
+                Err(failure) => {
+                    tracing::warn!(host=%project.host,detail=%failure.detail,"pull request list failed");
+                    batches.push(failed(project));
+                    continue;
+                }
+            };
+            // The boundary instant was asked for inclusively, so the rows already sent at it come
+            // back with the slice; dropping them here keeps their neighbours from being skipped.
+            let fetched: Vec<&ProviderChangeRequest> = page.items.iter().collect();
+            let items: Vec<&ProviderChangeRequest> = match &cursor {
+                None => fetched.clone(),
+                Some(cursor) => fetched.iter().copied().filter(|item| item.updated_at != cursor.updated_before || !cursor.seen_at.contains(&item.number)).collect(),
+            };
+            let advance = page.cursor_advance.unwrap_or(items.len());
+            batches.push(Batch {
+                key: project.cursor_key.clone(),
+                entries: items.iter().filter(|item| matches_row_filters(**item, input.filters.as_ref(), &viewer)).map(|item| to_entry(project, item, &viewer, observed_at)).collect(),
+                errors: vec![],
+                truncated: page.truncated,
+                next_cursor: if page.continues && page.truncated { next_list_cursor(cursor.as_ref(), &fetched, advance) } else { None },
+            });
+        }
         for ((host, updated_before), group) in &groups {
             for chunk in group.chunks(REPOSITORY_SEARCH_CHUNK) {
                 let first = chunk[0];
                 let viewer = viewers[host].clone();
                 let observed_at = self.now_ms();
                 let repositories: Vec<String> = chunk.iter().map(|project| project.repository.clone()).collect();
-                let query = github::search_query(&SearchInput {
-                    repositories: &repositories,
-                    state: input.state,
-                    involvement,
-                    viewer: &viewer,
-                    query: input.query.as_ref().map(|query| query.as_str()),
-                    updated_before: (!updated_before.is_empty()).then_some(updated_before.as_str()),
-                    filters: input.filters.as_ref(),
-                });
-                let Some(query) = query else {
-                    batches.extend(chunk.iter().map(|project| failed(project)));
-                    continue;
-                };
-                // One extra row reveals that the host has more than the slice shows.
-                let rows = (limit as usize + 1).min(SEARCH_MAX_ROWS);
-                let page = match Box::pin(gh.search(host, &query, rows, first.host.eq_ignore_ascii_case("github.com"))).await {
+                let provider = self.provider(&env, first.kind).expect("a readable project has a provider");
+                let first_cursor = (!updated_before.is_empty()).then(|| cursor_of(first)).flatten();
+                let request = request_of(first, repositories, &viewer, first_cursor);
+                let page = match Box::pin(provider.list_across(&request)).await {
                     Ok(page) => page,
                     Err(failure) => {
                         tracing::warn!(host=%host,detail=%failure.detail,"pull request search failed");
@@ -261,20 +361,19 @@ impl PullRequestService {
                         continue;
                     }
                 };
-                let truncated = page.raw_count > limit as usize || page.has_next_page;
-                let kept: Vec<&crate::pull_request_decode::SearchItem> = page.items.iter().take(limit as usize).collect();
-                let boundary = kept.iter().map(|item| item.item.updated_at.as_str()).min().map(str::to_string);
+                let truncated = page.truncated;
+                let boundary = page.items.iter().map(|item| item.row.updated_at.as_str()).min().map(str::to_string);
                 for project in chunk {
-                    let fetched: Vec<&GitHubListItem> =
-                        kept.iter().filter(|item| item.repository.trim().eq_ignore_ascii_case(project.repository.trim())).map(|item| &item.item).collect();
+                    let fetched: Vec<&ProviderChangeRequest> =
+                        page.items.iter().filter(|item| item.repository.trim().eq_ignore_ascii_case(project.repository.trim())).map(|item| &item.row).collect();
                     let cursor = cursor_of(project);
-                    let items: Vec<&GitHubListItem> = match &cursor {
+                    let items: Vec<&ProviderChangeRequest> = match &cursor {
                         None => fetched.clone(),
                         Some(cursor) => fetched.iter().copied().filter(|item| item.updated_at != cursor.updated_before || !cursor.seen_at.contains(&item.number)).collect(),
                     };
                     batches.push(Batch {
                         key: project.cursor_key.clone(),
-                        entries: items.iter().filter(|item| matches_row_filters(item, input.filters.as_ref(), &viewer)).map(|item| to_entry(project, item, &viewer, observed_at)).collect(),
+                        entries: items.iter().filter(|item| matches_row_filters(**item, input.filters.as_ref(), &viewer)).map(|item| to_entry(project, item, &viewer, observed_at)).collect(),
                         errors: vec![],
                         truncated,
                         next_cursor: match (&boundary, truncated) {
@@ -312,6 +411,10 @@ impl PullRequestService {
             }) else {
                 continue;
             };
+            // A host whose listing carries the counts has nothing to be asked for.
+            if !self.provider(env, resolved.project.kind).is_some_and(|provider| provider.lists_stats()) {
+                continue;
+            }
             let key = json!([self.listings_epoch(), self.key(&resolved)]).to_string();
             let cached = self.recent_stats.lock().unwrap().get(&key).filter(|(at, _)| now.saturating_sub(*at) < LIST_STATS_CACHE_TTL).map(|(_, stat)| stat.clone());
             match cached {
@@ -327,13 +430,14 @@ impl PullRequestService {
                 None => by_host.push((host, vec![entry])),
             }
         }
-        let gh = crate::pull_request_service::github_for(env);
         let mut stats = held;
         for (host, group) in by_host {
             let asked: Vec<(String, u64)> = group.iter().map(|(_, resolved)| (resolved.project.repository.clone(), resolved.number)).collect();
-            let found = Box::pin(gh.stats(&host, &asked)).await.map_err(|failure| PrError::from_failure("listStats", failure, SourceControlProviderKind::Github))?;
+            let kind = group[0].1.project.kind;
+            let provider = self.provider(env, kind).ok_or_else(PrError::unsupported)?;
+            let found = Box::pin(provider.list_stats(&group[0].1.project.project.workspace_root, &host, &asked)).await.map_err(|failure| PrError::from_failure("listStats", failure, kind))?;
             for (key, resolved) in &group {
-                let Some((_, _, additions, deletions)) = found.iter().find(|(repository, number, ..)| repository.eq_ignore_ascii_case(&resolved.project.repository) && *number == resolved.number) else {
+                let Some(ChangeRequestStat { additions, deletions, .. }) = found.iter().find(|stat| stat.repository.eq_ignore_ascii_case(&resolved.project.repository) && stat.number == resolved.number) else {
                     continue;
                 };
                 let stat = PullRequestDiffStat {

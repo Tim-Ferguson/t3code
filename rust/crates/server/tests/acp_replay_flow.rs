@@ -56,6 +56,19 @@ impl Harness {
         self.dispatch(json!({"type":"message.dispatch","commandId":id,"threadId":self.thread,"messageId":id,"text":text,"attachments":[],"dispatchMode":mode}));
         self.view()["runs"].as_array().unwrap().len()
     }
+    async fn until_raw<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
+        let mut events = self.store.subscribe();
+        tokio::time::timeout(Duration::from_secs(20), async {
+            loop {
+                if let Some(found) = self.store.projection("thread", &self.thread).unwrap().and_then(|view| check(&view)) {
+                    return found;
+                }
+                let _ = events.recv().await;
+            }
+        })
+        .await
+        .expect("timed out waiting for a persisted event")
+    }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
         let outcome = tokio::time::timeout(Duration::from_secs(20), async {
@@ -159,7 +172,9 @@ async fn replay(row: Value) -> Result<(), String> {
             }
             "steer" => {
                 let target = harness.view()["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1]["id"].clone();
-                harness.until(|view| view["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1].get("status").filter(|status| *status == "running").map(|_| ())).await;
+                // The recording's first chunk follows its prompt at once, so the steer must reach the store as soon
+                // as the run runs: this wait reads the raw projection, not the response-checked view.
+                harness.until_raw(|view| view["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1].get("status").filter(|status| *status == "running").map(|_| ())).await;
                 harness.send(step["text"].as_str().unwrap(), json!({"type":"steer_active","targetRunId":target}));
             }
             "approve_next_runtime_request" => {

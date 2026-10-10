@@ -14,10 +14,10 @@
 //! `stackActions` out, so the gate refuses them with the original's own sentence for a host that
 //! cannot.
 use crate::{
-    pull_request_decode::{Decoded, DecodeFailure, GitHubViewerAccess, trimmed},
+    pull_request_decode::{Decoded, DecodeFailure, trimmed},
     pull_request_github::{self as github, GitHub, PrFailure, Read, Reason, Target},
     pull_request_queries as queries,
-    pull_request_service::{Env, PrError, PrResult, PullRequestService, Resolved, github_for},
+    pull_request_service::{Env, PrError, PrResult, PullRequestService, Resolved},
     source_control_github_api::{self as api, GraphQlInput, Method, RestInput},
 };
 use futures_util::future::BoxFuture;
@@ -962,24 +962,11 @@ impl PullRequestService {
     /// fails (other than by a rate limit) the lighter one still answers, withholding only
     /// update-branch (`getViewerPermissions`).
     pub(crate) async fn viewer_permissions_for(&self, env: &Env, resolved: &Resolved, operation: &str, include_update_branch: bool) -> PrResult<PullRequestViewerPermissions> {
-        let (gh, target, kind) = (github_for(env), resolved.target(), resolved.project.kind);
-        let wrap = |failure: PrFailure| PrError::from_failure(operation, failure, kind);
-        let light = async { Box::pin(gh.viewer_access(&target)).await.map(|access| github::viewer_permissions(&access)) };
-        if !include_update_branch {
-            return light.await.map_err(wrap);
-        }
-        let heavy = api::with_allow_reserve(Box::pin(gh.detail(&target))).await;
-        match heavy {
-            Ok(core) => {
-                let access = GitHubViewerAccess {
-                    can_update_branch: Some(core.detail.item.state == PullRequestState::Open && core.comparison.as_ref().is_some_and(|comparison| comparison.viewer_can_update)),
-                    ..core.viewer_access
-                };
-                Ok(github::viewer_permissions(&access))
-            }
-            Err(failure) if failure.reason != Reason::RateLimited => light.await.map_err(wrap),
-            Err(failure) => Err(wrap(failure)),
-        }
+        let provider = self.provider_of(env, resolved)?;
+        provider
+            .viewer_permissions(&resolved.subject(), include_update_branch)
+            .await
+            .map_err(|failure| PrError::from_failure(operation, failure, resolved.project.kind))
     }
 
     fn fetcher<'a>(&'a self, env: &'a Env, resolved: &'a Resolved, operation: &'a str) -> ViewerFetch<'a> {
@@ -991,7 +978,8 @@ impl PullRequestService {
     /// request can merely have queued the pull request or armed auto-merge.
     pub async fn run_action(&self, env: &Env, input: &PullRequestActionInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        let capabilities = github::capabilities();
+        let provider = self.provider_of(env, &resolved)?;
+        let capabilities = provider.capabilities();
         Box::pin(authorize_action(input, &capabilities, self.fetcher(env, &resolved, "runAction"))).await?;
         // The gates above stop a stack; nothing past them knows how to run one.
         if input.stack_number.is_some() {
@@ -1002,10 +990,11 @@ impl PullRequestService {
             action: input.action,
             merge_method: input.merge_method,
             update_method: input.update_method,
-            remove_agent_credits: removes_agent_credits(settings.as_ref(), &input.reference.project_id, input.action, false),
+            remove_agent_credits: resolved.project.kind == SourceControlProviderKind::Github
+                && removes_agent_credits(settings.as_ref(), &input.reference.project_id, input.action, false),
         };
-        let (gh, target, kind) = (github_for(env), resolved.target(), resolved.project.kind);
-        let result = api::with_allow_reserve(Box::pin(gh.run_action(&target, &run))).await;
+        let kind = resolved.project.kind;
+        let result = api::with_allow_reserve(Box::pin(provider.run_action(&resolved.subject(), &run))).await;
         if let Err(failure) = result {
             // Once the action has started a failure may leave partial remote updates, so what is
             // held for the pull request is dropped on this path too.
@@ -1021,35 +1010,35 @@ impl PullRequestService {
 
     pub async fn reviewer_candidates(&self, env: &Env, reference: &PullRequestRef) -> PrResult<PullRequestReviewerCandidateList> {
         let resolved = self.resolve(env, reference, None).await?;
-        Box::pin(authorize_reviewer_candidates(&github::capabilities(), self.fetcher(env, &resolved, "reviewerCandidates"))).await?;
-        let (gh, target) = (github_for(env), resolved.target());
-        api::with_allow_reserve(Box::pin(gh.list_reviewer_candidates(&target)))
+        let provider = self.provider_of(env, &resolved)?;
+        Box::pin(authorize_reviewer_candidates(&provider.capabilities(), self.fetcher(env, &resolved, "reviewerCandidates"))).await?;
+        api::with_allow_reserve(Box::pin(provider.reviewer_candidates(&resolved.subject())))
             .await
             .map_err(|failure| PrError::from_failure("reviewerCandidates", failure, resolved.project.kind))
     }
 
     pub async fn request_reviewers(&self, env: &Env, input: &PullRequestReviewerRequestInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        Box::pin(authorize_request_reviewers(&github::capabilities(), self.fetcher(env, &resolved, "requestReviewers"))).await?;
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "requestReviewers", gh.set_reviewer_request(&target, &input.reviewers, input.requested)).await
+        let provider = self.provider_of(env, &resolved)?;
+        Box::pin(authorize_request_reviewers(&provider.capabilities(), self.fetcher(env, &resolved, "requestReviewers"))).await?;
+        self.written(&resolved, "requestReviewers", provider.set_reviewer_request(&resolved.subject(), &input.reviewers, input.requested)).await
     }
 
     pub async fn label_candidates(&self, env: &Env, reference: &PullRequestRef) -> PrResult<PullRequestLabelCandidateList> {
         let resolved = self.resolve(env, reference, None).await?;
-        Box::pin(authorize_labels("labelCandidates", &github::capabilities(), self.fetcher(env, &resolved, "labelCandidates"))).await?;
-        let (gh, target) = (github_for(env), resolved.target());
-        api::with_allow_reserve(Box::pin(gh.list_label_candidates(&target)))
+        let provider = self.provider_of(env, &resolved)?;
+        Box::pin(authorize_labels("labelCandidates", &provider.capabilities(), self.fetcher(env, &resolved, "labelCandidates"))).await?;
+        api::with_allow_reserve(Box::pin(provider.label_candidates(&resolved.subject())))
             .await
             .map_err(|failure| PrError::from_failure("labelCandidates", failure, resolved.project.kind))
     }
 
     pub async fn set_labels(&self, env: &Env, input: &PullRequestLabelChangeInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        Box::pin(authorize_labels("setLabels", &github::capabilities(), self.fetcher(env, &resolved, "setLabels"))).await?;
+        let provider = self.provider_of(env, &resolved)?;
+        Box::pin(authorize_labels("setLabels", &provider.capabilities(), self.fetcher(env, &resolved, "setLabels"))).await?;
         let labels: Vec<&str> = input.labels.iter().map(|label| label.as_str()).collect();
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "setLabels", gh.set_labels(&target, &labels, input.applied)).await
+        self.written(&resolved, "setLabels", provider.set_labels(&resolved.subject(), &labels, input.applied)).await
     }
 
     /// After a merge request was accepted, asks the host whether the pull request really is

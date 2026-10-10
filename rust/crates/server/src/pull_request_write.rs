@@ -11,7 +11,7 @@ use crate::{
     pull_request_decode as decode,
     pull_request_github::{self as github, GitHub, PrFailure, Read, Target},
     pull_request_queries as queries,
-    pull_request_service::{Env, PrError, PrResult, PullRequestService, Resolved, github_for},
+    pull_request_service::{Env, PrError, PrResult, PullRequestService, Resolved},
     source_control_github_api::{self as api, GraphQlInput, Method, RestInput},
 };
 use serde_json::{Value, json};
@@ -256,10 +256,11 @@ impl PullRequestService {
     /// after the access behind it was withdrawn, must not be handed to the host on the client's
     /// word.
     async fn viewer_permissions_of(&self, env: &Env, resolved: &Resolved, operation: &str) -> PrResult<PullRequestViewerPermissions> {
-        let access = Box::pin(github_for(env).viewer_access(&resolved.target()))
+        let provider = self.provider_of(env, resolved)?;
+        provider
+            .viewer_permissions(&resolved.subject(), false)
             .await
-            .map_err(|failure| PrError::from_failure(operation, failure, resolved.project.kind))?;
-        Ok(github::viewer_permissions(&access))
+            .map_err(|failure| PrError::from_failure(operation, failure, resolved.project.kind))
     }
 
     /// Runs a write as an interactive caller, then forgets what is held for the pull request and
@@ -278,15 +279,15 @@ impl PullRequestService {
             return refuse("comment", "A comment cannot be empty.");
         }
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        if !github::capabilities().comment {
+        let provider = self.provider_of(env, &resolved)?;
+        if !provider.capabilities().comment {
             return refuse("comment", "This host cannot post a comment on a change request.");
         }
         let viewer = api::with_allow_reserve(self.viewer_permissions_of(env, &resolved, "comment")).await?;
         if !viewer.comment {
             return refuse("comment", "You need write access on this repository to comment on a change request.");
         }
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "comment", gh.comment(&target, &input.body)).await
+        self.written(&resolved, "comment", provider.comment(&resolved.subject(), &input.body)).await
     }
 
     /// Rewriting the change request's own words, and rewriting a remark, are left to the host to
@@ -294,11 +295,14 @@ impl PullRequestService {
     /// access they have otherwise, and none of them reports that as a permission.
     pub async fn update(&self, env: &Env, input: &PullRequestUpdateInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
+        let provider = self.provider_of(env, &resolved)?;
+        if !provider.capabilities().edit.is_some_and(|edit| edit.change_request) {
+            return refuse("update", "This host cannot rewrite a change request.");
+        }
         if input.title.is_none() && input.body.is_none() {
             return refuse("update", "Nothing was changed.");
         }
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "update", gh.update_pull_request(&target, input.title.as_ref().map(|title| title.as_str()), input.body.as_deref())).await
+        self.written(&resolved, "update", provider.update(&resolved.subject(), input.title.as_ref().map(|title| title.as_str()), input.body.as_deref())).await
     }
 
     pub async fn update_comment(&self, env: &Env, input: &PullRequestCommentUpdateInput, namespace: Option<String>) -> PrResult<()> {
@@ -306,13 +310,17 @@ impl PullRequestService {
             return refuse("updateComment", "A comment cannot be empty.");
         }
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "updateComment", gh.update_comment(&target, input.comment_id.as_str(), input.kind, &input.body)).await
+        let provider = self.provider_of(env, &resolved)?;
+        if !provider.capabilities().edit.is_some_and(|edit| edit.comment) {
+            return refuse("updateComment", "This host cannot rewrite a comment.");
+        }
+        self.written(&resolved, "updateComment", provider.update_comment(&resolved.subject(), input.comment_id.as_str(), input.kind, &input.body)).await
     }
 
     pub async fn submit_review(&self, env: &Env, input: &PullRequestSubmitReviewInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        let capabilities = github::capabilities();
+        let provider = self.provider_of(env, &resolved)?;
+        let capabilities = provider.capabilities();
         // The surface hides what a host cannot do, and this refuses it as well.
         if !capabilities.review.verdicts.contains(&input.verdict) {
             return refuse("submitReview", &format!("This host cannot {} a change request.", verdict_label(input.verdict)));
@@ -332,8 +340,7 @@ impl PullRequestService {
         if !input.comments.is_empty() && !viewer.comment {
             return refuse("submitReview", "You need write access on this repository to comment on a line of a change request.");
         }
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "submitReview", gh.submit_review(&target, input.verdict, &input.body, &input.comments)).await
+        self.written(&resolved, "submitReview", provider.submit_review(&resolved.subject(), input.verdict, &input.body, &input.comments)).await
     }
 
     pub async fn reply_to_thread(&self, env: &Env, input: &PullRequestThreadReplyInput, namespace: Option<String>) -> PrResult<()> {
@@ -341,16 +348,23 @@ impl PullRequestService {
             return refuse("replyToThread", "A reply cannot be empty.");
         }
         let resolved = self.resolve(env, &input.reference, namespace).await?;
+        let provider = self.provider_of(env, &resolved)?;
+        if !provider.capabilities().review.reply {
+            return refuse("replyToThread", "This host cannot reply to a review conversation.");
+        }
         let viewer = api::with_allow_reserve(self.viewer_permissions_of(env, &resolved, "replyToThread")).await?;
         if !viewer.comment {
             return refuse("replyToThread", "You need write access on this repository to reply to a review conversation.");
         }
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "replyToThread", gh.reply_to_thread(&target, input.thread_id.as_str(), &input.body)).await
+        self.written(&resolved, "replyToThread", provider.reply_to_thread(&resolved.subject(), input.thread_id.as_str(), &input.body)).await
     }
 
     pub async fn set_thread_resolution(&self, env: &Env, input: &PullRequestThreadResolutionInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
+        let provider = self.provider_of(env, &resolved)?;
+        if !provider.capabilities().review.resolve {
+            return refuse("setThreadResolution", "This host cannot resolve a review conversation.");
+        }
         let viewer = api::with_allow_reserve(self.viewer_permissions_of(env, &resolved, "setThreadResolution")).await?;
         if !viewer.resolve {
             return refuse(
@@ -358,19 +372,18 @@ impl PullRequestService {
                 "You need write access on this repository, or to have opened this change request, to resolve a review conversation.",
             );
         }
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "setThreadResolution", gh.set_thread_resolution(&target, input.thread_id.as_str(), input.resolved)).await
+        self.written(&resolved, "setThreadResolution", provider.set_thread_resolution(&resolved.subject(), input.thread_id.as_str(), input.resolved)).await
     }
 
     /// Reacting is gated on the host alone: every host with reactions takes one from whoever can
     /// read the change request.
     pub async fn set_reaction(&self, env: &Env, input: &PullRequestReactionInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        if github::capabilities().reactions != Some(true) {
+        let provider = self.provider_of(env, &resolved)?;
+        if provider.capabilities().reactions != Some(true) {
             return refuse("setReaction", "This host has no reactions.");
         }
-        let (gh, target) = (github_for(env), resolved.target());
-        self.written(&resolved, "setReaction", gh.set_reaction(&target, input.subject_id.as_ref().map(|subject| subject.as_str()), input.content, input.reacted)).await
+        self.written(&resolved, "setReaction", provider.set_reaction(&resolved.subject(), input.subject_id.as_ref().map(|subject| subject.as_str()), input.content, input.reacted)).await
     }
 
     /// The reader's own bookkeeping: ticking a file off says nothing about the change request,
@@ -378,9 +391,15 @@ impl PullRequestService {
     /// the viewed marks are forgotten.
     pub async fn set_files_viewed(&self, env: &Env, input: &PullRequestSetFilesViewedInput, namespace: Option<String>) -> PrResult<()> {
         let resolved = self.resolve(env, &input.reference, namespace).await?;
-        let (gh, target) = (github_for(env), resolved.target());
-        let result = api::with_allow_reserve(gh.set_files_viewed(&target, &input.files)).await;
-        result.map_err(|failure| PrError::from_failure("setFilesViewed", failure, resolved.project.kind))?;
+        let provider = self.provider_of(env, &resolved)?;
+        match provider.capabilities().viewed_files {
+            Some(PullRequestViewedFilesStore::Host) => {
+                let result = api::with_allow_reserve(provider.set_files_viewed(&resolved.subject(), &input.files)).await;
+                result.map_err(|failure| PrError::from_failure("setFilesViewed", failure, resolved.project.kind))?;
+            }
+            Some(PullRequestViewedFilesStore::Environment) => Box::pin(self.environment_set_files_viewed(env, &resolved, &input.files)).await?,
+            None => return refuse("setFilesViewed", "This host does not track which files a reader has seen."),
+        }
         self.bump_files_viewed(&resolved);
         Ok(())
     }

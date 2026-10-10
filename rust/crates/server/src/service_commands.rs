@@ -242,6 +242,24 @@ mod tests {
     }
 
     #[test]
+    fn a_manual_link_keeps_the_branchs_own_pull_request_beside_it() {
+        let mut projection = projection();
+        projection["thread"]["pullRequests"] = json!([]);
+        projection["thread"]["branchPullRequest"] = json!({"projectId":"p","repository":"o/r","number":5,"url":"https://github.com/o/r/pull/5"});
+        projection["runs"] = json!([]);
+        projection["messages"] = json!([]);
+        let link = json!({"type":"thread.pull-request.link","commandId":"c","threadId":"t","host":"github.com","repository":"o/r","number":8,"url":"https://github.com/o/r/pull/8","source":"manual"});
+        let events = crate::thread::plan(&link, Some(&projection), None, Utc::now()).unwrap();
+        let numbers: Vec<u64> = events[0].payload["pullRequests"].as_array().unwrap().iter().map(|link| link["number"].as_u64().unwrap()).collect();
+        assert_eq!(numbers, [5, 8]);
+        // A link made by the server (a stack layer) does not drag the branch's pull request along.
+        let mut stacked = link.clone();
+        stacked["source"] = json!("stack");
+        let events = crate::thread::plan(&stacked, Some(&projection), None, Utc::now()).unwrap();
+        assert_eq!(events[0].payload["pullRequests"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
     fn detaching_a_session_the_thread_does_not_have_is_refused() {
         let command = json!({"type":"provider-session.detach","commandId":"c","threadId":"t","providerSessionId":"s2"});
         assert_eq!(plan_detach(&command, &projection(), Utc::now()).unwrap_err()["cause"], "Provider session s2 does not belong to thread t.");

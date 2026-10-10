@@ -834,6 +834,16 @@ async fn run(
         watcher.spawn_timer();
         watcher
     };
+    // Every linked pull request's snapshot is kept current once a minute.
+    {
+        let host = t3_server::source_control_host::Host::process_default();
+        let env = t3_server::pull_request_service::Env { host: host.with_settings(settings_service.clone()), store: store.clone() };
+        t3_server::pull_request_sync::PullRequestSync::new(execution.clone(), env, t3_server::pull_request_service::PullRequestService::shared().clone()).spawn_timer();
+    }
+    // The server accepts commands from here: a client following the lifecycle learns it.
+    let cwd = std::env::current_dir()?;
+    t3_server::server_lifecycle::publish(&store, "welcome", json!({"environment":environment,"cwd":cwd,"projectName":cwd.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned())}));
+    t3_server::server_lifecycle::publish(&store, "ready", json!({"at":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),"environment":environment}));
     let state = ApiState {
         settings: settings_service.clone(),
         store,

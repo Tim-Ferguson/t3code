@@ -12,7 +12,7 @@ fn runs(h: &Harness, thread: &str) -> Vec<Value> {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn configuring_organizing_searching_and_reading_threads_runs_the_same_services_as_the_socket() {
-    let h = Harness::new().await;
+    let h = Harness::with_instances(vec![], vec![("FIXTURE_UNUSED", "1".to_owned())]).await;
     let parent = h.running_thread("parent", "full-access", "default").await;
     let caller = h.caller(&parent).await;
     let sibling = h.ok(&caller, "t3_thread_launch", json!({"title":"Sibling"})).await["threadId"].as_str().unwrap().to_owned();
@@ -31,18 +31,18 @@ async fn configuring_organizing_searching_and_reading_threads_runs_the_same_serv
     // Another provider instance is a switch, which the thread service allows while no run is active and
     // the tool sends as the socket does: both leave the same thread and the same event.
     let other = h.ok(&caller, "t3_thread_launch", json!({"title":"Switched by the socket"})).await["threadId"].as_str().unwrap().to_owned();
-    let to_claude = json!({"instanceId":"claudeAgent","model":"claude-x"});
+    let to_claude = json!({"instanceId":"codexChild","model":"claude-x"});
     h.ok(&caller, "t3_thread_configure", json!({"threadId":sibling,"modelSelection":to_claude})).await;
     t3_server::thread::ThreadService::new(h.store.clone()).dispatch(&json!({"type":"thread.model-selection.set","commandId":"socket-switch","threadId":other,"modelSelection":to_claude}), chrono::Utc::now()).unwrap();
     for thread in [&sibling, &other] {
         let view = h.view(thread);
-        assert_eq!((view["thread"]["providerInstanceId"].as_str(), view["thread"]["modelSelection"].clone()), (Some("claudeAgent"), to_claude.clone()), "{thread}");
+        assert_eq!((view["thread"]["providerInstanceId"].as_str(), view["thread"]["modelSelection"].clone()), (Some("codexChild"), to_claude.clone()), "{thread}");
     }
     let switched_events = |thread: &str| h.store.read(|connection| Ok(connection.query_row("SELECT count(*) FROM rust_application_events WHERE aggregate_id=?1 AND event_type='thread.provider-switched'", [thread], |row| row.get::<_, u64>(0))?)).unwrap();
     assert_eq!((switched_events(&sibling), switched_events(&other)), (1, 1));
-    // A thread with a run in flight cannot switch provider.
-    let busy = h.refused(&caller, "t3_thread_configure", json!({"modelSelection":to_claude})).await;
-    assert_eq!(busy["code"], "orchestration_error");
+    // A provider instance that is not enabled is not a target, run in flight or not.
+    let unavailable = h.refused(&caller, "t3_thread_configure", json!({"modelSelection":{"instanceId":"claudeAgent","model":"claude-x"}})).await;
+    assert_eq!((unavailable["code"].as_str(), unavailable["message"].as_str()), (Some("orchestration_error"), Some("The target provider instance is unavailable.")));
     assert_eq!(h.view(&parent)["thread"]["providerInstanceId"], "codex");
     // Organize: each action is the thread command of the same name, attributed in the event log.
     h.ok(&caller, "t3_thread_organize", json!({"threadId":sibling,"action":"pin"})).await;

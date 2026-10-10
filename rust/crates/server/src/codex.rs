@@ -73,6 +73,17 @@ impl CodexInstance {
         let binary = expand_home(self.config.binary_path.as_str(), &environment)?;
         Ok((binary, environment, launch_args))
     }
+    /// `resolveCodexHomeLayout`'s shared home: the configured home, else `~/.codex`, made absolute.
+    fn shared_home(&self) -> PathBuf {
+        let home = self.config.home_path.as_str();
+        let path = if home.trim().is_empty() {
+            let base = self.environment.get("HOME").cloned().or_else(|| std::env::var("HOME").ok()).unwrap_or_default();
+            PathBuf::from(base).join(".codex")
+        } else {
+            expand_home(home, &self.environment).unwrap_or_else(|_| PathBuf::from(home))
+        };
+        std::path::absolute(&path).unwrap_or(path)
+    }
     pub async fn connect(&self, cwd: &Path) -> Result<CodexConnection, ProcessError> {
         let process = ProviderProcess::spawn(self.process_options(cwd)?)?;
         Self::initialize_process(process).await
@@ -94,6 +105,9 @@ impl CodexInstance {
     pub async fn discover(&self, cwd: &Path) -> Result<Value, ProcessError> {
         let now = Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true);
         let mut snapshot = json!({"instanceId":self.instance_id,"driver":"codex","displayName":self.display_name,"enabled":self.enabled,"installed":false,"version":null,"status":"warning","auth":{"status":"unknown"},"checkedAt":now,"availability":"available","models":append_custom_models(vec![],&self.config.custom_models)?,"slashCommands":[],"skills":[],"showInteractionModeToggle":true,"reportsContextWindow":true});
+        // Instances that share a Codex home share its sessions, so a thread continues one native conversation
+        // across them (`codexContinuationIdentity`); an auth overlay keeps the home it overlays.
+        snapshot["continuation"] = json!({"groupKey":format!("codex:home:{}", self.shared_home().to_string_lossy())});
         if let Some(accent) = &self.accent_color {
             snapshot["accentColor"] = json!(accent);
         }

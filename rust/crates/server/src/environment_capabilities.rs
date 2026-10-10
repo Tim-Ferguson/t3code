@@ -29,6 +29,19 @@ pub fn advertised() -> Value {
         "threadPullRequests": true,
         "threadPullRequestLinking": true,
         "projectCloneTracking": true,
+        // Settle releases the thread's sessions, cancels the deliveries that only wake its agent and ends its
+        // watches; a message brings it back; the sweep settles a stale one (`thread_settlement`).
+        "threadSettlement": true,
+        "threadAutoSettlement": true,
+        // `continueThreadsAfterServerUpdate` resumes the turn a restart cut (`restart_continuation`).
+        "threadRestartContinuation": true,
+        // `thread.pull-request.watch` and the watcher that wakes the agent (`pull_request_watcher`).
+        "threadPullRequestWatch": true,
+        // `pullRequests.checks` and the checks of a pull request's detail.
+        "pullRequestChecks": true,
+        // The usage page applies the custom rates and the model mappings the settings hold.
+        "usagePriceOverrides": true,
+        "usageModelAliases": true,
     })
 }
 
@@ -36,17 +49,18 @@ pub fn advertised() -> Value {
 mod tests {
     use super::*;
 
-    /// Held back because their feature is not (fully) ported: settlement refuses threads with
-    /// live sessions, no cleanup of stored worktrees or logs, no restart continuation, usage
-    /// accounting, themes, pull request checks, stack actions and
-    /// watches, server-resolved command context, an environment icon, the browser, and the
-    /// self-update entries.
+    /// Held back because their feature is not (fully) ported: no cleanup of stored worktrees or logs, the
+    /// quota streamed from usage-limit sources, themes, native stack actions on a pull request,
+    /// server-resolved command context, an environment icon, the browser, and the self-update entries.
     #[test]
     fn the_advertised_capabilities_are_valid_and_leave_out_what_is_not_ported() {
         let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":advertised()});
         let decoded: t3_contracts::ExecutionEnvironmentDescriptor = serde_json::from_value(descriptor.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap()["capabilities"], descriptor["capabilities"]);
-        for held_back in ["threadSettlement", "threadAutoSettlement", "storageCleanup", "projectWorktreeCleanup", "threadRestartContinuation", "usageLimitSources", "environmentThemes", "pullRequestChecks", "pullRequestStackActions", "threadPullRequestWatch", "serverResolvedCommandContext", "environmentIcon", "serverBrowser"] {
+        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases"] {
+            assert_eq!(advertised()[ported], true, "{ported}");
+        }
+        for held_back in ["storageCleanup", "projectWorktreeCleanup", "usageLimitSources", "environmentThemes", "pullRequestStackActions", "serverResolvedCommandContext", "environmentIcon", "serverBrowser"] {
             assert!(advertised().get(held_back).is_none(), "{held_back}");
         }
     }

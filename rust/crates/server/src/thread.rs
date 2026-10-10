@@ -173,7 +173,7 @@ fn iso(now: DateTime<Utc>) -> String {
 /// `thread.pull-request.link` and `.unlink`: files a pull request under the thread by its
 /// host-level identity, or takes it out again. `false` when the thread already knew. A
 /// stack-derived link is dismissed rather than removed, so a sync does not bring it back. The
-/// branch's own pull request (`branchPullRequest`) is not tracked here yet.
+/// branch's own pull request (`branchPullRequest`, recorded by `thread.pull-request.sync`) is folded in by a manual link.
 fn apply_pull_request_link(thread: &mut Value, command: &Value, at: &str) -> bool {
     use crate::thread_pull_requests::{legacy_key, links, normalize};
     let key = normalize(command);
@@ -193,7 +193,15 @@ fn apply_pull_request_link(thread: &mut Value, command: &Value, at: &str) -> boo
             }
             None => json!({"host":key["host"],"repository":key["repository"],"number":key["number"],"url":command["url"],"source":source,"linkedAt":at,"snapshot":null,"stack":null}),
         };
-        current.iter().filter(|entry| normalize(entry) != key).cloned().chain([link]).collect()
+        // A pull request the user links by hand to a thread whose branch has one of its own, and that has no
+        // link yet, keeps the branch's pull request beside it.
+        let branch = thread.get("branchPullRequest").filter(|branch| !branch.is_null());
+        let branch_link = branch.filter(|_| source == "manual" && crate::thread_pull_requests::visible(&current).is_empty()).and_then(|branch| {
+            let branch_key = legacy_key(branch, None);
+            (normalize(&branch_key) != key && !current.iter().any(|entry| normalize(entry) == normalize(&branch_key)))
+                .then(|| json!({"host":branch_key["host"],"repository":branch_key["repository"],"number":branch_key["number"],"url":branch["url"],"source":"manual","linkedAt":at,"snapshot":null,"stack":null}))
+        });
+        branch_link.into_iter().chain(current.iter().filter(|entry| normalize(entry) != key).cloned()).chain([link]).collect()
     } else {
         let Some(existing) = existing else { return false };
         let in_a_stack = existing["source"] == "stack"

@@ -113,6 +113,31 @@ assert.deepEqual(normal.calls.slice(2), [
 ]);
 assert.equal(normal.window.__t3RustTerminals.size, 0);
 
+// "Add to chat" asks for the selection: its text, and where it is when the surface can say.
+const located = harness({
+  surface: {
+    selection_text: () => "one\ntwo",
+    selection_position: () => '{"start":{"x":0,"y":11},"end":{"x":2,"y":12}}',
+  },
+});
+await located.ready.promise;
+located.send({ type: "selection" });
+located.send({ type: "dispose" });
+await located.task;
+assert.deepEqual(located.events.slice(1), [
+  {
+    type: "selection",
+    text: "one\ntwo",
+    position: '{"start":{"x":0,"y":11},"end":{"x":2,"y":12}}',
+  },
+]);
+const unlocated = harness({ surface: { selection_text: () => "one" } });
+await unlocated.ready.promise;
+unlocated.send({ type: "selection" });
+unlocated.send({ type: "dispose" });
+await unlocated.task;
+assert.deepEqual(unlocated.events.slice(1), [{ type: "selection", text: "one", position: "" }]);
+
 const imported = deferred();
 const pre = harness({ load: () => imported.promise });
 pre.window.__t3RustTerminals.get("pane").disposed = true;

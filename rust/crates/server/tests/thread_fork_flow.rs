@@ -93,7 +93,8 @@ async fn fixture(environment: &[(&str, &str)]) -> Fixture {
         "claude-c":{"driver":"claudeAgent","enabled":true,"config":{"binaryPath":claude_shim(&cwd),"homePath":cwd.join("claude-c-home")},"environment":[{"name":"CLAUDE_FIXTURE_SCENARIO","value":"turn"},{"name":"CLAUDE_FIXTURE_LOG","value":cwd.join("claude-c-launches.jsonl")}]},
         "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":binary,"homePath":cwd.join("codex-home")},"environment":provider_environment},
         "local-agent":{"driver":"acpRegistry","enabled":true,"config":{"enabled":true,"source":"local","commandPath":"python3","commandArgs":[acp,"2","normal",acp_prompts]}},
-        "codex-b":{"driver":"codex","enabled":true,"config":{"binaryPath":binary,"homePath":cwd.join("codex-b-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":record_b}]}}}))
+        "codex-b":{"driver":"codex","enabled":true,"config":{"binaryPath":binary,"homePath":cwd.join("codex-b-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":record_b}]},
+        "codex-same-home":{"driver":"codex","enabled":true,"config":{"binaryPath":binary,"homePath":cwd.join("codex-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":cwd.join("codex-same-home-requests.jsonl")}]}}}))
     .unwrap();
     let providers = ProviderRegistry::discover(&settings, &cwd).await.unwrap();
     let execution = ExecutionService::start(store.clone(), providers.clone());
@@ -840,5 +841,50 @@ async fn choosing_another_provider_during_a_run_releases_the_old_providers_sessi
     assert_eq!(detached[0]["reason"], "Provider or model selection changed.");
     let view = fixture.until("source", |view| view["runs"][1]["status"] != "running").await;
     assert_eq!(view["thread"]["providerInstanceId"], "codex-b");
+    fixture.finish().await;
+}
+
+/// A fork is named by its creator. Its first message carries a `titleSeed` like every first message to a
+/// thread with no messages of its own (a fork's inherited history is not a message of the thread): the
+/// original sets the title to that seed, so the web client sends the thread's current title as the seed
+/// when it writes to an existing thread, and a client that sends the message's own words renames the fork.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_forks_first_message_takes_its_title_from_the_seed_the_client_sends() {
+    let mut fixture = fixture(&[]).await;
+    fixture.say("source", "alpha").await;
+    fixture.fork("fork-kept", "source", "kept", json!({"type":"latest_stable"})).await;
+    fixture.fork("fork-renamed", "source", "renamed", json!({"type":"latest_stable"})).await;
+    assert_eq!(fixture.view("kept")["thread"]["title"], "kept title");
+    for (thread, seed) in [("kept", "kept title"), ("renamed", "beta")] {
+        let id = format!("first-{thread}");
+        fixture.command(json!({"type":"message.dispatch","commandId":id,"threadId":thread,"messageId":id,"text":"beta","titleSeed":seed,"attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
+        fixture.settled(thread, 1).await;
+    }
+    assert_eq!(fixture.view("kept")["thread"]["title"], "kept title");
+    assert_eq!(fixture.view("renamed")["thread"]["title"], "beta");
+    fixture.finish().await;
+}
+
+/// Two Codex instances that share a Codex home share its sessions: a thread moving between them goes on
+/// in one native conversation, resumed by the second instance, and nobody is briefed.
+#[tokio::test(flavor = "multi_thread")]
+async fn codex_instances_that_share_a_home_continue_one_native_conversation() {
+    let mut fixture = fixture(&[]).await;
+    let first = fixture.say("source", "alpha").await;
+    let native = native_thread(&first);
+    let id = "to-same-home";
+    fixture.command(json!({"type":"message.dispatch","commandId":id,"threadId":"source","messageId":id,"text":"beta","attachments":[],"modelSelection":{"instanceId":"codex-same-home","model":"fixture-model"},"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
+    let view = fixture.settled("source", 2).await;
+    assert_eq!(view["thread"]["providerInstanceId"], "codex-same-home");
+    assert!(view["contextHandoffs"].as_array().unwrap().is_empty(), "no handoff");
+    assert_eq!(view["providerThreads"].as_array().unwrap().len(), 1, "one native conversation");
+    let resumed = fixture.requests_in(&std::fs::canonicalize(fixture.directory.path()).unwrap().join("codex-same-home-requests.jsonl"), "thread/resume");
+    assert_eq!(resumed.len(), 1);
+    assert_eq!(resumed[0]["threadId"], native.as_str());
+    // A home of its own is another history: a handoff, as before.
+    let id = "to-other-home";
+    fixture.command(json!({"type":"message.dispatch","commandId":id,"threadId":"source","messageId":id,"text":"gamma","attachments":[],"modelSelection":{"instanceId":"codex-b","model":"fixture-model"},"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}})).await;
+    let view = fixture.settled("source", 3).await;
+    assert_eq!(view["contextHandoffs"].as_array().unwrap().len(), 1);
     fixture.finish().await;
 }

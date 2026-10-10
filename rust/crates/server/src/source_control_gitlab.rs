@@ -334,6 +334,26 @@ impl GitLabCli {
         self.run(input, None).await
     }
 
+    /// One `glab` invocation with everything the process reported: the pull request calls read
+    /// whether a body was cut short or not text, and pipe payloads in through stdin so they never
+    /// appear in argv (`GitLabCli.execute` with `stdin`).
+    pub async fn execute_output(
+        &self,
+        cwd: &str,
+        args: Vec<String>,
+        stdin: Option<String>,
+        timeout: Option<Duration>,
+        max_output_bytes: Option<usize>,
+    ) -> Result<t3_vcs::process::VcsProcessOutput, GitLabCliError> {
+        let mut input = self.input(cwd, args);
+        input.stdin = stdin;
+        if let Some(timeout) = timeout {
+            input.timeout = Some(timeout);
+        }
+        input.max_output_bytes = max_output_bytes;
+        self.host.process().run(input).await.map_err(|error| GitLabCliError::from_vcs(&error, None))
+    }
+
     pub async fn list_merge_requests(
         &self,
         cwd: &str,
