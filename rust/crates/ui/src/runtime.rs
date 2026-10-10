@@ -2876,6 +2876,10 @@ mod thread_relations_tests;
 mod pull_request_gitlab_tests;
 
 #[cfg(all(test, unix))]
+#[path = "pull_request_hosts_tests.rs"]
+mod pull_request_hosts_tests;
+
+#[cfg(all(test, unix))]
 #[path = "thread_settle_tests.rs"]
 mod thread_settle_tests;
 

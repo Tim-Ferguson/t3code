@@ -356,7 +356,7 @@ pub(crate) fn Pooled(state: Store<UiModel>, presentations: Vec<Presentation>, no
     let notices = logic::collect_notices(&presentations);
     let links = logic::collect_external_usage_links(&presentations);
     rsx! { div { class: "limit-pools",
-        if pools.is_empty() && notices.is_empty() && links.is_empty() { p { class: "muted", "No provider on this environment reports subscription limits." } }
+        if pools.is_empty() && notices.is_empty() && links.is_empty() { crate::empty_state::EmptyState { title: "No subscription limits", description: "No provider on this environment reports subscription limits.", } }
         for pool in pools { PoolSection { key: "{pool.driver}", state, pool: pool.clone(), now } }
         for link in links {
             section { key: "{link.url}", class: "limit-external",

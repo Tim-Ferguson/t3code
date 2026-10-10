@@ -3,6 +3,7 @@ pub mod attachments;
 pub mod checkpoints;
 pub mod client_preferences;
 pub mod command_label;
+pub mod composer_send;
 pub mod composer_context;
 pub mod composer_menu;
 pub mod connection;

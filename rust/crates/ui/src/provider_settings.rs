@@ -297,5 +297,5 @@ pub(crate) fn ProviderField(
             rsx! {input {"aria-label":field.label.clone(),r#type:if field.control=="password"{"password"}else{"text"},autocomplete:"off",spellcheck:"false",disabled,value:draft.read().clone(),placeholder:field.placeholder.clone().unwrap_or_default(),oninput:move |event|draft.set(event.value()),onblur:move |_|{if *draft.peek()!=config[&key].as_str().unwrap_or_default(){onchange.call((key.clone(),json!(draft.peek().clone())));}}}}
         }
     };
-    rsx! {div {class:"provider-field",div {strong {"{field.label}"}if let Some(description)=field.description{p {class:"muted","{description}"}}}{control}}}
+    rsx! {label {class:"provider-field",div {strong {"{field.label}"}if let Some(description)=field.description{p {class:"muted","{description}"}}}{control}}}
 }

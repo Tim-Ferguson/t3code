@@ -408,7 +408,7 @@ fn Totals(state: Store<UiModel>, transport: TransportHandle, loaded: Option<Data
         return rsx! {
             if let Some(error) = error { p { class: "error-banner", role: "alert", "Could not read usage. {error}" } }
             else if scanning { p { class: "muted", role: "status", "Scanning transcripts\u{2026} this can take a few seconds." } }
-            else { p { class: "muted", role: "status", "No usage has been read yet." } }
+            else { crate::empty_state::EmptyState { title: "No usage read yet", description: "Refresh to read the transcripts on this environment.", } }
         };
     };
     let loaded = data.0.clone();

@@ -158,6 +158,11 @@ impl World {
     pub(crate) fn asked(&self) -> Vec<Asked> {
         self.stub.log.lock().unwrap().clone()
     }
+    /// Makes the fake Bitbucket answer every request under its API base with this status and body;
+    /// ended by the next `reset_everything_signed_in`.
+    pub(crate) fn route_bitbucket(&self, status: u16, body: Value) {
+        self.stub.route("/bitbucket", status, body);
+    }
     pub(crate) fn exclusive(&self) -> &tokio::sync::Mutex<()> {
         &self.exclusive
     }

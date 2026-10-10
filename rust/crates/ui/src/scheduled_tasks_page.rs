@@ -183,7 +183,7 @@ fn Tasks(state: Store<UiModel>, transport: TransportHandle, environment_label: S
         } }
         match snapshot.tasks.clone() {
             None => rsx! { if snapshot.problem.is_none() && readable() { p { class: "muted", role: "status", "Loading scheduled tasks\u{2026}" } } },
-            Some(tasks) if tasks.is_empty() => rsx! { p { class: "muted", role: "status", "No scheduled tasks. Create one to run a prompt on a schedule or when a webhook is called." } },
+            Some(tasks) if tasks.is_empty() => rsx! { crate::empty_state::EmptyState { title: "No scheduled tasks", description: "Create one to run a prompt on a schedule or when a webhook is called.", } },
             Some(tasks) => rsx! { ul { class: "task-list", "aria-label": "Scheduled tasks",
                 for task in tasks {
                     TaskRow { key: "{task.id}", task: task.clone(), busy: busy.read().contains(task.id.as_str()), operate: can_operate, writable: can_write,

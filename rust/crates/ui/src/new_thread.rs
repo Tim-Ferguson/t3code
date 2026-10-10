@@ -322,6 +322,7 @@ fn NewThreadOptions(
             }
         }
     };
+    let composition = use_hook(crate::composer_menu::Composition::default);
     // `composer.sendBackground` asks this form to start its thread without opening it.
     {
         let launch=launch.clone();
@@ -344,6 +345,14 @@ fn NewThreadOptions(
             if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
             div {class:"new-thread-prompt",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:{let draft_key=draft_key.clone();move|e|{
                 if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
+            }},
+            oncompositionend:{let composition=composition.clone();move|_|composition.ended()},
+            // Enter starts the thread, as the Start button does; Shift-Enter and IME confirmation add a line or confirm.
+            onkeydown:{let mut launch=launch.clone();let prompt=prompt.clone();let composition=composition.clone();move|event|{
+                if crate::composer_menu::enter_sends(state,&event,&prompt,&composition){
+                    event.prevent_default();
+                    if !disabled && !clone_blocked && (!prompt_is_empty||attachment_count>0||chip_count>0){launch(false);}
+                }
             }}}}
             if let Some(target)=attachment_target.clone() {
                 crate::attachments::Shelf {state,transport:transport.clone(),target:target.clone(),locked:pending,can_operate,paste_target:".new-thread-prompt textarea"}

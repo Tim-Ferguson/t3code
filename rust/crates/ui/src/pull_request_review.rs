@@ -92,7 +92,7 @@ fn comments_of(thread: &Value, extra: Option<&(Option<String>, Vec<Value>, Optio
 }
 
 #[component]
-pub(crate) fn Threads(state: Store<UiModel>, transport: TransportHandle, reference: Reference, threads: Vec<Value>, can_resolve: bool, writable: bool, why: Option<String>, on_changed: Callback<()>) -> Element {
+pub(crate) fn Threads(state: Store<UiModel>, transport: TransportHandle, reference: Reference, threads: Vec<Value>, can_reply: bool, can_resolve: bool, writable: bool, why: Option<String>, on_changed: Callback<()>) -> Element {
     let mut drafts = use_signal(BTreeMap::<String, String>::new);
     let mut acting = use_signal(|| None::<String>);
     // Pages read after the first: the cursor they started from, the comments, and the next cursor.
@@ -189,10 +189,12 @@ pub(crate) fn Threads(state: Store<UiModel>, transport: TransportHandle, referen
                                     onclick: move |_| run.call(("pullRequests.setThreadResolution", json!({"threadId":resolve_id,"resolved":!resolved}), if resolved { "Could not unresolve this conversation" } else { "Could not resolve this conversation" }, "The host refused it. Check that you have write access, or that you opened this pull request.", resolve_id.clone())),
                                     if resolved { "Unresolve conversation" } else { "Resolve conversation" } }
                             }
-                            textarea { "aria-label": "Reply to thread on {path}", rows: "2", placeholder: "Reply", value: "{draft}", disabled: !writable || busy,
-                                oninput: { let id = id.clone(); move |event| { drafts.write().insert(id.clone(), event.value()); } } }
-                            button { r#type: "button", "aria-label": "Reply in the thread on {path}", title: why.clone().unwrap_or_default(), disabled: !writable || busy || draft.trim().is_empty(),
-                                onclick: { let draft = draft.clone(); move |_| run.call(("pullRequests.replyToThread", json!({"threadId":reply_id,"body":draft.trim()}), "Could not post your reply", "The host refused it. Check that you may comment on this pull request.", reply_id.clone())) }, "Reply" }
+                            if can_reply {
+                                textarea { "aria-label": "Reply to thread on {path}", rows: "2", placeholder: "Reply", value: "{draft}", disabled: !writable || busy,
+                                    oninput: { let id = id.clone(); move |event| { drafts.write().insert(id.clone(), event.value()); } } }
+                                button { r#type: "button", "aria-label": "Reply in the thread on {path}", title: why.clone().unwrap_or_default(), disabled: !writable || busy || draft.trim().is_empty(),
+                                    onclick: { let draft = draft.clone(); move |_| run.call(("pullRequests.replyToThread", json!({"threadId":reply_id,"body":draft.trim()}), "Could not post your reply", "The host refused it. Check that you may comment on this pull request.", reply_id.clone())) }, "Reply" }
+                            }
                         }
                     }
                 }

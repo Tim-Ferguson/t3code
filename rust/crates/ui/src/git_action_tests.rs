@@ -140,7 +140,7 @@ async fn push_sends_the_commits_and_a_refused_push_is_shown_with_its_phase() {
     click_control(&mut dom, "Push");
     until(&mut dom, "the failure", |dom| control(dom, "Retry action").is_some()).await;
     assert!(rendered_text(&dom).contains("Action failed while pushing"), "{}", rendered_text(&dom));
-    assert!(control(&dom, "Dismiss notice").is_some(), "and the notice says the action failed");
+    assert!(control(&dom, "Dismiss notice").is_none(), "the failure is shown once, not again in a toast");
     assert_ne!(remote_head(&origin, "feature/p"), git(&fixture.workspace, &["rev-parse", "HEAD"]).trim());
 
     // The remote relents; retrying sends it, and the failure goes away.
@@ -261,5 +261,37 @@ async fn streaming_hook_output_repaints_only_the_git_control() {
     // The application (and so the sidebar), the conversation and the composer are not built again.
     assert_eq!(after.0, before.0, "hook output streaming: app, conversation and composer repaints");
     assert_eq!(error(state), None);
+    fixture.finish(dom).await;
+}
+
+/// A provider's traceback must not flood the screen: the failure shows once, a few lines tall,
+/// with the rest behind "Show more" and a copy button, and Escape dismisses it.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_long_failure_is_shown_once_clamped_and_escape_dismisses_it() {
+    let fixture = Fixture::start(true).await;
+    let (mut dom, state, _origin) = open(&fixture, WRITER, false).await;
+    fixture.write("a.txt", "a\n");
+    wait_for_rendered_text(&mut dom, "\u{25cf} 1").await;
+    let cwd = fixture.workspace.to_string_lossy().into_owned();
+    let traceback = (1..=40).map(|line| format!("  File \"/opt/python/lib/decoder.py\", line {line}, in decode")).collect::<Vec<_>>().join("\n");
+    let mut progress = t3_client::git_actions::Progress::started("a1", t3_client::git_actions::Action::Commit);
+    progress.apply(&json!({"actionId":"a1","kind":"action_failed","phase":"commit","message":"failed"}));
+    progress.apply_failure(&json!({"_tag":"TextGenerationError","operation":"generateCommitMessage","detail":traceback}));
+    state.git_runs().write().insert(cwd.clone(), crate::git_control::Run {
+        progress,
+        spec: crate::git_control::Spec { action: t3_client::git_actions::Action::Commit, message: None, feature_branch: false, file_paths: None },
+        running: false,
+        previous_branch: None,
+    });
+    until(&mut dom, "the failure", |dom| control(dom, "Retry action").is_some()).await;
+    assert!(control(&dom, "Dismiss notice").is_none(), "no second copy in a toast");
+    assert_eq!(rendered_text(&dom).matches("decoder.py").count(), 40, "the text is on the page once; the stylesheet clamps it");
+    assert!(control(&dom, "Copy error text").is_some());
+    assert_eq!(control_attribute(&dom, "Show more", "aria-expanded").unwrap().1.as_deref(), Some("false"));
+    click_control(&mut dom, "Show more");
+    assert!(control(&dom, "Show less").is_some());
+    crate::runtime::keys_tests::key_on(&mut dom, "Retry action", Key::Escape);
+    assert!(control(&dom, "Retry action").is_none() && state.peek().git_runs.is_empty());
     fixture.finish(dom).await;
 }

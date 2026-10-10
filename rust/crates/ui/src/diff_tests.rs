@@ -180,7 +180,7 @@ impl Fixture {
             .join("../server/tests/fixtures/codex-provider.py")
             .canonicalize()
             .unwrap();
-        let mut settings_json = json!({"providerInstances":{"claudeAgent":claude_instance,"grok":{"driver":"grok","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}});
+        let mut settings_json = json!({"providerInstances":{"claudeAgent":claude_instance,"grok":{"driver":"grok","enabled":false},"antigravity":{"driver":"antigravity","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}});
         for (key, value) in extra_settings.as_object().into_iter().flatten() {
             settings_json[key] = value.clone();
         }

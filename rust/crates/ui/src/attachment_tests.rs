@@ -63,7 +63,7 @@ impl Fixture {
             .canonicalize()
             .unwrap();
         let settings: t3_contracts::ServerSettings = serde_json::from_value(
-            json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"grok":{"driver":"grok","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")}}}}),
+            json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"grok":{"driver":"grok","enabled":false},"antigravity":{"driver":"antigravity","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")}}}}),
         )
         .unwrap();
         let native = t3_server::config::NativeConfig::from_settings(

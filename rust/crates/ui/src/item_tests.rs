@@ -331,6 +331,56 @@ async fn queued_messages_are_reordered_from_the_keyboard_and_a_held_queue_is_res
     fixture.finish(dom).await;
 }
 
+/// Presses a key in the box with this label as a browser reports it: the `key` text on `keydown`.
+/// Returns whether the page would still run the browser's own action (a line break in a textarea).
+pub(crate) fn keydown(dom: &mut VirtualDom, label: &str, key: Key, modifiers: Modifiers, composing: bool) -> bool {
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    let code = if key == Key::Enter { Code::Enter } else { Code::Unidentified };
+    let data = dioxus_html::SerializedKeyboardData::new(key, code, Location::Standard, false, modifiers, composing);
+    let event = dioxus::dioxus_core::Event::new(Rc::new(dioxus_html::PlatformEventData::new(Box::new(data))) as Rc<dyn std::any::Any>, true);
+    dom.runtime().handle_event("keydown", event.clone(), element);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    event.default_action_enabled()
+}
+
+/// Enter in the message box sends what the Send button sends, in every state the box has: idle,
+/// a run in progress (queued, as the button would), nothing typed. Shift-Enter and an IME's Enter
+/// leave the text alone, and a send cancels the browser's line break so none is added as well.
+#[tokio::test(flavor = "current_thread")]
+async fn enter_in_the_message_box_sends_like_the_send_button() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+
+    // Nothing typed: Enter sends nothing, and adds no line either.
+    assert!(!keydown(&mut dom, "Message", Key::Enter, Modifiers::empty(), false));
+    assert!(projection(state)["turnItems"].as_array().is_none_or(|items| items.is_empty()));
+
+    // A line break, an IME confirmation and a modified key are the browser's to handle.
+    input_control(&mut dom, "Message", "hello world");
+    assert!(keydown(&mut dom, "Message", Key::Enter, Modifiers::SHIFT, false), "Shift-Enter keeps its line break");
+    assert!(keydown(&mut dom, "Message", Key::Enter, Modifiers::empty(), true), "Enter during composition keeps its meaning");
+    assert!(keydown(&mut dom, "Message", Key::Character("a".into()), Modifiers::empty(), false));
+    assert_eq!(state.peek().draft, "hello world", "none of them sent");
+
+    // Plain Enter sends and cancels the line break.
+    assert!(!keydown(&mut dom, "Message", Key::Enter, Modifiers::empty(), false));
+    until(&mut dom, "the reply", |dom| rendered_text(dom).contains("Fixture response: hello world")).await;
+    assert_eq!(state.peek().draft, "");
+
+    // While a run is in progress the message queues, as the Send button would.
+    send(&mut dom, &props, state, "First [hold]");
+    until(&mut dom, "the turn to run", |dom| control(dom, "Stop generation").is_some()).await;
+    input_control(&mut dom, "Message", "queued by enter");
+    assert!(!keydown(&mut dom, "Message", Key::Enter, Modifiers::empty(), false));
+    until(&mut dom, "the queue", |_| t3_client::timeline_items::queued_runs(&projection(state)).iter().any(|run| run.text == "queued by enter")).await;
+    assert_eq!(state.peek().draft, "");
+    click_control(&mut dom, "Stop generation");
+    fixture.finish(dom).await;
+}
+
 // ---- Shapes the fake provider cannot produce yet, over a hand-made projection. ----
 
 #[derive(Clone)]

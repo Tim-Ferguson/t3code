@@ -49,7 +49,7 @@ fn decode(answer: &Value) -> Loaded {
 }
 
 #[component]
-pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference: Reference, revision: u32, readable: bool, writable: bool, why: Option<String>, viewed_store: Option<String>, threads: Vec<Value>, verdicts: Vec<String>, can_resolve: bool, on_changed: Callback<()>) -> Element {
+pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference: Reference, revision: u32, readable: bool, writable: bool, why: Option<String>, viewed_store: Option<String>, threads: Vec<Value>, verdicts: Vec<String>, can_reply: bool, can_resolve: bool, on_changed: Callback<()>) -> Element {
     use_context_provider(Mounts::default);
     let pending = use_signal(|| None::<String>);
     use_context_provider(|| Pending(pending));
@@ -208,7 +208,7 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
                                     FileSection { file: file.clone(), collapsed, split, on_toggle, stat: None, partial: false, expand: Some(expand.clone()) }
                                     {
                                         let here: Vec<Value> = threads.iter().filter(|thread| thread["path"] == path.as_str()).cloned().collect();
-                                        rsx! { if !here.is_empty() { crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: here, can_resolve, writable, why: why.clone(), on_changed } } }
+                                        rsx! { if !here.is_empty() { crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: here, can_reply, can_resolve, writable, why: why.clone(), on_changed } } }
                                     }
                                 }
                             }

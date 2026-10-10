@@ -137,11 +137,9 @@ fn finish(state: Store<UiModel>, transport: &TransportHandle, cwd: &str, thread_
                 runtime::command(transport, state, "thread.metadata.update", json!({"threadId":thread_id,"branch":branch,"expectedBranch":previous_branch}));
             }
         }
-        Some(Outcome::Failed { message, generation, .. }) => {
-            let shown = generation.map_or(message.clone(), |generation| generation.detail);
-            notice::push(state, Level::Error, "Action failed", shown);
-        }
-        None => {}
+        // A failure is shown once, beside the control, where Retry and "Write a message" are. The
+        // original's toast has no such buttons, so a second copy in a toast would only say it twice.
+        Some(Outcome::Failed { .. }) | None => {}
     }
     let (transport, cwd) = (transport.clone(), cwd.to_owned());
     dioxus::dioxus_core::spawn_forever(async move {
@@ -378,11 +376,15 @@ pub(crate) fn Actions(
                     };
                     let writes_commit_message = generation.as_ref().is_some_and(|generation| generation.operation == "generateCommitMessage") && !files.is_empty();
                     rsx! {
-                        div { class: "branch-notice failure git-failure", role: "alert",
-                            span { "{text}" }
-                            button { r#type: "button", "aria-label": "Retry action", disabled: !writable, onclick: { let spec = spec.clone(); move |_| start.call((spec.clone(), false)) }, "Retry" }
-                            if writes_commit_message { button { r#type: "button", "aria-label": "Write a commit message", disabled: !writable, onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); commit.set(Some(CommitDraft::default())); } }, "Write a message" } }
-                            button { r#type: "button", "aria-label": "Dismiss git action message", onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); } }, "\u{d7}" }
+                        div { class: "branch-notice failure git-failure", role: "alert", tabindex: "-1",
+                            onmounted: move |_| { dioxus::document::eval("const p=document.querySelector('.git-failure');const a=document.activeElement;if(p&&(!a||a===document.body||a.closest('.git-actions')))p.focus();"); },
+                            onkeydown: { let key = cwd.clone(); move |event| { if event.key() == Key::Escape { event.stop_propagation(); state.git_runs().write().remove(&key); } } },
+                            div { class: "git-failure-text", crate::error_text::ErrorText { text } }
+                            button { class: "git-failure-close", r#type: "button", "aria-label": "Dismiss git action message", onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); } }, "\u{d7}" }
+                            div { class: "git-failure-actions",
+                                button { r#type: "button", "aria-label": "Retry action", disabled: !writable, onclick: { let spec = spec.clone(); move |_| start.call((spec.clone(), false)) }, "Retry" }
+                                if writes_commit_message { button { r#type: "button", "aria-label": "Write a commit message", disabled: !writable, onclick: { let key = cwd.clone(); move |_| { state.git_runs().write().remove(&key); commit.set(Some(CommitDraft::default())); } }, "Write a message" } }
+                            }
                         }
                     }
                 }
@@ -408,14 +410,16 @@ pub(crate) fn Actions(
                                 div { class: "commit-summary",
                                     div { class: "commit-row", span { class: "muted", "Branch" } span { "{branch_name}" } if is_default { span { class: "commit-warning", "Default branch" } } }
                                     div { class: "commit-row",
-                                        if draft.editing && !files.is_empty() {
-                                            input { r#type: "checkbox", "aria-label": "Select all files", checked: all_selected,
-                                                onclick: { let all: BTreeSet<String> = files.iter().map(|file| file.path.clone()).collect(); move |_| commit.with_mut(|draft| if let Some(draft) = draft { draft.excluded = if draft.excluded.is_empty() { all.clone() } else { BTreeSet::new() }; }) } }
+                                        label { class: "commit-all",
+                                            if draft.editing && !files.is_empty() {
+                                                input { r#type: "checkbox", "aria-label": "Select all files", checked: all_selected,
+                                                    onclick: { let all: BTreeSet<String> = files.iter().map(|file| file.path.clone()).collect(); move |_| commit.with_mut(|draft| if let Some(draft) = draft { draft.excluded = if draft.excluded.is_empty() { all.clone() } else { BTreeSet::new() }; }) } }
+                                            }
+                                            span { class: "muted", "Files" }
                                         }
-                                        span { class: "muted", "Files" }
                                         if !all_selected && !draft.editing { span { class: "muted", "({selected.len()} of {files.len()})" } }
                                         if !files.is_empty() {
-                                            button { r#type: "button", "aria-label": if draft.editing { "Done choosing files" } else { "Choose files" }, onclick: move |_| commit.with_mut(|draft| if let Some(draft) = draft { draft.editing = !draft.editing; }), if draft.editing { "Done" } else { "Edit" } }
+                                            button { class: "commit-edit", r#type: "button", "aria-label": if draft.editing { "Done choosing files" } else { "Choose files" }, onclick: move |_| commit.with_mut(|draft| if let Some(draft) = draft { draft.editing = !draft.editing; }), if draft.editing { "Done" } else { "Edit" } }
                                         }
                                     }
                                     if files.is_empty() { p { class: "commit-none", "none" } }
@@ -427,12 +431,14 @@ pub(crate) fn Actions(
                                                     let path = file.path.clone();
                                                     rsx! {
                                                         li { key: "{path}",
+                                                          label { class: "commit-file",
                                                             if draft.editing {
                                                                 input { r#type: "checkbox", "aria-label": "Include {path}", checked: !excluded,
                                                                     onclick: { let path = path.clone(); move |_| commit.with_mut(|draft| if let Some(draft) = draft { if !draft.excluded.remove(&path) { draft.excluded.insert(path.clone()); } }) } }
                                                             }
                                                             span { class: "commit-path", title: "{path}", "{path}" }
                                                             if excluded { span { class: "muted", "Excluded" } } else { span { class: "commit-counts", span { class: "stat-add", "+{file.insertions}" } " / " span { class: "stat-del", "-{file.deletions}" } } }
+                                                          }
                                                         }
                                                     }
                                                 }

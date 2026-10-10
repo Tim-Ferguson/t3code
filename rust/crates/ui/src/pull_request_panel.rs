@@ -267,7 +267,10 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                     if stale { p { class: "diff-banner", role: "status", if connected() { "Could not refresh. This is the last pull request read." } else { "Offline. This is the last pull request read." } } }
                     div { class: "diff-tools", role: "tablist", "aria-label": "Pull request sections",
                         button { role: "tab", "aria-label": "Overview", "aria-selected": "{tab() == Tab::Overview}", "aria-pressed": "{tab() == Tab::Overview}", onclick: move |_| tab.set(Tab::Overview), "Overview" }
-                        button { role: "tab", "aria-label": "Files changed", "aria-selected": "{tab() == Tab::Files}", "aria-pressed": "{tab() == Tab::Files}", onclick: move |_| tab.set(Tab::Files), "Files changed" }
+                        // A host that cannot show a patch has no files to list.
+                        if value["capabilities"]["diff"] != false {
+                            button { role: "tab", "aria-label": "Files changed", "aria-selected": "{tab() == Tab::Files}", "aria-pressed": "{tab() == Tab::Files}", onclick: move |_| tab.set(Tab::Files), "Files changed" }
+                        }
                         button { role: "tab", "aria-label": "Pull request conversation", "aria-selected": "{tab() == Tab::Conversation}", "aria-pressed": "{tab() == Tab::Conversation}", onclick: move |_| tab.set(Tab::Conversation), "Conversation" }
                     }
                     div { class: "diff-content pr-content",
@@ -278,9 +281,9 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                                 } }
                         } else if tab() == Tab::Files {
                             crate::pull_request_files::Files { state, transport: transport.clone(), reference: reference.clone(), revision: refresh_count(), readable: can_read(), writable, why: write_reason.clone(),
-                                viewed_store: pr::viewed_store(&value).map(str::to_owned), threads: threads_of(&activity.read()), verdicts: verdicts_of(&value), can_resolve: value["viewerPermissions"]["resolve"] == true, on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
+                                viewed_store: pr::viewed_store(&value).map(str::to_owned), threads: threads_of(&activity.read()), verdicts: verdicts_of(&value), can_reply: can_reply(&value), can_resolve: can_resolve(&value), on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
                         } else {
-                            crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: threads_of(&activity.read()), can_resolve: value["viewerPermissions"]["resolve"] == true, writable, why: write_reason.clone(), on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
+                            crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: threads_of(&activity.read()), can_reply: can_reply(&value), can_resolve: can_resolve(&value), writable, why: write_reason.clone(), on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
                             crate::pull_request_review::ReviewForm { state, transport: transport.clone(), reference: reference.clone(), verdicts: verdicts_of(&value), writable, why: write_reason.clone(), on_done: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
                             Conversation { state, transport: transport.clone(), reference: reference.clone(), detail: value.clone(), on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); }, activity: activity.read().clone(), writable, busy: busy.clone(), comment: comment(), shown: shown_comments(), on_more: move |_| shown_comments.set(shown_comments() + COMMENTS_PER_PAGE),
                                 on_input: move |text: String| comment.set(text), on_send: move |_| send_comment.call(()) }
@@ -323,6 +326,19 @@ fn threads_of(activity: &Read<Rc<Value>>) -> Vec<Value> {
         Read::Ready(value) => value["reviewThreads"].as_array().cloned().unwrap_or_default(),
         _ => Vec::new(),
     }
+}
+/// Whether the host takes replies in a review thread and this account may comment: the original's
+/// `hostReview.reply && viewer.comment`.
+fn can_reply(detail: &Value) -> bool {
+    detail["capabilities"]["review"]["reply"] == true && detail["viewerPermissions"]["comment"] == true
+}
+/// Whether the host resolves threads and this account may: `hostReview.resolve && viewer.resolve`.
+fn can_resolve(detail: &Value) -> bool {
+    detail["capabilities"]["review"]["resolve"] == true && detail["viewerPermissions"]["resolve"] == true
+}
+/// Whether the host takes comments and this account may make one.
+fn can_comment(detail: &Value) -> bool {
+    detail["capabilities"]["comment"] == true && detail["viewerPermissions"]["comment"] == true
 }
 /// The verdicts this reader may give: the host offers them and the account may use them.
 fn verdicts_of(detail: &Value) -> Vec<String> {
@@ -448,8 +464,10 @@ fn Overview(state: Store<UiModel>, transport: TransportHandle, reference: Refere
                 if let Some(action) = busy.clone() { span { class: "branch-busy", role: "status", "Working on {action}\u{2026}" } }
             }
             section { class: "pr-people", "aria-label": "Reviewers and labels",
+                // The row is always there; the menu only where the host can say who could be asked (Azure DevOps takes
+                // a reviewer but lists nobody, so there is nothing to open).
+                p { class: "pr-meta", "Reviewers: " if value["reviewers"].as_array().is_none_or(Vec::is_empty) { span { class: "muted", "None" } } else { for reviewer in value["reviewers"].as_array().cloned().unwrap_or_default() { span { key: "{reviewer[\"login\"].as_str().unwrap_or_default()}", class: "pr-reviewer", "{reviewer[\"login\"].as_str().unwrap_or_default()} " } } } }
                 if value["capabilities"]["reviewers"]["request"] == true && value["capabilities"]["reviewers"]["listCandidates"] == true {
-                    p { class: "pr-meta", "Reviewers: " if value["reviewers"].as_array().is_none_or(Vec::is_empty) { span { class: "muted", "None" } } else { for reviewer in value["reviewers"].as_array().cloned().unwrap_or_default() { span { key: "{reviewer[\"login\"].as_str().unwrap_or_default()}", class: "pr-reviewer", "{reviewer[\"login\"].as_str().unwrap_or_default()} " } } } }
                     crate::pull_request_menus::Picker { state, transport: transport.clone(), reference: reference.clone(), kind: crate::pull_request_menus::Kind::Reviewers, allowed: value["viewerPermissions"]["requestReviewers"] == true, writable: show_writes && writable, on_changed }
                 }
                 if value["labels"].as_array().is_some_and(|labels| !labels.is_empty()) || value["capabilities"]["labels"] == true {
@@ -457,7 +475,8 @@ fn Overview(state: Store<UiModel>, transport: TransportHandle, reference: Refere
                     if value["capabilities"]["labels"] == true { crate::pull_request_menus::Picker { state, transport: transport.clone(), reference: reference.clone(), kind: crate::pull_request_menus::Kind::Labels, allowed: value["viewerPermissions"]["labels"] != false, writable: show_writes && writable, on_changed } }
                 }
             }
-            section { class: "pr-checks", "aria-label": "Checks",
+            // A host that reports no checks at all (the answer is null) shows no section: nothing is not "no checks".
+            if value["checks"].is_array() { section { class: "pr-checks", "aria-label": "Checks",
                 h3 { "Checks" }
                 p { class: "pr-checks-summary", role: "status", "{summary}" }
                 for (heading, group) in [("Needs attention", attention), ("Running", running), ("Completed", done)] {
@@ -485,7 +504,7 @@ fn Overview(state: Store<UiModel>, transport: TransportHandle, reference: Refere
                         }
                     }
                 }
-            }
+            } }
             section { class: "pr-description", "aria-label": "Description",
                 h3 { "Description" }
                 if !matches!(crate::pull_request_edit::editing().and_then(|editing| editing.edit.read().clone()), Some(crate::pull_request_edit::Edit::Body(_))) {
@@ -536,10 +555,12 @@ fn Conversation(state: Store<UiModel>, transport: TransportHandle, reference: Re
                     }
                 }
             }
-            form { class: "pr-comment-form", onsubmit: move |event| { event.prevent_default(); on_send.call(()); },
-                label { r#for: "pr-comment", class: "sr-only", "Add a comment" }
-                textarea { id: "pr-comment", "aria-label": "Add a comment", placeholder: "Leave a comment", value: "{comment}", disabled: !writable, oninput: move |event| on_input.call(event.value()) }
-                button { class: "primary", r#type: "button", "aria-label": "Comment", disabled: !writable || busy.is_some() || comment.trim().is_empty(), onclick: move |_| on_send.call(()), "Comment" }
+            if can_comment(&detail) {
+                form { class: "pr-comment-form", onsubmit: move |event| { event.prevent_default(); on_send.call(()); },
+                    label { r#for: "pr-comment", class: "sr-only", "Add a comment" }
+                    textarea { id: "pr-comment", "aria-label": "Add a comment", placeholder: "Leave a comment", value: "{comment}", disabled: !writable, oninput: move |event| on_input.call(event.value()) }
+                    button { class: "primary", r#type: "button", "aria-label": "Comment", disabled: !writable || busy.is_some() || comment.trim().is_empty(), onclick: move |_| on_send.call(()), "Comment" }
+                }
             }
         }
     }
@@ -621,6 +642,89 @@ mod tests {
         assert!(rendered_text(&dom).contains("Working on merge"));
         let (dom, _) = mount(detail(&["merge"]), true, false, None);
         assert_eq!(control_attribute(&dom, "Merge", "disabled").unwrap().1.as_deref(), Some("true"), "offline: last read, nothing sent");
+    }
+
+    /// What each host's server sends for the pieces the panel is capability-driven by.
+    fn host_detail(provider: &str, capabilities: Value, permissions: Value, extra: Value) -> Value {
+        let mut value = json!({"provider":provider,"state":"open","isDraft":false,"mergeability":"mergeable","title":"Fix it","body":"Body text","labels":[],"reviewers":[{"login":"bob"}],
+            "capabilities":capabilities,"mergeCapabilities":{"merge":true,"squash":true,"rebase":true},"viewerPermissions":permissions});
+        value.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        value
+    }
+    fn mounted_text(value: Value) -> String {
+        let (dom, _) = mount(value, true, true, None);
+        rendered_text(&dom)
+    }
+    fn mounted_threads(can_reply: bool, can_resolve: bool) -> VirtualDom {
+        #[derive(Clone, PartialEq)]
+        struct Threads(bool, bool);
+        fn view(props: Threads) -> Element {
+            let thread = json!({"id":"t1","path":"a.ts","line":4,"isResolved":false,"isOutdated":false,"comments":[{"id":"c1","author":{"login":"bob"},"createdAt":"now","body":"Rename this"}]});
+            rsx! { crate::pull_request_review::Threads { state: use_store(UiModel::default), transport: TransportHandle::default(), reference: Reference { project_id: "p".into(), host: None, repository: "acme/web".into(), number: 7 }, threads: vec![thread], can_reply: props.0, can_resolve: props.1, writable: true, why: None, on_changed: |_| {} } }
+        }
+        let mut dom = VirtualDom::new_with_props(view, Threads(can_reply, can_resolve));
+        dom.rebuild_in_place();
+        dom
+    }
+
+    /// Bitbucket: merge and close only; the verdicts include a request for changes; the viewed marks are the
+    /// environment's; the host counts no lines, summarises no review and gives no base comparison.
+    #[test]
+    fn a_bitbucket_pull_request_offers_merge_and_close_and_nothing_the_host_cannot_do() {
+        let capabilities = json!({"diff":true,"comment":true,"actions":["merge","close"],"mergeMethods":["merge","squash"],"search":false,"viewedFiles":"environment",
+            "review":{"inlineComment":true,"reply":true,"resolve":true,"verdicts":["comment","approve","request-changes"]},"reviewers":{"request":true,"listCandidates":true},"edit":{"changeRequest":true,"comment":true},"labels":false});
+        let permissions = json!({"actions":["merge","close"],"comment":true,"resolve":true,"verdicts":["comment","approve","request-changes"],"requestReviewers":true});
+        let detail = host_detail("bitbucket", capabilities, permissions, json!({"checks":[{"name":"Build","status":"success","description":"ok","url":null}],"reviewers":[{"id":"{bob-uuid}","login":"bob"}]}));
+        let text = mounted_text(detail.clone());
+        let (dom, _) = mount(detail.clone(), true, true, None);
+        assert!(control(&dom, "Merge").is_some() && control(&dom, "Close pull request").is_some(), "{text}");
+        for absent in ["Convert to draft", "Ready for review", "Reopen pull request", "Revert", "Update branch", "Enable auto-merge", "Approve workflows"] {
+            assert!(control(&dom, absent).is_none(), "Bitbucket has no {absent}");
+        }
+        assert!(!text.contains("commits behind") && !text.contains("+0") && !text.contains("0 files") && control(&dom, "Change labels").is_none() && !text.contains("Labels:"), "{text}");
+        assert!(text.contains("Reviewers: ") && control(&dom, "Request a review").is_some() && text.contains("Build"), "{text}");
+        assert_eq!(verdicts_of(&detail), ["comment", "approve", "request-changes"]);
+        assert!(can_comment(&detail) && can_reply(&detail) && can_resolve(&detail) && pr::viewed_store(&detail) == Some("environment"));
+    }
+
+    /// Azure DevOps: no comment composer, reactions, labels, verdicts, replies or resolution, no list of people to
+    /// ask for a review, no checks (the answer is null: no heading, not an empty one), and no counts it did not give.
+    #[test]
+    fn an_azure_devops_pull_request_shows_no_composer_checks_counts_or_reviewer_menu() {
+        let capabilities = json!({"diff":true,"comment":false,"actions":["merge","close","reopen","ready","draft"],"mergeMethods":["merge","squash","rebase"],"search":false,
+            "review":{"inlineComment":false,"reply":false,"resolve":false,"verdicts":[]},"reviewers":{"request":true,"listCandidates":false},"edit":{"changeRequest":true,"comment":false},"reactions":false,"labels":false,"stacks":false});
+        let permissions = json!({"actions":["merge","close","draft"],"comment":true,"resolve":false,"verdicts":[],"requestReviewers":true});
+        let detail = host_detail("azure-devops", capabilities, permissions, json!({"checks":null,"reviewers":[{"login":"bob@acme.io"}]}));
+        let (dom, _) = mount(detail.clone(), true, true, None);
+        let text = rendered_text(&dom);
+        assert!(!text.contains("Checks") && !text.contains("No checks reported") && !text.contains("+0") && !text.contains("0 files"), "{text}");
+        assert!(text.contains("Reviewers: ") && text.contains("bob@acme.io") && control(&dom, "Request a review").is_none(), "no list to pick from: {text}");
+        assert!(control(&dom, "Add a reaction").is_none() && control(&dom, "Change labels").is_none() && !text.contains("Labels:"));
+        // The title and description are editable; a comment is not.
+        assert!(!can_comment(&detail) && !can_reply(&detail) && !can_resolve(&detail) && verdicts_of(&detail).is_empty());
+        assert!(t3_client::pull_request_edit::can_edit_change_request(&detail) && !detail["capabilities"]["edit"]["comment"].as_bool().unwrap());
+        let threads = rendered_text(&mounted_threads(can_reply(&detail), can_resolve(&detail)));
+        assert!(threads.contains("Rename this"));
+        let dom = mounted_threads(false, false);
+        assert!(control(&dom, "Reply to thread on a.ts").is_none() && control(&dom, "Resolve thread on a.ts").is_none());
+    }
+
+    /// Forgejo and Gitea: labels, reactions, inline review and all three merge methods; merge, close, reopen and
+    /// update-branch only; no reply, no resolution.
+    #[test]
+    fn a_forgejo_pull_request_offers_its_merge_methods_labels_and_update_but_no_reply_or_resolution() {
+        let capabilities = json!({"diff":true,"comment":true,"actions":["merge","close","reopen","update-branch"],"mergeMethods":["merge","squash","rebase"],"updateMethods":["merge","rebase"],"search":false,"reactions":true,
+            "review":{"inlineComment":true,"reply":false,"resolve":false,"verdicts":["comment","approve","request-changes"]},"reviewers":{"request":true,"listCandidates":true},"edit":{"changeRequest":true,"comment":true},"labels":true});
+        let permissions = json!({"actions":["merge","close","update-branch"],"comment":true,"resolve":true,"verdicts":["comment","approve","request-changes"],"requestReviewers":true,"updateMethods":["merge","rebase"],"labels":true});
+        let detail = host_detail("forgejo", capabilities, permissions, json!({"checks":[],"labels":[{"name":"bug"}],"baseComparison":"behind","behindBy":2,"reactions":[]}));
+        let (mut dom, calls) = mount(detail.clone(), true, true, None);
+        let text = rendered_text(&dom);
+        assert!(control(&dom, "Merge method").is_some(), "three methods are on offer: {text}");
+        assert!(control(&dom, "Update branch").is_some() && text.contains("2 commits behind") && control(&dom, "Change labels").is_some() && text.contains("bug"), "{text}");
+        assert!(control(&dom, "Convert to draft").is_none() && control(&dom, "Revert").is_none() && control(&dom, "Enable auto-merge").is_none());
+        click_control(&mut dom, "Update branch");
+        assert_eq!(calls.borrow().as_slice(), [("update-branch".to_owned(), Some("merge".to_owned()))]);
+        assert!(!can_reply(&detail) && !can_resolve(&detail) && can_comment(&detail) && verdicts_of(&detail).contains(&"request-changes".to_owned()));
     }
 
     #[test]

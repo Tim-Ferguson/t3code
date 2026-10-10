@@ -97,7 +97,8 @@ fn slash_entries(items: &[SlashItem], skills: &[Skill], query: &str, at_start: b
 }
 
 #[component]
-pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHandle, thread: t3_contracts::ThreadShell, draft: String, placeholder: String, attach_paste: bool) -> Element {
+pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHandle, thread: t3_contracts::ThreadShell, draft: String, placeholder: String, attach_paste: bool, on_send: Callback<()>) -> Element {
+    let composition = use_hook(Composition::default);
     let mut selected = use_signal(|| 0usize);
     let mut dismissed = use_signal(|| None::<String>);
     let mut found = use_signal(|| (String::new(), Vec::<Entry>::new(), false));
@@ -303,14 +304,21 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
         div {class:"prompt-box",
             textarea { "aria-label": "Message", "aria-autocomplete":"list", "aria-expanded":"{open}", "data-attach-paste": if attach_paste {"on"} else {"off"}, placeholder:"{placeholder}", value: "{draft}",
                 oninput: move |event| {selected.set(0);draft_storage::edit_thread_prompt(state,event.value())},
+                oncompositionend: { let composition = composition.clone(); move |_| composition.ended() },
                 onkeydown: move |event| {
-                    if !open {return;}
-                    match event.key() {
-                        Key::ArrowDown if !keyed.is_empty() => {event.prevent_default();selected.set((current+1)%keyed.len());}
-                        Key::ArrowUp if !keyed.is_empty() => {event.prevent_default();selected.set((current+keyed.len()-1)%keyed.len());}
-                        Key::Enter | Key::Tab if !keyed.is_empty() && !event.modifiers().shift() => {event.prevent_default();let mut pick=pick_key.clone();pick(keyed[current].clone());}
-                        Key::Escape => {event.stop_propagation();dismissed.set(Some(draft_key.clone()));}
-                        _ => {}
+                    if open {
+                        match event.key() {
+                            Key::ArrowDown if !keyed.is_empty() => {event.prevent_default();selected.set((current+1)%keyed.len());return;}
+                            Key::ArrowUp if !keyed.is_empty() => {event.prevent_default();selected.set((current+keyed.len()-1)%keyed.len());return;}
+                            Key::Enter | Key::Tab if !keyed.is_empty() && !event.modifiers().shift() => {event.prevent_default();let mut pick=pick_key.clone();pick(keyed[current].clone());return;}
+                            Key::Escape => {event.stop_propagation();dismissed.set(Some(draft_key.clone()));return;}
+                            _ => {}
+                        }
+                    }
+                    // A menu with nothing to pick leaves Enter to the box, which sends or adds a line.
+                    if enter_sends(state, &event, &draft_key, &composition) {
+                        event.prevent_default();
+                        on_send.call(());
                     }
                 }
             }
@@ -336,4 +344,40 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
 /// A prompt that is only `/plan` or `/default` switches the mode instead of being sent.
 pub(crate) fn standalone_mode(draft: &str) -> Option<&'static str> {
     menu::standalone_command(draft)
+}
+
+/// When the last IME composition in a box ended. Safari reports the Enter that confirms a
+/// candidate after the composition has ended (with `isComposing` already false), so an Enter
+/// that follows the end at once still belongs to the IME.
+#[derive(Clone, Default)]
+pub(crate) struct Composition(std::rc::Rc<std::cell::Cell<i64>>);
+impl Composition {
+    pub(crate) fn ended(&self) {
+        self.0.set(chrono::Utc::now().timestamp_millis());
+    }
+    fn just_ended(&self) -> bool {
+        chrono::Utc::now().timestamp_millis() - self.0.get() < 100
+    }
+}
+
+/// Whether the window is as narrow as a phone, where Enter is a new line.
+fn mobile_viewport() -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window().and_then(|window| window.inner_width().ok()).and_then(|width| width.as_f64()).is_some_and(|width| width < t3_client::composer_send::MOBILE_MAX_WIDTH)
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        false
+    }
+}
+
+/// Whether this key press in a message box sends the message (see `t3_client::composer_send`).
+/// The key is read from `keydown` by its `key` text, and a send cancels the default so the line
+/// break the browser would insert is not inserted as well.
+pub(crate) fn enter_sends(state: Store<UiModel>, event: &KeyboardEvent, prompt: &str, composition: &Composition) -> bool {
+    let key = crate::keybinding_page::key_event(event);
+    key.key == "Enter"
+        && !composition.just_ended()
+        && t3_client::composer_send::enter_sends(&key, state.client_settings().peek().send_shortcut, prompt, mobile_viewport())
 }

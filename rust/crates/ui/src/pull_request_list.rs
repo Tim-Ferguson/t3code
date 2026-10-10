@@ -31,7 +31,8 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
     let mut filter = use_signal(|| "open".to_owned());
     let mut listed = use_signal(Listed::default);
     let mut reads = use_signal(|| 0u64);
-    let mut pending = use_signal(|| false);
+    // Until the first read answers the page says it is reading; the read clears this when it ends.
+    let mut pending = use_signal(|| true);
     let mut failure = use_signal(|| None::<String>);
     let mut more = use_signal(|| false);
     let readable = connected_allows(state, AuthEnvironmentScope::OrchestrationRead);
@@ -45,6 +46,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
             let (transport, readable, chosen, _) = (transport.clone(), readable, filter(), reads());
             async move {
                 if !readable {
+                    pending.set(false);
                     if listed.peek().loaded && !listed.peek().stale {
                         listed.write().stale = true;
                     }
@@ -113,11 +115,32 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
             button { "aria-label": "Refresh pull requests", disabled: !readable || *pending.read(), onclick: move |_| { let next = *reads.peek() + 1; reads.set(next) }, if *pending.read() { "Loading pull requests\u{2026}" } else { "Refresh" } }
             button { onclick: move |_| state.view().set(View::Chat), "Back to chat" }
         }
-        if !readable && !current.loaded { p { class: "muted", "Connect to an environment to list its pull requests." } }
+        if !readable && !current.loaded { crate::empty_state::EmptyState { title: "Not connected", description: "Connect to an environment to list its pull requests." } }
         if current.stale { p { class: "diff-banner", role: "status", "Offline. This is the last list read." } }
-        if let Some(message) = failure.read().clone() { p { class: "error-banner", role: "alert", "{message}" } }
-        for error in current.errors.iter() { p { class: "muted", role: "status", "{error}" } }
-        if current.loaded && current.entries.is_empty() && !*pending.read() { p { class: "muted", "No pull requests." } }
+        if let Some(message) = failure.read().clone().filter(|_| current.entries.is_empty()) {
+            crate::empty_state::EmptyState { title: "Could not load pull requests", description: message,
+                button { r#type: "button", "aria-label": "Retry loading pull requests", disabled: !readable || *pending.read(), onclick: move |_| { let next = *reads.peek() + 1; reads.set(next) }, "Retry" } }
+        } else if let Some(message) = failure.read().clone() { p { class: "error-banner", role: "alert", "{message}" } }
+        // Projects the host could not be asked about say why, one line each: no host for the remote,
+        // not signed in, or the host's own refusal.
+        if !current.errors.is_empty() {
+            section { class: "pr-unavailable", "aria-label": "Projects without pull requests",
+                h2 { "Not available for some projects" }
+                ul { for error in current.errors.iter() { li { key: "{error}", "{error}" } } }
+            }
+        }
+        if readable && !current.loaded && failure.read().is_none() { p { class: "muted", role: "status", "Loading pull requests\u{2026}" } }
+        if current.loaded && current.entries.is_empty() && !*pending.read() && failure.read().is_none() {
+            if projects.is_empty() {
+                crate::empty_state::EmptyState { title: "No projects in this workspace", description: "Add a project, and the pull requests from its repository appear here.",
+                    if let Some(add) = try_consume_context::<crate::AddProject>() { button { class: "primary", r#type: "button", onclick: move |_| { let mut open = add.0; open.set(true); }, "Add project" } } }
+            } else {
+                crate::empty_state::EmptyState {
+                    title: if *filter.read() == "open" { "No pull requests" } else { "Nothing under this filter" },
+                    description: if *filter.read() == "open" { "Pull requests from every project in this workspace appear here." } else { "Choose another state to see more." },
+                    button { r#type: "button", "aria-label": "Check pull requests again", disabled: !readable || *pending.read(), onclick: move |_| { let next = *reads.peek() + 1; reads.set(next) }, "Check again" } }
+            }
+        }
         ol { class: "pr-list",
             for entry in current.entries.iter().cloned() {
                 { let key = format!("{}#{}", entry["repository"].as_str().unwrap_or_default(), entry["number"]); let (additions, deletions) = current.stats.get(&key).copied().unwrap_or((entry["additions"].as_u64().unwrap_or(0), entry["deletions"].as_u64().unwrap_or(0)));

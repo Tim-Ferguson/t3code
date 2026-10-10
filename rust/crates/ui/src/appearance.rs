@@ -101,10 +101,10 @@ pub fn Typography(state: Store<UiModel>) -> Element {
             FontRow{state,kind:Kind::Code,title:if is_advanced{"Code font"}else{"Monospace font"},description:if is_advanced{"Code blocks, diffs, and file previews."}else{"Code blocks, diffs, file previews, and the terminal."}}
             if is_advanced{FontRow{state,kind:Kind::Terminal,title:"Terminal font",description:"Terminal output, independent from code blocks and diffs."}
                 TerminalPreview{family:settings.font_family_terminal.0.clone(),size:settings.font_size_terminal.0}
-                if fonts.defaults.read()["mac"]==true{div{class:"font-setting",div{strong{"Font smoothing"}p{class:"muted","Use thinner grayscale text smoothing instead of the macOS default."}}input{r#type:"checkbox","aria-label":"Font smoothing",checked:smoothing,onchange:move|event|smoothing_writer.patch(state,json!({"fontSmoothing":event.checked()}))}}}
+                if fonts.defaults.read()["mac"]==true{label{class:"font-setting",div{strong{"Font smoothing"}p{class:"muted","Use thinner grayscale text smoothing instead of the macOS default."}}input{r#type:"checkbox","aria-label":"Font smoothing",checked:smoothing,onchange:move|event|smoothing_writer.patch(state,json!({"fontSmoothing":event.checked()}))}}}
             }
             if !is_advanced{TerminalPreview{family:settings.font_family_code.0.clone(),size:settings.font_size_code.0}}
-            div{class:"font-setting",div{strong{"Word wrap"}p{class:"muted","Wrap long lines in code blocks, tables, diffs, and file previews by default."}}input{r#type:"checkbox","aria-label":"Wrap code, tables, diffs, and file previews by default",checked:wrap,onchange:move|event|wrap_writer.patch(state,json!({"wordWrap":event.checked()}))}}
+            label{class:"font-setting",div{strong{"Word wrap"}p{class:"muted","Wrap long lines in code blocks, tables, diffs, and file previews by default."}}input{r#type:"checkbox","aria-label":"Wrap code, tables, diffs, and file previews by default",checked:wrap,onchange:move|event|wrap_writer.patch(state,json!({"wordWrap":event.checked()}))}}
         }
     }
 }

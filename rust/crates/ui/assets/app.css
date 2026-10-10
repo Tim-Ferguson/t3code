@@ -16,8 +16,12 @@
 * {
   box-sizing: border-box;
 }
+html,
 body {
+  height: 100%;
   margin: 0;
+  /* The page itself never scrolls: panes inside .app do. */
+  overflow: hidden;
 }
 button,
 input,
@@ -67,6 +71,10 @@ select:focus-visible {
   --primary: oklch(0.488 0.217 264);
   height: 100dvh;
   display: flex;
+  position: relative;
+  /* Clips what an absolutely placed popup lets overflow, so no scrollable overflow reaches the
+     document (a focus or scrollIntoView call cannot move the whole application). */
+  overflow: clip;
   color: var(--foreground);
   background: var(--background);
 }
@@ -341,6 +349,15 @@ select:focus-visible {
   border-bottom: 1px solid var(--border);
   padding: 8px 14px;
   font-size: 0.8125rem;
+  gap: 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.error-banner > .error-text {
+  flex: 1;
+  min-width: 0;
 }
 .error-banner button {
   border: 0;
@@ -2344,9 +2361,52 @@ html[data-theme-token-probe] *::after {
   font-size: 0.75rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+}
+.branch-notice span {
+  min-width: 0;
 }
 .branch-notice.failure {
   color: #dc2626;
+}
+/* A failed git action: one bounded panel under the header, on the right, beside nothing it
+   could cover. Its text scrolls inside it; Retry and the close button stay in reach. */
+.branch-notice.git-failure {
+  position: fixed;
+  top: 56px;
+  right: 14px;
+  left: auto;
+  width: min(420px, calc(100vw - 28px));
+  max-width: none;
+  max-height: min(60vh, 440px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 8px;
+  align-items: start;
+  overscroll-behavior: contain;
+}
+.git-failure:focus {
+  outline: none;
+}
+.git-failure-text {
+  min-width: 0;
+}
+.git-failure-close {
+  padding: 0 6px;
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--muted-foreground);
+}
+.git-failure-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.branch-notice .git-failure-actions button {
+  border: 1px solid var(--border);
+  padding: 3px 10px;
 }
 .branch-notice button {
   border: 0;
@@ -2438,6 +2498,11 @@ html[data-theme-token-probe] *::after {
     right: 12px;
     width: auto;
     max-width: none;
+  }
+  .branch-notice.git-failure {
+    left: 12px;
+    right: 12px;
+    width: auto;
   }
 }
 
@@ -2775,8 +2840,46 @@ html[data-theme-token-probe] *::after {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.notice-text span {
+.notice-text .error-text {
   color: var(--muted-foreground);
+}
+/* Error text from a server or provider: a few lines, wrapped, the rest one click away. */
+.error-text {
+  min-width: 0;
+  max-width: 100%;
+}
+.error-text-body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+.error-text[data-expanded="true"] .error-text-body {
+  display: block;
+  max-height: min(40vh, 320px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.error-text-tools {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+.error-text-tools button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  text-decoration: underline;
+}
+.notice {
+  max-height: 60vh;
+  overflow-y: auto;
 }
 .notice button {
   border: 0;
@@ -5385,8 +5488,8 @@ body.sidebar-dragging {
   background: var(--card);
   will-change: transform;
 }
-/* Showing the drop areas must not move a row: an empty Pinned area floats over the bottom of the
-   project heading, a section that has rows gets a small tag over its top right corner, and only an
+/* Showing the drop areas must not move a row: an empty Pinned area is a small tag at the right of the
+   project heading, clear of its name and its menu, a section that has rows gets a small tag over its top right corner, and only an
    empty Active section or the empty Settled shelf (which have no rows above or beside them to move)
    open up in the flow. */
 .project-group:has(.lifted) {
@@ -5395,10 +5498,9 @@ body.sidebar-dragging {
 .project-group:has(.lifted) .thread-section[data-section="pinned"]:empty {
   display: block;
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 30px;
-  transform: translateY(-100%);
+  top: 8px;
+  right: 34px;
+  height: 24px;
   z-index: 3;
   border: 1px dashed var(--border);
   border-radius: 6px;
@@ -5578,4 +5680,812 @@ body.sidebar-dragging {
 .settings-page input:not([type="checkbox"]) {
   max-width: 100%;
   min-width: 0;
+}
+
+/* Dialogs stay inside the window and a checkbox in one keeps its own size. */
+.dialog,
+.modal {
+  max-height: calc(100dvh - 36px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.dialog input[type="checkbox"],
+.dialog input[type="radio"] {
+  width: auto;
+  padding: 0;
+}
+.dialog-actions,
+.modal-actions {
+  flex-wrap: wrap;
+}
+
+/* Empty and unavailable pages: a centred explanation and what could change the answer. */
+.empty-card {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  max-width: 28rem;
+  margin: 40px auto;
+  padding: 0 16px;
+  text-align: center;
+}
+.empty-card h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.empty-card p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.empty-actions:empty {
+  display: none;
+}
+.pr-unavailable {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 0.8125rem;
+}
+.pr-unavailable h2 {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+}
+.pr-unavailable ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+
+/* The question card sits in the conversation's column like the approval card. */
+.composer-panel.user-input {
+  align-items: flex-start;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+}
+.composer-panel.user-input fieldset {
+  align-self: stretch;
+  min-width: 0;
+}
+.user-input-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.composer-panel.user-input .user-input-actions button {
+  margin-right: 0;
+}
+.question-option input {
+  flex: none;
+  width: auto;
+  margin: 3px 0 0;
+  padding: 0;
+}
+.question-option-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A setting's whole row is its label, so its text and description toggle the control. */
+.settings-page label.provider-field,
+.settings-page label.font-setting {
+  margin-top: 0;
+  font-weight: inherit;
+}
+.settings-page label.provider-field {
+  font-size: 13px;
+}
+.font-setting {
+  cursor: pointer;
+}
+
+/* Commit dialog, the question before pushing to the default branch, the git menu and its output. */
+.commit-dialog {
+  width: min(520px, 100%);
+}
+.commit-dialog h2 {
+  margin-bottom: 8px;
+}
+.commit-dialog p {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.commit-summary {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.8125rem;
+}
+.commit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.commit-row > .commit-edit {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+.commit-dialog .commit-all,
+.commit-dialog .commit-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: inherit;
+  cursor: pointer;
+}
+.commit-warning {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  color: var(--warning, #b45309);
+  background: color-mix(in srgb, var(--warning, #b45309) 12%, transparent);
+}
+.commit-files {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+  max-height: 180px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+}
+.commit-files li {
+  min-width: 0;
+}
+.commit-dialog .commit-file {
+  padding: 3px 0;
+}
+.commit-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.commit-counts,
+.commit-totals {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.commit-totals {
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  text-align: right;
+}
+.dialog .commit-none {
+  margin: 0;
+  font-size: 0.75rem;
+}
+.commit-dialog > label {
+  display: block;
+  margin: 0 0 4px;
+}
+.commit-dialog textarea {
+  width: 100%;
+  min-height: 96px;
+  padding: 8px;
+  resize: vertical;
+}
+.stat-add {
+  color: #16a34a;
+}
+.stat-del {
+  color: #dc2626;
+}
+.default-branch-dialog p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.branch-picker.git-menu {
+  left: auto;
+  right: 0;
+  width: min(280px, 90vw);
+}
+.git-menu .branch-row {
+  flex-wrap: wrap;
+}
+.git-why {
+  flex-basis: 100%;
+  white-space: normal;
+  font-size: 0.6875rem;
+  opacity: 0.7;
+}
+.git-options {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+}
+.git-primary {
+  white-space: nowrap;
+}
+.git-output-line {
+  display: inline-block;
+  max-width: 16rem;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  opacity: 0.7;
+}
+.git-output {
+  position: relative;
+  font-size: 0.6875rem;
+}
+.git-output summary {
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.git-output pre {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 25;
+  width: min(520px, 90vw);
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: 0 10px 30px #0002;
+  font: 0.6875rem/1.45 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .branch-picker.git-menu {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .git-output pre {
+    position: fixed;
+    top: 52px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .git-output-line {
+    max-width: 8rem;
+  }
+}
+
+/* Timeline cards: approvals, file changes, questions, reasoning, plan steps, notices. */
+.approval-prompt {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.file-change {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.file-operation {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.question-history {
+  padding: 4px 0;
+}
+.question-history p {
+  margin: 0;
+}
+.divider-label {
+  max-width: 100%;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.error-title {
+  color: var(--destructive, #dc2626);
+  font-weight: 600;
+}
+.tool-activity.reasoning .activity-body {
+  color: var(--muted-foreground);
+}
+.reasoning-title {
+  margin: 0 0 6px;
+}
+.step-status {
+  flex: none;
+  width: 1.25em;
+  text-align: center;
+}
+.composer-panel.plan-ready {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.composer-panel.plan-ready .muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.read-only-thread {
+  color: var(--muted-foreground);
+  text-align: center;
+}
+.scroll-error {
+  margin: 4px max(16px, calc((100% - 780px) / 2));
+  font-size: 0.75rem;
+  color: var(--destructive, #dc2626);
+}
+
+/* Queue controls. */
+.queued-toggle,
+.queued-handle {
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.queued-handle {
+  cursor: grab;
+  touch-action: none;
+}
+.queued-handle:disabled {
+  cursor: default;
+}
+.queued-resume,
+.queued-steer {
+  padding: 1px 8px;
+  font-size: 0.75rem;
+}
+.queued-resume {
+  margin-left: auto;
+}
+
+/* Thread relations and the pieces of a lineage row. */
+.fork-button {
+  color: var(--muted-foreground);
+}
+.lineage-glyph {
+  flex: none;
+  width: 1.25em;
+  text-align: center;
+}
+.lineage-merge,
+.lineage-stop {
+  flex: none;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.resource-card-icon {
+  flex: none;
+  font-size: 1.125rem;
+}
+
+/* Usage limits and recovery. */
+.usage-limits-panel {
+  max-height: min(50vh, 420px);
+  overflow: auto;
+}
+.limit-external-link {
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+
+/* Diff and file tree. */
+.diff-file-name {
+  font-weight: 500;
+  color: var(--foreground);
+}
+.diff-gap-count {
+  margin-right: auto;
+}
+.diff-refresh {
+  color: var(--muted-foreground);
+}
+.diff-cell.empty {
+  background: color-mix(in srgb, var(--muted-foreground) 8%, var(--background));
+}
+.changed-files-count {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.fold-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subagent-avatar.more {
+  font-size: 0.625rem;
+  background: var(--accent);
+}
+
+/* Pull request panel and list. */
+.pr-number {
+  font-variant-numeric: tabular-nums;
+}
+.pr-link {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--primary);
+}
+.pr-meta {
+  margin: 4px 0;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.pr-people {
+  display: grid;
+  gap: 2px;
+}
+.pr-reviewer {
+  display: inline-block;
+  margin-right: 6px;
+}
+.pr-label {
+  display: inline-block;
+  margin: 0 4px 2px 0;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+}
+.pr-checks {
+  margin: 8px 0;
+}
+.pr-checks-summary {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.pr-check-group {
+  margin: 4px 0;
+}
+.pr-check-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pr-check-status {
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+.pr-description {
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.pr-description pre {
+  max-height: 20rem;
+  overflow: auto;
+}
+.pr-confirm p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+.pr-editor {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0;
+}
+.pr-editor textarea,
+.pr-title-editor input {
+  width: 100%;
+  padding: 8px;
+}
+.pr-editor textarea {
+  min-height: 6rem;
+  resize: vertical;
+}
+.pr-title-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.pr-edit-button {
+  flex: none;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.pr-comment-text {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.pr-reactions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0;
+}
+.pr-reaction {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+.pr-reaction[aria-pressed="true"] {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 14%, var(--card));
+}
+.pr-reaction-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: min(260px, 90vw);
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--popover, var(--card));
+  box-shadow: 0 6px 18px #00000026;
+}
+.pr-resolved {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.pr-link-control {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+.pr-stop-watching {
+  padding: 0 4px;
+  font-size: 0.6875rem;
+}
+.pr-thread-link {
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-files-summary {
+  margin: 4px 0;
+  font-size: 0.75rem;
+}
+.pr-viewed-note {
+  cursor: help;
+}
+.pr-list {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+.pr-list-row {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+.pr-list-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+.pr-list-main > strong {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.pr-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pr-list-actions button {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+}
+.pr-list-row ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8125rem;
+}
+
+/* Settings pages and other small pieces. */
+.provider-argument-rows,
+.provider-acp-sessions,
+.provider-acp-providers {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.usage-environment {
+  font-size: 0.8125rem;
+}
+.rescan {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+}
+.worktree-setup-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 6px 0;
+  font-size: 0.75rem;
+}
+.worktree-setup-details dt {
+  color: var(--muted-foreground);
+}
+.worktree-setup-details dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.worktree-setup-label {
+  flex: 1;
+  min-width: 0;
+}
+.markdown-alert {
+  margin: 8px 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--primary);
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.markdown-alert > strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.8125rem;
+}
+.keybinding-browser-note {
+  font-size: 0.75rem;
+}
+.model-jump {
+  margin-left: auto;
+  font-size: 0.6875rem;
+}
+.model-picker-trigger {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 5px 10px;
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.subtle {
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  text-decoration: underline;
+}
+.notice .notice-follow {
+  align-self: center;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.notices.clone-notices {
+  right: auto;
+  left: 274px;
+}
+@media (max-width: 760px) {
+  .notices.clone-notices {
+    left: 14px;
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 120px);
+  }
+}
+
+/* The thread header's secondary actions: in the row where there is room, behind one "More actions"
+   button where there is not (a window under 1100px wide, or a panel open beside the conversation). */
+.header-more-group,
+.header-secondary {
+  display: contents;
+}
+.header-more {
+  display: none;
+}
+@media (max-width: 1100px) {
+  .header-more-group {
+    position: relative;
+    display: inline-flex;
+  }
+  .header-more {
+    display: inline-flex;
+  }
+  .header-secondary {
+    display: none;
+  }
+  .header-more-group[data-open="true"] .header-secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 30;
+    min-width: 11rem;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--popover, var(--card));
+    box-shadow: 0 10px 30px #0002;
+  }
+  .header-secondary .icon-button {
+    padding: 6px 10px;
+    text-align: left;
+  }
+}
+@media (max-width: 1900px) {
+  .workspace:has(> .diff-panel) .header-more-group {
+    position: relative;
+    display: inline-flex;
+  }
+  .workspace:has(> .diff-panel) .header-more {
+    display: inline-flex;
+  }
+  .workspace:has(> .diff-panel) .header-secondary {
+    display: none;
+  }
+  .workspace:has(> .diff-panel) .header-more-group[data-open="true"] .header-secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 30;
+    min-width: 11rem;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--popover, var(--card));
+    box-shadow: 0 10px 30px #0002;
+  }
+  .workspace:has(> .diff-panel) .header-secondary .icon-button {
+    padding: 6px 10px;
+    text-align: left;
+  }
 }

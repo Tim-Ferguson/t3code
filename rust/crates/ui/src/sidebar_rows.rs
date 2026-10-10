@@ -156,7 +156,7 @@ fn WorkingFor(since: String) -> Element {
 }
 
 /// Puts text on the clipboard from the click that asked for it.
-fn copy_text(text: &str) {
+pub(crate) fn copy_text(text: &str) {
     let text = serde_json::to_string(text).expect("clipboard text");
     dioxus::document::eval(&format!("navigator.clipboard?.writeText({text});"));
 }

@@ -21,6 +21,9 @@ mod pull_request_files;
 mod diff_panel;
 mod review_diff;
 mod draft_storage;
+mod empty_state;
+mod header_more;
+mod error_text;
 mod file_preview;
 mod font_service;
 mod general_page;
@@ -299,6 +302,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             rsx! { if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
                         }
                         diff_panel::Toggle { state, environment_key: environment_key.clone(), thread_id: active_thread.id.to_string() }
+                        thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
+                        header_more::Group {
                         {
                             let supported = state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.thread_title_regeneration == Some(true));
                             let regenerating = matches!(active_thread.title_regeneration, Some(Some(_)));
@@ -312,14 +317,14 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 }
                             }
                         }
-                        thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
-                        thread_lifecycle::HeaderButtons { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
+                            thread_lifecycle::HeaderButtons { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
+                        }
                         pull_request_links::HeaderLinks { state, transport: transport.clone(), thread: active_thread.clone() }
                       }
                     }
                 }
                 if let Some(error) = error {
-                    div { class: "error-banner", role: "alert", span { "{error}" } button { "aria-label": "Dismiss error", onclick: move |_| state.error().set(None), "×" } }
+                    div { class: "error-banner", role: "alert", error_text::ErrorText { text: error } button { "aria-label": "Dismiss error", onclick: move |_| state.error().set(None), "×" } }
                 }
                 match view {
                     View::Connections => rsx! {
@@ -580,11 +585,13 @@ pub(crate) fn UserInputCard(
         })
         .collect();
     rsx! {
-        form { class:"approval-card user-input", onsubmit:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();let questions=request.questions.clone();move |event|{event.prevent_default();if let Some(answers)=t3_client::requests::build_answers(&questions,&answers.peek()){runtime::command(&transport,state,"runtime-request.respond",json!({"threadId":thread_id,"requestId":id,"answers":answers}));}}},
+        form { class:"composer-panel approval-card user-input", onsubmit:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();let questions=request.questions.clone();move |event|{event.prevent_default();if let Some(answers)=t3_client::requests::build_answers(&questions,&answers.peek()){runtime::command(&transport,state,"runtime-request.respond",json!({"threadId":thread_id,"requestId":id,"answers":answers}));}}},
             h3 { "Your input is needed" }
             for (id,question) in questions { UserQuestion { key:"{id}", question,answers,state,disabled:!can_respond } }
-            button { "aria-label":"Submit answers",class:"primary",r#type:"submit",disabled:!can_respond || !ready,"Submit answers" }
-            if request.dismissible { button { r#type:"button",disabled:!can_operate,onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();move |_|{runtime::command(&transport,state,"thread.user-input.dismiss",json!({"threadId":thread_id,"requestId":id}));}},"Dismiss" } }
+            div { class:"user-input-actions",
+                button { "aria-label":"Submit answers",class:"primary",r#type:"submit",disabled:!can_respond || !ready,"Submit answers" }
+                if request.dismissible { button { r#type:"button",disabled:!can_operate,onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();move |_|{runtime::command(&transport,state,"thread.user-input.dismiss",json!({"threadId":thread_id,"requestId":id}));}},"Dismiss" } }
+            }
         }
     }
 }
@@ -618,12 +625,22 @@ fn UserQuestion(
             legend { {question["header"].as_str().unwrap_or("Question")} }
             p { {question["question"].as_str().unwrap_or("")} }
             for (value,label,description) in options {
-                label { class:"question-option",
-                    input { "aria-label":"{label}",r#type:if question["multiSelect"]==true {"checkbox"} else {"radio"},name:"{id}",checked:draft.selected.contains(&value),onchange:{let question=question.clone();let id=id.clone();move |_| {
+                {
+                    // The whole option is the control: a click on its text or description selects it
+                    // as a click on the circle does. The label asks for the choice itself rather than
+                    // leaving it to the browser's forwarding, and cancels that forwarding so the
+                    // input cannot also report a change of its own.
+                    let pick={let question=question.clone();let id=id.clone();let value=value.clone();move || {
                         let displaced={let mut drafts=answers.write();t3_client::requests::toggle_option(&question,drafts.entry(id.clone()).or_default(),value.clone())};
                         if !displaced.is_empty(){let current=state.draft().peek().clone();draft_storage::edit_thread_prompt(state,if current.trim().is_empty(){displaced}else{format!("{}\n\n{}",current.trim_end(),displaced)});}
-                    }} }
-                    span { "{label}" small { "{description}" } }
+                    }};
+                    let mut pick_change=pick.clone();let mut pick_click=pick;
+                    rsx! {
+                        label { key:"{value}",class:"question-option",onclick:move |event| { event.prevent_default(); if !disabled { pick_click(); } },
+                            input { "aria-label":"{label}",r#type:if question["multiSelect"]==true {"checkbox"} else {"radio"},name:"{id}",checked:draft.selected.contains(&value),onchange:move |_| pick_change() }
+                            span { class:"question-option-text","{label}" small { "{description}" } }
+                        }
+                    }
                 }
             }
             if question["allowCustomAnswer"]!=false { textarea { "aria-label":"Custom answer",placeholder:"Your answer",value:"{draft.custom}",oninput:{let id=id.clone();move |event|t3_client::requests::set_custom_answer(answers.write().entry(id.clone()).or_default(),event.value())} } }
@@ -777,6 +794,8 @@ fn Composer(
         }
     };
     let blocked = !can_operate || unsupported || pending || rewinding() || attachment_block.is_some() || (!has_content && following_up.is_none() && resume_run.is_none());
+    // Enter in the box does what the Send button does, and nothing when that is not possible.
+    let enter_send = use_callback({ let mut submit = submit.clone(); move |()| { if !blocked { submit(false); } } });
     let show_stop = running && !has_content && editing.read().is_none() && following_up.is_none();
     let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
     let steer_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.steerQueuedMessage"));
@@ -792,7 +811,7 @@ fn Composer(
             ondrop: move |event| { if let Some(handler)=drop_files.as_mut() { handler(event); } },
             prompt_stash::Dock {state,transport:transport.clone()}
             if let Some(target)=target.clone() { composer_chips::Tray {state,target} }
-            composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
+            composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, on_send: enter_send, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
             if let Some(target)=target.clone() { attachments::Shelf {state,transport:transport.clone(),target,locked:pending,can_operate,paste_target:".composer textarea"} }
             if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
             div { class: "composer-toolbar",

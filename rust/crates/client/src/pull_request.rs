@@ -570,6 +570,20 @@ mod tests {
         assert!(Reference::from_url("p", "not a url", 1).is_none());
     }
 
+    /// Every host's unreadable state names its own fix: Bitbucket has no command line, so it points at the
+    /// settings page where its tokens are kept and never at another host's `auth login`.
+    #[test]
+    fn an_unreadable_host_names_its_own_remedy() {
+        let message = |provider: &str, reason: &str| failure_message(&json!([{"_tag":"Fail","error":{"_tag":"PullRequestUnavailableError","reason":reason,"provider":provider}}])).unwrap();
+        for reason in ["cli-unauthenticated", "cli-missing"] {
+            let text = message("bitbucket", reason);
+            assert!(text.contains("Settings") && text.contains("Source Control") && !text.contains("auth login") && !text.contains("glab") && !text.contains("`gh`"), "{reason}: {text}");
+        }
+        assert!(message("gitlab", "cli-unauthenticated").contains("glab auth login"));
+        assert!(message("azure-devops", "cli-unauthenticated").contains("az login"));
+        assert!(message("forgejo", "cli-unauthenticated").contains("fj"));
+    }
+
     #[test]
     fn an_unsupported_host_is_a_state_and_other_failures_are_left_to_the_generic_reader() {
         let unsupported = json!([{"_tag":"Fail","error":{"_tag":"PullRequestUnavailableError","reason":"provider-unsupported"}}]);

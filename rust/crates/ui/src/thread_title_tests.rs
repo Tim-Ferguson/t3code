@@ -74,3 +74,25 @@ async fn regenerating_a_title_is_offered_when_the_server_can_and_shows_the_threa
     assert_eq!(error(state), None);
     fixture.finish(dom).await;
 }
+
+/// Enter in the new-thread box starts the thread as the button does; Shift-Enter and an empty box do not.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn enter_in_the_new_thread_box_starts_the_thread() {
+    use dioxus::html::{Key, Modifiers};
+    let fixture = Fixture::start(true).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    dom.in_scope(ScopeId::APP, || crate::runtime::new_thread(&props.transport, state, Some("project".into())));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let started = |state: Store<UiModel>| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.threads.iter().any(|thread| thread.title == "Start with enter"));
+    crate::runtime::transport_tests::input_control(&mut dom, "First message", "Start with enter");
+    assert!(crate::item_tests::keydown(&mut dom, "First message", Key::Enter, Modifiers::SHIFT, false), "Shift-Enter keeps its line break");
+    assert!(crate::item_tests::keydown(&mut dom, "First message", Key::Enter, Modifiers::empty(), true), "an IME's Enter keeps its meaning");
+    assert!(!started(state));
+    assert!(!crate::item_tests::keydown(&mut dom, "First message", Key::Enter, Modifiers::empty(), false), "Enter starts the thread and adds no line");
+    until(&mut dom, "the new thread", |_| started(state)).await;
+    assert_eq!(error(state), None);
+    fixture.finish(dom).await;
+}

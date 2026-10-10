@@ -725,7 +725,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         .unwrap();
     let rpc_record = directory.path().join("provider-rpc.jsonl");
     let settings: t3_contracts::ServerSettings = serde_json::from_value(
-        json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"grok":{"driver":"grok","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
+        json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"grok":{"driver":"grok","enabled":false},"antigravity":{"driver":"antigravity","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
     )
     .unwrap();
     let native = t3_server::config::NativeConfig::from_settings(
@@ -1826,7 +1826,12 @@ fn identical_question_request_and_thread_ids_in_another_environment_start_unansw
             .as_deref(),
         Some("true")
     );
+    // A click that reaches the option (its circle, its text or its description all do) selects it.
+    click_control(&mut dom, "Two");
+    assert_eq!(control_attribute(&dom, "Two", "checked").unwrap().1.as_deref(), Some("true"));
+    assert_eq!(control_attribute(&dom, "Submit answers", "disabled").unwrap().1.as_deref(), Some("false"));
     change_control(&mut dom, "One", "true");
+    assert_eq!(control_attribute(&dom, "Two", "checked").unwrap().1.as_deref(), Some("false"), "a radio group has one choice");
     assert_eq!(
         control_attribute(&dom, "One", "checked")
             .unwrap()

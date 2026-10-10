@@ -66,7 +66,7 @@ pub(crate) fn Host(state: Store<UiModel>) -> Element {
         div { class: "notices", role: "region", "aria-label": "Notices",
             for notice in notices {
                 div { key: "{notice.id}", class: notice.level.class(), role: if notice.level == Level::Error { "alert" } else { "status" },
-                    div { class: "notice-text", strong { "{notice.title}" } if !notice.detail.is_empty() { span { "{notice.detail}" } } }
+                    div { class: "notice-text", strong { "{notice.title}" } if !notice.detail.is_empty() { crate::error_text::ErrorText { text: notice.detail.clone() } } }
                     match notice.follow.clone() {
                         Some(Follow::Open { label, url }) if url.starts_with("https://") || url.starts_with("http://") => rsx! {
                             a { class: "notice-follow", href: "{url}", target: "_blank", rel: "noopener noreferrer", onclick: { let id = notice.id; move |_| state.notices().write().retain(|notice| notice.id != id) }, "{label}" }
