@@ -335,13 +335,12 @@ async fn sidebar_search_finds_titles_at_once_and_messages_after_a_pause_and_open
     assert!(requests().is_empty());
     // Messages are found by the server, and shown with who said it and the matched words marked.
     input_control(&mut dom, "Search threads", "Do the work");
-    // The first message gave thread-a the title "Do the work 1", so the title matches at once too.
-    assert!(control(&dom, "Do the work 1").is_some());
+    // A message to an existing thread leaves its title alone, so only the message matches.
     wait_for_rendered_text(&mut dom, "You: Do the work 1").await;
     assert_eq!(requests(), ["Do the work"], "the one-character query was never sent");
-    assert!(control(&dom, "Do the work 1").is_some() && control(&dom, "thread-b").is_none());
+    assert!(control(&dom, "thread-a").is_some() && control(&dom, "thread-b").is_none());
     // Opening a result goes to its thread and clears the search.
-    click_control(&mut dom, "Do the work 1");
+    click_control(&mut dom, "thread-a");
     assert_eq!(state.active_thread().peek().as_deref(), Some("thread-a"));
     assert!(control(&dom, "Clear thread search").is_none());
     // Nothing found says so once the server has answered, and Escape clears.
@@ -385,7 +384,7 @@ async fn a_late_answer_for_an_older_query_is_never_shown() {
     input_control(&mut dom, PALETTE, "Do the work");
     wait_for_rendered_text(&mut dom, "You: Do the work 1").await;
     assert!(rendered_text(&dom).contains("Threads"));
-    click_control(&mut dom, "Do the work 1");
+    click_control(&mut dom, "thread-a");
     assert!(!open_palette_text(&dom));
     fixture.finish(dom).await;
 }

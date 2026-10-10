@@ -98,6 +98,8 @@ pub(crate) struct Fixture {
     pub(crate) address: String,
     /// The server's own store, for a test that must put a record where only the server writes one.
     pub(crate) store: t3_server::persistence::Store,
+    /// The server's manual clock, which moves a limit's reset and the auto-settle sweep: set by `start_timed`.
+    pub(crate) clock: Option<std::sync::Arc<t3_server::scheduled_tasks::ManualClock>>,
     /// Stops the server, the execution service and the settings owner (whose worker runs on the
     /// runtime's blocking pool, which a runtime cannot be dropped without), awaited or dropped.
     server: crate::runtime::fixture_server::Server,
@@ -126,10 +128,18 @@ impl Fixture {
     pub(crate) async fn start_with_editors() -> Self {
         Self::build_with(false, &[], false, None, true).await
     }
+    /// With the server's settings extended by `settings` (`autoResumeLimitedThreads`, `sidebarAutoSettleAfterDays`...)
+    /// and a manual clock the test moves, which is how a reset or an idle week passes without waiting.
+    pub(crate) async fn start_timed(settings: Value, environment: &[(&str, &str)]) -> Self {
+        Self::build_with_settings(false, environment, false, None, false, settings, true).await
+    }
     async fn build(git_repository: bool, environment: &[(&str, &str)], terminals: bool) -> Self {
         Self::build_with(git_repository, environment, terminals, None, false).await
     }
     async fn build_with(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool) -> Self {
+        Self::build_with_settings(git_repository, environment, terminals, claude, real_editors, json!({}), false).await
+    }
+    async fn build_with_settings(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool, extra_settings: Value, timed: bool) -> Self {
         // Whatever a test leaves open on a developer's machine is named for what opened it.
         let directory = tempfile::Builder::new().prefix("t3code-rust-port-test-").tempdir().unwrap();
         let root = std::fs::canonicalize(directory.path()).unwrap();
@@ -170,10 +180,11 @@ impl Fixture {
             .join("../server/tests/fixtures/codex-provider.py")
             .canonicalize()
             .unwrap();
-        let settings: t3_contracts::ServerSettings = serde_json::from_value(
-            json!({"providerInstances":{"claudeAgent":claude_instance,"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}}),
-        )
-        .unwrap();
+        let mut settings_json = json!({"providerInstances":{"claudeAgent":claude_instance,"grok":{"driver":"grok","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":root.join("codex-home")},"environment":environment.iter().map(|(name, value)| json!({"name":name,"value":value})).chain(std::iter::once(json!({"name":"CODEX_FIXTURE_WORKSPACE","value":workspace}))).collect::<Vec<_>>()}}});
+        for (key, value) in extra_settings.as_object().into_iter().flatten() {
+            settings_json[key] = value.clone();
+        }
+        let settings: t3_contracts::ServerSettings = serde_json::from_value(settings_json).unwrap();
         // The settings service the configuration stream needs, over the same settings.
         let settings_file = root.join("settings.json");
         std::fs::write(&settings_file, serde_json::to_vec(&settings).unwrap()).unwrap();
@@ -200,6 +211,11 @@ impl Fixture {
         }
         api.config = Some(snapshot);
         api.settings = Some(settings_service.clone());
+        let clock = timed.then(|| {
+            let clock = t3_server::scheduled_tasks::ManualClock::new(chrono::Utc::now().timestamp_millis());
+            native.providers.idle_release().configure(clock.clone(), t3_server::provider_idle::IDLE_TIMEOUT_MS, t3_server::provider_idle::MAX_PIN_MS);
+            clock
+        });
         api.providers = Some(native.providers);
         if terminals {
             let mut options = t3_server::terminal_manager::TerminalManagerOptions::host(root.join("terminal-logs"), &t3_contracts::ServerSettings::default());
@@ -213,7 +229,7 @@ impl Fixture {
         let auth = api.auth.clone();
         let store = api.store.clone();
         let (address, server) = start_fixture(api).await;
-        Self { directory, workspace, auth, address, store, server }
+        Self { directory, workspace, auth, address, store, clock, server }
     }
 
     pub(crate) fn operator(&self, gate: Gate) -> (VirtualDom, Harness) {

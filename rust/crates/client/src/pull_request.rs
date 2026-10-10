@@ -112,6 +112,65 @@ pub fn viewed_paths(answer: &Value) -> std::collections::BTreeSet<String> {
     answer["files"].as_array().into_iter().flatten().filter(|file| file["state"] == "viewed").filter_map(|file| file["path"].as_str().map(str::to_owned)).collect()
 }
 
+/// Who keeps the reader's viewed marks: the host itself, this environment (a host with no record of its
+/// own), or nobody, in which case no checkbox is offered. `capabilities.viewedFiles`.
+pub fn viewed_store(detail: &Value) -> Option<&str> {
+    detail["capabilities"]["viewedFiles"].as_str().filter(|store| matches!(*store, "host" | "environment"))
+}
+/// What the viewed count says beside the number of files: "2 / 5 viewed", and on a host with no record of
+/// its own the marks are named as this app's.
+pub fn viewed_summary(viewed: usize, files: usize, store: &str) -> String {
+    format!("{viewed} / {files} {}", if store == "environment" { "viewed in T3 Code" } else { "viewed" })
+}
+pub const VIEWED_ENVIRONMENT_NOTE: &str = "This host keeps no shared record of which files you have read, so these ticks are kept by this environment. They follow you between the apps connected to it, but the host's own web UI will not show them.";
+
+/// The host's own name for the link out (`openOnHostLabel`): "Open on GitLab".
+pub fn open_on_host_label(provider: Option<&str>) -> String {
+    match provider {
+        Some("github") => "Open on GitHub",
+        Some("gitlab") => "Open on GitLab",
+        Some("forgejo") => "Open on Forgejo",
+        Some("bitbucket") => "Open on Bitbucket",
+        Some("azure-devops") => "Open on Azure DevOps",
+        _ => "Open on host",
+    }
+    .to_owned()
+}
+/// The host's name for a row (`getSourceControlPresentationForKind(...).providerName`).
+pub fn host_name(provider: Option<&str>) -> &'static str {
+    match provider {
+        Some("github") => "GitHub",
+        Some("gitlab") => "GitLab",
+        Some("forgejo") => "Forgejo",
+        Some("bitbucket") => "Bitbucket",
+        Some("azure-devops") => "Azure DevOps",
+        _ => "",
+    }
+}
+/// A change in size is drawn only when the host counted one: zero in both is how a host that does not
+/// count says nothing, and "+0 -0" would be a claim.
+pub fn has_size(additions: u64, deletions: u64) -> bool {
+    additions + deletions > 0
+}
+/// What a row says of its checks, when the host summarises them (absent for hosts that do not).
+pub fn checks_state_label(state: Option<&str>) -> Option<&'static str> {
+    match state? {
+        "passing" => Some("Checks passing"),
+        "failing" => Some("Checks failing"),
+        "pending" => Some("Checks running"),
+        _ => None,
+    }
+}
+/// What a row says of its review, when the host summarises it (GitHub alone does).
+pub fn review_decision_label(decision: Option<&str>) -> Option<&'static str> {
+    match decision? {
+        "approved" => Some("Approved"),
+        "changes-requested" => Some("Changes requested"),
+        "review-required" => Some("Review required"),
+        _ => None,
+    }
+}
+
 /// The body of a `setFilesViewed` for one file.
 pub fn set_viewed_payload(reference: &Reference, path: &str, viewed: bool) -> Value {
     reference.payload(json!({"files":[{"path":path,"viewed":viewed}]}))
@@ -549,5 +608,30 @@ pub fn list_state_label(entry: &Value) -> &'static str {
         (Some("closed"), _) => "Closed",
         (_, true) => "Draft",
         _ => "Open",
+    }
+}
+
+#[cfg(test)]
+mod host_tests {
+    use super::*;
+
+    #[test]
+    fn a_host_names_itself_and_says_who_keeps_the_viewed_marks() {
+        assert_eq!(open_on_host_label(Some("gitlab")), "Open on GitLab");
+        assert_eq!(open_on_host_label(Some("azure-devops")), "Open on Azure DevOps");
+        assert_eq!(open_on_host_label(Some("unknown")), "Open on host");
+        assert_eq!(open_on_host_label(None), "Open on host");
+        assert_eq!((host_name(Some("github")), host_name(Some("bitbucket")), host_name(Some("unknown"))), ("GitHub", "Bitbucket", ""));
+        let detail = |store: Value| json!({"capabilities":{"viewedFiles":store}});
+        assert_eq!((viewed_store(&detail(json!("host"))), viewed_store(&detail(json!("environment"))), viewed_store(&json!({"capabilities":{}}))), (Some("host"), Some("environment"), None));
+        assert_eq!(viewed_summary(2, 5, "host"), "2 / 5 viewed");
+        assert_eq!(viewed_summary(0, 5, "environment"), "0 / 5 viewed in T3 Code");
+    }
+
+    #[test]
+    fn a_size_or_a_summary_the_host_did_not_give_is_left_out_rather_than_zero() {
+        assert!(!has_size(0, 0) && has_size(1, 0) && has_size(0, 4));
+        assert_eq!((checks_state_label(None), checks_state_label(Some("failing")), checks_state_label(Some("pending"))), (None, Some("Checks failing"), Some("Checks running")));
+        assert_eq!((review_decision_label(None), review_decision_label(Some("changes-requested"))), (None, Some("Changes requested")));
     }
 }

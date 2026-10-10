@@ -179,10 +179,14 @@ fn Row(state: Store<UiModel>, transport: TransportHandle, entry: Value, addition
     rsx! { li { class: "pr-list-row",
         div { class: "pr-list-main",
             strong { { entry["title"].as_str().unwrap_or_default().to_owned() } }
-            span { class: "muted", " #{number} \u{b7} {entry[\"repository\"].as_str().unwrap_or_default()} \u{b7} {entry[\"projectTitle\"].as_str().unwrap_or_default()}" }
+            span { class: "muted", " #{number} \u{b7} {pr::host_name(entry[\"provider\"].as_str())} {entry[\"repository\"].as_str().unwrap_or_default()} \u{b7} {entry[\"projectTitle\"].as_str().unwrap_or_default()}" }
             span { class: "pr-state", "data-state": "{pr::list_state_label(&entry)}", "{pr::list_state_label(&entry)}" }
             if !author.is_empty() { span { class: "muted", "{author}" } }
-            span { class: "muted", "+{additions} \u{2212}{deletions}" }
+            if pr::has_size(additions, deletions) { span { class: "muted", "+{additions} \u{2212}{deletions}" } }
+            // What the host summarises, and nothing it does not: GitHub alone reports a review decision, and a
+            // host with no check rollup (or a change with no checks) has no checks state.
+            if let Some(text) = pr::checks_state_label(entry["checksState"].as_str()) { span { class: "muted", "data-checks": "{entry[\"checksState\"].as_str().unwrap_or_default()}", "{text}" } }
+            if let Some(text) = pr::review_decision_label(entry["reviewDecision"].as_str()) { span { class: "muted", "{text}" } }
             for label in labels { span { key: "{label}", class: "pr-label", "{label}" } }
         }
         div { class: "pr-list-actions",

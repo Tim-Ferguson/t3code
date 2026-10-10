@@ -164,6 +164,10 @@ impl World {
     pub(crate) fn reset_everything_signed_in(&self) {
         self.everything_signed_in();
     }
+    /// A fake tool a test writes for the process-wide `PATH`; ended by the next `reset_everything_signed_in`.
+    pub(crate) fn install_cli(&self, name: &str, body: &str) {
+        self.install(name, body);
+    }
     fn install(&self, name: &str, body: &str) {
         let path = self.bin.join(name);
         std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();

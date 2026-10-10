@@ -20,15 +20,23 @@ fn set_marker(state: Store<UiModel>, on: bool) {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn the_first_message_gives_the_thread_a_title_from_its_seed() {
+async fn a_message_to_an_existing_thread_keeps_its_title_and_a_new_thread_is_titled_from_its_message() {
     let fixture = Fixture::start(true).await;
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
     assert_eq!(title_of(state), "thread-a");
+    // The message goes with the thread's own title as its seed, so the server has nothing new to call it.
     turn(&mut dom, &props, state, 1).await;
-    // The seed is the message, and the thread no longer carries the title it was created with.
-    until(&mut dom, "a title from the message", |_| title_of(state) != "thread-a").await;
+    assert_eq!(title_of(state), "thread-a");
+    assert_eq!(error(state), None);
+    // A new thread has no title yet: it takes one from its first message.
+    dom.in_scope(ScopeId::APP, || crate::runtime::new_thread(&props.transport, state, Some("project".into())));
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    crate::runtime::transport_tests::input_control(&mut dom, "First message", "Name the new thread");
+    click_control(&mut dom, "Create new thread");
+    until(&mut dom, "the new thread, titled from its message", |_| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.threads.iter().any(|thread| thread.title == "Name the new thread"))).await;
     assert_eq!(error(state), None);
     fixture.finish(dom).await;
 }

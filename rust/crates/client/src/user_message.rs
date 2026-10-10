@@ -58,6 +58,12 @@ mod tests {
         let wake = json!({"text":"Delegated task t1 reached a terminal state. Use task_status with taskId t1 to read the result.","createdBy":"agent","creationSource":"server"});
         assert_eq!(present(&wake).attribution, Some(Attribution::Agent { sender_thread: None }));
         assert_eq!(present(&json!({"text":"x","createdBy":"agent","senderThreadId":"other"})).attribution, Some(Attribution::Agent { sender_thread: Some("other".into()) }));
+        // The continuation the server sends after a restart, and the one after a usage limit's reset: the first is
+        // written for an agent (the original reads it as "Sent by another agent", having no better word), the second
+        // is the user's own message sent by the server and says nothing.
+        let restart = json!({"text":"Continue where you left off.","createdBy":"agent","creationSource":"server","restartContinuationOfRunId":"r0"});
+        assert_eq!(present(&restart), Presentation { text: "Continue where you left off.".into(), attribution: Some(Attribution::Agent { sender_thread: None }) });
+        assert_eq!(present(&json!({"text":"Continue where you left off.","createdBy":"user","creationSource":"server"})).attribution, None);
         // A scheduled task names itself.
         assert_eq!(present(&json!({"text":"run","createdBy":"user","scheduledTaskId":"task-1"})).attribution, Some(Attribution::Automation { task_id: Some("task-1".into()) }));
     }

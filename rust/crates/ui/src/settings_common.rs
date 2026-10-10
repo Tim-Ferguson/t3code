@@ -5,7 +5,8 @@ use dioxus::prelude::*;
 use t3_client::connection::ConnectionStatus;
 use t3_contracts::AuthEnvironmentScope;
 
-const TABS: [(View, &str); 7] = [
+const TABS: [(View, &str); 8] = [
+    (View::General, "General"),
     (View::Providers, "Providers"),
     (View::Appearance, "Appearance"),
     (View::Connections, "Connections"),

@@ -20,6 +20,7 @@ use t3_contracts::{
 pub enum View {
     #[default]
     Chat,
+    General,
     Connections,
     Providers,
     Appearance,
@@ -61,6 +62,10 @@ pub struct UiModel {
     pub thread: ThreadState,
     pub active_thread: Option<String>,
     pub selected_project: Option<String>,
+    /// The thread a first run's welcome opened, so a reconnect does not open it again.
+    pub bootstrap_opened: Option<String>,
+    /// The notice that threads of the previous version are being restored, while they are.
+    pub migration_notice: Option<u64>,
     pub config: Value,
     pub typed_config: Option<t3_contracts::ServerConfig>,
     pub client_settings: t3_contracts::ClientSettings,
@@ -1057,6 +1062,9 @@ pub struct SendOptions {
     pub interaction_mode: Option<&'static str>,
     pub text: Option<String>,
     pub edit_run: Option<String>,
+    /// The interrupted or limited run this message continues by hand: "Resume thread". It starts
+    /// at once and carries no delivery intent or title seed, as the original's `dispatchMode: "start"`.
+    pub manual_continuation: Option<String>,
 }
 
 pub fn send_message(handle: &TransportHandle, state: Store<UiModel>) {
@@ -1155,12 +1163,9 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
         &(destination.clone(), thread_id.clone()),
         &choices,
     );
-    // The server titles the thread from its first message when it is sent a seed to show until
-    // the generated title arrives; later messages leave the title alone.
-    let title_seed = {
-        let (image, file) = t3_client::thread_title::first_attachment_names(&json!(attachments));
-        t3_client::thread_title::title_seed(&prompt, image.as_deref(), file.as_deref())
-    };
+    // A message to an existing thread seeds with the thread's own title (`startThreadTurn` callers
+    // send `activeThread.title`), so a fork keeps its name; only a new thread is titled from its message.
+    let title_seed = t3_client::thread_title::existing_thread_seed(&thread.title);
     let pending_id = uuid::Uuid::new_v4().to_string();
     let generation = handle.borrow().generation;
     state.pending_messages().write().insert(
@@ -1215,7 +1220,11 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
         } else {
             let mode = options.mode.unwrap_or("auto");
             let mut payload = json!({"threadId":thread_id,"messageId":message_id,"modelSelection":selection,"text":text,"titleSeed":title_seed,"attachments":attachments,"createdBy":"user","creationSource":creation_source()});
-            if mode == "queue" {
+            if let Some(run_id) = options.manual_continuation.clone() {
+                payload.as_object_mut().expect("payload object").remove("titleSeed");
+                payload["manualContinuationOfRunId"] = json!(run_id);
+                payload["dispatchMode"] = json!({"type":"start_immediately"});
+            } else if mode == "queue" {
                 payload["dispatchMode"] = json!({"type":"queue_after_active"});
             } else {
                 payload["dispatchMode"] = json!({"type":"start_immediately"});
@@ -1813,6 +1822,7 @@ async fn connect_once(
                         RequestKind::Unary,
                     );
                     start_config_subscription(&handle, state);
+                    crate::lifecycle::start(&handle, state);
                     // Old server identities may be cached in the screen during
                     // reconnect; until persistent cache validation is ported,
                     // request an authoritative shell rather than resuming it.
@@ -2824,6 +2834,18 @@ mod chips_tests;
 #[cfg(all(test, unix))]
 #[path = "thread_relations_tests.rs"]
 mod thread_relations_tests;
+
+#[cfg(all(test, unix))]
+#[path = "pull_request_gitlab_tests.rs"]
+mod pull_request_gitlab_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_settle_tests.rs"]
+mod thread_settle_tests;
+
+#[cfg(all(test, unix))]
+#[path = "limit_recovery_tests.rs"]
+mod limit_recovery_tests;
 
 #[cfg(all(test, unix))]
 #[path = "prompt_stash_tests.rs"]

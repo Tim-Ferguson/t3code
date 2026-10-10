@@ -23,7 +23,9 @@ mod review_diff;
 mod draft_storage;
 mod file_preview;
 mod font_service;
+mod general_page;
 mod keybinding_page;
+mod lifecycle;
 mod keys;
 mod markdown;
 mod model_controls;
@@ -49,6 +51,7 @@ mod search;
 mod settings_common;
 mod source_control_page;
 mod subagent_rows;
+mod thread_status_line;
 mod syntax_highlighting;
 mod terminal_bridge;
 mod terminal_pane;
@@ -343,6 +346,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::Keybindings => rsx! {keybinding_page::Page {state,transport:transport.clone()}},
                     View::ScheduledTasks => rsx! {scheduled_tasks_page::Page {state,transport:transport.clone()}},
                     View::SourceControl => rsx! {source_control_page::Page {state,transport:transport.clone()}},
+                    View::General => rsx! {general_page::Page {state,transport:transport.clone()}},
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {pull_request_list::Page {state,transport:transport.clone()}},
                     View::Usage => rsx! {usage_page::Page {state,transport:transport.clone()}},
@@ -520,6 +524,7 @@ fn ThreadTimeline(
                     if let Some((id,error))=&*history_error.read(){if id==&thread_id {p {class:"history-error",role:"alert","{error}"}}}
                 }
                 {rendered.into_iter()}
+                thread_status_line::StatusLine { state, transport: transport.clone(), thread_id: thread_id.clone(), can_operate }
             } else { p { class: "muted", "Loading thread…" } }
             div {"data-timeline-spacer":"true","aria-hidden":"true"}
         }
@@ -702,19 +707,44 @@ fn Composer(
         let inputs = t3_client::requests::pending_requests(projection).user_inputs.len();
         words::show_plan_follow_up(inputs, &mode, true, plan.as_ref(), has_attachments).then_some(plan).flatten()
     }));
+    // "Resume thread" continues the run a stop interrupted, or a usage limit failed (the shell and the
+    // run's own failure agree). A narrow memo: streaming text into the conversation repaints nothing here.
+    let shell_limited = thread.last_error_class.clone().flatten() == Some(t3_contracts::ProviderFailureClass::UsageLimit);
+    let resumable = use_memo(use_reactive((&thread.id.to_string(), &shell_limited), move |(thread_id, shell_limited)| {
+        let field = state.thread();
+        let model = field.read();
+        let projection = model.projection.as_ref()?;
+        if projection["thread"]["id"] != thread_id.as_str() {
+            return None;
+        }
+        let runs = projection["runs"].as_array()?;
+        // A held queue has its own "Resume thread" above the composer, which delivers what is queued.
+        if runs.iter().any(|run| run["status"] == "queued" && run["queueHeld"] == true) {
+            return None;
+        }
+        let items: Vec<Value> = match projection["turnItems"].as_array() {
+            Some(items) => items.clone(),
+            None => projection["visibleTurnItems"].as_array().into_iter().flatten().map(|row| row["item"].clone()).collect(),
+        };
+        t3_client::usage_limits::resumable_run(runs, &items, shell_limited)
+    }));
     let queue_by_default = state.client_settings().read().follow_up_behavior == t3_contracts::FollowUpBehavior::Queue;
     let chip_count = target.as_ref().map_or(0, |target| composer_chips::count(state, target));
     let has_content = !draft.trim().is_empty() || attachment_count > 0 || chip_count > 0;
     let following_up = follow_up.read().clone();
-    let submit_label = if following_up.is_some() { if has_content { "Refine" } else { "Implement" } } else if editing.read().is_some() { "Update queued message" } else if running { if queue_by_default { "Queue message" } else { "Steer message" } } else { "Submit message" };
+    let resume_run = resumable.read().clone().filter(|_| !has_content && editing.read().is_none() && following_up.is_none() && !running);
+    let submit_label = if following_up.is_some() { if has_content { "Refine" } else { "Implement" } } else if resume_run.is_some() { "Resume thread" } else if editing.read().is_some() { "Update queued message" } else if running { if queue_by_default { "Queue message" } else { "Steer message" } } else { "Submit message" };
     let submit = {
         let transport = transport.clone();
         let following_up = following_up.clone();
+        let resume_run = resume_run.clone();
         let mode_thread = thread.id.to_string();
         let thread_provider = thread.provider_instance_id.to_string();
         move |alternate: bool| {
             let current = editing.peek().clone();
-            if let Some(current) = current {
+            if let Some(run_id) = resume_run.clone() {
+                runtime::send_with(&transport, state, runtime::SendOptions { text: Some(t3_client::usage_limits::CONTINUE_TEXT.to_owned()), manual_continuation: Some(run_id), ..Default::default() });
+            } else if let Some(current) = current {
                 restore.set(Some(current.previous_draft.clone()));
                 editing.set(None);
                 runtime::send_with(&transport, state, runtime::SendOptions { edit_run: Some(current.run_id), ..Default::default() });
@@ -738,7 +768,7 @@ fn Composer(
             }
         }
     };
-    let blocked = !can_operate || unsupported || pending || rewinding() || attachment_block.is_some() || (!has_content && following_up.is_none());
+    let blocked = !can_operate || unsupported || pending || rewinding() || attachment_block.is_some() || (!has_content && following_up.is_none() && resume_run.is_none());
     let show_stop = running && !has_content && editing.read().is_none() && following_up.is_none();
     let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
     let steer_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.steerQueuedMessage"));
@@ -767,7 +797,7 @@ fn Composer(
                     if let Some(plan)=following_up.clone().filter(|_| !has_content && editing.read().is_none()) { plan_thread::ImplementActions {state,transport:transport.clone(),thread_id:thread.id.to_string(),plan,disabled:blocked} }
                     button { class: "primary", r#type: "button", "aria-label":"{submit_label}", title:if rewinding() {"Rewinding the conversation\u{2026}".to_owned()} else if let Some(reason)=attachment_block.clone() {reason} else if running && editing.read().is_none() && following_up.is_none() {format!("Click to {}, Ctrl/\u{2318}-click to {}",if queue_by_default{"queue"}else{"steer"},if queue_by_default{"steer"}else{"queue"})} else {submit_label.to_owned()}, disabled: blocked,
                         onclick:{let mut submit=submit.clone();move |event: MouseEvent| {let modifiers=event.modifiers();if !blocked {submit(modifiers.ctrl()||modifiers.meta());}}},
-                        if pending { "Sending…" } else if following_up.is_some() { "{submit_label}" } else if editing.read().is_some() { "✓ Save" } else { "Send ↑" } }
+                        if pending { "Sending…" } else if following_up.is_some() || resume_run.is_some() { "{submit_label}" } else if editing.read().is_some() { "✓ Save" } else { "Send ↑" } }
                 }
             }
         }
@@ -870,6 +900,8 @@ struct RenderProbe {
     /// How many times the header's lineage button and a response's fork button were built.
     lineage_button: std::rc::Rc<std::cell::Cell<usize>>,
     fork_button: std::rc::Rc<std::cell::Cell<usize>>,
+    /// How many times the status line (snoozed, settled, woke) was built.
+    status_line: std::rc::Rc<std::cell::Cell<usize>>,
 }
 
 #[cfg(test)]

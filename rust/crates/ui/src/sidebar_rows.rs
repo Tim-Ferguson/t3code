@@ -24,6 +24,8 @@ pub(crate) struct Caps {
     pub snooze: bool,
     /// `thread.settle` is understood; without it no thread is ever shown as settled.
     pub settlement: bool,
+    /// `thread.auto-settle.set` is understood: a thread can opt out of automatic settling.
+    pub auto_settle_opt_out: bool,
     pub title_regeneration: bool,
 }
 impl Caps {
@@ -43,6 +45,7 @@ fn caps_of(state: Store<UiModel>) -> Caps {
         pin_reorder: capabilities.is_some_and(|c| c.thread_pin_reorder == Some(true)),
         active_reorder: capabilities.is_some_and(|c| c.thread_active_reorder == Some(true)),
         settlement: capabilities.is_some_and(|c| c.thread_settlement == Some(true)),
+        auto_settle_opt_out: capabilities.is_some_and(|c| c.thread_auto_settle_opt_out == Some(true)),
         snooze: capabilities.is_some_and(|c| c.thread_snooze == Some(true)),
         title_regeneration: capabilities.is_some_and(|c| c.thread_title_regeneration == Some(true)),
     }
@@ -63,6 +66,8 @@ pub(crate) struct RowView {
     /// When a snooze that ended on its timer woke the thread, until it is visited or dismissed.
     pub woke_at: Option<String>,
     pub regenerating: bool,
+    /// Automatic settling is on for this thread (the user has not opted it out).
+    pub auto_settle: bool,
     pub working_since: Option<String>,
     pub branch: Option<String>,
     pub workspace: Option<String>,
@@ -70,7 +75,6 @@ pub(crate) struct RowView {
     pub worktree: Option<String>,
     pub has_completed_run: bool,
     pub can_snooze: bool,
-    pub can_settle: bool,
     pub can_operate: bool,
     pub caps: Caps,
     pub section: sidebar::Section,
@@ -112,13 +116,13 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         snoozed: snoozed.filter(|_| section == sidebar::Section::Snoozed).map(|wake| sidebar::wake_label(&wake.to_rfc3339(), now)),
         woke_at: sidebar::woke_at(thread, now).map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
         regenerating: matches!(thread.title_regeneration, Some(Some(_))),
+        auto_settle: !matches!(thread.auto_settle_disabled_at, Some(Some(_))),
         working_since: working.then(|| thread.activity_run_started_at.flatten().map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))).flatten(),
         branch: thread.branch.as_ref().map(ToString::to_string),
         workspace,
         worktree: thread.worktree_path.as_ref().map(ToString::to_string),
         has_completed_run: thread.latest_run_id.is_some() && !thread.status.is_active(),
         can_snooze: thread.pending_runtime_request.is_none(),
-        can_settle: !thread.status.is_active() && thread.pending_runtime_request.is_none(),
         can_operate,
         caps,
         section,
@@ -251,20 +255,30 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         }
         if view.caps.pinning {
             let command = thread_command.clone();
-            entries.push(if view.pinned { item("Unpin thread".to_owned(), !can, Box::new(move || command("thread.unpin", json!({}), "Could not unpin the thread"))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Could not pin the thread"))) });
+            entries.push(if view.pinned { item("Unpin thread".to_owned(), !can, Box::new(move || command("thread.unpin", json!({}), "Failed to unpin thread"))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Failed to pin thread"))) });
         }
         if view.caps.settlement {
             let command = thread_command.clone();
             entries.push(if view.section == sidebar::Section::Settled {
-                item("Unsettle thread".to_owned(), !can, Box::new(move || command("thread.unsettle", json!({"reason":"user"}), "Could not unsettle the thread")))
+                item("Un-settle thread".to_owned(), !can, Box::new(move || command("thread.unsettle", json!({"reason":"user"}), "Failed to un-settle thread")))
             } else {
-                item("Settle thread".to_owned(), !can || !view.can_settle, Box::new(move || command("thread.settle", json!({}), "Could not settle the thread")))
+                item("Settle thread".to_owned(), !can, Box::new(move || command("thread.settle", json!({}), "Failed to settle thread")))
             });
+        }
+        if view.caps.auto_settle_opt_out {
+            // "Auto-settle behavior": a setting with the current choice marked, not a one-shot action.
+            for (enabled, name) in [(true, "Auto-settle behavior: Enabled"), (false, "Auto-settle behavior: Disabled")] {
+                let command = thread_command.clone();
+                let checked = view.auto_settle == enabled;
+                let disabled = !can || busy();
+                entries.push(rsx! {button {class:"menu-item",role:"menuitemradio","aria-checked":"{checked}",r#type:"button",disabled,"aria-label":"{name}",
+                    onclick:move |_| {close(); if !checked {command("thread.auto-settle.set", json!({"enabled":enabled}), "Failed to update auto-settle")}},"{name}"}});
+            }
         }
         if view.caps.snooze {
             if view.snoozed.is_some() {
                 let command = thread_command.clone();
-                entries.push(item("Wake thread".to_owned(), !can, Box::new(move || command("thread.unsnooze", json!({"reason":"user"}), "Could not wake the thread"))));
+                entries.push(item("Wake thread".to_owned(), !can, Box::new(move || command("thread.unsnooze", json!({"reason":"user"}), "Failed to wake thread"))));
             } else {
                 let now = Utc::now();
                 let offset = crate::scheduled_tasks_page::zone(now.timestamp_millis());
@@ -274,13 +288,13 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     let when = local.map(|at| { use chrono::Timelike; let hour = if at.hour() % 12 == 0 { 12 } else { at.hour() % 12 }; format!("{hour}:{:02} {}", at.minute(), if at.hour() < 12 { "AM" } else { "PM" }) }).unwrap_or_default();
                     let name = format!("Snooze: {} ({when})", preset.label);
                     let until = preset.until.clone();
-                    entries.push(item(name, !can || !view.can_snooze, Box::new(move || command("thread.snooze", json!({"snoozedUntil":until}), "Could not snooze the thread"))));
+                    entries.push(item(name, !can || !view.can_snooze, Box::new(move || command("thread.snooze", json!({"snoozedUntil":until}), "Failed to snooze thread"))));
                 }
             }
         }
         if view.caps.title_regeneration {
             let command = thread_command.clone();
-            entries.push(item((if view.regenerating { "Regenerating\u{2026}" } else { "Regenerate title" }).to_owned(), !can || view.regenerating, Box::new(move || command("thread.metadata.update", json!({"regenerateTitle":true}), "Could not regenerate the title"))));
+            entries.push(item((if view.regenerating { "Regenerating\u{2026}" } else { "Regenerate title" }).to_owned(), !can || view.regenerating, Box::new(move || command("thread.metadata.update", json!({"regenerateTitle":true}), "Failed to regenerate thread title"))));
         }
         entries.push(item("Rename thread".to_owned(), !can, Box::new(move || {let (mut settled, mut renaming) = (settled, renaming);settled.set(false);renaming.set(Some(title_now.clone()));})));
         if let Some(branch) = view.branch.clone() {
@@ -370,6 +384,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                 if view.regenerating {span {class:"sr-only",role:"status","Regenerating title"}}
                 if view.pinned {span {class:"thread-pin",title:"Pinned","aria-label":"Pinned","\u{25c6}"}}
                 if let Some(wake)=&view.snoozed {span {class:"thread-snooze",title:"Snoozed",{format!("Snoozed \u{b7} {wake}")}}}
+                else if matches!(view.status, Status::Limited | Status::Failed) {span {class:if view.status == Status::Limited {"thread-pill amber"} else {"thread-pill red"},role:"status",if view.status == Status::Limited {"Limited"} else {"Failed"}}}
                 else if view.woke_at.is_some() {span {class:"thread-woke",title:"Woke",role:"status","\u{23f0} Woke"}}
                 else if let Some(since)=view.working_since.clone() {WorkingFor {since}}
                 else if let Some(label)=label {span {class:if let Some(pill)=&view.pill {format!("thread-pill {}",tone_class(pill.tone))} else {"thread-pill emerald".to_owned()},"{label}"}}

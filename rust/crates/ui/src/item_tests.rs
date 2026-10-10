@@ -843,10 +843,9 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     until(&mut dom, "the row awake", |dom| !rendered_text(dom).contains("Snoozed")).await;
 
     // A finished turn reads as read until it is marked unread; opening the thread reads it again.
-    // The first message names the thread, so the row is found by its new title.
+    // A message to an existing thread leaves its title alone, so the row keeps its name.
     open_thread(&mut dom, &props, state, "thread-b").await;
     super::runtime::diff_tests::turn(&mut dom, &props, state, 1).await;
-    until(&mut dom, "the thread's new title", |_| thread_shell(state, "thread-b").title != "thread-b").await;
     let row = format!("Thread {}", thread_shell(state, "thread-b").title);
     open_thread(&mut dom, &props, state, "thread-a").await;
     key_on(&mut dom, &row, Key::ContextMenu);

@@ -177,23 +177,23 @@ fn ops(plan: &DropPlan, id: &str) -> Vec<Op> {
     let order = |kind, failure, list: &[sidebar::Assignment]| list.iter().map(|a| Op { kind, payload: json!({"threadId":a.id,"orderKey":a.order_key}), failure }).collect::<Vec<_>>();
     match plan {
         DropPlan::None => vec![],
-        DropPlan::Settle => vec![thread("thread.settle", json!({}), "Could not settle the thread")],
+        DropPlan::Settle => vec![thread("thread.settle", json!({}), "Failed to settle thread")],
         DropPlan::ReorderPinned { assignments, .. } => order("thread.pin.reorder", "Could not reorder the pinned threads", assignments),
         DropPlan::Pin { order_key, extra, .. } => {
-            let mut writes = vec![thread("thread.pin", order_key.as_ref().map_or(json!({}), |key| json!({"orderKey":key})), "Could not pin the thread")];
+            let mut writes = vec![thread("thread.pin", order_key.as_ref().map_or(json!({}), |key| json!({"orderKey":key})), "Failed to pin thread")];
             writes.extend(order("thread.pin.reorder", "Could not reorder the pinned threads", extra));
             writes
         }
         DropPlan::MoveActive { assignments, unpin, unsettle, unsnooze, .. } => {
             let mut writes = vec![];
             if *unpin {
-                writes.push(thread("thread.unpin", json!({}), "Could not unpin the thread"));
+                writes.push(thread("thread.unpin", json!({}), "Failed to unpin thread"));
             }
             if *unsettle {
-                writes.push(thread("thread.unsettle", json!({"reason":"user"}), "Could not unsettle the thread"));
+                writes.push(thread("thread.unsettle", json!({"reason":"user"}), "Failed to un-settle thread"));
             }
             if *unsnooze {
-                writes.push(thread("thread.unsnooze", json!({"reason":"user"}), "Could not wake the thread"));
+                writes.push(thread("thread.unsnooze", json!({"reason":"user"}), "Failed to wake thread"));
             }
             writes.extend(order("thread.active.reorder", "Could not reorder the threads", assignments));
             writes

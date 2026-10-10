@@ -393,7 +393,7 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"projectCloneTracking":true}});
+    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"threadSettlement":true,"threadAutoSettlement":true,"threadAutoSettleOptOut":true,"projectCloneTracking":true}});
     let config = json!({"environment":environment,"auth":auth.descriptor(),"cwd":directory.path().to_string_lossy(),"keybindingsConfigPath":"/isolated/keybindings.json","keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":[],"availableEditors":[],"observability":{"logsDirectoryPath":"/isolated/logs","localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false},"settings":t3_contracts::ServerSettings::default()});
     let _: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
     let api = ApiState {
@@ -725,7 +725,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         .unwrap();
     let rpc_record = directory.path().join("provider-rpc.jsonl");
     let settings: t3_contracts::ServerSettings = serde_json::from_value(
-        json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
+        json!({"providerInstances":{"claudeAgent":{"driver":"claudeAgent","enabled":false},"grok":{"driver":"grok","enabled":false},"codex":{"driver":"codex","config":{"binaryPath":binary,"homePath":directory.path().join("codex-home")},"environment":[{"name":"FIXTURE_RPC_RECORD","value":rpc_record},{"name":"FIXTURE_SECOND_MODEL","value":"1"}]}}}),
     )
     .unwrap();
     let native = t3_server::config::NativeConfig::from_settings(

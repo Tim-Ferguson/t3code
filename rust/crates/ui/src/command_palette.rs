@@ -113,7 +113,8 @@ fn relative(updated: &t3_contracts::UtcDateTime) -> String {
 }
 
 const RECENT_THREADS: usize = 12;
-const SETTINGS: [(View, &str, &str, &[&str]); 7] = [
+const SETTINGS: [(View, &str, &str, &[&str]); 8] = [
+    (View::General, "General", "settings:general", &["auto-resume", "snooze", "usage limit", "limited threads", "settle", "auto-settle", "inactive", "merged"]),
     (View::Providers, "Providers", "settings:providers", &["provider", "model", "codex", "claude", "agents"]),
     (View::Appearance, "Appearance", "settings:appearance", &["theme", "font", "typography", "colors", "dark", "light"]),
     (View::Connections, "Connections", "settings:connections", &["server", "environment", "pair", "remote", "address"]),
@@ -254,6 +255,13 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
     if let Some(pinned) = crate::sidebar_rows::open_thread_pinned(state) {
         if let Some(item) = item("action:toggle-pin", if pinned { "Unpin thread" } else { "Pin thread" }, &["pin", "unpin", "keep on top", "thread"], Some("thread.pin")) {
             actions.push(item);
+        }
+    }
+    if allows_operate(state) {
+        if let Some(settled) = crate::sidebar_rows::open_thread_settled(state) {
+            if let Some(item) = item("action:toggle-settle", if settled { "Un-settle thread" } else { "Settle thread" }, &["settle", "un-settle", "unsettle", "done", "finish", "thread"], Some("thread.settle")) {
+                actions.push(item);
+            }
         }
     }
     if state.environments().read().records.len() > 0 && allows_operate(state) && project_create::new_projects_root(state).is_some() {

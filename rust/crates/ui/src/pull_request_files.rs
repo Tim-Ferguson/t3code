@@ -49,7 +49,7 @@ fn decode(answer: &Value) -> Loaded {
 }
 
 #[component]
-pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference: Reference, revision: u32, readable: bool, writable: bool, why: Option<String>, threads: Vec<Value>, verdicts: Vec<String>, can_resolve: bool, on_changed: Callback<()>) -> Element {
+pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference: Reference, revision: u32, readable: bool, writable: bool, why: Option<String>, viewed_store: Option<String>, threads: Vec<Value>, verdicts: Vec<String>, can_resolve: bool, on_changed: Callback<()>) -> Element {
     use_context_provider(Mounts::default);
     let pending = use_signal(|| None::<String>);
     use_context_provider(|| Pending(pending));
@@ -58,6 +58,7 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
         move || ExpandHost { state, transport }
     });
     let mut patch = use_signal(Patch::default);
+    let has_store = viewed_store.is_some();
     let mut viewed = use_signal(BTreeSet::<String>::new);
     let mut viewed_revision = use_signal(|| 0u32);
     let mut toggling = use_signal(|| None::<String>);
@@ -95,9 +96,10 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
     {
         let (transport, reference) = (transport.clone(), reference.clone());
         use_resource(move || {
-            let (transport, reference, readable, _a, _b) = (transport.clone(), reference.clone(), readable, revision, viewed_revision());
+            let (transport, reference, readable, _a, _b, kept) = (transport.clone(), reference.clone(), readable, revision, viewed_revision(), has_store);
             async move {
-                if !readable {
+                // A host that keeps no marks has none to read, and offers no checkbox.
+                if !readable || !kept {
                     return;
                 }
                 let owner = runtime::response_owner(&transport, state);
@@ -183,7 +185,12 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
             rsx! {
                 section { class: "pr-files", "aria-label": "Files changed",
                     crate::pull_request_review::ReviewForm { state, transport: transport.clone(), reference: reference.clone(), verdicts: verdicts.clone(), writable, why: why.clone(), on_done: on_changed }
-                    p { class: "pr-files-summary muted", role: "status", "{total} files in this page" if loaded.next_cursor.is_some() { " (more to load)" } }
+                    p { class: "pr-files-summary muted", role: "status", "{total} files in this page" if loaded.next_cursor.is_some() { " (more to load)" }
+                        if let Some(store) = viewed_store.clone().filter(|_| total > 0) {
+                            " \u{b7} " span { "aria-label": "Files viewed", "{pr::viewed_summary(loaded.files.iter().filter(|file| viewed_now.contains(file.path())).count(), total, &store)}" }
+                            if store == "environment" { " " span { class: "pr-viewed-note", role: "img", "aria-label": "These ticks are kept here, not on the host", title: "{pr::VIEWED_ENVIRONMENT_NOTE}", "\u{24d8}" } }
+                        }
+                    }
                     for (index, file) in loaded.files.iter().take(drawn).enumerate() {
                         {
                             let path = file.path().to_owned();
@@ -193,11 +200,11 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
                             let mark_path = path.clone();
                             rsx! {
                                 div { key: "{path}", class: "pr-file",
-                                    label { class: "pr-viewed", title: why.clone().unwrap_or_default(),
+                                    if has_store { label { class: "pr-viewed", title: why.clone().unwrap_or_default(),
                                         input { r#type: "checkbox", "aria-label": "Viewed {path}", checked: is_viewed, disabled: !writable || busy.is_some(),
                                             onclick: move |event| { event.prevent_default(); mark.call((mark_path.clone(), !is_viewed)); } }
                                         " Viewed"
-                                    }
+                                    } }
                                     FileSection { file: file.clone(), collapsed, split, on_toggle, stat: None, partial: false, expand: Some(expand.clone()) }
                                     {
                                         let here: Vec<Value> = threads.iter().filter(|thread| thread["path"] == path.as_str()).cloned().collect();

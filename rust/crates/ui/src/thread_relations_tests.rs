@@ -41,7 +41,7 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
         model.active_thread.as_deref().is_some_and(|id| id != "thread-a") && model.thread.synchronized && model.thread.projection.as_ref().is_some_and(|p| p["thread"]["lineage"]["relationshipToParent"] == "fork")
     })
     .await;
-    assert_eq!(forks_of(state, "Do the work 1 fork").len(), 1, "one click, one fork: {:?}", state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|t| (t.id.to_string(), t.title.clone())).collect::<Vec<_>>());
+    assert_eq!(forks_of(state, "thread-a fork").len(), 1, "one click, one fork: {:?}", state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|t| (t.id.to_string(), t.title.clone())).collect::<Vec<_>>());
     let fork_id = state.peek().active_thread.clone().unwrap();
     until(&mut dom, "the fork's marker", |dom| control(dom, "Open source conversation").is_some()).await;
     let text = rendered_text(&dom);
@@ -52,18 +52,21 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
     until(&mut dom, "the lineage button", |dom| control(dom, "Thread lineage").is_some()).await;
     click_control(&mut dom, "Thread lineage");
     assert!(rendered_text(&dom).contains("Do the work 1"), "{}", rendered_text(&dom));
-    assert!(disabled(&dom, "Merge back to Do the work 1"), "no finished run in the fork yet");
+    assert!(disabled(&dom, "Merge back to thread-a"), "no finished run in the fork yet");
     key_on(&mut dom, "Thread lineage", Key::Escape);
-    assert!(control(&dom, "Merge back to Do the work 1").is_none(), "Escape closes the panel");
+    assert!(control(&dom, "Merge back to thread-a").is_none(), "Escape closes the panel");
 
     // The fork goes on on its own, then merges back; the parent is opened.
     crate::runtime::transport_tests::input_control(&mut dom, "Message", "Fork work");
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     until(&mut dom, "the fork's turn", |_| completed_runs(state) == 1).await;
+    // A message to an existing thread seeds with its own title: the fork keeps its name, not the message's.
+    let titles: Vec<String> = state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|thread| thread.title.clone()).collect();
+    assert!(titles.iter().any(|title| title == "thread-a fork") && !titles.iter().any(|title| title == "Fork work"), "the fork keeps its title after its first message: {titles:?}");
     click_control(&mut dom, "Thread lineage");
-    until(&mut dom, "merge enabled", |dom| control(dom, "Merge back to Do the work 1").is_some() && !disabled(dom, "Merge back to Do the work 1")).await;
-    click_control(&mut dom, "Merge back to Do the work 1");
-    click_control(&mut dom, "Merge back to Do the work 1");
+    until(&mut dom, "merge enabled", |dom| control(dom, "Merge back to thread-a").is_some() && !disabled(dom, "Merge back to thread-a")).await;
+    click_control(&mut dom, "Merge back to thread-a");
+    click_control(&mut dom, "Merge back to thread-a");
     until(&mut dom, "the parent opened", |_| {
         let model = state.peek();
         model.active_thread.as_deref() == Some("thread-a") && model.thread.synchronized && model.thread.projection.as_ref().is_some_and(|p| p["thread"]["id"] == "thread-a")
@@ -76,7 +79,7 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
     // Text only the parent has: its second answer, which the fork never inherited.
     until(&mut dom, "the parent's conversation", |dom| rendered_text(dom).contains("Fixture response: Do the work 2") && control(dom, "Thread lineage").is_some()).await;
     click_control(&mut dom, "Thread lineage");
-    until(&mut dom, "the fork in the parent's lineage", |dom| control(dom, "Fork work*").is_some()).await;
+    until(&mut dom, "the fork in the parent's lineage", |dom| control(dom, "thread-a fork*").is_some()).await;
     key_on(&mut dom, "Thread lineage", Key::Escape);
 
     // The next message to the parent carries the fork's work, and the timeline says so.
@@ -101,7 +104,7 @@ async fn a_refused_fork_says_why_and_can_be_tried_again() {
     assert!(state.peek().relations.fork.is_none(), "the button is free again");
     assert!(!disabled(&dom, "Fork from this response"));
     assert_eq!(state.peek().active_thread.as_deref(), Some("thread-a"), "a refused fork opens nothing");
-    assert!(forks_of(state, "Do the work 1 fork").is_empty());
+    assert!(forks_of(state, "thread-a fork").is_empty());
     click_control(&mut dom, "Fork from this response");
     until(&mut dom, "the fork", |_| state.peek().active_thread.as_deref().is_some_and(|id| id != "thread-a")).await;
     fixture.finish(dom).await;
@@ -277,12 +280,80 @@ async fn a_message_to_another_provider_is_refused_while_a_run_is_active_in_the_s
     fixture.finish(dom).await;
 }
 
-#[derive(Clone)]
-struct Probed {
-    inner: super::diff_tests::Harness,
-    probe: crate::RenderProbe,
+/// A message to another provider while a run is active is queued on that provider (the original sends the
+/// model with the message and the server decides): the queue shows it, and once the active turn is stopped and the queue resumed it runs on the other
+/// provider, which the timeline shows as a handoff.
+#[tokio::test(flavor = "current_thread")]
+async fn a_message_to_another_provider_queues_on_it_while_a_run_is_active_and_runs_there_afterwards() {
+    use crate::runtime::keys_tests::{chord, press};
+    let fixture = Fixture::start_claude(&[("CLAUDE_FIXTURE_SCENARIO", "turn")], &[]).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    turn(&mut dom, &props, state, 1).await;
+    crate::runtime::transport_tests::input_control(&mut dom, "Message", "work [hold]");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "a turn the provider is running", |_| {
+        let projection = state.peek().thread.projection.clone();
+        projection.is_some_and(|p| p["providerTurns"].as_array().is_some_and(|turns| turns.iter().any(|turn| turn["status"] == "running")) && t3_client::queue_workflow::can_promote_to_steer(&p))
+    })
+    .await;
+    // The picker offers the other provider while the turn runs, because the session can hand over; nothing is sent yet.
+    assert_eq!(press(&mut dom, chord("m", true, false), t3_client::keybindings::Dom::default()).await.as_deref(), Some("modelPicker.toggle"));
+    until(&mut dom, "the picker", |dom| control(dom, "Search models").is_some()).await;
+    crate::runtime::transport_tests::input_control(&mut dom, "Search models", "claude");
+    assert_eq!(press(&mut dom, chord("1", false, false), t3_client::keybindings::Dom::default()).await.as_deref(), Some("modelPicker.jump.1"));
+    until(&mut dom, "the chosen model", |dom| control(dom, "Model").and_then(|(_, value)| value).is_some_and(|value| value.contains("claude"))).await;
+    assert!(state.peek().error.is_none(), "{:?}", state.peek().error);
+    assert_eq!(shell_thread(state, "thread-a")["providerInstanceId"], "codex", "choosing writes nothing");
+    // Queued, it is accepted and waits on the other provider.
+    dom.in_scope(ScopeId::APP, || send_with(&props.transport, state, SendOptions { mode: Some("queue"), text: Some("and now?".into()), ..Default::default() }));
+    until(&mut dom, "the queued message", |dom| control(dom, "Steer queued message").is_some()).await;
+    assert!(state.peek().error.is_none(), "{:?}", state.peek().error);
+    let queued = projection(state)["runs"].as_array().unwrap().iter().filter(|run| run["status"] == "queued").cloned().collect::<Vec<_>>();
+    assert_eq!((queued.len(), queued[0]["providerInstanceId"].as_str()), (1, Some("claudeAgent")), "{queued:?}");
+    assert_eq!(shell_thread(state, "thread-a")["providerInstanceId"], "codex", "the thread stays on the active provider until the queued run starts");
+    // Steering it into the run that is still active is refused by the server, in its words.
+    // Stopping the active turn holds the queue; resuming delivers it on the other provider.
+    dom.in_scope(ScopeId::APP, || stop_thread(&props.transport, state, "thread-a"));
+    until(&mut dom, "the queue held", |dom| control(dom, "Resume thread").is_some()).await;
+    click_control(&mut dom, "Resume thread");
+    until(&mut dom, "the run on the other provider", |_| shell_thread(state, "thread-a")["providerInstanceId"] == "claudeAgent" && projection(state)["runs"].as_array().unwrap().iter().any(|run| run["providerInstanceId"] == "claudeAgent" && run["status"] == "completed")).await;
+    until(&mut dom, "the handoff row", |dom| control(dom, "Context handoff").is_some()).await;
+    fixture.finish(dom).await;
 }
-fn probed_app(props: Probed) -> Element {
+
+/// A message to a provider the environment has turned off is answered in the server's words and shown, and the
+/// send is over rather than a spinner. (The "target provider instance is unavailable" refusal belongs to
+/// `thread.model-selection.set` and `provider.switch`, which this composer, like the original's, never sends: the
+/// model rides on the message.)
+#[tokio::test(flavor = "current_thread")]
+async fn a_message_to_a_disabled_provider_is_answered_in_the_servers_words() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    turn(&mut dom, &props, state, 1).await;
+    // The picker does not offer a disabled instance; a choice made before it was turned off still rides on the message.
+    let key = (state.peek().destination.clone().unwrap(), "thread-a".to_owned());
+    let mut choices = state.peek().thread_choices.get(&key).cloned().unwrap_or_default();
+    choices.model_selection = Some(serde_json::from_value(json!({"instanceId":"claudeAgent","model":"claude-opus-4-7"})).unwrap());
+    state.thread_choices().write().insert(key, choices);
+    crate::runtime::transport_tests::input_control(&mut dom, "Message", "and now?");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the refusal", |dom| rendered_text(dom).contains("Claude is disabled in T3 Code settings.")).await;
+    assert!(state.peek().pending_messages.is_empty(), "the send is over");
+    fixture.finish(dom).await;
+}
+
+#[derive(Clone)]
+pub(super) struct Probed {
+    pub(super) inner: super::diff_tests::Harness,
+    pub(super) probe: crate::RenderProbe,
+}
+pub(super) fn probed_app(props: Probed) -> Element {
     use_context_provider(|| props.probe.clone());
     super::diff_tests::harness(props.inner.clone())
 }

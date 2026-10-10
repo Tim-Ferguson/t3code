@@ -37,11 +37,6 @@ fn drop_on(dom: &mut VirtualDom, props: &super::diff_tests::Harness, state: Stor
     let request = DropRequest { id: id.into(), section, before: before.map(str::to_owned) };
     dom.in_scope(ScopeId::APP, || drop_row(&props.transport, state, request));
 }
-/// The server settles only what the original's capability list says it can; this server holds the
-/// capability back, so a test that needs the Settled shelf turns it on for the client.
-fn advertise_settlement(state: Store<UiModel>) {
-    state.typed_config().write().as_mut().unwrap().environment.capabilities.thread_settlement = Some(true);
-}
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_dropped_pin_takes_its_place_with_one_key_once_its_neighbours_have_keys() {
@@ -156,9 +151,8 @@ async fn settled_and_snoozed_threads_fold_into_shelves_that_open_on_their_header
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
-    // Without the capability there is no Settled shelf, whatever a thread says.
-    assert!(!rendered_text(&dom).contains("Settled"));
-    advertise_settlement(state);
+    // The server advertises settlement, so the (empty) Settled shelf is there to drop a row on.
+    assert!(rendered_text(&dom).contains("Settled (0)"));
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
     click_control(&mut dom, "Settle thread");

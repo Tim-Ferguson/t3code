@@ -234,3 +234,51 @@ mod tests {
         assert_eq!((parse_seconds(" 12.4 "), parse_seconds("-3"), parse_seconds("abc")), (Some(12), Some(0), None));
     }
 }
+
+// ---- thread organization: limited threads and auto-settlement -----------------------------------
+
+/// `autoResumeLimitedThreads` and `snoozeLimitedThreads` are environment settings; the two
+/// auto-settle settings can also be overridden for one project.
+pub const AUTO_RESUME_LIMITED: &str = "autoResumeLimitedThreads";
+pub const SNOOZE_LIMITED: &str = "snoozeLimitedThreads";
+pub const SETTLE_ON_MERGE: &str = "sidebarAutoSettleOnMerge";
+pub const SETTLE_AFTER_DAYS: &str = "sidebarAutoSettleAfterDays";
+/// What turning inactive-thread settling on starts at, and the range a day count may take
+/// (`MIN_`/`MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS`).
+pub const SETTLE_DEFAULT_DAYS: u64 = 3;
+pub const SETTLE_MIN_DAYS: u64 = 1;
+pub const SETTLE_MAX_DAYS: u64 = 90;
+
+/// A typed day count, only when it is a whole number in range: "3.5" is refused rather than
+/// truncated to a 3 the field does not show (`AutoSettleDaysInput`).
+pub fn parse_settle_days(text: &str) -> Option<u64> {
+    let days: f64 = text.trim().parse().ok()?;
+    (days.fract() == 0.0 && days >= SETTLE_MIN_DAYS as f64 && days <= SETTLE_MAX_DAYS as f64).then_some(days as u64)
+}
+/// The days a setting value stands for: none when settling by inactivity is off.
+pub fn settle_days(value: &Value) -> Option<u64> {
+    value.as_u64()
+}
+
+#[cfg(test)]
+mod organization_tests {
+    use super::*;
+
+    #[test]
+    fn a_day_count_is_a_whole_number_in_range() {
+        assert_eq!(parse_settle_days("3"), Some(3));
+        assert_eq!(parse_settle_days(" 90 "), Some(90));
+        assert_eq!((parse_settle_days("0"), parse_settle_days("91"), parse_settle_days("3.5"), parse_settle_days(""), parse_settle_days("x")), (None, None, None, None, None));
+    }
+
+    #[test]
+    fn the_settle_settings_set_and_inherit_per_project_and_never_is_a_value() {
+        let settings = json!({SETTLE_AFTER_DAYS:3,"projectSettingsOverrides":{"p":{SETTLE_ON_MERGE:false}}});
+        assert_eq!(set_patch(&settings, None, SETTLE_AFTER_DAYS, Value::Null), json!({"patch":{SETTLE_AFTER_DAYS:null}}));
+        // For a project, null is the stored override that means "never settle", not "inherit".
+        assert_eq!(set_patch(&settings, Some("p"), SETTLE_AFTER_DAYS, Value::Null), json!({"patch":{"projectSettingsOverrides":{"p":{SETTLE_ON_MERGE:false,SETTLE_AFTER_DAYS:null}}}}));
+        assert!(is_overridden(&json!({"projectSettingsOverrides":{"p":{SETTLE_AFTER_DAYS:null}}}), Some("p"), SETTLE_AFTER_DAYS));
+        assert_eq!(effective(&settings, Some("p"), SETTLE_AFTER_DAYS), json!(3));
+        assert_eq!(clear_patch(&settings, Some("p"), SETTLE_ON_MERGE), Some(json!({"patch":{"projectSettingsOverrides":{"p":null}}})));
+    }
+}

@@ -485,46 +485,30 @@ fn local_string(at: &str) -> String {
 /// What the thread's shell contributes to the banner.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ShellRecovery {
-    /// The latest run, when the shell itself says a usage limit stopped it.
+    /// The latest run, when the shell itself says a usage limit stopped it (`status` failed with
+    /// `lastErrorClass` usage_limit); the banner is shown for exactly that run.
     pub limited_run: Option<String>,
+    /// `usageLimitResetAt`.
     pub reset_at: Option<String>,
+    /// When the run stopped: its completion, else the thread's last update.
     pub stopped_at: String,
     pub snoozed_until: Option<String>,
     pub recovery: Option<RecoveryState>,
 }
 
-/// Finds the run a limit stopped in the open thread's projection (a narrow memo, so streaming
-/// text repaints nothing here) and shows the banner for it.
+/// The banner for a thread whose shell says a usage limit stopped its latest run. It reads the
+/// shell alone (as the original does), so nothing streaming into the conversation repaints it.
 #[component]
 pub(crate) fn RecoveryHost(state: Store<UiModel>, transport: TransportHandle, thread_id: String, shell: ShellRecovery) -> Element {
-    let blocked = use_memo(use_reactive((&thread_id,), move |(thread_id,)| {
-        let field = state.thread();
-        let model = field.read();
-        let projection = model.projection.as_ref()?;
-        if projection["thread"]["id"] != thread_id.as_str() {
-            return None;
-        }
-        let runs = projection["runs"].as_array()?;
-        let items: Vec<Value> = projection["visibleTurnItems"].as_array().into_iter().flatten().filter(|row| row["item"]["type"] == "error").map(|row| row["item"].clone()).collect();
-        logic::blocked_run(runs, &items)
-    }));
-    let found = blocked.read().clone();
-    let (run_id, reset_at, stopped_at) = match (found, &shell.limited_run) {
-        (Some(blocked), _) => (blocked.run_id, blocked.reset_at.or(shell.reset_at.clone()), blocked.stopped_at.unwrap_or(shell.stopped_at.clone())),
-        (None, Some(run)) => (run.clone(), shell.reset_at.clone(), shell.stopped_at.clone()),
-        (None, None) => return rsx! {},
-    };
-    rsx! { RecoveryBanner { state, transport, thread_id, run_id, reset_at, stopped_at, snoozed_until: shell.snoozed_until, recovery: shell.recovery } }
+    let Some(run_id) = shell.limited_run else { return rsx! {} };
+    rsx! { RecoveryBanner { state, transport, thread_id, run_id, reset_at: shell.reset_at, stopped_at: shell.stopped_at, snoozed_until: shell.snoozed_until, recovery: shell.recovery } }
 }
 
 /// The banner over the composer of a thread that stopped on a usage limit. Resuming at the reset
-/// and snoozing until it are the thread's own recovery, saved on the server.
+/// and snoozing until it are the thread's own recovery, saved on the server. The one timer is set
+/// for the reset itself and is this component's alone.
 #[component]
 pub(crate) fn RecoveryBanner(state: Store<UiModel>, transport: TransportHandle, thread_id: String, run_id: String, reset_at: Option<String>, stopped_at: String, snoozed_until: Option<String>, recovery: Option<RecoveryState>) -> Element {
-    let can_schedule = match (&reset_at, parse_ms(&stopped_at)) {
-        (Some(reset), Some(stopped)) => parse_ms(reset).is_some_and(|reset| reset > stopped),
-        _ => false,
-    };
     let mut pending = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
     // One timer, set for the reset, turns "Snooze until reset" off once the reset has passed.
@@ -536,48 +520,57 @@ pub(crate) fn RecoveryBanner(state: Store<UiModel>, transport: TransportHandle, 
         if wait <= 0.0 {
             return;
         }
-        crate::runtime::delay((wait as u64 + 1).min(86_400_000)).await;
+        crate::runtime::delay((wait as u64 + 1).min(2_147_483_647)).await;
         let next = *tick.peek() + 1;
         tick.set(next);
     }));
     let _ = tick();
     let now = chrono::Utc::now().timestamp_millis() as f64;
-    let scheduled = recovery.as_ref().is_some_and(|recovery| recovery.run_id == run_id && Some(&recovery.reset_at) == reset_at.as_ref() && recovery.auto_resume);
-    let snoozed = recovery.as_ref().is_some_and(|recovery| recovery.snooze && recovery.run_id == run_id && Some(&recovery.reset_at) == reset_at.as_ref()) && matches!((&snoozed_until, &reset_at), (Some(until), Some(reset)) if parse_ms(until) == parse_ms(reset));
+    let saved = recovery.as_ref().map(|saved| (saved.run_id.as_str(), saved.reset_at.as_str(), saved.auto_resume, saved.snooze));
+    let view = logic::Recovery { run_id: &run_id, reset_at: reset_at.as_deref(), stopped_at: &stopped_at, snoozed_until: snoozed_until.as_deref(), saved };
+    let (can_schedule, scheduled, snoozed, past) = (view.can_schedule(), view.scheduled(), view.snoozed(), view.reset_passed(now));
     let description = match &reset_at {
         Some(reset) => format!("Resets {}", local_string(reset)),
-        None => "Reset time unavailable; retry manually".to_owned(),
+        None => logic::NO_RESET.to_owned(),
     };
+    // A recovery that was saved when the session opened is the server's to change, and a write is
+    // sent once: both buttons wait while one is in flight, and while the connection is down.
+    let writable = *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationOperate));
     let toggle = {
-        let (transport, thread_id, run_id, reset_at) = (transport.clone(), thread_id.clone(), run_id.clone(), reset_at.clone());
+        let (transport, thread_id, view_run, view_reset, view_stopped, view_until) = (transport.clone(), thread_id.clone(), run_id.clone(), reset_at.clone(), stopped_at.clone(), snoozed_until.clone());
+        let recovery = recovery.clone();
         move |snooze: bool| {
-            let Some(reset) = reset_at.clone() else { return };
             if *pending.peek() {
                 return;
             }
-            if snooze && !snoozed && parse_ms(&reset).is_some_and(|at| at <= chrono::Utc::now().timestamp_millis() as f64) {
-                failure.set(Some("The reset time has passed. Retry the thread manually.".into()));
+            let saved = recovery.as_ref().map(|saved| (saved.run_id.as_str(), saved.reset_at.as_str(), saved.auto_resume, saved.snooze));
+            let view = logic::Recovery { run_id: &view_run, reset_at: view_reset.as_deref(), stopped_at: &view_stopped, snoozed_until: view_until.as_deref(), saved };
+            // The server would refuse a snooze to a reset that has gone by; the original says so before asking.
+            if snooze && !view.snoozed() && view.reset_passed(chrono::Utc::now().timestamp_millis() as f64) {
+                failure.set(Some(logic::RESET_PASSED.into()));
                 let next = *tick.peek() + 1;
                 tick.set(next);
                 return;
             }
+            let Some(update) = view.update(snooze) else { return };
             pending.set(true);
             failure.set(None);
-            let update = if snooze { json!({"runId":run_id,"resetAt":reset,"snooze":!snoozed}) } else { json!({"runId":run_id,"resetAt":reset,"autoResume":!scheduled}) };
             let payload = json!({"type":"thread.metadata.update","commandId":uuid::Uuid::new_v4().to_string(),"threadId":thread_id,"limitRecovery":update});
             let transport = transport.clone();
+            let owner = crate::runtime::response_owner(&transport, state);
             spawn(async move {
                 let answer = ask(&transport, state, "orchestration.dispatchCommand", payload).await;
                 pending.set(false);
-                match answer {
-                    Some(Err(message)) => failure.set(Some(if message.is_empty() { "Could not change limit recovery.".into() } else { message })),
-                    _ => {}
+                // The answer is for the thread and the connection it was asked on; a late one shows nothing.
+                if owner.is_none() || owner != crate::runtime::response_owner(&transport, state) {
+                    return;
+                }
+                if let Some(Err(message)) = answer {
+                    failure.set(Some(if message.is_empty() { logic::RECOVERY_FAILED.into() } else { message }));
                 }
             });
         }
     };
-    let writable = *state.status().read() == ConnectionStatus::Connected;
-    let past = reset_at.as_deref().and_then(parse_ms).is_some_and(|reset| reset <= now);
     rsx! { section { class: "composer-panel limit-recovery", role: "status", "aria-label": "Usage limit reached",
         div { class: "usage-limits-head", strong { "Usage limit reached" } span { class: "muted", "{description}" } }
         if can_schedule {

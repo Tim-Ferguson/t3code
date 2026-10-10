@@ -798,3 +798,117 @@ pub fn blocked_run(runs: &[Value], items: &[Value]) -> Option<Blocked> {
         presented_as_latest: runs.iter().any(|run| run["ordinal"].as_f64() > executed["ordinal"].as_f64()),
     })
 }
+
+// ---- recovering a limited thread -------------------------------------------------------------
+
+/// `resumableRunId` of `ChatView.tsx`: the run a "Resume thread" continues. The latest run that
+/// started, when a stop interrupted it, or when it failed on a usage limit that the shell also
+/// reports (`shell_limited`: the thread's `lastErrorClass`).
+pub fn resumable_run(runs: &[Value], items: &[Value], shell_limited: bool) -> Option<String> {
+    let run = latest_executed_run(runs)?;
+    if run["status"] == "interrupted" {
+        return run["id"].as_str().map(str::to_owned);
+    }
+    let limited = run["status"] == "failed" && shell_limited && latest_root_failure(run, items).is_some_and(|failure| failure["class"] == "usage_limit");
+    limited.then(|| run["id"].as_str().map(str::to_owned)).flatten()
+}
+
+/// The text a resume sends, and the server's own after a reset.
+pub const CONTINUE_TEXT: &str = "Continue where you left off.";
+pub const RESET_PASSED: &str = "The reset time has passed. Retry the thread manually.";
+pub const RECOVERY_FAILED: &str = "Could not change limit recovery.";
+pub const NO_RESET: &str = "Reset time unavailable; retry manually";
+
+/// What a recovery banner can offer, from the shell's limit and recovery fields.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Recovery<'a> {
+    pub run_id: &'a str,
+    pub reset_at: Option<&'a str>,
+    pub stopped_at: &'a str,
+    pub snoozed_until: Option<&'a str>,
+    /// The thread's `limitRecovery`: run, reset, auto-resume, snooze.
+    pub saved: Option<(&'a str, &'a str, bool, bool)>,
+}
+fn ms(text: &str) -> Option<f64> {
+    DateTime::parse_from_rfc3339(text).ok().map(|at| at.timestamp_millis() as f64)
+}
+impl Recovery<'_> {
+    /// A choice is offered only for a reset that lies after the stop.
+    pub fn can_schedule(&self) -> bool {
+        matches!((self.reset_at.and_then(ms), ms(self.stopped_at)), (Some(reset), Some(stopped)) if reset > stopped)
+    }
+    fn saved_for_this_limit(&self) -> Option<(bool, bool)> {
+        let (run, reset, auto, snooze) = self.saved?;
+        (run == self.run_id && Some(reset) == self.reset_at).then_some((auto, snooze))
+    }
+    /// Whether the continuation at the reset is scheduled.
+    pub fn scheduled(&self) -> bool {
+        self.saved_for_this_limit().is_some_and(|(auto, _)| auto)
+    }
+    /// Whether the thread sleeps until this reset on the recovery's account.
+    pub fn snoozed(&self) -> bool {
+        self.saved_for_this_limit().is_some_and(|(_, snooze)| snooze) && matches!((self.snoozed_until.and_then(ms), self.reset_at.and_then(ms)), (Some(until), Some(reset)) if until == reset)
+    }
+    /// The `limitRecovery` update one button sends: the opposite of what is saved now.
+    pub fn update(&self, snooze: bool) -> Option<Value> {
+        let reset = self.reset_at?;
+        Some(if snooze { serde_json::json!({"runId":self.run_id,"resetAt":reset,"snooze":!self.snoozed()}) } else { serde_json::json!({"runId":self.run_id,"resetAt":reset,"autoResume":!self.scheduled()}) })
+    }
+    /// Whether the reset has passed at `now`, which switches "Snooze until reset" off.
+    pub fn reset_passed(&self, now: f64) -> bool {
+        self.reset_at.and_then(ms).is_some_and(|reset| reset <= now)
+    }
+}
+
+#[cfg(test)]
+mod recovery_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn run(id: &str, status: &str, ordinal: u32) -> Value {
+        json!({"id":id,"status":status,"ordinal":ordinal,"rootNodeId":format!("node-{id}"),"startedAt":"2026-01-01T00:00:00Z","completedAt":format!("2026-01-01T00:0{ordinal}:00Z")})
+    }
+    fn limit(id: &str) -> Value {
+        json!({"type":"error","status":"failed","runId":id,"nodeId":format!("node-{id}"),"updatedAt":"2026-01-01T00:05:00Z","ordinal":1,"id":"e","failure":{"class":"usage_limit","message":"limit"}})
+    }
+
+    #[test]
+    fn an_interrupted_run_and_a_limited_one_are_resumable_and_others_are_not() {
+        assert_eq!(resumable_run(&[run("a", "interrupted", 1)], &[], false).as_deref(), Some("a"));
+        assert_eq!(resumable_run(&[run("a", "failed", 1)], &[limit("a")], true).as_deref(), Some("a"));
+        // The shell must say so too, and the failure must be the limit.
+        assert_eq!(resumable_run(&[run("a", "failed", 1)], &[limit("a")], false), None);
+        assert_eq!(resumable_run(&[run("a", "failed", 1)], &[], true), None);
+        assert_eq!(resumable_run(&[run("a", "completed", 1)], &[], true), None);
+        // A queued run after the limited one does not hide it.
+        assert_eq!(resumable_run(&[run("a", "failed", 1), json!({"id":"q","status":"queued","ordinal":2,"startedAt":null,"completedAt":null})], &[limit("a")], true).as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn a_recovery_is_offered_for_a_reset_after_the_stop_and_toggles_what_is_saved() {
+        let reset = "2026-01-01T02:00:00.000Z";
+        let mut recovery = Recovery { run_id: "r", reset_at: Some(reset), stopped_at: "2026-01-01T00:00:00.000Z", snoozed_until: None, saved: None };
+        assert!(recovery.can_schedule() && !recovery.scheduled() && !recovery.snoozed());
+        assert_eq!(recovery.update(false), Some(json!({"runId":"r","resetAt":reset,"autoResume":true})));
+        assert_eq!(recovery.update(true), Some(json!({"runId":"r","resetAt":reset,"snooze":true})));
+        recovery.saved = Some(("r", reset, true, true));
+        recovery.snoozed_until = Some("2026-01-01T02:00:00Z");
+        assert!(recovery.scheduled() && recovery.snoozed());
+        assert_eq!(recovery.update(false), Some(json!({"runId":"r","resetAt":reset,"autoResume":false})));
+        assert_eq!(recovery.update(true), Some(json!({"runId":"r","resetAt":reset,"snooze":false})));
+        // A snooze the thread has for another time is not this recovery's.
+        recovery.snoozed_until = Some("2026-01-01T03:00:00Z");
+        assert!(!recovery.snoozed());
+        // A recovery saved for another run or reset is not scheduled for this one.
+        recovery.saved = Some(("other", reset, true, true));
+        assert!(!recovery.scheduled());
+        recovery.saved = Some(("r", "2026-01-01T01:00:00.000Z", true, true));
+        assert!(!recovery.scheduled());
+        // No reset, or one before the stop: nothing to choose.
+        let none = Recovery { reset_at: None, ..recovery.clone() };
+        assert!(!none.can_schedule() && none.update(false).is_none());
+        let past = Recovery { reset_at: Some("2025-12-31T00:00:00Z"), ..recovery };
+        assert!(!past.can_schedule());
+        assert!(past.reset_passed(ms("2026-01-01T00:00:00Z").unwrap()));
+    }
+}

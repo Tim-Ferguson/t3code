@@ -27,6 +27,14 @@ pub fn title_seed(text: &str, first_image: Option<&str>, first_file: Option<&str
     truncate(&seed, 50)
 }
 
+/// The seed a message to an existing thread carries: the thread's own title, as the original's
+/// `startThreadTurn` callers send `activeThread.title`. Only a new or draft thread is titled from its
+/// message (`title_seed`), so a fork keeps the name it was given and the server's first-message
+/// retitle (which fires on any seed while a thread has no messages) re-applies the same title.
+pub fn existing_thread_seed(title: &str) -> String {
+    title.trim().to_owned()
+}
+
 /// Names of the first image and the first file among wire attachments.
 pub fn first_attachment_names(attachments: &serde_json::Value) -> (Option<String>, Option<String>) {
     let list = attachments.as_array().map(Vec::as_slice).unwrap_or(&[]);
@@ -48,6 +56,12 @@ mod tests {
         // An emoji is two units: the cut counts them as the original does.
         let emoji = format!("{}😀", "y".repeat(49));
         assert_eq!(truncate(&emoji, 50), format!("{}\u{fffd}...", "y".repeat(49)));
+    }
+
+    #[test]
+    fn a_message_to_an_existing_thread_seeds_with_its_own_title() {
+        assert_eq!(existing_thread_seed("Fix the login bug fork"), "Fix the login bug fork");
+        assert_ne!(existing_thread_seed("Fix the login bug fork"), title_seed("go on", None, None));
     }
 
     #[test]

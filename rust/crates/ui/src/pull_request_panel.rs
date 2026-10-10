@@ -278,7 +278,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                                 } }
                         } else if tab() == Tab::Files {
                             crate::pull_request_files::Files { state, transport: transport.clone(), reference: reference.clone(), revision: refresh_count(), readable: can_read(), writable, why: write_reason.clone(),
-                                threads: threads_of(&activity.read()), verdicts: verdicts_of(&value), can_resolve: value["viewerPermissions"]["resolve"] == true, on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
+                                viewed_store: pr::viewed_store(&value).map(str::to_owned), threads: threads_of(&activity.read()), verdicts: verdicts_of(&value), can_resolve: value["viewerPermissions"]["resolve"] == true, on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
                         } else {
                             crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: threads_of(&activity.read()), can_resolve: value["viewerPermissions"]["resolve"] == true, writable, why: write_reason.clone(), on_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
                             crate::pull_request_review::ReviewForm { state, transport: transport.clone(), reference: reference.clone(), verdicts: verdicts_of(&value), writable, why: write_reason.clone(), on_done: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
@@ -344,12 +344,13 @@ fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
     let title = value["title"].as_str().unwrap_or_default().to_owned();
     let url = value["url"].as_str().filter(|url| url.starts_with("https://") || url.starts_with("http://")).map(str::to_owned);
     let label = state_label(&value);
+    let host_label = pr::open_on_host_label(value["provider"].as_str());
     rsx! {
         header { class: "diff-header",
             div { class: "diff-header-main",
                 strong { class: "pr-number", "#{reference.number}" }
                 span { class: "pr-state", "data-state": "{label}", "{label}" }
-                if let Some(url) = url { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request on the host", "Open on host" } }
+                if let Some(url) = url { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request #{reference.number} on host", title: "{host_label}", "{host_label}" } }
                 if let Some(url) = value["url"].as_str().map(str::to_owned) { crate::pull_request_links::LinkControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), url } }
                 crate::pull_request_links::WatchControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), open: matches!(label, "Open" | "Draft") }
                 button { class: "icon-button diff-close", "aria-label": "Close pull request panel", title: "Close the pull request panel", onclick: move |_| on_close.call(()), "\u{2715}" }
@@ -384,8 +385,10 @@ fn Overview(state: Store<UiModel>, transport: TransportHandle, reference: Refere
     rsx! {
         section { class: "pr-overview",
             p { class: "pr-meta muted",
-                if !author.is_empty() { "{author} \u{b7} " }
-                "+{additions} \u{2212}{deletions} in {files} files"
+                if !author.is_empty() { "{author}" }
+                // A size is drawn only when the host counted one; zero is how a host that does not says nothing.
+                if pr::has_size(additions, deletions) { if !author.is_empty() { " \u{b7} " } "+{additions} \u{2212}{deletions}" if files > 0 { " in {files} files" } }
+                else if files > 0 { if !author.is_empty() { " \u{b7} " } "{files} files" }
             }
             div { class: "pr-merge", role: "group", "aria-label": "Merge",
                 match control {
