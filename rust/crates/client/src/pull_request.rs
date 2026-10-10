@@ -649,3 +649,40 @@ mod host_tests {
         assert_eq!((review_decision_label(None), review_decision_label(Some("changes-requested"))), (None, Some("Changes requested")));
     }
 }
+
+/// What the head of a conversation entry says the author did: "commented", "reviewed", "approved",
+/// "requested changes", or, for a comment on a line, where.
+pub fn comment_verb(kind: &str, review_state: Option<&str>, path: Option<&str>) -> String {
+    match kind {
+        "review" => match review_state.map(str::to_ascii_lowercase).as_deref() {
+            Some("approved") => "approved".into(),
+            Some("changes_requested") | Some("changes-requested") => "requested changes".into(),
+            Some("dismissed") => "review dismissed".into(),
+            _ => "reviewed".into(),
+        },
+        "review-comment" => match path.filter(|path| !path.is_empty()) {
+            Some(path) => format!("commented on {path}"),
+            None => "commented".into(),
+        },
+        _ => "commented".into(),
+    }
+}
+
+/// A commit id as the panel shows it: the first seven characters.
+pub fn short_oid(oid: &str) -> &str {
+    oid.get(..7).unwrap_or(oid)
+}
+
+#[cfg(test)]
+mod conversation_tests {
+    use super::*;
+
+    #[test]
+    fn an_entry_says_what_its_author_did() {
+        assert_eq!(comment_verb("issue-comment", None, None), "commented");
+        assert_eq!(comment_verb("review-comment", None, Some("src/a.ts")), "commented on src/a.ts");
+        assert_eq!(comment_verb("review-comment", None, None), "commented");
+        assert_eq!((comment_verb("review", Some("APPROVED"), None), comment_verb("review", Some("CHANGES_REQUESTED"), None), comment_verb("review", Some("COMMENTED"), None), comment_verb("review", None, None)), ("approved".to_owned(), "requested changes".to_owned(), "reviewed".to_owned(), "reviewed".to_owned()));
+        assert_eq!((short_oid("e4d3c2b1a0"), short_oid("abc")), ("e4d3c2b", "abc"));
+    }
+}

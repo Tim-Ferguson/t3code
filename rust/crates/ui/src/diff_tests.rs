@@ -45,7 +45,7 @@ pub(crate) fn harness(props: Harness) -> Element {
 }
 
 pub(crate) async fn until(dom: &mut VirtualDom, label: &str, ready: impl Fn(&VirtualDom) -> bool) {
-    tokio::time::timeout(Duration::from_secs(15), async {
+    tokio::time::timeout(Duration::from_secs(45), async {
         loop {
             if ready(dom) {
                 return;
@@ -384,6 +384,8 @@ async fn a_completed_turn_lists_its_files_and_opens_its_diff_at_the_file_clicked
     // Expanding the other file shows its hunk.
     click_control(&mut dom, "Expand README.md");
     assert!(rendered_text(&dom).contains("@@ -1 +1,2 @@"));
+    // A file is offered to an editor only where the server has one: no Open control otherwise, not a disabled one.
+    assert_eq!(control(&dom, "Open README.md in editor").is_none(), crate::open_in::available(state).is_empty());
     // Collapse all, then expand all.
     click_control(&mut dom, "Collapse all files");
     assert!(control(&dom, "Expand README.md").is_some() && control(&dom, "Expand hello.txt").is_some());

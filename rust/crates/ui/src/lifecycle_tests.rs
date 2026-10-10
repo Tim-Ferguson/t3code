@@ -182,7 +182,7 @@ async fn a_thread_starts_in_an_existing_worktree_the_choice_is_remembered_and_th
 
         // A new worktree is the other choice; browsing to a branch that lives in a worktree
         // points the form at that worktree.
-        change_control(dom, "Workspace", "worktree");
+        crate::runtime::transport_tests::change_when_enabled(dom, "Workspace", "worktree").await;
         until(dom, "the base branch picker", |dom| control(dom, "Choose base branch").is_some()).await;
         click_control(dom, "Choose base branch");
         until(dom, "the refs", |dom| control(dom, "wt-branch").is_some()).await;
@@ -192,10 +192,10 @@ async fn a_thread_starts_in_an_existing_worktree_the_choice_is_remembered_and_th
         assert_eq!((remembered.environment_mode, remembered.base_ref.as_str()), (Some(t3_contracts::ThreadEnvMode::Worktree), "wt-branch"));
         assert_eq!(remembered.worktree_path.as_deref().map(|path| std::fs::canonicalize(path).unwrap()), Some(std::fs::canonicalize(&worktree).unwrap()));
         // Back to the project checkout and again to the worktree: the choices follow the select.
-        change_control(dom, "Workspace", "local");
+        crate::runtime::transport_tests::change_when_enabled(dom, "Workspace", "local").await;
         assert!(state.peek().new_thread_choices.get(&key).unwrap().worktree_path.is_none());
         assert!(!rendered_text(dom).contains("Starts in the existing worktree"));
-        change_control(dom, "Workspace", "worktree");
+        crate::runtime::transport_tests::change_when_enabled(dom, "Workspace", "worktree").await;
         click_control(dom, "Choose base branch");
         until(dom, "the refs", |dom| control(dom, "wt-branch").is_some()).await;
         click_control(dom, "wt-branch");
@@ -223,7 +223,7 @@ async fn a_thread_starts_in_an_existing_worktree_the_choice_is_remembered_and_th
 async fn a_failed_worktree_preparation_shows_its_card_and_a_retry_that_runs_the_same_run_again() {
     with_app(true, &OPERATOR, async |fixture, dom, _props, state| {
         git(&fixture.workspace, &["branch", "-m", "main"]);
-        change_control(dom, "Workspace", "worktree");
+        crate::runtime::transport_tests::change_when_enabled(dom, "Workspace", "worktree").await;
         input_control(dom, "Base branch", "later-branch");
         input_control(dom, "First message", "go");
         click_control(dom, "Create new thread");
@@ -236,7 +236,8 @@ async fn a_failed_worktree_preparation_shows_its_card_and_a_retry_that_runs_the_
         git(&fixture.workspace, &["branch", "later-branch"]);
         let run = state.peek().thread.projection.as_ref().unwrap()["runs"][0]["id"].clone();
         click_control(dom, "Retry workspace preparation");
-        click_control(dom, "Retry workspace preparation");
+        // A second click on the control, now disabled, that arrived before the page repainted.
+        crate::runtime::transport_tests::force_click_control(dom, "Retry workspace preparation");
         until(dom, "the run to complete", |_| state.peek().thread.projection.as_ref().is_some_and(|projection| projection["runs"][0]["status"] == "completed")).await;
         assert_eq!(state.peek().thread.projection.as_ref().unwrap()["runs"][0]["id"], run);
         until(dom, "no retry left", |dom| control(dom, "Retry workspace preparation").is_none()).await;
@@ -286,7 +287,7 @@ async fn cancelling_a_running_worktree_setup_stops_it_once_and_rolls_the_thread_
     until(&mut dom, "the script", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.projects.iter().any(|p| !p.scripts.is_empty()))).await;
     let _release = Release(gate.clone());
     dom.in_scope(ScopeId::APP, || new_thread(&props.transport, state, None));
-    change_control(&mut dom, "Workspace", "worktree");
+    crate::runtime::transport_tests::change_when_enabled(&mut dom, "Workspace", "worktree").await;
     input_control(&mut dom, "Base branch", "main");
     input_control(&mut dom, "First message", "go");
     click_control(&mut dom, "Create new thread");
@@ -294,7 +295,7 @@ async fn cancelling_a_running_worktree_setup_stops_it_once_and_rolls_the_thread_
     wait_for_rendered_text(&mut dom, "started").await;
     until(&mut dom, "the cancel control", |dom| control(dom, "Cancel worktree setup").is_some()).await;
     click_control(&mut dom, "Cancel worktree setup");
-    click_control(&mut dom, "Cancel worktree setup");
+    crate::runtime::transport_tests::force_click_control(&mut dom, "Cancel worktree setup");
     // The server unwinds the setup: the run fails with the reason, and the worktree is gone.
     until(&mut dom, "the run to fail", |_| state.peek().thread.projection.as_ref().is_some_and(|projection| projection["runs"][0]["status"] == "failed")).await;
     wait_for_rendered_text(&mut dom, "Worktree setup cancelled.").await;

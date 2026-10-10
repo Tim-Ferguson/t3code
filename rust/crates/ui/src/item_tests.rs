@@ -1259,7 +1259,7 @@ async fn a_thread_is_renamed_in_place_and_a_new_thread_starts_on_its_branch() {
     // The menu offers a new thread on the thread's branch, and the new-thread form starts there.
     key_on(&mut dom, "Thread Renamed work", Key::ContextMenu);
     assert!(control(&dom, "New thread on feature-x").is_some());
-    click_control(&mut dom, "New thread on feature-x");
+    crate::runtime::transport_tests::click_when_enabled(&mut dom, "New thread on feature-x").await;
     assert!(state.peek().active_thread.is_none(), "a draft, not an existing thread");
     let choices = state.peek().new_thread_choices.clone();
     assert!(choices.values().any(|choice| choice.base_ref == "feature-x"), "{:?}", choices.len());

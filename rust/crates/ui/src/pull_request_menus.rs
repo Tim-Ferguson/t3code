@@ -113,6 +113,9 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
     let mut reads = use_signal(|| 0u32);
     let mut answer = use_signal(|| None::<Result<Rc<Value>, String>>);
     let mut pending = use_signal(|| None::<String>);
+    // The menu's search box, to give the focus back to it: the page re-renders after a change and the
+    // browser drops the focus of the row that was clicked, which would leave Escape with nothing to hear it.
+    let mut search = use_signal(|| None::<Rc<MountedData>>);
     let enabled = allowed && writable;
 
     // Read fresh at each opening and after each change; nothing is held while the menu is closed.
@@ -133,6 +136,15 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
             }
         });
     }
+    // Whenever the candidates are read again (after a change), the focus goes back into the menu.
+    use_effect(move || {
+        let _ = answer.read();
+        if *open.peek() {
+            if let Some(box_) = search.peek().clone() {
+                spawn(async move { let _ = box_.set_focus(true).await; });
+            }
+        }
+    });
     let toggle = {
         let (transport, reference) = (transport.clone(), reference.clone());
         use_callback(move |row: Row| {
@@ -167,6 +179,11 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
                     }
                 }
                 pending.set(None);
+                if *open.peek() {
+                    if let Some(box_) = search.peek().clone() {
+                        let _ = box_.set_focus(true).await;
+                    }
+                }
             });
         })
     };
@@ -178,8 +195,12 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
             button { r#type: "button", "aria-label": "{kind.button()}", "aria-haspopup": "menu", "aria-expanded": "{open()}", title: if enabled { "" } else if !allowed { kind.reason() } else { "This connection cannot change source control." }, disabled: !enabled,
                 onclick: move |_| { let next = !open(); if next { answer.set(None); query.set(String::new()); } open.set(next); }, "{kind.button()}" }
             if open() {
+                // A click anywhere else closes the menu, as the original's popover does.
+                div { class: "branch-picker-backdrop", "aria-hidden": "true", "aria-label": "Close {kind.button()} menu", onclick: move |_| open.set(false) }
                 div { class: "pr-picker-menu", role: "menu", "aria-label": "{kind.button()}",
-                    input { r#type: "search", "aria-label": "{kind.search()}", placeholder: "{kind.search()}", value: "{query}", oninput: move |event| query.set(event.value()) }
+                    // Focus starts inside the menu, so Escape reaches it.
+                    input { r#type: "search", "aria-label": "{kind.search()}", placeholder: "{kind.search()}", value: "{query}", oninput: move |event| query.set(event.value()),
+                        onmounted: move |event| { let element = event.data(); search.set(Some(element.clone())); spawn(async move { let _ = element.set_focus(true).await; }); } }
                     match listing {
                         None => rsx! { p { class: "muted", role: "status", "Loading\u{2026}" } },
                         Some(Err(message)) => rsx! { p { class: "diff-error", role: "alert", "{kind.unreadable()} {message}" } },
@@ -189,7 +210,7 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
                             rsx! {
                                 if shown.is_empty() { p { class: "muted", if typed.is_empty() { "{kind.empty()}" } else { "{kind.no_match()}" } } }
                                 for row in shown {
-                                    button { key: "{row.name}", r#type: "button", role: "menuitemcheckbox", "aria-checked": "{row.on}", "aria-label": "{row.name}", disabled: pending.read().is_some(),
+                                    button { key: "{row.name}", r#type: "button", role: "menuitemcheckbox", "aria-checked": "{row.on}", "aria-label": "{row.name}", "aria-disabled": "{pending.read().is_some()}",
                                         onclick: { let row = row.clone(); move |_| toggle.call(row.clone()) },
                                         span { "{row.name}" }
                                         if let Some(detail) = row.detail.clone() { span { class: "muted", " \u{b7} {detail}" } }

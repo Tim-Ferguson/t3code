@@ -15,6 +15,11 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use t3_client::pull_request::{self as pr, Reference};
 
+/// When something happened, as the original words it ("3h ago"); the full time is the tooltip.
+pub(crate) fn when(at: &str) -> String {
+    t3_client::prompt_stash::relative_label(at, chrono::Utc::now())
+}
+
 /// The verdicts, in the order the form lists them: wire name, label, what the toast says.
 pub(crate) const VERDICTS: [(&str, &str, &str); 3] = [("comment", "Comment", "Review submitted"), ("approve", "Approve", "Pull request approved"), ("request-changes", "Request changes", "Changes requested")];
 
@@ -176,7 +181,7 @@ pub(crate) fn Threads(state: Store<UiModel>, transport: TransportHandle, referen
                             ol { class: "pr-comments",
                                 for comment in comments.iter() {
                                     li { key: "{comment[\"id\"].as_str().unwrap_or_default()}", class: "pr-comment",
-                                        div { class: "pr-comment-head", strong { "{comment[\"author\"][\"login\"].as_str().unwrap_or(\"ghost\")}" } span { class: "muted", "{comment[\"createdAt\"].as_str().unwrap_or_default()}" } }
+                                        div { class: "pr-comment-head", strong { "{comment[\"author\"][\"login\"].as_str().unwrap_or(\"ghost\")}" } span { class: "muted", title: "{comment[\"createdAt\"].as_str().unwrap_or_default()}", "{when(comment[\"createdAt\"].as_str().unwrap_or_default())}" } }
                                         if !comment["body"].as_str().unwrap_or_default().trim().is_empty() { Markdown { text: comment["body"].as_str().unwrap_or_default().to_owned() } }
                                     }
                                 }

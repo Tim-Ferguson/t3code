@@ -5,7 +5,7 @@ use super::diff_tests::{Fixture, completed_runs, open_thread, rendered_text, see
 use super::*;
 use crate::diff_panel::Gate;
 use crate::runtime::keys_tests::key_on;
-use crate::runtime::transport_tests::{all_controls, click_control, click_nth_control, control, control_attribute};
+use crate::runtime::transport_tests::{all_controls, click_control, click_nth_control, control, control_attribute, force_click_control, force_click_nth_control};
 
 fn disabled(dom: &VirtualDom, label: &str) -> bool {
     control_attribute(dom, label, "disabled").and_then(|(_, value)| value).as_deref() == Some("true")
@@ -35,7 +35,7 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
 
     // The first answer is forked; a second click while the write is in flight sends nothing.
     click_nth_control(&mut dom, "Fork from this response", 0);
-    click_nth_control(&mut dom, "Fork from this response", 0);
+    force_click_nth_control(&mut dom, "Fork from this response", 0);
     until(&mut dom, "the fork opened", |_| {
         let model = state.peek();
         model.active_thread.as_deref().is_some_and(|id| id != "thread-a") && model.thread.synchronized && model.thread.projection.as_ref().is_some_and(|p| p["thread"]["lineage"]["relationshipToParent"] == "fork")
@@ -67,7 +67,7 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
     click_control(&mut dom, "Thread lineage");
     until(&mut dom, "merge enabled", |dom| control(dom, "Merge back to Do the work 1").is_some() && !disabled(dom, "Merge back to Do the work 1")).await;
     click_control(&mut dom, "Merge back to Do the work 1");
-    click_control(&mut dom, "Merge back to Do the work 1");
+    force_click_control(&mut dom, "Merge back to Do the work 1");
     until(&mut dom, "the parent opened", |_| {
         let model = state.peek();
         model.active_thread.as_deref() == Some("thread-a") && model.thread.synchronized && model.thread.projection.as_ref().is_some_and(|p| p["thread"]["id"] == "thread-a")
@@ -156,7 +156,7 @@ async fn a_queued_message_is_steered_into_the_running_turn_once_and_not_without_
     assert!(!disabled(&dom, "Steer queued message"), "a running turn can be steered");
     // Two clicks, one steer.
     click_control(&mut dom, "Steer queued message");
-    click_control(&mut dom, "Steer queued message");
+    force_click_control(&mut dom, "Steer queued message");
     until(&mut dom, "the steer", |_| projection_items(state, "queued two").iter().any(|item| item["inputIntent"] == "promoted_queued_to_steer")).await;
     assert_eq!(projection_items(state, "queued two").len(), 1);
     until(&mut dom, "the queue empty", |dom| control(dom, "Steer queued message").is_none()).await;
@@ -217,7 +217,7 @@ async fn a_watched_pull_request_is_background_work_with_a_stop_that_lets_it_go()
 
     // The eye lets it go, once however often it is clicked.
     click_control(&mut dom, "Stop watching #7");
-    click_control(&mut dom, "Stop watching #7");
+    force_click_control(&mut dom, "Stop watching #7");
     until(&mut dom, "the watch ended", |dom| !watched(state, "thread-a") && control(dom, "Stop watching #7").is_none() && !rendered_text(dom).contains("Watching pull request #7")).await;
 
     // The thread's Stop does the same when no run is left to interrupt.

@@ -77,14 +77,17 @@ Every project is named `t3code-rust-port-test-...` and its README says "Created 
   `[subagent]`, `[children]`, `[background]`, `[wake]`, `[limit]`, `[warning]`, `[approval]`, `[question]`, `[hang]`,
   `[steer]`, `[error]`, `[crash]`; no tag: thinking, a Bash call, a todo list, a reply.
 - `fakes/fake_glab.py`: GitLab merge requests for `acme/lab` (7 open with a failed pipeline, two reviewers, labels, two
-  review threads one resolved, comments with awards, four commits, four files; 8 draft; 9 merged; 10 closed). Read-only
-  and stateless: a write exits 1 saying so. An unknown call exits 97 and names its arguments on stderr, so a gap shows
-  in the UI instead of as an empty panel.
+  review threads one resolved, comments with awards, four commits, four files; 8 draft; 9 merged; 10 closed). Writes the
+  server makes (notes, replies, resolutions, awards, edits, approvals, reviewers, merge, close, reopen, draft, rebase) are
+  applied to `logs/glab-state.json`, since every call is a new process; a fresh scratch directory starts again. An unknown
+  call exits 97 and names its arguments on stderr, so a gap shows in the UI instead of as an empty panel.
 - `fakes/fake_gh.py`: only `--version`, `auth status --json hosts` and `auth token` for the fixture host. The server reads GitHub over HTTP, not through `gh`.
 - `fakes/fake_github_api.py`: the GitHub API (REST and GraphQL) for `acme/widgets`: #42 open with checks in every
   state (success, failure, in progress, skipped, neutral, queued, cancelled, two commit statuses), three review threads
   (open, resolved, outdated), comments and reviews with reactions, labels, reviewers including a team, four commits, four
-  changed files; #41 draft; #40 merged; #39 closed. It recognises GraphQL documents by reading
+  changed files; #41 draft; #40 merged; #39 closed. The writes the server makes (comments, replies, resolutions, reactions,
+  edits, reviews, reviewer requests, labels, viewed marks, merge, auto-merge, update branch, close, reopen, draft) change this
+  process's memory and show in the next read; a restart starts again. It recognises GraphQL documents by reading
   `crates/server/src/pull_request_queries.rs`. **It is idle unless the server was started with `--hook` (see Server hooks).**
 - `fakes/fake_refuse.py`, installed as `open`: records and refuses.
 

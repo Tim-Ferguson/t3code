@@ -11,7 +11,7 @@ use super::diff_tests::{until, wait_for_rendered_text};
 use super::fixture_server::Server;
 use super::keys_tests::key_on;
 use super::*;
-use crate::runtime::transport_tests::{change_control, click_control, control, control_attribute, input_control, rendered_text};
+use crate::runtime::transport_tests::{change_control, click_control, click_when_enabled, control, control_attribute, input_control, rendered_text};
 use std::path::Path;
 use support::{Harness, Registry, Releases, Route, archive, package, sha256_hex, start, write_executable};
 
@@ -342,14 +342,14 @@ async fn a_managed_runtime_installs_with_progress_cancels_retries_and_says_it_ca
     // The snapshot says plainly that this runtime cannot sign in or run sessions here.
     assert!(page.has("Install Codex"));
 
-    page.click("Install Codex");
+    click_when_enabled(&mut page.dom, "Install Codex").await;
     assert!(page.disabled("Install Codex"), "a second start waits for the answer");
     started.notified().await;
     until(&mut page.dom, "the download", |dom| rendered_text(dom).contains("Downloading ") && control(dom, "Codex download").is_some()).await;
     assert!(page.text().contains(" MB"), "{}", page.text());
     // Cancelling asks the server to stop the operation it is running, once.
     until(&mut page.dom, "cancel offered", |dom| rendered_text(dom).contains("Cancel installation")).await;
-    page.click("Cancel installation");
+    click_when_enabled(&mut page.dom, "Cancel installation").await;
     page.wait("Installation cancelled. The previous runtime is unchanged.").await;
     page.wait("Retry installation").await;
     assert!(!managed.join("0.156.1").exists());
@@ -357,7 +357,7 @@ async fn a_managed_runtime_installs_with_progress_cancels_retries_and_says_it_ca
 
     // Retrying on a host that now serves the whole archive installs it.
     releases.serve("/package.tgz", Route::Body(good.clone()));
-    page.click("Retry installation");
+    click_when_enabled(&mut page.dom, "Retry installation").await;
     page.wait("Managed by T3 Code \u{b7} v0.156.1.").await;
     assert!(managed.join("0.156.1").exists());
     assert!(page.has("Remove downloaded runtime") && page.has("Reinstall Codex"));
@@ -376,8 +376,7 @@ async fn removing_a_managed_runtime_asks_in_the_originals_words_and_escape_decli
     let token = harness.manager.clone();
     let mut page = Page::open(harness, &token, None).await;
     page.select("Codex").await;
-    until(&mut page.dom, "an install control", |dom| control(dom, "Install Codex").is_some()).await;
-    page.click("Install Codex");
+    click_when_enabled(&mut page.dom, "Install Codex").await;
     page.wait("Managed by T3 Code").await;
     page.click("Remove downloaded runtime");
     assert!(page.text().contains("Remove the downloaded Codex runtime from Fixture? Thread history is kept."), "{}", page.text());

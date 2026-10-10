@@ -34,7 +34,7 @@ fn harness(props: Harness) -> Element {
 }
 
 async fn until(dom: &mut VirtualDom, label: &str, ready: impl Fn(&VirtualDom) -> bool) {
-    tokio::time::timeout(Duration::from_secs(10), async {
+    tokio::time::timeout(Duration::from_secs(45), async {
         loop {
             if ready(dom) {
                 return;

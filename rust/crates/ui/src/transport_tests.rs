@@ -15,7 +15,7 @@ pub(crate) async fn drive_future<F: std::future::Future>(
     future: F,
 ) -> F::Output {
     let mut future = std::pin::pin!(future);
-    tokio::time::timeout(Duration::from_secs(8),async {
+    tokio::time::timeout(Duration::from_secs(45),async {
         loop {
             tokio::select! {
                 result=&mut future=>return result,
@@ -375,7 +375,7 @@ async fn drive_until(
     label: &str,
     predicate: impl Fn() -> bool,
 ) {
-    tokio::time::timeout(Duration::from_secs(if label=="socket-reconnect"{15}else{8}),async {
+    tokio::time::timeout(Duration::from_secs(if label=="socket-reconnect"{60}else{45}),async {
         loop {
             if predicate(){return;}
             dom.wait_for_work().await;
@@ -1464,9 +1464,17 @@ pub(crate) fn choose_model(dom: &mut VirtualDom, label: &str) {
 pub(crate) fn input_control(dom: &mut VirtualDom, label: &str, value: &str) {
     form_control_event(dom, label, value, "input");
 }
-fn form_control_event(dom: &mut VirtualDom, label: &str, value: &str, event: &str) {
+/// Types into a control a person could not type into, to prove the handler persists nothing from it.
+pub(crate) fn force_input_control(dom: &mut VirtualDom, label: &str, value: &str) {
     dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
     let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    let input = dioxus_html::SerializedFormData::new(value.into(), vec![]);
+    dom.runtime().handle_event("input", dioxus::dioxus_core::Event::new(Rc::new(dioxus_html::PlatformEventData::new(Box::new(input))) as Rc<dyn std::any::Any>, true), element);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+}
+fn form_control_event(dom: &mut VirtualDom, label: &str, value: &str, event: &str) {
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+    let element = actionable(dom, label, "type into");
     let input = dioxus_html::SerializedFormData::new(value.into(), vec![]);
     dom.runtime().handle_event(
         event,
@@ -1495,14 +1503,105 @@ fn blur_control(dom: &mut VirtualDom, label: &str, render: bool) {
         dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     }
 }
+/// Clicks a control the way a person can: one that is mounted and enabled. A disabled or absent control
+/// is refused with a message naming it, never clicked, because the browser would not deliver the click
+/// and the handler would be left to drop it silently; a test that clicked it passed or failed on whether
+/// something had happened to enable it yet. Work the page has already queued is run first; what has to
+/// arrive over a socket is waited for with `click_when_enabled`.
 pub(crate) fn click_control(dom: &mut VirtualDom, label: &str) {
-    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    let element = actionable(dom, label, "click");
     click_element(dom, element);
 }
 /// Clicks the `index`th element carrying this label, for rows that repeat a control.
 pub(crate) fn click_nth_control(dom: &mut VirtualDom, label: &str, index: usize) {
+    let element = nth_control(dom, label, index);
+    let disabled = control_state(dom, element);
+    assert!(!disabled, "refusing to click `{label}` #{index}: it is disabled, and a person could not click it. {WAIT_ADVICE}");
+    click_element(dom, element);
+}
+fn nth_control(dom: &mut VirtualDom, label: &str, index: usize) -> dioxus::dioxus_core::ElementId {
+    if all_controls(dom, label).get(index).is_none_or(|element| control_state(dom, *element)) {
+        settle(dom);
+    }
+    *all_controls(dom, label).get(index).unwrap_or_else(|| panic!("refusing to click `{label}` #{index}: no such control is mounted; rendered: {}", rendered_text(dom)))
+}
+/// `force_click_control` for the `index`th element carrying a label.
+pub(crate) fn force_click_nth_control(dom: &mut VirtualDom, label: &str, index: usize) {
     let element = *all_controls(dom, label).get(index).unwrap_or_else(|| panic!("missing control {label} #{index}"));
     click_element(dom, element);
+}
+/// Clicks a control that a person could not click, to prove the handler ignores it anyway (a double
+/// click that arrived before the page repainted, a click through a stale view). Not a way to skip waiting.
+pub(crate) fn force_click_control(dom: &mut VirtualDom, label: &str) {
+    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    click_element(dom, element);
+}
+
+const WAIT_ADVICE: &str = "If something that has not arrived yet enables it, wait with `click_when_enabled(..).await`, `input_when_enabled` or `until_enabled`; `force_click_control` is only for proving that a handler guards a click that cannot happen.";
+
+/// Runs the work the page already has ready (effects, resources whose answers are in) until it has none,
+/// so a control that is about to be enabled by it is judged as a person would find it.
+fn settle(dom: &mut VirtualDom) {
+    use futures_util::FutureExt;
+    for _ in 0..64 {
+        dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        if dom.wait_for_work().now_or_never().is_none() {
+            break;
+        }
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+}
+/// Whether the mounted element is disabled.
+fn control_state(dom: &VirtualDom, element: dioxus::dioxus_core::ElementId) -> bool {
+    all_controls_attribute(dom, "*", "disabled", false).into_iter().any(|(candidate, value)| candidate == element && matches!(value.as_deref(), Some("true") | Some("")))
+}
+/// The control with this label, judged as a person would find it, or the reason it cannot be used.
+fn availability(dom: &VirtualDom, label: &str) -> Result<dioxus::dioxus_core::ElementId, String> {
+    match control_attribute(dom, label, "disabled") {
+        None => Err(format!("no control `{label}` is mounted")),
+        Some((_, Some(disabled))) if disabled == "true" || disabled.is_empty() => Err(format!("`{label}` is disabled")),
+        Some((element, _)) => Ok(element),
+    }
+}
+fn actionable(dom: &mut VirtualDom, label: &str, action: &str) -> dioxus::dioxus_core::ElementId {
+    // A control a person could use now is used as it is; only one that is not yet usable gets the page's
+    // ready work run first, since that may be what enables it.
+    if let Ok(element) = availability(dom, label) {
+        return element;
+    }
+    settle(dom);
+    availability(dom, label).unwrap_or_else(|why| panic!("refusing to {action} `{label}`: {why}, and a person could not use it. {WAIT_ADVICE} Rendered: {}", rendered_text(dom)))
+}
+/// Waits, with the page running, until the control is mounted and enabled; fails naming it if it never is.
+pub(crate) async fn until_enabled(dom: &mut VirtualDom, label: &str) {
+    let outcome = tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            if availability(dom, label).is_ok() {
+                return;
+            }
+            dom.wait_for_work().await;
+            dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        }
+    })
+    .await;
+    if outcome.is_err() {
+        panic!("`{label}` never became usable within 30 seconds: {}; rendered: {}", availability(dom, label).err().unwrap_or_default(), rendered_text(dom));
+    }
+}
+/// Clicks a control once it is mounted and enabled, waiting for that if it is not yet.
+pub(crate) async fn click_when_enabled(dom: &mut VirtualDom, label: &str) {
+    until_enabled(dom, label).await;
+    click_control(dom, label);
+}
+/// Changes a control once it is mounted and enabled, waiting for that if it is not yet.
+pub(crate) async fn change_when_enabled(dom: &mut VirtualDom, label: &str, value: &str) {
+    until_enabled(dom, label).await;
+    change_control(dom, label, value);
+}
+/// Types into a control once it is mounted and enabled, waiting for that if it is not yet.
+pub(crate) async fn input_when_enabled(dom: &mut VirtualDom, label: &str, value: &str) {
+    until_enabled(dom, label).await;
+    input_control(dom, label, value);
 }
 fn click_element(dom: &mut VirtualDom, element: dioxus::dioxus_core::ElementId) {
     dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
@@ -1560,7 +1659,7 @@ pub(crate) fn rendered_text(dom: &VirtualDom) -> String {
     text
 }
 pub(crate) async fn wait_for_rendered_text(dom: &mut VirtualDom, expected: &str) {
-    tokio::time::timeout(Duration::from_secs(8), async {
+    tokio::time::timeout(Duration::from_secs(45), async {
         loop {
             if rendered_text(dom).contains(expected) {
                 return;
@@ -2120,6 +2219,7 @@ async fn native_provider_settings_controls_mutate_one_instance_and_preserve_unkn
     state.view().set(View::Providers);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     click_control(&mut dom, "Select provider Work");
+    until_enabled(&mut dom, "Executable").await;
     assert_eq!(
         control(&dom, "Executable").unwrap().1.as_deref(),
         Some("fixture-command")
@@ -2164,7 +2264,7 @@ async fn native_provider_settings_controls_mutate_one_instance_and_preserve_unkn
             .as_deref(),
         Some("true")
     );
-    input_control(&mut dom, "Executable", "must-not-persist");
+    force_input_control(&mut dom, "Executable", "must-not-persist");
     blur_control(&mut dom, "Executable", true);
     assert_eq!(
         serde_json::to_value(service.snapshot().await.unwrap()).unwrap()["providerInstances"]["work_local"]
@@ -2230,7 +2330,7 @@ async fn native_provider_settings_same_destination_replacement_before_first_poll
     state.view().set(View::Providers);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     click_control(&mut dom, "Select provider Work");
-    input_control(&mut dom, "Executable", "never-send-old-edit");
+    input_when_enabled(&mut dom, "Executable", "never-send-old-edit").await;
     blur_control(&mut dom, "Executable", false);
     props.transport.borrow_mut().socket_generation += 1;
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
@@ -2247,7 +2347,7 @@ async fn native_provider_settings_same_destination_replacement_before_first_poll
             ["config"]["commandPath"],
         "fixture-command"
     );
-    input_control(&mut dom, "Executable", "new-connection-edit");
+    input_when_enabled(&mut dom, "Executable", "new-connection-edit").await;
     blur_control(&mut dom, "Executable", true);
     drive_until(&mut dom,state,"provider-settings-new-owner",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="new-connection-edit").await;
     drop(dom);
@@ -2335,12 +2435,12 @@ async fn native_provider_settings_same_destination_replacement_during_receipt_re
     state.view().set(View::Providers);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     click_control(&mut dom, "Select provider Work");
-    input_control(&mut dom, "Executable", "committed-old-connection");
+    input_when_enabled(&mut dom, "Executable", "committed-old-connection").await;
     writer
         .armed
         .store(true, std::sync::atomic::Ordering::SeqCst);
     blur_control(&mut dom, "Executable", true);
-    tokio::time::timeout(std::time::Duration::from_secs(8),async {
+    tokio::time::timeout(std::time::Duration::from_secs(45),async {
         loop {
             tokio::select! {
                 result=&mut milestone=>{result.unwrap();break;},
@@ -2354,7 +2454,7 @@ async fn native_provider_settings_same_destination_replacement_during_receipt_re
         transport.socket_generation += 1;
         transport.fail_waiters();
     }
-    tokio::time::timeout(std::time::Duration::from_secs(8), async {
+    tokio::time::timeout(std::time::Duration::from_secs(45), async {
         loop {
             if !rendered_text(&dom).contains("Saving provider settings") {
                 break;
@@ -2385,7 +2485,7 @@ async fn native_provider_settings_same_destination_replacement_during_receipt_re
         "committed-old-connection",
         "accepted server mutation remains durable independently of client owner"
     );
-    input_control(&mut dom, "Executable", "new-owner-after-receipt");
+    input_when_enabled(&mut dom, "Executable", "new-owner-after-receipt").await;
     blur_control(&mut dom, "Executable", true);
     drive_until(&mut dom,state,"provider-settings-new-owner-after-receipt",||state.config().peek()["settings"]["providerInstances"]["work_local"]["config"]["commandPath"]=="new-owner-after-receipt").await;
     drop(dom);

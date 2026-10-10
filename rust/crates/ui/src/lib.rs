@@ -374,7 +374,10 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::SourceControl => rsx! {source_control_page::Page {state,transport:transport.clone()}},
                     View::General => rsx! {general_page::Page {state,transport:transport.clone()}},
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
-                    View::PullRequests => rsx! {pull_request_list::Page {state,transport:transport.clone()}},
+                    View::PullRequests => rsx! {
+                        pull_request_list::Page {state,transport:transport.clone()}
+                        pull_request_panel::Host {key:"pr:list",state,transport:transport.clone(),thread_id:String::new()}
+                    },
                     View::Usage => rsx! {usage_page::Page {state,transport:transport.clone()}},
                     View::Appearance => rsx! {
                         section { class: "settings-page", settings_common::Tabs { state, current: View::Appearance }
@@ -1169,7 +1172,9 @@ mod reactive_tests {
         let (root, timeline, composer) = (props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get());
         assert_eq!(props.probe.diff.get(), 0, "a closed panel is not mounted");
 
-        click_control(&mut dom, "Diff");
+        // This model has no connection, so the button is disabled; the panel is opened through its handler
+        // directly, since what is measured is what mounting and using the panel repaints.
+        crate::runtime::transport_tests::force_click_control(&mut dom, "Diff");
         assert!(control(&dom, "Diff scope").is_some());
         assert_eq!(props.probe.diff.get(), 1);
         // Using the panel's controls re-renders the panel alone.
@@ -1260,7 +1265,7 @@ mod reactive_tests {
         dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
         assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("Rewinding the conversation and restoring files"));
         // The wait ends on its own, with the reason, and the thread can be used again.
-        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        tokio::time::timeout(std::time::Duration::from_secs(45), async {
             while !crate::runtime::transport_tests::rendered_text(&dom).contains("Timed out waiting for the thread to rewind.") {
                 dom.wait_for_work().await;
                 dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);

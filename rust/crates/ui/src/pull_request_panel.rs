@@ -526,8 +526,24 @@ fn Conversation(state: Store<UiModel>, transport: TransportHandle, reference: Re
                 Read::Failed(message) => rsx! { p { class: "diff-error", role: "alert", "{message}" } },
                 Read::Ready(value) => {
                     let comments = value["comments"].as_array().cloned().unwrap_or_default();
+                    let commits = value["commits"].as_array().cloned().unwrap_or_default();
                     let total = comments.len();
                     rsx! {
+                        if !commits.is_empty() {
+                            details { class: "pr-commits", open: true,
+                                summary { "{commits.len()} " if commits.len() == 1 { "commit" } else { "commits" } }
+                                ol { class: "pr-commit-list", "aria-label": "Commits",
+                                    for commit in commits.iter() {
+                                        li { key: "{commit[\"oid\"].as_str().unwrap_or_default()}", class: "pr-commit",
+                                            code { "{pr::short_oid(commit[\"oid\"].as_str().unwrap_or_default())}" }
+                                            span { class: "pr-commit-title", "{commit[\"messageHeadline\"].as_str().unwrap_or_default()}" }
+                                            if commit["additions"].is_u64() || commit["deletions"].is_u64() { span { class: "muted", "+{commit[\"additions\"].as_u64().unwrap_or(0)} \u{2212}{commit[\"deletions\"].as_u64().unwrap_or(0)}" } }
+                                            span { class: "muted", title: "{commit[\"committedDate\"].as_str().unwrap_or_default()}", "{crate::pull_request_review::when(commit[\"committedDate\"].as_str().unwrap_or_default())}" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if comments.is_empty() { p { class: "muted", "No comments yet." } }
                         ol { class: "pr-comments",
                             for item in comments.into_iter().take(shown) {
@@ -536,12 +552,13 @@ fn Conversation(state: Store<UiModel>, transport: TransportHandle, reference: Re
                                     let author = item["author"]["login"].as_str().unwrap_or("ghost").to_owned();
                                     let at = item["createdAt"].as_str().unwrap_or_default().to_owned();
                                     let kind = item["kind"].as_str().unwrap_or_default().to_owned();
+                                    let verb = pr::comment_verb(&kind, item["reviewState"].as_str(), item["path"].as_str());
                                     let body = item["body"].as_str().unwrap_or_default().to_owned();
                                     let can_edit = t3_client::pull_request_edit::can_edit_comment(&detail, &item);
                                     let reactions = item["reactions"].as_array().cloned().unwrap_or_default();
                                     rsx! {
                                         li { key: "{id}", class: "pr-comment",
-                                            div { class: "pr-comment-head", strong { "{author}" } span { class: "muted", "{at}" } span { class: "muted", "{kind}" } }
+                                            div { class: "pr-comment-head", strong { "{author}" } span { class: "muted", "{verb}" } span { class: "muted", title: "{at}", "{crate::pull_request_review::when(&at)}" } }
                                             crate::pull_request_edit::CommentEdit { id: id.clone(), kind: kind.clone(), body: body.clone(), can_edit, writable,
                                                 if !body.trim().is_empty() { Markdown { text: body.clone() } } }
                                             crate::pull_request_edit::Reactions { state, transport: transport.clone(), reference: reference.clone(), reactions, subject: Some(id.clone()), can_react: detail["capabilities"]["reactions"] == true, writable, on_changed }

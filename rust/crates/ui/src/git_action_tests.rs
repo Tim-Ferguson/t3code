@@ -251,17 +251,20 @@ async fn streaming_hook_output_repaints_only_the_git_control() {
     fixture.write("widget.txt", "one\n");
     hook(&fixture.workspace.join(".git/hooks"), "pre-commit", &format!("echo 'lint started'\necho 'lint second line'\nwhile [ ! -f '{}' ]; do sleep 0.05; done\necho 'lint done'", gate.display()));
     wait_for_rendered_text(&mut dom, "\u{25cf} 1").await;
-    let before = super::diff_tests::repaints(state, &probe);
     click_control(&mut dom, "Git action options");
     click_control(&mut dom, "Commit");
     until(&mut dom, "the dialog", |dom| control(dom, "Commit message").is_some()).await;
     input_control(&mut dom, "Commit message", "Add widget");
     click_control(&mut dom, "Commit");
-    // Both lines of output arrive while the hook is still running.
+    // What is measured is the output arriving while the hook runs: from its first line to its second. The
+    // start of the run and its end (the result, the status that follows it) repaint what they must, at
+    // moments that depend on how busy the machine is, so they are not part of the measure.
+    wait_for_rendered_text(&mut dom, "lint started").await;
+    let before = super::diff_tests::repaints(state, &probe);
     wait_for_rendered_text(&mut dom, "lint second line").await;
+    let after = super::diff_tests::repaints(state, &probe);
     std::fs::write(&gate, "go").unwrap();
     until(&mut dom, "the result", |dom| control(dom, "Dismiss notice").is_some()).await;
-    let after = super::diff_tests::repaints(state, &probe);
     // The application (and so the sidebar), the conversation and the composer are not built again.
     assert_eq!(after.0, before.0, "hook output streaming: app, conversation and composer repaints");
     assert_eq!(error(state), None);

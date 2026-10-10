@@ -3559,19 +3559,45 @@ html[data-theme-token-probe] *::after {
 .pr-picker-menu {
   position: absolute;
   z-index: 30;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
   min-width: 16rem;
   max-height: 18rem;
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  padding: 0.5rem;
-  border: 1px solid var(--border, #444);
-  border-radius: 0.5rem;
-  background: var(--surface-raised, #222);
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+.pr-picker-menu input[type="search"] {
+  margin-bottom: 4px;
+  padding: 4px 8px;
 }
 .pr-picker-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border-color: transparent;
+  background: transparent;
   text-align: left;
+}
+.pr-picker-menu button:hover:not([aria-disabled="true"]),
+.pr-picker-menu button:focus-visible {
+  background: var(--accent);
+}
+.pr-picker-menu button[aria-checked="true"] {
+  font-weight: 600;
+}
+.pr-picker-menu button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
 }
 @media (max-width: 640px) {
   .pr-picker-menu {
@@ -6510,4 +6536,90 @@ body.sidebar-dragging {
     padding: 6px 10px;
     text-align: left;
   }
+}
+
+/* The pull request panel reads at the density of the diff beside it, not the page's body size. */
+.pr-panel {
+  font-size: 0.8125rem;
+}
+.pr-panel button,
+.pr-panel select {
+  padding: 3px 9px;
+}
+.pr-panel .pr-merge button {
+  padding: 4px 10px;
+}
+.pr-panel .pr-picker {
+  margin-bottom: 4px;
+}
+.pr-people {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.pr-people .pr-meta {
+  margin: 4px 0 0;
+}
+.pr-reviewer {
+  display: inline-block;
+  margin-right: 6px;
+}
+.pr-comment {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pr-comment:last-child {
+  border-bottom: none;
+}
+.pr-comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.pr-commits summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.pr-commit-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.pr-commit {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  min-width: 0;
+}
+.pr-commit code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.pr-commit-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pr-list-title {
+  display: inline;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+}
+.pr-list-title:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
+.pr-list-row:has(.pr-list-title[aria-pressed="true"]) {
+  border-color: var(--primary);
 }

@@ -12,7 +12,7 @@ use super::fake_github::{Gate as Hold, Github, kind_of};
 use super::source_control_tests::world;
 use super::*;
 use crate::diff_panel::Gate;
-use crate::runtime::transport_tests::{change_control, click_control, control, control_attribute, input_control};
+use crate::runtime::transport_tests::{change_control, click_control, click_when_enabled, control, control_attribute, force_click_control, input_control};
 use t3_client::pull_request::Reference;
 
 const WRITER: [AuthEnvironmentScope; 3] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::SourceControlWrite];
@@ -125,6 +125,11 @@ async fn the_badge_the_overview_the_checks_and_the_conversation_come_from_the_ho
     wait_for_rendered_text(&mut app.dom, "first remark").await;
     assert_eq!(app.asked("activity"), 1);
     assert!(rendered_text(&app.dom).contains("bob"));
+    // The commits come first, each with its short id; an entry says what its author did, and when, not a wire name.
+    let text = rendered_text(&app.dom);
+    assert!(text.contains("1 commit") && text.contains("c1") && text.contains("one"), "{text}");
+    assert!(text.contains("commented") && !text.contains("issue-comment"), "{text}");
+    assert!(text.contains("ago"), "times read relative: {text}");
     assert_eq!(error(app.state), None);
     }).await;
 }
@@ -218,9 +223,9 @@ async fn a_merge_asks_first_is_sent_once_and_its_control_waits_for_the_servers_a
     wait_for_rendered_text(&mut app.dom, "Working on merge").await;
     assert!(disabled(&app.dom, "Merge"), "disabled while in flight");
     // A second try while the first is in flight asks again but cannot send.
-    click_control(&mut app.dom, "Merge");
+    force_click_control(&mut app.dom, "Merge");
     assert!(disabled(&app.dom, "Confirm Merge"));
-    click_control(&mut app.dom, "Confirm Merge");
+    force_click_control(&mut app.dom, "Confirm Merge");
     gate.release();
     wait_for_rendered_text(&mut app.dom, "This pull request was merged.").await;
     assert_eq!(app.asked("merge"), 1, "the host was asked to merge exactly once");
@@ -236,7 +241,7 @@ async fn a_double_click_on_an_action_that_runs_at_once_sends_it_once() {
     let gate = app.github.hold_writes();
     click_control(&mut app.dom, "Convert to draft");
     wait_for_rendered_text(&mut app.dom, "Working on draft").await;
-    click_control(&mut app.dom, "Convert to draft");
+    force_click_control(&mut app.dom, "Convert to draft");
     gate.release();
     wait_for_rendered_text(&mut app.dom, "This pull request is a draft.").await;
     assert_eq!(app.asked("draft"), 1);
@@ -395,10 +400,17 @@ async fn the_reviewer_and_label_menus_read_fresh_each_time_and_each_change_is_se
         until(&mut app.dom, "the people again", |dom| control(dom, "carol").is_some()).await;
         assert_eq!(app.asked("reviewerCandidates"), 2, "read again at the next opening");
         click_control(&mut app.dom, "carol");
+        // Rows are never `disabled` while the change is in flight: a disabled button drops the focus, and
+        // with it the Escape key that closes the menu.
+        assert_ne!(control_attribute(&app.dom, "carol", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
         wait_for_rendered_text(&mut app.dom, "Review requested from carol").await;
         let posted: Vec<_> = world().asked().into_iter().filter(|asked| asked.method == "POST" && asked.path.ends_with("/pulls/20/requested_reviewers")).collect();
         assert_eq!(posted.len(), 1);
         assert_eq!(posted[0].body.clone().unwrap()["reviewers"], json!(["carol"]));
+        // A click anywhere else closes the menu.
+        assert!(control(&app.dom, "carol").is_some());
+        click_control(&mut app.dom, "Close Request a review menu");
+        assert!(control(&app.dom, "carol").is_none(), "a click outside closes the menu");
         click_control(&mut app.dom, "Change labels");
         until(&mut app.dom, "the labels", |dom| control(dom, "docs").is_some()).await;
         click_control(&mut app.dom, "docs");
@@ -441,7 +453,7 @@ async fn a_reaction_shows_at_once_is_pressed_once_and_is_what_the_host_then_says
         // The pill is there before the host has said anything, and cannot be pressed again meanwhile.
         assert_eq!(pressed(&app.dom, "thumbs up, 1"), Some(true));
         assert!(disabled(&app.dom, "thumbs up, 1"));
-        click_control(&mut app.dom, "thumbs up, 1");
+        force_click_control(&mut app.dom, "thumbs up, 1");
         gate.release();
         until(&mut app.dom, "the host to have the reaction", |_| asked_count("react") == 1).await;
         until(&mut app.dom, "the pill to be pressable again", |dom| !disabled(dom, "thumbs up, 1")).await;
@@ -569,7 +581,7 @@ async fn a_pull_request_is_filed_under_the_thread_and_taken_out_from_its_panel()
         assert_eq!((link["host"].as_str(), link["repository"].as_str(), link["number"].as_u64(), link["source"].as_str()), (Some("github.com"), Some("acme/web"), Some(40), Some("manual")));
         // The panel's pull request is also the branch's: the badge already offers it, not a second button.
         assert!(control(&app.dom, "Linked pull request #40").is_none());
-        click_control(&mut app.dom, "Unlink from this thread");
+        click_when_enabled(&mut app.dom, "Unlink from this thread").await;
         until(&mut app.dom, "the link gone", |dom| control(dom, "Link to this thread").is_some()).await;
         assert_eq!(thread_links(app.state), 0);
         assert_eq!(error(app.state), None);
@@ -608,9 +620,19 @@ async fn the_list_comes_from_the_hosts_shows_their_sizes_and_the_threads_filed_u
         wait_for_rendered_text(&mut app.dom, "+5 \u{2212}1").await;
         assert_eq!((app.asked("search"), app.asked("stats")), (1, 1));
         assert!(rendered_text(&app.dom).contains("Fix it") && rendered_text(&app.dom).contains("bug"));
+        // Opening the row shows the pull request beside the list, belonging to no thread; leaving the page takes it away.
+        app.state.pr_panel().set(None);
+        click_control(&mut app.dom, "Open pull request #50");
+        until(&mut app.dom, "the panel beside the list", |dom| control(dom, "Pull request panel").is_some() && rendered_text(dom).contains("Please")).await;
+        assert!(app.state.peek().pr_panel.as_ref().is_some_and(|target| target.reference.number == 50 && target.thread_id.is_empty()));
+        assert_eq!(control_attribute(&app.dom, "Open pull request #50", "aria-pressed").and_then(|(_, value)| value).as_deref(), Some("true"), "the row says which pull request is open");
+        app.state.view().set(View::Chat);
+        until(&mut app.dom, "the panel gone with the page", |_| app.state.peek().pr_panel.is_none()).await;
+        app.state.view().set(View::PullRequests);
+        wait_for_rendered_text(&mut app.dom, "#50").await;
         // Who it is filed under is read when asked for, and opens that thread.
         assert_eq!(world().asked().iter().filter(|asked| asked.path.contains("linkedThreads")).count(), 0);
-        click_control(&mut app.dom, "Linked threads of pull request #50");
+        click_when_enabled(&mut app.dom, "Linked threads of pull request #50").await;
         until(&mut app.dom, "the threads", |dom| control(dom, "Open thread thread-a").is_some()).await;
         click_control(&mut app.dom, "Open thread thread-a");
         until(&mut app.dom, "the thread", |_| app.state.peek().active_thread.as_deref() == Some("thread-a") && app.state.peek().view == View::Chat).await;

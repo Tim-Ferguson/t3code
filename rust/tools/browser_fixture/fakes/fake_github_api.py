@@ -10,18 +10,22 @@ crates/server/src/pull_request_queries.rs are read at start, so an answer is cho
 really sends and not by a guess about it. The answers are built from the shapes the test suite's own GitHub
 (crates/server/tests/pull_request_flow.rs) is known to decode.
 
-The data is a read-only picture of acme/widgets: #42 open on feature/pr-panel-demo (checks in every state, two
+The data is a picture of acme/widgets: #42 open on feature/pr-panel-demo (checks in every state, two
 review threads, comments with reactions, labels, reviewers, four commits, four changed files), #41 a draft, #40
-merged, #39 closed. Writes (mutations, POST/PUT/PATCH/DELETE) are answered with an error that says so.
+merged, #39 closed. The writes the server makes are applied to this process's memory, so the panel can be driven
+through merge, close, reopen, draft, auto-merge, update branch, comments, replies, resolutions, reactions, edits,
+reviews, reviewer requests, labels and viewed marks; a restart starts again from the picture above.
 Anything not handled is answered 501 naming the request, and every request is appended to $T3_FIXTURE_CALL_LOG.
 """
 import json
 import os
 import re
+import itertools
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
@@ -73,6 +77,45 @@ PULLS = {
 }
 
 
+BODY = "Retries failed calls with exponential backoff.\n\n- adds `retry()`\n- raises the default timeout\n- renames the usage doc\n\nCloses #12."
+for _number, _p in PULLS.items():
+    _p["body"] = BODY if _number == 42 else "Created by the browser fixture."
+    _p["auto"] = None
+    _p["behind"] = 2 if _number == 42 else 0
+LOCK = threading.RLock()
+SEQ = itertools.count(100)
+NOW = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+HEAD_OID = "e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b"
+LABELS = [("bug", "d73a4a"), ("enhancement", "a2eeef"), ("refactor", "0e8a16"), ("wontfix", "ffffff"), ("documentation", "0075ca"), ("good first issue", "7057ff")]
+USERS = ["alice", "bob", "carol", "dana", "erin"]
+VIEWED = {"src/config.ts": True}
+# subject id -> content -> people; the viewer is ME
+REACTIONS = {
+    "PR_42": {"ROCKET": ["dana"], "HOORAY": [ME, "bob"]},
+    "IC_1": {"THUMBS_UP": ["alice"]},
+    "RC_1": {"THUMBS_UP": [ME, "dana"], "EYES": ["alice"]},
+    "RC_3": {"HEART": ["alice"]},
+}
+ISSUE_COMMENTS = [
+    {"id": "IC_1", "body": "This looks good overall. Can we get a test for the timeout?", "createdAt": "2026-09-21T09:00:00Z", "lastEditedAt": None, "author": "bob"},
+    {"id": "IC_2", "body": "Added in the next push. Also see **the retry docs**:\n\n```ts\nawait retry(() => fetchItem(id), 5);\n```", "createdAt": "2026-09-21T10:00:00Z", "lastEditedAt": "2026-09-21T10:05:00Z", "author": "alice"},
+    {"id": "IC_3", "body": "Why five attempts and not three?", "createdAt": "2026-09-22T11:00:00Z", "lastEditedAt": None, "author": "dana"},
+]
+REVIEWS = [
+    {"id": "R_1", "body": "Needs a test for the timeout path.", "state": "CHANGES_REQUESTED", "submittedAt": "2026-09-21T09:10:00Z", "lastEditedAt": None, "author": "bob"},
+    {"id": "R_2", "body": "", "state": "COMMENTED", "submittedAt": "2026-09-22T11:05:00Z", "lastEditedAt": None, "author": "dana"},
+]
+THREADS = [
+    {"id": "T_1", "resolved": False, "outdated": False, "path": "src/retry.ts", "line": 3, "side": "RIGHT", "comments": [
+        {"id": "RC_1", "author": "bob", "body": "Rename this to `retryWithBackoff`.", "createdAt": "2026-09-21T09:05:00Z", "lastEditedAt": None},
+        {"id": "RC_2", "author": "alice", "body": "Good point, done in the next push.", "createdAt": "2026-09-21T10:00:00Z", "lastEditedAt": None}]},
+    {"id": "T_2", "resolved": True, "outdated": False, "path": "src/config.ts", "line": 1, "side": "RIGHT", "comments": [
+        {"id": "RC_3", "author": "dana", "body": "Why 5 attempts and not 3?", "createdAt": "2026-09-22T11:00:00Z", "lastEditedAt": None}]},
+    {"id": "T_3", "resolved": False, "outdated": True, "path": "docs/usage.md", "line": 1, "side": "RIGHT", "comments": [
+        {"id": "RC_4", "author": "bob", "body": "This line moved with the rename.", "createdAt": "2026-09-21T09:20:00Z", "lastEditedAt": None}]},
+]
+
+
 def pull(number):
     return PULLS.get(number) or PULLS[42]
 
@@ -102,20 +145,20 @@ def reviewer_nodes(number):
     nodes = []
     for login in pull(number)["reviewers"]:
         nodes.append({"requestedReviewer": {"login": login, "name": login.capitalize(), "avatarUrl": None}})
-    if number == 42:
-        nodes.append({"requestedReviewer": {"slug": "platform", "name": "Platform team"}})
+    for slug in pull(number).get("teams", ["platform"] if number == 42 else []):
+        nodes.append({"requestedReviewer": {"slug": slug, "name": slug.capitalize() + " team"}})
     return nodes
 
 
 def core(number):
     p = pull(number)
     return {"data": {"repository": {"mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True, "viewerPermission": "WRITE", "pullRequest": {
-        "number": number, "title": p["title"], "url": url(number), "body": "Retries failed calls with exponential backoff.\n\n- adds `retry()`\n- raises the default timeout\n- renames the usage doc\n\nCloses #12.",
+        "number": number, "title": p["title"], "url": url(number), "body": p["body"],
         "state": p["state"], "isDraft": p["draft"], "mergeable": "MERGEABLE" if p["state"] == "OPEN" else "UNKNOWN", "reviewDecision": p["decision"],
         "additions": p["additions"], "deletions": p["deletions"], "changedFiles": p["files"], "createdAt": p["created"], "updatedAt": p["updated"],
         "mergedAt": p.get("merged"), "closedAt": p.get("closed"), "headRefName": p["head"], "baseRefName": "main", "headRefOid": "e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b",
-        "isCrossRepository": False, "headRepositoryOwner": {"login": "acme"}, "author": actor(p["author"]), "autoMergeRequest": None,
-        "viewerCanUpdate": True, "viewerDidAuthor": False, "viewerCanUpdateBranch": True, "baseRef": {"compare": {"behindBy": 2 if number == 42 else 0}},
+        "isCrossRepository": False, "headRepositoryOwner": {"login": "acme"}, "author": actor(p["author"]), "autoMergeRequest": ({"mergeMethod": p["auto"]} if p["auto"] else None),
+        "viewerCanUpdate": True, "viewerDidAuthor": False, "viewerCanUpdateBranch": True, "baseRef": {"compare": {"behindBy": p["behind"]}},
         "reviewRequests": {"nodes": reviewer_nodes(number)}, "labels": {"nodes": [{"name": n, "color": c} for n, c in p["labels"]]},
         "commits": {"nodes": [{"commit": {"statusCheckRollup": {"contexts": {"nodes": [dict(c, isRequired=c.get("name") in ("build", "unit tests")) for c in checks_for(number)], "pageInfo": {"hasNextPage": False}}} if checks_for(number) else None}}]},
     }}}}
@@ -139,51 +182,43 @@ def preview(number):
     return {"data": {"repository": {"pullRequest": {"number": number, "title": p["title"], "url": url(number), "state": p["state"], "isDraft": p["draft"], "createdAt": p["created"], "author": actor(p["author"])}}}}
 
 
+COMMITS = [("e4d3c2b1a0", "Remove the legacy module", 1, 9), ("d3c2b1a0f9", "Rename the usage doc and describe retries", 3, 1), ("c2b1a0f9e8", "Add a retry helper", 12, 0), ("b1a0f9e8d7", "Retry with exponential backoff", 1, 1)]
+
+
 def activity():
-    comments = [
-        {"id": "IC_1", "body": "This looks good overall. Can we get a test for the timeout?", "createdAt": "2026-09-21T09:00:00Z", "lastEditedAt": None, "url": url(42) + "#issuecomment-1", "author": actor("bob")},
-        {"id": "IC_2", "body": "Added in the next push. Also see **the retry docs**:\n\n```ts\nawait retry(() => fetchItem(id), 5);\n```", "createdAt": "2026-09-21T10:00:00Z", "lastEditedAt": "2026-09-21T10:05:00Z", "url": url(42) + "#issuecomment-2", "author": actor("alice")},
-        {"id": "IC_3", "body": "Why five attempts and not three?", "createdAt": "2026-09-22T11:00:00Z", "lastEditedAt": None, "url": url(42) + "#issuecomment-3", "author": actor("dana")},
-    ]
-    reviews = [
-        {"id": "R_1", "body": "Needs a test for the timeout path.", "state": "CHANGES_REQUESTED", "submittedAt": "2026-09-21T09:10:00Z", "lastEditedAt": None, "url": url(42) + "#pullrequestreview-1", "author": actor("bob")},
-        {"id": "R_2", "body": "", "state": "COMMENTED", "submittedAt": "2026-09-22T11:05:00Z", "lastEditedAt": None, "url": url(42) + "#pullrequestreview-2", "author": actor("dana")},
-    ]
-    commits = [("e4d3c2b1a0", "Remove the legacy module"), ("d3c2b1a0f9", "Rename the usage doc and describe retries"), ("c2b1a0f9e8", "Add a retry helper"), ("b1a0f9e8d7", "Retry with exponential backoff")]
+    comments = [dict(c, url=url(42) + "#issuecomment-" + c["id"], author=actor(c["author"])) for c in ISSUE_COMMENTS]
+    reviews = [dict(r, url=url(42) + "#pullrequestreview-" + r["id"], author=actor(r["author"])) for r in REVIEWS]
     return {"data": {"repository": {"pullRequest": {"author": actor("alice"),
-        "commits": {"nodes": [{"commit": {"oid": oid, "messageHeadline": title, "committedDate": "2026-09-2%dT09:0%d:00Z" % (index, index), "authors": {"nodes": [{"name": "Alice", "email": "alice@example.invalid", "user": {"login": "alice"}}]}}} for index, (oid, title) in enumerate(reversed(commits))]},
+        "commits": {"nodes": [{"commit": {"oid": oid, "messageHeadline": title, "committedDate": "2026-09-2%dT09:0%d:00Z" % (index, index), "authors": {"nodes": [{"name": "Alice", "email": "alice@example.invalid", "user": {"login": "alice"}}]}}} for index, (oid, title, _a, _d) in enumerate(reversed(COMMITS))]},
         "comments": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": comments},
         "reviews": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": reviews}}}}}
 
 
-def reactions(*pairs):
-    return [{"content": content, "viewerHasReacted": viewer, "reactors": {"totalCount": len(people), "nodes": [{"login": login} for login in people]}} for content, viewer, people in pairs]
+def reactions(subject):
+    held = REACTIONS.get(subject, {})
+    return [{"content": content, "viewerHasReacted": ME in people, "reactors": {"totalCount": len(people), "nodes": [{"login": login} for login in people]}} for content, people in held.items() if people]
 
 
 def threads():
-    thread = lambda identifier, resolved, outdated, path, line, comments: {"id": identifier, "isResolved": resolved, "isOutdated": outdated, "path": path, "line": line, "diffSide": "RIGHT",
-        "comments": {"totalCount": len(comments), "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": comments}}
-    comment = lambda identifier, login, body, at, groups=(): {"id": identifier, "author": actor(login), "body": body, "createdAt": at, "url": url(42) + "#discussion_" + identifier, "reactionGroups": list(groups)}
-    nodes = [
-        thread("T_1", False, False, "src/retry.ts", 3, [
-            comment("RC_1", "bob", "Rename this to `retryWithBackoff`.", "2026-09-21T09:05:00Z", reactions(("THUMBS_UP", True, [ME, "dana"]), ("EYES", False, ["alice"]))),
-            comment("RC_2", "alice", "Good point, done in the next push.", "2026-09-21T10:00:00Z")]),
-        thread("T_2", True, False, "src/config.ts", 1, [comment("RC_3", "dana", "Why 5 attempts and not 3?", "2026-09-22T11:00:00Z", reactions(("HEART", False, ["alice"])))]),
-        thread("T_3", False, True, "docs/usage.md", 1, [comment("RC_4", "bob", "This line moved with the rename.", "2026-09-21T09:20:00Z")]),
-    ]
+    def thread(t):
+        comments = [{"id": c["id"], "author": actor(c["author"]), "body": c["body"], "createdAt": c["createdAt"], "lastEditedAt": c["lastEditedAt"], "url": url(42) + "#discussion_" + c["id"], "reactionGroups": reactions(c["id"])} for c in t["comments"]]
+        return {"id": t["id"], "isResolved": t["resolved"], "isOutdated": t["outdated"], "path": t["path"], "line": t["line"], "diffSide": t["side"],
+                "comments": {"totalCount": len(comments), "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": comments}}
+    nodes = [thread(t) for t in THREADS]
+    latest = {}
+    for r in REVIEWS:
+        latest[r["author"]] = r
     return {"data": {"viewer": {"login": ME}, "repository": {"pullRequest": {
         "reviewThreads": {"totalCount": len(nodes), "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": nodes},
         "viewerCanUpdate": True, "viewerDidAuthor": False, "author": actor("alice"),
-        "reactionGroups": reactions(("ROCKET", False, ["dana"]), ("HOORAY", True, [ME, "bob"])),
-        "comments": {"nodes": [{"id": "IC_1", "lastEditedAt": None, "author": actor("bob"), "reactionGroups": reactions(("THUMBS_UP", False, ["alice"]))},
-                               {"id": "IC_2", "lastEditedAt": "2026-09-21T10:05:00Z", "author": actor("alice"), "reactionGroups": []},
-                               {"id": "IC_3", "lastEditedAt": None, "author": actor("dana"), "reactionGroups": []}]},
-        "reviews": {"nodes": [{"id": "R_1", "author": actor("bob"), "reactionGroups": []}, {"id": "R_2", "author": actor("dana"), "reactionGroups": []}]},
-        "reviewRequests": {"nodes": reviewer_nodes(42)}, "latestReviews": {"nodes": [{"id": "R_1", "state": "CHANGES_REQUESTED", "author": actor("bob")}]},
+        "reactionGroups": reactions("PR_42"),
+        "comments": {"nodes": [{"id": c["id"], "lastEditedAt": c["lastEditedAt"], "author": actor(c["author"]), "reactionGroups": reactions(c["id"])} for c in ISSUE_COMMENTS]},
+        "reviews": {"nodes": [{"id": r["id"], "author": actor(r["author"]), "reactionGroups": reactions(r["id"])} for r in REVIEWS]},
+        "reviewRequests": {"nodes": reviewer_nodes(42)}, "latestReviews": {"nodes": [{"id": r["id"], "state": r["state"], "author": actor(r["author"])} for r in latest.values() if r["state"] != "COMMENTED"]},
         "reviewDismissals": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []},
         "commits": {"nodes": [{"commit": {"oid": oid, "messageHeadline": title, "committedDate": "2026-09-2%dT09:0%d:00Z" % (index, index), "additions": add, "deletions": delete, "parents": {"totalCount": 1},
                                           "authors": {"nodes": [{"name": "Alice", "avatarUrl": None, "user": {"login": "alice"}}]}}}
-                             for index, (oid, title, add, delete) in enumerate([("b1a0f9e8d7", "Retry with exponential backoff", 1, 1), ("c2b1a0f9e8", "Add a retry helper", 12, 0), ("d3c2b1a0f9", "Rename the usage doc and describe retries", 3, 1), ("e4d3c2b1a0", "Remove the legacy module", 1, 9)])]},
+                             for index, (oid, title, add, delete) in enumerate(reversed(COMMITS))]},
     }}}}
 
 
@@ -212,6 +247,126 @@ FILES = [
 DIFF = "".join("diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n%s\n" % (f.get("previous_filename", f["filename"]), f["filename"], f.get("previous_filename", f["filename"]), f["filename"], f["patch"]) for f in FILES)
 
 
+
+def find(items, identifier):
+    return next((item for item in items if item["id"] == identifier), None)
+
+
+def all_comments():
+    for thread in THREADS:
+        for comment in thread["comments"]:
+            yield comment
+
+
+def mutate(query, variables):
+    """Applies one mutation the server makes; returns the `data` of the answer, or an error string."""
+    inner = variables.get("input") or {}
+    node = variables.get("pullRequestId") or inner.get("pullRequestId") or "PR_42"
+    number = int(node[3:]) if node.startswith("PR_") and node[3:].isdigit() and int(node[3:]) in PULLS else 42
+    p = PULLS[number]
+    ok = {"clientMutationId": None}
+    if "addComment(" in query:
+        ISSUE_COMMENTS.append({"id": "IC_%d" % next(SEQ), "body": variables["body"], "createdAt": NOW(), "lastEditedAt": None, "author": ME})
+    elif "addPullRequestReviewThreadReply(" in query:
+        thread = find(THREADS, variables["threadId"])
+        if thread is None:
+            return "no review thread " + variables["threadId"]
+        thread["comments"].append({"id": "RC_%d" % next(SEQ), "author": ME, "body": variables["body"], "createdAt": NOW(), "lastEditedAt": None})
+    elif "addReaction(" in query or "removeReaction(" in query:
+        held = REACTIONS.setdefault(variables["subjectId"], {}).setdefault(variables["content"], [])
+        if "addReaction(" in query and ME not in held:
+            held.append(ME)
+        if "removeReaction(" in query and ME in held:
+            held.remove(ME)
+    elif "resolveReviewThread(" in query:
+        thread = find(THREADS, variables["threadId"])
+        if thread is None:
+            return "no review thread " + variables["threadId"]
+        thread["resolved"] = "unresolveReviewThread(" not in query
+    elif "updatePullRequest(" in query:
+        if variables.get("title") is not None:
+            p["title"] = variables["title"]
+        if variables.get("body") is not None:
+            p["body"] = variables["body"]
+    elif "updateIssueComment(" in query or "updatePullRequestReviewComment(" in query:
+        target = find(ISSUE_COMMENTS, variables["commentId"]) or find(list(all_comments()), variables["commentId"])
+        if target is None:
+            return "no comment " + variables["commentId"]
+        target["body"], target["lastEditedAt"] = variables["body"], NOW()
+    elif "mergePullRequest(" in query:
+        p["state"], p["merged"], p["auto"] = "MERGED", NOW(), None
+    elif "enablePullRequestAutoMerge(" in query:
+        p["auto"] = inner.get("mergeMethod", "MERGE")
+    elif "disablePullRequestAutoMerge(" in query:
+        p["auto"] = None
+    elif "updatePullRequestBranch(" in query:
+        p["behind"] = 0
+    elif "markPullRequestReadyForReview(" in query:
+        p["draft"] = False
+    elif "convertPullRequestToDraft(" in query:
+        p["draft"] = True
+    elif "closePullRequest(" in query:
+        p["state"], p["closed"], p["auto"] = "CLOSED", NOW(), None
+    elif "reopenPullRequest(" in query:
+        p["state"] = "OPEN"
+        p.pop("closed", None)
+    elif "markFileAsViewed(" in query or "unmarkFileAsViewed(" in query:
+        for index, name in enumerate(re.findall(r"f(\d+): (markFileAsViewed|unmarkFileAsViewed)", query)):
+            VIEWED[variables["path" + name[0]]] = name[1] == "markFileAsViewed"
+    else:
+        return "no mutation for " + query.strip().splitlines()[0][:100]
+    p["updated"] = NOW()
+    return {"x": ok}
+
+
+def rest_write(method, rest, body):
+    """The REST writes: reviews, reviewer requests and labels. Returns (status, json)."""
+    m = re.match(r"^repos/[^/]+/[^/]+/pulls/(\d+)/reviews$", rest)
+    if m and method == "POST":
+        event = body.get("event")
+        state = {"COMMENT": "COMMENTED", "APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED"}.get(event)
+        if state is None:
+            return 422, {"message": "bad review event %r" % event}
+        identifier = "R_%d" % next(SEQ)
+        REVIEWS.append({"id": identifier, "body": body.get("body") or "", "state": state, "submittedAt": NOW(), "lastEditedAt": None, "author": ME})
+        for comment in body.get("comments") or []:
+            THREADS.append({"id": "T_%d" % next(SEQ), "resolved": False, "outdated": False, "path": comment["path"], "line": comment["line"], "side": comment.get("side", "RIGHT"),
+                            "comments": [{"id": "RC_%d" % next(SEQ), "author": ME, "body": comment["body"], "createdAt": NOW(), "lastEditedAt": None}]})
+        if state != "COMMENTED":
+            PULLS[42]["decision"] = "APPROVED" if state == "APPROVED" else "CHANGES_REQUESTED"
+        return 200, {"id": 9000, "state": state}
+    m = re.match(r"^repos/[^/]+/[^/]+/pulls/(\d+)/requested_reviewers$", rest)
+    if m and method in ("POST", "DELETE"):
+        p = PULLS[int(m.group(1))] if int(m.group(1)) in PULLS else PULLS[42]
+        teams = p.setdefault("teams", ["platform"] if int(m.group(1)) == 42 else [])
+        for login in body.get("reviewers") or []:
+            if method == "POST" and login not in p["reviewers"]:
+                p["reviewers"].append(login)
+            if method == "DELETE" and login in p["reviewers"]:
+                p["reviewers"].remove(login)
+        for slug in body.get("team_reviewers") or []:
+            if method == "POST" and slug not in teams:
+                teams.append(slug)
+            if method == "DELETE" and slug in teams:
+                teams.remove(slug)
+        return 201 if method == "POST" else 200, {}
+    m = re.match(r"^repos/[^/]+/[^/]+/issues/(\d+)/labels(?:/(.*))?$", rest)
+    if m:
+        p = PULLS[int(m.group(1))] if int(m.group(1)) in PULLS else PULLS[42]
+        if method == "POST":
+            for name in body.get("labels") or []:
+                if name not in [n for n, _c in p["labels"]]:
+                    p["labels"].append((name, dict(LABELS).get(name, "cccccc")))
+        elif method == "DELETE" and m.group(2):
+            name = unquote(m.group(2))
+            p["labels"] = [(n, c) for n, c in p["labels"] if n != name]
+        return 200, []
+    m = re.match(r"^repos/[^/]+/[^/]+/actions/runs/(\d+)/approve$", rest)
+    if m:
+        return 201, {}
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -238,16 +393,46 @@ class Handler(BaseHTTPRequestHandler):
         parts = urlsplit(self.path)
         raw = self.body()
         log({"method": "POST", "path": self.path})
+        rest_match = re.match(r"^/rest/[^/]+/(.*)$", parts.path)
+        if rest_match:
+            try:
+                body = json.loads(raw) if raw.strip() else {}
+            except ValueError:
+                return self.unhandled("REST body is not JSON")
+            with LOCK:
+                done = rest_write("POST", rest_match.group(1), body)
+            return self.reply(*done) if done else self.unhandled("POST " + rest_match.group(1))
         if not parts.path.startswith("/graphql/"):
-            return self.reply(403, {"message": "browser fixture is read-only: POST %s" % parts.path})
+            return self.reply(403, {"message": "browser fixture does not handle POST %s" % parts.path})
         try:
             request = json.loads(raw)
         except ValueError:
             return self.unhandled("graphql body is not JSON")
         query, variables = request.get("query", ""), request.get("variables") or {}
-        if query.lstrip().startswith("mutation"):
-            return self.reply(200, {"data": None, "errors": [{"type": "FORBIDDEN", "message": "The browser fixture is read-only; it does not perform mutations."}]})
+        log({"method": "POST", "graphql": known(query) or query.strip().splitlines()[0][:70]})
         number = variables.get("number") or (int(m.group(1)) if (m := re.search(r"pullRequest\(number: (\d+)\)", query)) else 42)
+        if query.lstrip().startswith("mutation"):
+            with LOCK:
+                outcome = mutate(query, variables)
+            if isinstance(outcome, str):
+                log({"unhandled": outcome})
+                return self.reply(200, {"data": None, "errors": [{"type": "UNPROCESSABLE", "message": "browser fixture: " + outcome}]})
+            return self.reply(200, {"data": outcome})
+        if query.lstrip().startswith("query PullRequestActionState"):
+            p = pull(number)
+            return self.reply(200, {"data": {"repository": {"pullRequest": {"id": "PR_%d" % number, "headRefOid": HEAD_OID, "isMergeQueueEnabled": False,
+                "mergeStateStatus": "BLOCKED" if p["rollup"] == "FAILURE" else "CLEAN", "baseRef": {"compare": {"behindBy": p["behind"]}}}}}})
+        if known(query) == "PULL_REQUEST_NODE_ID_GRAPHQL_QUERY":
+            return self.reply(200, {"data": {"repository": {"pullRequest": {"id": "PR_%d" % number}}}})
+        if known(query) == "REACTION_SUBJECT_PULL_REQUEST_GRAPHQL_QUERY":
+            subject = variables.get("subjectId", "")
+            return self.reply(200, {"data": {"repository": {"pullRequest": {"id": "PR_%d" % number}}, "node": {"id": subject, "pullRequest": {"id": "PR_%d" % number}} if subject else None}})
+        if known(query) == "REVIEWER_CANDIDATES_GRAPHQL_QUERY":
+            return self.reply(200, {"data": {"repository": {"assignableUsers": {"pageInfo": {"hasNextPage": False}, "nodes": [{"login": u, "name": u.capitalize(), "avatarUrl": None} for u in USERS]},
+                "pullRequest": {"author": {"login": pull(number)["author"]}, "reviewRequests": {"nodes": reviewer_nodes(number)}}}}})
+        if known(query) == "LABEL_CANDIDATES_GRAPHQL_QUERY":
+            return self.reply(200, {"data": {"repository": {"labels": {"pageInfo": {"hasNextPage": False}, "nodes": [{"name": n, "color": c, "description": None} for n, c in LABELS]},
+                "pullRequest": {"labels": {"nodes": [{"name": n} for n, _c in pull(number)["labels"]]}}}}})
         name = known(query)
         if name in ("CORE_GITHUB_COM", "CORE_OTHER"):
             return self.reply(200, core(number))
@@ -262,7 +447,7 @@ class Handler(BaseHTTPRequestHandler):
         if name == "VIEWER_PERMISSIONS_GRAPHQL_QUERY":
             return self.reply(200, {"data": {"repository": {"mergeCommitAllowed": True, "squashMergeAllowed": True, "rebaseMergeAllowed": True, "viewerPermission": "WRITE", "pullRequest": {"viewerCanUpdate": True, "viewerDidAuthor": False}}}})
         if name == "PULL_REQUEST_FILES_VIEWED_GRAPHQL_QUERY":
-            return self.reply(200, {"data": {"repository": {"pullRequest": {"files": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": [{"path": f["filename"], "viewerViewedState": "VIEWED" if i == 0 else "UNVIEWED"} for i, f in enumerate(FILES)]}}}}})
+            return self.reply(200, {"data": {"repository": {"pullRequest": {"files": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": [{"path": f["filename"], "viewerViewedState": "VIEWED" if VIEWED.get(f["filename"]) else "UNVIEWED"} for i, f in enumerate(FILES)]}}}}})
         if name == "REVIEW_DISMISSALS_GRAPHQL_QUERY":
             return self.reply(200, {"data": {"repository": {"pullRequest": {"reviewDismissals": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}}}}})
         if name in ("SUMMARY_SINGLE", "SUMMARY_SINGLE_WITH_STACKS"):
@@ -309,9 +494,18 @@ class Handler(BaseHTTPRequestHandler):
         return self.unhandled("GET " + rest)
 
     def do_PUT(self):
-        self.body()
-        log({"method": "PUT", "path": self.path})
-        self.reply(403, {"message": "browser fixture is read-only: PUT %s" % self.path})
+        raw = self.body()
+        log({"method": self.command, "path": self.path})
+        rest_match = re.match(r"^/rest/[^/]+/(.*)$", urlsplit(self.path).path)
+        done = None
+        if rest_match:
+            try:
+                body = json.loads(raw) if raw.strip() else {}
+            except ValueError:
+                body = {}
+            with LOCK:
+                done = rest_write(self.command, rest_match.group(1), body)
+        self.reply(*done) if done else self.unhandled("%s %s" % (self.command, self.path))
 
     do_PATCH = do_DELETE = do_PUT
 

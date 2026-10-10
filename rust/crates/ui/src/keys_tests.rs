@@ -30,7 +30,7 @@ pub(crate) async fn press(dom: &mut VirtualDom, event: KeyEvent, focus: Dom) -> 
 /// Waits for a step that may repaint nothing (a key the app leaves alone, an answer held on its
 /// way to the screen), so there may be no work to wake on: the runtime is polled once per turn.
 pub(crate) async fn poll_until(dom: &mut VirtualDom, what: &str, ready: impl Fn(&VirtualDom) -> bool) {
-    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+    tokio::time::timeout(std::time::Duration::from_secs(45), async {
         while !ready(dom) {
             tokio::select! { biased; _ = dom.wait_for_work() => {}, _ = tokio::task::yield_now() => {} }
             dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);

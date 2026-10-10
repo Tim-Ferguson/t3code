@@ -779,8 +779,11 @@ fn OpenFile(path: String) -> Element {
     let busy = use_signal(|| false);
     let Some(last) = try_consume_context::<crate::open_in::Last>() else { return rsx! {} };
     let state = host.state;
-    let available = !crate::open_in::available(state).is_empty();
-    rsx! { button { class: "diff-file-open", r#type: "button", "aria-label": "Open {path} in editor", title: "Open in editor", disabled: !available || *busy.read(),
+    // A server that offers no editor has nothing to open the file in: no control, not a disabled one.
+    if crate::open_in::available(state).is_empty() {
+        return rsx! {};
+    }
+    rsx! { button { class: "diff-file-open", r#type: "button", "aria-label": "Open {path} in editor", title: "Open in editor", disabled: *busy.read(),
         onclick: move |_| {
             let (Some(root), Some(editor)) = (crate::open_in::thread_cwd(state), crate::open_in::favorite(state, last.0.peek().as_deref())) else { return };
             crate::open_in::open(&host.transport, state, busy, last.0, t3_client::file_links::editor_path(&t3_client::file_links::FileTarget { path: path.clone(), line: None, column: None }, &root), editor, false);

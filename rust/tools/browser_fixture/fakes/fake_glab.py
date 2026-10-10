@@ -3,8 +3,10 @@
 
 Never the real CLI, never the network. It answers `glab api ...` and `glab mr ...` calls from a fixed
 set of recorded-looking merge requests (an open one with a failed pipeline, review threads, comments
-with awards, several commits and files; a draft; a merged one; a closed one). It keeps no state, so a
-write (comment, merge, reaction, ...) is refused with a clear message instead of pretending to work.
+with awards, several commits and files; a draft; a merged one; a closed one). Writes (comment, reply,
+resolve, reaction, edit, approve, reviewers, merge, close, reopen, draft, rebase) are applied to a state file
+next to the call log ($T3_FIXTURE_CALL_LOG, glab-state.json), since every call is a new process; deleting the
+file, or a fresh scratch directory, starts again from the recorded picture.
 
 Any call it has no answer for exits 97 and names the arguments on stderr, so a gap shows up in the UI
 as an error rather than as an empty panel. Every call is appended to $T3_FIXTURE_CALL_LOG.
@@ -13,6 +15,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -69,7 +72,7 @@ def merge_request(number):
         "created_at": m["created_at"], "updated_at": m["updated_at"], "merged_at": m.get("merged_at"), "closed_at": m.get("closed_at"),
         "reviewers": m["reviewers"], "labels": m["labels"], "changes_count": str(m["changes"]),
         "head_pipeline": {"status": m["pipeline"], "web_url": "%s/-/pipelines/%d" % (WEB, 100 + number), "source": "merge_request_event"},
-        "user": {"can_merge": True}, "merge_when_pipeline_succeeds": False, "squash_on_merge": False, "diverged_commits_count": m["behind"],
+        "user": {"can_merge": True}, "merge_when_pipeline_succeeds": bool(m.get("auto")), "squash_on_merge": False, "diverged_commits_count": m["behind"],
         "diff_refs": {"base_sha": "b0b0b0b0", "head_sha": "a1a1a1a1", "start_sha": "c2c2c2c2"},
     }
 
@@ -80,9 +83,7 @@ def row(number):
             "state": m["state"], "draft": m["draft"], "updated_at": m["updated_at"], "merged_at": m.get("merged_at"), "closed_at": m.get("closed_at")}
 
 
-def notes(number):
-    if number != 7:
-        return []
+def default_notes():
     return [
         {"id": 11, "body": "Looks fine overall. Can we get a test for the timeout?", "author": BOB, "created_at": "2026-09-21T09:00:00.000Z", "system": False, "type": None},
         {"id": 12, "body": "Rename this to `retryWithBackoff`.", "author": BOB, "created_at": "2026-09-21T09:05:00.000Z", "system": False, "type": "DiffNote",
@@ -94,15 +95,55 @@ def notes(number):
     ]
 
 
-def discussions(number):
-    if number != 7:
-        return []
+def default_discussions():
     position = lambda path, line: {"position_type": "text", "new_path": path, "old_path": path, "new_line": line, "old_line": None}
     return [
         {"id": "d1", "notes": [{"id": 12, "body": "Rename this to `retryWithBackoff`.", "author": BOB, "created_at": "2026-09-21T09:05:00.000Z", "system": False, "resolvable": True, "resolved": False, "position": position("src/retry.ts", 1)},
                                {"id": 13, "body": "Good point, done in the next push.", "author": ALICE, "created_at": "2026-09-21T10:00:00.000Z", "system": False, "resolvable": True, "resolved": False, "position": position("src/retry.ts", 1)}]},
         {"id": "d2", "notes": [{"id": 15, "body": "Why 5 attempts and not 3?", "author": DANA, "created_at": "2026-09-22T11:00:00.000Z", "system": False, "resolvable": True, "resolved": True, "position": position("src/config.ts", 1)}]},
     ]
+
+
+STATE_FILE = os.path.join(os.path.dirname(os.environ.get("T3_FIXTURE_CALL_LOG") or os.path.join(tempfile.gettempdir(), "x")), "glab-state.json")
+NOTES = {7: default_notes()}
+DISCUSSIONS = {7: default_discussions()}
+AWARDS = {7: {"mr": [{"id": 1, "name": "tada", "username": "bob"}, {"id": 2, "name": "rocket", "username": "dana"}],
+              "12": [{"id": 3, "name": "thumbsup", "username": ME}, {"id": 4, "name": "thumbsup", "username": "bob"}],
+              "11": [{"id": 5, "name": "heart", "username": "alice"}]}}
+SEQ = [100]
+USERS = {u["id"]: u for u in (ALICE, BOB, CAROL, DANA)}
+
+
+def load_state():
+    try:
+        with open(STATE_FILE) as handle:
+            saved = json.load(handle)
+    except (OSError, ValueError):
+        return
+    for number, fields in saved["mrs"].items():
+        MERGE_REQUESTS[int(number)].update(fields)
+    for target, key in ((NOTES, "notes"), (DISCUSSIONS, "discussions"), (AWARDS, "awards")):
+        target.clear()
+        target.update({int(number): value for number, value in saved[key].items()})
+    SEQ[0] = saved["seq"]
+
+
+def save_state():
+    with open(STATE_FILE, "w") as handle:
+        json.dump({"mrs": {str(n): m for n, m in MERGE_REQUESTS.items()}, "notes": NOTES, "discussions": DISCUSSIONS, "awards": AWARDS, "seq": SEQ[0]}, handle)
+
+
+def next_id():
+    SEQ[0] += 1
+    return SEQ[0]
+
+
+def notes(number):
+    return NOTES.get(number, [])
+
+
+def discussions(number):
+    return DISCUSSIONS.get(number, [])
 
 
 def commits(number):
@@ -138,17 +179,102 @@ def graphql():
     query = body.get("query", "")
     if "awardEmoji" in query:
         number = int(body.get("variables", {}).get("iid", "7"))
-        reactions = {"data": {"currentUser": {"username": ME}, "project": {"mergeRequest": {
-            "awardEmoji": {"nodes": [award("tada", "bob"), award("rocket", "dana")] if number == 7 else []},
+        held = AWARDS.get(number, {})
+        nodes = lambda subject: {"nodes": [award(a["name"], a["username"]) for a in held.get(subject, [])]}
+        respond({"data": {"currentUser": {"username": ME}, "project": {"mergeRequest": {
+            "awardEmoji": nodes("mr"),
             "notes": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": [
-                {"id": "gid://gitlab/DiffNote/12", "awardEmoji": {"nodes": [award("thumbsup", ME), award("thumbsup", "bob")]}},
-                {"id": "gid://gitlab/Note/11", "awardEmoji": {"nodes": [award("heart", "alice")]}},
-            ] if number == 7 else []}}}}}
-        respond(reactions)
+                {"id": "gid://gitlab/Note/%s" % subject, "awardEmoji": nodes(subject)} for subject in held if subject != "mr"]}}}}})
     if "blobs" in query:
         paths = body.get("variables", {}).get("paths", [])
         respond({"data": {"project": {"repository": {"blobs": {"nodes": [{"path": path, "oid": "blob-" + re.sub(r"\W", "", path)} for path in paths]}}}}})
     refuse(97, "no answer for this graphql document")
+
+
+def body_json():
+    try:
+        return json.loads(stdin_text) if stdin_text.strip() else {}
+    except ValueError:
+        refuse(97, "write with a body that is not JSON")
+
+
+def add_note(number, text, **extra):
+    note = {"id": next_id(), "body": text, "author": CAROL, "created_at": now(), "system": False, "type": None}
+    note.update(extra)
+    NOTES.setdefault(number, []).append(note)
+    return note
+
+
+def now():
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+
+
+def write(method, endpoint):
+    """The merge request writes the server makes through `glab api`; answers {} and saves."""
+    parts = urlsplit(endpoint)
+    path, query = unquote(parts.path), parse_qs(parts.query)
+    body = body_json()
+    base = "projects/" + REPO + "/merge_requests/"
+    if not path.startswith(base):
+        refuse(97, "no route for %s %s" % (method, endpoint))
+    rest = path[len(base):].split("/")
+    number = int(rest[0]) if rest[0].isdigit() and int(rest[0]) in MERGE_REQUESTS else None
+    if number is None:
+        refuse(97, "no merge request in %s" % endpoint)
+    m, tail = MERGE_REQUESTS[number], rest[1:]
+    if not tail and method == "PUT":
+        if "reviewer_ids" in body:
+            m["reviewers"] = [USERS[i] for i in body["reviewer_ids"] if i in USERS]
+        if "title" in body:
+            m["title"] = body["title"]
+        if "description" in body:
+            m["description"] = body["description"]
+    elif tail == ["notes"] and method == "POST":
+        add_note(number, body["body"])
+    elif tail == ["discussions"] and method == "POST":
+        position = body.get("position") or {}
+        note = {"id": next_id(), "body": body["body"], "author": CAROL, "created_at": now(), "system": False, "resolvable": True, "resolved": False, "position": position}
+        DISCUSSIONS.setdefault(number, []).append({"id": "d%d" % note["id"], "notes": [note]})
+    elif len(tail) == 3 and tail[0] == "discussions" and tail[2] == "notes" and method == "POST":
+        thread = next((d for d in DISCUSSIONS.get(number, []) if d["id"] == tail[1]), None)
+        if thread is None:
+            refuse(1, "404 discussion not found")
+        first = thread["notes"][0]
+        thread["notes"].append({"id": next_id(), "body": body["body"], "author": CAROL, "created_at": now(), "system": False, "resolvable": True, "resolved": first.get("resolved", False), "position": first.get("position")})
+    elif len(tail) == 2 and tail[0] == "discussions" and method == "PUT":
+        thread = next((d for d in DISCUSSIONS.get(number, []) if d["id"] == tail[1]), None)
+        if thread is None:
+            refuse(1, "404 discussion not found")
+        for note in thread["notes"]:
+            note["resolved"] = bool(body.get("resolved"))
+    elif len(tail) == 2 and tail[0] == "notes" and method == "PUT":
+        target = next((n for n in NOTES.get(number, []) if str(n["id"]) == tail[1]), None) or next((n for d in DISCUSSIONS.get(number, []) for n in d["notes"] if str(n["id"]) == tail[1]), None)
+        if target is None:
+            refuse(1, "404 note not found")
+        target["body"] = body["body"]
+        for n in NOTES.get(number, []):
+            if str(n["id"]) == tail[1]:
+                n["body"] = body["body"]
+        for d in DISCUSSIONS.get(number, []):
+            for n in d["notes"]:
+                if str(n["id"]) == tail[1]:
+                    n["body"] = body["body"]
+    elif tail == ["approve"] and method == "POST":
+        add_note(number, "approved this merge request", system=True)
+    elif tail == ["cancel_merge_when_pipeline_succeeds"] and method == "POST":
+        m["auto"] = False
+    elif tail and tail[-1] == "award_emoji" or (len(tail) >= 2 and tail[-2] == "award_emoji") or (len(tail) >= 3 and tail[-3] == "award_emoji"):
+        subject = tail[1] if tail[0] == "notes" else "mr"
+        held = AWARDS.setdefault(number, {}).setdefault(subject, [])
+        if method == "POST":
+            held.append({"id": next_id(), "name": query["name"][0], "username": ME})
+        elif method == "DELETE":
+            identifier = int(tail[-1])
+            held[:] = [a for a in held if a["id"] != identifier]
+    else:
+        refuse(97, "no write route for %s %s" % (method, endpoint))
+    save_state()
+    respond({})
 
 
 def api(args):
@@ -174,7 +300,7 @@ def api(args):
     if endpoint == "graphql":
         graphql()
     if method != "GET":
-        refuse(1, "this fixture is read-only; it does not perform %s %s" % (method, endpoint))
+        write(method, endpoint)
     parts = urlsplit(endpoint)
     path, query = unquote(parts.path), parse_qs(parts.query)
     first = lambda name, default=None: (query.get(name) or [default])[0]
@@ -199,6 +325,10 @@ def api(args):
         wanted.sort(key=lambda number: MERGE_REQUESTS[number]["updated_at"], reverse=True)
         per_page, page = int(first("per_page", "20")), int(first("page", "1"))
         respond([merge_request(number) for number in wanted[(page - 1) * per_page: page * per_page]])
+    award_match = re.fullmatch(re.escape(base) + r"/merge_requests/(\d+)(?:/notes/(\d+))?/award_emoji", path)
+    if award_match:
+        held = AWARDS.get(int(award_match.group(1)), {}).get(award_match.group(2) or "mr", [])
+        respond([{"id": a["id"], "name": a["name"], "user": {"username": a["username"]}} for a in held])
     match = re.fullmatch(re.escape(base) + r"/merge_requests/(\d+)(/[a-z_]+)?", path)
     if match and int(match.group(1)) in MERGE_REQUESTS:
         number, sub = int(match.group(1)), match.group(2)
@@ -231,6 +361,31 @@ def mr(args):
         if number in MERGE_REQUESTS:
             respond(row(number))
         refuse(1, "404 Not Found: no merge request %s" % target)
+    if sub in ("merge", "update", "close", "reopen", "rebase") and len(args) > 1 and args[1].isdigit() and int(args[1]) in MERGE_REQUESTS:
+        number = int(args[1])
+        m = MERGE_REQUESTS[number]
+        if sub == "merge":
+            if "--auto-merge=true" in args:
+                m["auto"] = True
+            else:
+                m["state"], m["merged_at"], m["auto"] = "merged", now(), False
+        elif sub == "update":
+            if "--draft" in args:
+                m["draft"] = True
+                m["title"] = m["title"] if m["title"].startswith("Draft:") else "Draft: " + m["title"]
+            if "--ready" in args:
+                m["draft"] = False
+                m["title"] = m["title"][len("Draft:"):].lstrip() if m["title"].startswith("Draft:") else m["title"]
+        elif sub == "close":
+            m["state"], m["closed_at"] = "closed", now()
+        elif sub == "reopen":
+            m["state"] = "opened"
+            m.pop("closed_at", None)
+        elif sub == "rebase":
+            m["behind"] = 0
+        m["updated_at"] = now()
+        save_state()
+        respond("")
     refuse(97 if sub not in ("merge", "approve", "close", "reopen", "note", "update", "checkout", "create") else 1,
            "this fixture does not run `glab mr %s`" % sub)
 
@@ -240,6 +395,7 @@ def main():
     if not sys.stdin.isatty():
         stdin_text = sys.stdin.read()
     log({"called": True})
+    load_state()
     if argv == ["--version"] or argv[:1] == ["version"]:
         respond("glab 1.50.0 (browser fixture)\n")
     if argv[:2] == ["auth", "status"]:

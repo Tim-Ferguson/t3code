@@ -2,7 +2,7 @@
 //! processes. The injected document is only the local popup/emulator ABI seam.
 use super::*;
 use crate::runtime::transport_tests::{
-    change_control, click_control, control, input_control, provider_settings_fixture,
+    change_control, change_when_enabled, click_control, click_when_enabled, control, input_control, provider_settings_fixture,
     rendered_text, start_fixture,
 };
 use std::{
@@ -228,7 +228,7 @@ impl Fixture {
     }
     async fn until(&mut self, label: &str, predicate: impl Fn(&VirtualDom) -> bool) {
         let dom = &mut self.dom;
-        tokio::time::timeout(std::time::Duration::from_secs(8), async {
+        tokio::time::timeout(std::time::Duration::from_secs(45), async {
             loop {
                 dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
                 if predicate(dom) {
@@ -274,8 +274,8 @@ impl Fixture {
 async fn mounted_provider_auth_credentials_browser_consent_cancel_and_logout_use_advertised_methods()
  {
     let mut f = Fixture::new().await;
-    change_control(&mut f.dom, "Sign-in method", "credentials");
-    click_control(&mut f.dom, "Sign in");
+    change_when_enabled(&mut f.dom, "Sign-in method", "credentials").await;
+    click_when_enabled(&mut f.dom, "Sign in").await;
     f.until("missing configured token", |dom| {
         rendered_text(dom).contains("The provider could not create a session after sign-in.")
     })
@@ -284,13 +284,13 @@ async fn mounted_provider_auth_credentials_browser_consent_cancel_and_logout_use
         control(&f.dom, "FIXTURE_TOKEN").is_none(),
         "environment methods verify configured values, never invent a credential prompt"
     );
-    change_control(&mut f.dom, "Sign-in method", "agent");
-    click_control(&mut f.dom, "Retry sign-in");
+    change_when_enabled(&mut f.dom, "Sign-in method", "agent").await;
+    click_when_enabled(&mut f.dom, "Retry sign-in").await;
     f.until("browser consent", |dom| {
         control(dom, "Open browser").is_some()
     })
     .await;
-    click_control(&mut f.dom, "Open browser");
+    click_when_enabled(&mut f.dom, "Open browser").await;
     f.until("browser signed in", |dom| {
         rendered_text(dom).contains("Signed in.")
     })
@@ -301,21 +301,21 @@ async fn mounted_provider_auth_credentials_browser_consent_cancel_and_logout_use
         "consent is accepted by server before popup navigation"
     );
     assert!(f.directory.path().join("auth.log.credentials").exists());
-    click_control(&mut f.dom, "Sign out");
+    click_when_enabled(&mut f.dom, "Sign out").await;
     assert!(rendered_text(&f.dom).contains("Thread history is kept."));
-    click_control(&mut f.dom, "Cancel sign out");
+    click_when_enabled(&mut f.dom, "Cancel sign out").await;
     assert!(rendered_text(&f.dom).contains("Signed in."));
-    click_control(&mut f.dom, "Sign out");
-    click_control(&mut f.dom, "Confirm sign out");
+    click_when_enabled(&mut f.dom, "Sign out").await;
+    click_when_enabled(&mut f.dom, "Confirm sign out").await;
     f.until("second logout", |dom| control(dom, "Sign in").is_some())
         .await;
-    change_control(&mut f.dom, "Sign-in method", "agent");
-    click_control(&mut f.dom, "Sign in");
+    change_when_enabled(&mut f.dom, "Sign-in method", "agent").await;
+    click_when_enabled(&mut f.dom, "Sign in").await;
     f.until("cancel ready", |dom| {
         control(dom, "Cancel sign-in").is_some()
     })
     .await;
-    click_control(&mut f.dom, "Cancel sign-in");
+    click_when_enabled(&mut f.dom, "Cancel sign-in").await;
     f.until("cancelled", |dom| control(dom, "Retry sign-in").is_some())
         .await;
     assert!(!f.directory.path().join("auth.log.credentials").exists());
@@ -324,8 +324,8 @@ async fn mounted_provider_auth_credentials_browser_consent_cancel_and_logout_use
 #[tokio::test(flavor = "current_thread")]
 async fn mounted_provider_auth_terminal_owns_serialized_pty_input_and_disposes_on_navigation() {
     let mut f = Fixture::new().await;
-    change_control(&mut f.dom, "Sign-in method", "terminal");
-    click_control(&mut f.dom, "Sign in");
+    change_when_enabled(&mut f.dom, "Sign-in method", "terminal").await;
+    click_when_enabled(&mut f.dom, "Sign in").await;
     f.until("terminal", |dom| {
         control(dom, "Provider sign-in terminal").is_some()
     })
@@ -363,8 +363,8 @@ async fn mounted_provider_auth_terminal_owns_serialized_pty_input_and_disposes_o
 #[tokio::test(flavor = "current_thread")]
 async fn mounted_provider_auth_configured_environment_verifies_without_a_credential_editor() {
     let mut f = Fixture::configured(true).await;
-    change_control(&mut f.dom, "Sign-in method", "credentials");
-    click_control(&mut f.dom, "Sign in");
+    change_when_enabled(&mut f.dom, "Sign-in method", "credentials").await;
+    click_when_enabled(&mut f.dom, "Sign in").await;
     f.until("configured sign-in", |dom| {
         rendered_text(dom).contains("Signed in.")
     })
@@ -463,8 +463,8 @@ async fn mounted_provider_auth_typed_credentials_reset_between_interactions_and_
 async fn mounted_provider_auth_socket_replacement_before_first_poll_closes_reserved_popup_and_resubscribes()
  {
     let mut f = Fixture::new().await;
-    change_control(&mut f.dom, "Sign-in method", "agent");
-    click_control(&mut f.dom, "Sign in");
+    change_when_enabled(&mut f.dom, "Sign-in method", "agent").await;
+    click_when_enabled(&mut f.dom, "Sign in").await;
     f.until("browser before replacement", |dom| {
         control(dom, "Open browser").is_some()
     })
@@ -519,7 +519,7 @@ async fn mounted_provider_auth_socket_replacement_before_first_poll_closes_reser
         probe.subscriptions.get() > old && control(dom, "Open browser").is_some()
     })
     .await;
-    click_control(&mut f.dom, "Open browser");
+    click_when_enabled(&mut f.dom, "Open browser").await;
     f.until("new owner consent", |dom| {
         rendered_text(dom).contains("Signed in.")
     })

@@ -108,6 +108,14 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
         }
     };
     let current = listed.read().clone();
+    // The pull request panel opened from this page (a target with no thread), so its row can say so.
+    let open_here = state.pr_panel().read().as_ref().filter(|target| target.thread_id.is_empty()).map(|target| target.reference.clone());
+    // Leaving the page takes its panel with it: a target with no thread belongs to no conversation.
+    use_drop(move || {
+        if state.pr_panel().peek().as_ref().is_some_and(|target| target.thread_id.is_empty()) {
+            state.pr_panel().set(None);
+        }
+    });
     let projects: BTreeMap<String, String> = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.projects.iter().map(|project| (project.id.to_string(), project.workspace_root.to_string())).collect()).unwrap_or_default();
     rsx! { section { class: "settings-page pr-list-page",
         h1 { "Pull requests" }
@@ -149,7 +157,10 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
             for entry in current.entries.iter().cloned() {
                 { let key = format!("{}#{}", entry["repository"].as_str().unwrap_or_default(), entry["number"]); let (additions, deletions) = current.stats.get(&key).copied().unwrap_or((entry["additions"].as_u64().unwrap_or(0), entry["deletions"].as_u64().unwrap_or(0)));
                   let project = entry["projectId"].as_str().unwrap_or_default().to_owned(); let url = entry["url"].as_str().unwrap_or_default().to_owned(); let cwd = projects.get(&project).cloned();
-                  rsx! { Row { key: "{entry[\"projectId\"]}:{key}", state, transport: transport.clone(), entry: entry.clone(), additions, deletions, can_start: writable && cwd.is_some(),
+                  let reference = t3_client::pull_request::Reference { project_id: project.clone(), host: entry["host"].as_str().map(str::to_owned), repository: entry["repository"].as_str().unwrap_or_default().to_owned(), number: entry["number"].as_u64().unwrap_or(0) };
+                  let selected = open_here.as_ref().is_some_and(|open| *open == reference);
+                  rsx! { Row { key: "{entry[\"projectId\"]}:{key}", state, transport: transport.clone(), entry: entry.clone(), additions, deletions, can_start: writable && cwd.is_some(), selected,
+                      on_open: { let reference = reference.clone(); move |_| crate::pull_request_panel::open(state, crate::pull_request_panel::Target { thread_id: String::new(), reference: reference.clone() }) },
                       on_start: { let (project, url) = (project.clone(), url.clone()); move |_| if let Some(cwd) = cwd.clone() { crate::pull_request_thread::open(state, &project, &cwd, &url) } } } } }
             }
         }
@@ -174,7 +185,7 @@ fn page(value: &Value, entries: Vec<Value>, stats: Option<Value>, mut errors: Ve
 /// One pull request: what it is, what it is filed under, and what can be started from it. The threads
 /// filed under it are read when asked, not for every row.
 #[component]
-fn Row(state: Store<UiModel>, transport: TransportHandle, entry: Value, additions: u64, deletions: u64, can_start: bool, on_start: EventHandler<()>) -> Element {
+fn Row(state: Store<UiModel>, transport: TransportHandle, entry: Value, additions: u64, deletions: u64, can_start: bool, selected: bool, on_open: EventHandler<()>, on_start: EventHandler<()>) -> Element {
     let mut threads = use_signal(|| None::<Vec<Value>>);
     let mut asking = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
@@ -205,7 +216,8 @@ fn Row(state: Store<UiModel>, transport: TransportHandle, entry: Value, addition
     let labels: Vec<String> = entry["labels"].as_array().into_iter().flatten().filter_map(|label| label["name"].as_str().map(str::to_owned)).collect();
     rsx! { li { class: "pr-list-row",
         div { class: "pr-list-main",
-            strong { { entry["title"].as_str().unwrap_or_default().to_owned() } }
+            // The title opens the pull request beside the list, as selecting a row does in the original.
+            button { class: "pr-list-title", r#type: "button", "aria-label": "Open pull request #{number}", "aria-pressed": "{selected}", onclick: move |_| on_open.call(()), strong { { entry["title"].as_str().unwrap_or_default().to_owned() } } }
             span { class: "muted", " #{number} \u{b7} {pr::host_name(entry[\"provider\"].as_str())} {entry[\"repository\"].as_str().unwrap_or_default()} \u{b7} {entry[\"projectTitle\"].as_str().unwrap_or_default()}" }
             span { class: "pr-state", "data-state": "{pr::list_state_label(&entry)}", "{pr::list_state_label(&entry)}" }
             if !author.is_empty() { span { class: "muted", "{author}" } }

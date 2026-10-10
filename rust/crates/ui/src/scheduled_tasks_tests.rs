@@ -7,7 +7,7 @@ use super::diff_tests::{Fixture, Harness, rendered_text, seed, until, wait_for_r
 use super::*;
 use crate::diff_panel::Gate;
 use crate::runtime::keys_tests::{PALETTE, key_on, open_palette};
-use crate::runtime::transport_tests::{change_control, click_control, control, control_attribute, input_control};
+use crate::runtime::transport_tests::{change_control, change_when_enabled, click_control, click_when_enabled, control, control_attribute, input_control};
 
 const OPERATE: [AuthEnvironmentScope; 2] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate];
 const READ: [AuthEnvironmentScope; 1] = [AuthEnvironmentScope::OrchestrationRead];
@@ -170,13 +170,13 @@ async fn a_task_is_edited_paused_run_now_and_deleted_after_a_confirmation() {
     assert!(rendered_text(&dom).contains("Every 10 min"));
 
     // Pause and resume.
-    change_control(&mut dom, "Enable Interval review", "false");
+    change_when_enabled(&mut dom, "Enable Interval review", "false").await;
     wait_for_rendered_text(&mut dom, "Every 10 min \u{b7} Paused").await;
-    change_control(&mut dom, "Enable Interval review", "true");
+    change_when_enabled(&mut dom, "Enable Interval review", "true").await;
     wait_for_rendered_text(&mut dom, "Every 10 min \u{b7} Next run").await;
 
     // Run now reaches the provider: a thread of the task's title is made, and the run is recorded.
-    click_control(&mut dom, "Run Interval review now");
+    click_when_enabled(&mut dom, "Run Interval review now").await;
     wait_for_rendered_text(&mut dom, "succeeded").await;
     until(&mut dom, "the task's thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.threads.iter().any(|thread| thread.title.as_str() == "Interval review"))).await;
     assert!(rendered_text(&dom).contains("Last run"));
