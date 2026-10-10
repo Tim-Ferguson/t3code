@@ -1,22 +1,23 @@
-//! The pull request panel's "Files changed" tab: the patch from `POST /api/pull-requests/diff`
-//! drawn by the diff panel's own file sections (collapsed files draw nothing, an open one a
-//! window of rows, unchanged lines read through `pullRequests.diffFileContents`), and the
-//! reader's viewed marks, which live at the host and are written one file at a time.
+//! The pull request panel's Code tab: the patch from `POST /api/pull-requests/diff` drawn by the diff panel's own file
+//! sections (collapsed files draw nothing, an open one a window of rows, unchanged lines read through
+//! `pullRequests.diffFileContents`), the reader's viewed marks, which live at the host and are written one file at a time, and
+//! the conversation on the code: review threads under their lines, and the line comments a review collects before it is sent.
 //!
 //! Read only while the tab is mounted. A newer revision (the panel's refresh counter, moved by the
 //! server's refresh notice) reads the first page again; an answer for another pull request or
 //! connection is dropped. Files past the first page are read when asked for.
 use crate::{
-    diff_panel::{ExpandHost, ExpandSource, FileSection, Mounts, Pending},
+    diff_panel::{ExpandHost, ExpandSource, FileSection, LineNotes, Mounts, Pending},
     notice::{self, Level},
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
 };
 use dioxus::prelude::*;
 use serde_json::Value;
-use std::{collections::BTreeSet, rc::Rc};
+use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
 use t3_client::{
     diff::{self, FileDiff},
     pull_request::{self as pr, Reference},
+    pull_request_line_comments as lines,
     review::SourceKind,
 };
 use t3_contracts::DiffLayout;
@@ -49,7 +50,7 @@ fn decode(answer: &Value) -> Loaded {
 }
 
 #[component]
-pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference: Reference, revision: u32, readable: bool, writable: bool, why: Option<String>, viewed_store: Option<String>, threads: Vec<Value>, verdicts: Vec<String>, can_reply: bool, can_resolve: bool, on_changed: Callback<()>) -> Element {
+pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference: Reference, revision: u32, readable: bool, writable: bool, why: Option<String>, viewed_store: Option<String>, threads: Vec<Value>, can_inline: bool, can_reply: bool, can_resolve: bool, on_changed: Callback<()>) -> Element {
     use_context_provider(Mounts::default);
     let pending = use_signal(|| None::<String>);
     use_context_provider(|| Pending(pending));
@@ -65,6 +66,75 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
     let mut more = use_signal(|| false);
     let mut toggled = use_signal(BTreeSet::<String>::new);
     let mut shown = use_signal(|| FILES_PER_PAGE);
+
+    // ---- the conversation on the code ----
+    // The line being commented on, until the comment is added to the review or dropped.
+    let mut draft = use_signal(|| None::<Draft>);
+    // What the notes under the lines are drawn from. The rows hold the notes closure from their first draw, so what changes
+    // after it (the threads, the grants) travels in this cell, and `notes_revision` is what repaints the rows when it does.
+    let shared = use_hook(|| Rc::new(RefCell::new(Shared::default())));
+    let mut notes_revision = use_signal(|| 0u64);
+    {
+        let shared = shared.clone();
+        use_effect(use_reactive((&threads, &can_reply, &can_resolve, &writable, &why), move |(threads, can_reply, can_resolve, writable, why)| {
+            *shared.borrow_mut() = Shared { threads, can_reply, can_resolve, writable, why };
+            let next = *notes_revision.peek() + 1;
+            notes_revision.set(next);
+        }));
+    }
+    let review_key = crate::pull_request_review::review_key(&reference);
+    let begin = {
+        let reference_for_files = patch;
+        use_callback(move |(path, line, right): (String, diff::DiffLine, bool)| {
+            let Some(position) = lines::position(&line, right) else { return };
+            let old_path = match &*reference_for_files.peek() {
+                Patch::Ready(loaded) => loaded.files.iter().find(|file| file.path() == path).and_then(|file| file.previous_path().map(str::to_owned)),
+                _ => None,
+            };
+            draft.set(Some(Draft { path, old_path, position }));
+        })
+    };
+    use_context_provider({
+        let (transport, reference, shared, review_key) = (transport.clone(), reference.clone(), shared.clone(), review_key.clone());
+        move || LineNotes {
+            enabled: can_inline,
+            begin,
+            under: Rc::new(move |path: &str, line: &diff::DiffLine, which: Option<bool>| {
+                // Reading these is what makes the row follow them.
+                let _ = notes_revision();
+                let here = |side: &str, number: u64| lines::is_on(side, number, line) && which.is_none_or(|right| (side == "right") == right);
+                let notes = shared.borrow();
+                let threads: Vec<Value> = notes.threads.iter().filter(|thread| thread["path"] == path && lines::thread_anchor(thread).is_some_and(|(side, number)| here(&side, number))).cloned().collect();
+                let pending: Vec<lines::Pending> = state.pr_reviews().read().get(&review_key).map(|draft| draft.comments.iter().filter(|comment| comment.path == path && lines::anchor(&comment.position).is_some_and(|(side, number)| here(side, number))).cloned().collect()).unwrap_or_default();
+                let writing = draft.read().clone().filter(|writing| writing.path == path && lines::anchor(&writing.position).is_some_and(|(side, number)| here(side, number)));
+                if threads.is_empty() && pending.is_empty() && writing.is_none() {
+                    return None;
+                }
+                let (reference, transport) = (reference.clone(), transport.clone());
+                let (can_reply, can_resolve, writable, why) = (notes.can_reply, notes.can_resolve, notes.writable, notes.why.clone());
+                drop(notes);
+                let on_changed_threads = Callback::new(move |_: ()| on_changed.call(()));
+                Some(rsx! {
+                    div { class: "pr-line-notes", "data-path": "{path}",
+                        if !threads.is_empty() { crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads, can_reply, can_resolve, writable, why, on_changed: on_changed_threads } }
+                        for comment in pending { crate::pull_request_review::PendingCard { key: "{comment.id}", state, key_of_review: review_key.clone(), comment } }
+                        if let Some(writing) = writing {
+                            {
+                                let label = format!("{}:{}", writing.path, lines::anchor(&writing.position).map_or(0, |(_, number)| number));
+                                let (key, writing_for_add) = (review_key.clone(), writing.clone());
+                                rsx! { crate::pull_request_review::LineDraft { label,
+                                    on_add: move |body: String| {
+                                        state.pr_reviews().write().entry(key.clone()).or_default().add(&writing_for_add.path, writing_for_add.old_path.as_deref(), writing_for_add.position.clone(), &body);
+                                        draft.set(None);
+                                    },
+                                    on_cancel: move |_| draft.set(None) } }
+                            }
+                        }
+                    }
+                })
+            }),
+        }
+    });
 
     // The first page, read now, again at each new revision, and when the connection returns. The
     // revision and the grant are props, so they are dependencies by `use_reactive`: a copy captured
@@ -186,7 +256,6 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
             let busy = toggling.read().clone();
             rsx! {
                 section { class: "pr-files", "aria-label": "Files changed",
-                    crate::pull_request_review::ReviewForm { state, transport: transport.clone(), reference: reference.clone(), verdicts: verdicts.clone(), writable, why: why.clone(), on_done: on_changed }
                     p { class: "pr-files-summary muted", role: "status", "{total} files in this page" if loaded.next_cursor.is_some() { " (more to load)" }
                         if let Some(store) = viewed_store.clone().filter(|_| total > 0) {
                             " \u{b7} " span { "aria-label": "Files viewed", "{pr::viewed_summary(loaded.files.iter().filter(|file| viewed_now.contains(file.path())).count(), total, &store)}" }
@@ -209,12 +278,18 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
                                     } }
                                     FileSection { file: file.clone(), collapsed, split, on_toggle, stat: None, partial: false, expand: Some(expand.clone()) }
                                     {
-                                        let here: Vec<Value> = threads.iter().filter(|thread| thread["path"] == path.as_str()).cloned().collect();
+                                        // A conversation the diff no longer shows a line for (outdated, or on a line outside every hunk) is drawn under its file.
+                                        let here: Vec<Value> = threads.iter().filter(|thread| thread["path"] == path.as_str() && !on_a_line(file, thread)).cloned().collect();
                                         rsx! { if !here.is_empty() { crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: here, can_reply, can_resolve, writable, why: why.clone(), on_changed } } }
                                     }
                                 }
                             }
                         }
+                    }
+                    {
+                        let strays: Vec<Value> = threads.iter().filter(|thread| !loaded.files.iter().any(|file| thread["path"] == file.path())).cloned().collect();
+                        rsx! { if !strays.is_empty() { div { class: "pr-stray-threads", h4 { "Conversations on files not shown" }
+                            crate::pull_request_review::Threads { state, transport: transport.clone(), reference: reference.clone(), threads: strays, can_reply, can_resolve, writable, why: why.clone(), on_changed } } } }
                     }
                     if drawn < total { button { "aria-label": "Show more files", onclick: move |_| shown.set(drawn + FILES_PER_PAGE), "Show {(total - drawn).min(FILES_PER_PAGE)} more files ({total - drawn} not shown)" } }
                     if let Some(cursor) = loaded.next_cursor.clone() {
@@ -229,4 +304,27 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
             }
         }
     }
+}
+
+/// The line being commented on.
+#[derive(Debug, Clone, PartialEq)]
+struct Draft {
+    path: String,
+    old_path: Option<String>,
+    position: Value,
+}
+/// What the notes under the lines read, which changes after the rows are drawn.
+#[derive(Default)]
+struct Shared {
+    threads: Vec<Value>,
+    can_reply: bool,
+    can_resolve: bool,
+    writable: bool,
+    why: Option<String>,
+}
+
+/// Whether a thread has a line of this file's diff to sit under.
+fn on_a_line(file: &FileDiff, thread: &Value) -> bool {
+    let Some((side, number)) = lines::thread_anchor(thread) else { return false };
+    file.hunks.iter().any(|hunk| hunk.lines.iter().any(|line| lines::is_on(&side, number, line)))
 }

@@ -70,6 +70,198 @@ pub fn links(thread: &Value) -> Vec<Link> {
     result
 }
 
+// ---- the badge a thread row carries ---------------------------------------------------------------------------------------
+
+/// What a pull request link says about itself in a row, header or tab: `PULL_REQUEST_STATE_PRESENTATION`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum State {
+    Open,
+    Draft,
+    Closed,
+    Merged,
+}
+impl State {
+    pub fn label(self) -> &'static str {
+        match self {
+            State::Open => "Open",
+            State::Draft => "Draft",
+            State::Closed => "Closed",
+            State::Merged => "Merged",
+        }
+    }
+    pub fn class(self) -> &'static str {
+        match self {
+            State::Open => "open",
+            State::Draft => "draft",
+            State::Closed => "closed",
+            State::Merged => "merged",
+        }
+    }
+    /// `resolvePullRequestState`.
+    pub fn of(state: &str, draft: bool) -> State {
+        match (state, draft) {
+            ("open", true) => State::Draft,
+            ("closed", _) => State::Closed,
+            ("merged", _) => State::Merged,
+            _ => State::Open,
+        }
+    }
+}
+
+/// `resolveThreadPullRequestBadge`: the one thing a row shows for all the links a thread has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Badge {
+    /// Links that build on one another: the badge counts the layers and opens the list.
+    Stack { layers: usize, state: State },
+    /// One link, or several unrelated ones: `others` more than the shown one.
+    PullRequest { others: usize, state: State },
+}
+impl Badge {
+    pub fn state(self) -> State {
+        match self {
+            Badge::Stack { state, .. } | Badge::PullRequest { state, .. } => state,
+        }
+    }
+    /// Whether a click opens the thread's list of pull requests rather than the one request.
+    pub fn opens_list(self) -> bool {
+        matches!(self, Badge::Stack { .. } | Badge::PullRequest { others: 1.., .. })
+    }
+}
+
+fn visible(thread: &Value) -> Vec<&Value> {
+    thread["pullRequests"].as_array().into_iter().flatten().filter(|link| link["source"] != "stack-dismissed").collect()
+}
+fn identity(link: &Value) -> String {
+    format!("{}/{}#{}", link["host"].as_str().unwrap_or("unknown").trim().to_lowercase(), link["repository"].as_str().unwrap_or_default().trim().to_lowercase(), link["number"])
+}
+fn updated_at(link: &Value) -> i64 {
+    link["snapshot"]["updatedAt"].as_str().or(link["linkedAt"].as_str()).and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()).map_or(0, |at| at.timestamp_millis())
+}
+fn linked_at(link: &Value) -> i64 {
+    link["linkedAt"].as_str().and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()).map_or(i64::MIN, |at| at.timestamp_millis())
+}
+
+/// `resolveThreadPullRequestChains`: native stacks, then links chained by one's base branch being another's head branch in the
+/// same repository, bottom to top. A link that chains to nothing is a chain of one.
+fn chains<'a>(visible: &[&'a Value]) -> Vec<Vec<&'a Value>> {
+    let mut chains: Vec<Vec<&Value>> = vec![];
+    let mut placed = std::collections::HashSet::new();
+    let mut native: Vec<(String, Vec<&Value>)> = vec![];
+    for link in visible.iter().filter(|link| link["stack"].is_object()) {
+        let key = format!("{}#stack:{}", identity(link).rsplit_once('#').map_or_else(String::new, |(head, _)| head.to_owned()), link["stack"]["id"]);
+        match native.iter_mut().find(|(existing, _)| *existing == key) {
+            Some((_, members)) => members.push(link),
+            None => native.push((key, vec![link])),
+        }
+    }
+    for (_, mut members) in native {
+        let order: Vec<u64> = members[0]["stack"]["layers"].as_array().into_iter().flatten().filter_map(|layer| layer["number"].as_u64()).collect();
+        let position = |link: &Value| link["number"].as_u64().and_then(|number| order.iter().position(|layer| *layer == number)).unwrap_or(0);
+        members.sort_by_key(|link| position(link));
+        placed.extend(members.iter().map(|member| identity(member)));
+        chains.push(members);
+    }
+    let remaining: Vec<&Value> = visible.iter().copied().filter(|link| !placed.contains(&identity(link))).collect();
+    let branch = |link: &Value, branch: &Value| format!("{}:{}", identity(link).rsplit_once('#').map_or_else(String::new, |(head, _)| head.to_owned()), branch.as_str().unwrap_or_default());
+    // Reused head names cannot name a parent unambiguously.
+    let mut by_head: std::collections::HashMap<String, Option<&Value>> = Default::default();
+    for link in remaining.iter().filter(|link| !link["snapshot"].is_null()) {
+        let key = branch(link, &link["snapshot"]["headBranch"]);
+        let value = if by_head.contains_key(&key) { None } else { Some(*link) };
+        by_head.insert(key, value);
+    }
+    let mut has_child = std::collections::HashSet::new();
+    for link in remaining.iter().filter(|link| !link["snapshot"].is_null()) {
+        if let Some(Some(parent)) = by_head.get(&branch(link, &link["snapshot"]["baseBranch"])) {
+            if identity(parent) != identity(link) {
+                has_child.insert(identity(parent));
+            }
+        }
+    }
+    for top in remaining.iter().filter(|top| !has_child.contains(&identity(top))) {
+        let mut layers: Vec<&Value> = vec![];
+        let mut cursor = Some(*top);
+        while let Some(link) = cursor.filter(|link| !placed.contains(&identity(link))) {
+            placed.insert(identity(link));
+            layers.insert(0, link);
+            cursor = if link["snapshot"].is_null() { None } else { by_head.get(&branch(link, &link["snapshot"]["baseBranch"])).copied().flatten() };
+        }
+        if !layers.is_empty() {
+            chains.push(layers);
+        }
+    }
+    // Cycles have no top; their links stay visible without an invented order.
+    for link in remaining {
+        if !placed.contains(&identity(link)) {
+            chains.push(vec![link]);
+        }
+    }
+    chains
+}
+
+/// `resolveThreadCurrentPullRequestLink`: the request a one-slot surface shows: open work first, the highest open layer of a
+/// chain, a finished chain's top, and among unrelated finished links the most recently updated.
+pub fn current(thread: &Value) -> Option<Link> {
+    let visible = visible(thread);
+    if visible.is_empty() {
+        return None;
+    }
+    let open: Vec<&Value> = visible.iter().copied().filter(|link| is_open(link)).collect();
+    let chains = chains(&visible);
+    let chosen: &Value = if open.len() == 1 {
+        open[0]
+    } else if open.len() > 1 {
+        let mut open_chains: Vec<Vec<&Value>> = chains.iter().map(|chain| chain.iter().rev().copied().filter(|link| is_open(link)).collect::<Vec<_>>()).filter(|layers| !layers.is_empty()).collect();
+        open_chains.sort_by_key(|layers| std::cmp::Reverse(layers.iter().map(|link| linked_at(link)).max()));
+        open_chains[0][0]
+    } else if chains.len() == 1 {
+        chains[0].last().copied()?
+    } else {
+        visible.iter().copied().max_by_key(|link| updated_at(link))?
+    };
+    to_link(chosen)
+}
+
+fn to_link(link: &Value) -> Option<Link> {
+    Some(Link {
+        host: link["host"].as_str().map(str::to_owned),
+        repository: link["repository"].as_str()?.to_owned(),
+        number: link["number"].as_u64()?,
+        url: link["url"].as_str()?.to_owned(),
+        state: link["snapshot"]["state"].as_str().map(str::to_owned),
+        title: link["snapshot"]["title"].as_str().map(str::to_owned),
+        watching: link["watch"].is_object(),
+    })
+}
+
+/// The state glyph a link is drawn with: its snapshot's state, draft included; a link not yet synced reads as open.
+pub fn state_of(thread: &Value, link: &Link) -> State {
+    let found = visible(thread).into_iter().find(|candidate| candidate["number"].as_u64() == Some(link.number) && candidate["repository"].as_str().is_some_and(|repository| repository.eq_ignore_ascii_case(&link.repository)));
+    found.map_or(State::Open, |found| State::of(found["snapshot"]["state"].as_str().unwrap_or("open"), found["snapshot"]["isDraft"] == true))
+}
+
+/// `resolveThreadPullRequestBadge`.
+pub fn badge(thread: &Value) -> Option<Badge> {
+    let visible = visible(thread);
+    if visible.is_empty() {
+        return None;
+    }
+    let states: Vec<&str> = visible.iter().map(|link| link["snapshot"]["state"].as_str().unwrap_or("open")).collect();
+    let state = if visible.iter().all(|link| link["snapshot"]["state"] == "open" && link["snapshot"]["isDraft"] == true) {
+        State::Draft
+    } else if states.contains(&"open") {
+        State::Open
+    } else if states.iter().all(|state| *state == "merged") {
+        State::Merged
+    } else {
+        State::Closed
+    };
+    if visible.len() > 1 && chains(&visible).len() == 1 {
+        return Some(Badge::Stack { layers: visible.len(), state });
+    }
+    Some(Badge::PullRequest { others: visible.len() - 1, state })
+}
+
 /// Whether the thread is filed under this pull request.
 pub fn linked_here(thread: &Value, reference: &Reference) -> bool {
     links(thread).iter().any(|link| link.is(reference))
@@ -131,6 +323,31 @@ mod tests {
         assert_eq!((found.len(), found[0].host.clone(), found[0].number), (1, None, 2));
         let other = json!({"pullRequests":[link("github.com", "acme/web", 9, None, "2026-01-01T00:00:00Z", "manual")],"linkedPullRequest":legacy});
         assert_eq!(links(&other).iter().map(|link| link.number).collect::<Vec<_>>(), [9, 2]);
+    }
+
+    fn stacked(number: u64, head: &str, base: &str, state: &str) -> Value {
+        let mut link = link("github.com", "acme/web", number, Some(state), "2026-01-01T00:00:00Z", "manual");
+        link["snapshot"]["headBranch"] = json!(head);
+        link["snapshot"]["baseBranch"] = json!(base);
+        link
+    }
+
+    #[test]
+    fn a_row_shows_a_stack_by_its_layers_and_unrelated_links_by_their_count() {
+        let stack = json!({"pullRequests":[stacked(1, "a", "main", "open"), stacked(2, "b", "a", "open"), stacked(3, "c", "b", "merged")]});
+        assert_eq!(badge(&stack), Some(Badge::Stack { layers: 3, state: State::Open }));
+        assert!(badge(&stack).unwrap().opens_list());
+        // The highest open layer is the one the row links to.
+        assert_eq!(current(&stack).unwrap().number, 2);
+        let unrelated = json!({"pullRequests":[stacked(1, "a", "main", "merged"), stacked(2, "b", "main", "closed")]});
+        assert_eq!(badge(&unrelated), Some(Badge::PullRequest { others: 1, state: State::Closed }));
+        let one = json!({"pullRequests":[stacked(7, "a", "main", "open")]});
+        assert_eq!(badge(&one), Some(Badge::PullRequest { others: 0, state: State::Open }));
+        assert!(!badge(&one).unwrap().opens_list());
+        let mut draft = stacked(8, "a", "main", "open");
+        draft["snapshot"]["isDraft"] = json!(true);
+        assert_eq!(badge(&json!({"pullRequests":[draft]})).map(Badge::state), Some(State::Draft));
+        assert_eq!(badge(&json!({"pullRequests":[]})), None);
     }
 
     #[test]

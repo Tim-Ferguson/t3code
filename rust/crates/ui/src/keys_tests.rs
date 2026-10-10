@@ -188,6 +188,36 @@ async fn the_palette_opens_filters_runs_a_command_and_closes() {
     fixture.finish(dom).await;
 }
 
+/// The palette lists threads by when a person last wrote to them (`sortThreads`), not by `updatedAt`, which the server moves with
+/// every event it records: a pin touches a thread and must not lift it above the one that was written to last. Choosing a project
+/// from the search opens its newest thread by the same order, as `openProjectFromSearch` does.
+#[tokio::test(flavor = "current_thread")]
+async fn the_palette_lists_threads_by_when_a_person_last_wrote_and_a_project_opens_its_newest() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props, state) = connect(&fixture, &OPERATE).await;
+    let thread = |id: &str| state.peek().shell.snapshot.as_ref().unwrap().threads.iter().find(|thread| thread.id.as_str() == id).cloned().unwrap();
+    for (id, words) in [("thread-a", "Alpha work"), ("thread-b", "Beta work")] {
+        open_thread(&mut dom, &props, state, id).await;
+        input_control(&mut dom, "Message", words);
+        dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+        until(&mut dom, "the turn", |_| super::diff_tests::completed_runs(state) == 1).await;
+    }
+    // Beta was written to last. Pinning alpha afterwards records an event for it, which moves its `updatedAt` past beta's.
+    dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.pin", json!({"threadId":"thread-a"}))).unwrap();
+    until(&mut dom, "the pin", |_| thread("thread-a").pinned_at.flatten().is_some()).await;
+    assert!(thread("thread-a").updated_at.0 > thread("thread-b").updated_at.0, "the premise: alpha was touched last");
+    assert!(thread("thread-b").latest_user_message_at.unwrap().0 > thread("thread-a").latest_user_message_at.unwrap().0, "and beta was written to last");
+    open_palette(&mut dom).await;
+    let text = rendered_text(&dom);
+    let recent = &text[text.find("Recent Threads").unwrap()..];
+    assert!(recent.find("Beta work").unwrap() < recent.find("Alpha work").unwrap(), "{recent}");
+    // The project, searched for, opens the thread written to last.
+    input_control(&mut dom, PALETTE, "Project");
+    click_control(&mut dom, "Project");
+    until(&mut dom, "the newest thread", |_| state.peek().active_thread.as_deref() == Some("thread-b") && state.peek().thread.projection.as_ref().is_some_and(|projection| projection["thread"]["id"] == "thread-b")).await;
+    fixture.finish(dom).await;
+}
+
 /// Presses a key on the control with this label.
 pub(crate) fn key_on(dom: &mut VirtualDom, label: &str, key: Key) {
     dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));

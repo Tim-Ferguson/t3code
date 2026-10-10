@@ -11,7 +11,7 @@ really sends and not by a guess about it. The answers are built from the shapes 
 (crates/server/tests/pull_request_flow.rs) is known to decode.
 
 The data is a picture of acme/widgets: #42 open on feature/pr-panel-demo (checks in every state, two
-review threads, comments with reactions, labels, reviewers, four commits, four changed files), #41 a draft, #40
+review threads, comments with reactions, labels, reviewers, four commits, four changed files), #43 open and mergeable (every check passed, approved), #41 a draft, #40
 merged, #39 closed. The writes the server makes are applied to this process's memory, so the panel can be driven
 through merge, close, reopen, draft, auto-merge, update branch, comments, replies, resolutions, reactions, edits,
 reviews, reviewer requests, labels and viewed marks; a restart starts again from the picture above.
@@ -66,6 +66,8 @@ def actor(login, name=None):
 
 
 PULLS = {
+    43: {"title": "Add a passing smoke test", "state": "OPEN", "draft": False, "author": "carol", "head": "feature/smoke-test", "decision": "APPROVED", "additions": 12, "deletions": 0, "files": 1,
+         "created": "2026-09-28T10:00:00Z", "updated": "2026-09-28T11:00:00Z", "rollup": "SUCCESS", "labels": [], "reviewers": ["bob"]},
     42: {"title": "Retry failed calls with exponential backoff", "state": "OPEN", "draft": False, "author": "alice", "head": FEATURE, "decision": "CHANGES_REQUESTED", "additions": 17, "deletions": 11, "files": 4,
          "created": "2026-09-20T09:00:00Z", "updated": "2026-09-27T14:30:00Z", "rollup": "FAILURE", "labels": [("bug", "d73a4a"), ("enhancement", "a2eeef")], "reviewers": ["bob", "dana"]},
     41: {"title": "Rework the config loader", "state": "OPEN", "draft": True, "author": "bob", "head": "feature/config-loader", "decision": "REVIEW_REQUIRED", "additions": 40, "deletions": 3, "files": 2,
@@ -137,8 +139,14 @@ CHECKS = [
 ]
 
 
+PASSING = [
+    {"__typename": "CheckRun", "name": "build", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-09-28T10:30:00Z", "completedAt": "2026-09-28T10:33:00Z", "detailsUrl": "https://ci.t3code-test.invalid/runs/20", "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}}},
+    {"__typename": "CheckRun", "name": "unit tests", "status": "COMPLETED", "conclusion": "SUCCESS", "startedAt": "2026-09-28T10:30:00Z", "completedAt": "2026-09-28T10:36:00Z", "detailsUrl": "https://ci.t3code-test.invalid/runs/21", "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}}},
+]
+
+
 def checks_for(number):
-    return CHECKS if number == 42 else []
+    return CHECKS if number == 42 else PASSING if number == 43 else []
 
 
 def reviewer_nodes(number):
@@ -418,6 +426,12 @@ class Handler(BaseHTTPRequestHandler):
                 log({"unhandled": outcome})
                 return self.reply(200, {"data": None, "errors": [{"type": "UNPROCESSABLE", "message": "browser fixture: " + outcome}]})
             return self.reply(200, {"data": outcome})
+        if query.lstrip().startswith("query PullRequestByNumber"):
+            # What "Checkout pull request" reads to resolve `#42` into a branch (source_control_github_cli.rs).
+            p = pull(number)
+            return self.reply(200, {"data": {"repository": {"pullRequest": {"number": number, "title": p["title"], "url": url(number), "baseRefName": "main", "headRefName": p["head"], "headRefOid": HEAD_OID,
+                "state": p["state"], "isDraft": p["draft"], "mergedAt": p.get("merged"), "closedAt": p.get("closed"), "updatedAt": p["updated"], "isCrossRepository": False,
+                "headRepository": {"name": "widgets", "nameWithOwner": "acme/widgets"}, "headRepositoryOwner": {"login": "acme"}}}}})
         if query.lstrip().startswith("query PullRequestActionState"):
             p = pull(number)
             return self.reply(200, {"data": {"repository": {"pullRequest": {"id": "PR_%d" % number, "headRefOid": HEAD_OID, "isMergeQueueEnabled": False,

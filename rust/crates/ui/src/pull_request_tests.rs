@@ -117,19 +117,31 @@ async fn the_badge_the_overview_the_checks_and_the_conversation_come_from_the_ho
     app.open_panel().await;
     let text = rendered_text(&app.dom);
     assert!(text.contains("Fix it") && text.contains("feature \u{2192} main") && text.contains("alice"), "{text}");
-    assert!(text.contains("Running") && text.contains("lint") && text.contains("Completed") && text.contains("build"), "{text}");
+    // The checks, in the original's words: the wire's one in-flight status is "Running".
+    assert!(text.contains("Running") && text.contains("lint") && text.contains("Passed") && text.contains("build") && !text.contains("Pending"), "{text}");
     assert!(text.contains("Please") && text.contains("+10"), "the description and the size: {text}");
-    // The conversation is read when its tab opens, not before.
-    assert_eq!(app.asked("activity"), 0);
-    click_control(&mut app.dom, "Pull request conversation");
+    // The tabs are the original's, in its order.
+    for label in ["Summary", "Timeline", "Code"] {
+        assert!(control(&app.dom, label).is_some(), "the {label} tab");
+    }
+    assert!(control(&app.dom, "Overview").is_none() && control(&app.dom, "Files changed").is_none() && control(&app.dom, "Pull request conversation").is_none());
+    // The Summary lists the comments, newest first unless asked otherwise; the activity behind them is read once.
     wait_for_rendered_text(&mut app.dom, "first remark").await;
     assert_eq!(app.asked("activity"), 1);
-    assert!(rendered_text(&app.dom).contains("bob"));
-    // The commits come first, each with its short id; an entry says what its author did, and when, not a wire name.
     let text = rendered_text(&app.dom);
-    assert!(text.contains("1 commit") && text.contains("c1") && text.contains("one"), "{text}");
-    assert!(text.contains("commented") && !text.contains("issue-comment"), "{text}");
-    assert!(text.contains("ago"), "times read relative: {text}");
+    assert!(text.contains("bob") && text.contains("Comments (3)") && text.contains("Newest first"), "{text}");
+    assert!(text.contains("commented") && !text.contains("issue-comment") && text.contains("ago"), "an entry says what its author did, and when, not a wire name: {text}");
+    // The Timeline is what happened in order: the commit with its short id, the conversation, and the opening.
+    click_control(&mut app.dom, "Timeline");
+    let text = rendered_text(&app.dom);
+    let timeline = &text[text.find("Newest first").unwrap()..];
+    assert!(timeline.contains("c1") && timeline.contains("one") && timeline.contains("2 comments") && timeline.contains("approved") && timeline.contains("Pull request opened"), "the verdict is a row of its own, the two remarks one conversation: {timeline}");
+    assert_eq!(app.asked("activity"), 1, "changing tabs does not read the activity again");
+    assert!(timeline.find("approved").unwrap() < timeline.find("2 comments").unwrap() && timeline.find("2 comments").unwrap() < timeline.find("Pull request opened").unwrap(), "newest first: {timeline}");
+    click_control(&mut app.dom, "Show oldest activity first");
+    let text = rendered_text(&app.dom);
+    let timeline = &text[text.find("Oldest first").unwrap()..];
+    assert!(timeline.find("Pull request opened").unwrap() < timeline.find("approved").unwrap(), "the order flips: {timeline}");
     assert_eq!(error(app.state), None);
     }).await;
 }
@@ -161,17 +173,18 @@ async fn a_refresh_notice_after_a_change_elsewhere_makes_the_panel_read_again() 
 async fn a_comment_is_posted_once_cleared_and_read_back_from_the_host() {
     with_app(9, &WRITER, async |app| {
     app.open_panel().await;
-    click_control(&mut app.dom, "Pull request conversation");
     wait_for_rendered_text(&mut app.dom, "first remark").await;
+    // The composer floats over every tab; it opens on the comment, the mode with nothing else waiting.
+    click_control(&mut app.dom, "Comment on pull request");
     assert!(disabled(&app.dom, "Comment"), "nothing to post yet");
-    input_control(&mut app.dom, "Add a comment", "  Ship it please  ");
+    input_control(&mut app.dom, "Comment on this pull request", "  Ship it please  ");
     assert!(!disabled(&app.dom, "Comment"));
     click_control(&mut app.dom, "Comment");
     wait_for_rendered_text(&mut app.dom, "Ship it please").await;
     assert_eq!(app.asked("comment"), 1);
     let sent = world().asked().into_iter().find(|asked| kind_of(asked) == "comment").unwrap();
     assert_eq!(sent.body.unwrap()["variables"]["body"], "Ship it please", "the text is trimmed");
-    assert_eq!(control_attribute(&app.dom, "Add a comment", "value").unwrap().1.as_deref(), Some(""), "the form is cleared by the server's answer");
+    assert_eq!(control_attribute(&app.dom, "Comment on this pull request", "value").unwrap().1.as_deref(), Some(""), "the form is cleared by the server's answer");
     assert_eq!(error(app.state), None);
     }).await;
 }
@@ -184,9 +197,8 @@ async fn an_action_is_disabled_without_the_connections_grant_and_absent_without_
     app.open_panel().await;
     assert!(disabled(&app.dom, "Merge") && disabled(&app.dom, "Close pull request"), "this connection cannot change source control");
     assert_eq!(control_attribute(&app.dom, "Merge", "title").unwrap().1.as_deref(), Some("This connection cannot change source control."));
-    click_control(&mut app.dom, "Pull request conversation");
     wait_for_rendered_text(&mut app.dom, "first remark").await;
-    assert!(disabled(&app.dom, "Comment") && disabled(&app.dom, "Add a comment"));
+    assert!(disabled(&app.dom, "Comment") && disabled(&app.dom, "Comment on this pull request"));
     assert_eq!(app.asked("merge") + app.asked("comment") + app.asked("close"), 0);
     }).await;
 }
@@ -285,7 +297,7 @@ async fn a_lost_connection_marks_the_pull_request_old_and_turns_every_write_off(
 async fn files_changed_come_from_the_hosts_patch_and_viewed_marks_are_the_hosts() {
     with_app(16, &WRITER, async |app| {
     app.open_panel().await;
-    click_control(&mut app.dom, "Files changed");
+    click_control(&mut app.dom, "Code");
     wait_for_rendered_text(&mut app.dom, "+b").await;
     let text = rendered_text(&app.dom);
     assert!(text.contains("a.ts") && text.contains("b.ts") && text.contains("+d"), "{text}");
@@ -354,7 +366,7 @@ async fn review_threads_are_replied_to_and_resolved_and_a_review_is_submitted_on
     with_app(19, &WRITER, async |app| {
         app.github.passing();
         app.open_panel().await;
-        click_control(&mut app.dom, "Files changed");
+        click_control(&mut app.dom, "Code");
         wait_for_rendered_text(&mut app.dom, "nit about a").await;
         // A reply is sent once and shows when the host has it.
         assert!(disabled(&app.dom, "Reply in the thread on a.ts"), "nothing to say yet");
@@ -369,7 +381,9 @@ async fn review_threads_are_replied_to_and_resolved_and_a_review_is_submitted_on
         click_control(&mut app.dom, "Unresolve thread on a.ts");
         until(&mut app.dom, "the thread open again", |dom| control(dom, "Resolve thread on a.ts").is_some()).await;
         assert_eq!((app.asked("resolve"), app.asked("unresolve")), (1, 1));
-        // A review: an approval needs no words, anything else does; it is sent once.
+        // A review: an approval needs no words, anything else does; it is sent once. It is written in the composer.
+        click_control(&mut app.dom, "Comment on pull request");
+        click_control(&mut app.dom, "Review mode");
         assert!(disabled(&app.dom, "Submit review"), "a comment needs a summary");
         input_control(&mut app.dom, "Review summary", "Looks fine");
         change_control(&mut app.dom, "Review verdict", "approve");
@@ -440,15 +454,14 @@ fn sent(kind: &str) -> Vec<Value> {
 async fn a_reaction_shows_at_once_is_pressed_once_and_is_what_the_host_then_says() {
     with_app(30, &WRITER, async |app| {
         app.open_panel().await;
-        click_control(&mut app.dom, "Pull request conversation");
         wait_for_rendered_text(&mut app.dom, "first remark").await;
         assert!(control(&app.dom, "thumbs up, 1").is_none());
         let gate = app.github.hold_writes();
-        click_nth_control(&mut app.dom, "Add a reaction", 0);
+        click_nth_control(&mut app.dom, "Add a reaction", 1);
         assert!(control(&app.dom, "thumbs up").is_some(), "the picker opens");
-        key_on(&mut app.dom, "Add a reaction", Key::Escape);
+        key_on(&mut app.dom, "thumbs up", Key::Escape);
         assert!(control(&app.dom, "thumbs up").is_none(), "Escape closes the picker");
-        click_nth_control(&mut app.dom, "Add a reaction", 0);
+        click_nth_control(&mut app.dom, "Add a reaction", 1);
         click_control(&mut app.dom, "thumbs up");
         // The pill is there before the host has said anything, and cannot be pressed again meanwhile.
         assert_eq!(pressed(&app.dom, "thumbs up, 1"), Some(true));
@@ -474,9 +487,8 @@ async fn a_reaction_the_host_refuses_goes_back_and_says_so() {
     with_app(31, &WRITER, async |app| {
         app.github.set(|data| data.write_refusal = Some("Resource not accessible".into()));
         app.open_panel().await;
-        click_control(&mut app.dom, "Pull request conversation");
         wait_for_rendered_text(&mut app.dom, "first remark").await;
-        click_nth_control(&mut app.dom, "Add a reaction", 0);
+        click_nth_control(&mut app.dom, "Add a reaction", 1);
         click_control(&mut app.dom, "heart");
         assert_eq!(pressed(&app.dom, "heart, 1"), Some(true));
         wait_for_rendered_text(&mut app.dom, "The reaction could not be saved").await;
@@ -490,10 +502,10 @@ async fn a_reaction_the_host_refuses_goes_back_and_says_so() {
 async fn only_your_own_remark_can_be_rewritten_and_a_failed_save_keeps_the_words() {
     with_app(32, &WRITER, async |app| {
         app.open_panel().await;
-        click_control(&mut app.dom, "Pull request conversation");
         wait_for_rendered_text(&mut app.dom, "first remark").await;
         assert!(control(&app.dom, "Edit comment").is_none(), "bob's remark is not yours to rewrite");
-        input_control(&mut app.dom, "Add a comment", "Ship it please");
+        click_control(&mut app.dom, "Comment on pull request");
+        input_control(&mut app.dom, "Comment on this pull request", "Ship it please");
         click_control(&mut app.dom, "Comment");
         wait_for_rendered_text(&mut app.dom, "Ship it please").await;
         assert_eq!(all_controls(&app.dom, "Edit comment").len(), 1);
@@ -584,6 +596,77 @@ async fn a_pull_request_is_filed_under_the_thread_and_taken_out_from_its_panel()
         click_when_enabled(&mut app.dom, "Unlink from this thread").await;
         until(&mut app.dom, "the link gone", |dom| control(dom, "Link to this thread").is_some()).await;
         assert_eq!(thread_links(app.state), 0);
+        assert_eq!(error(app.state), None);
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_thread_row_carries_its_pull_requests_state_and_opens_the_panel_on_it() {
+    with_app(43, &WRITER, async |app| {
+        app.open_panel().await;
+        assert!(control(&app.dom, "PR #43*").is_none(), "nothing is filed under the thread, so its row has no badge");
+        click_control(&mut app.dom, "Link to this thread");
+        until(&mut app.dom, "the badge on the row", |dom| control(dom, "PR #43*").is_some()).await;
+        // The badge says what the request is in its name and wears the state's class.
+        let name = control_attribute(&app.dom, "PR #43*", "aria-label").unwrap().1.unwrap();
+        assert!(name.starts_with("PR #43"), "{name}");
+        let class = control_attribute(&app.dom, "PR #43*", "class").unwrap().1.unwrap();
+        assert!(class.contains("thread-pr") && class.contains("pr-open"), "{class}");
+        // Clicking it opens the panel on that request, in its thread, as it opens from the header.
+        click_control(&mut app.dom, "Close pull request panel");
+        assert!(app.state.peek().pr_panel.is_none());
+        click_control(&mut app.dom, "PR #43*");
+        until(&mut app.dom, "the panel", |_| app.state.peek().pr_panel.as_ref().is_some_and(|target| target.reference.number == 43 && target.thread_id == "thread-a")).await;
+        // The way out: unlinked, the row carries nothing.
+        wait_for_rendered_text(&mut app.dom, "Please").await;
+        click_when_enabled(&mut app.dom, "Unlink from this thread").await;
+        until(&mut app.dom, "the badge gone", |dom| control(dom, "PR #43*").is_none()).await;
+        assert_eq!(error(app.state), None);
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_line_comment_is_collected_under_its_line_and_sent_with_the_review() {
+    with_app(44, &WRITER, async |app| {
+        app.github.passing();
+        app.open_panel().await;
+        click_control(&mut app.dom, "Code");
+        wait_for_rendered_text(&mut app.dom, "nit about a").await;
+        // The thread sits under its line (a.ts line 1, on the new side), not below the file.
+        assert!(control(&app.dom, "Reply to thread on a.ts").is_some());
+        // Start a comment on the added line. The deleted line is another line with the same number.
+        click_nth_control(&mut app.dom, "Comment on a.ts line 1", 1);
+        assert!(control(&app.dom, "Line comment on a.ts:1").is_some());
+        assert!(disabled(&app.dom, "Add to review"), "a comment needs words");
+        input_control(&mut app.dom, "Line comment on a.ts:1", "  Rename this please  ");
+        click_control(&mut app.dom, "Add to review");
+        // Nothing is sent: a review is one request with the verdict. The row holds the pending comment and the composer counts it.
+        assert!(control(&app.dom, "Line comment on a.ts:1").is_none() && control(&app.dom, "Discard pending comment on a.ts:1").is_some());
+        assert!(control(&app.dom, "Review pull request, 1 comment pending").is_some());
+        assert!(rendered_text(&app.dom).contains("Rename this please"));
+        assert_eq!(world().asked().iter().filter(|asked| asked.method == "POST" && asked.path.ends_with("/pulls/44/reviews")).count(), 0);
+        // Cancelled, a draft is dropped and nothing is kept.
+        click_nth_control(&mut app.dom, "Comment on b.ts line 1", 1);
+        click_control(&mut app.dom, "Cancel line comment");
+        assert!(control(&app.dom, "Line comment on b.ts:1").is_none());
+        // The review carries it: a comment-only review with no summary is sendable because it holds a line comment.
+        click_control(&mut app.dom, "Review pull request, 1 comment pending");
+        assert_eq!(pressed(&app.dom, "Review mode"), Some(true), "opening picks the mode with work waiting in it");
+        click_control(&mut app.dom, "Submit review");
+        wait_for_rendered_text(&mut app.dom, "Review submitted").await;
+        let reviews: Vec<_> = world().asked().into_iter().filter(|asked| asked.method == "POST" && asked.path.ends_with("/pulls/44/reviews")).collect();
+        assert_eq!(reviews.len(), 1);
+        let body = reviews[0].body.clone().unwrap();
+        assert_eq!(body["event"], "COMMENT");
+        assert_eq!(body["comments"].as_array().map(Vec::len), Some(1), "{body}");
+        assert_eq!((body["comments"][0]["path"].as_str(), body["comments"][0]["body"].as_str()), (Some("a.ts"), Some("Rename this please")), "{body}");
+        // Sent, the pending comment is gone from the row and from the count.
+        until(&mut app.dom, "the pending comment gone", |dom| control(dom, "Discard pending comment on a.ts:1").is_none()).await;
+        assert!(control(&app.dom, "Comment on pull request").is_some() || control(&app.dom, "Review pull request").is_some());
         assert_eq!(error(app.state), None);
     })
     .await;
@@ -688,7 +771,7 @@ async fn the_list_opened_by_its_address_reads_once_the_connection_is_ready_and_a
 async fn the_files_tab_reads_the_patch_again_at_a_refresh_notice() {
     with_app(72, &WRITER, async |app| {
         app.open_panel().await;
-        click_control(&mut app.dom, "Files changed");
+        click_control(&mut app.dom, "Code");
         wait_for_rendered_text(&mut app.dom, "+b").await;
         app.github.set(|data| data.patch = "diff --git a/c.ts b/c.ts\n--- a/c.ts\n+++ b/c.ts\n@@ -1 +1 @@\n-x\n+changed in review\n".into());
         let payload = json!({"reference":reference(app)});
@@ -731,7 +814,7 @@ async fn unchanged_lines_between_hunks_expand_from_the_hosts_file_and_only_when_
     with_app(60, &WRITER, async |app| {
         app.github.set(|data| data.patch = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -10,3 +10,3 @@\n line 10\n-line 11\n+LINE 11\n line 12\n".into());
         app.open_panel().await;
-        click_control(&mut app.dom, "Files changed");
+        click_control(&mut app.dom, "Code");
         until(&mut app.dom, "the gap", |dom| control(dom, "Expand 9 unchanged lines in a.ts").is_some()).await;
         let contents = || world().asked().iter().filter(|asked| asked.path.contains("/contents/")).count();
         assert_eq!(contents(), 0, "the file is not read until a gap is opened");
@@ -755,7 +838,7 @@ async fn a_review_thread_with_more_comments_pages_the_next_one_in_from_its_curso
             data.threads[0]["comments"]["totalCount"] = json!(2);
         });
         app.open_panel().await;
-        click_control(&mut app.dom, "Pull request conversation");
+        click_control(&mut app.dom, "Code");
         wait_for_rendered_text(&mut app.dom, "nit about a").await;
         assert!(control(&app.dom, "Show more comments in the thread on a.ts").is_some());
         // The next page is the host's, once per press, and the control goes when there is no more.

@@ -900,9 +900,9 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     open_thread(&mut dom, &props, state, "thread-a").await;
     key_on(&mut dom, &row, Key::ContextMenu);
     click_control(&mut dom, "Mark unread");
-    until(&mut dom, "the unread state on the row", |dom| rendered_text(dom).contains("Completed") && control_attribute(dom, &row, "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+    until(&mut dom, "the unread state on the row", |dom| rendered_text(dom).contains("Done") && control_attribute(dom, &row, "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
     open_thread(&mut dom, &props, state, "thread-b").await;
-    until(&mut dom, "the visit", |dom| !rendered_text(dom).contains("Completed") && !t3_client::sidebar::has_unseen_completion(&thread_shell(state, "thread-b")) && control(dom, &row).is_some()).await;
+    until(&mut dom, "the visit", |dom| !rendered_text(dom).contains("Done") && !t3_client::sidebar::has_unseen_completion(&thread_shell(state, "thread-b")) && control(dom, &row).is_some()).await;
     fixture.finish(dom).await;
 }
 

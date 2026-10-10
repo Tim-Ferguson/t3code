@@ -101,15 +101,7 @@ enum CloneStep {
 }
 
 fn relative(updated: &t3_contracts::UtcDateTime) -> String {
-    let seconds = (chrono::Utc::now() - updated.0).num_seconds();
-    match seconds {
-        s if s < 5 => "just now".into(),
-        s if s < 60 => format!("{s}s ago"),
-        s if s < 3600 => format!("{}m ago", s / 60),
-        s if s < 86_400 => format!("{}h ago", s / 3600),
-        s if s < 604_800 => format!("{}d ago", s / 86_400),
-        s => format!("{}w ago", s / 604_800),
-    }
+    t3_client::thread_status::ago_label(updated.0, chrono::Utc::now())
 }
 
 const RECENT_THREADS: usize = 12;
@@ -179,9 +171,10 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         .iter()
         .map(|project| Item::action(&format!("project:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string()))
         .collect();
-    let mut thread_items: Vec<Item> = threads
-        .iter()
-        .filter(|thread| thread.deleted_at.is_none() && thread.archived_at.is_none())
+    // The original lists threads in the order the sidebar setting names, and shows when a person last wrote to one.
+    let sort_order = state.client_settings().peek().sidebar_thread_sort_order;
+    let thread_items: Vec<Item> = t3_client::thread_sort::sort_threads(threads.iter().filter(|thread| thread.deleted_at.is_none() && thread.archived_at.is_none()), sort_order)
+        .into_iter()
         .map(|thread| {
             let project = project_title(thread.project_id.as_str());
             let mut parts = vec![project.clone()];
@@ -192,12 +185,11 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                 parts.push("Current thread".into());
             }
             let mut item = Item::action(&format!("thread:{}", thread.id), &thread.title, &[thread.title.as_str(), project.as_str(), thread.branch.as_ref().map_or("", |branch| branch.as_str()), thread.id.as_str()]).described(parts.join(" \u{b7} "));
-            item.recency = Some(thread.updated_at.0.timestamp_millis());
-            item.timestamp = Some(relative(&thread.updated_at));
+            item.recency = Some(t3_client::thread_sort::sort_timestamp(thread, t3_contracts::SidebarThreadSortOrder::UpdatedAt));
+            item.timestamp = Some(relative(&t3_client::thread_sort::shown_at(thread).into()));
             item
         })
         .collect();
-    thread_items.sort_by(|left, right| right.recency.cmp(&left.recency));
     let recent: Vec<Item> = thread_items.iter().take(RECENT_THREADS).cloned().collect();
 
     let mut actions: Vec<Item> = vec![];
@@ -484,7 +476,15 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                         open_settings(state, view);
                     } else if let Some(id) = other.strip_prefix("thread:") {
                         runtime::select_thread(&transport, state, id.to_owned());
-                    } else if let Some(id) = other.strip_prefix("new-thread-in:").or_else(|| other.strip_prefix("project:")) {
+                    } else if let Some(id) = other.strip_prefix("project:") {
+                        // A project from the search opens its newest thread, else starts one (`openProjectFromSearch`).
+                        let order = state.client_settings().peek().sidebar_thread_sort_order;
+                        let latest = state.shell().peek().snapshot.as_ref().and_then(|snapshot| t3_client::thread_sort::latest_for_project(&snapshot.threads, id, order).map(|thread| thread.id.to_string()));
+                        match latest {
+                            Some(thread) => runtime::select_thread(&transport, state, thread),
+                            None => runtime::new_thread(&transport, state, Some(id.to_owned())),
+                        }
+                    } else if let Some(id) = other.strip_prefix("new-thread-in:") {
                         runtime::new_thread(&transport, state, Some(id.to_owned()));
                     } else if let Some(id) = other.strip_prefix("theme:") {
                         if let Some(themes) = &themes {

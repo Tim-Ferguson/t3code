@@ -360,6 +360,21 @@ pub fn settled_timestamp(thread: &ThreadShell) -> i64 {
         .max()
         .unwrap_or_else(|| thread.updated_at.timestamp_millis())
 }
+/// `compactSidebarTimeLabel`: "now", "5m", "3h", "2d".
+fn compact_time_label(label: String) -> String {
+    if label == "just now" {
+        return "now".into();
+    }
+    label.strip_suffix(" ago").map(str::to_owned).unwrap_or(label)
+}
+/// `threadTimeLabel`: when a person last wrote to the thread, else when it last changed.
+pub fn time_label(thread: &ThreadShell, now: DateTime<Utc>) -> String {
+    compact_time_label(crate::thread_status::ago_label(crate::thread_sort::shown_at(thread), now))
+}
+/// `settledTimeLabel`: how long ago the settled thread wrapped up, by the same stamp it sorts on.
+pub fn settled_time_label(thread: &ThreadShell, now: DateTime<Utc>) -> String {
+    DateTime::from_timestamp_millis(settled_timestamp(thread)).map(|at| compact_time_label(crate::thread_status::ago_label(at, now))).unwrap_or_default()
+}
 /// `sortSettledThreads`: newest end first.
 pub fn sort_settled(threads: &mut [&ThreadShell]) {
     threads.sort_by(|left, right| settled_timestamp(right).cmp(&settled_timestamp(left)).then_with(|| left.id.as_str().cmp(right.id.as_str())));
@@ -620,5 +635,23 @@ mod woke_tests {
         assert_eq!(woke_at(&thread(json!({"snoozedUntil":"2026-01-02T09:00:00Z","lastVisitedAt":"2026-01-02T09:30:00Z"})), now), None);
         // Settling the thread ends it.
         assert_eq!(woke_at(&thread(json!({"snoozedUntil":"2026-01-02T09:00:00Z","settledOverride":"settled"})), now), None);
+    }
+
+    #[test]
+    fn a_row_says_when_a_person_last_wrote_and_a_settled_one_when_it_wrapped_up() {
+        let now = at("2026-01-02T12:00:00Z");
+        // `updatedAt` moves with every event the server records; a row is dated by the last message a person wrote.
+        let touched = thread(json!({"latestUserMessageAt":"2026-01-02T09:00:00Z","updatedAt":"2026-01-02T11:59:50Z"}));
+        assert_eq!(time_label(&touched, now), "3h");
+        // A thread nobody wrote to is dated by its last change.
+        assert_eq!(time_label(&thread(json!({"updatedAt":"2026-01-02T11:30:00Z"})), now), "30m");
+        assert_eq!(time_label(&thread(json!({"updatedAt":"2026-01-02T11:59:30Z"})), now), "now");
+        // A settled row reads how long ago it ended, by the stamp it sorts on: the latest of the message and the run's stamps.
+        let settled = thread(json!({"latestUserMessageAt":"2026-01-01T10:00:00Z","latestRunId":"r","status":"completed","latestRunRequestedAt":"2026-01-01T10:00:01Z","latestRunStartedAt":"2026-01-01T10:00:02Z","latestRunCompletedAt":"2026-01-01T10:30:00Z","updatedAt":"2026-01-02T11:00:00Z"}));
+        assert_eq!(settled_time_label(&settled, now), "1d");
+        assert_eq!(settled_timestamp(&settled), at("2026-01-01T10:30:00Z").timestamp_millis());
+        // Settled when stamped wins over everything.
+        let stamped = thread(json!({"settledAt":"2026-01-02T11:00:00Z","latestUserMessageAt":"2026-01-01T10:00:00Z"}));
+        assert_eq!(settled_time_label(&stamped, now), "1h");
     }
 }

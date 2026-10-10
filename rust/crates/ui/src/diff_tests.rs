@@ -141,15 +141,21 @@ impl Fixture {
     /// With the server's settings extended by `settings` (`autoResumeLimitedThreads`, `sidebarAutoSettleAfterDays`...)
     /// and a manual clock the test moves, which is how a reset or an idle week passes without waiting.
     pub(crate) async fn start_timed(settings: Value, environment: &[(&str, &str)]) -> Self {
-        Self::build_with_settings(false, environment, false, None, false, settings, true).await
+        Self::build_with_settings(false, environment, false, None, false, settings, Some(t3_server::provider_idle::IDLE_TIMEOUT_MS)).await
+    }
+    /// `start_timed` with the provider idle window so long that moving the clock by days never ends it. The idle release and the
+    /// auto-settle sweep run off the same clock; a test of the sweep must not have the release writing to the threads (their
+    /// `updatedAt` moves with each event) while the sweep reads them, or the sweep's one pass is refused as a change under it.
+    pub(crate) async fn start_timed_without_idle_release(settings: Value, environment: &[(&str, &str)]) -> Self {
+        Self::build_with_settings(false, environment, false, None, false, settings, Some(365 * 24 * 60 * 60 * 1000)).await
     }
     async fn build(git_repository: bool, environment: &[(&str, &str)], terminals: bool) -> Self {
         Self::build_with(git_repository, environment, terminals, None, false).await
     }
     async fn build_with(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool) -> Self {
-        Self::build_with_settings(git_repository, environment, terminals, claude, real_editors, json!({}), false).await
+        Self::build_with_settings(git_repository, environment, terminals, claude, real_editors, json!({}), None).await
     }
-    async fn build_with_settings(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool, extra_settings: Value, timed: bool) -> Self {
+    async fn build_with_settings(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool, extra_settings: Value, timed: Option<i64>) -> Self {
         // Whatever a test leaves open on a developer's machine is named for what opened it.
         let directory = tempfile::Builder::new().prefix("t3code-rust-port-test-").tempdir().unwrap();
         let root = std::fs::canonicalize(directory.path()).unwrap();
@@ -221,9 +227,9 @@ impl Fixture {
         }
         api.config = Some(snapshot);
         api.settings = Some(settings_service.clone());
-        let clock = timed.then(|| {
+        let clock = timed.map(|idle_timeout| {
             let clock = t3_server::scheduled_tasks::ManualClock::new(chrono::Utc::now().timestamp_millis());
-            native.providers.idle_release().configure(clock.clone(), t3_server::provider_idle::IDLE_TIMEOUT_MS, t3_server::provider_idle::MAX_PIN_MS);
+            native.providers.idle_release().configure(clock.clone(), idle_timeout, t3_server::provider_idle::MAX_PIN_MS);
             clock
         });
         api.providers = Some(native.providers);

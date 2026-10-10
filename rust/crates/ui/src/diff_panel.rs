@@ -848,6 +848,7 @@ fn Rows(file: Rc<FileDiff>, split: bool, expand: Option<Rc<ExpandSource>>) -> El
     let remaining = window.total - window.shown;
     let more = remaining.min(MORE_ROWS);
     let path = file.path().to_owned();
+    let notes = line_notes();
     let on_gap = {
         let (file, expand) = (file.clone(), expand.clone());
         use_callback(move |(gap, from_top, all): (Gap, bool, bool)| {
@@ -888,11 +889,19 @@ fn Rows(file: Rc<FileDiff>, split: bool, expand: Option<Rc<ExpandSource>>) -> El
                         div { class: "diff-hunk-header", "{chunk.hunk.header()}" }
                         for (position, row) in chunk.rows.iter().enumerate() {
                             match row {
-                                Row::Line(line) => rsx! { StackedRow { key: "{position}", line: (*line).clone(), colour: colour(chunk.index, line), path: path.clone() } },
+                                Row::Line(line) => rsx! {
+                                    StackedRow { key: "{position}", line: (*line).clone(), colour: colour(chunk.index, line), path: path.clone() }
+                                    if let Some(notes) = &notes { { (notes.under)(&path, line, None) } }
+                                },
                                 Row::Pair(pair) => rsx! {
                                     div { key: "{position}", class: "diff-split-row",
-                                        { cell(pair.old, Side::Old, pair.old.and_then(|line| colour(chunk.index, line))) }
-                                        { cell(pair.new, Side::New, pair.new.and_then(|line| colour(chunk.index, line))) }
+                                        { cell(pair.old, Side::Old, pair.old.and_then(|line| colour(chunk.index, line)), &path) }
+                                        { cell(pair.new, Side::New, pair.new.and_then(|line| colour(chunk.index, line)), &path) }
+                                    }
+                                    if let Some(notes) = &notes {
+                                        for (line, right) in [(pair.old, false), (pair.new, true)] {
+                                            if let Some(line) = line { { (notes.under)(&path, line, Some(right)) } }
+                                        }
                                     }
                                 },
                             }
@@ -950,7 +959,7 @@ fn code(line: &DiffLine, colour: Option<Rc<RenderedLine>>) -> Element {
 }
 
 /// One half of a split row. A missing side is an empty cell, so the columns stay aligned.
-fn cell(line: Option<&DiffLine>, side: Side, colour: Option<Rc<RenderedLine>>) -> Element {
+fn cell(line: Option<&DiffLine>, side: Side, colour: Option<Rc<RenderedLine>>, path: &str) -> Element {
     let Some(line) = line else {
         return rsx! { div { class: "diff-cell empty" } };
     };
@@ -965,6 +974,11 @@ fn cell(line: Option<&DiffLine>, side: Side, colour: Option<Rc<RenderedLine>>) -
             span { class: "diff-num", {number.map(|number| number.to_string()).unwrap_or_default()} }
             span { class: "diff-mark", "aria-hidden": "true", "{mark}" }
             { code(line, colour) }
+            // A split row has a comment button only in a view that takes line comments of its own.
+            if let (Some(notes), Some(number)) = (line_notes().filter(|notes| notes.enabled), number) {
+                button { r#type: "button", class: "diff-comment", "aria-label": "Comment on {path} line {number}", title: "Comment on this line",
+                    onclick: { let (path, line, begin) = (path.to_owned(), line.clone(), notes.begin); move |_| begin.call((path.clone(), line.clone(), side == Side::New)) }, "+" }
+            }
         }
     }
 }
@@ -995,8 +1009,10 @@ fn StackedRow(props: StackedRowProps) -> Element {
             span { class: "diff-num", {line.new_number.map(|number| number.to_string()).unwrap_or_default()} }
             span { class: "diff-mark", "aria-hidden": "true", "{mark}" }
             { code(line, props.colour.clone()) }
-            if let Some(number) = line.new_number.or(line.old_number) {
-                button { r#type: "button", class: "diff-comment", "aria-label": "Comment on {props.path} line {number}", title: "Comment on this line", onclick: { let (path, line) = (props.path.clone(), line.clone()); move |_| { if let Some(commenter) = try_consume_context::<Commenter>() { let mut target = commenter.0; target.set(Some(CommentTarget { path: path.clone(), line: line.clone() })); } } }, "+" }
+            if let (Some(number), true) = (line.new_number.or(line.old_number), line_notes().is_none_or(|notes| notes.enabled)) {
+                button { r#type: "button", class: "diff-comment", "aria-label": "Comment on {props.path} line {number}", title: "Comment on this line", onclick: { let (path, line) = (props.path.clone(), line.clone()); move |_| {
+                    if let Some(notes) = line_notes() { notes.begin.call((path.clone(), line.clone(), true)); }
+                    else if let Some(commenter) = try_consume_context::<Commenter>() { let mut target = commenter.0; target.set(Some(CommentTarget { path: path.clone(), line: line.clone() })); } } }, "+" }
             }
         }
     }
@@ -1022,6 +1038,19 @@ struct CommentTarget {
 /// Lets a row ask the panel for a comment dialog without the rows depending on the panel.
 #[derive(Clone, Copy)]
 struct Commenter(Signal<Option<CommentTarget>>);
+
+/// What a view hangs on the lines of a diff of its own: the pull request panel's review comments. `under` gives the notes
+/// that sit below a line (its path, the line, and for one half of a split row whether it is the new half), `begin` is what the line's comment
+/// button asks for, and a view that cannot take a comment turns the button off.
+#[derive(Clone)]
+pub(crate) struct LineNotes {
+    pub(crate) enabled: bool,
+    pub(crate) under: Rc<dyn Fn(&str, &DiffLine, Option<bool>) -> Option<Element>>,
+    pub(crate) begin: Callback<(String, DiffLine, bool)>,
+}
+fn line_notes() -> Option<LineNotes> {
+    try_consume_context::<LineNotes>()
+}
 
 /// Writes a comment on one line of a diff and attaches it to the open draft as a chip.
 #[component]

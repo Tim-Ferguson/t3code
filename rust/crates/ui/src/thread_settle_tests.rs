@@ -96,8 +96,10 @@ async fn a_snoozed_thread_says_so_wakes_on_request_and_is_woken_by_a_message() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_thread_can_opt_out_of_automatic_settling_and_the_sweep_settles_the_others() {
-    // Two days of quiet settle a thread; the manual clock is moved past them.
-    let fixture = Fixture::start_timed(json!({"sidebarAutoSettleAfterDays":2}), &[]).await;
+    // Two days of quiet settle a thread; the manual clock is moved past them. The provider idle release shares that clock, and
+    // would release both threads' sessions at the same moment, each release an event on the thread the sweep is reading: the
+    // sweep dispatches once, from what it read, and a thread that changed under it is refused until the clock moves again.
+    let fixture = Fixture::start_timed_without_idle_release(json!({"sidebarAutoSettleAfterDays":2}), &[]).await;
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;

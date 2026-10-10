@@ -229,6 +229,41 @@ pub(crate) fn cancel_edit(state: Store<UiModel>, mut editing: Signal<Option<Edit
     }
 }
 
+/// A native `/goal`, which keeps the agent going across turns: its title and objective above the composer, and once the thread
+/// is idle the native follow-ups (resume, clear), which are sent as the commands they are.
+#[component]
+pub(crate) fn GoalStrip(state: Store<UiModel>, transport: runtime::TransportHandle, thread_id: String, can_operate: bool) -> Element {
+    let goal = use_memo({
+        let thread_id = thread_id.clone();
+        move || {
+            let shell = state.shell();
+            let shell = shell.read();
+            let thread = shell.snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id))?;
+            let goal = serde_json::to_value(thread.goal.clone().flatten()?).ok()?;
+            Some((goal, thread.status.is_active()))
+        }
+    });
+    let Some((goal, working)) = goal.read().clone() else { return rsx! {} };
+    let shown = t3_client::provider_goal::present(&goal, working);
+    let title = match &shown.usage {
+        Some(usage) => format!("{} \u{b7} {usage}", shown.title),
+        None => shown.title.clone(),
+    };
+    let command = move |text: &'static str| {
+        let (transport, state) = (transport.clone(), state);
+        move |_| runtime::send_with(&transport, state, runtime::SendOptions { text: Some(text.to_owned()), mode: Some("auto"), ..Default::default() })
+    };
+    rsx! {section {class:"goal-strip composer-panel",role:"status","aria-label":"Goal",
+        span {class:if working {"status-dot busy"} else {"status-dot"},"aria-hidden":"true"}
+        strong {"{title}"}
+        span {class:"muted goal-objective","{shown.objective}"}
+        if !working {
+            if shown.can_resume { button {"aria-label":"Resume goal",disabled:!can_operate,onclick:command("/goal resume"),"Resume"} }
+            button {"aria-label":"Clear goal",disabled:!can_operate,onclick:command("/goal clear"),"Clear"}
+        }
+    }}
+}
+
 /// What a settled thread still runs, with Stop. The thread is not "working": a dev server can run
 /// for hours after the agent is done.
 #[component]

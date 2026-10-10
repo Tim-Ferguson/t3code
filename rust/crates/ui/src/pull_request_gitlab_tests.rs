@@ -110,14 +110,14 @@ async fn a_gitlab_merge_request_is_shown_as_the_host_says_it_can_be_used() {
     assert_eq!(error(state), None);
 
     // Review: a comment or an approval, nothing else.
-    click_control(&mut dom, "Pull request conversation");
     wait_for_rendered_text(&mut dom, "Looks fine").await;
+    click_control(&mut dom, "Comment on pull request");
     until(&mut dom, "the review form", |dom| control(dom, "Review verdict").is_some()).await;
     let verdicts = rendered_text(&dom);
     assert!(verdicts.contains("Comment") && verdicts.contains("Approve") && !verdicts.contains("Request changes"), "{verdicts}");
 
     // Files: the marks are this environment's, and the page says so rather than implying the host has them.
-    click_control(&mut dom, "Files changed");
+    click_control(&mut dom, "Code");
     wait_for_rendered_text(&mut dom, "0 / 1 viewed in T3 Code").await;
     assert!(control(&dom, "These ticks are kept here, not on the host").is_some());
     click_control(&mut dom, "Viewed a.ts");

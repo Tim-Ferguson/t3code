@@ -285,31 +285,39 @@ async fn switching_threads_by_address_rebuilds_no_more_than_switching_them_from_
 
     // The sidebar's switches, each way and twice (the first of each is the one that opens the thread's place in the sidebar), as the measure.
     let (mut sidebar, mut by_address) = (Vec::new(), Vec::new());
+    // How many events the server delivered to the shell during each window. The composer is built again for each, and whether a
+    // switch's own visit stamp lands inside its window or just after it is a matter of timing.
+    let shell_sequence = || state.peek().shell.snapshot.as_ref().map_or(0, |snapshot| snapshot.snapshot_sequence);
+    let (mut sidebar_events, mut address_events) = (Vec::new(), Vec::new());
     for thread in ["thread-a", "thread-b", "thread-a", "thread-b"] {
-        let start = built(&probe);
+        let (start, first_event) = (built(&probe), shell_sequence());
         dom.in_scope(ScopeId::APP, || crate::runtime::select_thread(&props.transport, state, thread.into()));
         until(&mut dom, "the sidebar's switch", shown(thread)).await;
         until(&mut dom, "its address", |_| last_push(&browser) == Some(address(thread))).await;
         sidebar.push(spent(start, built(&probe)));
+        sidebar_events.push(shell_sequence() - first_event);
     }
     // Back and forward by address, from b: to a, to b again (back), to a (back), to b (forward).
     for thread in ["thread-a", "thread-b", "thread-a", "thread-b"] {
-        let start = built(&probe);
+        let (start, first_event) = (built(&probe), shell_sequence());
         browser.borrow_mut().go(&address(thread));
         until(&mut dom, "the address's switch", shown(thread)).await;
         until(&mut dom, "its address kept", |_| last_push(&browser) == Some(address(thread))).await;
         by_address.push(spent(start, built(&probe)));
+        address_events.push(shell_sequence() - first_event);
     }
     // The budget is the most any of the sidebar's own switches cost, per measure: which switch pays for an extra
     // pass (the first visit of a place, or a status that lands during it) depends on timing, and an address
     // may not cost more than the sidebar's worst.
     let worst = sidebar.iter().fold(sidebar[0], |most, got| (most.0.max(got.0), most.1.max(got.1), most.2.max(got.2), most.3.max(got.3), most.4.max(got.4)));
-    let (to_a, to_b) = (worst, worst);
     // The conversation, the composer and the items are exact. The application and the rows may each take one pass more
     // than the budget: a status or a timer that lands during one window is not something the address caused.
-    let within = |got: Built, budget: Built| got.0 <= budget.0 + 1 && got.1 <= budget.1 && got.2 <= budget.2 && got.3 <= budget.3 && got.4 <= budget.4 + 1;
+    // The composer is built once for a switch, and once more for each event the server delivered to the shell meanwhile (a
+    // switch's own visit stamp is one): the cheapest sidebar switch is what a switch costs, an event is what a window adds.
+    let switch_cost = sidebar.iter().map(|got| got.2).min().unwrap();
+    let within = |got: Built, budget: Built, events: u64| got.0 <= budget.0 + 1 && got.1 <= budget.1 && got.2 as u64 <= switch_cost as u64 + events && got.3 <= budget.3 && got.4 <= budget.4 + 1;
     assert!(sidebar[2].1 >= 1 && sidebar[3].1 >= 1, "a switch builds the conversation: {sidebar:?}");
-    assert!(within(by_address[0], to_a) && within(by_address[1], to_b) && within(by_address[2], to_a) && within(by_address[3], to_b), "an address rebuilt more than the sidebar did: {by_address:?} against {sidebar:?}");
+    assert!((0..4).all(|index| within(by_address[index], worst, address_events[index])), "an address rebuilt more than the sidebar did: {by_address:?} ({address_events:?} shell events) against {sidebar:?} ({sidebar_events:?})");
     assert_eq!(state.error().peek().clone(), None);
     fixture.finish(dom).await;
 }

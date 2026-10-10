@@ -31,7 +31,11 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
       `thread ${threadId} never reached: ${what} (runs: ${runs || "none"}; requests: ${(last?.runtimeRequests ?? []).map((r) => r.status).join(",")})`,
     );
   };
-  const runStatus = (view, index) => view.runs?.[index]?.status;
+  // A run is named by its ordinal, not by its place in the list: a read of a long thread is the newest window of it (as the
+  // original's is), so a thread with many runs lists only the last of them.
+  const runOrdinal = (view) => Math.max(0, ...(view.runs ?? []).map((run) => run.ordinal ?? 0));
+  const runStatus = (view, index) =>
+    (view.runs ?? []).find((run) => run.ordinal === index + 1)?.status;
   const settled = (index) => (view) => TERMINAL.has(runStatus(view, index));
   const pending = (view) =>
     (view.runtimeRequests ?? []).some((request) => request.status === "pending");
@@ -90,7 +94,7 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
     return id;
   }
   async function send(threadId, text, dispatchMode = { type: "start_immediately" }) {
-    const before = (await projection(threadId)).runs.length;
+    const before = runOrdinal(await projection(threadId));
     const messageId = randomUUID();
     await dispatch({
       type: "message.dispatch",
@@ -102,7 +106,7 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
       creationSource: "web",
       dispatchMode,
     });
-    await until(threadId, "the new run to exist", (view) => view.runs.length > before);
+    await until(threadId, "the new run to exist", (view) => runOrdinal(view) > before);
     return before;
   }
 

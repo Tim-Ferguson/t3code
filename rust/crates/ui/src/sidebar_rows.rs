@@ -10,7 +10,7 @@ use crate::{
 use chrono::Utc;
 use dioxus::prelude::*;
 use serde_json::{Value, json};
-use t3_client::sidebar::{self, Pill, Status, Tone};
+use t3_client::sidebar::{self, Pill, Status};
 use t3_contracts::ThreadShell;
 
 /// What the server says it can do for threads. Each action is offered only where it is.
@@ -69,6 +69,13 @@ pub(crate) struct RowView {
     /// Automatic settling is on for this thread (the user has not opted it out).
     pub auto_settle: bool,
     pub working_since: Option<String>,
+    /// "Goal" while a native goal keeps the agent going, else "Working" (`thread.goal?.status === "active"`).
+    pub working_label: &'static str,
+    /// How long ago the thread was written to, or for a settled one how long since it wrapped up.
+    pub time: String,
+    /// The provider instances that owned the thread before the one it has now, oldest first, by name.
+    pub previous_providers: Vec<String>,
+    pub pull_request: Option<PullRequestBadge>,
     pub branch: Option<String>,
     pub workspace: Option<String>,
     /// The thread's own worktree, which "New thread on <branch>" reuses.
@@ -82,6 +89,49 @@ pub(crate) struct RowView {
     pub drops: String,
 }
 
+/// What a row says of the thread's pull requests (`ThreadPullRequestBadgeControl`): the glyph of their state, the number (or
+/// the layers of a stack, or `+N` for several), and what a click opens.
+#[derive(Clone, PartialEq)]
+pub(crate) struct PullRequestBadge {
+    pub text: String,
+    /// The accessible name and tooltip.
+    pub label: String,
+    pub state: t3_client::thread_pull_requests::State,
+    pub stack: bool,
+    /// A stack or several links open the thread's list; one request opens itself.
+    pub opens_list: bool,
+    pub target: Option<crate::pull_request_panel::Target>,
+    pub url: String,
+}
+
+/// `resolveThreadPullRequestBadgePresentation`: none for a thread with nothing linked.
+fn pull_request_badge(thread: &ThreadShell) -> Option<PullRequestBadge> {
+    use t3_client::thread_pull_requests as links;
+    let linked = thread.pull_requests.as_ref().and_then(Option::as_ref).is_some_and(|list| !list.is_empty()) || thread.linked_pull_request.as_ref().is_some_and(Option::is_some);
+    if !linked {
+        return None;
+    }
+    let value = serde_json::to_value(thread).ok()?;
+    let badge = links::badge(&value);
+    let current = links::current(&value).or_else(|| links::links(&value).into_iter().next());
+    if let Some(links::Badge::Stack { layers, state }) = badge {
+        let target = current.as_ref().map(|link| crate::pull_request_panel::Target { thread_id: thread.id.to_string(), reference: link.reference(thread.project_id.as_str()) });
+        return Some(PullRequestBadge { text: layers.to_string(), label: format!("Stack of {layers} pull requests, {}", state.label().to_lowercase()), state, stack: true, opens_list: true, target, url: current.map(|link| link.url).unwrap_or_default() });
+    }
+    let link = current?;
+    let state = links::state_of(&value, &link);
+    let name = if link.url.contains("/-/merge_requests/") { "MR" } else { "PR" };
+    let tooltip = match link.title.as_deref() {
+        Some(title) => format!("{name} #{} - {}: {title}", link.number, state.label()),
+        None => format!("{name} #{}, status pending", link.number),
+    };
+    let target = Some(crate::pull_request_panel::Target { thread_id: thread.id.to_string(), reference: link.reference(thread.project_id.as_str()) });
+    Some(match badge {
+        Some(links::Badge::PullRequest { others, state: overall }) if others > 0 => PullRequestBadge { text: format!("+{}", others + 1), label: format!("{tooltip}, and {others} more linked; overall {}", overall.label().to_lowercase()), state: overall, stack: false, opens_list: true, target, url: link.url },
+        _ => PullRequestBadge { text: link.number.to_string(), label: tooltip, state, stack: false, opens_list: false, target, url: link.url },
+    })
+}
+
 /// The threads of a project the sidebar lists: not removed, archived or a subagent's.
 pub(crate) fn listed<'a>(threads: &'a [ThreadShell], project_id: &'a str) -> impl Iterator<Item = &'a ThreadShell> {
     threads.iter().filter(move |thread| thread.project_id.as_str() == project_id && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
@@ -93,7 +143,14 @@ pub(crate) fn rows<'a>(threads: &'a [ThreadShell], project_id: &'a str, now: chr
     [sections.pinned, sections.active, sections.snoozed, sections.settled].concat()
 }
 
-pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>) -> RowView {
+/// The names the provider stack of a row is drawn with, by instance id.
+pub(crate) fn provider_names(state: Store<UiModel>) -> std::collections::BTreeMap<String, String> {
+    let field = state.typed_config();
+    let config = field.read();
+    config.as_ref().map(|config| config.providers.0.iter().map(|provider| (provider.instance_id.to_string(), provider.display_name.clone().flatten().map_or_else(|| provider.instance_id.to_string(), |name| name.to_string()))).collect()).unwrap_or_default()
+}
+
+pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>, providers: &std::collections::BTreeMap<String, String>) -> RowView {
     let snoozed = sidebar::snoozed_until(thread, now);
     let section = sidebar::section_of(thread, now, caps.support());
     // A drag needs the server to store an order (as the original's rows do); each landing place
@@ -117,6 +174,10 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         woke_at: sidebar::woke_at(thread, now).map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
         regenerating: matches!(thread.title_regeneration, Some(Some(_))),
         auto_settle: !matches!(thread.auto_settle_disabled_at, Some(Some(_))),
+        working_label: if thread.goal.clone().flatten().is_some_and(|goal| goal.status == t3_contracts::ProviderGoalStatus::Active) { "Goal" } else { "Working" },
+        time: if section == sidebar::Section::Settled { sidebar::settled_time_label(thread, now) } else { sidebar::time_label(thread, now) },
+        previous_providers: thread.provider_instance_history.iter().filter(|instance| **instance != if sidebar::runtime_status(thread).is_some() { thread.provider_instance_id.clone() } else { thread.model_selection.instance_id.clone() }).map(|instance| providers.get(instance.as_str()).cloned().unwrap_or_else(|| instance.to_string())).collect(),
+        pull_request: pull_request_badge(thread),
         working_since: working.then(|| thread.activity_run_started_at.flatten().map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))).flatten(),
         branch: thread.branch.as_ref().map(ToString::to_string),
         workspace,
@@ -130,20 +191,10 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
     }
 }
 
-fn tone_class(tone: Tone) -> &'static str {
-    match tone {
-        Tone::Amber => "amber",
-        Tone::Indigo => "indigo",
-        Tone::Sky => "sky",
-        Tone::Muted => "muted",
-        Tone::Violet => "violet",
-        Tone::Emerald => "emerald",
-    }
-}
 
 /// "Working for 3m" beside a working thread; the only part of a row that ticks.
 #[component]
-fn WorkingFor(since: String) -> Element {
+fn WorkingFor(since: String, label: &'static str) -> Element {
     let mut now = use_signal(|| Utc::now().timestamp_millis());
     use_future(move || async move {
         loop {
@@ -152,7 +203,7 @@ fn WorkingFor(since: String) -> Element {
         }
     });
     let started = chrono::DateTime::parse_from_rfc3339(&since).map(|at| at.timestamp_millis()).unwrap_or_else(|_| now());
-    rsx! {span {class:"thread-duration","{sidebar::working_label(now() - started)}"}}
+    rsx! {span {class:"thread-duration","{label} {sidebar::working_label(now() - started)}"}}
 }
 
 /// Puts text on the clipboard from the click that asked for it.
@@ -197,10 +248,14 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     let mut settled = use_signal(|| false);
     let id = view.id.clone();
     let status = view.status.as_str();
-    let label = match (&view.pill, view.unread) {
-        (Some(pill), _) => Some(pill.label),
-        (None, true) => Some("Completed"),
-        _ => None,
+    // The words the original's row says (`topStatus` of `Sidebar.tsx`), which are not the words of a status pill.
+    let label: Option<(&'static str, &'static str)> = match view.status {
+        Status::Approval => Some(("Approval", "amber")),
+        Status::Input => Some(("Input", "indigo")),
+        Status::Waiting => Some(("Waiting", "muted")),
+        Status::Working => view.working_since.is_none().then_some((view.working_label, "sky")),
+        Status::Failed | Status::Limited => None,
+        Status::Ready => view.unread.then_some(("Done", "emerald")),
     };
     let class = format!("thread-row{}{}{}", if view.selected { " selected" } else { "" }, if view.snoozed.is_some() { " snoozed" } else { "" }, if view.unread { " unread" } else { "" });
     let mut close = move || menu.set(None);
@@ -354,6 +409,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         renaming.set(None);
     }
     let renamed = renaming.read().clone();
+    let earlier = view.previous_providers.join(", ");
     rsx! {
         div {class:"thread-row-wrap","data-thread-id":"{view.id}","data-section":view.section.as_str(),"data-drops":"{view.drops}",
             if let Some(draft) = renamed {
@@ -386,8 +442,30 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                 if let Some(wake)=&view.snoozed {span {class:"thread-snooze",title:"Snoozed",{format!("Snoozed \u{b7} {wake}")}}}
                 else if matches!(view.status, Status::Limited | Status::Failed) {span {class:if view.status == Status::Limited {"thread-pill amber"} else {"thread-pill red"},role:"status",if view.status == Status::Limited {"Limited"} else {"Failed"}}}
                 else if view.woke_at.is_some() {span {class:"thread-woke",title:"Woke",role:"status","\u{23f0} Woke"}}
-                else if let Some(since)=view.working_since.clone() {WorkingFor {since}}
-                else if let Some(label)=label {span {class:if let Some(pill)=&view.pill {format!("thread-pill {}",tone_class(pill.tone))} else {"thread-pill emerald".to_owned()},"{label}"}}
+                else if let Some(since)=view.working_since.clone() {WorkingFor {since, label: view.working_label}}
+                else if let Some((label, tone))=label {span {class:"thread-pill {tone}",role:"status","{label}"}}
+                if !view.time.is_empty() {span {class:"thread-time",title:"Last activity","{view.time}"}}
+            }
+            if view.branch.is_some() || view.pull_request.is_some() || !view.previous_providers.is_empty() {
+                div {class:"thread-meta",
+                    if let Some(branch)=view.branch.clone() {span {class:"thread-branch",title:"{branch}","{branch}"}}
+                    if let Some(badge)=view.pull_request.clone() {
+                        button {class:"thread-pr pr-{badge.state.class()}",r#type:"button","aria-label":"{badge.label}",title:"{badge.label}",
+                            onclick:{
+                                let transport=transport.clone();
+                                move |_| {
+                                    if let Some(target)=badge.target.clone() {
+                                        runtime::select_thread(&transport,state,target.thread_id.clone());
+                                        crate::pull_request_panel::open(state,target);
+                                    }
+                                }
+                            },
+                            crate::pull_request_glyph::Glyph {state:badge.state,stack:badge.stack}
+                            span {class:"thread-pr-text","{badge.text}"}
+                        }
+                    }
+                    if !view.previous_providers.is_empty() {span {class:"thread-providers",title:"Earlier: {earlier}","after {earlier}"}}
+                }
             }
             if let Some(woke) = view.woke_at.clone().filter(|_| can) {
                 // Dismissing is a visit at the moment of the wake, as in the original.

@@ -402,7 +402,9 @@ pub(crate) fn Actions(
             button { class: "branch-action git-options", r#type: "button", "aria-label": "Git action options", "aria-haspopup": "menu", "aria-expanded": "{menu()}", disabled: blocked, onclick: open_menu, "\u{25be}" }
             if menu() && !blocked {
                 div { class: "branch-picker-backdrop", onclick: move |_| menu.set(false) }
-                div { class: "branch-picker git-menu", role: "menu", "aria-label": "Git action options",
+                // Focus starts in the menu, so Escape reaches it: from the trigger it would close nothing and leave the backdrop over the page.
+                div { class: "branch-picker git-menu", role: "menu", "aria-label": "Git action options", tabindex: "0",
+                    onmounted: move |event| { drop(event.set_focus(true)); },
                     onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); menu.set(false); } },
                     for item in items.iter() {
                         {

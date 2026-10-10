@@ -187,6 +187,9 @@ pub(crate) fn request_delete(state: Store<UiModel>, transport: &TransportHandle,
 }
 fn delete(state: Store<UiModel>, transport: &TransportHandle, id: &str) {
     let Some(thread) = thread_of(state, id) else { return };
+    // The view goes to the project's next thread, chosen before the delete as the original does (`getFallbackThreadIdAfterDelete`).
+    let order = state.client_settings().peek().sidebar_thread_sort_order;
+    let fallback = state.shell().peek().snapshot.as_ref().and_then(|snapshot| t3_client::thread_sort::fallback_after_delete(&snapshot.threads, id, order).map(|next| next.id.to_string()));
     let id = id.to_owned();
     run(state, transport, move |transport| async move {
         let owner = runtime::response_owner(&transport, state);
@@ -197,7 +200,10 @@ fn delete(state: Store<UiModel>, transport: &TransportHandle, id: &str) {
         match answer {
             Ok(_) => {
                 state.lifecycle().write().archive_revision += 1;
-                leave_if_open(state, &transport, &thread)
+                match fallback {
+                    Some(next) if state.active_thread().peek().as_deref() == Some(thread.id.as_str()) => runtime::select_thread(&transport, state, next),
+                    _ => leave_if_open(state, &transport, &thread),
+                }
             }
             Err(reason) => notice::push(state, Level::Error, "Failed to delete thread", reason),
         }

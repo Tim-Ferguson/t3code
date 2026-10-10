@@ -84,13 +84,12 @@ async fn an_azure_devops_pull_request_shows_only_what_the_host_can_do() {
     assert!(!text.contains("Labels:") && control(&dom, "Add a reaction").is_none(), "{text}");
     assert_eq!(error(state), None);
 
-    // The conversation: what the host's threads said, and no composer, verdict, reply or resolution.
-    click_control(&mut dom, "Pull request conversation");
+    // The Summary's comments: what the host's threads said, and no composer, verdict, reply or resolution.
     wait_for_rendered_text(&mut dom, "Looks fine").await;
     let conversation = rendered_text(&dom);
-    assert!(control(&dom, "Add a comment").is_none() && control(&dom, "Comment").is_none(), "{conversation}");
+    assert!(control(&dom, "Comment on pull request").is_none() && control(&dom, "Review pull request").is_none() && control(&dom, "Comment on this pull request").is_none(), "{conversation}");
     assert!(control(&dom, "Review verdict").is_none() && control(&dom, "Submit review").is_none(), "{conversation}");
-    click_control(&mut dom, "Files changed");
+    click_control(&mut dom, "Code");
     assert!(control(&dom, "Reply to thread on /src/a.ts").is_none() && control(&dom, "Resolve thread on /src/a.ts").is_none());
     assert_eq!(error(state), None);
     fixture.finish(dom).await;

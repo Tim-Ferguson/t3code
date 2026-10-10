@@ -12,11 +12,13 @@ mod item_cards;
 mod base_ref_picker;
 mod git_control;
 mod pull_request_edit;
+mod pull_request_glyph;
 mod pull_request_links;
 mod pull_request_list;
 mod pull_request_menus;
 mod pull_request_panel;
 mod pull_request_review;
+mod pull_request_summary;
 mod pull_request_thread;
 mod pull_request_files;
 mod diff_panel;
@@ -827,6 +829,7 @@ fn Composer(
         limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
         composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint,steer_hint:steer_hint.clone()}
+        composer_panels::GoalStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         if let Some(plan)=following_up.clone() { composer_panels::PlanReady {plan} }
         form { class: "composer", onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },

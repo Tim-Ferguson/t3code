@@ -71,7 +71,8 @@ async fn deleting_a_thread_asks_in_the_originals_words_declines_with_escape_and_
         click_control(dom, "Confirm");
         until(dom, "the thread to go", |_| !live(state, "thread-a")).await;
         assert!(live(state, "thread-b"));
-        until(dom, "the thread to be left", |_| state.peek().active_thread.is_none()).await;
+        // The view goes to the project's next thread, as the original's does, and not to an empty form.
+        until(dom, "the next thread", |_| state.peek().active_thread.as_deref() == Some("thread-b")).await;
         assert_eq!(error(state), None);
     })
     .await;

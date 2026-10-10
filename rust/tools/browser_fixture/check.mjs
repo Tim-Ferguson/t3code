@@ -194,9 +194,13 @@ const seeded = [
   [
     "Long thread",
     (t, v) =>
+      // A read of the thread is the newest window of it (as the original's is), so the 36 turns are not all in it: the
+      // newest run is the 36th, and every run the window holds is finished.
       assert(
-        v.runs.length === 36 && v.runs.every((r) => r.status === "completed"),
-        `${v.runs.length} runs`,
+        Math.max(...v.runs.map((r) => r.ordinal)) === 36 &&
+          v.runs.length >= 10 &&
+          v.runs.every((r) => r.status === "completed"),
+        `${v.runs.length} runs, newest ${Math.max(...v.runs.map((r) => r.ordinal))}`,
       ),
   ],
   ["Dirty tree", (t, v) => assert(withdrawn(v).join() === "completed", "")],

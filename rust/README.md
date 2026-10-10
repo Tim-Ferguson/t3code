@@ -124,9 +124,11 @@ Codex runtime with a live progress row, manages an ACP agent's native sessions, 
 and sign-out, adds an instance (a local ACP command included) and edits command
 arguments. Adding an instance from the ACP registry search, automatic callback
 coordination and complete provider/model preferences remain unfinished.
-The pull request panel also reacts, rewrites the title, description and your own
-remarks, files a pull request under a thread (shown in the thread header), starts a
-thread from one in a dialog, and lists the environment's pull requests.
+The pull request panel has the original's tabs (Summary, Timeline, Code) and its composer: a
+comment, or a review that carries the line comments collected on the Code tab. It also reacts,
+rewrites the title, description and your own remarks, files a pull request under a thread (shown
+in the thread header and as the badge of its sidebar row), starts a thread from one in a dialog,
+and lists the environment's pull requests.
 Pairing credentials exchange into bearer sessions;
 saved connections can be forgotten. The desktop UI defaults to the Rust server's
 port 3774, with `T3_SERVER_URL` available for another existing server. Mobile

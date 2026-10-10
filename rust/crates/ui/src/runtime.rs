@@ -113,6 +113,9 @@ pub struct UiModel {
     /// The pull request the open thread's panel shows, and the one its branch has to offer.
     pub pr_panel: Option<crate::pull_request_panel::Target>,
     pub pr_available: Option<crate::pull_request_panel::Target>,
+    /// The reviews being written, by pull request, until each is sent: the summary and the line comments. They outlive the
+    /// panel (closing it does not lose a review), and not the app.
+    pub pr_reviews: std::collections::BTreeMap<String, t3_client::pull_request_line_comments::ReviewDraft>,
     /// The dialog that starts a thread from a pull request, while it is open.
     pub pr_checkout: Option<crate::pull_request_thread::Open>,
     pub lifecycle: crate::thread_lifecycle::Model,
@@ -2894,6 +2897,10 @@ mod prompt_stash_tests;
 #[cfg(all(test, unix))]
 #[path = "sidebar_sections_tests.rs"]
 mod sidebar_sections_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_row_tests.rs"]
+mod thread_row_tests;
 
 #[cfg(all(test, unix))]
 #[path = "open_in_tests.rs"]

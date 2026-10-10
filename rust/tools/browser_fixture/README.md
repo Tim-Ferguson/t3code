@@ -85,7 +85,7 @@ Every project is named `t3code-rust-port-test-...` and its README says "Created 
 - `fakes/fake_github_api.py`: the GitHub API (REST and GraphQL) for `acme/widgets`: #42 open with checks in every
   state (success, failure, in progress, skipped, neutral, queued, cancelled, two commit statuses), three review threads
   (open, resolved, outdated), comments and reviews with reactions, labels, reviewers including a team, four commits, four
-  changed files; #41 draft; #40 merged; #39 closed. The writes the server makes (comments, replies, resolutions, reactions,
+  changed files; #43 open and mergeable (every check passed, approved: the panel offers Merge); #41 draft; #40 merged; #39 closed. The writes the server makes (comments, replies, resolutions, reactions,
   edits, reviews, reviewer requests, labels, viewed marks, merge, auto-merge, update branch, close, reopen, draft) change this
   process's memory and show in the next read; a restart starts again. It recognises GraphQL documents by reading
   `crates/server/src/pull_request_queries.rs`. **It is idle unless the server was started with `--hook` (see Server hooks).**
