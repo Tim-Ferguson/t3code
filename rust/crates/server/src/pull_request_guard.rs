@@ -71,6 +71,9 @@ impl PullRequestProvider for Guarded {
     fn list_stats<'a>(&'a self, cwd: &'a str, host: &'a str, changes: &'a [(String, u64)]) -> BoxFuture<'a, Read<Vec<ChangeRequestStat>>> {
         Box::pin(self.protect(host, false, self.inner.list_stats(cwd, host, changes)))
     }
+    fn has_checks(&self) -> bool {
+        self.inner.has_checks()
+    }
     fn checks<'a>(&'a self, subject: &'a Subject) -> BoxFuture<'a, Read<PullRequestChecks>> {
         Box::pin(self.protect(&subject.host, false, self.inner.checks(subject)))
     }

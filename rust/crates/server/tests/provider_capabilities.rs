@@ -21,6 +21,16 @@ const LACKING: &[(&str, &[&str])] = &[
         "checkpointing.supportsNestedCheckpointScopes",
         "context.canGenerateSummaries",
     ]),
+    // Grok is the ACP adapter plus its flavour: the same gaps, and the conversation snapshot the original
+    // reads back. MCP tools are negotiated per session, as for any ACP agent (true when the thread has the T3
+    // endpoint), and no Grok recording runs with one, so the default stays off.
+    ("grok", &[
+        "checkpointing.providerCanReadConversationSnapshot",
+        "checkpointing.supportsNestedCheckpointScopes",
+        "context.canGenerateSummaries",
+        "threads.canReadThreadSnapshot",
+        "tools.supportsMcpTools",
+    ]),
 ];
 
 fn flat(prefix: &str, value: &Value, out: &mut Vec<(String, Value)>) {
@@ -39,6 +49,7 @@ fn the_capability_files_differ_from_the_original_only_where_the_port_lacks_a_fea
         ("codex", include_str!("../src/codex-capabilities.json")),
         ("claudeAgent", include_str!("../src/claude-capabilities.json")),
         ("acpRegistry", include_str!("../src/acp-capabilities.json")),
+        ("grok", include_str!("../src/grok-capabilities.json")),
     ];
     for (driver, file) in files {
         let (mut declared, mut ported) = (vec![], vec![]);

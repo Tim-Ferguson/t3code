@@ -47,6 +47,11 @@ pub(super) fn session_info(update: &Value) -> Value {
 /// name of the inference tool it ran.
 pub(super) fn devin_update(value: &mut Value) {
     let meta = value["update"]["_meta"].clone();
+    // A subagent's updates travel on the root session, tagged with the agent that sent them: they are
+    // that agent's session's.
+    if let Some(parent) = meta["cognition.ai/subagent_context"]["parentAgentId"].as_str().filter(|parent| *parent != "root") {
+        value["sessionId"] = json!(parent);
+    }
     match value["update"]["sessionUpdate"].as_str() {
         Some("agent_message_chunk" | "agent_thought_chunk") => {
             if let Some(id) = meta["cognition.ai/streamingMessageId"].as_str() {
@@ -107,6 +112,11 @@ impl Actor {
                 thread["nativeMetadata"] = Value::Object(merged);
             }
             thread["updatedAt"] = json!(now);
+            // The original's adapter republishes the thread as it last cached it (active), so a title that
+            // arrives after the turn ended leaves a Grok thread active until its next turn.
+            if self.flavor.republishes_cached_thread() {
+                thread["status"] = json!("active");
+            }
             Ok(vec![("provider-thread.updated", thread)])
         })?;
         Ok(true)
@@ -169,7 +179,7 @@ impl Actor {
         Ok(true)
     }
 
-    fn native_turn(&self) -> String {
+    pub(super) fn native_turn(&self) -> String {
         format!("{}:turn:{}", self.session.setup.session_id, self.turn_ordinal)
     }
 }

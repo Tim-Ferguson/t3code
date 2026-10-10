@@ -1,0 +1,199 @@
+[
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {}
+    },
+    "update": null
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {}
+      }
+    },
+    "update": null
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_started": {
+            "agentId": "a1",
+            "task": "Do it",
+            "title": "Titled",
+            "model": "swe-1"
+          }
+        }
+      }
+    },
+    "update": {
+      "nativeTaskId": "a1",
+      "childSessionId": "a1",
+      "prompt": "Do it",
+      "title": "Titled",
+      "model": "swe-1",
+      "status": "running",
+      "result": null
+    }
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_started": {
+            "agentId": "a1"
+          }
+        }
+      }
+    },
+    "update": {
+      "nativeTaskId": "a1",
+      "childSessionId": "a1",
+      "prompt": "",
+      "title": null,
+      "model": null,
+      "status": "running",
+      "result": null
+    }
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_started": {
+            "agentId": 7,
+            "task": "x"
+          }
+        }
+      }
+    },
+    "update": null
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_completed": {
+            "agentId": "a1",
+            "success": true,
+            "summary": "Done"
+          }
+        }
+      }
+    },
+    "update": {
+      "nativeTaskId": "a1",
+      "childSessionId": "a1",
+      "prompt": "",
+      "title": null,
+      "model": null,
+      "status": "completed",
+      "result": "Done"
+    }
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_completed": {
+            "agentId": "a1",
+            "success": false,
+            "summary": "Broke"
+          }
+        }
+      }
+    },
+    "update": {
+      "nativeTaskId": "a1",
+      "childSessionId": "a1",
+      "prompt": "",
+      "title": null,
+      "model": null,
+      "status": "failed",
+      "result": "Broke"
+    }
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_completed": {
+            "agentId": "a1"
+          }
+        }
+      }
+    },
+    "update": {
+      "nativeTaskId": "a1",
+      "childSessionId": "a1",
+      "prompt": "",
+      "title": null,
+      "model": null,
+      "status": "completed",
+      "result": null
+    }
+  },
+  {
+    "input": {
+      "toolCallId": "t1",
+      "title": "Tool",
+      "status": "inProgress",
+      "data": {
+        "meta": {
+          "cognition.ai/subagent_started": {
+            "agentId": "a2",
+            "task": "ignored for status",
+            "title": "T"
+          },
+          "cognition.ai/subagent_completed": {
+            "agentId": "a3",
+            "success": true,
+            "summary": "S"
+          }
+        }
+      }
+    },
+    "update": {
+      "nativeTaskId": "a3",
+      "childSessionId": "a3",
+      "prompt": "ignored for status",
+      "title": "T",
+      "model": null,
+      "status": "completed",
+      "result": "S"
+    }
+  },
+  {
+    "input": {
+      "toolCallId": "t2",
+      "data": {
+        "meta": []
+      }
+    },
+    "update": null
+  }
+]

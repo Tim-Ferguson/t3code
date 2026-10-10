@@ -504,11 +504,7 @@ async fn actor(
             return;
         }
     };
-    if instance_id
-        .as_deref()
-        .and_then(|id| providers.driver(id).ok())
-        == Some("acpRegistry")
-    {
+    if matches!(instance_id.as_deref().and_then(|id| providers.driver(id).ok()), Some("acpRegistry" | "grok")) {
         crate::acp_adapter::actor(
             store, providers, thread_id, work, stopped, canceled, lifetime, mcp,
         )

@@ -23,6 +23,15 @@ pub(crate) fn provider_item_ids(
     native: &str,
     version_two: bool,
 ) -> (String, String) {
+    provider_item_ids_for("acpRegistry", instance, native, version_two)
+}
+/// The ids of an item the named driver's adapter wrote.
+pub(crate) fn provider_item_ids_for(
+    driver: &str,
+    instance: &str,
+    native: &str,
+    version_two: bool,
+) -> (String, String) {
     let scoped = if version_two {
         format!("provider-instance:{}:{native}", encode_component(instance))
     } else {
@@ -30,9 +39,27 @@ pub(crate) fn provider_item_ids(
     };
     let encoded = encode_component(&scoped);
     (
-        format!("turn-item:provider:acpRegistry:native-item:{encoded}"),
-        format!("node:provider:acpRegistry:native-item:{encoded}"),
+        format!("turn-item:provider:{driver}:native-item:{encoded}"),
+        format!("node:provider:{driver}:native-item:{encoded}"),
     )
+}
+/// `acpToolCallDiffPatch`: the patch text a diff content block carries, or the unified diff of a v1 block's
+/// old and new text.
+pub(crate) fn diff_patch(content: &Value) -> Option<String> {
+    let diffs: Vec<&Value> = content.as_array()?.iter().filter(|entry| entry["type"] == "diff").collect();
+    if let Some(text) = diffs.iter().find_map(|diff| diff["patch"]["text"].as_str()) {
+        return Some(text.to_owned());
+    }
+    let files: Vec<(&str, &str, &str, &str, Option<usize>)> = diffs
+        .iter()
+        .filter_map(|diff| {
+            let (path, new) = (diff["path"].as_str()?, diff["newText"].as_str()?);
+            let old = diff["oldText"].as_str();
+            // Large rewrites of both sides are not worth diffing.
+            Some((if old.is_some() { path } else { "/dev/null" }, path, old.unwrap_or(""), new, (old.is_some_and(|old| !old.is_empty()) && !new.is_empty()).then_some(1_000)))
+        })
+        .collect();
+    crate::text_diff::unified_patches(&files)
 }
 pub(crate) fn structured_changes(data: &Value) -> Vec<Value> {
     data["content"]

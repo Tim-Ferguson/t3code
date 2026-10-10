@@ -223,6 +223,11 @@ pub trait PullRequestProvider: Send + Sync {
         Box::pin(async { Ok(vec![]) })
     }
 
+    /// Whether the host has a checks read (`getChangeRequestChecks` is present). A host without one
+    /// answers the checks call with null, and `checks` is never called.
+    fn has_checks(&self) -> bool {
+        true
+    }
     fn checks<'a>(&'a self, subject: &'a Subject) -> BoxFuture<'a, Read<PullRequestChecks>>;
     fn detail<'a>(&'a self, subject: &'a Subject) -> BoxFuture<'a, Read<ChangeRequestDetail>>;
 

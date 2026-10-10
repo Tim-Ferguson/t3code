@@ -332,7 +332,7 @@ pub struct PullRequestService {
     summaries: TtlCache<String, PullRequestSummary, PrError>,
     previews: TtlCache<String, PullRequestPreview, PrError>,
     activities: TtlCache<String, PullRequestActivity, PrError>,
-    checks: TtlCache<String, PullRequestChecks, PrError>,
+    checks: TtlCache<String, Option<PullRequestChecks>, PrError>,
     diffs: TtlCache<String, PullRequestDiffResult, PrError>,
     files_viewed: TtlCache<String, PullRequestFilesViewedResult, PrError>,
     stacks: TtlCache<String, Option<PullRequestStack>, PrError>,
@@ -846,7 +846,7 @@ impl PullRequestService {
         })
     }
 
-    pub async fn checks(&self, env: &Env, reference: &PullRequestRef, namespace: Option<String>) -> PrResult<PullRequestChecks> {
+    pub async fn checks(&self, env: &Env, reference: &PullRequestRef, namespace: Option<String>) -> PrResult<Option<PullRequestChecks>> {
         let resolved = self.resolve(env, reference, namespace).await?;
         let key = self.key(&resolved);
         self.checks
@@ -854,9 +854,13 @@ impl PullRequestService {
             .await
     }
 
-    async fn checks_uncached(&self, env: Env, resolved: Resolved) -> PrResult<PullRequestChecks> {
+    async fn checks_uncached(&self, env: Env, resolved: Resolved) -> PrResult<Option<PullRequestChecks>> {
         let provider = self.provider_of(&env, &resolved)?;
-        provider.checks(&resolved.subject()).await.map_err(|failure| PrError::from_failure("checks", failure, resolved.project.kind))
+        // A host with no checks read answers null, as the original's service does.
+        if !provider.has_checks() {
+            return Ok(None);
+        }
+        provider.checks(&resolved.subject()).await.map(Some).map_err(|failure| PrError::from_failure("checks", failure, resolved.project.kind))
     }
 
     pub async fn activity(&self, env: &Env, reference: &PullRequestRef, namespace: Option<String>) -> PrResult<PullRequestActivity> {

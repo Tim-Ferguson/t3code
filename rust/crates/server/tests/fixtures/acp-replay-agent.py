@@ -134,6 +134,14 @@ def flush():
             gate["passed"] = True
             with open(gate["fifo"], "r") as pipe:
                 pipe.read()
+        # A trailing runtime exit needs nothing from the client, and the client may stop this process the
+        # moment it has the last frame: count it, and the frame, before the frame is written.
+        rest = entries[cursor + 1 :]
+        if all(item["type"] == "runtime_exit" and item.get("status") in ("success", "cancelled") for item in rest):
+            cursor = len(entries)
+            write_status()
+            emit(entry["frame"])
+            return
         emit(entry["frame"])
         cursor += 1
         write_status()

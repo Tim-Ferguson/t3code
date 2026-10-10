@@ -1,0 +1,489 @@
+{
+  "name": "grok_subagent_lineage",
+  "approvalPolicy": null,
+  "sandboxPolicy": null,
+  "runtimeMode": "full-access",
+  "workspace": "/var/folders/5c/9bzh77q500x4djypy0bbrs600000gn/T/t3-orchestrator-v2-grok_subagent_lineage-lmBHo2",
+  "model": "grok-composer-2.5-fast",
+  "interactionMode": "default",
+  "steps": [
+    {
+      "type": "message",
+      "text": "audit this codebase"
+    }
+  ],
+  "transcript": [
+    {
+      "type": "expect_outbound",
+      "label": "initialize",
+      "frame": {
+        "kind": "request",
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 2,
+          "info": "<any>",
+          "capabilities": "<any>",
+          "clientCapabilities": "<any>",
+          "clientInfo": "<any>",
+          "_meta": {
+            "clientType": "extension"
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "initialized",
+      "frame": {
+        "kind": "response",
+        "method": "initialize",
+        "result": {
+          "protocolVersion": 1,
+          "agentCapabilities": {
+            "loadSession": true,
+            "mcpCapabilities": {
+              "http": true,
+              "sse": true
+            },
+            "promptCapabilities": {
+              "audio": false,
+              "embeddedContext": true,
+              "image": false
+            }
+          },
+          "authMethods": [
+            {
+              "id": "replay",
+              "name": "Replay"
+            }
+          ],
+          "agentInfo": {
+            "name": "grok-replay",
+            "version": "1"
+          }
+        }
+      }
+    },
+    {
+      "type": "expect_outbound",
+      "label": "session.new",
+      "frame": {
+        "kind": "request",
+        "method": "session/new",
+        "params": {
+          "cwd": "<workspace>",
+          "mcpServers": "<any>"
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "session.created",
+      "frame": {
+        "kind": "response",
+        "method": "session/new",
+        "result": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "models": {
+            "currentModelId": "grok-composer-2.5-fast",
+            "availableModels": [
+              {
+                "modelId": "grok-composer-2.5-fast",
+                "name": "Grok Composer 2.5 Fast"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "expect_outbound",
+      "label": "session.prompt",
+      "frame": {
+        "kind": "request",
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\naudit this codebase\n</user_request>"
+            },
+            {
+              "type": "text",
+              "text": "<runtime_info>In case you're asked: you are running in T3 Code through the Grok harness, as grok-composer-2.5-fast. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+            }
+          ],
+          "_meta": {
+            "promptId": "t3-xai-prompt-1",
+            "requestId": "t3-xai-prompt-1"
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "task.server.started",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "update": {
+            "sessionUpdate": "tool_call",
+            "toolCallId": "call-28397a12-0446-478e-a180-b06aefb56734-composer_call_kFjs8",
+            "title": "Task",
+            "rawInput": {
+              "description": "Explore server architecture",
+              "prompt": "Audit the apps/server package and return a structured summary.",
+              "subagent_type": "generalPurpose",
+              "model": "composer-2.5-fast"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "task.web.started",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "update": {
+            "sessionUpdate": "tool_call",
+            "toolCallId": "call-28397a12-0446-478e-a180-b06aefb56734-composer_call_Olv1X",
+            "title": "Task",
+            "rawInput": {
+              "description": "Explore web client architecture",
+              "prompt": "Audit the apps/web package and return a structured summary.",
+              "subagent_type": "generalPurpose",
+              "model": "composer-2.5-fast"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "child.server.progress",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-e192-7c41-9e9d-b406bc3459c8",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "I'll audit `apps/server` by mapping its layout first, then reading entry points, WebSocket/auth/session code, and tests.\n"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "child.web.progress",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-e197-7833-a8e4-ad38f2bd5b4c",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "Auditing `apps/web`: mapping package structure and searching source for state, WebSocket, components, performance, and tests.\n"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "child.server.result",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-e192-7c41-9e9d-b406bc3459c8",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "# `apps/server` Audit Summary\n\nLayered Effect architecture with WebSocket RPC and durable provider sessions."
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "child.web.result",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-e197-7833-a8e4-ad38f2bd5b4c",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "# `apps/web` Audit Summary\n\nHybrid Effect Atom and Zustand state with centralized reconnect handling."
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "task.server.completed",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "update": {
+            "sessionUpdate": "tool_call_update",
+            "toolCallId": "call-28397a12-0446-478e-a180-b06aefb56734-composer_call_kFjs8",
+            "status": "completed",
+            "rawOutput": {
+              "type": "Text",
+              "text": "Server audit complete.\n\nAgent ID: 019f0220-e192-7c41-9e9d-b406bc3459c8 (can be used with the `resume` parameter to send a follow-up after it completes)"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "task.web.completed",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "update": {
+            "sessionUpdate": "tool_call_update",
+            "toolCallId": "call-28397a12-0446-478e-a180-b06aefb56734-composer_call_Olv1X",
+            "status": "completed",
+            "rawOutput": {
+              "type": "Text",
+              "text": "Web audit complete.\n\nAgent ID: 019f0220-e197-7833-a8e4-ad38f2bd5b4c (can be used with the `resume` parameter to send a follow-up after it completes)"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "parent.final",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "019f0220-b386-78b3-bc57-dc127c023559",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "Audit complete."
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "prompt.completed",
+      "frame": {
+        "kind": "response",
+        "method": "session/prompt",
+        "result": {
+          "stopReason": "end_turn"
+        }
+      }
+    },
+    {
+      "type": "runtime_exit",
+      "status": "success"
+    }
+  ],
+  "expected": {
+    "runs": ["completed"],
+    "attempts": ["completed"],
+    "providerTurns": [
+      {
+        "status": "completed",
+        "turnTokenUsage": null,
+        "tokenUsage": null
+      }
+    ],
+    "items": [
+      {
+        "type": "user_message",
+        "status": "completed",
+        "title": null,
+        "text": "audit this codebase"
+      },
+      {
+        "type": "subagent",
+        "status": "completed",
+        "title": "Explore server architecture",
+        "prompt": "Audit the apps/server package and return a structured summary.",
+        "result": "Server audit complete."
+      },
+      {
+        "type": "subagent",
+        "status": "completed",
+        "title": "Explore web client architecture",
+        "prompt": "Audit the apps/web package and return a structured summary.",
+        "result": "Web audit complete."
+      },
+      {
+        "type": "assistant_message",
+        "status": "completed",
+        "title": null,
+        "text": "Audit complete.",
+        "streaming": false
+      }
+    ],
+    "requests": [],
+    "plans": [],
+    "providerThread": ["idle", "idle", "idle"]
+  },
+  "threads": [
+    {
+      "title": "Replay fixture: grok_subagent_lineage",
+      "parent": null,
+      "relationship": null,
+      "subagents": [
+        {
+          "origin": "provider_native",
+          "createdBy": "agent",
+          "driver": "grok",
+          "status": "completed",
+          "prompt": "Audit the apps/web package and return a structured summary.",
+          "title": "Explore web client architecture",
+          "model": "composer-2.5-fast",
+          "result": "Web audit complete.",
+          "child": "Explore web client architecture"
+        },
+        {
+          "origin": "provider_native",
+          "createdBy": "agent",
+          "driver": "grok",
+          "status": "completed",
+          "prompt": "Audit the apps/server package and return a structured summary.",
+          "title": "Explore server architecture",
+          "model": "composer-2.5-fast",
+          "result": "Server audit complete.",
+          "child": "Explore server architecture"
+        }
+      ],
+      "expected": {
+        "runs": ["completed"],
+        "attempts": ["completed"],
+        "providerTurns": [
+          {
+            "status": "completed",
+            "turnTokenUsage": null,
+            "tokenUsage": null
+          }
+        ],
+        "items": [
+          {
+            "type": "user_message",
+            "status": "completed",
+            "title": null,
+            "text": "audit this codebase"
+          },
+          {
+            "type": "subagent",
+            "status": "completed",
+            "title": "Explore server architecture",
+            "prompt": "Audit the apps/server package and return a structured summary.",
+            "result": "Server audit complete."
+          },
+          {
+            "type": "subagent",
+            "status": "completed",
+            "title": "Explore web client architecture",
+            "prompt": "Audit the apps/web package and return a structured summary.",
+            "result": "Web audit complete."
+          },
+          {
+            "type": "assistant_message",
+            "status": "completed",
+            "title": null,
+            "text": "Audit complete.",
+            "streaming": false
+          }
+        ],
+        "requests": [],
+        "plans": [],
+        "providerThread": ["idle", "idle", "idle"]
+      }
+    },
+    {
+      "title": "Explore web client architecture",
+      "parent": "Replay fixture: grok_subagent_lineage",
+      "relationship": "subagent",
+      "subagents": [],
+      "expected": {
+        "runs": [],
+        "attempts": [],
+        "providerTurns": [],
+        "items": [
+          {
+            "type": "user_message",
+            "status": "completed",
+            "title": null,
+            "text": "Audit the apps/web package and return a structured summary."
+          },
+          {
+            "type": "assistant_message",
+            "status": "completed",
+            "title": null,
+            "text": "Auditing `apps/web`: mapping package structure and searching source for state, WebSocket, components, performance, and tests.\n# `apps/web` Audit Summary\n\nHybrid Effect Atom and Zustand state with centralized reconnect handling.",
+            "streaming": false
+          }
+        ],
+        "requests": [],
+        "plans": [],
+        "providerThread": ["idle"]
+      }
+    },
+    {
+      "title": "Explore server architecture",
+      "parent": "Replay fixture: grok_subagent_lineage",
+      "relationship": "subagent",
+      "subagents": [],
+      "expected": {
+        "runs": [],
+        "attempts": [],
+        "providerTurns": [],
+        "items": [
+          {
+            "type": "user_message",
+            "status": "completed",
+            "title": null,
+            "text": "Audit the apps/server package and return a structured summary."
+          },
+          {
+            "type": "assistant_message",
+            "status": "completed",
+            "title": null,
+            "text": "I'll audit `apps/server` by mapping its layout first, then reading entry points, WebSocket/auth/session code, and tests.\n# `apps/server` Audit Summary\n\nLayered Effect architecture with WebSocket RPC and durable provider sessions.",
+            "streaming": false
+          }
+        ],
+        "requests": [],
+        "plans": [],
+        "providerThread": ["idle"]
+      }
+    }
+  ]
+}

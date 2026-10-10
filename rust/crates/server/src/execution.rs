@@ -316,6 +316,7 @@ fn supports_queued_messages(session: Option<&Value>, driver: &str) -> bool {
         "codex" => include_str!("codex-capabilities.json"),
         "claudeAgent" => include_str!("claude-capabilities.json"),
         "acpRegistry" | "antigravity" => include_str!("acp-capabilities.json"),
+        "grok" => include_str!("grok-capabilities.json"),
         _ => return false,
     };
     let capabilities: Value = serde_json::from_str(encoded).expect("static provider capabilities");

@@ -36,6 +36,8 @@ pub enum SessionEvent {
         response: oneshot::Sender<Result<t3_acp::v2::CreateElicitationResponse, AcpError>>,
         written: oneshot::Receiver<Result<(), AcpError>>,
     },
+    /// A request or notification of a driver flavour's own extension (Grok's `x.ai` methods).
+    Grok(crate::grok_flavor::Event),
     Terminated(AcpError),
 }
 pub struct AcpSession {
@@ -63,8 +65,28 @@ pub(crate) type AuthElicitation = Arc<
         > + Send
         + Sync,
 >;
+pub(crate) type Acknowledgements = Arc<Mutex<HashMap<String, oneshot::Sender<Result<(), AcpError>>>>>;
+/// What a driver flavour needs to register its own extension handlers on a session's client: where to
+/// send events, and the table that reports when a reply to an agent request was written.
+#[derive(Clone)]
+pub(crate) struct ExtensionContext {
+    /// Set to have updates of sessions other than the root's (a subagent's) reach the adapter.
+    pub(crate) forward_children: Arc<std::sync::atomic::AtomicBool>,
+    pub(crate) client: Client,
+    pub(crate) events: mpsc::UnboundedSender<SessionEvent>,
+    pub(crate) acknowledgements: Acknowledgements,
+}
+/// How a flavoured driver (Grok) starts a session: its own `initialize` request, and its extension
+/// handlers registered after initialize and before `session/new`.
+#[derive(Clone, Default)]
+pub(crate) struct StartHooks {
+    pub(crate) initialize: Option<InitializeRequest>,
+    pub(crate) register: Option<Arc<dyn Fn(ExtensionContext) -> futures_util::future::BoxFuture<'static, ()> + Send + Sync>>,
+}
 pub(crate) struct InitializedPeer {
+    forward_children: Arc<std::sync::atomic::AtomicBool>,
     mcp_servers: Vec<t3_acp::types::McpServer>,
+    pub(crate) acknowledgements: Acknowledgements,
     pub(crate) client: Client,
     pub(crate) initialize: InitializeResponse,
     receiver: mpsc::UnboundedReceiver<SessionEvent>,
@@ -196,6 +218,19 @@ impl AcpSession {
         self.refresh_live_setup()?;
 
         Ok(())
+    }
+    /// `session/set_model`, when the model differs from the session's current one.
+    pub(crate) async fn set_session_model(&mut self, model: &str) -> Result<(), AcpError> {
+        let current = self.live_setup.lock().unwrap()["models"]["currentModelId"].as_str().map(t3_contracts::trim_wire_string).map(str::to_owned);
+        if current.as_deref() != Some(model) {
+            self.client.set_session_model_typed(SetSessionModelRequest { session_id: self.setup.session_id.clone(), model_id: model.into(), meta: Optional::Missing }).await?;
+            let mut setup = self.live_setup.lock().unwrap();
+            if !setup["models"].is_object() {
+                setup["models"] = json!({});
+            }
+            setup["models"]["currentModelId"] = json!(model);
+        }
+        self.refresh_live_setup()
     }
     pub async fn set_options(
         &mut self,
@@ -454,6 +489,41 @@ impl AcpInstance {
         }
         result
     }
+    /// Starts a session the way a driver flavour (Grok) asks: its `initialize` request, its extension handlers
+    /// registered once the client exists, and the T3 MCP endpoint when the thread has one.
+    pub(crate) async fn start_peer_flavored(
+        &self,
+        peer: ProcessPeer,
+        cwd: &Path,
+        saved_session: Option<&str>,
+        services: crate::acp_client_callbacks::Services,
+        mcp: Option<&crate::provider_mcp::CredentialLease>,
+        hooks: &StartHooks,
+    ) -> Result<AcpSession, AcpError> {
+        let retained = services.clone();
+        let result = async {
+            let mut initialized = self.initialize_only(peer, false, services, None, hooks.initialize.clone()).await?;
+            if let Some(register) = &hooks.register {
+                register(ExtensionContext { forward_children: initialized.forward_children.clone(), client: initialized.client.clone(), events: initialized.startup_events.clone(), acknowledgements: initialized.acknowledgements.clone() }).await;
+            }
+            if let Some(mcp) = mcp {
+                if initialized.initialize.agent_capabilities.as_ref().and_then(|capabilities| capabilities.mcp_capabilities.as_ref()).and_then(|capabilities| capabilities.acp) == Some(true) {
+                    let bridge = crate::acp_mcp_callback::Bridge::new(mcp.config.endpoint.clone(), mcp.config.authorization_header.clone());
+                    retained.set_mcp(bridge.clone());
+                    bridge.register(&initialized.client).await;
+                    initialized.mcp_servers = vec![McpServer::V2(serde_json::from_value(json!({"type":"acp","name":"t3-code","serverId":"t3-code"})).expect("literal negotiated MCP server"))];
+                } else {
+                    initialized.mcp_servers = vec![mcp.stdio_server()];
+                }
+            }
+            self.finish_initialized(initialized, cwd, saved_session, false, true).await
+        }
+        .await;
+        if result.is_err() {
+            retained.shutdown().await;
+        }
+        result
+    }
     pub(crate) async fn start_resolved_peer(
         &self,
         peer: ProcessPeer,
@@ -502,8 +572,10 @@ impl AcpInstance {
         // replay received before setup finishes. Do not deadlock setup on a cap.
         let (events, receiver) = mpsc::unbounded_channel();
         let terminated = events.clone();
-        type Acknowledgements = Arc<Mutex<HashMap<String, oneshot::Sender<Result<(), AcpError>>>>>;
         let acknowledgements: Acknowledgements = Arc::new(Mutex::new(HashMap::new()));
+        let acknowledgements_for_peer = acknowledgements.clone();
+        let forward_children = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let forward_for_updates = forward_children.clone();
         let terminal_acks = acknowledgements.clone();
         let successful_acks = acknowledgements.clone();
         let failed_acks = acknowledgements.clone();
@@ -561,6 +633,7 @@ impl AcpInstance {
                 let setup = update_setup.clone();
                 let command_sender = update_commands.clone();
                 let startup=update_startup.clone();
+                let forward_children=forward_for_updates.clone();
                 Box::pin(async move {
                     let update:SessionNotification = serde_json::from_value(
                         services.resolve_update(serde_json::to_value(update).unwrap()),
@@ -584,7 +657,12 @@ impl AcpInstance {
                         }
                         return Ok(());
                     };
-                    if update.session_id!=root{return Ok(());}
+                    if update.session_id!=root{
+                        if forward_children.load(std::sync::atomic::Ordering::Relaxed) {
+                            return updates.send(SessionEvent::Update(update)).map_err(|_| AcpError::Closed);
+                        }
+                        return Ok(());
+                    }
                     apply_live_notification(&update,&setup,&command_sender,&coordinator,&instance_id,discovery);
                     updates
                         .send(SessionEvent::Update(update))
@@ -717,6 +795,8 @@ impl AcpInstance {
             }))
             .await?;
         Ok(InitializedPeer {
+            acknowledgements: acknowledgements_for_peer,
+            forward_children,
             client,
             initialize,
             receiver,
@@ -739,6 +819,8 @@ impl AcpInstance {
         authenticate_configured: bool,
     ) -> Result<AcpSession, AcpError> {
         let InitializedPeer {
+            acknowledgements: _,
+            forward_children: _,
             client,
             initialize,
             receiver,
@@ -1667,6 +1749,7 @@ mod tests {
                     }
                     SessionEvent::Terminated(error) => panic!("provider terminated: {error}"),
                     SessionEvent::Elicitation { .. } => panic!("unexpected elicitation"),
+                    SessionEvent::Grok(_) => panic!("unexpected extension event"),
                 }
             }
             assert_eq!(prompt_task.await.unwrap().unwrap().stop_reason, "end_turn");

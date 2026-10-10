@@ -2,6 +2,7 @@
 use crate::{
     acp_runtime::AcpInstance,
     claude_instance::ClaudeInstance,
+    grok_instance::GrokInstance,
     codex::{CodexConfig, CodexInstance},
     provider_process::ProcessError,
 };
@@ -31,11 +32,13 @@ pub fn derive_instance_configs(settings: &ServerSettings) -> ProviderInstanceCon
 }
 enum RegisteredInstance {
     Claude(ClaudeInstance),
+    Grok(GrokInstance),
     Codex(CodexInstance),
     Acp(AcpInstance),
 }
 struct RegistryState {
     claude: HashMap<String, ClaudeInstance>,
+    grok: HashMap<String, GrokInstance>,
     codex: HashMap<String, CodexInstance>,
     acp: HashMap<String, AcpInstance>,
     snapshots: Vec<Value>,
@@ -233,6 +236,7 @@ impl ProviderRegistry {
         results.sort_by_key(|result| key(&result.2));
         let mut codex = HashMap::new();
         let mut claude = HashMap::new();
+        let mut grok = HashMap::new();
         let mut acp = HashMap::new();
         let mut snapshots = vec![];
         for (id, instance, snapshot) in results {
@@ -240,6 +244,9 @@ impl ProviderRegistry {
                 match instance {
                     RegisteredInstance::Claude(instance) => {
                         claude.insert(id, instance);
+                    }
+                    RegisteredInstance::Grok(instance) => {
+                        grok.insert(id, instance);
                     }
                     RegisteredInstance::Codex(instance) => {
                         codex.insert(id, instance);
@@ -264,6 +271,7 @@ impl ProviderRegistry {
         Ok(Self {
             state: Arc::new(RwLock::new(RegistryState {
                 claude,
+                grok,
                 codex,
                 acp,
                 snapshots,
@@ -556,6 +564,10 @@ impl ProviderRegistry {
     }
     pub fn acp(&self, instance_id: &str) -> Result<AcpInstance, ProcessError> {
         let state = self.state.read().unwrap();
+        // A Grok session starts through the generic ACP instance of its executable.
+        if state_driver(&state, instance_id)? == "grok" {
+            return state.grok.get(instance_id).map(GrokInstance::acp_instance).ok_or_else(|| ProcessError::Protocol("Grok provider instance is unavailable.".into()));
+        }
         if state_driver(&state, instance_id)? != "acpRegistry" {
             return Err(ProcessError::Protocol(
                 "Provider instance is not ACP Registry.".into(),
@@ -566,6 +578,13 @@ impl ProviderRegistry {
             .get(instance_id)
             .cloned()
             .ok_or_else(|| ProcessError::Protocol("ACP provider instance is unavailable.".into()))
+    }
+    pub fn grok(&self, instance_id: &str) -> Result<GrokInstance, ProcessError> {
+        let state = self.state.read().unwrap();
+        if state_driver(&state, instance_id)? != "grok" {
+            return Err(ProcessError::Protocol("Provider instance is not Grok.".into()));
+        }
+        state.grok.get(instance_id).cloned().ok_or_else(|| ProcessError::Protocol("Grok provider instance is unavailable.".into()))
     }
     pub fn claude(&self, instance_id: &str) -> Result<ClaudeInstance, ProcessError> {
         let state = self.state.read().unwrap();
@@ -730,11 +749,15 @@ impl ProviderRegistry {
         let before = state.snapshots.clone();
         for (id, instance, snapshot) in finished {
             state.claude.remove(&id);
+            state.grok.remove(&id);
             state.codex.remove(&id);
             state.acp.remove(&id);
             match instance {
                 Some(RegisteredInstance::Claude(instance)) => {
                     state.claude.insert(id.clone(), instance);
+                }
+                Some(RegisteredInstance::Grok(instance)) => {
+                    state.grok.insert(id.clone(), instance);
                 }
                 Some(RegisteredInstance::Codex(instance)) => {
                     state.codex.insert(id.clone(), instance);
@@ -950,6 +973,22 @@ async fn discover_entry(
             let snapshot = instance.discover_scoped(cwd, !workspace).await?;
             return Ok((id, Some(RegisteredInstance::Claude(instance)), snapshot));
         }
+        if entry.driver.as_str() == "grok" {
+            let config = match serde_json::from_value::<t3_contracts::GrokSettings>(entry.config.clone().unwrap_or(json!({}))) {
+                Ok(config) => config,
+                Err(error) => return Ok((id.clone(), None, unavailable(&id, &entry, format!("Invalid config for instance '{id}': {error}"))?)),
+            };
+            let instance = GrokInstance {
+                instance_id: id.clone(),
+                display_name: entry.display_name.as_ref().and_then(Option::as_ref).map(ToString::to_string).unwrap_or_else(|| "Grok".into()),
+                accent_color: entry.accent_color.as_ref().and_then(Option::as_ref).map(ToString::to_string),
+                enabled: t3_contracts::resolve_provider_instance_enabled(&entry),
+                config,
+                environment: entry.environment.as_ref().map(|variables| variables.iter().map(|variable| (variable.name.to_string(), variable.value.clone())).collect()).unwrap_or_default(),
+            };
+            let snapshot = instance.discover_scoped(cwd, !workspace).await?;
+            return Ok((id, Some(RegisteredInstance::Grok(instance)), snapshot));
+        }
         if entry.driver.as_str() != "codex" {
             return Ok((
                 id.clone(),
@@ -1096,6 +1135,7 @@ fn state_driver(state: &RegistryState, instance_id: &str) -> Result<&'static str
     match snapshot["driver"].as_str() {
         Some("codex") => Ok("codex"),
         Some("claudeAgent") => Ok("claudeAgent"),
+        Some("grok") => Ok("grok"),
         Some("acpRegistry") => Ok("acpRegistry"),
         _ => Err(ProcessError::Protocol(
             "Provider driver is not registered.".into(),

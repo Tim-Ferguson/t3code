@@ -1,0 +1,277 @@
+{
+  "name": "plan_questions",
+  "approvalPolicy": "never",
+  "sandboxPolicy": {
+    "type": "readOnly",
+    "access": {
+      "type": "fullAccess"
+    },
+    "networkAccess": false
+  },
+  "runtimeMode": "full-access",
+  "workspace": "/var/folders/5c/9bzh77q500x4djypy0bbrs600000gn/T/t3-orchestrator-v2-plan_questions-emitY8",
+  "model": "grok-build",
+  "interactionMode": "plan",
+  "steps": [
+    {
+      "type": "message",
+      "text": "Use request_user_input to ask one multiple-choice clarifying question about whether this fixture should prefer strict schemas or UI flexibility. After receiving the answer, respond exactly: plan questions fixture complete"
+    },
+    {
+      "type": "answer_next_user_input_request",
+      "answers": {
+        "schema_vs_ui_flexibility": "Strict schemas (Recommended)",
+        "schema_preference": "Strict schemas (Recommended)",
+        "question-0-schema-vs-flexibility": "Strict schemas"
+      }
+    }
+  ],
+  "transcript": [
+    {
+      "type": "expect_outbound",
+      "label": "initialize",
+      "frame": {
+        "kind": "request",
+        "method": "initialize",
+        "params": {
+          "protocolVersion": 2,
+          "info": "<any>",
+          "capabilities": "<any>",
+          "clientCapabilities": "<any>",
+          "clientInfo": "<any>",
+          "_meta": {
+            "clientType": "extension"
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "initialized",
+      "frame": {
+        "kind": "response",
+        "method": "initialize",
+        "result": {
+          "protocolVersion": 1,
+          "agentCapabilities": {
+            "loadSession": true,
+            "mcpCapabilities": {
+              "http": true,
+              "sse": true
+            },
+            "promptCapabilities": {
+              "audio": false,
+              "embeddedContext": true,
+              "image": false
+            }
+          },
+          "authMethods": [
+            {
+              "id": "replay",
+              "name": "Replay"
+            }
+          ],
+          "agentInfo": {
+            "name": "grok-replay",
+            "version": "1"
+          }
+        }
+      }
+    },
+    {
+      "type": "expect_outbound",
+      "label": "session.new",
+      "frame": {
+        "kind": "request",
+        "method": "session/new",
+        "params": {
+          "cwd": "<workspace>",
+          "mcpServers": "<any>"
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "session.created",
+      "frame": {
+        "kind": "response",
+        "method": "session/new",
+        "result": {
+          "sessionId": "grok-replay-session-1",
+          "models": {
+            "currentModelId": "grok-build",
+            "availableModels": [
+              {
+                "modelId": "grok-build",
+                "name": "Grok Build"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "expect_outbound",
+      "label": "session.prompt",
+      "frame": {
+        "kind": "request",
+        "method": "session/prompt",
+        "params": {
+          "sessionId": "grok-replay-session-1",
+          "prompt": [
+            {
+              "type": "text",
+              "text": "<t3_code_instructions>\n<any>\n</t3_code_instructions>\n\n<user_request>\nUse request_user_input to ask one multiple-choice clarifying question about whether this fixture should prefer strict schemas or UI flexibility. After receiving the answer, respond exactly: plan questions fixture complete\n</user_request>"
+            },
+            {
+              "type": "text",
+              "text": "<runtime_info>In case you're asked: you are running in T3 Code through the Grok harness, as grok-build. No need to mention this otherwise. You can embed images and videos in your response using Markdown with absolute file paths.</runtime_info>\n\n<pull_request_linking>\nWhen the t3-code MCP server exposes link_pull_request, you must use it to register every pull request you create or work on for this thread. Call link_pull_request with the full PR URL immediately after creating a PR or starting work on an existing PR. For a stack, call it for every layer, not just the current branch or the top PR. This applies when creating or updating PRs through gh, gh stack, another CLI, or the host API: those operations do not register the PRs with this thread. Linking an already-linked PR is safe. Before finishing PR work, call list_thread_pull_requests and link any PR from your work that is missing. Do not link unrelated PRs mentioned only as background. If a linking call fails, report that failure instead of claiming the PR is linked. When asked to monitor, watch, or babysit a PR and watch_pull_request is available, call it and end your turn: T3 Code wakes you when checks finish, someone else comments, or the branch conflicts, so do not poll or run your own watcher. When you hand the work back to the user, call unwatch_pull_request first so the thread returns to their inbox.\n</pull_request_linking>"
+            }
+          ],
+          "_meta": {
+            "promptId": "t3-xai-prompt-1",
+            "requestId": "t3-xai-prompt-1"
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "question.request",
+      "frame": {
+        "kind": "request",
+        "method": "_x.ai/ask_user_question",
+        "params": {
+          "method": "x.ai/ask_user_question",
+          "params": {
+            "sessionId": "grok-replay-session-1",
+            "toolCallId": "ask-user-question-tool-call-1",
+            "questions": [
+              {
+                "id": "schema_vs_ui_flexibility",
+                "question": "For this fixture, should the plan prefer strict schemas or UI flexibility?",
+                "multiSelect": null,
+                "options": [
+                  {
+                    "label": "Strict schemas (Recommended)",
+                    "description": "Favor precise contracts and validation."
+                  },
+                  {
+                    "label": "UI flexibility",
+                    "description": "Favor looser fixture shapes."
+                  }
+                ]
+              }
+            ],
+            "mode": "plan"
+          }
+        }
+      }
+    },
+    {
+      "type": "expect_outbound",
+      "label": "question.response",
+      "frame": {
+        "kind": "response",
+        "method": "_x.ai/ask_user_question",
+        "result": {
+          "outcome": "accepted",
+          "answers": {
+            "For this fixture, should the plan prefer strict schemas or UI flexibility?": [
+              "Strict schemas (Recommended)"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "assistant.final",
+      "frame": {
+        "kind": "notification",
+        "method": "session/update",
+        "params": {
+          "sessionId": "grok-replay-session-1",
+          "update": {
+            "sessionUpdate": "agent_message_chunk",
+            "content": {
+              "type": "text",
+              "text": "plan questions fixture complete"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "emit_inbound",
+      "label": "prompt.completed",
+      "frame": {
+        "kind": "response",
+        "method": "session/prompt",
+        "result": {
+          "stopReason": "end_turn"
+        }
+      }
+    },
+    {
+      "type": "runtime_exit",
+      "status": "success"
+    }
+  ],
+  "expected": {
+    "runs": ["completed"],
+    "attempts": ["completed"],
+    "providerTurns": [
+      {
+        "status": "completed",
+        "turnTokenUsage": null,
+        "tokenUsage": null
+      }
+    ],
+    "items": [
+      {
+        "type": "user_message",
+        "status": "completed",
+        "title": null,
+        "text": "Use request_user_input to ask one multiple-choice clarifying question about whether this fixture should prefer strict schemas or UI flexibility. After receiving the answer, respond exactly: plan questions fixture complete"
+      },
+      {
+        "type": "user_input_request",
+        "status": "completed",
+        "title": null,
+        "questions": [
+          {
+            "id": "schema_vs_ui_flexibility",
+            "header": "Question",
+            "question": "For this fixture, should the plan prefer strict schemas or UI flexibility?",
+            "options": [
+              {
+                "label": "Strict schemas (Recommended)",
+                "description": "Favor precise contracts and validation."
+              },
+              {
+                "label": "UI flexibility",
+                "description": "Favor looser fixture shapes."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "assistant_message",
+        "status": "completed",
+        "title": null,
+        "text": "plan questions fixture complete",
+        "streaming": false
+      }
+    ],
+    "requests": [
+      {
+        "kind": "user_input",
+        "status": "resolved"
+      }
+    ],
+    "plans": [],
+    "providerThread": ["idle"]
+  }
+}

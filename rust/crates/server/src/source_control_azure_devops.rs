@@ -289,8 +289,16 @@ impl AzureDevOpsCli {
         if json {
             args.extend(["--only-show-errors".to_string(), "--output".into(), "json".into()]);
         }
+        self.run(cwd, args, None).await
+    }
+
+    /// `AzureDevOpsCli.execute` as the pull request layer calls it: the arguments exactly as given
+    /// (the caller adds `--output json`) and an output ceiling of its own where the default is too
+    /// small for the answer.
+    pub async fn run(&self, cwd: &str, args: Vec<String>, max_output_bytes: Option<usize>) -> Result<String, AzureDevOpsCliError> {
         let mut input: VcsProcessInput = self.host.cli("AzureDevOpsCli.execute", "az", args, cwd);
         input.timeout = Some(DEFAULT_TIMEOUT);
+        input.max_output_bytes = max_output_bytes;
         self.host
             .process()
             .run(input)

@@ -15,6 +15,8 @@ use t3_acp::{
 };
 use tokio::sync::{mpsc, oneshot, watch};
 
+mod grok;
+mod grok_subagents;
 mod updates;
 enum Activity {
     Event(Option<SessionEvent>),
@@ -714,6 +716,13 @@ struct Callback {
 /// A native request the agent is blocked on, answered by `runtime-request.respond`.
 enum Pending {
     Permission(Callback),
+    /// A question or plan gate of a driver flavour's own extension; it answers with the reply it built.
+    Native {
+        response: oneshot::Sender<Result<Value, AcpError>>,
+        written: oneshot::Receiver<Result<(), AcpError>>,
+        /// The request's params, to build the answer from.
+        params: Value,
+    },
     /// A form elicitation; only the keys its schema asked for may come back.
     Question {
         keys: Vec<String>,
@@ -722,6 +731,7 @@ enum Pending {
     },
 }
 struct Actor {
+    flavor: crate::acp_flavor::Flavor,
     cwd: std::path::PathBuf,
     store: Store,
     thread_id: String,
@@ -736,6 +746,12 @@ struct Actor {
     /// Session mode and mode-like options as they were before the last plan turn.
     native_build: Option<crate::acp_interaction::NativeBuild>,
     elicitations: u64,
+    /// The proposed plan last captured: native turn, markdown, plan id.
+    proposed_plan: Option<(String, String, String)>,
+    /// The subagents Grok launched this turn, and the child sessions' updates held for ones not known yet.
+    children: grok_subagents::Children,
+    /// A Stop ended the Grok process's turn; the actor replaces the process before its next turn.
+    hard_stopped: bool,
     /// Whether the user (or a steering restart) asked this turn to stop, as opposed to the agent cancelling it.
     interrupt_requested: bool,
     context_usage: Option<Value>,
@@ -758,8 +774,8 @@ impl Drop for Actor {
         }
     }
 }
-fn native_ref(id: &str, strong: bool) -> Value {
-    json!({"driver":"acpRegistry","nativeId":id,"strength":if strong{"strong"}else{"weak"}})
+fn native_ref(driver: &str, id: &str, strong: bool) -> Value {
+    json!({"driver":driver,"nativeId":id,"strength":if strong{"strong"}else{"weak"}})
 }
 /// Whether the agent refused `session/load` or `session/resume` of a saved session.
 fn session_activation_failed(cause: &AcpError) -> bool {
@@ -808,6 +824,7 @@ impl Actor {
             }
         }
         let instance = providers.acp(&instance_id).map_err(error)?;
+        let flavor = crate::acp_flavor::Flavor::of(providers, &instance_id, view["thread"]["runtimeMode"].as_str().unwrap_or("full-access")).map_err(error)?;
         *pending_startup = Some(
             instance
                 .coordinator
@@ -838,7 +855,10 @@ impl Actor {
                 .is_some_and(|thread| thread["nativeMetadata"]["itemIdentityVersion"] == 2);
         let mut saved = saved;
         let session = loop {
-            let mut process = instance.resolve_process(&cwd).await.map_err(error)?;
+            let mut process = match &flavor {
+                crate::acp_flavor::Flavor::Grok(grok) => grok.instance.session_process(&cwd, Some(&grok.launch_mode)),
+                crate::acp_flavor::Flavor::Registry => instance.resolve_process(&cwd).await.map_err(error)?,
+            };
             if let Some(mcp) = mcp {
                 mcp.apply_acp_environment(&mut process.environment);
             }
@@ -855,13 +875,14 @@ impl Actor {
             // Keep callbacks outside the cancellable initialize/load future. Their
             // owned terminals must be reaped before runtime ownership is released.
             *pending_services = Some(services.clone());
-            let started = match mcp {
-                Some(mcp) => {
+            let started = match (&flavor, mcp) {
+                (crate::acp_flavor::Flavor::Grok(grok), _) => Box::pin(instance.start_peer_flavored(peer, &cwd, saved, services, mcp, &grok.hooks())).await,
+                (_, Some(mcp)) => {
                     instance
                         .start_peer_with_mcp(peer, &cwd, saved, services, mcp)
                         .await
                 }
-                None => {
+                (_, None) => {
                     instance
                         .start_peer_with_services(peer, &cwd, saved, false, services)
                         .await
@@ -886,8 +907,7 @@ impl Actor {
         };
         let session_id = uuid::Uuid::new_v4().to_string();
         let now = at(Utc::now());
-        let mut capabilities: Value =
-            serde_json::from_str(include_str!("acp-capabilities.json")).unwrap();
+        let mut capabilities: Value = flavor.capabilities();
         let setup = serde_json::to_value(&session.setup).unwrap();
         // These source capabilities require adapter paths still being ported.
         // A negotiated load operation alone is not a conversation snapshot API.
@@ -925,10 +945,11 @@ impl Actor {
         commit(&store, thread_id, |_| {
             Ok(vec![(
                 "provider-session.attached",
-                json!({"id":session_id,"driver":"acpRegistry","providerInstanceId":instance_id,"status":"ready","cwd":cwd,"model":view["thread"]["modelSelection"]["model"],"capabilities":capabilities,"createdAt":now,"updatedAt":now,"lastError":null}),
+                json!({"id":session_id,"driver":flavor.driver(),"providerInstanceId":instance_id,"status":"ready","cwd":cwd,"model":view["thread"]["modelSelection"]["model"],"capabilities":capabilities,"createdAt":now,"updatedAt":now,"lastError":null}),
             )])
         })?;
         Ok(Self {
+            flavor,
             cwd,
             store,
             thread_id: thread_id.into(),
@@ -948,6 +969,9 @@ impl Actor {
             callbacks: HashMap::new(),
             native_build: None,
             elicitations: 0,
+            proposed_plan: None,
+            hard_stopped: false,
+            children: Default::default(),
             interrupt_requested: false,
             context_usage: None,
             native_metadata: None,
@@ -990,14 +1014,12 @@ impl Actor {
                     return Err(error("Target run is no longer active."));
                 }
                 self.interrupt_requested = true;
-                self.session
-                    .client
-                    .cancel_typed(
-                        serde_json::from_value(json!({"sessionId":self.session.setup.session_id}))
-                            .unwrap(),
-                    )
-                    .await
-                    .map_err(error)
+                // Stop ends a Grok turn for good: the run settles here and the process dies with whatever it
+                // was running, so no background task or foreground command is left behind.
+                if let crate::acp_flavor::Flavor::Grok(_) = &self.flavor {
+                    return self.hard_interrupt();
+                }
+                self.cancel_session().await
             }
             Some("runtime-request.respond") => {
                 if effect.request["providerSessionId"] != self.session_id {
@@ -1023,6 +1045,14 @@ impl Actor {
                             .map_err(|_| error("The ACP callback was cancelled."))?;
                         callback.written
                     }
+                    Pending::Native { response, written, params } => {
+                        let reply = match effect.request.get("answers").filter(|answers| answers.is_object()) {
+                            Some(answers) => crate::xai_extension::ask_user_response(&params, answers),
+                            None => crate::xai_extension::ask_user_cancelled_response(),
+                        };
+                        response.send(Ok(reply)).map_err(|_| error("The ACP callback was cancelled."))?;
+                        written
+                    }
                     Pending::Question { keys, response, written } => {
                         let answered = effect.request.get("answers").filter(|answers| answers.is_object());
                         let reply = match answered {
@@ -1045,6 +1075,26 @@ impl Actor {
             _ => Err(error("Unsupported ACP provider effect.")),
         }
     }
+    /// `session/cancel`; Grok's carries the Ctrl+C trigger, and its pending prompt settles as cancelled at once.
+    async fn cancel_session(&mut self) -> Result<(), StoreError> {
+        let mut request = json!({"sessionId":self.session.setup.session_id});
+        if let crate::acp_flavor::Flavor::Grok(grok) = &self.flavor {
+            grok.prompts.abort_all();
+            request["_meta"] = crate::grok_acp::CANCEL_META();
+        }
+        self.session.client.cancel_typed(serde_json::from_value(request).unwrap()).await.map_err(error)
+    }
+    /// A user Stop on a Grok turn: the run is interrupted locally, and the actor drops the process afterwards.
+    fn hard_interrupt(&mut self) -> Result<(), StoreError> {
+        if let Some(prompt) = self.prompt.take() {
+            prompt.abort();
+        }
+        if let crate::acp_flavor::Flavor::Grok(grok) = &self.flavor {
+            grok.prompts.abort_all();
+        }
+        self.hard_stopped = true;
+        self.finish(Ok(serde_json::from_value(json!({"stopReason":"cancelled"})).expect("cancelled prompt response")))
+    }
     async fn restart(&mut self, effect: &crate::persistence::Effect) -> Result<(), StoreError> {
         let old = self.active_context.clone().filter(|context| {
             effect.request["providerSessionId"] == self.session_id
@@ -1053,14 +1103,7 @@ impl Actor {
         });
         if let Some(old) = old {
             self.interrupt_requested = true;
-            self.session
-                .client
-                .cancel_typed(
-                    serde_json::from_value(json!({"sessionId":self.session.setup.session_id}))
-                        .unwrap(),
-                )
-                .await
-                .map_err(error)?;
+            self.cancel_session().await?;
             tokio::time::timeout(std::time::Duration::from_secs(10), async {
                 while self
                     .active_context
@@ -1078,6 +1121,7 @@ impl Actor {
                             ..
                         })) => self.permission(request, response, written).await?,
                         Activity::Event(Some(SessionEvent::Elicitation { request, response, written })) => self.elicitation(request, response, written)?,
+                        Activity::Event(Some(SessionEvent::Grok(event))) => self.grok_event(event).await?,
                         Activity::Prompt(result) => {
                             self.prompt.take();
                             self.finish(result)?;
@@ -1130,6 +1174,13 @@ impl Actor {
                     let _ = response.send(permission_response(&request, "cancel"));
                     let _ = written.await;
                 }
+                SessionEvent::Grok(crate::grok_flavor::Event::Question { response, .. }) => {
+                    let _ = response.send(Ok(crate::xai_extension::ask_user_cancelled_response()));
+                }
+                SessionEvent::Grok(crate::grok_flavor::Event::ExitPlan { response, .. }) => {
+                    let _ = response.send(Ok(crate::xai_extension::exit_plan_captured_response()));
+                }
+                SessionEvent::Grok(crate::grok_flavor::Event::PromptSettled) => {}
                 SessionEvent::Elicitation { response, .. } => {
                     let _ = response.send(serde_json::from_value(json!({"action":"cancel"})).map_err(|cause| AcpError::Transport(cause.to_string())));
                 }
@@ -1146,8 +1197,18 @@ impl Actor {
         }
         let selection = &run["modelSelection"];
         // "default" and "auto" mean the agent's own choice, which is never sent (AcpAdapterV2 configureSession).
-        if let Some(model) = selection["model"].as_str().filter(|model| !matches!(*model, "" | "auto" | "default")) {
-            self.session.set_model(model).await.map_err(error)?;
+        // Grok's product slug is never sent: it keeps the session's current model.
+        let requested = match &self.flavor {
+            crate::acp_flavor::Flavor::Grok(_) => Some(crate::grok_acp::base_model_id(selection["model"].as_str())).filter(|model| model != crate::grok_acp::DEFAULT_MODEL_SLUG),
+            crate::acp_flavor::Flavor::Registry => selection["model"].as_str().filter(|model| !matches!(*model, "" | "auto" | "default")).map(ToOwned::to_owned),
+        };
+        if let Some(model) = requested {
+            // Grok speaks ACP v1, where the session's model is set with `session/set_model`.
+            if matches!(self.flavor, crate::acp_flavor::Flavor::Grok(_)) && self.session.initialize.protocol_version == 1 {
+                self.session.set_session_model(&model).await.map_err(error)?;
+            } else {
+                self.session.set_model(&model).await.map_err(error)?;
+            }
         }
         let mut options = serde_json::Map::new();
         for option in selection["options"].as_array().into_iter().flatten() {
@@ -1171,6 +1232,7 @@ impl Actor {
             .await
             .map_err(error)?;
         if !images.is_empty()
+            && !self.flavor.sends_images_regardless()
             && self.session.initialize.agent_capabilities.as_ref()
                 .and_then(|capabilities| capabilities.prompt_capabilities.as_ref())
                 .and_then(|capabilities| capabilities.image)
@@ -1185,7 +1247,7 @@ impl Actor {
         let prompt_text =
             crate::provider_instructions::acp_prompt(&text, instruction_state, self.instructions);
         let runtime_context = crate::provider_instructions::runtime(
-            "acpRegistry",
+            self.flavor.harness(),
             selection["model"].as_str().unwrap(),
             None,
             None,
@@ -1225,20 +1287,20 @@ impl Actor {
             node["status"] = json!("running");
             node["startedAt"] = json!(now);
             node["providerTurnId"] = json!(provider_turn_id);
-            thread["driver"] = json!("acpRegistry");
+            thread["driver"] = json!(self.flavor.driver());
             thread["providerSessionId"] = json!(self.session_id);
-            thread["nativeThreadRef"] = native_ref(&self.session.setup.session_id, true);
+            thread["nativeThreadRef"] = native_ref(self.flavor.driver(), &self.session.setup.session_id, true);
             if self.item_identity_v2 {
                 if !thread["nativeMetadata"].is_object() {
                     thread["nativeMetadata"] = json!({});
                 }
                 thread["nativeMetadata"]["itemIdentityVersion"] = json!(2);
             }
-            thread["nativeConversationHeadRef"] = native_ref(&native_turn_id, false);
+            thread["nativeConversationHeadRef"] = native_ref(self.flavor.driver(), &native_turn_id, false);
             thread["status"] = json!("active");
             thread["lastRunOrdinal"] = run["ordinal"].clone();
             thread["updatedAt"] = json!(now);
-            let turn = json!({"id":provider_turn_id,"providerThreadId":run["providerThreadId"],"nodeId":node["id"],"runAttemptId":attempt["id"],"nativeTurnRef":native_ref(&native_turn_id,false),"ordinal":run["ordinal"],"status":"running","startedAt":now,"completedAt":null});
+            let turn = json!({"id":provider_turn_id,"providerThreadId":run["providerThreadId"],"nodeId":node["id"],"runAttemptId":attempt["id"],"nativeTurnRef":native_ref(self.flavor.driver(), &native_turn_id,false),"ordinal":run["ordinal"],"status":"running","startedAt":now,"completedAt":null});
             Ok(vec![
                 ("provider-thread.updated", thread),
                 ("provider-turn.updated", turn),
@@ -1259,19 +1321,27 @@ impl Actor {
         self.text_open.clear();
         self.tools.clear();
         self.tool_emission.clear();
+        self.children.clear();
         let client = self.session.client.clone();
         let session_id = self.session.setup.session_id.clone();
+        let request = PromptRequest {
+            session_id,
+            prompt: crate::attachment_prompt::acp_prompt_blocks(prompt_text, images, runtime_context)
+                .into_iter()
+                .map(|block| serde_json::from_value(block).unwrap())
+                .collect(),
+            meta: Optional::Missing,
+        };
+        // Grok settles a prompt with a completion notification as well as the reply: they race.
+        let race = match &self.flavor {
+            crate::acp_flavor::Flavor::Grok(grok) => Some(grok.prompts.clone()),
+            crate::acp_flavor::Flavor::Registry => None,
+        };
         self.prompt = Some(tokio::spawn(async move {
-            client
-                .prompt_typed(PromptRequest {
-                    session_id,
-                    prompt: crate::attachment_prompt::acp_prompt_blocks(prompt_text, images, runtime_context)
-                        .into_iter()
-                        .map(|block| serde_json::from_value(block).unwrap())
-                        .collect(),
-                    meta: Optional::Missing,
-                })
-                .await
+            match race {
+                Some(race) => race.prompt(client, request).await,
+                None => client.prompt_typed(request).await,
+            }
         }));
         if let Some(inline) = &inline {
             inline.mark(&self.store, &self.thread_id, "inline").map_err(error)?;
@@ -1299,12 +1369,16 @@ impl Actor {
         &mut self,
         notification: t3_acp::types::SessionNotification,
     ) -> Result<(), StoreError> {
-        if notification.session_id != self.session.setup.session_id {
-            return Err(error("ACP update belongs to another session."));
-        }
         let mut value = serde_json::to_value(notification).unwrap();
         if self.registry_agent_id == "devin" {
             updates::devin_update(&mut value);
+        }
+        if value["sessionId"] != self.session.setup.session_id.as_str() {
+            // A subagent runs in a session of its own (Grok's on this connection, Devin's tagged on the root's).
+            if self.runs_subagents() {
+                return self.child_update(&value);
+            }
+            return Err(error("ACP update belongs to another session."));
         }
         if value["_meta"]["isReplay"] == true {
             return Ok(());
@@ -1354,6 +1428,17 @@ impl Actor {
             _ => self.other_update(update).map(drop),
         }
     }
+    /// Whether this agent's tool calls and sessions can describe subagents: Grok, and Devin.
+    fn runs_subagents(&self) -> bool {
+        matches!(self.flavor, crate::acp_flavor::Flavor::Grok(_)) || self.registry_agent_id == "devin"
+    }
+    fn subagent_update(&self, tool: &Value) -> Option<crate::xai_extension::SubagentUpdate> {
+        match &self.flavor {
+            crate::acp_flavor::Flavor::Grok(_) => crate::xai_extension::subagent_update(tool),
+            crate::acp_flavor::Flavor::Registry if self.registry_agent_id == "devin" => crate::devin_acp::subagent_update(tool),
+            crate::acp_flavor::Flavor::Registry => None,
+        }
+    }
     fn tool(&mut self, update: &Value) -> Result<(), StoreError> {
         self.tool_with(update, None)
     }
@@ -1373,6 +1458,7 @@ impl Actor {
         let id = parsed.wire["toolCallId"].as_str().unwrap().to_owned();
         let previous = self.tools.get(&id);
         let next = crate::acp_tools::ToolState::merge(previous, parsed);
+        let next = self.flavor.normalize_tool(next);
         let (last, skipped) = self.tool_emission.get(&id).copied().unwrap_or((None, 0));
         let (emit, skipped) = crate::acp_tools::ToolState::emission(previous, &next, last, skipped);
         self.tool_emission.insert(
@@ -1387,6 +1473,13 @@ impl Actor {
             ),
         );
         self.tools.insert(id.clone(), next.clone());
+        // A `Task` call (or a poll of one) is a subagent, not a tool item.
+        if let Some(subagent) = self.subagent_update(&next.wire) {
+            self.emit_subagent(&subagent)?;
+            if subagent.suppress_normal_tool {
+                return Ok(());
+            }
+        }
         if !emit {
             return Ok(());
         }
@@ -1395,7 +1488,8 @@ impl Actor {
         commit(&self.store, &self.thread_id, |view| {
             let (run, attempt) = self.context(view)?;
             let native_id = format!("{}:tool:{id}", self.session.setup.session_id);
-            let (item_id, node_id) = crate::acp_tools::provider_item_ids(
+            let (item_id, node_id) = crate::acp_tools::provider_item_ids_for(
+                self.flavor.driver(),
                 &self.instance_id,
                 &native_id,
                 self.item_identity_v2,
@@ -1418,7 +1512,7 @@ impl Actor {
             let complete = matches!(status, "completed" | "failed");
             item["status"] = json!(status);
             item["title"] = native.get("title").cloned().unwrap_or(Value::Null);
-            item["nativeItemRef"] = native_ref(&id, true);
+            item["nativeItemRef"] = native_ref(self.flavor.driver(), &id, true);
             item["updatedAt"] = json!(now);
             item["completedAt"] = if complete { json!(now) } else { Value::Null };
             let data = &native["data"];
@@ -1472,16 +1566,10 @@ impl Actor {
             ] {
                 item.as_object_mut().unwrap().remove(key);
             }
-            let patch = data["content"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .find(|entry| entry["type"] == "diff" && entry["patch"]["text"].is_string())
-                .and_then(|entry| entry["patch"]["text"].as_str().map(ToOwned::to_owned))
-                .or_else(|| output.and_then(crate::acp_tools::output_text));
+            let patch = crate::acp_tools::diff_patch(&data["content"]).or_else(|| output.and_then(crate::acp_tools::output_text));
             if id.starts_with("acp-compaction:") {
                 item["type"] = json!("compaction");
-                item["driver"] = json!("acpRegistry");
+                item["driver"] = json!(self.flavor.driver());
                 item["title"] = native.get("title").cloned().unwrap_or(Value::Null);
                 if let Some(summary) = output.and_then(crate::acp_tools::output_text) {
                     item["summary"] = json!(summary);
@@ -1756,7 +1844,7 @@ impl Actor {
             let complete = matches!(plan["status"].as_str(), Some("completed" | "superseded"));
             item["type"] = plan["kind"].clone();
             item["planId"] = json!(plan_id);
-            item["nativeItemRef"] = native_ref(&native_id, false);
+            item["nativeItemRef"] = native_ref(self.flavor.driver(), &native_id, false);
             item["status"] = json!(if complete { "completed" } else { "running" });
             item["completedAt"] = if complete { json!(now) } else { Value::Null };
             item["updatedAt"] = json!(now);
@@ -1789,7 +1877,11 @@ impl Actor {
         }
         let native = serde_json::to_value(&request).unwrap();
         let kind = native["toolCall"]["kind"].as_str().unwrap_or("other");
-        let disposition = self.session.services.permission(&native);
+        let mut disposition = self.session.services.permission(&native);
+        // Grok's Auto mode only asks about what its own classifier refused, so those reach the user.
+        if matches!(&self.flavor, crate::acp_flavor::Flavor::Grok(grok) if grok.always_asks()) && disposition != crate::acp_client_policy::Disposition::Deny {
+            disposition = crate::acp_client_policy::Disposition::Ask;
+        }
         if disposition == crate::acp_client_policy::Disposition::Deny {
             // The agent's own reject option when it offers one; cancelled otherwise.
             let _ = response.send(permission_response(&request, "decline"));
@@ -1824,7 +1916,7 @@ impl Actor {
         };
         commit(&self.store, &self.thread_id, |view| {
             let (run, attempt) = self.context(view)?;
-            let native_ref = native_ref(&request.tool_call.tool_call_id, false);
+            let native_ref = native_ref(self.flavor.driver(), &request.tool_call.tool_call_id, false);
             let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":"approval_request","status":"waiting","countsForRun":false,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":native_ref,"runtimeRequestId":request_id,"checkpointScopeId":null,"startedAt":now,"completedAt":null});
             let row = json!({"id":request_id,"nodeId":node_id,"providerTurnId":attempt["providerTurnId"],"nativeRequestRef":native_ref,"kind":request_kind,"status":"pending","responseCapability":{"type":"live","providerSessionId":self.session_id},"createdAt":now,"resolvedAt":null});
             let mut item = self.base_item(view, &run, attempt, &item_id, &node_id);
@@ -1841,6 +1933,9 @@ impl Actor {
                 .map(ToOwned::to_owned)
                 .unwrap_or_else(|| format!("Session {}", request.session_id));
             item["prompt"] = json!(prompt);
+            if let Some(options) = self.flavor.approval_options(&native) {
+                item["options"] = options;
+            }
             Ok(vec![
                 ("node.updated", node),
                 ("runtime-request.updated", row),
@@ -1883,7 +1978,7 @@ impl Actor {
         let now = at(Utc::now());
         commit(&self.store, &self.thread_id, |view| {
             let (run, attempt) = self.context(view)?;
-            let native = native_ref(&native_id, false);
+            let native = native_ref(self.flavor.driver(), &native_id, false);
             let node = json!({"id":node_id,"threadId":self.thread_id,"runId":run["id"],"parentNodeId":run["rootNodeId"],"rootNodeId":run["rootNodeId"],"kind":"user_input_request","status":"waiting","countsForRun":false,"providerThreadId":run["providerThreadId"],"providerTurnId":attempt["providerTurnId"],"nativeItemRef":native,"runtimeRequestId":request_id,"checkpointScopeId":null,"startedAt":now,"completedAt":null});
             let row = json!({"id":request_id,"nodeId":node_id,"providerTurnId":attempt["providerTurnId"],"nativeRequestRef":native,"kind":"user_input","status":"pending","responseCapability":{"type":"live","providerSessionId":self.session_id},"createdAt":now,"resolvedAt":null});
             let mut item = self.base_item(view, &run, attempt, &item_id, &node_id);
@@ -1925,7 +2020,7 @@ impl Actor {
                 &self.thread_id,
                 self.active_run.as_deref(),
                 self.active_context.as_ref(),
-                &crate::provider_failure::acp_prompt(&self.registry_agent_id, &cause),
+                &self.flavor.prompt_failure(&self.registry_agent_id, &cause),
                 crate::codex_runtime::Retain::OnFailure,
             )?,
         };
@@ -2080,13 +2175,14 @@ pub(crate) async fn actor(
                     _=stopped.changed()=>break,
                     _=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{interrupted=true;Err(error("Run interrupted during ACP startup."))}
                 };
+                if runtime.as_ref().is_some_and(|actor|actor.hard_stopped) {if let Some(stopped_actor)=runtime.take() {stopped_actor.session.shutdown().await;}}
                 let close=starting&&result.is_err();if interrupted||close{work.close();}let _=incoming.complete.send(result.map_err(|error|error.to_string()));if interrupted||close{break;}
             }
             activity=async{runtime.as_mut().unwrap().next().await},if runtime.is_some()=>{
                 let ended=matches!(&activity,Activity::Event(Some(SessionEvent::Terminated(_)))|Activity::Event(None));
                 let actor=runtime.as_mut().unwrap();let result=match activity {
                     Activity::Event(Some(SessionEvent::Update(update)))=>actor.update(update),
-                    Activity::Event(Some(SessionEvent::Permission{request,response,written,..}))=>tokio::select!{result=actor.permission(request,response,written)=>result,_=stopped.changed()=>break},Activity::Event(Some(SessionEvent::Elicitation{request,response,written}))=>actor.elicitation(request,response,written),
+                    Activity::Event(Some(SessionEvent::Permission{request,response,written,..}))=>tokio::select!{result=actor.permission(request,response,written)=>result,_=stopped.changed()=>break},Activity::Event(Some(SessionEvent::Elicitation{request,response,written}))=>actor.elicitation(request,response,written),Activity::Event(Some(SessionEvent::Grok(event)))=>actor.grok_event(event).await,
                     Activity::Event(Some(SessionEvent::Terminated(cause)))=>{if let Some(prompt)=actor.prompt.take(){actor.finish(prompt.await.unwrap_or_else(|error|Err(AcpError::Transport(error.to_string()))))}else{Err(error(cause))}},Activity::Event(None)=>Err(error("ACP event stream ended.")),
                     Activity::Prompt(result)=>{actor.prompt.take();actor.finish(result)}
                 };
@@ -2133,7 +2229,9 @@ pub(crate) async fn actor(
             prompt.abort();
             let _ = prompt.await;
         }
-        if !interrupted && !*stopped.borrow() && actor.active_run.is_none() && actor.callbacks.is_empty() {
+        // Grok's session is closed on the way out even when the server stops, as its runtime does.
+        let closing = matches!(actor.flavor, crate::acp_flavor::Flavor::Grok(_)) || (!interrupted && !*stopped.borrow());
+        if closing && actor.active_run.is_none() && actor.callbacks.is_empty() {
             actor.session.close_session().await;
         }
         actor.callbacks.clear();
