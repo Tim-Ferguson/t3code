@@ -325,3 +325,54 @@ pub fn model_label(model: &crate::models::ModelOption) -> String {
     let stripped = pattern.replace(name, "").trim().to_owned();
     if stripped.is_empty() { name.to_owned() } else { stripped }
 }
+
+/// The run to interrupt to stop a subagent the app itself runs (`canStop` of
+/// `ThreadRelationshipsControl.tsx`), or none when it is not one, has not started, or has finished.
+/// `agent` is the subagent as the parent's projection lists it; `child` is what the child thread's
+/// shell says: its live activity status and start, and its active (else latest) run. A live shell
+/// outranks the agent's own, settled, status: a task woken for a second run is running again.
+pub fn subagent_stop_run(agent: &Value, child: Option<&ChildActivity>) -> Option<String> {
+    if agent["origin"] != "app_owned" {
+        return None;
+    }
+    let (status, started) = match child.and_then(|child| child.live.as_ref()) {
+        Some((status, started)) => (if matches!(status.as_str(), "running" | "waiting") { status.as_str() } else { "pending" }, *started),
+        None => (agent["status"].as_str().unwrap_or(""), agent["startedAt"].as_str().is_some_and(|at| !at.is_empty())),
+    };
+    if !started || !matches!(status, "pending" | "running" | "waiting") {
+        return None;
+    }
+    child.and_then(|child| child.run.clone())
+}
+/// A child thread's activity, from its shell.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ChildActivity {
+    /// The activity run's status and whether it has started.
+    pub live: Option<(String, bool)>,
+    pub run: Option<String>,
+}
+
+#[cfg(test)]
+mod stop_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn only_a_running_app_owned_subagent_can_be_stopped_and_by_its_own_run() {
+        let child = ChildActivity { live: Some(("running".into(), true)), run: Some("run-9".into()) };
+        let agent = |origin: &str, status: &str, started: Option<&str>| json!({"origin":origin,"status":status,"startedAt":started});
+        assert_eq!(subagent_stop_run(&agent("app_owned", "running", Some("t")), Some(&child)).as_deref(), Some("run-9"));
+        // A provider's own subagent is the provider's to stop.
+        assert_eq!(subagent_stop_run(&agent("provider_native", "running", Some("t")), Some(&child)), None);
+        // Nothing live, and the agent itself finished or never started: nothing to stop.
+        let idle = ChildActivity { live: None, run: Some("run-9".into()) };
+        assert_eq!(subagent_stop_run(&agent("app_owned", "completed", Some("t")), Some(&idle)), None);
+        assert_eq!(subagent_stop_run(&agent("app_owned", "running", None), Some(&idle)), None);
+        assert_eq!(subagent_stop_run(&agent("app_owned", "running", Some("t")), Some(&idle)).as_deref(), Some("run-9"));
+        // A task woken again is running again, whatever its settled status says.
+        assert_eq!(subagent_stop_run(&agent("app_owned", "completed", Some("t")), Some(&child)).as_deref(), Some("run-9"));
+        // Not started yet, or no run to name.
+        assert_eq!(subagent_stop_run(&agent("app_owned", "running", Some("t")), Some(&ChildActivity { live: Some(("running".into(), false)), run: Some("r".into()) })), None);
+        assert_eq!(subagent_stop_run(&agent("app_owned", "running", Some("t")), None), None);
+    }
+}

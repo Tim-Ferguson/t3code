@@ -223,10 +223,10 @@ fn is_nameless(raw: &Value) -> bool {
     trimmed(raw.get("name")).is_none() && trimmed(raw.get("context")).is_none()
 }
 
-struct CheckEntry {
-    check: PullRequestCheck,
-    workflow_name: Option<String>,
-    at: Option<String>,
+pub(crate) struct CheckEntry {
+    pub(crate) check: PullRequestCheck,
+    pub(crate) workflow_name: Option<String>,
+    pub(crate) at: Option<String>,
 }
 
 fn to_check_entries(raw: &[Value]) -> Vec<CheckEntry> {
@@ -249,7 +249,7 @@ fn to_check_entries(raw: &[Value]) -> Vec<CheckEntry> {
 }
 
 /// One row per check rather than one per run of it (`dedupeChecks`).
-fn dedupe_checks(entries: Vec<CheckEntry>) -> Vec<PullRequestCheck> {
+pub(crate) fn dedupe_checks(entries: Vec<CheckEntry>) -> Vec<PullRequestCheck> {
     let mut order: Vec<String> = vec![];
     let mut newest: HashMap<String, CheckEntry> = HashMap::new();
     for entry in entries {

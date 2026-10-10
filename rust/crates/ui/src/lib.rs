@@ -41,7 +41,10 @@ mod runtime;
 mod scheduled_tasks_page;
 mod scroll_state;
 mod secret_card;
+mod plan_thread;
+mod prompt_stash;
 mod sidebar_rows;
+mod sidebar_sections;
 mod search;
 mod settings_common;
 mod source_control_page;
@@ -100,6 +103,7 @@ pub fn App() -> Element {
             terminal_catalog.hydrate().await;
             client_settings::hydrate(state).await;
             draft_storage::hydrate(state).await;
+            prompt_stash::hydrate(state).await;
             runtime::connect(transport, state, runtime::default_address(), String::new()).await;
         }
     });
@@ -117,6 +121,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let mut credential_kind = use_signal(runtime::default_credential_kind);
     let mut add_project = use_signal(|| false);
     use_context_provider(|| AddProject(add_project));
+    sidebar_sections::use_shelves(state);
     let runner = keys::use_keys(state, transport.clone());
     clone_view::use_stream(state, transport.clone());
     let new_thread_hint = runner.keys.label("chat.new");
@@ -153,7 +158,6 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         wake_tick.set(next);
     });
     let _ = wake_tick();
-    let now = chrono::Utc::now();
     let active_id = state.active_thread().read().clone();
     let active = threads
         .iter()
@@ -255,6 +259,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 }
                 search::SidebarSearch { state, transport: transport.clone() }
                 div { class: "project-list",
+                    sidebar_sections::DragBridge { state, transport: transport.clone() }
                     for project in projects.iter() {
                         div { class: "project-group", key: "{project.id}",
                             button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
@@ -262,9 +267,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             }
                             button { class: "project-remove", "aria-label": "Remove project {project.title}", title: "Remove project", disabled: !can_operate, onclick: { let id = project.id.to_string(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" }
                             clone_view::ProjectState { key: "clone:{project.id}", state, project_id: project.id.to_string() }
-                            for thread in sidebar_rows::rows(&threads, &project.id, now) {
-                                sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(thread, active.as_ref().is_some_and(|active| active.id == thread.id), thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| Some(project.workspace_root.to_string())), row_caps, can_operate, now), state, transport: transport.clone() }
-                            }
+                            sidebar_sections::ProjectThreads { key: "threads:{project.id}", project_id: project.id.to_string(), workspace_root: project.workspace_root.to_string(), state, transport: transport.clone(), caps: row_caps, can_operate, tick: wake_tick() }
                             thread_lifecycle::Archived { key: "archived:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string() }
                         }
                     }
@@ -749,6 +752,7 @@ fn Composer(
         form { class: "composer", onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },
             ondragover: move |event| event.prevent_default(),
             ondrop: move |event| { if let Some(handler)=drop_files.as_mut() { handler(event); } },
+            prompt_stash::Dock {state,transport:transport.clone()}
             if let Some(target)=target.clone() { composer_chips::Tray {state,target} }
             composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
             if let Some(target)=target.clone() { attachments::Shelf {state,transport:transport.clone(),target,locked:pending,can_operate,paste_target:".composer textarea"} }
@@ -760,6 +764,7 @@ fn Composer(
                 if show_stop {
                     button { r#type: "button", "aria-label":"Stop generation", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::stop_thread(&transport,state,&id); } }, "■ Stop" }
                 } else {
+                    if let Some(plan)=following_up.clone().filter(|_| !has_content && editing.read().is_none()) { plan_thread::ImplementActions {state,transport:transport.clone(),thread_id:thread.id.to_string(),plan,disabled:blocked} }
                     button { class: "primary", r#type: "button", "aria-label":"{submit_label}", title:if rewinding() {"Rewinding the conversation\u{2026}".to_owned()} else if let Some(reason)=attachment_block.clone() {reason} else if running && editing.read().is_none() && following_up.is_none() {format!("Click to {}, Ctrl/\u{2318}-click to {}",if queue_by_default{"queue"}else{"steer"},if queue_by_default{"steer"}else{"queue"})} else {submit_label.to_owned()}, disabled: blocked,
                         onclick:{let mut submit=submit.clone();move |event: MouseEvent| {let modifiers=event.modifiers();if !blocked {submit(modifiers.ctrl()||modifiers.meta());}}},
                         if pending { "Sending…" } else if following_up.is_some() { "{submit_label}" } else if editing.read().is_some() { "✓ Save" } else { "Send ↑" } }
@@ -862,6 +867,9 @@ struct RenderProbe {
     summary: std::rc::Rc<std::cell::Cell<usize>>,
     /// How many times a sidebar thread row was built.
     sidebar_row: std::rc::Rc<std::cell::Cell<usize>>,
+    /// How many times the header's lineage button and a response's fork button were built.
+    lineage_button: std::rc::Rc<std::cell::Cell<usize>>,
+    fork_button: std::rc::Rc<std::cell::Cell<usize>>,
 }
 
 #[cfg(test)]

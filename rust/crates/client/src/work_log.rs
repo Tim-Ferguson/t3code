@@ -232,3 +232,39 @@ pub fn overlay_detail(projected: &Value, detail: &Value) -> Value {
     }
     item
 }
+
+// ---- images a tool returned inline ------------------------------------------------------------
+
+/// A tool returns one screenshot or a few frames; more would only flood the timeline.
+pub const MAX_TOOL_OUTPUT_IMAGES: usize = 8;
+
+/// `readToolOutputImage`: an MCP `{ type: "image", mimeType, data }` block or the Anthropic
+/// `{ source: { type: "base64", media_type, data } }` one, raster types only, so an agent's SVG or HTML
+/// is never served inline.
+fn is_output_image(block: &Value) -> bool {
+    if block["type"] != "image" {
+        return false;
+    }
+    // `Predicate.isObject`: a string or a number is no source at all.
+    let source = block.get("source").filter(|source| source.is_object() || source.is_array());
+    if let Some(source) = source {
+        if source["type"] != "base64" {
+            return false;
+        }
+    }
+    let mime = match source {
+        Some(source) => &source["media_type"],
+        None => &block["mimeType"],
+    };
+    mime.as_str().is_some_and(|mime| matches!(mime.to_ascii_lowercase().as_str(), "image/gif" | "image/jpeg" | "image/png" | "image/webp"))
+}
+/// How many images a tool's output holds, in the order the server numbers its `tool-output-image`
+/// assets (`toolOutputImages`).
+pub fn output_image_count(output: &Value) -> usize {
+    let blocks: Vec<&Value> = match output {
+        Value::Array(blocks) => blocks.iter().collect(),
+        Value::Object(map) if map.get("content").is_some_and(Value::is_array) => map["content"].as_array().map(|blocks| blocks.iter().collect()).unwrap_or_default(),
+        other => vec![other],
+    };
+    blocks.into_iter().filter(|block| is_output_image(block)).take(MAX_TOOL_OUTPUT_IMAGES).count()
+}

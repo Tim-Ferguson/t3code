@@ -127,6 +127,13 @@ def flush():
             cursor += 1
             write_status()
             continue
+        # A gate holds the recording back at the frame with its label until the test writes to its pipe:
+        # the test sends a steering message the recording places before that frame.
+        gate = transcript.get("gate")
+        if gate and entry.get("label") == gate["label"] and not gate.get("passed"):
+            gate["passed"] = True
+            with open(gate["fifo"], "r") as pipe:
+                pipe.read()
         emit(entry["frame"])
         cursor += 1
         write_status()

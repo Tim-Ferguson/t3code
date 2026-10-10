@@ -1,0 +1,66 @@
+{"prompt":"","effort":null,"is":false,"applied":"","stripped":"","inBody":false}
+{"prompt":"","effort":"high","is":false,"applied":"","stripped":"","inBody":false}
+{"prompt":"","effort":"ultrathink","is":false,"applied":"","stripped":"","inBody":false}
+{"prompt":"   ","effort":null,"is":false,"applied":"","stripped":"   ","inBody":false}
+{"prompt":"   ","effort":"high","is":false,"applied":"","stripped":"   ","inBody":false}
+{"prompt":"   ","effort":"ultrathink","is":false,"applied":"","stripped":"   ","inBody":false}
+{"prompt":"fix it","effort":null,"is":false,"applied":"fix it","stripped":"fix it","inBody":false}
+{"prompt":"fix it","effort":"high","is":false,"applied":"fix it","stripped":"fix it","inBody":false}
+{"prompt":"fix it","effort":"ultrathink","is":false,"applied":"Ultrathink:\nfix it","stripped":"fix it","inBody":false}
+{"prompt":"ultrathink about this","effort":null,"is":true,"applied":"ultrathink about this","stripped":"ultrathink about this","inBody":true}
+{"prompt":"ultrathink about this","effort":"high","is":true,"applied":"ultrathink about this","stripped":"ultrathink about this","inBody":true}
+{"prompt":"ultrathink about this","effort":"ultrathink","is":true,"applied":"Ultrathink:\nultrathink about this","stripped":"ultrathink about this","inBody":true}
+{"prompt":"Ultrathink:\nfix it","effort":null,"is":true,"applied":"Ultrathink:\nfix it","stripped":"fix it","inBody":false}
+{"prompt":"Ultrathink:\nfix it","effort":"high","is":true,"applied":"Ultrathink:\nfix it","stripped":"fix it","inBody":false}
+{"prompt":"Ultrathink:\nfix it","effort":"ultrathink","is":true,"applied":"Ultrathink:\nfix it","stripped":"fix it","inBody":false}
+{"prompt":"ULTRATHINK","effort":null,"is":true,"applied":"ULTRATHINK","stripped":"ULTRATHINK","inBody":true}
+{"prompt":"ULTRATHINK","effort":"high","is":true,"applied":"ULTRATHINK","stripped":"ULTRATHINK","inBody":true}
+{"prompt":"ULTRATHINK","effort":"ultrathink","is":true,"applied":"Ultrathink:\nULTRATHINK","stripped":"ULTRATHINK","inBody":true}
+{"prompt":"ultrathinking","effort":null,"is":false,"applied":"ultrathinking","stripped":"ultrathinking","inBody":false}
+{"prompt":"ultrathinking","effort":"high","is":false,"applied":"ultrathinking","stripped":"ultrathinking","inBody":false}
+{"prompt":"ultrathinking","effort":"ultrathink","is":false,"applied":"Ultrathink:\nultrathinking","stripped":"ultrathinking","inBody":false}
+{"prompt":"pre-ultrathink","effort":null,"is":true,"applied":"pre-ultrathink","stripped":"pre-ultrathink","inBody":true}
+{"prompt":"pre-ultrathink","effort":"high","is":true,"applied":"pre-ultrathink","stripped":"pre-ultrathink","inBody":true}
+{"prompt":"pre-ultrathink","effort":"ultrathink","is":true,"applied":"Ultrathink:\npre-ultrathink","stripped":"pre-ultrathink","inBody":true}
+{"prompt":"my_ultrathink","effort":null,"is":false,"applied":"my_ultrathink","stripped":"my_ultrathink","inBody":false}
+{"prompt":"my_ultrathink","effort":"high","is":false,"applied":"my_ultrathink","stripped":"my_ultrathink","inBody":false}
+{"prompt":"my_ultrathink","effort":"ultrathink","is":false,"applied":"Ultrathink:\nmy_ultrathink","stripped":"my_ultrathink","inBody":false}
+{"prompt":"ultrathink_x","effort":null,"is":false,"applied":"ultrathink_x","stripped":"ultrathink_x","inBody":false}
+{"prompt":"ultrathink_x","effort":"high","is":false,"applied":"ultrathink_x","stripped":"ultrathink_x","inBody":false}
+{"prompt":"ultrathink_x","effort":"ultrathink","is":false,"applied":"Ultrathink:\nultrathink_x","stripped":"ultrathink_x","inBody":false}
+{"prompt":"x ultrathink.","effort":null,"is":true,"applied":"x ultrathink.","stripped":"x ultrathink.","inBody":true}
+{"prompt":"x ultrathink.","effort":"high","is":true,"applied":"x ultrathink.","stripped":"x ultrathink.","inBody":true}
+{"prompt":"x ultrathink.","effort":"ultrathink","is":true,"applied":"Ultrathink:\nx ultrathink.","stripped":"x ultrathink.","inBody":true}
+{"prompt":"Ultrathink:   \n  ultrathink it","effort":null,"is":true,"applied":"Ultrathink:   \n  ultrathink it","stripped":"ultrathink it","inBody":true}
+{"prompt":"Ultrathink:   \n  ultrathink it","effort":"high","is":true,"applied":"Ultrathink:   \n  ultrathink it","stripped":"ultrathink it","inBody":true}
+{"prompt":"Ultrathink:   \n  ultrathink it","effort":"ultrathink","is":true,"applied":"Ultrathink:   \n  ultrathink it","stripped":"ultrathink it","inBody":true}
+{"prompt":"ultrathink:\tnow","effort":null,"is":true,"applied":"ultrathink:\tnow","stripped":"now","inBody":false}
+{"prompt":"ultrathink:\tnow","effort":"high","is":true,"applied":"ultrathink:\tnow","stripped":"now","inBody":false}
+{"prompt":"ultrathink:\tnow","effort":"ultrathink","is":true,"applied":"Ultrathink:\nultrathink:\tnow","stripped":"now","inBody":false}
+{"prompt":"/deploy now","effort":null,"is":false,"applied":"/deploy now","stripped":"/deploy now","inBody":false}
+{"prompt":"/deploy now","effort":"high","is":false,"applied":"/deploy now","stripped":"/deploy now","inBody":false}
+{"prompt":"/deploy now","effort":"ultrathink","is":false,"applied":"/deploy now","stripped":"/deploy now","inBody":false}
+{"prompt":"/deploy","effort":null,"is":false,"applied":"/deploy","stripped":"/deploy","inBody":false}
+{"prompt":"/deploy","effort":"high","is":false,"applied":"/deploy","stripped":"/deploy","inBody":false}
+{"prompt":"/deploy","effort":"ultrathink","is":false,"applied":"/deploy","stripped":"/deploy","inBody":false}
+{"prompt":"/home/theo/app.ts is broken","effort":null,"is":false,"applied":"/home/theo/app.ts is broken","stripped":"/home/theo/app.ts is broken","inBody":false}
+{"prompt":"/home/theo/app.ts is broken","effort":"high","is":false,"applied":"/home/theo/app.ts is broken","stripped":"/home/theo/app.ts is broken","inBody":false}
+{"prompt":"/home/theo/app.ts is broken","effort":"ultrathink","is":false,"applied":"Ultrathink:\n/home/theo/app.ts is broken","stripped":"/home/theo/app.ts is broken","inBody":false}
+{"prompt":"/plugin:skill args","effort":null,"is":false,"applied":"/plugin:skill args","stripped":"/plugin:skill args","inBody":false}
+{"prompt":"/plugin:skill args","effort":"high","is":false,"applied":"/plugin:skill args","stripped":"/plugin:skill args","inBody":false}
+{"prompt":"/plugin:skill args","effort":"ultrathink","is":false,"applied":"/plugin:skill args","stripped":"/plugin:skill args","inBody":false}
+{"prompt":"/a/b c","effort":null,"is":false,"applied":"/a/b c","stripped":"/a/b c","inBody":false}
+{"prompt":"/a/b c","effort":"high","is":false,"applied":"/a/b c","stripped":"/a/b c","inBody":false}
+{"prompt":"/a/b c","effort":"ultrathink","is":false,"applied":"Ultrathink:\n/a/b c","stripped":"/a/b c","inBody":false}
+{"prompt":"  padded  ","effort":null,"is":false,"applied":"padded","stripped":"  padded  ","inBody":false}
+{"prompt":"  padded  ","effort":"high","is":false,"applied":"padded","stripped":"  padded  ","inBody":false}
+{"prompt":"  padded  ","effort":"ultrathink","is":false,"applied":"Ultrathink:\npadded","stripped":"  padded  ","inBody":false}
+{"prompt":"Ultrathink: already","effort":null,"is":true,"applied":"Ultrathink: already","stripped":"already","inBody":false}
+{"prompt":"Ultrathink: already","effort":"high","is":true,"applied":"Ultrathink: already","stripped":"already","inBody":false}
+{"prompt":"Ultrathink: already","effort":"ultrathink","is":true,"applied":"Ultrathink: already","stripped":"already","inBody":false}
+{"prompt":"ultrathink: lower prefix","effort":null,"is":true,"applied":"ultrathink: lower prefix","stripped":"lower prefix","inBody":false}
+{"prompt":"ultrathink: lower prefix","effort":"high","is":true,"applied":"ultrathink: lower prefix","stripped":"lower prefix","inBody":false}
+{"prompt":"ultrathink: lower prefix","effort":"ultrathink","is":true,"applied":"Ultrathink:\nultrathink: lower prefix","stripped":"lower prefix","inBody":false}
+{"prompt":" nbsp ultrathink","effort":null,"is":true,"applied":"nbsp ultrathink","stripped":" nbsp ultrathink","inBody":true}
+{"prompt":" nbsp ultrathink","effort":"high","is":true,"applied":"nbsp ultrathink","stripped":" nbsp ultrathink","inBody":true}
+{"prompt":" nbsp ultrathink","effort":"ultrathink","is":true,"applied":"Ultrathink:\nnbsp ultrathink","stripped":" nbsp ultrathink","inBody":true}

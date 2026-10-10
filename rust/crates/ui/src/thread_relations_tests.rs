@@ -163,6 +163,34 @@ async fn a_queued_message_is_steered_into_the_running_turn_once_and_not_without_
     until(&mut dom, "the turn", |_| completed_runs(state) >= 2).await;
     fixture.finish(dom).await;
 }
+/// The keyboard path of the same steer: the shortcut sends the first queued message into the running
+/// turn, once, claimed only while a queued message and a steerable turn exist.
+#[tokio::test(flavor = "current_thread")]
+async fn the_steer_shortcut_sends_the_first_queued_message_into_the_running_turn() {
+    use crate::runtime::keys_tests::{chord, press};
+    let none = t3_client::keybindings::Dom::default;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    // Nothing queued: the chord is not claimed, so it keeps its meaning (a newline in the box).
+    assert_eq!(press(&mut dom, chord("Enter", true, false), none()).await, None);
+    crate::runtime::transport_tests::input_control(&mut dom, "Message", "work [hold]");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "a turn the provider is running", |_| {
+        let projection = state.peek().thread.projection.clone();
+        projection.is_some_and(|p| p["providerTurns"].as_array().is_some_and(|turns| turns.iter().any(|turn| turn["status"] == "running")) && t3_client::queue_workflow::can_promote_to_steer(&p))
+    })
+    .await;
+    dom.in_scope(ScopeId::APP, || send_with(&props.transport, state, SendOptions { mode: Some("queue"), text: Some("queued by key".into()), ..Default::default() }));
+    until(&mut dom, "the queued message", |dom| control(dom, "Steer queued message").is_some()).await;
+    assert_eq!(press(&mut dom, chord("Enter", true, false), none()).await.as_deref(), Some("thread.steerQueuedMessage"));
+    until(&mut dom, "the steer", |_| projection_items(state, "queued by key").iter().any(|item| item["inputIntent"] == "promoted_queued_to_steer")).await;
+    assert_eq!(projection_items(state, "queued by key").len(), 1);
+    until(&mut dom, "the queue empty", |dom| control(dom, "Steer queued message").is_none()).await;
+    fixture.finish(dom).await;
+}
 fn projection_items(state: Store<UiModel>, text: &str) -> Vec<Value> {
     projection(state)["turnItems"].as_array().unwrap().iter().filter(|item| item["type"] == "user_message" && item["text"] == text).cloned().collect()
 }
@@ -243,8 +271,74 @@ async fn a_message_to_another_provider_is_refused_while_a_run_is_active_in_the_s
     until(&mut dom, "the chosen model", |dom| control(dom, "Model").and_then(|(_, value)| value).is_some_and(|value| value.contains("claude"))).await;
     crate::runtime::transport_tests::input_control(&mut dom, "Message", "and now?");
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
-    until(&mut dom, "the refusal", |dom| rendered_text(dom).contains("A message to another provider cannot join or wait behind a run that is still active.")).await;
+    until(&mut dom, "the refusal", |dom| rendered_text(dom).contains("A message to another provider cannot steer or restart a run that is still active.")).await;
     assert_eq!(shell_thread(state, "thread-a")["providerInstanceId"], "codex", "nothing switched");
     dom.in_scope(ScopeId::APP, || stop_thread(&props.transport, state, "thread-a"));
+    fixture.finish(dom).await;
+}
+
+#[derive(Clone)]
+struct Probed {
+    inner: super::diff_tests::Harness,
+    probe: crate::RenderProbe,
+}
+fn probed_app(props: Probed) -> Element {
+    use_context_provider(|| props.probe.clone());
+    super::diff_tests::harness(props.inner.clone())
+}
+
+/// The header's lineage button and a response's fork button repaint on what concerns them: a fork in
+/// flight is the fork buttons' alone, opening the panel is the lineage button's alone, and a turn
+/// streaming into the conversation builds neither again; the application, the conversation and the
+/// composer are not built again by the first two.
+#[tokio::test(flavor = "current_thread")]
+async fn the_lineage_button_and_the_fork_button_repaint_alone() {
+    let fixture = Fixture::start(false).await;
+    let (_, props) = fixture.operator(Gate::default());
+    let probe = crate::RenderProbe::default();
+    let mut dom = VirtualDom::new_with_props(probed_app, Probed { inner: props.clone(), probe: probe.clone() });
+    dom.rebuild_in_place();
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    turn(&mut dom, &props, state, 1).await;
+    until(&mut dom, "a fork button", |dom| all_controls(dom, "Fork from this response").len() == 1).await;
+    click_control(&mut dom, "Fork from this response");
+    until(&mut dom, "the fork opened", |dom| state.peek().active_thread.as_deref().is_some_and(|id| id != "thread-a") && control(dom, "Open source conversation").is_some() && control(dom, "Thread lineage").is_some()).await;
+    // The fork's own opening has been delivered; what follows is measured.
+    let counts = || ((probe.application.get(), probe.timeline.get(), probe.composer.get()), probe.lineage_button.get(), probe.fork_button.get());
+    let (shell, lineage, fork) = counts();
+
+    // A fork in flight is the fork buttons' alone.
+    state.relations().write().fork = Some(crate::thread_relations::Busy { destination: "diff-ui".into(), thread: "x".into() });
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let (shell_after, lineage_after, fork_after) = counts();
+    assert_eq!((shell_after, lineage_after), (shell, lineage), "the application, the conversation, the composer and the lineage button are not built again");
+    let waiting = all_controls(&dom, "Fork from this response").len();
+    assert_eq!(fork_after, fork + waiting, "each fork button waits, once");
+    if waiting > 0 {
+        assert_eq!(control_attribute(&dom, "Fork from this response", "aria-busy").and_then(|(_, value)| value).as_deref(), Some("true"));
+    }
+    state.relations().write().fork = None;
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let (shell, lineage, fork) = counts();
+
+    // The panel opens and closes in the lineage button alone.
+    click_control(&mut dom, "Thread lineage");
+    let (shell_after, lineage_after, fork_after) = counts();
+    assert!(rendered_text(&dom).contains("Do the work 1"));
+    assert_eq!((shell_after, fork_after), (shell, fork), "opening the panel");
+    assert!(lineage_after > lineage);
+    click_control(&mut dom, "Thread lineage");
+    let (_, lineage, fork) = counts();
+
+    // A turn streaming into the fork builds its rows and its new answer's footer, not the lineage button
+    // nor the fork buttons that are already there.
+    crate::runtime::transport_tests::input_control(&mut dom, "Message", "Fork work");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the new answer's fork button", |dom| rendered_text(dom).contains("Fixture response: Fork work") && !all_controls(dom, "Fork from this response").is_empty() && state.peek().thread.projection.as_ref().is_some_and(|p| p["runs"].as_array().is_some_and(|runs| runs.iter().all(|run| run["status"] == "completed")))).await;
+    let (_, lineage_after, fork_after) = counts();
+    assert_eq!(lineage_after, lineage, "the lineage button was not built again by the turn");
+    assert!(fork_after <= fork + 2, "the answers' buttons were built once each, not over and over: {fork} then {fork_after}");
     fixture.finish(dom).await;
 }

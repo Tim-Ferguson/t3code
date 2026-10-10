@@ -43,7 +43,12 @@ try {
         surface.resend_size();
         break;
       case "selection":
-        dioxus.send({ type: "selection", text: surface.selection_text() });
+        // `selection_position` is absent from a surface built before it existed; the chip then counts its own lines.
+        dioxus.send({
+          type: "selection",
+          text: surface.selection_text(),
+          position: surface.selection_position ? surface.selection_position() : "",
+        });
         break;
       default:
         throw new Error("Unknown Rust terminal ABI command");

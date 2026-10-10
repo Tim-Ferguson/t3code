@@ -718,3 +718,90 @@ async fn toggling_a_label_sends_exactly_that_label_to_the_host() {
     })
     .await;
 }
+
+// ---- The `#` menu of the message box. ----
+
+fn draft(app: &Mounted) -> String {
+    app.state.draft().peek().clone()
+}
+
+/// `#` lists the project's pull requests from the host, a number or words narrow them, and picking
+/// one names it in the text and attaches it as a chip that is sent with the message.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_hash_menu_lists_the_projects_pull_requests_and_attaches_the_one_picked() {
+    with_app(31, &READER, async |app| {
+        wait_for_rendered_text(&mut app.dom, &format!("PR #{} \u{b7} Open", app.number)).await;
+        input_control(&mut app.dom, "Message", "see #");
+        wait_for_rendered_text(&mut app.dom, "Fix it").await;
+        let text = rendered_text(&app.dom);
+        assert!(text.contains("#31") && text.contains("Open"), "{text}");
+        // A number that no pull request has: the menu says so rather than closing.
+        input_control(&mut app.dom, "Message", "see #99999");
+        wait_for_rendered_text(&mut app.dom, "No pull request matches 99999.").await;
+        // Words go to the host once typing pauses, and what a searching host answers is offered.
+        input_control(&mut app.dom, "Message", "see #fix");
+        until(&mut app.dom, "the search", |dom| rendered_text(dom).contains("Fix it") && !rendered_text(dom).contains("No pull request matches")).await;
+        input_control(&mut app.dom, "Message", "see #31");
+        until(&mut app.dom, "the number", |dom| control(dom, "Remove #31").is_none() && rendered_text(dom).contains("Fix it")).await;
+        // Picking replaces the `#31` with a reference and attaches the chip; Escape would only have closed the menu.
+        key_on(&mut app.dom, "Message", Key::Enter);
+        until(&mut app.dom, "the chip", |dom| control(dom, "Remove #31").is_some()).await;
+        let text = draft(app);
+        assert!(text.starts_with("see [#31](t3-context://v1/review-comment/"), "{text}");
+        assert!(text.ends_with(") "), "{text}");
+        let chips = crate::composer_chips::contexts_of(app.state, &crate::composer_chips::open_target(app.state).unwrap());
+        assert_eq!(chips.len(), 1);
+        assert_eq!(chips[0]["pullRequest"]["number"], 31);
+        assert!(chips[0]["text"].as_str().unwrap().contains("untrusted data"));
+    })
+    .await;
+}
+
+/// A project whose host this server cannot read pull requests from says so in the menu.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_hash_menu_says_when_pull_requests_are_not_available_for_the_project() {
+    // The hosts the server asks, and what it remembers of them per project, are shared by the test
+    // binary: this project has an id of its own, and no other test may be asking meanwhile.
+    let world = world();
+    let _alone = world.exclusive().lock().await;
+    world.reset_everything_signed_in();
+    let fixture = Fixture::start(true).await;
+    let (mut dom, props) = fixture.client(Gate::default(), &READER);
+    let state = props.state.borrow().unwrap();
+    until(&mut dom, "shell", |_| state.peek().shell.synchronized).await;
+    dom.in_scope(ScopeId::APP, || request(&props.transport, state, "projects.mutate", json!({"type":"project.create","commandId":"no-host","projectId":"no-host","title":"No host","workspaceRoot":fixture.workspace}), RequestKind::Unary)).unwrap();
+    until(&mut dom, "project", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| !s.projects.is_empty())).await;
+    dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":"lonely","projectId":"no-host","title":"Lonely","modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null}))).unwrap();
+    until(&mut dom, "thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| !s.threads.is_empty())).await;
+    open_thread(&mut dom, &props, state, "lonely").await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    input_control(&mut dom, "Message", "see #");
+    wait_for_rendered_text(&mut dom, "Pull requests are not available for this project.").await;
+    fixture.finish(dom).await;
+}
+
+/// Reading the host and typing in the menu repaint the message box and nothing else.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_hash_menu_repaints_neither_the_application_nor_the_conversation() {
+    with_probed_app(32, &READER, async |app| {
+        let probe = app.probe.clone().unwrap();
+        // One round trip first, so the tail of what opened the thread has been delivered.
+        wait_for_rendered_text(&mut app.dom, &format!("PR #{} \u{b7} Open", app.number)).await;
+        input_control(&mut app.dom, "Message", "x");
+        let before = repaints(app.state, &probe);
+        input_control(&mut app.dom, "Message", "see #");
+        wait_for_rendered_text(&mut app.dom, "Fix it").await;
+        input_control(&mut app.dom, "Message", "see #fi");
+        wait_for_rendered_text(&mut app.dom, "Fix it").await;
+        let after = repaints(app.state, &probe);
+        // Typing is the composer's; the host's answer and the menu are inside it. The application (and so the
+        // sidebar) and the conversation are not built again, and no shell or thread event explains it if they were.
+        assert_eq!((after.0.0, after.0.1), (before.0.0, before.0.1), "the application and the conversation");
+        assert_eq!(after.1, before.1, "no event of the server was involved");
+        assert!(after.0.2 > before.0.2, "the composer shows what is typed");
+    })
+    .await;
+}

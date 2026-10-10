@@ -59,14 +59,24 @@ pub(crate) fn TimelineItem(
             text:effective["text"].as_str().unwrap_or_default().to_owned(),attachments:effective["attachments"].as_array().cloned().unwrap_or_default(),target}})
     });
     if let Some(attachments) = attachments {
+        let presented = t3_client::user_message::present(&effective);
         return rsx! {article {class:"message user",
-            if !effective["text"].as_str().unwrap_or_default().is_empty() {Markdown {text:effective["text"].as_str().unwrap_or_default().to_owned()}}
+            Attribution {attribution:presented.attribution.clone(),state,transport:transport.clone()}
+            if !presented.text.is_empty() {Markdown {text:presented.text.clone()}}
             MessageAttachments {environment_key:environment_key.clone(),state,transport:transport.clone(),attachments:attachments.clone()}
             {edit}
         }};
     }
-    if matches!(kind, "assistant_message" | "user_message") {
-        return rsx! {Message {role:(if kind=="user_message"{"user"}else{"assistant"}).to_owned(),text:effective["text"].as_str().unwrap_or_default().to_owned(),{edit}}};
+    if kind == "user_message" {
+        let presented = t3_client::user_message::present(&effective);
+        return rsx! {article {class:"message user",
+            Attribution {attribution:presented.attribution,state,transport:transport.clone()}
+            Markdown {text:presented.text}
+            {edit}
+        }};
+    }
+    if kind == "assistant_message" {
+        return rsx! {Message {role:"assistant".to_owned(),text:effective["text"].as_str().unwrap_or_default().to_owned(),{edit}}};
     }
     let live = crate::item_cards::liveness(&effective, active_run.as_deref());
     match kind {
@@ -121,6 +131,12 @@ pub(crate) fn TimelineItem(
                     _=>rsx!{},
                 }
                 if let Some(output)=output.filter(|_|kind!="web_search"){pre {class:"tool-output","{output}"}}
+                if kind=="dynamic_tool" && !omitted {
+                    // The images the tool returned, numbered as the server numbers them; the thread and item are the item's own (a fork's inherited rows belong to their source).
+                    for index in 0..work_log::output_image_count(&effective["output"]) {
+                        crate::file_preview::ToolOutputImage {key:"{effective[\"id\"]}:{index}",state,transport:transport.clone(),environment_key:environment_key.clone(),thread_id:effective["threadId"].as_str().unwrap_or(&source_thread_id).to_owned(),item_id:effective["id"].as_str().unwrap_or(&source_item_id).to_owned(),index}
+                    }
+                }
                 if let Some(path)=crate::file_preview::viewed_path(&effective) {crate::file_preview::WorkspaceImage {key:"{path}",state,transport:transport.clone(),environment_key:environment_key.clone(),thread_id:source_thread_id.clone(),path}}
                 if omitted {
                     button {"aria-label":"Load full output",disabled:loading.read().as_ref()==Some(&cache_key),onclick:{let transport=transport.clone();move |_|{
@@ -288,4 +304,18 @@ fn AnsweredQuestions(item: Value) -> Element {
         (id.to_owned(), answer["questionTextById"][id].as_str().or_else(|| question["question"].as_str()).unwrap_or_default().to_owned(), text(id).filter(|text| !text.is_empty()))
     }).collect();
     rsx! {for (id,question,reply) in rows {div {key:"{id}",class:"question-history",p {"{question}"}if let Some(reply)=reply {p {class:"question-answer muted","{reply}"}}}}}
+}
+
+/// "Sent by automation" or "Sent by another agent" above a message the person did not type; the
+/// words link to where it came from when that is known.
+#[component]
+fn Attribution(attribution: Option<t3_client::user_message::Attribution>, state: Store<UiModel>, transport: runtime::TransportHandle) -> Element {
+    use t3_client::user_message::Attribution as Who;
+    match attribution {
+        None => rsx! {},
+        Some(Who::Automation { task_id }) => rsx! {p {class:"message-attribution muted","data-user-message-attribution":"automation",
+            if task_id.is_some() {button {class:"link-button",r#type:"button",onclick:move |_|state.view().set(runtime::View::ScheduledTasks),"Sent by automation"}} else {"Sent by automation"}}},
+        Some(Who::Agent { sender_thread }) => rsx! {p {class:"message-attribution muted","data-user-message-attribution":"agent",
+            if let Some(sender)=sender_thread {button {class:"link-button",r#type:"button","aria-label":"Open sending thread",onclick:move |_|runtime::select_thread(&transport,state,sender.clone()),"Sent by another agent"}} else {"Sent by another agent"}}},
+    }
 }

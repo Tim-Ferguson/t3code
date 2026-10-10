@@ -3,9 +3,9 @@
 //! an email and API token, saved in Settings or read from `T3CODE_BITBUCKET_*` variables, and
 //! the repository comes from the checkout's Bitbucket remote or an explicit `workspace/repo`.
 //!
-//! Divergences from the original: requests carry a 30 second deadline (the original has none),
-//! and `request` (the raw escape hatch for diffs) is not ported; the pull request work that
-//! needs it follows manual same-origin redirects with `Shared::http_manual`.
+//! Divergences from the original: requests carry a 30 second deadline (the original has none).
+//! `request` is the raw path the pull request layer reads everything through: it follows
+//! redirects by hand, only back to the configured Bitbucket.
 use crate::{
     source_control_decode::*,
     source_control_detect::{
@@ -39,11 +39,19 @@ pub struct BitbucketError {
     pub tag: &'static str,
     pub message: String,
     pub retry_at: Option<i64>,
+    /// The HTTP status of a response that was an error, which is what the pull request layer sorts
+    /// a failure by.
+    pub status: Option<u16>,
 }
 
 impl BitbucketError {
     fn new(tag: &'static str, message: String) -> Self {
-        Self { tag, message, retry_at: None }
+        Self { tag, message, retry_at: None, status: None }
+    }
+
+    /// The fact the failure states, without the operation around it (`detail`).
+    pub fn detail(&self) -> &str {
+        self.message.split_once(": ").map_or(self.message.as_str(), |(_, detail)| detail)
     }
 
     fn locator() -> Self {
@@ -60,8 +68,23 @@ impl BitbucketError {
     fn response(operation: &str, status: u16, retry_at: Option<i64>) -> Self {
         Self {
             retry_at,
+            status: Some(status),
             ..Self::new("BitbucketResponseError", format!("Bitbucket API failed in {operation}: Bitbucket returned HTTP {status}."))
         }
+    }
+
+    /// A body that could not be read to its end.
+    fn body_read(operation: &str, status: u16, retry_at: Option<i64>) -> Self {
+        Self {
+            tag: "BitbucketResponseBodyReadError",
+            ..Self::response(operation, status, retry_at)
+        }
+    }
+
+    /// A url that does not belong to the configured Bitbucket. Only its host is named: a rejected
+    /// hop is often a signed url, whose query carries a credential.
+    fn untrusted(host: &str) -> Self {
+        Self::new("BitbucketUntrustedUrlError", format!("Bitbucket API failed in request: The response pointed at {host}, outside the configured Bitbucket."))
     }
 
     fn decode(operation: &str) -> Self {
@@ -86,10 +109,20 @@ type BitbucketResult<T> = Result<T, BitbucketError>;
 
 // ---- credentials ------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub enum BitbucketCredential {
     AccessToken(String),
     ApiToken { email: String, api_token: String },
+}
+
+/// Never prints the secret, so a credential that reaches a log or a panic message is still safe.
+impl std::fmt::Debug for BitbucketCredential {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::AccessToken(_) => "BitbucketCredential::AccessToken(..)",
+            Self::ApiToken { .. } => "BitbucketCredential::ApiToken { .. }",
+        })
+    }
 }
 
 /// Visible ASCII only. A value the HTTP stack rejects makes it throw an error quoting the whole
@@ -376,6 +409,44 @@ fn state_filter(states: &[&str]) -> String {
 
 // ---- the API ----------------------------------------------------------------------------------
 
+/// A body read through `BitbucketApi::request`: undecoded, cut at the byte ceiling and marked so.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawResponse {
+    pub body: String,
+    pub truncated: bool,
+}
+
+/// Bitbucket redirects a diff once; this leaves room without following a chain forever.
+const MAX_REDIRECTS: usize = 3;
+
+/// `new URL(value).origin`, for the web schemes; `None` for anything that is not a url at all,
+/// which is never the configured Bitbucket.
+fn origin_of(value: &str) -> Option<String> {
+    let url = url::Url::parse(value).ok()?;
+    matches!(url.scheme(), "http" | "https").then(|| url.origin().ascii_serialization())
+}
+
+/// The client the raw request path uses: it follows nothing itself, because a client that follows
+/// redirects forwards every header to whatever host it is sent to.
+fn raw_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().unwrap_or_default())
+}
+
+/// The body up to `max` bytes, and whether more came after.
+async fn read_bounded(mut response: reqwest::Response, max: usize) -> Result<(Vec<u8>, bool), ()> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(|_| ())? {
+        let room = max - bytes.len();
+        if chunk.len() > room {
+            bytes.extend_from_slice(&chunk[..room]);
+            return Ok((bytes, true));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok((bytes, false))
+}
+
 pub struct BitbucketApi {
     host: Host,
 }
@@ -423,6 +494,68 @@ impl BitbucketApi {
             return Err(BitbucketError::response(operation, status, retry_at));
         }
         serde_json::from_slice(bytes).map_err(|_| BitbucketError::decode(operation))
+    }
+
+    /// The one origin these credentials may be sent to. A url that came back inside a response (a
+    /// pagination cursor, or the target of a redirect) is data, not instruction, so it is checked
+    /// against the configured Bitbucket before the account's token travels with it. A path is
+    /// taken as below the API base.
+    fn trusted_url(&self, value: &str) -> Option<String> {
+        if !(value.starts_with("http://") || value.starts_with("https://")) {
+            return Some(self.api_url(value));
+        }
+        let origin = origin_of(value)?;
+        (Some(origin) == origin_of(&self.api_url(""))).then(|| value.to_string())
+    }
+
+    /// One authenticated request returning the body verbatim (`BitbucketApi.request`): most
+    /// endpoints answer JSON, a pull request diff answers a patch. `url` is a path below the API
+    /// base or a whole url as a paged response reports its next page. Redirects (a diff, diffstat
+    /// and conflicts are all served as one) are followed here, by hand, and only back to the
+    /// configured Bitbucket: the credential is attached per hop and never to another origin.
+    pub async fn request(&self, method: reqwest::Method, url: &str, body: Option<&str>, max_bytes: Option<usize>) -> BitbucketResult<RawResponse> {
+        let max_bytes = max_bytes.unwrap_or(MAX_RESPONSE_BYTES);
+        let credential = current_credential(&self.host).await;
+        let unreadable = |value: &str| BitbucketError::untrusted(origin_of(value).as_deref().unwrap_or("an unreadable url"));
+        let mut target = url.to_string();
+        let mut redirects = 0;
+        let response = loop {
+            let trusted = self.trusted_url(&target).ok_or_else(|| unreadable(&target))?;
+            let mut request = raw_client().request(method.clone(), &trusted).timeout(REQUEST_TIMEOUT);
+            match &credential {
+                Some(BitbucketCredential::AccessToken(token)) => request = request.bearer_auth(token),
+                Some(BitbucketCredential::ApiToken { email, api_token }) => request = request.basic_auth(email, Some(api_token)),
+                None => {}
+            }
+            if let Some(body) = body {
+                request = request.header("content-type", "application/json").body(body.to_string());
+            }
+            let response = request.send().await.map_err(|_| BitbucketError::request("request"))?;
+            let location = response.headers().get("location").and_then(|value| value.to_str().ok()).map(str::to_string);
+            if response.status().is_redirection()
+                && let Some(location) = location
+                && redirects < MAX_REDIRECTS
+            {
+                target = url::Url::parse(&trusted).and_then(|base| base.join(&location)).map_err(|_| unreadable(&location))?.to_string();
+                redirects += 1;
+                continue;
+            }
+            break response;
+        };
+        let status = response.status().as_u16();
+        let retry_at = crate::source_control_rate_limit::retry_at_from_header(
+            response.headers().get("retry-after").and_then(|value| value.to_str().ok()),
+            self.host.now_ms(),
+        );
+        if !response.status().is_success() {
+            // Bounded like any other body: only its being readable matters here.
+            return match read_bounded(response, MAX_RESPONSE_BYTES).await {
+                Ok(_) => Err(BitbucketError::response("request", status, retry_at)),
+                Err(()) => Err(BitbucketError::body_read("request", status, retry_at)),
+            };
+        }
+        let (bytes, truncated) = read_bounded(response, max_bytes).await.map_err(|()| BitbucketError::body_read("request", status, None))?;
+        Ok(RawResponse { body: String::from_utf8_lossy(&bytes).into_owned(), truncated })
     }
 
     async fn resolve_repository(

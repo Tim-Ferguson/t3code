@@ -90,6 +90,9 @@ pub struct Shared {
     pub github: GitHubShared,
     /// Detected hosts per working directory (`SourceControlRegistry::resolve_handle`).
     pub(crate) contexts: TtlCache<String, Option<ProviderContext>, SourceControlProviderError>,
+    /// A Bitbucket pull request's file versions, parsed out of its patch and shared by the ticks that
+    /// follow one another (`BitbucketPullRequestApi`'s `revisionPatches`).
+    pub(crate) bitbucket_patches: TtlCache<String, Arc<crate::pull_request_bitbucket::ParsedPatch>, crate::pull_request_github::PrFailure>,
 }
 
 static PROCESS_HOST: std::sync::OnceLock<Host> = std::sync::OnceLock::new();
@@ -114,6 +117,7 @@ impl Host {
                 path: options.path,
                 github: GitHubShared::new(options.clock.clone()),
                 contexts: TtlCache::new(PROVIDER_DETECTION_CACHE_CAPACITY, options.clock.clone()),
+                bitbucket_patches: TtlCache::new(crate::pull_request_bitbucket::REVISION_PATCH_CAPACITY, options.clock.clone()),
                 clock: options.clock,
                 http: reqwest::Client::new(),
                 github_api: options.github_api,

@@ -5200,3 +5200,192 @@ button.subagent-row:hover,
   white-space: nowrap;
   font-weight: 500;
 }
+
+/* Sections of a project's threads, their shelves, and the drag that moves a row. The lifted row
+   moves by transform alone and the landing place is one line; nothing animates. */
+.thread-section:empty,
+.thread-shelf[data-empty="true"] {
+  display: none;
+}
+.thread-shelf {
+  margin-top: 4px;
+}
+.shelf-header,
+.shelf-more {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 4px 10px 4px 19px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.shelf-header:hover,
+.shelf-more:hover {
+  color: var(--foreground);
+}
+.shelf-more {
+  font-weight: 400;
+}
+.thread-row-wrap:not([data-drops=""]) {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+body.sidebar-dragging {
+  cursor: grabbing;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.thread-row-wrap.lifted {
+  z-index: 5;
+  opacity: 0.92;
+  box-shadow: 0 4px 14px #0003;
+  background: var(--card);
+  will-change: transform;
+}
+.project-group:has(.lifted) .thread-section:empty,
+.project-group:has(.lifted) .thread-shelf[data-empty="true"] {
+  display: block;
+  min-height: 30px;
+  margin: 2px 0;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+}
+.project-group:has(.lifted) .thread-section::before,
+.project-group:has(.lifted) .thread-shelf[data-empty="true"]::before {
+  content: attr(data-label);
+  display: block;
+  padding: 2px 10px;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+.thread-section.drop-target:empty,
+.thread-shelf.drop-target {
+  border-color: var(--ring, #3b82f6);
+}
+.thread-row-wrap.drop-before::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: -1px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ring, #3b82f6);
+  pointer-events: none;
+  z-index: 4;
+}
+.thread-section.drop-end::after {
+  content: "";
+  display: block;
+  height: 2px;
+  margin: 1px 8px;
+  border-radius: 1px;
+  background: var(--ring, #3b82f6);
+}
+
+/* The prompt stash above the composer. Nothing here animates. */
+.stash-dock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.stash-badge,
+.stash-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  padding: 3px 10px;
+}
+.stash-badge:hover,
+.stash-header:hover {
+  color: var(--foreground);
+}
+.stash-count {
+  font-variant-numeric: tabular-nums;
+}
+.stash-menu {
+  align-self: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 0.8125rem;
+  outline: none;
+}
+.stash-menu .stash-header {
+  width: 100%;
+  border: 0;
+  background: transparent;
+}
+.stash-menu ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 14rem;
+  overflow: auto;
+}
+.stash-menu li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.stash-menu li.selected {
+  background: var(--accent, #8881);
+}
+.stash-restore {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  border: 0;
+  background: transparent;
+}
+.stash-delete {
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.implement-actions {
+  position: relative;
+  display: inline-block;
+}
+
+.trait-note {
+  display: block;
+  max-width: 14rem;
+  font-size: 0.6875rem;
+}
+
+.tool-output-image {
+  max-height: 16rem;
+  object-fit: contain;
+}
+.markdown-workspace-video,
+.file-preview-video {
+  max-width: 100%;
+  max-height: 24rem;
+}
+.file-preview-audio {
+  width: 100%;
+}
+
+.message-attribution {
+  margin: 0 0 2px;
+  font-size: 0.6875rem;
+}
+.message-attribution .link-button {
+  font-size: inherit;
+}

@@ -6,6 +6,7 @@
 use super::*;
 use crate::diff_panel::Gate;
 use crate::runtime::diff_tests::{Fixture, Harness, open_thread, rendered_text, seed, until};
+use crate::runtime::keys_tests::key_on as key_on_label;
 use crate::runtime::transport_tests::{click_control, control, control_attribute, input_control};
 use std::{cell::RefCell, rc::Rc};
 use t3_server::secret_requests::SecretRequests;
@@ -79,6 +80,43 @@ async fn a_plan_is_accepted_by_implementing_it_and_the_next_message_names_it() {
     let runs = projection(state)["runs"].as_array().unwrap().clone();
     assert_eq!(runs.last().unwrap()["sourcePlanRef"]["planId"], plan["id"], "{runs:?}");
     until(&mut dom, "the banner to go", |dom| !rendered_text(dom).contains("Plan ready")).await;
+    fixture.finish(dom).await;
+}
+
+/// "Implement in a new thread" makes a thread in the same project, titled for the plan, whose first
+/// turn implements it with the plan as its source; the plan's own thread is left as it was.
+#[tokio::test(flavor = "current_thread")]
+async fn a_plan_can_be_implemented_in_a_new_thread_with_the_plan_as_its_source() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    create_thread(&mut dom, &props, state, "planner", "full-access", "plan").await;
+    open_thread(&mut dom, &props, state, "planner").await;
+    send(&mut dom, &props, state, "Make a plan [plan]");
+    until(&mut dom, "the plan card and its follow-up", |dom| rendered_text(dom).contains("Plan ready") && control(dom, "Implement").is_some()).await;
+    let plan = projection(state)["plans"].as_array().unwrap().iter().find(|plan| plan["kind"] == "proposed_plan").cloned().unwrap();
+    // With feedback written the button refines, and the menu is not offered.
+    input_control(&mut dom, "Message", "Also add tests");
+    assert!(control(&dom, "Implementation actions").is_none());
+    input_control(&mut dom, "Message", "");
+    click_control(&mut dom, "Implementation actions");
+    key_on_menu_escape(&mut dom);
+    assert!(control(&dom, "Implement in a new thread").is_none(), "Escape closes the menu");
+    click_control(&mut dom, "Implementation actions");
+    click_control(&mut dom, "Implement in a new thread");
+    // Once clicked, the menu cannot start a second one while the first is being made.
+    assert_eq!(control_attribute(&dom, "Implementation actions", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+    until(&mut dom, "the new thread to open with its turn", |dom| {
+        state.peek().active_thread.as_deref().is_some_and(|id| id != "planner") && rendered_text(dom).contains("PLEASE IMPLEMENT THIS PLAN:")
+    }).await;
+    let opened = state.peek().active_thread.clone().unwrap();
+    let shell = state.peek().shell.snapshot.as_ref().unwrap().threads.iter().find(|thread| thread.id.as_str() == opened).cloned().unwrap();
+    assert!(shell.title.starts_with("Implement"), "{}", shell.title);
+    assert_eq!(shell.project_id.as_str(), "project");
+    assert_eq!(serde_json::to_value(shell.interaction_mode).unwrap(), "default");
+    let runs = projection(state)["runs"].as_array().unwrap().clone();
+    assert_eq!(runs.last().unwrap()["sourcePlanRef"], json!({"threadId":"planner","planId":plan["id"]}), "{runs:?}");
+    assert!(state.peek().plan_launch.is_none());
     fixture.finish(dom).await;
 }
 
@@ -792,6 +830,10 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
     click_control(&mut dom, "Snooze: In 1 hour*");
     until(&mut dom, "the snooze", |_| thread_shell(state, "thread-a").snoozed_until.flatten().is_some()).await;
+    // A snoozed thread folds into the Snoozed shelf, which is closed until its header is pressed.
+    until(&mut dom, "the shelf", |dom| control(dom, "Snoozed (1)").is_some()).await;
+    assert!(control(&dom, "Thread thread-a").is_none());
+    click_control(&mut dom, "Snoozed (1)");
     until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-a", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
     until(&mut dom, "the wake time on the row", |dom| rendered_text(dom).contains("Snoozed \u{b7} ")).await;
     key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
@@ -849,6 +891,102 @@ async fn a_status_change_on_one_thread_repaints_one_sidebar_row() {
     assert_eq!(props.probe.composer.get(), composer);
     assert!(text(&dom).contains("Working"), "{}", text(&dom));
     assert_eq!(control_attribute(&dom, "Thread Other 7", "data-thread-status").and_then(|(_, value)| value).as_deref(), Some("working"));
+}
+
+/// The lineage panel offers to stop a subagent this app runs while it works, named for it, and not one the
+/// provider runs itself nor one that has finished. (The write itself is `run.interrupt`, as the stop button's.)
+#[tokio::test(flavor = "current_thread")]
+async fn the_lineage_panel_offers_to_stop_only_a_running_app_owned_subagent() {
+    let subagent = |id: &str, origin: &str, status: &str| json!({"id":format!("agent-{id}"),"origin":origin,"status":status,"startedAt":"2026-01-01T00:00:00Z","childThreadId":id,"title":format!("Helper {id}"),"prompt":"p"});
+    let (mut dom, props) = synth(json!([]), SETTLED(), json!({"subagents":[subagent("own", "app_owned", "running"), subagent("native", "provider_native", "running"), subagent("done", "app_owned", "completed")]}));
+    let state = state_of(&props);
+    {
+        let mut shell = state.shell();
+        let mut shell = shell.write();
+        let snapshot = shell.snapshot.as_mut().unwrap();
+        let template = snapshot.threads[0].clone();
+        for id in ["own", "native", "done"] {
+            let mut child = template.clone();
+            child.id = id.parse().unwrap();
+            child.title = format!("Helper {id}");
+            child.lineage = serde_json::from_value(json!({"parentThreadId":"thread","relationshipToParent":"subagent","rootThreadId":"thread"})).unwrap();
+            child.active_run_id = Some(format!("run-{id}").parse().unwrap());
+            child.latest_run_id = child.active_run_id.clone();
+            if id != "done" {
+                child.activity_run_status = Some(Some(t3_contracts::ActivityRunStatus::Running));
+                child.activity_run_started_at = Some(Some(serde_json::from_value(json!("2026-01-01T00:00:00Z")).unwrap()));
+            }
+            snapshot.threads.push(child);
+        }
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    click_control(&mut dom, "Thread lineage");
+    assert!(text(&dom).contains("Helper own") && text(&dom).contains("Helper native"), "{}", text(&dom));
+    assert!(control(&dom, "Stop subagent Helper own").is_some(), "{}", text(&dom));
+    assert!(control(&dom, "Stop subagent Helper native").is_none(), "the provider's own subagent is its to stop");
+    assert!(control(&dom, "Stop subagent Helper done").is_none());
+    // Without a connection that may operate, the button is there and cannot be pressed.
+    assert_eq!(control_attribute(&dom, "Stop subagent Helper own", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+}
+
+/// A delegated task's wake reaches the parent as a message an agent sent: the recorded session's parent
+/// (`delegated_task_status`, see `codex_delegated_replay.rs`) is woken with exactly this text, written by
+/// the server for an agent, and the timeline says who sent it instead of showing it as the person's own.
+#[tokio::test(flavor = "current_thread")]
+async fn a_delegated_tasks_wake_is_attributed_to_another_agent() {
+    let wake_text = "Delegated task task-1 reached a terminal state. Use task_status with taskId task-1 to read the result.";
+    let (dom, _) = synth(json!([
+        with(base("typed", "user_message", "completed"), json!({"messageId":"typed","text":"Please delegate it","inputIntent":"turn_start","createdBy":"user","creationSource":"web"})),
+        with(base("wake", "user_message", "completed"), json!({"messageId":"wake","text":wake_text,"inputIntent":"turn_start","createdBy":"agent","creationSource":"server"})),
+        with(base("sent", "user_message", "completed"), json!({"messageId":"sent","text":"Here is what I found","inputIntent":"turn_start","createdBy":"agent","creationSource":"mcp","senderThreadId":"helper"})),
+        with(base("scheduled", "user_message", "completed"), json!({"messageId":"scheduled","text":"Nightly checks","inputIntent":"turn_start","createdBy":"user","creationSource":"scheduled","scheduledTaskId":"task-9"})),
+    ]), SETTLED(), json!({}));
+    let shown = text(&dom);
+    assert!(shown.contains(wake_text) && shown.contains("Please delegate it"), "{shown}");
+    // The person's own message carries no line; the wake and the other agent's message say so, and the
+    // second links to the thread that sent it.
+    assert_eq!(shown.matches("Sent by another agent").count(), 2, "{shown}");
+    assert!(control(&dom, "Open sending thread").is_some());
+    assert_eq!(shown.matches("Sent by automation").count(), 1, "{shown}");
+}
+
+/// A drop held in its new place (and given up again) rebuilds the row that moved and nothing else:
+/// not the rows beside it, the application, the conversation or the composer. The pointer's drag
+/// is the page's, so nothing here is built while it is in progress.
+#[tokio::test(flavor = "current_thread")]
+async fn a_held_drop_repaints_only_the_row_that_moved() {
+    let (mut dom, props) = synth(json!([]), SETTLED(), json!({}));
+    let state = state_of(&props);
+    {
+        let mut shell = state.shell();
+        let mut shell = shell.write();
+        let snapshot = shell.snapshot.as_mut().unwrap();
+        let template = snapshot.threads[0].clone();
+        for index in 0..30 {
+            let mut thread = template.clone();
+            thread.id = format!("other-{index}").parse().unwrap();
+            thread.title = format!("Other {index}");
+            if index == 3 || index == 4 {
+                thread.pinned_at = Some(Some(serde_json::from_value(json!("2026-01-01T00:00:00Z")).unwrap()));
+                thread.pin_order_key = Some(Some(if index == 3 { "g" } else { "m" }.parse().unwrap()));
+            }
+            snapshot.threads.push(thread);
+        }
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let counts = |props: &Synth| (props.probe.sidebar_row.get(), props.probe.application.get(), props.probe.item.get(), props.probe.composer.get());
+    let (rows, application, items, composer) = counts(&props);
+    state.reorder().write().held = Some(crate::sidebar_sections::Held { project: "p".into(), id: "other-9".into(), section: t3_client::sidebar::Section::Pinned, order: vec!["other-3".into(), "other-9".into(), "other-4".into()], answered_at: None });
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let (moved_rows, moved_application, moved_items, moved_composer) = counts(&props);
+    assert_eq!(moved_rows, rows + 1, "only the row dropped was built again");
+    assert_eq!((moved_application, moved_items, moved_composer), (application, items, composer));
+    // Given up (the server refused): the same single row, back where the server has it.
+    *state.reorder().write() = Default::default();
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    let (back_rows, back_application, back_items, back_composer) = counts(&props);
+    assert_eq!(back_rows, moved_rows + 1);
+    assert_eq!((back_application, back_items, back_composer), (application, items, composer));
 }
 
 /// "Save to workspace" on a plan writes its markdown where the reader says, once per click, and
@@ -1083,6 +1221,13 @@ async fn a_thread_is_renamed_in_place_and_a_new_thread_starts_on_its_branch() {
 async fn a_snoozed_row_wakes_when_its_time_passes_with_one_timer_and_nothing_else_changing() {
     let (mut dom, props) = synth(json!([]), SETTLED(), json!({}));
     let state = state_of(&props);
+    // A server that snoozes: without one no thread is shown as snoozed. The thread is the open one, so
+    // its row stays visible on the folded Snoozed shelf.
+    {
+        let directory = tempfile::tempdir().unwrap();
+        let config = crate::runtime::transport_tests::api_fixture(&directory, "environment-a").config.unwrap();
+        state.typed_config().set(Some(serde_json::from_value::<t3_contracts::ServerConfig>(config).unwrap()));
+    }
     let wake = chrono::Utc::now() + chrono::Duration::milliseconds(2000);
     {
         let mut shell = state.shell();
@@ -1134,6 +1279,43 @@ async fn an_image_a_tool_viewed_is_shown_from_a_signed_url_only_while_its_row_is
     assert_eq!(served.bytes().await.unwrap().as_ref(), PIXEL);
     click_control(&mut dom, "Look at the logo");
     assert!(control(&dom, "Viewed image pic.png").is_none(), "closing drops the picture");
+    fixture.finish(dom).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn images_a_tool_returned_are_shown_from_signed_urls_only_while_its_row_is_open() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    let mut thread = fixture.store.projection("thread", "thread-a").unwrap().unwrap();
+    thread["runs"] = json!([{"id":"run-live","threadId":"thread-a","ordinal":1,"providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"fixture-model"},"providerThreadId":null,"userMessageId":"m","rootNodeId":"node","activeAttemptId":null,"status":"running","requestedAt":"2026-01-01T00:00:00.000Z","startedAt":"2026-01-01T00:00:00.000Z","completedAt":null,"checkpointId":null,"contextHandoffId":null}]);
+    let data = standard_base64(PIXEL);
+    // An SVG the tool returned is never served inline; the PNG is, as the first (and only) image.
+    let output = json!([{"type":"text","text":"captured"},{"type":"image","mimeType":"image/svg+xml","data":"PHN2Zz48L3N2Zz4="},{"type":"image","mimeType":"image/png","data":data}]);
+    let tool = json!({"id":"shot","threadId":"thread-a","runId":"run-live","nodeId":"node","providerThreadId":null,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":1,"status":"completed","title":"Take a screenshot","startedAt":"2026-01-01T00:00:00.000Z","completedAt":"2026-01-01T00:00:01.000Z","updatedAt":"2026-01-01T00:00:01.000Z","type":"dynamic_tool","toolName":"screenshot","input":{},"output":output});
+    thread["turnItems"] = json!([tool]);
+    thread["visibleTurnItems"] = json!([{"sourceThreadId":"thread-a","sourceItemId":"shot","position":0,"visibility":"local","item":tool}]);
+    fixture.store.transaction(|transaction| t3_server::persistence::write_projection(transaction, "thread", "thread-a", &thread)).unwrap();
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    // The running turn's one call is its live line; opening it lists the call, and opening that shows what it did.
+    until(&mut dom, "the live line", |dom| control(dom, "Take a screenshot").is_some()).await;
+    click_control(&mut dom, "Take a screenshot");
+    until(&mut dom, "the call", |dom| crate::runtime::transport_tests::all_controls(dom, "Take a screenshot").len() == 2).await;
+    assert!(control(&dom, "Tool output image 1").is_none(), "nothing is loaded for a closed row");
+    crate::runtime::transport_tests::click_nth_control(&mut dom, "Take a screenshot", 1);
+    // The timeline withholds a tool's output; asking for it brings the images, still without their bytes.
+    until(&mut dom, "the withheld output", |dom| control(dom, "Load full output").is_some()).await;
+    assert!(control(&dom, "Tool output image 1").is_none());
+    click_control(&mut dom, "Load full output");
+    until(&mut dom, "the image", |dom| control_attribute(dom, "Tool output image 1", "src").is_some_and(|(_, src)| src.is_some())).await;
+    assert!(control(&dom, "Tool output image 2").is_none(), "the SVG is not an image to show");
+    let src = control_attribute(&dom, "Tool output image 1", "src").and_then(|(_, src)| src).unwrap();
+    assert!(src.starts_with(&fixture.address) && src.contains("/api/assets/"), "{src}");
+    let served = reqwest::get(&src).await.unwrap();
+    assert_eq!(served.status(), 200);
+    assert_eq!(served.bytes().await.unwrap().as_ref(), PIXEL);
+    crate::runtime::transport_tests::click_nth_control(&mut dom, "Take a screenshot", 1);
+    assert!(control(&dom, "Tool output image 1").is_none(), "closing drops the picture");
     fixture.finish(dom).await;
 }
 
@@ -1224,4 +1406,20 @@ async fn a_thread_an_agent_created_is_a_card_under_the_answer_with_a_way_in() {
     assert!(text(&dom).contains("Child task") && text(&dom).contains("Open chat"));
     click_control(&mut dom, "Open Child task");
     assert_eq!(state_of(&props).peek().active_thread.as_deref(), Some("child"));
+}
+
+fn key_on_menu_escape(dom: &mut VirtualDom) {
+    key_on_label(dom, "Implementation menu", dioxus::prelude::Key::Escape);
+}
+
+/// Standard padded base64, for a test that needs a tool's inline image.
+fn standard_base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    bytes
+        .chunks(3)
+        .flat_map(|chunk| {
+            let n = chunk.iter().enumerate().fold(0u32, |n, (at, byte)| n | (u32::from(*byte) << (16 - 8 * at)));
+            (0..4).map(move |at| if at <= chunk.len() { ALPHABET[((n >> (18 - 6 * at)) & 63) as usize] as char } else { '=' })
+        })
+        .collect()
 }

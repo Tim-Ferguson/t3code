@@ -17,6 +17,9 @@ pub struct FileTarget {
 pub enum Preview {
     Image,
     Pdf,
+    /// Played in the page from the server, which serves byte ranges.
+    Video,
+    Audio,
 }
 
 fn percent_decode(text: &str) -> String {
@@ -98,8 +101,11 @@ fn looks_like_line_suffix(href: &str) -> bool {
 pub fn previewable(path: &str) -> Option<Preview> {
     let extension = path.rsplit(['/', '\\']).next()?.rsplit_once('.')?.1.to_ascii_lowercase();
     match extension.as_str() {
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "avif" | "svg" => Some(Preview::Image),
+        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "avif" | "svg" | "ico" => Some(Preview::Image),
         "pdf" => Some(Preview::Pdf),
+        // The original's lists (`video.ts`, `filePreview.ts`).
+        "avi" | "m4v" | "mkv" | "mov" | "mp4" | "ogv" | "webm" => Some(Preview::Video),
+        "mp3" | "wav" | "ogg" | "oga" | "flac" | "aac" | "m4a" | "opus" | "aiff" => Some(Preview::Audio),
         _ => None,
     }
 }
@@ -150,9 +156,13 @@ mod tests {
         }
     }
     #[test]
-    fn only_images_and_pdfs_are_shown_in_the_page_and_only_inside_the_workspace() {
+    fn only_media_and_pdfs_are_shown_in_the_page_and_only_inside_the_workspace() {
         assert_eq!(previewable("a/b.PNG"), Some(Preview::Image));
         assert_eq!(previewable("spec.pdf"), Some(Preview::Pdf));
+        assert_eq!(previewable("demo/Clip.MP4"), Some(Preview::Video));
+        assert_eq!(previewable("take.opus"), Some(Preview::Audio));
+        // A document the page would have to run as markup is not shown at all.
+        assert_eq!(previewable("page.htm"), None);
         assert_eq!(previewable("notes.html"), None);
         assert_eq!(previewable("Makefile"), None);
         assert_eq!(workspace_relative("/work/p/docs/a.png", "/work/p"), Some("docs/a.png".into()));

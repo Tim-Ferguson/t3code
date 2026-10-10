@@ -116,6 +116,14 @@ pub struct UiModel {
     pub redeem: crate::limits_view::Redeem,
     /// The environment's tracked repository clones.
     pub clones: crate::clone_view::Model,
+    /// A sidebar row dropped in its new place, until the server's state shows it there.
+    pub reorder: crate::sidebar_sections::Reorder,
+    /// The Snoozed and Settled shelves of the sidebar: open or folded.
+    pub shelves: crate::sidebar_sections::Shelves,
+    /// The prompts put aside with the stash shortcut, and whether its list is open.
+    pub stash: crate::prompt_stash::Model,
+    /// The plan being started in a new thread, while its two commands are in flight.
+    pub plan_launch: Option<String>,
     pub import: crate::import_projects::Model,
     /// The `/usage-limits` result shown over the open thread's composer.
     pub usage_panel: Option<crate::limits_view::Panel>,
@@ -689,6 +697,12 @@ pub struct ResponseOwner {
     thread_generation: u64,
     destination: EnvironmentId,
     active_thread: Option<String>,
+}
+impl ResponseOwner {
+    /// Whether both are the same connection to the same environment, whichever thread is open.
+    pub fn same_connection(&self, other: &Self) -> bool {
+        self.generation == other.generation && self.socket_generation == other.socket_generation && self.destination == other.destination
+    }
 }
 pub fn response_owner(handle: &TransportHandle, state: Store<UiModel>) -> Option<ResponseOwner> {
     let transport = handle.borrow();
@@ -2810,6 +2824,14 @@ mod chips_tests;
 #[cfg(all(test, unix))]
 #[path = "thread_relations_tests.rs"]
 mod thread_relations_tests;
+
+#[cfg(all(test, unix))]
+#[path = "prompt_stash_tests.rs"]
+mod prompt_stash_tests;
+
+#[cfg(all(test, unix))]
+#[path = "sidebar_sections_tests.rs"]
+mod sidebar_sections_tests;
 
 #[cfg(all(test, unix))]
 #[path = "open_in_tests.rs"]

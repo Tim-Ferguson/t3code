@@ -17,15 +17,32 @@ use t3_contracts::ThreadShell;
 #[derive(Clone, Copy, PartialEq, Default)]
 pub(crate) struct Caps {
     pub pinning: bool,
+    /// A pin can be moved: the server stores a pin order.
+    pub pin_reorder: bool,
+    /// An active thread can be moved: the server stores an active order.
+    pub active_reorder: bool,
     pub snooze: bool,
+    /// `thread.settle` is understood; without it no thread is ever shown as settled.
+    pub settlement: bool,
     pub title_regeneration: bool,
 }
+impl Caps {
+    pub fn support(self) -> sidebar::Support {
+        sidebar::Support { settlement: self.settlement, snooze: self.snooze }
+    }
+}
 pub(crate) fn caps(state: Store<UiModel>) -> Caps {
+    caps_of(state)
+}
+fn caps_of(state: Store<UiModel>) -> Caps {
     let field = state.typed_config();
     let config = field.read();
     let capabilities = config.as_ref().map(|config| &config.environment.capabilities);
     Caps {
         pinning: capabilities.is_some_and(|c| c.thread_pinning == Some(true)),
+        pin_reorder: capabilities.is_some_and(|c| c.thread_pin_reorder == Some(true)),
+        active_reorder: capabilities.is_some_and(|c| c.thread_active_reorder == Some(true)),
+        settlement: capabilities.is_some_and(|c| c.thread_settlement == Some(true)),
         snooze: capabilities.is_some_and(|c| c.thread_snooze == Some(true)),
         title_regeneration: capabilities.is_some_and(|c| c.thread_title_regeneration == Some(true)),
     }
@@ -53,27 +70,35 @@ pub(crate) struct RowView {
     pub worktree: Option<String>,
     pub has_completed_run: bool,
     pub can_snooze: bool,
+    pub can_settle: bool,
     pub can_operate: bool,
     pub caps: Caps,
+    pub section: sidebar::Section,
+    /// The sections a drag of this row may land in, space separated; empty when it cannot be dragged.
+    pub drops: String,
 }
 
-/// The rows of a project's threads in the order the sidebar lists them: pinned first, by their pin
-/// order, then the rest as the server sent them, snoozed ones last.
-pub(crate) fn rows<'a>(threads: &'a [ThreadShell], project_id: &t3_contracts::ProjectId, now: chrono::DateTime<Utc>) -> Vec<&'a ThreadShell> {
-    let mut visible: Vec<&ThreadShell> = threads.iter().filter(|thread| &thread.project_id == project_id && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent)).collect();
-    // Stable: ties keep the server's order.
-    visible.sort_by_key(|thread| {
-        if sidebar::is_pinned(thread) {
-            (0, sidebar::pin_key(thread))
-        } else {
-            (if sidebar::snoozed_until(thread, now).is_some() { 2 } else { 1 }, (String::new(), 0))
-        }
-    });
-    visible
+/// The threads of a project the sidebar lists: not removed, archived or a subagent's.
+pub(crate) fn listed<'a>(threads: &'a [ThreadShell], project_id: &'a str) -> impl Iterator<Item = &'a ThreadShell> {
+    threads.iter().filter(move |thread| thread.project_id.as_str() == project_id && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
+}
+/// A project's threads in the order the sidebar lists them, whatever is collapsed: pinned, active,
+/// snoozed, settled.
+pub(crate) fn rows<'a>(threads: &'a [ThreadShell], project_id: &'a str, now: chrono::DateTime<Utc>, support: sidebar::Support) -> Vec<&'a ThreadShell> {
+    let sections = sidebar::Sections::of(listed(threads, project_id), now, support);
+    [sections.pinned, sections.active, sections.snoozed, sections.settled].concat()
 }
 
 pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>) -> RowView {
     let snoozed = sidebar::snoozed_until(thread, now);
+    let section = sidebar::section_of(thread, now, caps.support());
+    // A drag needs the server to store an order (as the original's rows do); each landing place
+    // needs its own capability. Snoozed shelves are never a landing place: a snooze needs a wake time.
+    let drops = if can_operate && caps.pinning && caps.pin_reorder {
+        [Some("pinned"), caps.active_reorder.then_some("active"), (caps.settlement && section != sidebar::Section::Settled).then_some("settled")].into_iter().flatten().collect::<Vec<_>>().join(" ")
+    } else {
+        String::new()
+    };
     let working = sidebar::status(thread) == Status::Working;
     RowView {
         id: thread.id.to_string(),
@@ -84,7 +109,7 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         pill: sidebar::pill(thread),
         unread: sidebar::has_unseen_completion(thread),
         pinned: sidebar::is_pinned(thread),
-        snoozed: snoozed.map(|wake| sidebar::wake_label(&wake.to_rfc3339(), now)),
+        snoozed: snoozed.filter(|_| section == sidebar::Section::Snoozed).map(|wake| sidebar::wake_label(&wake.to_rfc3339(), now)),
         woke_at: sidebar::woke_at(thread, now).map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)),
         regenerating: matches!(thread.title_regeneration, Some(Some(_))),
         working_since: working.then(|| thread.activity_run_started_at.flatten().map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))).flatten(),
@@ -93,8 +118,11 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         worktree: thread.worktree_path.as_ref().map(ToString::to_string),
         has_completed_run: thread.latest_run_id.is_some() && !thread.status.is_active(),
         can_snooze: thread.pending_runtime_request.is_none(),
+        can_settle: !thread.status.is_active() && thread.pending_runtime_request.is_none(),
         can_operate,
         caps,
+        section,
+        drops,
     }
 }
 
@@ -202,17 +230,21 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                 }
             })));
         }
-        // Where a pin sits among the project's pins: one key written to this thread, or the section's keys when a neighbour has none.
-        if view.caps.pinning && view.pinned {
-            let pinned = pinned_order(state, &view.id);
-            for (up, name) in [(true, "Move pin up"), (false, "Move pin down")] {
-                let next = t3_client::pin_order::moved(&pinned.0, &view.id, up);
+        // Where a thread sits among its section: one key written to it, or the section's keys when a neighbour has none.
+        // The keyboard path of the drag; only the pinned and the active sections are arranged.
+        for (section, writable, up_name, down_name, kind) in [(sidebar::Section::Pinned, view.caps.pinning && view.caps.pin_reorder, "Move pin up", "Move pin down", "thread.pin.reorder"), (sidebar::Section::Active, view.caps.active_reorder, "Move thread up", "Move thread down", "thread.active.reorder")] {
+            if view.section != section || !writable {
+                continue;
+            }
+            let (order, keys) = section_order(state, &view.id, section);
+            for (up, name) in [(true, up_name), (false, down_name)] {
+                let next = t3_client::pin_order::moved(&order, &view.id, up);
                 let (transport, id) = (transport.clone(), view.id.clone());
-                let keys = pinned.1.clone();
+                let keys = keys.clone();
                 entries.push(item(name.to_owned(), !can || next.is_none(), Box::new(move || {
                     let Some(order) = next.clone() else { return };
                     for (target, key) in t3_client::pin_order::plan_reorder(&order, &keys, &id) {
-                        runtime::command(&transport, state, "thread.pin.reorder", json!({"threadId":target,"orderKey":key}));
+                        runtime::command(&transport, state, kind, json!({"threadId":target,"orderKey":key}));
                     }
                 })));
             }
@@ -220,6 +252,14 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         if view.caps.pinning {
             let command = thread_command.clone();
             entries.push(if view.pinned { item("Unpin thread".to_owned(), !can, Box::new(move || command("thread.unpin", json!({}), "Could not unpin the thread"))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Could not pin the thread"))) });
+        }
+        if view.caps.settlement {
+            let command = thread_command.clone();
+            entries.push(if view.section == sidebar::Section::Settled {
+                item("Unsettle thread".to_owned(), !can, Box::new(move || command("thread.unsettle", json!({"reason":"user"}), "Could not unsettle the thread")))
+            } else {
+                item("Settle thread".to_owned(), !can || !view.can_settle, Box::new(move || command("thread.settle", json!({}), "Could not settle the thread")))
+            });
         }
         if view.caps.snooze {
             if view.snoozed.is_some() {
@@ -301,7 +341,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     }
     let renamed = renaming.read().clone();
     rsx! {
-        div {class:"thread-row-wrap",
+        div {class:"thread-row-wrap","data-thread-id":"{view.id}","data-section":view.section.as_str(),"data-drops":"{view.drops}",
             if let Some(draft) = renamed {
                 div {class:"{class} renaming","data-thread-status":"{status}",
                     span {class:"status-dot {status}","aria-hidden":"true"}
@@ -372,14 +412,17 @@ pub(crate) fn copy_reference(state: Store<UiModel>) {
         notice::push(state, Level::Success, format!("{what} copied"), value);
     }
 }
-/// The ids of the pinned threads of a thread's project in the order shown, with their order keys.
-fn pinned_order(state: Store<UiModel>, thread_id: &str) -> (Vec<String>, std::collections::BTreeMap<String, Option<String>>) {
+/// The ids of a thread's section among its project's threads in the order shown, and every
+/// thread's order key (hidden ones too, so a new key never lands on a taken slot).
+fn section_order(state: Store<UiModel>, thread_id: &str, section: sidebar::Section) -> (Vec<String>, std::collections::BTreeMap<String, Option<String>>) {
     let field = state.shell();
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return Default::default() };
     let Some(project) = snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id).map(|thread| thread.project_id.clone()) else { return Default::default() };
-    let pinned: Vec<&ThreadShell> = rows(&snapshot.threads, &project, Utc::now()).into_iter().filter(|thread| sidebar::is_pinned(thread)).collect();
-    (pinned.iter().map(|thread| thread.id.to_string()).collect(), pinned.iter().map(|thread| (thread.id.to_string(), thread.pin_order_key.clone().flatten().map(|key| key.to_string()))).collect())
+    let sections = sidebar::Sections::of(listed(&snapshot.threads, project.as_str()), Utc::now(), caps_of(state).support());
+    let pinned = section == sidebar::Section::Pinned;
+    let keys = snapshot.threads.iter().map(|thread| (thread.id.to_string(), if pinned { thread.pin_order_key.clone() } else { thread.active_order_key.clone() }.flatten().map(|key| key.to_string()))).collect();
+    (sections.section(section).iter().map(|thread| thread.id.to_string()).collect(), keys)
 }
 
 /// Pins or unpins the open thread (`thread.pin`).
@@ -394,4 +437,23 @@ pub(crate) fn open_thread_pinned(state: Store<UiModel>) -> Option<bool> {
     let field = state.shell();
     let shell = field.read();
     shell.snapshot.as_ref()?.threads.iter().find(|thread| thread.id.as_str() == id).map(sidebar::is_pinned)
+}
+
+/// Settles the open thread, or brings it back when it is settled (`thread.settle`).
+pub(crate) fn toggle_settle(transport: &runtime::TransportHandle, state: Store<UiModel>) {
+    let Some(id) = state.active_thread().peek().clone() else { return };
+    let settled = open_thread_settled(state) == Some(true);
+    runtime::command(transport, state, if settled { "thread.unsettle" } else { "thread.settle" }, if settled { json!({"threadId":id,"reason":"user"}) } else { json!({"threadId":id}) });
+}
+/// Whether the open thread is settled, for the palette's wording; none while the server cannot settle.
+pub(crate) fn open_thread_settled(state: Store<UiModel>) -> Option<bool> {
+    let caps = caps_of(state);
+    if !caps.settlement {
+        return None;
+    }
+    let id = state.active_thread().read().clone()?;
+    let field = state.shell();
+    let shell = field.read();
+    let thread = shell.snapshot.as_ref()?.threads.iter().find(|thread| thread.id.as_str() == id)?;
+    Some(sidebar::section_of(thread, Utc::now(), caps.support()) == sidebar::Section::Settled)
 }

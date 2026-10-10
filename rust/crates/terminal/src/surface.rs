@@ -105,6 +105,8 @@ struct State {
     selection_base: Option<Range>,
     selection_mode: u32,
     selection_end: Option<Point>,
+    /// The selection's first and last cell as screen coordinates, kept for `selection_position`.
+    selection_screen: Option<(Point, Point)>,
     selection_moved: bool,
     clicks: Option<crate::surface_policy::ClickSequence>,
     selection_scroll: i32,
@@ -406,14 +408,13 @@ impl State {
             })
             .unwrap_or(cell);
         self.anchor = Some(anchor);
-        self.core.set_selection(
-            anchor,
-            Point {
-                x: end.x,
-                y: end.y,
-                tag: 2,
-            },
-        )?;
+        let end = Point {
+            x: end.x,
+            y: end.y,
+            tag: 2,
+        };
+        self.core.set_selection(anchor, end)?;
+        self.selection_screen = Some((anchor, end));
         self.full = true;
         Ok(())
     }
@@ -692,6 +693,7 @@ pub async fn mount_terminal(
         selection_base: None,
         selection_mode: 1,
         selection_end: None,
+        selection_screen: None,
         selection_moved: false,
         clicks: None,
         selection_scroll: 0,
@@ -851,6 +853,7 @@ pub async fn mount_terminal(
                                     }
                                     if result.is_ok() && s.copy_clear {
                                         let _ = s.core.clear_selection();
+                                        s.selection_screen = None;
                                         s.input.set_value("");
                                         s.request_frame();
                                     }
@@ -973,6 +976,7 @@ pub async fn mount_terminal(
                 if s.copy_clear {
                     s.copy_clear = false;
                     s.core.clear_selection()?;
+                    s.selection_screen = None;
                     s.input.set_value("");
                 }
             }
@@ -1093,6 +1097,7 @@ pub async fn mount_terminal(
                 tag: 2,
             });
             s.anchor = screen;
+            s.selection_screen = None;
             s.selection_moved = false;
             s.clicks = Some(crate::surface_policy::advance_click(
                 s.clicks,
@@ -1108,6 +1113,11 @@ pub async fn mount_terminal(
             };
             s.selection_base = range.map(|range| range.screen);
             if let Some(range) = range {
+                // A word or a line selected by its click is a selection without a drag.
+                s.selection_screen = Some((
+                    Point { x: range.screen.start.x, y: range.screen.start.y, tag: 2 },
+                    Point { x: range.screen.end.x, y: range.screen.end.y, tag: 2 },
+                ));
                 s.anchor = Some(Point {
                     x: range.screen.start.x,
                     y: range.screen.start.y,
@@ -1179,6 +1189,7 @@ pub async fn mount_terminal(
                 }
                 if s.mouse_button.is_none() && !s.selection_moved && s.selection_mode == 1 {
                     s.core.clear_selection()?;
+                    s.selection_screen = None;
                     s.full = true;
                 }
                 s.pointer = None;
@@ -1453,12 +1464,25 @@ impl TerminalSurface {
     pub fn clear_selection(&self) -> Result<()> {
         let mut s = self.state.borrow_mut();
         s.core.clear_selection()?;
+        s.selection_screen = None;
         s.input.set_value("");
         s.request_frame();
         Ok(())
     }
     pub fn selection_text(&self) -> Result<String> {
         self.state.borrow().core.selection_text()
+    }
+    /// Where the selection is, as JSON `{"start":{"x":0,"y":12},"end":{"x":5,"y":14}}` in screen
+    /// cells (rows count from the top of the scrollback, from 0), first cell first; empty while
+    /// nothing is selected. It is what a chip names the lines of a terminal selection by.
+    pub fn selection_position(&self) -> Result<String> {
+        let s = self.state.borrow();
+        let Some((anchor, end)) = s.selection_screen.filter(|_| !s.core.selection_text().unwrap_or_default().is_empty()) else {
+            return Ok(String::new());
+        };
+        let before = anchor.y < end.y || (anchor.y == end.y && anchor.x <= end.x);
+        let (start, end) = if before { (anchor, end) } else { (end, anchor) };
+        Ok(format!(r#"{{"start":{{"x":{},"y":{}}},"end":{{"x":{},"y":{}}}}}"#, start.x, start.y, end.x, end.y))
     }
     pub fn dispose(&mut self) {
         self.cleanup();

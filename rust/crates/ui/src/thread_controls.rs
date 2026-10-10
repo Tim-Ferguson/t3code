@@ -129,6 +129,17 @@ pub fn ThreadControls(state: Store<UiModel>, transport: runtime::TransportHandle
             option_descriptors: None,
         });
     let descriptors = models::option_descriptors(&caps, selected.options.as_deref());
+    // Whether the prompt asks for the effort (Claude's ultrathink) is read in a memo, so that typing
+    // repaints these controls only when the answer changes.
+    let asks_in_words = crate::model_controls::PromptEffort::of(&descriptors, "ultrathink").is_some();
+    let prompt_effort = use_memo(use_reactive((&descriptors,), move |(descriptors,)| {
+        if !asks_in_words {
+            return None;
+        }
+        crate::model_controls::PromptEffort::of(&descriptors, &state.draft().read())
+    }));
+    let unavailable_saved = provider.is_some_and(|p| p.driver.as_str() == "opencode") && !provider.is_some_and(|p| p.models.iter().any(|m| models::normalize_model_slug("opencode", selected.model.as_str()).as_deref() == Some(m.slug.as_str())));
+    let saved_rows = if unavailable_saved { models::unavailable_option_rows(selected.options.as_deref().unwrap_or_default()) } else { vec![] };
     rsx! {
         div {class:"thread-controls",
             crate::model_picker::ModelPicker {state,rows:rows.clone(),selected_key:selected_key.clone(),selected_label:selected_label.clone(),selected_instance:selected.instance_id.to_string(),disabled:false,on_pick:{let key=key.clone();let thread=thread.clone();let rows=rows.clone();move|index:usize| {
@@ -143,7 +154,15 @@ pub fn ThreadControls(state: Store<UiModel>, transport: runtime::TransportHandle
                     select_model(state,&key,&thread,selection);
                 }
             }}}
-            crate::model_controls::ModelOptions {selected:Some(selected),descriptors,reported:reported(),onchange:{let key=key.clone();let thread=thread.clone();move|selection|select_model(state,&key,&thread,selection)}}
+            crate::model_controls::ModelOptions {selected:Some(selected.clone()),descriptors:descriptors.clone(),reported:reported(),prompt_effort:prompt_effort.read().clone(),
+                on_effort:{let injected=prompt_effort.read().as_ref().map(|effort|effort.injected.clone()).unwrap_or_default();move|value:String|{
+                    let injected:Vec<&str>=injected.iter().map(String::as_str).collect();
+                    let draft=state.draft().peek().clone();
+                    if let Some(next)=models::prompt_after_effort(&draft,&value,&injected) {if next!=draft {crate::draft_storage::edit_thread_prompt(state,next);}}
+                }},
+                onchange:{let key=key.clone();let thread=thread.clone();move|selection|select_model(state,&key,&thread,selection)}}
+            // Saved values of a model this server no longer lists are shown, not editable.
+            if !saved_rows.is_empty() {div {class:"model-traits unavailable-traits",role:"group","aria-label":"Saved model options",for (label,value) in saved_rows {span {class:"muted",key:"{label}","{label}: {value}"}}}}
             if client.plan_mode_enabled {
                 {let planning=thread.interaction_mode==ProviderInteractionMode::Plan;
                 let tooltip=if planning{"Plan mode — click to return to normal build mode"}else{"Default mode — click to enter plan mode"};

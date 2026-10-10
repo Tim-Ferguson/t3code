@@ -137,6 +137,10 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
 /// fork is in flight.
 #[component]
 pub(crate) fn ForkButton(state: Store<UiModel>, transport: TransportHandle, source_thread: String, run_id: String) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
+        probe.fork_button.set(probe.fork_button.get() + 1);
+    }
     let operable = use_memo(move || connected_allows(state, AuthEnvironmentScope::OrchestrationOperate));
     let busy = use_memo(move || state.relations().read().fork.is_some());
     rsx! {
@@ -151,6 +155,37 @@ pub(crate) fn ForkButton(state: Store<UiModel>, transport: TransportHandle, sour
 /// A page of the lineage list: a busy thread can accumulate dozens of forks and agents.
 const FIRST_ROWS: usize = 6;
 const MORE_ROWS: usize = 12;
+
+/// What a child thread's shell says it is doing, for stopping the subagent that runs it.
+fn child_activity(state: Store<UiModel>, child: &str) -> Option<relations::ChildActivity> {
+    let shell = state.shell();
+    let shell = shell.read();
+    let thread = shell.snapshot.as_ref()?.threads.iter().find(|thread| thread.id.as_str() == child)?;
+    let live = thread.activity_run_status.flatten().map(|status| (serde_json::to_value(status).ok().and_then(|status| status.as_str().map(str::to_owned)).unwrap_or_default(), thread.activity_run_started_at.flatten().is_some()));
+    Some(relations::ChildActivity { live, run: thread.active_run_id.as_ref().or(thread.latest_run_id.as_ref()).map(ToString::to_string) })
+}
+
+/// Interrupts a subagent's run, holding its queue (`run.interrupt`, as the original's stop does). One
+/// at a time; the button waits for the answer and a refusal is told.
+fn stop_subagent(transport: &TransportHandle, state: Store<UiModel>, mut stopping: Signal<Option<String>>, child: String, run: String) {
+    if stopping.peek().is_some() {
+        return;
+    }
+    stopping.set(Some(child.clone()));
+    let owner = runtime::response_owner(transport, state);
+    let transport = transport.clone();
+    dioxus::dioxus_core::spawn_forever(async move {
+        let payload = json!({"type":"run.interrupt","commandId":uuid::Uuid::new_v4().to_string(),"threadId":child,"runId":run,"holdQueue":true});
+        let result = runtime::request_value_reported(transport.clone(), state, "orchestration.dispatchCommand", payload).await;
+        stopping.set(None);
+        if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+            return;
+        }
+        if let Err(message) = result {
+            notice::push(state, Level::Error, "Could not stop subagent", message);
+        }
+    });
+}
 
 fn shells(state: Store<UiModel>) -> Vec<relations::Shell> {
     state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.threads.iter().filter(|thread| thread.deleted_at.is_none()).map(relations::Shell::from).collect()).unwrap_or_default()
@@ -173,6 +208,10 @@ fn has_related(state: Store<UiModel>, thread_id: &str) -> bool {
 /// The header button that opens the lineage panel, present only for a thread that has relatives.
 #[component]
 pub(crate) fn HeaderButton(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
+    #[cfg(test)]
+    if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
+        probe.lineage_button.set(probe.lineage_button.get() + 1);
+    }
     // The panel belongs to the thread it was opened for: moving to another thread closes it.
     let mut opened = use_signal(|| None::<String>);
     let related = use_memo(use_reactive((&thread_id,), move |(thread_id,)| has_related(state, &thread_id)));
@@ -194,6 +233,7 @@ pub(crate) fn HeaderButton(state: Store<UiModel>, transport: TransportHandle, th
 fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, close: EventHandler<()>) -> Element {
     let mut shown = use_signal(|| FIRST_ROWS);
     let mut previous_open = use_signal(|| false);
+    let stopping = use_signal(|| None::<String>);
     let all = shells(state);
     let projection = { let thread = state.thread(); let domain = thread.read(); domain.projection.clone().filter(|projection| projection["thread"]["id"] == thread_id.as_str()) };
     let graph = relations::graph(&all, projection.as_ref());
@@ -237,6 +277,15 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, c
         let open_id = id.clone();
         let (merge_title, merge_label) = (relations::merge_back_tooltip(latest.is_some(), parent_title.as_deref()), relations::merge_back_label(parent_title.as_deref()));
         let (merge_source, merge_run, merge_target_id) = (thread_id.clone(), latest.clone(), id.clone());
+        // A subagent this app runs, still going: the button that stops it.
+        let stop_run = (row.edge.kind == relations::Kind::Subagent && !relations::is_parent(&row.edge, &thread_id))
+            .then(|| projection.as_ref().and_then(|projection| projection["subagents"].as_array()).and_then(|agents| agents.iter().find(|agent| agent["childThreadId"] == id.as_str())))
+            .flatten()
+            .and_then(|agent| relations::subagent_stop_run(agent, child_activity(state, &id).as_ref()));
+        let (stop_child, transport_stop) = (id.clone(), transport.clone());
+        let stop_label = format!("Stop subagent {title}");
+        let waiting = stopping.read().is_some();
+        let stopping_this = stopping.read().as_deref() == Some(id.as_str());
         let transport_open = transport.clone();
         let transport_merge = transport.clone();
         rsx! {
@@ -246,6 +295,11 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, c
                     span { class: "lineage-glyph", "aria-hidden": "true", "{glyph}" }
                     span { class: "lineage-title", "{title}" }
                     span { class: "muted lineage-status", "{word}" } }
+                if let Some(run) = stop_run {
+                    button { class: "icon-button lineage-stop", r#type: "button", "aria-label": "{stop_label}", title: "Stop subagent", "aria-busy": "{stopping_this}", disabled: waiting || !operable,
+                        onclick: move |_| stop_subagent(&transport_stop, state, stopping, stop_child.clone(), run.clone()),
+                        if stopping_this { "Stopping\u{2026}" } else { "\u{25a0}" } }
+                }
                 if is_merge_target {
                     button { class: "icon-button lineage-merge", r#type: "button", "aria-label": "{merge_label}", title: "{merge_title}", "aria-busy": "{merging}", disabled: latest.is_none() || merging || !operable,
                         onclick: move |_| { if let Some(run) = merge_run.clone() { merge_back(&transport_merge, state, merge_source.clone(), merge_target_id.clone(), run); } },

@@ -147,11 +147,14 @@ async fn files_named_in_a_message_are_shown_through_signed_urls_or_opened_in_the
     fixture.write("pic.png", "not really a picture");
     fixture.write("spec.pdf", "%PDF-1.4");
     fixture.write("hello.txt", "one\ntwo\n");
+    fixture.write("demo.mp4", "not really a video");
+    fixture.write("take.mp3", "not really audio");
+    fixture.write("page.html", "<script>alert(1)</script>");
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
-    input_control(&mut dom, "Message", "see ![pic](pic.png) and [the spec](spec.pdf) and [the code](hello.txt:2) and [the web](https://example.com/a.pdf) and ![away](../outside.png)");
+    input_control(&mut dom, "Message", "see ![pic](pic.png) and [the spec](spec.pdf) and [the code](hello.txt:2) and [the web](https://example.com/a.pdf) and ![away](../outside.png) ![demo](demo.mp4) [the take](take.mp3) [the page](page.html)");
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     until(&mut dom, "the turn", |_| completed_runs(state) == 1).await;
     until(&mut dom, "the picture", |dom| control(dom, "Image pic").is_some()).await;
@@ -159,6 +162,19 @@ async fn files_named_in_a_message_are_shown_through_signed_urls_or_opened_in_the
     assert!(src.starts_with("http://127.0.0.1:") && src.contains("/api/assets/") && !src.contains("/pic.png/") && src.split('/').nth(5).is_some_and(|token| token.contains('.')), "a signed URL, not the path: {src}");
     // An image that climbs out of the workspace is not fetched at all.
     assert!(control(&dom, "Image away").is_none());
+    // A video in the Markdown plays from the media route, signed for the exact path.
+    until(&mut dom, "the video", |dom| control(dom, "Video demo").is_some()).await;
+    let video = super::transport_tests::control_attribute(&dom, "Video demo", "src").and_then(|(_, value)| value).unwrap();
+    assert!(video.contains("/api/assets/") && !video.contains("demo.mp4/"), "{video}");
+    // Audio opens in the page from a signed URL too; a page the browser would run as markup is not previewed
+    // (the link goes to the editor, which is not on offer here).
+    click_control(&mut dom, "Open take.mp3");
+    until(&mut dom, "the player", |dom| control(dom, "Preview audio take.mp3").is_some()).await;
+    let audio = super::transport_tests::control_attribute(&dom, "Preview audio take.mp3", "src").and_then(|(_, value)| value).unwrap();
+    assert!(audio.contains("/api/assets/"), "{audio}");
+    key_on(&mut dom, "Preview take.mp3", Key::Escape);
+    click_control(&mut dom, "Open page.html");
+    assert!(control(&dom, "Preview page.html").is_none());
 
     // A PDF opens in the page, in a frame with no privileges, from a signed URL; Escape closes it.
     click_control(&mut dom, "Open spec.pdf");
@@ -196,14 +212,16 @@ async fn a_pin_moves_up_and_down_among_the_pins_by_writing_fractional_keys() {
         let model = state.peek();
         let snapshot = model.shell.snapshot.as_ref().unwrap();
         let project = snapshot.projects[0].id.clone();
-        crate::sidebar_rows::rows(&snapshot.threads, &project, chrono::Utc::now()).into_iter().map(|thread| thread.id.to_string()).collect()
+        crate::sidebar_rows::rows(&snapshot.threads, project.as_str(), chrono::Utc::now(), crate::sidebar_rows::caps(state).support()).into_iter().map(|thread| thread.id.to_string()).collect()
     };
     let first = order(state);
     // The top pin cannot go higher; the bottom one moves up by writing keys that put it first.
     key_on(&mut dom, &format!("Thread {}", first[0]), Key::ContextMenu);
     assert!(super::transport_tests::control_attribute(&dom, "Move pin up", "disabled").and_then(|(_, value)| value).as_deref() == Some("true"));
     click_control(&mut dom, "Move pin down");
-    until(&mut dom, "the new order", |_| order(state) == vec![first[1].clone(), first[0].clone()]).await;
+    // Both pins are written (the arranged ones list first, so the order can show before the second key lands).
+    let keyed = |state: Store<UiModel>| state.peek().shell.snapshot.as_ref().unwrap().threads.iter().filter(|t| t3_client::sidebar::is_pinned(t)).all(|t| t.pin_order_key.clone().flatten().is_some());
+    until(&mut dom, "the new order", |_| order(state) == vec![first[1].clone(), first[0].clone()] && keyed(state)).await;
     let keys: Vec<Option<String>> = state.peek().shell.snapshot.as_ref().unwrap().threads.iter().filter(|t| t3_client::sidebar::is_pinned(t)).map(|t| t.pin_order_key.clone().flatten().map(|key| key.to_string())).collect();
     assert!(keys.iter().all(Option::is_some), "neighbours without keys get them: {keys:?}");
     // Moving back is one write.

@@ -342,7 +342,10 @@ fn NewThreadOptions(
                 for row in &rows {option {value:key(&row.selection()),selected:key(&row.selection())==selected_key,"{row.provider_label} · {row.model.name}"}}
             }
         }
-        crate::model_controls::ModelOptions {selected:selected.clone(),descriptors,onchange:{let draft_key=draft_key.clone();move|selection|remember_selection(state,draft_key.as_ref(),&selection)}}
+        crate::model_controls::ModelOptions {selected:selected.clone(),prompt_effort:crate::model_controls::PromptEffort::of(&descriptors,&prompt),on_effort:{let draft_key=draft_key.clone();let prompt=prompt.clone();let injected:Vec<String>=crate::model_controls::PromptEffort::of(&descriptors,&prompt).map(|effort|effort.injected).unwrap_or_default();move|value:String|{
+            let injected:Vec<&str>=injected.iter().map(String::as_str).collect();
+            if let (Some(key),Some(next))=(draft_key.clone(),t3_client::models::prompt_after_effort(&prompt,&value,&injected)) {if next!=prompt {crate::draft_storage::edit_project_prompt(state,key,next);}}
+        }},descriptors,onchange:{let draft_key=draft_key.clone();move|selection|remember_selection(state,draft_key.as_ref(),&selection)}}
         label {"Permissions",select {"aria-label":"Permissions",value:runtime_value,onchange:{let draft_key=draft_key.clone();move|e|{if let Ok(mode)=serde_json::from_value(json!(e.value())) {update_choices(state,draft_key.as_ref(),|choices|choices.runtime_mode=Some(mode));}}},
             for choice in modes {option {value:serde_json::to_value(choice).unwrap().as_str().unwrap(),selected:choice==mode,"{models::runtime_mode_label(choice)}"}}
         }}
@@ -373,6 +376,7 @@ fn NewThreadOptions(
             }
         })}}}
         div {class:"new-thread-attachments",ondragover:move|event|event.prevent_default(),ondrop:move|event|{if let Some(handler)=drop_files.as_mut(){handler(event);}},
+        crate::prompt_stash::Dock {state,transport:transport.clone()}
         if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
         label {class:"new-thread-prompt","First message",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:move|e|{
             if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}

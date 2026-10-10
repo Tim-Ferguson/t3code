@@ -44,6 +44,37 @@ pub(crate) fn WorkspaceImage(state: Store<UiModel>, transport: runtime::Transpor
     }
 }
 
+/// An image a tool returned inline, loaded only while its row is open. The bytes are not in the
+/// timeline: the server numbers the images of an item and signs a URL for each (`tool-output-image`).
+#[component]
+pub(crate) fn ToolOutputImage(state: Store<UiModel>, transport: runtime::TransportHandle, environment_key: String, thread_id: String, item_id: String, index: usize) -> Element {
+    let resource = use_resource({
+        let (transport, environment_key, thread_id, item_id) = (transport.clone(), environment_key.clone(), thread_id.clone(), item_id.clone());
+        move || {
+            let (transport, environment_key, thread_id, item_id) = (transport.clone(), environment_key.clone(), thread_id.clone(), item_id.clone());
+            let connected = *state.status().read() == ConnectionStatus::Connected;
+            async move {
+                if !connected {
+                    return Some(Err("Not connected".to_owned()));
+                }
+                let owner = runtime::response_owner(&transport, state);
+                let answer = asset_url(&transport, state, &environment_key, json!({"_tag":"tool-output-image","threadId":thread_id,"itemId":item_id,"index":index})).await;
+                (owner.is_some() && owner == runtime::response_owner(&transport, state)).then_some(answer)
+            }
+        }
+    });
+    let shown = resource.read();
+    match &*shown {
+        None => rsx! {p {class:"muted",role:"status","Loading image\u{2026}"}},
+        Some(None) => rsx! {},
+        Some(Some(Err(reason))) if reason == "Not connected" => rsx! {p {class:"muted",role:"status","Not connected, so the image cannot be loaded."}},
+        Some(Some(Err(_))) => rsx! {p {class:"muted","The image is no longer available."}},
+        Some(Some(Ok(Preview { url, width, height }))) => rsx! {
+            img {class:"viewed-image tool-output-image",role:"img","aria-label":"Tool output image {index + 1}",alt:"Tool output image",src:"{url}",loading:"lazy",width:width.map(|width| width.to_string()),height:height.map(|height| height.to_string())}
+        },
+    }
+}
+
 /// A project's own icon beside its name when it has one the server will serve, else a plain mark.
 #[component]
 pub(crate) fn ProjectFavicon(state: Store<UiModel>, transport: runtime::TransportHandle, environment_key: String, cwd: String, title: String) -> Element {

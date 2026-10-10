@@ -328,6 +328,9 @@ pub mod pull_request_guard;
 pub mod pull_request_viewed;
 pub mod pull_request_gitlab;
 pub mod pull_request_gitlab_json;
+pub mod pull_request_bitbucket;
+pub mod pull_request_bitbucket_json;
+pub mod pull_request_bitbucket_revisions;
 
 mod prepared_run;
 mod project_setup_script;

@@ -393,7 +393,7 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadSnooze":true,"projectCloneTracking":true}});
+    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"projectCloneTracking":true}});
     let config = json!({"environment":environment,"auth":auth.descriptor(),"cwd":directory.path().to_string_lossy(),"keybindingsConfigPath":"/isolated/keybindings.json","keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":[],"availableEditors":[],"observability":{"logsDirectoryPath":"/isolated/logs","localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false},"settings":t3_contracts::ServerSettings::default()});
     let _: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
     let api = ApiState {
@@ -1589,6 +1589,43 @@ fn controls_harness(props: ControlsHarness) -> Element {
     crate::themes::use_themes(state);
     *props.state.borrow_mut() = Some(state);
     rsx! {crate::Application {state,transport:props.transport}}
+}
+/// A model whose effort can be asked for in words (Claude's ultrathink): the choice is written to the
+/// prompt and shown as chosen while the prompt asks for it, any other choice takes the words away, and
+/// the word typed into the text itself is not the control's to remove.
+#[test]
+fn an_effort_asked_for_in_words_is_chosen_from_the_control_and_written_to_the_prompt() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut config = api_fixture(&directory, "environment-a").config.unwrap();
+    config["providers"] = json!([{"instanceId":"claudeAgent","driver":"claudeAgent","enabled":true,"installed":true,"version":null,"status":"ready","auth":{"status":"authenticated"},"checkedAt":"now","models":[{"slug":"claude-model","name":"Claude model","isCustom":false,"isDefault":true,"capabilities":{"optionDescriptors":[{"id":"effort","label":"Effort","type":"select","currentValue":"medium","promptInjectedValues":["ultrathink"],"options":[{"id":"medium","label":"Medium","isDefault":true,"description":"Balanced."},{"id":"high","label":"High"},{"id":"ultrathink","label":"Ultrathink"}]}]}}],"slashCommands":[],"skills":[]}]);
+    let project: t3_contracts::ProjectShell = serde_json::from_value(json!({"id":"p","title":"P","workspaceRoot":"/p","defaultModelSelection":null,"scripts":[],"createdAt":"now","updatedAt":"now"})).unwrap();
+    let mut model = UiModel::default();
+    model.destination = Some(t3_contracts::EnvironmentId::new("environment-a").unwrap());
+    model.typed_config = Some(serde_json::from_value::<t3_contracts::ServerConfig>(config).unwrap());
+    model.shell.snapshot = Some(t3_contracts::ShellSnapshot { schema_version: 2, snapshot_sequence: 0, projects: vec![project], threads: vec![], archived_threads: vec![] });
+    let props = ControlsHarness { state: Rc::new(RefCell::new(None)), initial: model, transport: TransportHandle::default() };
+    let mut dom = VirtualDom::new_with_props(controls_harness, props.clone());
+    dom.rebuild_in_place();
+    let value = |dom: &VirtualDom, label: &str| control(dom, label).unwrap().1;
+    let disabled = |dom: &VirtualDom| control_attribute(dom, "Effort", "disabled").and_then(|(_, value)| value).as_deref() == Some("true");
+    assert_eq!(value(&dom, "Effort").as_deref(), Some(""));
+    assert!(rendered_text(&dom).contains("Balanced."), "the description of the effort in force is shown");
+    // Ultrathink is a choice; it asks for itself in the prompt and leaves the options alone.
+    change_control(&mut dom, "Effort", "ultrathink");
+    assert_eq!(value(&dom, "First message").as_deref(), Some("Ultrathink:\n"));
+    assert_eq!(value(&dom, "Effort").as_deref(), Some("ultrathink"));
+    input_control(&mut dom, "First message", "Ultrathink:\nfix it");
+    assert_eq!(value(&dom, "Effort").as_deref(), Some("ultrathink"));
+    assert!(!disabled(&dom));
+    // Another choice takes the words away and is a real option.
+    change_control(&mut dom, "Effort", "high");
+    assert_eq!(value(&dom, "First message").as_deref(), Some("fix it"));
+    assert_eq!(value(&dom, "Effort").as_deref(), Some("high"));
+    // The word in the text itself is the reader's own: the control shows it and will not remove it.
+    input_control(&mut dom, "First message", "please ultrathink this");
+    assert_eq!(value(&dom, "Effort").as_deref(), Some("ultrathink"));
+    assert!(disabled(&dom));
+    assert!(rendered_text(&dom).contains("Remove it to change this option."));
 }
 #[test]
 fn new_thread_controls_reset_for_identical_ids_in_another_destination_or_project() {

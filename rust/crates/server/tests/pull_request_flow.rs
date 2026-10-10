@@ -28,6 +28,11 @@ type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 type Handler = Arc<dyn Fn(&Recorded) -> Step + Send + Sync>;
 
+/// The next search fails, as a host that could not answer one question about every repository.
+static SEARCH_FAILS_ONCE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// How many of the next searches say nothing at all about `acme/web`, as one the host does not index.
+static SEARCHES_WITHOUT_THE_REPOSITORY: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+
 struct Github {
     origin: String,
     recorded: Arc<Mutex<Vec<Recorded>>>,
@@ -210,7 +215,14 @@ fn handler() -> Handler {
                         "createdAt":"2026-01-01T00:00:00Z","updatedAt":updated,"mergedAt":null,"repository":{"nameWithOwner":repository},
                         "reviewRequests":{"nodes":[{"requestedReviewer":{"login":"octo"}}]},"labels":{"nodes":[{"name":"bug","color":"f00"}]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"SUCCESS"}}}]}})
                 };
-                let nodes = if q.contains("updated:<=") {
+                use std::sync::atomic::Ordering::SeqCst;
+                if SEARCH_FAILS_ONCE.swap(false, SeqCst) {
+                    return Step::json(500, json!({"message":"search is down"}));
+                }
+                let silent = SEARCHES_WITHOUT_THE_REPOSITORY.fetch_update(SeqCst, SeqCst, |left| left.checked_sub(1)).is_ok();
+                let nodes = if silent {
+                    vec![row(1, "2026-01-02T00:00:00Z", "acme/elsewhere")]
+                } else if q.contains("updated:<=") {
                     vec![row(7, "2026-01-05T00:00:00Z", "acme/web"), row(6, "2026-01-03T00:00:00Z", "acme/web")]
                 } else {
                     vec![row(7, "2026-01-05T00:00:00Z", "acme/web"), row(6, "2026-01-03T00:00:00Z", "acme/web"), row(1, "2026-01-02T00:00:00Z", "acme/elsewhere")]
@@ -324,7 +336,7 @@ async fn scenario() {
 
     let (_web, web_path) = repo_with_remotes(&[("origin", "https://github.com/acme/web.git")]);
     let (_other, other_path) = repo_with_remotes(&[("origin", "https://github.example.com/acme/other.git")]);
-    let (_gitlab, gitlab_path) = repo_with_remotes(&[("origin", "https://bitbucket.org/acme/lab.git")]);
+    let (_gitlab, gitlab_path) = repo_with_remotes(&[("origin", "https://codeberg.org/acme/lab.git")]);
     let store = Store::open(base.join("rust-state.sqlite")).unwrap();
     for (id, path) in [("web", &web_path), ("other", &other_path), ("lab", &gitlab_path)] {
         ProjectService::new(store.clone())
@@ -537,7 +549,7 @@ async fn scenario() {
     let providers = page["providers"].as_array().unwrap();
     assert!(providers.iter().any(|provider| provider["host"] == "github.com" && provider["configured"] == true && provider["searchesOnHost"] == true));
     assert!(providers.iter().any(|provider| provider["host"] == "github.example.com" && provider["configured"] == false && provider["detail"].as_str().unwrap().contains("GitHub")));
-    assert!(providers.iter().any(|provider| provider["host"] == "bitbucket.org" && provider["detail"] == "This host cannot be browsed here yet."));
+    assert!(providers.iter().any(|provider| provider["host"] == "codeberg.org" && provider["detail"] == "This host cannot be browsed here yet."));
     let search = search_requests().last().unwrap().body.clone().unwrap();
     let q = search["variables"]["q"].as_str().unwrap();
     for part in ["is:pr", "is:open", "review-requested:octo", "\"fix \\\"it\\\"\"", "label:\"bug\"", "author:\"alice\"", "draft:false", "sort:updated-desc", "repo:acme/web"] {
@@ -556,6 +568,32 @@ async fn scenario() {
     assert_eq!(failure(&exit)["detail"], "The list could not be carried on from where it left off.");
     let exit = rpc(&mut socket, 84, "pullRequests.list", json!({"state":"open","limit":501})).await;
     assert_eq!(exit["cause"][0]["_tag"], "Die");
+
+    // A search that fails is read the long way: each repository on its own, so one question the host
+    // could not answer does not report every repository as unreadable.
+    use std::sync::atomic::Ordering::SeqCst;
+    let asked = search_requests().len();
+    SEARCH_FAILS_ONCE.store(true, SeqCst);
+    let exit = rpc(&mut socket, 90, "pullRequests.list", json!({"state":"open","limit":3})).await;
+    let page = success(&exit);
+    assert_eq!(page["entries"].as_array().unwrap().iter().map(|entry| entry["number"].as_u64().unwrap()).collect::<Vec<_>>(), vec![7, 6], "{page}");
+    assert_eq!(page["errors"].as_array().unwrap().len(), 1, "only the project with no credential is unreadable: {page}");
+    assert_eq!(search_requests().len(), asked + 2, "the search, then the repository on its own");
+    // A repository the search says nothing about is read on its own before the silence is believed:
+    // once the last time a search named it is long ago.
+    clock.advance(std::time::Duration::from_secs(11 * 60));
+    let asked = search_requests().len();
+    SEARCHES_WITHOUT_THE_REPOSITORY.store(1, SeqCst);
+    let exit = rpc(&mut socket, 91, "pullRequests.list", json!({"state":"open","limit":4})).await;
+    assert_eq!(success(&exit)["entries"].as_array().unwrap().iter().map(|entry| entry["number"].as_u64().unwrap()).collect::<Vec<_>>(), vec![7, 6], "{exit}");
+    assert_eq!(search_requests().len(), asked + 2, "the search, then the repository it did not name");
+    // Once a search has named it, its silence is believed: an empty answer costs no second read.
+    success(&rpc(&mut socket, 92, "pullRequests.list", json!({"state":"open","limit":5})).await);
+    let asked = search_requests().len();
+    SEARCHES_WITHOUT_THE_REPOSITORY.store(1, SeqCst);
+    let exit = rpc(&mut socket, 93, "pullRequests.list", json!({"state":"open","limit":6})).await;
+    assert_eq!(success(&exit)["entries"].as_array().unwrap().iter().map(|entry| entry["number"].as_u64().unwrap()).collect::<Vec<_>>(), Vec::<u64>::new(), "{exit}");
+    assert_eq!(search_requests().len(), asked + 1, "a repository known to be indexed is not asked for again");
 
     // Line counts arrive after the rows, in one aliased read, and are held for a minute.
     let stats_input = json!({"refs":[{"projectId":"web","repository":"acme/web","number":7},{"projectId":"web","repository":"someone/else","number":1}]});

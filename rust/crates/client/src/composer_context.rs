@@ -69,6 +69,17 @@ fn terminal_range(start: u64, end: u64) -> String {
 pub fn terminal_label(label: &str, start: u64, end: u64) -> String {
     format!("{label} {}", terminal_range(start, end))
 }
+/// The lines a terminal selection covers, from the position its surface reports
+/// (`{"start":{"x":0,"y":12},"end":{"x":5,"y":14}}`, rows from 0 in the whole scrollback): the
+/// first line is the row plus one and the last is not before it (`terminalSelectionLineRange`).
+/// None when the surface reports none, and the chip counts its own lines instead.
+pub fn terminal_selection_lines(position: &str) -> Option<(u64, u64)> {
+    let position: Value = serde_json::from_str(position).ok()?;
+    let start = position["start"]["y"].as_u64()? + 1;
+    let end = position["end"]["y"].as_u64()? + 1;
+    Some((start, end.max(start)))
+}
+
 /// What a selection in a terminal becomes: `None` when nothing is selected.
 pub fn terminal_record(id: &str, terminal_id: &str, terminal_label_text: &str, line_start: u64, line_end: u64, text: &str) -> Option<Value> {
     let text = normalize_terminal_text(text);
@@ -274,5 +285,16 @@ mod tests {
         assert_eq!(record["label"], "a.ts L3 (before)");
         assert_eq!((record["rangeLabel"].as_str(), record["diff"].as_str(), record["text"].as_str(), record["startIndex"].as_u64()), (Some("-3"), Some("-const a = 1;"), Some("why?"), Some(2)));
         assert_eq!(review_label(&line_comment("c2", "s", "t", "README.md", '+', 12, "x", "y")), "README.md L12");
+    }
+
+    #[test]
+    fn a_terminal_selection_is_named_by_the_lines_its_surface_reports() {
+        assert_eq!(terminal_selection_lines(r#"{"start":{"x":4,"y":11},"end":{"x":0,"y":13}}"#), Some((12, 14)));
+        // One row, or an end before the start, is one line.
+        assert_eq!(terminal_selection_lines(r#"{"start":{"x":0,"y":0},"end":{"x":9,"y":0}}"#), Some((1, 1)));
+        assert_eq!(terminal_selection_lines(r#"{"start":{"x":0,"y":5},"end":{"x":0,"y":2}}"#), Some((6, 6)));
+        // A surface that reports none, or garbage, leaves the chip to count its own.
+        assert_eq!(terminal_selection_lines(""), None);
+        assert_eq!(terminal_selection_lines("{"), None);
     }
 }

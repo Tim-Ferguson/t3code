@@ -102,7 +102,17 @@ pub(crate) fn sidebar_order(state: Store<UiModel>) -> Vec<String> {
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return vec![] };
     let now = chrono::Utc::now();
-    snapshot.projects.iter().flat_map(|project| crate::sidebar_rows::rows(&snapshot.threads, &project.id, now)).map(|thread| thread.id.to_string()).collect()
+    let caps = crate::sidebar_rows::caps(state);
+    let shelves = *state.shelves().peek();
+    let (snoozed_open, settled_open) = (shelves.snoozed, shelves.settled);
+    // What the sidebar shows: the shelves that are folded away do not take part.
+    snapshot.projects.iter().flat_map(|project| {
+        let sections = t3_client::sidebar::Sections::of(crate::sidebar_rows::listed(&snapshot.threads, project.id.as_str()), now, caps.support());
+        let open = state.active_thread().peek().clone();
+        let snoozed = t3_client::sidebar::shelf_rows(&sections.snoozed, snoozed_open, usize::MAX, open.as_deref());
+        let settled = t3_client::sidebar::shelf_rows(&sections.settled, settled_open, t3_client::sidebar::SETTLED_INITIAL, open.as_deref());
+        [sections.pinned, sections.active, snoozed, settled].concat().into_iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>()
+    }).collect()
 }
 fn allows(state: Store<UiModel>, scope: AuthEnvironmentScope) -> bool {
     *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, scope))
@@ -190,9 +200,17 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                 if allows(state, AuthEnvironmentScope::OrchestrationOperate) && crate::sidebar_rows::caps(state).pinning {
                     set.insert("thread.pin".into());
                 }
+                // Only where the server can settle, as in the original.
+                if allows(state, AuthEnvironmentScope::OrchestrationOperate) && crate::sidebar_rows::caps(state).settlement {
+                    set.insert("thread.settle".into());
+                }
             }
             if chat && open.is_none() && state.selected_project().read().is_some() && allows(state, AuthEnvironmentScope::OrchestrationOperate) {
                 set.insert("composer.sendBackground".into());
+            }
+            // The stash belongs to whichever composer is open: a thread's or the new-thread form.
+            if chat && (open.is_some() || state.selected_project().read().is_some()) && allows(state, AuthEnvironmentScope::OrchestrationOperate) {
+                set.insert("composer.stash".into());
             }
             if chat && open.is_some() {
                 if state.diff().read().open || allows(state, AuthEnvironmentScope::OrchestrationRead) {
@@ -486,11 +504,13 @@ impl Runner {
                     target.set(Some(number));
                 }
             }
+            "composer.stash" => crate::prompt_stash::shortcut(&self.transport, state),
             "composer.mode" => {
                 let _ = document::eval("document.querySelector('.thread-controls select[aria-label=\"Permissions\"]')?.focus();");
             }
             "composer.effort" => {
-                let _ = document::eval("document.querySelector('.thread-controls select[aria-label=\"Reasoning\"]')?.focus();");
+                // The first trait of the model is its effort; the list opens where the page can open one.
+                let _ = document::eval("const select=document.querySelector('.thread-controls .model-traits select');if(select){select.focus();try{select.showPicker?.();}catch{}}");
             }
             "composer.sendAlternate" => {
                 let queue = state.client_settings().peek().follow_up_behavior == t3_contracts::FollowUpBehavior::Queue;
@@ -525,6 +545,7 @@ impl Runner {
                 }
             }
             "thread.pin" => crate::sidebar_rows::toggle_pin(&self.transport, state),
+            "thread.settle" => crate::sidebar_rows::toggle_settle(&self.transport, state),
             "thread.copyReference" => crate::sidebar_rows::copy_reference(state),
             "thread.previous" | "thread.next" => {
                 let order = sidebar_order(state);

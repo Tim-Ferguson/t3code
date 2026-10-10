@@ -550,3 +550,101 @@ pub fn mobile_option_choices(
         _ => vec![],
     }
 }
+
+// ---- Claude's prompt-injected effort ("ultrathink") ---------------------------------------------
+// Port of `isClaudeUltrathinkPrompt` and `applyClaudePromptEffortPrefix` (`packages/shared/src/model.ts`)
+// and the prompt handling of `TraitsPicker.tsx`, replayed by `tests/ultrathink_parity.rs`. This effort is not
+// a setting sent with the turn but words in the prompt: choosing it puts `Ultrathink:` before them.
+
+pub const ULTRATHINK_PREFIX: &str = "Ultrathink:\n";
+fn js_trim(text: &str) -> &str {
+    text.trim_matches(|c: char| (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}')
+}
+/// `/\bultrathink\b/i`.
+pub fn is_ultrathink_prompt(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    let word = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    lower.match_indices("ultrathink").any(|(at, found)| {
+        !lower[..at].chars().next_back().is_some_and(word) && !lower[at + found.len()..].chars().next().is_some_and(word)
+    })
+}
+/// `applyClaudePromptEffortPrefix`: the prompt with `Ultrathink:` before it, unless it has
+/// nothing to prefix, is a slash command (prefixing would turn it into prose), or has it already.
+pub fn apply_effort_prefix(text: &str, effort: Option<&str>) -> String {
+    let trimmed = js_trim(text);
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let command = trimmed.strip_prefix('/').is_some_and(|rest| {
+        let token: String = rest.chars().take_while(|c| !c.is_whitespace()).collect();
+        !token.is_empty() && !token.contains('/')
+    });
+    if effort != Some("ultrathink") || command || trimmed.starts_with("Ultrathink:") {
+        return trimmed.to_owned();
+    }
+    format!("{ULTRATHINK_PREFIX}{trimmed}")
+}
+/// `prompt.replace(/^Ultrathink:\s*/i, "")`.
+pub fn strip_effort_prefix(prompt: &str) -> String {
+    let head = "ultrathink:";
+    if prompt.len() >= head.len() && prompt.is_char_boundary(head.len()) && prompt[..head.len()].eq_ignore_ascii_case(head) {
+        prompt[head.len()..].trim_start_matches(|c: char| (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}').to_owned()
+    } else {
+        prompt.to_owned()
+    }
+}
+/// How the prompt takes over the primary effort control: whether it does at all, and whether the
+/// word is in the text itself rather than only in the prefix this control adds (when it is, the
+/// control cannot change it without rewriting what was typed).
+pub fn ultrathink_control(has_prompt_injected_value: bool, prompt: &str) -> (bool, bool) {
+    let controlled = has_prompt_injected_value && is_ultrathink_prompt(prompt);
+    (controlled, controlled && is_ultrathink_prompt(&strip_effort_prefix(prompt)))
+}
+/// The prompt after choosing `value` for the primary effort: an injected value (ultrathink) writes
+/// its prefix; any other value removes the prefix. `None` when the choice cannot be made (the word
+/// is in the text itself).
+pub fn prompt_after_effort(prompt: &str, value: &str, injected: &[&str]) -> Option<String> {
+    let (controlled, in_body) = ultrathink_control(!injected.is_empty(), prompt);
+    if injected.contains(&value) {
+        return Some(if js_trim(prompt).is_empty() { ULTRATHINK_PREFIX.to_owned() } else { apply_effort_prefix(prompt, Some("ultrathink")) });
+    }
+    if in_body {
+        return None;
+    }
+    Some(if controlled { strip_effort_prefix(prompt) } else { prompt.to_owned() })
+}
+
+/// Saved option values for a model the server no longer lists (an OpenCode model of another
+/// machine), shown read-only: `(label, value)` per saved selection (`buildUnavailableModelOptionDescriptors`).
+pub fn unavailable_option_rows(selections: &[ProviderOptionSelection]) -> Vec<(String, String)> {
+    selections
+        .iter()
+        .map(|selection| {
+            let id = selection.id.as_str();
+            let label = match id {
+                "agent" => "Agent".to_owned(),
+                "effort" => "Effort".to_owned(),
+                "reasoningEffort" => "Reasoning effort".to_owned(),
+                "variant" => "Reasoning".to_owned(),
+                other => {
+                    let mut spaced = String::new();
+                    let mut previous: Option<char> = None;
+                    for c in other.chars() {
+                        if c.is_ascii_uppercase() && previous.is_some_and(|p| p.is_ascii_lowercase() || p.is_ascii_digit()) {
+                            spaced.push(' ');
+                        }
+                        spaced.push(c);
+                        previous = Some(c);
+                    }
+                    let mut chars = spaced.chars();
+                    chars.next().map(|first| first.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default()
+                }
+            };
+            let value = match &selection.value {
+                ProviderOptionSelectionValue::String(value) => value.to_string(),
+                ProviderOptionSelectionValue::Boolean(value) => (if *value { "On" } else { "Off" }).to_owned(),
+            };
+            (label, value)
+        })
+        .collect()
+}

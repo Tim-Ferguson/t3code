@@ -212,7 +212,7 @@ pub struct FakeCliDir {
 impl FakeCliDir {
     pub fn new() -> FakeCliDir {
         let dir = tempfile::tempdir().unwrap();
-        for tool in ["git", "cat"] {
+        for tool in ["git", "cat", "mkdir"] {
             let found = String::from_utf8(Command::new("which").arg(tool).output().unwrap().stdout).unwrap();
             std::os::unix::fs::symlink(found.trim(), dir.path().join(tool)).unwrap();
         }
@@ -243,7 +243,9 @@ impl FakeCliDir {
             std::fs::write(self.dir.path().join(format!("{name}.{index}.out")), &step.stdout).unwrap();
             std::fs::write(self.dir.path().join(format!("{name}.{index}.err")), &step.stderr).unwrap();
         }
-        let mut body = String::from("d=\"${0%/*}\"; n=0\nif [ -f \"$d/%NAME%.count\" ]; then read -r n < \"$d/%NAME%.count\"; fi\necho $((n+1)) > \"$d/%NAME%.count\"\ncase $n in\n");
+        // The step is claimed by making a directory, which is atomic and leaves nothing held behind when
+        // a call is cancelled and killed: two calls at once must not be handed the same step.
+        let mut body = String::from("d=\"${0%/*}\"; n=0\nwhile ! mkdir \"$d/%NAME%.claim.$n\" 2>/dev/null; do n=$((n+1)); done\ncase $n in\n");
         for (index, step) in steps.iter().enumerate() {
             let pattern = if index + 1 == steps.len() { "*".to_string() } else { index.to_string() };
             body.push_str(&format!(

@@ -174,7 +174,7 @@ fn unavailable(
 
 /// Fire-and-forget delete of a pending upload the draft no longer references. Without
 /// a connection to its environment the server's own 24 hour sweep collects it.
-fn delete_pending(handle: &TransportHandle, state: Store<UiModel>, environment: &str, id: &str) {
+pub(crate) fn delete_pending(handle: &TransportHandle, state: Store<UiModel>, environment: &str, id: &str) {
     if unavailable(handle, state, environment, AuthEnvironmentScope::OrchestrationOperate).is_some()
     {
         return;
@@ -537,6 +537,28 @@ pub fn load(state: Store<UiModel>, target: &DraftTarget) {
         .write()
         .entry(target.clone())
         .or_insert(restored);
+}
+
+/// Puts saved attachments back into a draft (a restored stash entry). Each is verified against the
+/// server before it counts, as a draft reopened after a reload is; the names of those that do not fit
+/// under the attachment limit come back.
+pub(crate) fn bring_back(handle: &TransportHandle, state: Store<UiModel>, target: &DraftTarget, saved: Vec<Persisted>) -> Vec<String> {
+    load(state, target);
+    let mut skipped = vec![];
+    for attachment in saved {
+        let list = state.draft_attachments().peek().get(target).cloned().unwrap_or_default();
+        if list.iter().any(|held| held.id == attachment.id || (attachment.attachment_id.is_some() && held.attachment_id == attachment.attachment_id)) {
+            continue;
+        }
+        if list.len() >= rules::MAX_ATTACHMENTS {
+            skipped.push(attachment.name);
+            continue;
+        }
+        state.draft_attachments().write().entry(target.clone()).or_default().push(attachment.restore());
+    }
+    persist(state, target);
+    resume(handle, state, target);
+    skipped
 }
 
 /// Starts whatever a restored or reconnecting draft still has to do.

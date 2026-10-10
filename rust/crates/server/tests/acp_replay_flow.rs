@@ -26,7 +26,18 @@ impl Harness {
         let cwd = std::fs::canonicalize(root).unwrap();
         let status = cwd.join("replay-status.json");
         let path = cwd.join("transcript.json");
-        std::fs::write(&path, json!({"scenario":row["name"],"entries":transcript}).to_string()).unwrap();
+        // A steer step sends its message after the run starts but before the recording's first reply to the
+        // prompt (the recording has the steer first), so the reply waits on a pipe the steer step opens.
+        let gate = row["steps"].as_array().unwrap().iter().any(|step| step["type"] == "steer").then(|| {
+            let entries = transcript.as_array().unwrap();
+            let prompt = entries.iter().position(|entry| entry["type"] == "expect_outbound" && entry["label"].as_str().is_some_and(|label| label.starts_with("session.prompt"))).unwrap();
+            let held = entries[prompt..].iter().find(|entry| entry["type"] == "emit_inbound").unwrap();
+            let fifo = root.join("steer-gate.fifo");
+            let c_path = std::ffi::CString::new(fifo.to_string_lossy().as_bytes()).unwrap();
+            assert_eq!(unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) }, 0);
+            json!({"label":held["label"],"fifo":fifo})
+        });
+        std::fs::write(&path, json!({"scenario":row["name"],"entries":transcript,"gate":gate}).to_string()).unwrap();
         let settings = serde_json::from_value(json!({"providerInstances":{
             "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
             "acpRegistry":{"driver":"acpRegistry","enabled":true,"config":{"enabled":true,"source":"local","commandPath":"python3","commandArgs":[AGENT,path,status,cwd]}}}}))
@@ -176,6 +187,10 @@ async fn replay(row: Value) -> Result<(), String> {
                 // as the run runs: this wait reads the raw projection, not the response-checked view.
                 harness.until_raw(|view| view["runs"][step["targetRunIndex"].as_u64().unwrap() as usize - 1].get("status").filter(|status| *status == "running").map(|_| ())).await;
                 harness.send(step["text"].as_str().unwrap(), json!({"type":"steer_active","targetRunId":target}));
+                {
+                    use std::io::Write;
+                    std::fs::OpenOptions::new().write(true).open(scratch.path().join("steer-gate.fifo")).unwrap().write_all(b"release").unwrap();
+                }
             }
             "approve_next_runtime_request" => {
                 let request = harness.pending_request().await;

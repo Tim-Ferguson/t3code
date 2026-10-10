@@ -81,7 +81,8 @@ pub(crate) fn MarkdownImage(src: String, alt: String, title: String) -> Element 
                     return Some(Err("Not connected".to_owned()));
                 }
                 let owner = runtime::response_owner(&host.transport, host.state);
-                let answer = asset_url(&host.transport, host.state, &host.environment_key, json!({"_tag":"workspace-file","threadId":host.thread_id,"path":relative})).await;
+                let tag = if matches!(logic::previewable(&relative), Some(logic::Preview::Video)) { "media-file" } else { "workspace-file" };
+                let answer = asset_url(&host.transport, host.state, &host.environment_key, json!({"_tag":tag,"threadId":host.thread_id,"path":relative})).await;
                 // Another connection or thread answered by now: not this picture.
                 (owner.is_some() && owner == runtime::response_owner(&host.transport, host.state)).then_some(answer)
             }
@@ -90,11 +91,14 @@ pub(crate) fn MarkdownImage(src: String, alt: String, title: String) -> Element 
     if relative.is_none() {
         return rsx! { span { class: "muted", "{alt}" } };
     }
+    let is_video = relative.as_deref().is_some_and(|path| logic::previewable(path) == Some(logic::Preview::Video));
     let shown = resource.read();
     match &*shown {
         None => rsx! { span { class: "muted", role: "status", "Loading image\u{2026}" } },
         Some(None) => rsx! {},
+        Some(Some(Err(_))) if is_video => rsx! { span { class: "muted", "{alt} (video unavailable)" } },
         Some(Some(Err(_))) => rsx! { span { class: "muted", "{alt} (image unavailable)" } },
+        Some(Some(Ok(Signed { url, .. }))) if is_video => rsx! { video { class: "markdown-workspace-video", src: "{url}", controls: true, preload: "metadata", title: "{title}", "aria-label": "Video {alt}" } },
         Some(Some(Ok(Signed { url, .. }))) => rsx! { img { class: "markdown-workspace-image", src: "{url}", alt: "{alt}", title: "{title}", "aria-label": "Image {alt}", loading: "lazy" } },
     }
 }
@@ -121,7 +125,9 @@ fn Open(host: Host, path: String) -> Element {
                     return Some(Err("Not connected".to_owned()));
                 }
                 let owner = runtime::response_owner(&host.transport, host.state);
-                let answer = asset_url(&host.transport, host.state, &host.environment_key, json!({"_tag":"workspace-file","threadId":host.thread_id,"path":path})).await;
+                // Played media is served with byte ranges from the media route; a picture or document as a workspace file.
+                let tag = if matches!(logic::previewable(&path), Some(logic::Preview::Video | logic::Preview::Audio)) { "media-file" } else { "workspace-file" };
+                let answer = asset_url(&host.transport, host.state, &host.environment_key, json!({"_tag":tag,"threadId":host.thread_id,"path":path})).await;
                 (owner.is_some() && owner == runtime::response_owner(&host.transport, host.state)).then_some(answer)
             }
         }
@@ -138,6 +144,8 @@ fn Open(host: Host, path: String) -> Element {
                 (Some(None), _) => rsx! {},
                 (Some(Some(Err(reason))), _) => rsx! { p { class: "error-banner", role: "alert", "This file cannot be previewed. {reason}" } },
                 (Some(Some(Ok(signed))), Some(logic::Preview::Pdf)) => rsx! { iframe { class: "file-preview-frame", title: "{name}", "aria-label": "Preview frame {name}", src: "{signed.url}", "sandbox": "" } },
+                (Some(Some(Ok(signed))), Some(logic::Preview::Video)) => rsx! { video { class: "file-preview-video", controls: true, preload: "metadata", src: "{signed.url}", "aria-label": "Preview video {name}" } },
+                (Some(Some(Ok(signed))), Some(logic::Preview::Audio)) => rsx! { audio { class: "file-preview-audio", controls: true, preload: "metadata", src: "{signed.url}", "aria-label": "Preview audio {name}" } },
                 (Some(Some(Ok(signed))), _) => rsx! { img { class: "file-preview-image", src: "{signed.url}", alt: "{name}", "aria-label": "Preview image {name}" } },
             }
             div { class: "dialog-actions", button { r#type: "button", "aria-label": "Close preview", onclick: move |_| preview.set(None), "Close" } }

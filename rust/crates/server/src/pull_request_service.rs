@@ -322,6 +322,9 @@ pub struct PullRequestService {
     identities: TtlCache<String, Option<Identity>, ()>,
     viewers: Mutex<HashMap<String, (Duration, String)>>,
     routing: Mutex<HashMap<String, (Duration, (String, String))>>,
+    /// When each repository last appeared in a host search, which is how a listing knows an empty
+    /// answer for it is real and not the host failing to index it.
+    pub(crate) search_visible_at: Mutex<HashMap<String, Duration>>,
     pub(crate) epochs: Mutex<Epochs>,
     refreshes: tokio::sync::watch::Sender<u64>,
     merges: tokio::sync::broadcast::Sender<crate::pull_request_actions::PullRequestMergeEvent>,
@@ -347,6 +350,7 @@ impl PullRequestService {
             recent_stats: Mutex::default(),
             viewers: Mutex::default(),
             routing: Mutex::default(),
+            search_visible_at: Mutex::default(),
             epochs: Mutex::default(),
             refreshes: tokio::sync::watch::channel(0).0,
             merges: tokio::sync::broadcast::channel(64).0,

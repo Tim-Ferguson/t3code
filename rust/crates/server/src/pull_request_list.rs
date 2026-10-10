@@ -22,6 +22,12 @@ const DEFAULT_REPOSITORY_LIST_LIMIT: u32 = 99;
 const REPOSITORY_SEARCH_CHUNK: usize = 100;
 const LIST_CACHE_TTL: Duration = Duration::from_secs(30);
 const LIST_STATS_CACHE_TTL: Duration = Duration::from_secs(60);
+/// How long a repository that appeared in a host search is believed to be indexed there.
+const SEARCH_VISIBILITY_TTL: Duration = Duration::from_secs(10 * 60);
+
+fn search_visibility_key(host: &str, repository: &str) -> String {
+    format!("{host}\n{}", repository.trim().to_lowercase())
+}
 const RECENT_STATS_CAPACITY: usize = 2_048;
 
 /// Where a repository carries on: the instant of its last row, how many rows were handed over,
@@ -313,36 +319,41 @@ impl PullRequestService {
             cursor: provider_cursor(cursor),
             filters: input.filters.clone(),
         };
-        for project in separate {
-            let (viewer, observed_at) = (viewers[&project.host].clone(), self.now_ms());
-            let cursor = cursor_of(project);
+        // One repository read on its own. One unreachable repository must not blank the page. A
+        // host-level failure is already reported through `providers`, so it degrades the same way here.
+        let read_repository = |project: &Supported| {
+            let (viewer, observed_at, cursor) = (viewers[&project.host].clone(), self.now_ms(), cursor_of(project));
             let provider = self.provider(&env, project.kind).expect("a readable project has a provider");
             let request = request_of(project, vec![project.repository.clone()], &viewer, cursor.clone());
-            // One unreachable repository must not blank the page. A host-level failure is already
-            // reported through `providers`, so it degrades the same way here.
-            let page = match Box::pin(provider.list(&request)).await {
-                Ok(page) => page,
-                Err(failure) => {
-                    tracing::warn!(host=%project.host,detail=%failure.detail,"pull request list failed");
-                    batches.push(failed(project));
-                    continue;
+            let (filters, project) = (input.filters.as_ref(), project.clone());
+            async move {
+                let project = &project;
+                let page = match Box::pin(provider.list(&request)).await {
+                    Ok(page) => page,
+                    Err(failure) => {
+                        tracing::warn!(host=%project.host,detail=%failure.detail,"pull request list failed");
+                        return failed(project);
+                    }
+                };
+                // The boundary instant was asked for inclusively, so the rows already sent at it come
+                // back with the slice; dropping them here keeps their neighbours from being skipped.
+                let fetched: Vec<&ProviderChangeRequest> = page.items.iter().collect();
+                let items: Vec<&ProviderChangeRequest> = match &cursor {
+                    None => fetched.clone(),
+                    Some(cursor) => fetched.iter().copied().filter(|item| item.updated_at != cursor.updated_before || !cursor.seen_at.contains(&item.number)).collect(),
+                };
+                let advance = page.cursor_advance.unwrap_or(items.len());
+                Batch {
+                    key: project.cursor_key.clone(),
+                    entries: items.iter().filter(|item| matches_row_filters(**item, filters, &viewer)).map(|item| to_entry(project, item, &viewer, observed_at)).collect(),
+                    errors: vec![],
+                    truncated: page.truncated,
+                    next_cursor: if page.continues && page.truncated { next_list_cursor(cursor.as_ref(), &fetched, advance) } else { None },
                 }
-            };
-            // The boundary instant was asked for inclusively, so the rows already sent at it come
-            // back with the slice; dropping them here keeps their neighbours from being skipped.
-            let fetched: Vec<&ProviderChangeRequest> = page.items.iter().collect();
-            let items: Vec<&ProviderChangeRequest> = match &cursor {
-                None => fetched.clone(),
-                Some(cursor) => fetched.iter().copied().filter(|item| item.updated_at != cursor.updated_before || !cursor.seen_at.contains(&item.number)).collect(),
-            };
-            let advance = page.cursor_advance.unwrap_or(items.len());
-            batches.push(Batch {
-                key: project.cursor_key.clone(),
-                entries: items.iter().filter(|item| matches_row_filters(**item, input.filters.as_ref(), &viewer)).map(|item| to_entry(project, item, &viewer, observed_at)).collect(),
-                errors: vec![],
-                truncated: page.truncated,
-                next_cursor: if page.continues && page.truncated { next_list_cursor(cursor.as_ref(), &fetched, advance) } else { None },
-            });
+            }
+        };
+        for project in separate {
+            batches.push(Box::pin(read_repository(project)).await);
         }
         for ((host, updated_before), group) in &groups {
             for chunk in group.chunks(REPOSITORY_SEARCH_CHUNK) {
@@ -356,17 +367,43 @@ impl PullRequestService {
                 let page = match Box::pin(provider.list_across(&request)).await {
                     Ok(page) => page,
                     Err(failure) => {
-                        tracing::warn!(host=%host,detail=%failure.detail,"pull request search failed");
-                        batches.extend(chunk.iter().map(|project| failed(project)));
+                        // The batch is an optimisation, and a host that could not answer one question
+                        // about twelve repositories should not report twelve repositories as unreadable
+                        // before anyone has asked it about them one at a time.
+                        tracing::warn!(host=%host,detail=%failure.detail,"pull request search failed; reading each repository on its own");
+                        for project in chunk {
+                            batches.push(Box::pin(read_repository(project)).await);
+                        }
                         continue;
                     }
                 };
                 let truncated = page.truncated;
                 let boundary = page.items.iter().map(|item| item.row.updated_at.as_str()).min().map(str::to_string);
+                let now = self.now();
+                {
+                    let mut visible = self.search_visible_at.lock().unwrap();
+                    visible.retain(|_, at| now.saturating_sub(*at) <= SEARCH_VISIBILITY_TTL);
+                    for item in &page.items {
+                        visible.insert(search_visibility_key(host, &item.repository), now);
+                    }
+                }
                 for project in chunk {
                     let fetched: Vec<&ProviderChangeRequest> =
                         page.items.iter().filter(|item| item.repository.trim().eq_ignore_ascii_case(project.repository.trim())).map(|item| &item.row).collect();
                     let cursor = cursor_of(project);
+                    // GitHub does not index every repository for search (a renamed one answers for its
+                    // old name with silence rather than with an error), so a repository the search said
+                    // nothing at all about is read on its own, once, before it is believed. Only on its
+                    // first slice: after that it has a boundary to carry on from, and silence past one
+                    // means the rows are older rather than absent. That keeps a search-invisible
+                    // repository from disappearing on a busy host, at the price of one request per
+                    // repository with nothing in the first slice.
+                    let known_visible = !truncated
+                        && self.search_visible_at.lock().unwrap().get(&search_visibility_key(&project.host, &project.repository)).is_some_and(|at| now.saturating_sub(*at) <= SEARCH_VISIBILITY_TTL);
+                    if fetched.is_empty() && cursor.is_none() && !known_visible {
+                        batches.push(Box::pin(read_repository(project)).await);
+                        continue;
+                    }
                     let items: Vec<&ProviderChangeRequest> = match &cursor {
                         None => fetched.clone(),
                         Some(cursor) => fetched.iter().copied().filter(|item| item.updated_at != cursor.updated_before || !cursor.seen_at.contains(&item.number)).collect(),

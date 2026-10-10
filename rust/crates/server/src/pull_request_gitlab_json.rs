@@ -14,37 +14,37 @@ use t3_contracts::{
     PullRequestReviewerKind, PullRequestState, PullRequestThreadComment, TrimmedNonEmptyString, trim_wire_string,
 };
 
-type R<T> = Result<T, ()>;
-type Fields = Map<String, Value>;
+pub(crate) type R<T> = Result<T, ()>;
+pub(crate) type Fields = Map<String, Value>;
 
 const MAX_SAFE: f64 = 9_007_199_254_740_991.0;
 
 // ---- schema readers -----------------------------------------------------------------------------
 
-fn parse(raw: &str) -> R<Value> {
+pub(crate) fn parse(raw: &str) -> R<Value> {
     serde_json::from_str(raw).map_err(|_| ())
 }
 
-fn fields(value: &Value) -> R<&Fields> {
+pub(crate) fn fields(value: &Value) -> R<&Fields> {
     value.as_object().ok_or(())
 }
 
 /// `Schema.Int`: a number with no fractional part (`1.0` reads as `1` in JavaScript).
-fn int_of(value: &Value) -> R<i64> {
+pub(crate) fn int_of(value: &Value) -> R<i64> {
     let number = value.as_f64().ok_or(())?;
     if number.fract() == 0.0 && number.abs() <= MAX_SAFE { Ok(number as i64) } else { Err(()) }
 }
 
-fn req_str<'a>(o: &'a Fields, key: &str) -> R<&'a str> {
+pub(crate) fn req_str<'a>(o: &'a Fields, key: &str) -> R<&'a str> {
     o.get(key).and_then(Value::as_str).ok_or(())
 }
 
-fn req_int(o: &Fields, key: &str) -> R<i64> {
+pub(crate) fn req_int(o: &Fields, key: &str) -> R<i64> {
     int_of(o.get(key).ok_or(())?)
 }
 
 /// `Schema.optional(Schema.NullOr(Schema.String))`.
-fn opt_nullable_str<'a>(o: &'a Fields, key: &str) -> R<Option<&'a str>> {
+pub(crate) fn opt_nullable_str<'a>(o: &'a Fields, key: &str) -> R<Option<&'a str>> {
     match o.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::String(text)) => Ok(Some(text)),
@@ -52,7 +52,7 @@ fn opt_nullable_str<'a>(o: &'a Fields, key: &str) -> R<Option<&'a str>> {
     }
 }
 
-fn opt_bool(o: &Fields, key: &str) -> R<Option<bool>> {
+pub(crate) fn opt_bool(o: &Fields, key: &str) -> R<Option<bool>> {
     match o.get(key) {
         None => Ok(None),
         Some(Value::Bool(flag)) => Ok(Some(*flag)),
@@ -60,7 +60,7 @@ fn opt_bool(o: &Fields, key: &str) -> R<Option<bool>> {
     }
 }
 
-fn opt_nullable_bool(o: &Fields, key: &str) -> R<Option<bool>> {
+pub(crate) fn opt_nullable_bool(o: &Fields, key: &str) -> R<Option<bool>> {
     match o.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(Value::Bool(flag)) => Ok(Some(*flag)),
@@ -68,14 +68,14 @@ fn opt_nullable_bool(o: &Fields, key: &str) -> R<Option<bool>> {
     }
 }
 
-fn opt_int(o: &Fields, key: &str) -> R<Option<i64>> {
+pub(crate) fn opt_int(o: &Fields, key: &str) -> R<Option<i64>> {
     match o.get(key) {
         None => Ok(None),
         Some(value) => int_of(value).map(Some),
     }
 }
 
-fn opt_nullable_int(o: &Fields, key: &str) -> R<Option<i64>> {
+pub(crate) fn opt_nullable_int(o: &Fields, key: &str) -> R<Option<i64>> {
     match o.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => int_of(value).map(Some),
@@ -83,7 +83,7 @@ fn opt_nullable_int(o: &Fields, key: &str) -> R<Option<i64>> {
 }
 
 /// `Schema.optional(Schema.NullOr(Struct))`.
-fn opt_nullable_object<'a>(o: &'a Fields, key: &str) -> R<Option<&'a Fields>> {
+pub(crate) fn opt_nullable_object<'a>(o: &'a Fields, key: &str) -> R<Option<&'a Fields>> {
     match o.get(key) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => fields(value).map(Some),
@@ -91,7 +91,7 @@ fn opt_nullable_object<'a>(o: &'a Fields, key: &str) -> R<Option<&'a Fields>> {
 }
 
 /// `Schema.optional(Schema.NullOr(Schema.Array(item)))`.
-fn opt_nullable_array<'a, T>(o: &'a Fields, key: &str, item: impl Fn(&'a Value) -> R<T>) -> R<Vec<T>> {
+pub(crate) fn opt_nullable_array<'a, T>(o: &'a Fields, key: &str, item: impl Fn(&'a Value) -> R<T>) -> R<Vec<T>> {
     match o.get(key) {
         None | Some(Value::Null) => Ok(vec![]),
         Some(Value::Array(entries)) => entries.iter().map(item).collect(),
@@ -99,7 +99,7 @@ fn opt_nullable_array<'a, T>(o: &'a Fields, key: &str, item: impl Fn(&'a Value) 
     }
 }
 
-fn trimmed(value: Option<&str>) -> Option<String> {
+pub(crate) fn trimmed(value: Option<&str>) -> Option<String> {
     let text = trim_wire_string(value.unwrap_or(""));
     (!text.is_empty()).then(|| text.to_string())
 }

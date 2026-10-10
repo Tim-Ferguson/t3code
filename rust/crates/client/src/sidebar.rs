@@ -194,17 +194,48 @@ pub fn is_pinned(thread: &ThreadShell) -> bool {
 pub fn pin_key(thread: &ThreadShell) -> (String, i64) {
     (thread.pin_order_key.clone().flatten().map(|key| key.to_string()).unwrap_or_default(), thread.pinned_at.flatten().map_or(0, |at| at.timestamp_millis()))
 }
-/// The wake time of a thread that is still snoozed at `now`.
-pub fn snoozed_until(thread: &ThreadShell, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    thread.snoozed_until.flatten().map(|at| at.0).filter(|wake| *wake > now)
+/// `threadRaisedHandWhileSnoozed`: something outranks the snooze, so the thread leaves the shelf
+/// early. The agent is blocked on the user, the run failed after the snooze was set, or a run
+/// completed after it.
+pub fn raised_hand(thread: &ThreadShell) -> bool {
+    if has_pending_approval(thread) || has_pending_input(thread) {
+        return true;
+    }
+    let snoozed_at = thread.snoozed_at.flatten().map(|at| at.0);
+    if runtime_status(thread) == Some("failed") && snoozed_at.is_none_or(|at| thread.updated_at.0 > at) {
+        return true;
+    }
+    snoozed_at.zip(run_completed_at(thread)).is_some_and(|(snoozed, done)| done > snoozed)
 }
-/// `threadWokeAt` for a snooze that ended on its timer: when the thread woke, or none while it is
-/// still snoozed or never was. The "Woke" mark stays until the thread is visited after that time,
-/// or it is settled (`isWoke` of `Sidebar.tsx`). A thread that raised its hand early is not read.
+/// When the latest run completed, if its status reads "completed" (a idle thread's does).
+fn run_completed_at(thread: &ThreadShell) -> Option<DateTime<Utc>> {
+    matches!(thread.status, ThreadStatus::Idle | ThreadStatus::Completed).then(|| completed_at(thread)).flatten()
+}
+/// `effectiveSnoozed`: the wake time is ahead and nothing has raised its hand. A wake time that has
+/// passed is no longer a snooze (nothing fires when it does; the row simply stops classifying).
+pub fn snoozed_until(thread: &ThreadShell, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    thread.snoozed_until.flatten().map(|at| at.0).filter(|wake| *wake > now).filter(|_| !raised_hand(thread))
+}
+/// `threadWokeAt` and the dismissal rule of `isWoke` (`Sidebar.tsx`): when the thread woke, or
+/// none while it is still snoozed or never was. A timer wake reports the wake time; an early wake
+/// reports the event that raised the hand. The mark stays until the thread is visited after that
+/// time, or it is settled.
 pub fn woke_at(thread: &ThreadShell, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
-    let wake = thread.snoozed_until.flatten().map(|at| at.0).filter(|wake| *wake <= now)?;
+    let wake = woke_time(thread, now)?;
     let visited_since = thread.last_visited_at.flatten().is_some_and(|visited| visited.0 >= wake);
     (!visited_since && thread.settled_override != Some(t3_contracts::SettledOverride::Settled)).then_some(wake)
+}
+/// `threadWokeAt` alone.
+pub fn woke_time(thread: &ThreadShell, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    let until = thread.snoozed_until.flatten()?.0;
+    if raised_hand(thread) {
+        let snoozed_at = thread.snoozed_at.flatten().map(|at| at.0);
+        if let Some(done) = snoozed_at.zip(run_completed_at(thread)).filter(|(snoozed, done)| done > snoozed).map(|(_, done)| done) {
+            return Some(done);
+        }
+        return if runtime_status(thread).is_some() { Some(thread.updated_at.0) } else { snoozed_at };
+    }
+    (until <= now).then_some(until)
 }
 /// `snoozeWakeLabel`: "2h", "18h", "3d"; minutes round up so a snooze never reads "0m".
 pub fn wake_label(until: &str, now: DateTime<Utc>) -> String {
@@ -254,6 +285,309 @@ pub fn snooze_presets(now: DateTime<Utc>, offset_minutes: i32) -> Vec<SnoozePres
     }
     let _ = local.hour();
     presets
+}
+
+// ---- sections and ordering ----------------------------------------------------------------------
+// Port of `resolveSidebarThreadSection` (`Sidebar.logic.ts`) and the sorts of `threadSort.ts`. The
+// original's beta "Working" shelf (`sidebarWorkingShelfEnabled`, off unless the user turns it on)
+// is not ported: threads that would fold into it stay in Active, which is what the original shows
+// with the setting off.
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Section {
+    Pinned,
+    Active,
+    Snoozed,
+    Settled,
+}
+impl Section {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Section::Pinned => "pinned",
+            Section::Active => "active",
+            Section::Snoozed => "snoozed",
+            Section::Settled => "settled",
+        }
+    }
+    pub fn parse(text: &str) -> Option<Section> {
+        Some(match text {
+            "pinned" => Section::Pinned,
+            "active" => Section::Active,
+            "snoozed" => Section::Snoozed,
+            "settled" => Section::Settled,
+            _ => return None,
+        })
+    }
+}
+
+/// What the server can do with the sections. A server without settlement never classifies a thread
+/// as settled (the user could neither unsettle nor pin it), and one without snooze never as snoozed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Support {
+    pub settlement: bool,
+    pub snooze: bool,
+}
+
+/// The shelf a thread belongs to. Snooze is temporary and wins until its wake time; settlement
+/// then wins over a stale pin.
+pub fn section_of(thread: &ThreadShell, now: DateTime<Utc>, support: Support) -> Section {
+    if support.snooze && snoozed_until(thread, now).is_some() {
+        Section::Snoozed
+    } else if support.settlement && thread.settled_override == Some(t3_contracts::SettledOverride::Settled) {
+        Section::Settled
+    } else if is_pinned(thread) {
+        Section::Pinned
+    } else {
+        Section::Active
+    }
+}
+
+fn millis(at: Option<DateTime<Utc>>) -> Option<i64> {
+    at.map(|at| at.timestamp_millis())
+}
+/// `resolveSettledThreadTimestamp`, in milliseconds: when it was settled, else the latest
+/// message or run stamp, else when it last changed.
+pub fn settled_timestamp(thread: &ThreadShell) -> i64 {
+    if let Some(at) = thread.settled_at {
+        return at.timestamp_millis();
+    }
+    let run = thread.latest_run_id.is_some();
+    let stamp = |field: Option<Option<t3_contracts::UtcDateTime>>| millis(field.flatten().map(|at| at.0)).filter(|_| run);
+    let completed = if !run { None } else { millis(completed_at(thread)) };
+    [millis(thread.latest_user_message_at.map(|at| at.0)), stamp(thread.latest_run_requested_at), stamp(thread.latest_run_started_at), completed]
+        .into_iter()
+        .flatten()
+        .max()
+        .unwrap_or_else(|| thread.updated_at.timestamp_millis())
+}
+/// `sortSettledThreads`: newest end first.
+pub fn sort_settled(threads: &mut [&ThreadShell]) {
+    threads.sort_by(|left, right| settled_timestamp(right).cmp(&settled_timestamp(left)).then_with(|| left.id.as_str().cmp(right.id.as_str())));
+}
+/// `sortPinnedThreadsByOrderKey`: the arranged pins by key, then the keyless newest first.
+pub fn sort_pinned(threads: &mut [&ThreadShell]) {
+    let key = |thread: &ThreadShell| thread.pin_order_key.clone().flatten().map(|key| key.to_string());
+    threads.sort_by(|left, right| match (key(left), key(right)) {
+        (Some(a), Some(b)) => a.cmp(&b).then_with(|| left.id.as_str().cmp(right.id.as_str())),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => right.created_at.timestamp_millis().cmp(&left.created_at.timestamp_millis()).then_with(|| left.id.as_str().cmp(right.id.as_str())),
+    });
+}
+/// `activeThreadAnchorTimestampMs`: creation, or the last time it came back from settled.
+fn active_anchor(thread: &ThreadShell) -> i64 {
+    thread.created_at.timestamp_millis().max(thread.unsettled_at.flatten().map_or(0, |at| at.timestamp_millis()))
+}
+/// `sortActiveThreadsByOrderKey`: new and reopened threads first (newest anchor first), then the
+/// arranged ones by key.
+pub fn sort_active(threads: &mut [&ThreadShell]) {
+    let key = |thread: &ThreadShell| thread.active_order_key.clone().flatten().map(|key| key.to_string());
+    threads.sort_by(|left, right| match (key(left), key(right)) {
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(a), Some(b)) => a.cmp(&b).then_with(|| left.id.as_str().cmp(right.id.as_str())),
+        (None, None) => active_anchor(right).cmp(&active_anchor(left)).then_with(|| left.id.as_str().cmp(right.id.as_str())),
+    });
+}
+
+/// A project's threads, split into the sections the sidebar lists them in.
+#[derive(Debug, Default)]
+pub struct Sections<'a> {
+    pub pinned: Vec<&'a ThreadShell>,
+    pub active: Vec<&'a ThreadShell>,
+    /// Soonest wake first: what comes back next.
+    pub snoozed: Vec<&'a ThreadShell>,
+    pub settled: Vec<&'a ThreadShell>,
+}
+impl<'a> Sections<'a> {
+    pub fn of(threads: impl IntoIterator<Item = &'a ThreadShell>, now: DateTime<Utc>, support: Support) -> Self {
+        let mut sections = Sections::default();
+        for thread in threads {
+            match section_of(thread, now, support) {
+                Section::Pinned => sections.pinned.push(thread),
+                Section::Active => sections.active.push(thread),
+                Section::Snoozed => sections.snoozed.push(thread),
+                Section::Settled => sections.settled.push(thread),
+            }
+        }
+        sort_pinned(&mut sections.pinned);
+        sort_active(&mut sections.active);
+        sections.snoozed.sort_by_key(|thread| thread.snoozed_until.flatten().map_or(0, |at| at.timestamp_millis()));
+        sort_settled(&mut sections.settled);
+        sections
+    }
+    pub fn section(&self, section: Section) -> &[&'a ThreadShell] {
+        match section {
+            Section::Pinned => &self.pinned,
+            Section::Active => &self.active,
+            Section::Snoozed => &self.snoozed,
+            Section::Settled => &self.settled,
+        }
+    }
+    pub fn section_mut(&mut self, section: Section) -> &mut Vec<&'a ThreadShell> {
+        match section {
+            Section::Pinned => &mut self.pinned,
+            Section::Active => &mut self.active,
+            Section::Snoozed => &mut self.snoozed,
+            Section::Settled => &mut self.settled,
+        }
+    }
+}
+
+/// The settled shelf lists this many rows, then this many more per "Show more".
+pub const SETTLED_INITIAL: usize = 10;
+pub const SETTLED_PAGE: usize = 25;
+/// The rows of a collapsed or paged shelf: the thread that is open never hides behind it.
+/// `limit` is how many rows the shelf shows when expanded.
+pub fn shelf_rows<'a>(shelf: &[&'a ThreadShell], expanded: bool, limit: usize, open: Option<&str>) -> Vec<&'a ThreadShell> {
+    let mut rows: Vec<&ThreadShell> = if expanded { shelf.iter().copied().take(limit).collect() } else { Vec::new() };
+    if let Some(open) = open.filter(|open| !rows.iter().any(|row| row.id.as_str() == *open)) {
+        rows.extend(shelf.iter().copied().find(|row| row.id.as_str() == open));
+    }
+    rows
+}
+
+// ---- dropping a row -------------------------------------------------------------------------------
+// Port of `resolveSidebarDropVerb` and `planSidebarThreadDrop` (`Sidebar.logic.ts`).
+
+/// What dropping on a section does, for the badge on the lifted row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DropVerb {
+    Pin,
+    Unpin,
+    Settle,
+    Unsettle,
+    Wake,
+}
+impl DropVerb {
+    pub fn label(self) -> &'static str {
+        match self {
+            DropVerb::Pin => "Pin",
+            DropVerb::Unpin => "Unpin",
+            DropVerb::Settle => "Settle",
+            DropVerb::Unsettle => "Unsettle",
+            DropVerb::Wake => "Wake",
+        }
+    }
+}
+/// `resolveSidebarDropVerb`; none while reordering inside one section and for the shelves that
+/// cannot be dropped on.
+pub fn drop_verb(from: Section, to: Option<Section>) -> Option<DropVerb> {
+    let to = to?;
+    if to == from || to == Section::Snoozed {
+        return None;
+    }
+    Some(match (to, from) {
+        (Section::Pinned, _) => DropVerb::Pin,
+        (Section::Settled, _) => DropVerb::Settle,
+        (_, Section::Pinned) => DropVerb::Unpin,
+        (_, Section::Settled) => DropVerb::Unsettle,
+        _ => DropVerb::Wake,
+    })
+}
+
+/// The order of the section a drop lands in, with the thread moved into place.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DropTarget {
+    pub section: Section,
+    pub pinned_order: Vec<String>,
+    pub active_order: Vec<String>,
+}
+/// Where the row lands: `section`, in front of `before` (or last when none).
+pub fn drop_target(sections: &Sections, moved: &str, section: Section, before: Option<&str>) -> Option<DropTarget> {
+    if section == Section::Snoozed {
+        return None;
+    }
+    let ids = |list: &[&ThreadShell]| -> Vec<String> { list.iter().map(|thread| thread.id.to_string()).filter(|id| id != moved).collect() };
+    let (mut pinned_order, mut active_order) = (ids(&sections.pinned), ids(&sections.active));
+    let list = match section {
+        Section::Pinned => &mut pinned_order,
+        Section::Active => &mut active_order,
+        _ => return Some(DropTarget { section, pinned_order: ids(&sections.pinned), active_order: ids(&sections.active) }),
+    };
+    let at = before.and_then(|before| list.iter().position(|id| id == before)).unwrap_or(list.len());
+    list.insert(at, moved.to_owned());
+    Some(DropTarget { section, pinned_order, active_order })
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assignment {
+    pub id: String,
+    pub order_key: String,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub enum DropPlan {
+    None,
+    /// Within the pinned block: the key writes.
+    ReorderPinned { order: Vec<String>, assignments: Vec<Assignment> },
+    /// From another section into the pinned block. A fresh pin takes `order_key` on the pin
+    /// command; `extra` land afterwards.
+    Pin { order: Vec<String>, order_key: Option<String>, extra: Vec<Assignment> },
+    MoveActive { order: Vec<String>, assignments: Vec<Assignment>, unpin: bool, unsettle: bool, unsnooze: bool },
+    Settle,
+}
+
+/// What the drop of a thread asks the server for. `pinned_keys` and `active_keys` hold every
+/// thread's key, hidden ones too, so a new key never lands on a taken slot. `pin_writable` and
+/// `active_writable` are the threads whose server can store an order.
+pub struct DropInput<'a> {
+    pub moved: &'a str,
+    pub from: Section,
+    pub moved_pinned: bool,
+    pub moved_settled: bool,
+    pub supports_settlement: bool,
+    pub target: &'a DropTarget,
+    pub pinned_order: &'a [String],
+    pub pinned_keys: &'a std::collections::BTreeMap<String, Option<String>>,
+    pub pin_writable: Option<&'a std::collections::BTreeSet<String>>,
+    pub active_order: &'a [String],
+    pub active_keys: &'a std::collections::BTreeMap<String, Option<String>>,
+    pub active_writable: Option<&'a std::collections::BTreeSet<String>>,
+}
+pub fn plan_drop(input: &DropInput) -> DropPlan {
+    use std::collections::{BTreeMap, BTreeSet};
+    if !input.supports_settlement && (input.target.section == Section::Settled || input.moved_settled) {
+        return DropPlan::None;
+    }
+    // Rows whose server cannot store an order are never written; keyless ones leave the plan, keyed ones stay as bounds.
+    let arrange = |order: &[String], keys: &BTreeMap<String, Option<String>>, writable: Option<&BTreeSet<String>>| -> Option<Vec<Assignment>> {
+        let to_assignments = |writes: Vec<(String, String)>| writes.into_iter().map(|(id, order_key)| Assignment { id, order_key }).collect::<Vec<_>>();
+        let Some(writable) = writable else { return Some(to_assignments(crate::pin_order::plan_reorder(order, keys, input.moved))) };
+        if !writable.contains(input.moved) {
+            return None;
+        }
+        let usable: Vec<String> = order.iter().filter(|id| writable.contains(*id) || keys.get(*id).cloned().flatten().is_some()).cloned().collect();
+        let assignments = to_assignments(crate::pin_order::plan_reorder(&usable, keys, input.moved));
+        assignments.iter().all(|assignment| writable.contains(&assignment.id)).then_some(assignments)
+    };
+    let same = |order: &[String], current: &[String]| order.len() == current.len() && order.iter().zip(current).all(|(a, b)| a == b);
+    match input.target.section {
+        Section::Active => {
+            let order = &input.target.active_order;
+            if input.from == Section::Active && same(order, input.active_order) {
+                return DropPlan::None;
+            }
+            let Some(assignments) = arrange(order, input.active_keys, input.active_writable) else { return DropPlan::None };
+            DropPlan::MoveActive { order: order.clone(), assignments, unpin: input.moved_pinned, unsettle: input.moved_settled, unsnooze: input.from == Section::Snoozed }
+        }
+        Section::Settled => if input.from == Section::Settled { DropPlan::None } else { DropPlan::Settle },
+        Section::Pinned => {
+            let order = &input.target.pinned_order;
+            if input.from == Section::Pinned && same(order, input.pinned_order) {
+                return DropPlan::None;
+            }
+            let Some(assignments) = arrange(order, input.pinned_keys, input.pin_writable) else { return DropPlan::None };
+            if input.from == Section::Pinned {
+                return if assignments.is_empty() { DropPlan::None } else { DropPlan::ReorderPinned { order: order.clone(), assignments } };
+            }
+            DropPlan::Pin {
+                order: order.clone(),
+                order_key: assignments.iter().find(|assignment| assignment.id == input.moved).map(|assignment| assignment.order_key.clone()),
+                extra: if input.moved_pinned { assignments } else { assignments.into_iter().filter(|assignment| assignment.id != input.moved).collect() },
+            }
+        }
+        Section::Snoozed => DropPlan::None,
+    }
 }
 
 #[cfg(test)]

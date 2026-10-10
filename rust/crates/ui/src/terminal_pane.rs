@@ -705,9 +705,11 @@ fn CanvasPane(
                     // The selection asked for by "Add selection to chat": a chip on this thread's draft.
                     Some("selection") => {
                         let text = event["text"].as_str().unwrap_or("");
-                        let lines = text.replace("\r\n", "\n").trim_matches('\n').lines().count().max(1) as u64;
+                        // Where the selection sits in the terminal's history, when the surface says; else its own lines, counted from 1.
+                        let own = text.replace("\r\n", "\n").trim_matches('\n').lines().count().max(1) as u64;
+                        let (first, last) = t3_client::composer_context::terminal_selection_lines(event["position"].as_str().unwrap_or("")).unwrap_or((1, own));
                         let label = t3_client::terminal_labels::label(&terminal, None);
-                        match t3_client::composer_context::terminal_record(&uuid::Uuid::new_v4().simple().to_string(), &terminal, &label, 1, lines, text) {
+                        match t3_client::composer_context::terminal_record(&uuid::Uuid::new_v4().simple().to_string(), &terminal, &label, first, last, text) {
                             Some(record) => crate::composer_chips::add(state, t3_client::draft_storage::DraftTarget::thread(environment.clone(), thread.clone()), record),
                             None => crate::notice::push(state, crate::notice::Level::Info, "Nothing selected", "Select text in the terminal, then add it to the chat."),
                         }

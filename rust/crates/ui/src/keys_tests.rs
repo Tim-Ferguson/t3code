@@ -517,6 +517,10 @@ async fn thread_shortcuts_move_through_the_sidebar_order_and_stop_at_its_ends() 
     let fixture = Fixture::start(false).await;
     let (mut dom, props, state) = connect(&fixture, &OPERATE).await;
     let active = || state.active_thread().peek().clone();
+    // The sidebar lists the newest thread first (the active list's order), whatever the names say.
+    let order = crate::keys::sidebar_order(state);
+    assert_eq!(order.len(), 2, "{order:?}");
+    let (first, second) = (order[0].as_str(), order[1].as_str());
     // Whether a chord is claimed depends on which thread is open, through a memo that settles only
     // once the app has rendered the thread. Every step therefore waits for the opened thread to be
     // on screen (the timeline reads its projection) before the next key is pressed.
@@ -535,22 +539,22 @@ async fn thread_shortcuts_move_through_the_sidebar_order_and_stop_at_its_ends() 
     };
     // With no thread open, next is the first thread; previous would be the last.
     assert_eq!(press(&mut dom, bracket(true, true), Dom::default()).await.as_deref(), Some("thread.next"));
-    assert_eq!(active().as_deref(), Some("thread-a"));
-    opened!(&mut dom, "thread-a");
+    assert_eq!(active().as_deref(), Some(first));
+    opened!(&mut dom, first);
     assert_eq!(press(&mut dom, bracket(true, true), Dom::default()).await.as_deref(), Some("thread.next"));
-    assert_eq!(active().as_deref(), Some("thread-b"));
-    opened!(&mut dom, "thread-b");
+    assert_eq!(active().as_deref(), Some(second));
+    opened!(&mut dom, second);
     // At the last thread there is nothing further, so the chord is not claimed.
     assert_eq!(press(&mut dom, bracket(true, true), Dom::default()).await, None);
     assert_eq!(press(&mut dom, bracket(false, true), Dom::default()).await.as_deref(), Some("thread.previous"));
-    assert_eq!(active().as_deref(), Some("thread-a"));
-    opened!(&mut dom, "thread-a");
+    assert_eq!(active().as_deref(), Some(first));
+    opened!(&mut dom, first);
     // Jumping by number is a desktop shortcut.
     let mut two = chord("2", false, false);
     two.code = "Digit2".into();
     assert_eq!(press(&mut dom, two.clone(), Dom::default()).await.as_deref(), Some("thread.jump.2"));
-    assert_eq!(active().as_deref(), Some("thread-b"));
-    opened!(&mut dom, "thread-b");
+    assert_eq!(active().as_deref(), Some(second));
+    opened!(&mut dom, second);
     two.key = "3".into();
     two.code = "Digit3".into();
     assert_eq!(press(&mut dom, two, Dom::default()).await, None, "there is no third thread");
