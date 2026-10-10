@@ -240,6 +240,8 @@ pub(crate) enum Kind {
 pub(crate) enum Change<'a> {
     Started,
     Delta(&'a str),
+    /// The block's text so far, whole (1.x sends the part's text with every update).
+    Replace(&'a str),
     Ended(&'a str),
 }
 struct Block {
@@ -366,20 +368,20 @@ impl Projector {
         self.ordinals.insert(native.to_owned(), next);
         next
     }
-    fn provider_turn(&self, view: &Value) -> Result<Value, StoreError> {
+    pub(crate) fn provider_turn(&self, view: &Value) -> Result<Value, StoreError> {
         if let Some(turn) = &self.provider_turn_override {
             return Ok(turn.clone());
         }
         let (_, attempt) = self.ctx.rows(view)?;
         Ok(attempt["providerTurnId"].clone())
     }
-    fn provider_thread(&self) -> Value {
+    pub(crate) fn provider_thread(&self) -> Value {
         self.provider_thread_override.clone().unwrap_or_else(|| self.ctx.provider_thread_id.clone())
     }
-    fn base_item(&self, id: &str, node: &Value, ordinal: u64, status: &str, native: &str, started: &str, completed: Option<&str>, updated: &str, provider_turn: &Value) -> Value {
+    pub(crate) fn base_item(&self, id: &str, node: &Value, ordinal: u64, status: &str, native: &str, started: &str, completed: Option<&str>, updated: &str, provider_turn: &Value) -> Value {
         json!({"id":id,"threadId":self.thread_id,"runId":self.run_id,"nodeId":node,"providerThreadId":self.provider_thread(),"providerTurnId":provider_turn,"nativeItemRef":native_ref(native, "strong"),"parentItemId":null,"ordinal":ordinal,"status":status,"title":null,"startedAt":started,"completedAt":completed,"updatedAt":updated})
     }
-    fn node(&self, native: &str, kind: &str, status: &str, started: &str, completed: Option<&str>, provider_turn: &Value) -> Value {
+    pub(crate) fn node(&self, native: &str, kind: &str, status: &str, started: &str, completed: Option<&str>, provider_turn: &Value) -> Value {
         json!({"id":node_id(native),"threadId":self.thread_id,"runId":self.run_id,"parentNodeId":self.ctx.root_node_id,"rootNodeId":self.ctx.root_node_id,"kind":kind,"status":status,"countsForRun":false,"providerThreadId":self.provider_thread(),"providerTurnId":provider_turn,"nativeItemRef":native_ref(native, "strong"),"runtimeRequestId":null,"checkpointScopeId":null,"startedAt":started,"completedAt":completed})
     }
 
@@ -391,6 +393,10 @@ impl Projector {
     /// written whole.
     pub(crate) fn apply_text(&mut self, data: &Value, kind: Kind, change: Change<'_>, now_ms: i64) -> Option<(String, String, bool)> {
         let native = format!("{}:{}:{}", data["assistantMessageID"].as_str().unwrap_or(""), if kind == Kind::Text { "text" } else { "reasoning" }, data["ordinal"].as_u64().unwrap_or(0));
+        self.apply_text_native(native, kind, change, now_ms)
+    }
+    /// [`Projector::apply_text`] for a block the source names itself.
+    pub(crate) fn apply_text_native(&mut self, native: String, kind: Kind, change: Change<'_>, now_ms: i64) -> Option<(String, String, bool)> {
         let started = at(Utc::now());
         let block = self.texts.entry(native.clone()).or_insert_with(|| Block { kind, started_at: started, text: String::new(), delivered: None });
         match change {
@@ -399,8 +405,12 @@ impl Projector {
                 block.text = text.to_owned();
                 Some((native, text.to_owned(), true))
             }
-            Change::Delta(delta) => {
-                block.text.push_str(delta);
+            Change::Delta(_) | Change::Replace(_) => {
+                match change {
+                    Change::Delta(delta) => block.text.push_str(delta),
+                    Change::Replace(text) => block.text = text.to_owned(),
+                    _ => {}
+                }
                 if !self.paragraphs {
                     return None;
                 }
@@ -617,7 +627,10 @@ impl Projector {
                 item["title"] = json!(title);
                 item["requestKind"] = json!(kind);
                 item["prompt"] = json!(prompt);
-                item["options"] = options.clone();
+                // 1.x offers no choices beyond approve and decline, so its request carries none.
+                if !options.is_null() {
+                    item["options"] = options.clone();
+                }
             }
             RequestBody::Questions(questions) => {
                 item["type"] = json!("user_input_request");

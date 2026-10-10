@@ -7,7 +7,8 @@
       "id": "server.info",
       "parameters": [],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": { "$ref": "#/components/schemas/ServerInfo" }
     },
     {
       "method": "GET",
@@ -33,7 +34,16 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Agent.Info" } }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -115,7 +125,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": { "$ref": "#/components/schemas/SessionsResponse" }
     },
     {
       "method": "POST",
@@ -142,7 +153,13 @@
         },
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Info" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -150,7 +167,19 @@
       "id": "session.active",
       "parameters": [],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "patternProperties": { "^ses": { "$ref": "#/components/schemas/SessionActive" } },
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -165,7 +194,13 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Info" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "DELETE",
@@ -180,7 +215,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "PATCH",
@@ -207,7 +243,8 @@
         },
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -228,7 +265,13 @@
         },
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Info" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "POST",
@@ -248,7 +291,8 @@
         "required": ["agent"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -268,7 +312,8 @@
         "required": ["model"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -293,7 +338,8 @@
         "required": ["directory"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -333,7 +379,13 @@
         "required": ["text"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Inbox.User" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "POST",
@@ -371,7 +423,8 @@
         "required": ["name", "text"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -400,7 +453,13 @@
         "required": ["text"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Inbox.Synthetic" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "POST",
@@ -423,7 +482,8 @@
         "required": ["command"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -447,7 +507,13 @@
         },
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Inbox.Compaction" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "POST",
@@ -470,7 +536,13 @@
         "required": ["messageID"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Revert" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "DELETE",
@@ -485,7 +557,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "POST",
@@ -500,7 +573,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "GET",
@@ -515,7 +589,18 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Session.Message.Info" }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -557,7 +642,15 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/FileDiff.Info" } }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -572,7 +665,18 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Session.Inbox.Info" }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "DELETE",
@@ -593,7 +697,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "PATCH",
@@ -619,7 +724,8 @@
         "required": ["delivery"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "GET",
@@ -634,7 +740,18 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/InstructionEntry.Info" }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "PUT",
@@ -660,7 +777,8 @@
         "required": ["value"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "DELETE",
@@ -681,7 +799,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "POST",
@@ -701,7 +820,8 @@
         "required": ["prompt"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": { "$ref": "#/components/schemas/SessionGenerateResponse" }
     },
     {
       "method": "POST",
@@ -724,7 +844,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": { "$ref": "#/components/schemas/SessionInterruptResponse" }
     },
     {
       "method": "POST",
@@ -739,7 +860,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "GET",
@@ -760,7 +882,13 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Session.Message.Info" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -770,7 +898,15 @@
         { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Form.Info" } }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "POST",
@@ -780,7 +916,13 @@
         { "name": "sessionID", "in": "path", "required": true, "schema": { "type": "string" } }
       ],
       "body": { "$ref": "#/components/schemas/Form.CreatePayload" },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Form.Info" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -796,7 +938,13 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Form.Detail" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "DELETE",
@@ -818,7 +966,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "POST",
@@ -834,7 +983,8 @@
         }
       ],
       "body": { "$ref": "#/components/schemas/Form.Reply" },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "PUT",
@@ -856,7 +1006,8 @@
         "required": ["variables"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "POST",
@@ -876,7 +1027,8 @@
         "required": ["idle"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "GET",
@@ -949,7 +1101,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": { "$ref": "#/components/schemas/SessionMessagesResponse" }
     },
     {
       "method": "GET",
@@ -975,7 +1128,16 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Model.Info" } }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "PUT",
@@ -1014,7 +1176,8 @@
         "required": ["config"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "DELETE",
@@ -1041,7 +1204,8 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     },
     {
       "method": "POST",
@@ -1069,7 +1233,23 @@
         "required": ["action", "resources"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string", "pattern": "^per" },
+              "effect": { "$ref": "#/components/schemas/Permission.Effect" }
+            },
+            "required": ["id", "effect"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -1084,7 +1264,18 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Permission.Request" }
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -1105,7 +1296,13 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": { "data": { "$ref": "#/components/schemas/Permission.Request" } },
+        "required": ["data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "POST",
@@ -1134,7 +1331,8 @@
         "required": ["decision"],
         "additionalProperties": false
       },
-      "bodyRequired": true
+      "bodyRequired": true,
+      "response": null
     },
     {
       "method": "GET",
@@ -1160,7 +1358,16 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Command.Info" } }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -1186,7 +1393,16 @@
         }
       ],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": {
+        "type": "object",
+        "properties": {
+          "location": { "$ref": "#/components/schemas/Location.PublicRef" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Skill.Info" } }
+        },
+        "required": ["location", "data"],
+        "additionalProperties": false
+      }
     },
     {
       "method": "GET",
@@ -1194,7 +1410,8 @@
       "id": "event.subscribe",
       "parameters": [],
       "body": null,
-      "bodyRequired": false
+      "bodyRequired": false,
+      "response": null
     }
   ],
   "schemas": {

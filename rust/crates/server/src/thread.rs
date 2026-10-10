@@ -1064,6 +1064,11 @@ pub(crate) fn projection_after(
 
 pub fn shell(projection: &Value) -> Value {
     let mut shell = projection["thread"].clone();
+    // The rollback bookkeeping belongs to the thread record only; the shell schema does not carry it.
+    if let Some(record) = shell.as_object_mut() {
+        record.remove("rollbackRequestId");
+        record.remove("rollbackFailure");
+    }
     // The run the thread's outcome is read from, and why it stopped (`orchestrationV2ThreadError`).
     let (latest, last_error, last_error_class, usage_limit_reset_at) = crate::usage_limits::shell_fields(projection);
     shell["lastError"] = last_error;

@@ -1,0 +1,44 @@
+{
+  "enableProviderUpdateChecks": false,
+  "projectScriptOverrides": {
+    "v1-project": [
+      {
+        "id": "build",
+        "name": "Build",
+        "command": "make",
+        "icon": "build",
+        "runOnWorktreeCreate": false
+      }
+    ]
+  },
+  "projectSettingsOverrides": {
+    "v1-project": {
+      "defaultModelSelection": {
+        "instanceId": "codex",
+        "model": "gpt-5-codex"
+      },
+      "defaultProjectScripts": [
+        {
+          "id": "build",
+          "name": "Build",
+          "command": "make",
+          "icon": "build",
+          "runOnWorktreeCreate": false
+        }
+      ]
+    }
+  },
+  "projectSettingsFolded": true,
+  "sidebarAutoSettleAfterDays": null,
+  "providers": {
+    "cursor": {
+      "enabled": false
+    },
+    "grok": {
+      "enabled": false
+    },
+    "opencode": {
+      "enabled": false
+    }
+  }
+}

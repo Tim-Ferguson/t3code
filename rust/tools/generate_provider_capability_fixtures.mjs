@@ -12,7 +12,7 @@ import { makePiAdapterV2 } from "../../apps/server/src/orchestration-v2/Adapters
 
 const plain = (value) => JSON.parse(JSON.stringify(value));
 // OpenCode 2.x declares its capabilities as a module constant that is not exported. The literal holds only plain
-// values, so it is read from the source and evaluated alone. (1.x, which the port does not drive, declares another.)
+// values, so it is read from the source and evaluated alone. (1.x declares another set, below.)
 const openCode2 = () => {
   const source = readFileSync(
     new URL(
@@ -24,6 +24,21 @@ const openCode2 = () => {
   const start = source.indexOf("const OpenCode2ProviderCapabilities = {");
   const end = source.indexOf("} satisfies OrchestrationV2ProviderCapabilities;", start);
   if (start < 0 || end < 0) throw new Error("OpenCode2ProviderCapabilities was not found");
+  const literal = source.slice(source.indexOf("{", start), end + 1);
+  return plain(new Function(`return (${literal});`)());
+};
+// OpenCode 1.x declares its capabilities the same way, in its own adapter.
+const openCode1 = () => {
+  const source = readFileSync(
+    new URL(
+      "../../apps/server/src/orchestration-v2/Adapters/OpenCodeAdapterV2.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const start = source.indexOf("const OpenCodeProviderCapabilitiesV2 = {");
+  const end = source.indexOf("} satisfies OrchestrationV2ProviderCapabilities;", start);
+  if (start < 0 || end < 0) throw new Error("OpenCodeProviderCapabilitiesV2 was not found");
   const literal = source.slice(source.indexOf("{", start), end + 1);
   return plain(new Function(`return (${literal});`)());
 };
@@ -44,6 +59,7 @@ const rows = {
   grok: plain(GrokProviderCapabilitiesV2),
   pi: plain(await Effect.runPromise(pi.getCapabilities())),
   opencode: openCode2(),
+  opencode1: openCode1(),
 };
 const target = new URL(
   "../crates/server/tests/fixtures/provider-capabilities.json",

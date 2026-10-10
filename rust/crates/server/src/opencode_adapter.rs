@@ -48,16 +48,16 @@ pub(crate) const STILL_STOPPING: &str = "OpenCode is still stopping the previous
 /// Sent with a declined permission. A reject without a message is OpenCode's "stop": it ends the whole execution.
 const DECLINED: &str = "The user declined this request.";
 
-fn error(message: impl std::fmt::Display) -> StoreError {
+pub(crate) fn error(message: impl std::fmt::Display) -> StoreError {
     StoreError::InvalidCommand(message.to_string())
 }
-fn view(store: &Store, thread_id: &str) -> Result<Value, StoreError> {
+pub(crate) fn view(store: &Store, thread_id: &str) -> Result<Value, StoreError> {
     crate::codex_runtime::projection(store, thread_id)
 }
-fn thread_ref(id: &str) -> Value {
+pub(crate) fn thread_ref(id: &str) -> Value {
     json!({"driver":DRIVER,"nativeId":id,"strength":"strong"})
 }
-fn workspace(store: &Store, thread_id: &str) -> Result<PathBuf, String> {
+pub(crate) fn workspace(store: &Store, thread_id: &str) -> Result<PathBuf, String> {
     let view = view(store, thread_id).map_err(|e| e.to_string())?;
     let project = store.projection("project", view["thread"]["projectId"].as_str().unwrap_or("")).map_err(|e| e.to_string())?.ok_or("Project not found.")?;
     let cwd = view["thread"]["worktreePath"].as_str().or_else(|| project["workspaceRoot"].as_str()).ok_or("Workspace root missing.")?;
@@ -67,7 +67,7 @@ fn workspace(store: &Store, thread_id: &str) -> Result<PathBuf, String> {
     }
     Ok(cwd)
 }
-fn str_of(value: &Value) -> String {
+pub(crate) fn str_of(value: &Value) -> String {
     value.as_str().unwrap_or("").to_owned()
 }
 fn non_blank(value: &Value) -> Option<String> {
@@ -124,13 +124,13 @@ fn agent_paths(rules: &[Value]) -> Vec<Value> {
 // ---- turns ----
 
 #[derive(Clone)]
-enum Terminal {
+pub(crate) enum Terminal {
     Completed,
     Interrupted,
     Failed(Value),
 }
 impl Terminal {
-    fn status(&self) -> &'static str {
+    pub(crate) fn status(&self) -> &'static str {
         match self {
             Terminal::Completed => "completed",
             Terminal::Interrupted => "interrupted",
@@ -141,7 +141,7 @@ impl Terminal {
         self.status()
     }
 }
-fn failure(message: &str, class: &str) -> Value {
+pub(crate) fn failure(message: &str, class: &str) -> Value {
     crate::provider_failure::make(&json!({"message":message,"class":class}))
 }
 
@@ -328,9 +328,9 @@ struct Actor {
     announced: HashMap<String, Value>,
 }
 
-struct Models;
+pub(crate) struct Models;
 impl Models {
-    fn parse_slug(slug: &str) -> Option<(String, String)> {
+    pub(crate) fn parse_slug(slug: &str) -> Option<(String, String)> {
         let trimmed = slug.trim();
         let at = trimmed.find('/')?;
         (at > 0 && at < trimmed.len() - 1).then(|| (trimmed[..at].to_owned(), trimmed[at + 1..].to_owned()))
@@ -352,7 +352,7 @@ fn same_model(left: &Value, right: Option<&Value>) -> bool {
     right.is_some_and(|right| left["providerID"] == right["providerID"] && left["id"] == right["id"] && variant(left) == variant(right))
 }
 /// `/name args` naming one of the workspace's commands, which OpenCode expands itself.
-fn command_of(text: &str) -> Option<(String, String)> {
+pub(crate) fn command_of(text: &str) -> Option<(String, String)> {
     static PATTERN: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let pattern = PATTERN.get_or_init(|| regex::Regex::new(r"^/([^\s/]+)(?:\s+([\s\S]*))?$").unwrap());
     let captures = pattern.captures(text.trim())?;
@@ -365,7 +365,7 @@ fn is_currency(character: char) -> bool {
 /// `SKILL_MENTION_PATTERN` (`composerInlineTokens.ts`): the names `$name` tokens carry, each opening the text or following
 /// whitespace and followed by whitespace or the end. A name may start with a digit, but compact amounts and numeric
 /// expressions like `$20k` stay prose, and it must contain a letter.
-fn skill_mentions(text: &str) -> Vec<String> {
+pub(crate) fn skill_mentions(text: &str) -> Vec<String> {
     static NUMERIC: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let numeric = NUMERIC.get_or_init(|| regex::Regex::new(r"^[0-9][0-9_]*(?:[kKmMbBtT]|[eE][0-9]+)?(?:\s|$)").unwrap());
     let mut names = vec![];
@@ -498,7 +498,7 @@ impl Actor {
         // prompt call, so no event of theirs is missed.
         let connection = actor.instance.connect(&actor.cwd, actor.clock.clone()).await.map_err(|e| e.to_string())?;
         if connection.generation != Generation::V2 {
-            return Err("This OpenCode server is 1.x, which this build does not drive yet.".into());
+            return Err("This OpenCode server is 1.x; the 1.x adapter drives it.".into());
         }
         actor.open_stream(connection).await.map_err(|e| e.to_string())?;
         let session = actor.session.clone();
@@ -2427,7 +2427,7 @@ enum Asked {
     Form(Value),
 }
 /// The model OpenCode reports running, as the provider thread names it.
-fn reported_selection(instance: &Value, model: &Value) -> Value {
+pub(crate) fn reported_selection(instance: &Value, model: &Value) -> Value {
     let mut selection = json!({"instanceId":instance,"model":format!("{}/{}", str_of(&model["providerID"]), str_of(&model["id"])),"options":[]});
     if let Some(variant) = model["variant"].as_str() {
         selection["options"] = json!([{"id":"variant","value":variant}]);
@@ -2446,6 +2446,14 @@ fn boundary_after(turns: &[Value], provider_thread_id: &Value, kept: Option<&Val
     Ok(later.iter().filter_map(|turn| prompt_of(turn)).find(|prompt| prompts.contains(prompt)))
 }
 
+/// Whether the thread's OpenCode instance is a 1.x install. An install that cannot be probed is left to the 2.x adapter,
+/// whose connect reports why.
+async fn is_one_x(store: &Store, providers: &ProviderRegistry, thread_id: &str) -> bool {
+    let Ok(thread) = view(store, thread_id) else { return false };
+    let Some(instance) = thread["thread"]["modelSelection"]["instanceId"].as_str().and_then(|id| providers.opencode(id).ok()) else { return false };
+    matches!(instance.probe(false).await, Ok(probed) if probed.generation == Generation::V1)
+}
+
 pub(crate) async fn actor(
     store: Store,
     providers: ProviderRegistry,
@@ -2456,6 +2464,11 @@ pub(crate) async fn actor(
     _lifetime: ActorLifetime,
     mcp: Option<crate::provider_mcp::CredentialLease>,
 ) {
+    // The install's generation picks the protocol: a 1.x server is driven by its own adapter.
+    let one_x = tokio::select! { one_x = is_one_x(&store, &providers, &thread_id) => one_x, _ = stopped.changed() => return };
+    if one_x {
+        return crate::opencode1_adapter::actor(store, providers, thread_id, work, stopped, canceled, _lifetime, mcp).await;
+    }
     let mut runtime: Option<Actor> = None;
     let mut user_cancelled = false;
     loop {

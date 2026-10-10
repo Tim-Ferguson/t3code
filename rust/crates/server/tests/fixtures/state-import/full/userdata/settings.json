@@ -1,0 +1,154 @@
+{
+  "enableProviderUpdateChecks": false,
+  "continueThreadsAfterServerUpdate": true,
+  "enableAgentBrowserAccess": false,
+  "defaultAutoPull": true,
+  "projectScriptOverrides": {
+    "project:fixture:claude_background_task_wake:f2604e9d-55b7-45de-a716-838867faae7e": [
+      {
+        "id": "test",
+        "name": "Test",
+        "command": "echo test",
+        "icon": "test",
+        "runOnWorktreeCreate": false
+      }
+    ]
+  },
+  "projectAutoPullOverrides": {
+    "project:fixture:claude_background_task_wake:f2604e9d-55b7-45de-a716-838867faae7e": true
+  },
+  "defaultModelSelection": {
+    "instanceId": "codex",
+    "model": "fixture-model"
+  },
+  "defaultRuntimeMode": "approval-required",
+  "projectSettingsOverrides": {
+    "project:fixture:claude_background_task_wake:f2604e9d-55b7-45de-a716-838867faae7e": {
+      "defaultModelSelection": {
+        "instanceId": "claudeAgent",
+        "model": "claude-sonnet-4-6"
+      },
+      "defaultThreadEnvMode": "worktree",
+      "defaultAutoPull": true,
+      "defaultProjectScripts": [
+        {
+          "id": "test",
+          "name": "Test",
+          "command": "echo test",
+          "icon": "test",
+          "runOnWorktreeCreate": false
+        }
+      ]
+    }
+  },
+  "projectSettingsFolded": true,
+  "sidebarAutoSettleAfterDays": 14,
+  "snoozeLimitedThreads": true,
+  "autoResumeLimitedThreads": true,
+  "sidebarAutoSettleOnMerge": false,
+  "defaultTheme": "default-dark",
+  "newWorktreesStartFromOrigin": false,
+  "addProjectBaseDirectory": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/projects",
+  "textGenerationModelSelection": {
+    "instanceId": "codex",
+    "model": "fixture-model"
+  },
+  "branchNamePrefix": "fx",
+  "branchNameInstructions": "Short and lowercase.",
+  "providers": {
+    "cursor": {
+      "enabled": false
+    },
+    "grok": {
+      "enabled": false
+    },
+    "opencode": {
+      "enabled": false
+    }
+  },
+  "providerInstances": {
+    "codex": {
+      "driver": "codex",
+      "environment": [
+        {
+          "name": "HOME",
+          "value": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/home",
+          "sensitive": false
+        },
+        {
+          "name": "CODEX_HOME",
+          "value": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/providers/codex-home",
+          "sensitive": false
+        },
+        {
+          "name": "FIXTURE_USAGE_RESET_AT",
+          "value": "1800003600",
+          "sensitive": false
+        },
+        {
+          "name": "FIXTURE_SECOND_MODEL",
+          "value": "1",
+          "sensitive": false
+        }
+      ],
+      "enabled": true,
+      "config": {
+        "binaryPath": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/bin/codex",
+        "homePath": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/providers/codex-home"
+      }
+    },
+    "claudeAgent": {
+      "driver": "claudeAgent",
+      "environment": [
+        {
+          "name": "HOME",
+          "value": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/home",
+          "sensitive": false
+        },
+        {
+          "name": "CLAUDE_CONFIG_DIR",
+          "value": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/providers/claude-home",
+          "sensitive": false
+        },
+        {
+          "name": "CLAUDE_FIXTURE_VERSION",
+          "value": "2.1.200 (Claude Code)",
+          "sensitive": false
+        },
+        {
+          "name": "T3CODE_CLAUDE_API_BASE",
+          "value": "http://127.0.0.1:1",
+          "sensitive": false
+        }
+      ],
+      "enabled": true,
+      "config": {
+        "binaryPath": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/bin/claude",
+        "homePath": "/private/tmp/claude-501/t3code-rust-port-test-import-gen-d/full/providers/claude-home"
+      }
+    },
+    "cursor": {
+      "driver": "cursor",
+      "enabled": false
+    },
+    "grok": {
+      "driver": "grok",
+      "enabled": false
+    },
+    "opencode": {
+      "driver": "opencode",
+      "enabled": false
+    },
+    "pi": {
+      "driver": "pi",
+      "enabled": false
+    },
+    "antigravity": {
+      "driver": "antigravity",
+      "enabled": false
+    }
+  },
+  "usageModelAliases": {
+    "fixture-alias": "fixture-model"
+  }
+}

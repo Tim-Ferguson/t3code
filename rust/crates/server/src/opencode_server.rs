@@ -298,33 +298,71 @@ async fn spawn(config: &SpawnConfig, directory: &std::path::Path) -> Result<Spaw
         let _ = child.wait().await;
         exited_tx.send_replace(true);
     });
-    // Keep draining stderr; stopping the readers can block OpenCode when its pipes fill.
-    tokio::spawn(async move {
-        let mut sink = [0u8; 4096];
-        while matches!(stderr.read(&mut sink).await, Ok(read) if read > 0) {}
-    });
+    // Keep draining stderr (stopping the readers can block OpenCode when its pipes fill); its tail is what a failed start
+    // reports.
+    let errors = Arc::new(Mutex::new(String::new()));
+    let drained = {
+        let errors = errors.clone();
+        tokio::spawn(async move {
+            let mut chunk = [0u8; 4096];
+            while let Ok(read) = stderr.read(&mut chunk).await {
+                if read == 0 {
+                    break;
+                }
+                let mut tail = errors.lock().unwrap();
+                tail.push_str(&String::from_utf8_lossy(&chunk[..read]));
+                if tail.len() > STARTUP_OUTPUT_BYTES {
+                    let cut = tail.len() - STARTUP_OUTPUT_BYTES;
+                    let cut = (cut..tail.len()).find(|at| tail.is_char_boundary(*at)).unwrap_or(tail.len());
+                    tail.drain(..cut);
+                }
+            }
+        })
+    };
     let group = Group(pid);
-    let ready = async {
-        let mut seen = String::new();
-        let mut chunk = [0u8; 4096];
-        loop {
-            let read = stdout.read(&mut chunk).await.map_err(|_| failed("Failed while waiting for OpenCode server startup."))?;
-            if read == 0 {
-                return Err(failed("OpenCode server exited before startup completed."));
-            }
-            seen.push_str(&String::from_utf8_lossy(&chunk[..read]));
-            if let Some(url) = listening_url(&seen) {
-                return Ok(url);
-            }
-            if seen.len() > STARTUP_OUTPUT_BYTES {
-                seen.drain(..seen.len() - STARTUP_OUTPUT_BYTES);
+    let seen = Arc::new(Mutex::new(String::new()));
+    let ready = {
+        let seen = seen.clone();
+        async move {
+            let mut chunk = [0u8; 4096];
+            loop {
+                let read = stdout.read(&mut chunk).await.map_err(|_| failed("Failed while waiting for OpenCode server startup."))?;
+                if read == 0 {
+                    return Err(None);
+                }
+                let mut seen = seen.lock().unwrap();
+                seen.push_str(&String::from_utf8_lossy(&chunk[..read]));
+                if let Some(url) = listening_url(&seen) {
+                    return Ok((url, stdout));
+                }
+                if seen.len() > STARTUP_OUTPUT_BYTES {
+                    let cut = seen.len() - STARTUP_OUTPUT_BYTES;
+                    let cut = (cut..seen.len()).find(|at| seen.is_char_boundary(*at)).unwrap_or(seen.len());
+                    seen.drain(..cut);
+                }
             }
         }
     };
-    let announced = match tokio::time::timeout(STARTUP_TIMEOUT, ready).await {
-        Err(_) => return Err(failed("Timed out waiting for OpenCode server start after 30000ms.")),
-        Ok(announced) => announced?,
+    // What the process said before it failed to start: the end of both streams, with the password and anything that
+    // looks like a credential removed. It is the only explanation a start that never announced itself has.
+    let explanation = |password: &str| {
+        let both = format!("{}\n{}", seen.lock().unwrap().trim_end(), errors.lock().unwrap().trim_end());
+        let both = if password.is_empty() { both } else { both.replace(password, "[REDACTED]") };
+        let tail: String = both.trim().chars().rev().take(1_000).collect::<Vec<_>>().into_iter().rev().collect();
+        let text = crate::provider_failure::make(&serde_json::json!({"message":tail}))["message"].as_str().unwrap_or("").to_owned();
+        if text.trim().is_empty() || text == "Provider turn failed." { String::new() } else { format!(" Output: {text}") }
     };
+    let result: Result<(String, tokio::process::ChildStdout), Option<ServerError>> = match tokio::time::timeout(STARTUP_TIMEOUT, ready).await {
+        Err(_) => Err(Some(failed(format!("Timed out waiting for OpenCode server start after 30000ms.{}", explanation(&password))))),
+        Ok(Err(None)) => {
+            // Let what it wrote to stderr arrive: the pipe closes with the process.
+            let _ = tokio::time::timeout(Duration::from_millis(500), drained).await;
+            Err(Some(failed(format!("OpenCode server exited before startup completed.{}", explanation(&password)))))
+        }
+        Ok(Err(Some(error))) => Err(Some(error)),
+        Ok(Ok(announced)) => Ok(announced),
+    };
+    let (announced, mut stdout) = result.map_err(|error| error.unwrap())?;
     // Startup output is no longer needed; later output is discarded.
     tokio::spawn(async move {
         let mut sink = [0u8; 4096];

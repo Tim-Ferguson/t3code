@@ -30,6 +30,10 @@ struct Options {
     fixture: bool,
     /// The validated `T3CODE_FIXTURE_GITHUB_API_ORIGIN`; only ever set together with `fixture`.
     fixture_github_api_origin: Option<String>,
+    /// `import --from`: the original's T3 home (or its `userdata` directory).
+    from: Option<PathBuf>,
+    /// `--no-import`: start with an empty store even though the original's database is beside it.
+    no_import: bool,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     parse_options(std::env::args().skip(1), |key| std::env::var(key).ok())
@@ -56,6 +60,8 @@ fn parse_options(
         overrides: Default::default(),
         fixture: false,
         fixture_github_api_origin: None,
+        from: None,
+        no_import: false,
     };
     for (key, name) in [
         ("T3CODE_HOST", "--host"),
@@ -103,7 +109,9 @@ fn parse_options(
             options.overrides.insert(arg.clone());
         }
         match arg.as_str() {
-            "serve" | "pair" => options.command = arg,
+            "serve" | "pair" | "import" => options.command = arg,
+            "--from" => options.from = Some(PathBuf::from(args.next().ok_or("--from requires the original's T3 home")?)),
+            "--no-import" => options.no_import = true,
             "--state-dir" => {
                 options.state_dir = PathBuf::from(args.next().ok_or("--state-dir requires a path")?)
             }
@@ -155,7 +163,7 @@ fn parse_options(
             "--fixture" => options.fixture = true,
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair] [--state-dir PATH] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
+                    "t3-server [serve|pair|import] [--state-dir PATH] [--from T3_HOME] [--no-import] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\nimport --from T3_HOME --state-dir DIR imports the original server's database into DIR (see rust/README.md); serve does the same on first start when DIR holds the original's database and no store of this server, unless --no-import.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
                 );
                 std::process::exit(0)
             }
@@ -439,6 +447,8 @@ mod tests {
             overrides: Default::default(),
             fixture: false,
             fixture_github_api_origin: None,
+            from: None,
+            no_import: false,
         };
         let descriptors = adopt_desktop_descriptors(&options, None).unwrap();
         assert_ne!(
@@ -604,6 +614,20 @@ async fn run(
     }
     fs::create_dir_all(&options.state_dir)?;
     let state_dir = fs::canonicalize(&options.state_dir)?;
+    if options.command == "import" {
+        let from = options.from.clone().ok_or("import requires --from, the original's T3 home")?;
+        let code = tokio::task::spawn_blocking(move || t3_server::state_import::run_command(from, state_dir)).await?;
+        std::process::exit(code);
+    }
+    // First start beside the original's database: its state is imported once, or the server does not start.
+    if !options.no_import && options.command == "serve" {
+        let directory = state_dir.clone();
+        match tokio::task::spawn_blocking(move || t3_server::state_import::automatic(&directory)).await? {
+            Ok(Some(report)) => t3_server::state_import::print_report(&report),
+            Ok(None) => {}
+            Err(error) => return Err(format!("Importing the original T3 Code state failed, so the server did not start: {error} (start with --no-import to use an empty store instead)").into()),
+        }
+    }
     let store = Store::open(state_dir.join("rust-state.sqlite"))?;
     t3_server::secret_requests::start_sweeper(&store);
     let environment_id = identity(&state_dir.join("rust-environment-id"))?;

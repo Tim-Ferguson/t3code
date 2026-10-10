@@ -65,6 +65,8 @@ const operations = Object.entries(paths).flatMap(([path, item]) =>
       })),
       body: operation.requestBody?.content?.["application/json"]?.schema ?? null,
       bodyRequired: operation.requestBody?.required === true,
+      // What a success answers with (`null`: no content), so the fake can check its own answers against the protocol too.
+      response: operation.responses?.["200"]?.content?.["application/json"]?.schema ?? null,
     })),
 );
 const target = new URL("../crates/server/tests/fixtures/opencode2-openapi.json", import.meta.url);

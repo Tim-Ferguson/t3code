@@ -45,8 +45,8 @@ reusable and support the original rotating-secret windows. The envelope also
 supplies telemetry channels and an explicit resource-monitor executable.
 Browser IPC, Tailscale Serve and OTLP requests currently fail explicitly.
 Automatic browser launching remains unimplemented, so `noBrowser` has no
-launcher to control. Windows inherited descriptors, original database/layout
-migration and the desktop producer remain pending. Host resources are
+launcher to control. Windows inherited descriptors and the desktop producer
+remain pending. Host resources are
 sampled on demand with a shared five-second cache. The legacy process diagnostics,
 process history and scoped SIGINT/SIGKILL methods now project the resource service;
 signaling requires a fresh process identity and a permitted backend category.
@@ -62,14 +62,37 @@ power intervals follow settings changes. Load-time migrations restore historical
 providers while preserving explicit disables, fold available project history once,
 and move inline Bitbucket/GitHub tokens into the secret store. Background policy
 now publishes live client leases and desktop power changes through scoped RPCs;
-disconnect removes only that connection's leases. Importing the original database
-layout and periodic provider, VCS, usage and Git consumers remain pending.
+disconnect removes only that connection's leases. Periodic provider, VCS, usage
+and Git consumers remain pending.
 Device-host settings resolve SSH aliases without connecting, exclude only self
 targets, and preserve proxies, forwarded ports and unresolved entries. Local device
 state and session lifecycle, consent configuration and agent-daemon bootstrap,
 reuse and shutdown are implemented. Other toolkit injection pipelines and remote
 SSH hosts remain unfinished; the guarded launcher uses an externally installed
 agent-device CLI.
+
+Existing state of the original server is imported once into this server's own store
+(`rust-state.sqlite`, beside the original's `statev2.sqlite` or V1 `state.sqlite`, which are
+never written or removed). `t3-server import --from <T3 home> --state-dir <dir>` runs it by
+hand; `serve` runs it on first start in a state directory that holds the original's database
+and no store of this server (`--no-import` skips it; the original must not be running).
+Threads, projects and their history come from the event log, replayed under the sequences
+the original gave them through the same reducers the server uses (every row decoded
+strictly; a row that does not decode names the event and stops the import), and V1 threads
+and projects that the original would itself have imported on its next start are imported
+with their messages. Command receipts, scheduled tasks and their webhook deliveries,
+viewed-file marks and MCP app context come across; settings, keybindings, attachments and
+the settings secrets are used in place when the state directory is the original's, and are
+copied otherwise (settings load-time migrations then run on first start as ever). The import
+builds `rust-state.sqlite.importing`, resumes it after an interruption when the source is
+unchanged, and renames it into place only when complete and checked; `rust_import_record`
+records the source's schema version and counts, so a second start or a second command
+imports nothing, and a source written by a newer original than this build reads (schema
+migration above 59) is refused. Work in flight is not carried: the effect outbox, pending
+launches, signed-in sessions and T3 Connect's link key stay behind; runs and requests the
+source left open are settled by the server's ordinary startup recovery, and devices pair
+again. Usage that the original kept for transcripts since deleted (its scan cache) is not
+carried.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and

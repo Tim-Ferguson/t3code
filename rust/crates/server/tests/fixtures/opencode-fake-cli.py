@@ -26,13 +26,22 @@ WILDCARDS = ("<any>", "<workspace>")
 ID_KEYS = ("id", "messageID", "parentID", "inboxID", "before")
 
 
+# The 1.x recordings were matched by the original's own comparison (`replayValueMatches`), where a wildcard matches a
+# field the client did not send at all (a `session.create` recorded with a `title` placeholder sends none). 2.x
+# recordings are matched strictly: a field they name must be sent.
+LENIENT_WILDCARDS = False
+ABSENT = object()
+
+
 def matches(expected, actual):
     if isinstance(expected, str) and expected in WILDCARDS:
-        return True
+        return actual is not ABSENT or LENIENT_WILDCARDS
+    if actual is ABSENT:
+        return False
     if isinstance(expected, list):
         return isinstance(actual, list) and len(expected) == len(actual) and all(matches(e, a) for e, a in zip(expected, actual))
     if isinstance(expected, dict):
-        return isinstance(actual, dict) and all(key in actual and matches(value, actual[key]) for key, value in expected.items())
+        return isinstance(actual, dict) and all(matches(value, actual.get(key, ABSENT)) for key, value in expected.items())
     if isinstance(expected, bool) or isinstance(actual, bool):
         return expected is actual
     return expected == actual
@@ -48,17 +57,25 @@ def materialize(value, ids):
 
 # ---- the original's schemas: every request the client sends is checked against the protocol it was generated from ----
 SPEC = None
+SPEC_FILE = "opencode2-openapi.json"
+
+
+SPEC_LOCK = threading.Lock()
 
 
 def spec():
+    """The protocol the requests are checked against. Requests are served on threads of their own, and the first ones
+    arrive together (a status check reads four lists at once), so the document is complete before anyone sees it."""
     global SPEC
-    if SPEC is None:
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "opencode2-openapi.json")
-        with open(path) as handle:
-            SPEC = json.load(handle)
-        for operation in SPEC["operations"]:
-            operation["pattern"] = re.compile("^" + re.sub(r"\{[^}]+\}", "[^/]+", operation["path"]) + "$")
-    return SPEC
+    with SPEC_LOCK:
+        if SPEC is None:
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), SPEC_FILE)
+            with open(path) as handle:
+                loaded = json.load(handle)
+            for operation in loaded["operations"]:
+                operation["pattern"] = re.compile("^" + re.sub(r"\{[^}]+\}", "[^/]+", operation["path"]) + "$")
+            SPEC = loaded
+        return SPEC
 
 
 def violations(schema, value, where="body"):
@@ -131,6 +148,36 @@ def check_request(method, path, body):
     return "%s %s is no operation of the protocol" % (method, path)
 
 
+def check_request_v1(method, path, query, body):
+    """The 1.x request checked against the SDK's own request types: the operation, its query names and its body."""
+    candidates = [operation for operation in spec()["operations"] if operation["method"] == method and operation["pattern"].match(path)]
+    if not candidates:
+        return "%s %s is no operation of the protocol" % (method, path)
+    # `/session/status` is also a session id.
+    operation = min(candidates, key=lambda candidate: candidate["path"].count("{"))
+    allowed = {parameter["name"] for parameter in operation["parameters"] if parameter["in"] == "query"}
+    for name in query:
+        if name not in allowed:
+            return "%s %s has the unknown query parameter %s" % (method, path, name)
+    if operation["body"] is None:
+        return None if body is None else "%s %s takes no body" % (method, path)
+    if body is None:
+        return "%s %s needs a body" % (method, path) if operation["bodyRequired"] else None
+    return violations(operation["body"], body)
+
+
+def check_response(method, path, data):
+    """The first way a recorded answer differs from the protocol it is served as, or None."""
+    candidates = [operation for operation in spec()["operations"] if operation["method"] == method and operation["pattern"].match(path)]
+    if not candidates or data is None:
+        return None
+    operation = min(candidates, key=lambda candidate: candidate["path"].count("{"))
+    # The 1.x subagent recordings abridge the answer to `session.update` (an id and the rules), which is not a session.
+    if not operation.get("response") or (operation["id"] == "session.update" and SPEC_FILE.startswith("opencode1")):
+        return None
+    return violations(operation["response"], data, "response")
+
+
 class Controller:
     def __init__(self, transcript, status_path):
         self.gate = (transcript or {}).get("gate")
@@ -155,7 +202,11 @@ class Controller:
             return
         tmp = self.status_path + ".tmp"
         with open(tmp, "w") as out:
-            json.dump({"cursor": self.cursor, "total": len(self.entries), "failure": self.failure}, out)
+            # Everything but a closing successful exit has been used. The exit itself is taken by the stream's own thread
+            # when it sees it, which can come a moment after the last request was answered.
+            rest = self.entries[self.cursor:]
+            settled = self.failure is None and (not rest or (len(rest) == 1 and rest[0]["type"] == "runtime_exit" and rest[0].get("status") == "success"))
+            json.dump({"cursor": self.cursor, "total": len(self.entries), "failure": self.failure, "settled": settled}, out)
         os.replace(tmp, self.status_path)
 
     def entry(self):
@@ -192,8 +243,8 @@ class Controller:
             frame = entry["frame"] if entry and entry["type"] == "expect_outbound" else None
             ids = dict(self.ids)
             conflict = False
-            if frame and frame.get("type") in ("session.prompt", "session.promptAsync") and actual.get("type") == frame["type"]:
-                key = "messageID" if frame["type"] == "session.promptAsync" else "id"
+            if frame and frame.get("type") in ("session.prompt", "session.promptAsync", "session.command") and actual.get("type") == frame["type"]:
+                key = "id" if frame["type"] == "session.prompt" else "messageID"
                 recorded = (frame.get("input") or {}).get(key) if isinstance(frame.get("input"), dict) else None
                 live = (actual.get("input") or {}).get(key) if isinstance(actual.get("input"), dict) else None
                 if isinstance(recorded, str) and isinstance(live, str) and recorded not in WILDCARDS and recorded not in ids:
@@ -324,6 +375,9 @@ def operation_of(method, path, query, body):
 
 # 1.x: the SDK's routes. A request names the SDK operation and its input (path, query and body fields together).
 V1_ROUTES = [
+    ("GET", "/session/status", "session.status"), ("POST", "/session/{sessionID}/command", "session.command"),
+    ("POST", "/session/{sessionID}/summarize", "session.summarize"), ("POST", "/mcp/{name}/disconnect", "mcp.disconnect"),
+    ("GET", "/provider", "provider.list"), ("GET", "/agent", "app.agents"), ("GET", "/skill", "app.skills"), ("GET", "/command", "command.list"),
     ("GET", "/session/{sessionID}", "session.get"), ("GET", "/session/{sessionID}/children", "session.children"),
     ("PATCH", "/session/{sessionID}", "session.update"), ("GET", "/session/{sessionID}/message", "session.messages"),
     ("POST", "/session/{sessionID}/prompt_async", "session.promptAsync"), ("POST", "/session/{sessionID}/abort", "session.abort"),
@@ -405,7 +459,14 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(raw)
             return
         controller = state["controller"]
-        directory = unquote(self.headers.get("x-opencode-directory") or "") or None
+        # The SDK client sends the directory as a header, and moves it into the query of a GET.
+        directory = unquote(self.headers.get("x-opencode-directory") or "") or query.get("directory") or None
+        if not v2 and state["validate"] and url.path != "/event":
+            problem = check_request_v1(self.command, url.path, query, body)
+            if problem:
+                message = "schema violation: %s %s: %s" % (self.command, url.path, problem)
+                controller.fail(message)
+                return self.send_json(500, {"name": "SchemaViolation", "data": {"message": message[:400]}})
         if v2 and state["validate"]:
             problem = check_request(self.command, url.path, body)
             if problem:
@@ -462,6 +523,12 @@ class Handler(BaseHTTPRequestHandler):
         if data == "<hang>":
             time.sleep(3600)
             return
+        if state["validate"] and not (isinstance(data, dict) and set(data) == {"status", "body"}):
+            problem = check_response(self.command, url.path, data)
+            if problem:
+                message = "schema violation in the answer to %s %s: %s" % (self.command, url.path, problem)
+                controller.fail(message)
+                return self.send_json(500, {"_tag": "SchemaViolation", "name": "SchemaViolation", "message": message[:400], "data": {"message": message[:400]}})
         if isinstance(data, dict) and set(data) == {"status", "body"}:
             return self.send_json(int(data["status"]), data["body"])
         return self.send_json(204 if data is None else 200, data)
@@ -525,6 +592,12 @@ def main():
     if args[:1] != ["serve"]:
         print("unsupported", file=sys.stderr)
         sys.exit(2)
+    if os.environ.get("OPENCODE_FIXTURE_STARTUP_FAIL"):
+        # A server that cannot start says why on its way out, and the password it was given is in what it says.
+        password = os.environ.get("OPENCODE_SERVER_PASSWORD") or os.environ.get("OPENCODE_PASSWORD") or ""
+        print("starting", flush=True)
+        print("fatal: cannot bind the port (password %s, Authorization: Bearer abcdef0123456789)" % password, file=sys.stderr, flush=True)
+        sys.exit(1)
     host, port = "127.0.0.1", 0
     for arg in args[1:]:
         if arg.startswith("--hostname="):
@@ -536,7 +609,18 @@ def main():
     for entry in controller.entries:
         if entry["type"] == "emit_inbound" and entry["frame"]["type"] == "sdk.response" and entry["frame"]["operation"] in ("model.list", "skill.list", "command.list", "agent.list", "provider.list"):
             canned.setdefault(entry["frame"]["operation"], entry["frame"]["data"])
+    if generation == "v1":
+        # What a 1.x status check reads, which its recordings (the SDK boundary of a turn) do not hold.
+        models = {"gpt-5.4-mini": {"id": "gpt-5.4-mini", "name": "GPT 5.4 Mini", "variants": {"low": {}, "medium": {}, "high": {}}}, "gpt-5.4": {"id": "gpt-5.4", "name": "GPT 5.4", "variants": {}}}
+        canned.setdefault("provider.list", {"all": [{"id": "openai", "name": "OpenAI", "source": "api", "env": [], "models": models}], "default": {"openai": "gpt-5.4-mini"}, "connected": ["openai"]})
+        canned.setdefault("app.agents", [{"name": "build", "mode": "primary", "native": True}, {"name": "plan", "mode": "primary", "native": True}, {"name": "general", "mode": "subagent", "native": True}])
+        canned.setdefault("app.skills", [])
+        canned.setdefault("command.list", [{"name": "init", "description": "create or update AGENTS.md", "source": "command", "hints": ["$ARGUMENTS"]}])
     canned.update(json.loads(os.environ.get("OPENCODE_FIXTURE_CANNED") or "{}"))
+    global SPEC_FILE, LENIENT_WILDCARDS
+    if generation == "v1":
+        SPEC_FILE = "opencode1-openapi.json"
+        LENIENT_WILDCARDS = True
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
     server.state = {"controller": controller, "generation": generation, "version": version, "canned": canned, "validate": os.environ.get("OPENCODE_FIXTURE_NO_SCHEMA") is None}

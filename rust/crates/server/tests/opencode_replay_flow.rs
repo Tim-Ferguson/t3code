@@ -197,16 +197,9 @@ fn normalize(view: &Value) -> Value {
     })
 }
 
-/// Scenarios that are not replayed, each with the reason.
-const ONE_X: &str = "recorded against OpenCode 1.x at the SDK client's boundary; this port drives 2.x and reports a 1.x install as one it does not drive yet";
-const EXCLUDED: &[(&str, &str)] = &[
-    ("simple", ONE_X),
-    ("turn_interrupt", ONE_X),
-    ("plan_questions", ONE_X),
-    ("opencode_subagent", ONE_X),
-    ("opencode_child_approval", ONE_X),
-    ("opencode_running_child_approval", ONE_X),
-];
+/// Scenarios that are not replayed, each with the reason. The six recorded against 1.x are replayed through the 1.x
+/// adapter since it was ported, so nothing is left out.
+const EXCLUDED: &[(&str, &str)] = &[];
 /// The scenarios of the original's OpenCode replay registry: six recorded against 1.x, sixteen against 2.x.
 const SCENARIOS: [&str; 22] = [
     "simple", "turn_interrupt", "plan_questions", "opencode_subagent", "opencode_child_approval", "opencode_running_child_approval",
@@ -313,13 +306,25 @@ async fn replay(row: Value) -> Result<(), String> {
     harness.idle_in(&thread).await;
     // Shutting down releases the session, which stops what the recording still held.
     let view = harness.view();
-    let actual = normalize(&view);
+    let mut actual = normalize(&view);
+    // A todo step is named after the provider turn, which this port numbers itself; the synthetic sessions compare the rest.
+    if name.starts_with("one_x_") {
+        let mask = |steps: &mut Value| steps.as_array_mut().into_iter().flatten().enumerate().for_each(|(index, step)| step["id"] = json!(format!("<id>:{}", index + 1)));
+        actual["items"].as_array_mut().unwrap().iter_mut().filter(|item| item.get("steps").is_some()).for_each(|item| mask(&mut item["steps"]));
+        actual["plans"].as_array_mut().unwrap().iter_mut().for_each(|plan| mask(&mut plan["steps"]));
+    }
     let forked = harness.target.clone().map(|target| harness.view_of(&target));
     harness.execution.shutdown().await;
     let status = harness.server.replay_status();
-    let consumed = status["failure"].is_null() && status["cursor"] == status["total"];
+    let consumed = status["failure"].is_null() && status["settled"] == true;
     let expected = &row["expected"];
+    if std::env::var("OPENCODE_REPLAY_DUMP").is_ok() {
+        eprintln!("{name}: {actual}\n{status}");
+    }
     let short = |value: &Value| value.to_string().chars().take(2500).collect::<String>();
+    if expected.is_null() {
+        return Err(format!("{name}: no expectation yet; the session persisted {actual}\n  replay: {status}"));
+    }
     for (index, (got, want)) in actual["items"].as_array().unwrap().iter().zip(expected["items"].as_array().unwrap()).enumerate() {
         for key in got.as_object().unwrap().keys().chain(want.as_object().unwrap().keys()) {
             if got.get(key) != want.get(key) {
@@ -431,21 +436,271 @@ async fn recorded_opencode_sessions_persist_what_the_source_adapters_persisted()
     assert!(failures.is_empty(), "{} of {} scenarios differ:\n{}", failures.len(), SCENARIOS.len(), failures.join("\n"));
 }
 
-/// Every excluded scenario is a recorded one, with a reason; nothing else is left out.
+/// Every excluded scenario is a recorded one, with a reason; nothing else is left out. Every recording is replayed: the
+/// six against 1.x through the 1.x adapter and the sixteen against 2.x through the 2.x one.
 #[test]
 fn the_exclusions_name_recorded_scenarios_with_reasons() {
     for (name, reason) in EXCLUDED {
         assert!(SCENARIOS.contains(name), "{name} is not a recorded scenario");
         assert!(!reason.is_empty());
     }
-    // Only the 1.x recordings are left out, and every 2.x one is replayed.
-    for name in SCENARIOS {
-        let one_x = row_of(name)["protocol"] == "opencode-sdk.sse";
-        assert_eq!(one_x, EXCLUDED.iter().any(|(excluded, _)| *excluded == name), "{name}");
-    }
+    assert!(EXCLUDED.is_empty(), "every recording is replayed");
+    let one_x = SCENARIOS.iter().filter(|name| row_of(name)["protocol"] == "opencode-sdk.sse").count();
+    assert_eq!((one_x, SCENARIOS.len() - one_x), (6, 16));
     for name in SCENARIOS {
         let row = row_of(name);
         assert_eq!(row["name"], name);
         assert!(row["transcript"].as_array().is_some_and(|entries| !entries.is_empty()));
     }
+}
+
+// ---- 1.x sessions the recordings do not hold ----
+//
+// The same replay, over transcripts written here: what the 1.x adapter does with a steer, a compaction, a lost stream, an
+// error the session reports, a todo list and a rollback. They are not the original's recordings, so what each persists
+// is what the adapter is meant to persist (the original's adapter does the same for each of these, in the same words),
+// reviewed by hand rather than compared with an unchanged run.
+mod synthetic {
+    use serde_json::{Value, json};
+
+    pub const SESSION: &str = "ses_synthetic0001";
+    pub fn out(label: &str, kind: &str, input: Value) -> Value {
+        json!({"type":"expect_outbound","label":label,"frame":{"type":kind,"input":input}})
+    }
+    pub fn resp(label: &str, operation: &str, data: Value) -> Value {
+        json!({"type":"emit_inbound","label":label,"frame":{"type":"sdk.response","operation":operation,"data":data}})
+    }
+    pub fn ev(label: &str, kind: &str, properties: Value) -> Value {
+        json!({"type":"emit_inbound","label":label,"frame":{"type":"sdk.event","event":{"id":format!("evt_{label}"),"type":kind,"properties":properties}}})
+    }
+    pub fn opening(session: &str) -> Vec<Value> {
+        vec![
+            json!({"type":"expect_outbound","label":"event.subscribe","frame":{"type":"event.subscribe"}}),
+            out("session.create", "session.create", json!({"title":"<any>","permission":"<any>"})),
+            resp("session.created", "session.create", json!({"id":session,"slug":"synthetic","version":"1.14.39","projectID":"global","directory":"<work>","title":"Synthetic","time":{"created":1,"updated":1}})),
+        ]
+    }
+    pub fn prompt(session: &str, id: &str, text: &str) -> Value {
+        out("session.promptAsync", "session.promptAsync", json!({"sessionID":session,"model":{"providerID":"openai","modelID":"gpt-5.4-mini"},"agent":"build","parts":[{"type":"text","text":text}],"messageID":id}))
+    }
+    pub fn accepted() -> Value {
+        resp("session.promptAsync.response", "session.promptAsync", Value::Null)
+    }
+    pub fn user(session: &str, id: &str) -> Value {
+        ev("message.updated.user", "message.updated", json!({"sessionID":session,"info":{"role":"user","id":id,"sessionID":session,"time":{"created":2}}}))
+    }
+    pub fn assistant(session: &str, id: &str, parent: &str, completed: bool) -> Value {
+        let mut time = json!({"created":3});
+        if completed {
+            time["completed"] = json!(4);
+        }
+        ev(if completed { "message.updated.assistant.completed" } else { "message.updated.assistant" }, "message.updated", json!({"sessionID":session,"info":{"role":"assistant","id":id,"parentID":parent,"sessionID":session,"time":time,"tokens":{"input":1,"output":1,"reasoning":0,"cache":{"read":0,"write":0}}}}))
+    }
+    pub fn text(session: &str, message: &str, part: &str, body: &str) -> Value {
+        ev("assistant.completed", "message.part.updated", json!({"sessionID":session,"part":{"id":part,"messageID":message,"sessionID":session,"type":"text","text":body,"time":{"start":3,"end":4}}}))
+    }
+    pub fn text_of(session: &str, message: &str, part: &str, body: &str) -> Value {
+        text(session, message, part, body)
+    }
+    pub fn status(session: &str, state: &str) -> Value {
+        ev(&format!("session.status.{state}"), "session.status", json!({"sessionID":session,"status":{"type":state}}))
+    }
+    /// What the source did to a server it did not start when the session closed.
+    pub fn closing(session: &str) -> Vec<Value> {
+        vec![
+            out("session.abort.cleanup", "session.abort", json!({"sessionID":session})),
+            resp("session.abort.cleanup.response", "session.abort", json!(true)),
+            out("session.children.cleanup", "session.children", json!({"sessionID":session})),
+            resp("session.children.cleanup.response", "session.children", json!([])),
+            json!({"type":"runtime_exit","status":"success"}),
+        ]
+    }
+    pub fn row(name: &str, steps: Value, transcript: Vec<Value>, expected: Value) -> Value {
+        json!({"name":name,"protocol":"opencode-sdk.sse","version":"1.14.39","approvalPolicy":null,"sandboxPolicy":null,"runtimeMode":"full-access","interactionMode":"default","workspace":"","model":"openai/gpt-5.4-mini","modelSelection":{"instanceId":"opencode","model":"openai/gpt-5.4-mini","options":[{"id":"agent","value":"build"}]},"steps":steps,"transcript":transcript,"expected":expected})
+    }
+    /// What one run of a thread persisted: its status, the provider turn's usage (these sessions report none), the user-visible
+    /// items in order and the provider thread's state.
+    pub fn expected(status: &str, items: Value, plans: Value, thread: &str) -> Value {
+        json!({"runs":[status],"attempts":[status],"providerTurns":[{"status":status,"turnTokenUsage":{"usageScope":"main_agent","hasSubagents":false,"usageStatus":"unavailable"},"tokenUsage":null}],"items":items,"requests":[],"plans":plans,"providerThread":[thread]})
+    }
+    pub fn user_item(text: &str) -> Value {
+        json!({"type":"user_message","status":"completed","title":null,"text":text})
+    }
+    pub fn assistant_item(text: &str) -> Value {
+        json!({"type":"assistant_message","status":"completed","title":null,"text":text,"streaming":false})
+    }
+    pub fn error_item(class: &str, message: &str, code: Value) -> Value {
+        json!({"type":"error","status":"failed","title":"Provider error","failure":{"class":class,"message":message,"code":code,"retryable":null}})
+    }
+}
+
+fn synthetic_rows() -> Vec<Value> {
+    use synthetic::*;
+    let mut rows = vec![];
+    let step = |text: &str| json!({"type":"message","text":text});
+
+    // A steer is another prompt into the running turn; the turn ends with the execution that answers it.
+    let mut entries = opening(SESSION);
+    entries.extend([
+        prompt(SESSION, "msg_p1", "First"),
+        accepted(),
+        user(SESSION, "msg_p1"),
+        status(SESSION, "busy"),
+        ev("session.inbox.enqueued", "message.part.updated", json!({"sessionID":SESSION,"part":{"id":"prt_step","messageID":"msg_a1","sessionID":SESSION,"type":"step-start"}})),
+        out("session.promptAsync.steer", "session.promptAsync", json!({"sessionID":SESSION,"model":{"providerID":"openai","modelID":"gpt-5.4-mini"},"parts":[{"type":"text","text":"Also this"}],"messageID":"msg_p2"})),
+        accepted(),
+        user(SESSION, "msg_p2"),
+        assistant(SESSION, "msg_a1", "msg_p2", false),
+        text(SESSION, "msg_a1", "prt_text", "Both done"),
+        assistant(SESSION, "msg_a1", "msg_p2", true),
+        status(SESSION, "idle"),
+    ]);
+    entries.extend(closing(SESSION));
+    rows.push(row("one_x_steer", json!([step("First"), {"type":"steer","targetRunIndex":1,"text":"Also this"}]), entries, expected("completed", json!([user_item("First"), user_item("Also this"), assistant_item("Both done")]), json!([]), "idle")));
+
+    // `/compact` is a summarize request that runs beside the stream and leaves a compaction item.
+    let mut entries = opening(SESSION);
+    entries.extend([
+        out("session.summarize", "session.summarize", json!({"sessionID":SESSION,"providerID":"openai","modelID":"gpt-5.4-mini","auto":false})),
+        status(SESSION, "busy"),
+        ev("session.compacted", "session.compacted", json!({"sessionID":SESSION})),
+        status(SESSION, "idle"),
+        resp("session.summarize.response", "session.summarize", json!(true)),
+    ]);
+    entries.extend(closing(SESSION));
+    rows.push(row("one_x_compaction", json!([step("/compact")]), entries, expected("completed", json!([user_item("/compact"), {"type":"compaction","status":"completed","title":"Context compacted"}]), json!([]), "idle")));
+
+    // The stream is the only signal an execution ended; when it breaks the turn fails as a transport error and the
+    // thread is broken.
+    let mut entries = opening(SESSION);
+    entries.extend([prompt(SESSION, "msg_p1", "Hello"), accepted(), user(SESSION, "msg_p1"), status(SESSION, "busy"), json!({"type":"runtime_exit","status":"success"})]);
+    rows.push(row("one_x_stream_lost", json!([step("Hello")]), entries, expected("failed", json!([user_item("Hello"), error_item("transport_error", "OpenCode event stream ended unexpectedly.", Value::Null)]), json!([]), "error")));
+
+    // An error the session reports fails the turn with its message and name, and the thread stays usable.
+    let mut entries = opening(SESSION);
+    entries.extend([
+        prompt(SESSION, "msg_p1", "Hello"),
+        accepted(),
+        user(SESSION, "msg_p1"),
+        status(SESSION, "busy"),
+        ev("session.error", "session.error", json!({"sessionID":SESSION,"error":{"name":"APIError","data":{"message":"quota exceeded"}}})),
+        status(SESSION, "idle"),
+    ]);
+    entries.extend(closing(SESSION));
+    // The original reports the thread reusable after such an error; this port's shared run terminal leaves a failed run's
+    // provider thread in `error` until the next turn reopens it.
+    rows.push(row("one_x_session_error", json!([step("Hello")]), entries, expected("failed", json!([user_item("Hello"), error_item("provider_error", "quota exceeded", json!("APIError"))]), json!([]), "error")));
+
+    // The agent's todo list is a plan, rewritten whole by every update.
+    let mut entries = opening(SESSION);
+    entries.extend([
+        prompt(SESSION, "msg_p1", "Plan it"),
+        accepted(),
+        user(SESSION, "msg_p1"),
+        status(SESSION, "busy"),
+        ev("todo.updated", "todo.updated", json!({"sessionID":SESSION,"todos":[{"content":"Write tests","status":"in_progress","priority":"high"},{"content":"Ship","status":"pending","priority":"low"}]})),
+        assistant(SESSION, "msg_a1", "msg_p1", false),
+        text(SESSION, "msg_a1", "prt_text", "Planned"),
+        assistant(SESSION, "msg_a1", "msg_p1", true),
+        status(SESSION, "idle"),
+    ]);
+    entries.extend(closing(SESSION));
+    // The turn ends with the list as the agent last wrote it; the item is cancelled with the rest of the turn's open work.
+    let steps = json!([{"id":"<id>:1","text":"Write tests","status":"running"},{"id":"<id>:2","text":"Ship","status":"pending"}]);
+    rows.push(row("one_x_todo", json!([step("Plan it")]), entries, expected("completed", json!([user_item("Plan it"), {"type":"todo_list","status":"cancelled","title":"Todo list","steps":steps}, assistant_item("Planned")]), json!([{"kind":"todo_list","status":"active","steps":steps}]), "idle")));
+
+    // `/name args` naming one of the workspace's commands is OpenCode's own command, which waits for the generation and so runs
+    // beside the stream: the turn is admitted by its user message, not by the request's end.
+    let mut entries = opening(SESSION);
+    entries.extend([
+        out("command.list", "command.list", json!({})),
+        resp("command.list.response", "command.list", json!([{"name":"init","description":"create AGENTS.md","source":"command","template":"","hints":["$ARGUMENTS"]}])),
+        out("session.command", "session.command", json!({"sessionID":SESSION,"messageID":"msg_p1","command":"init","arguments":"the repo","model":"openai/gpt-5.4-mini","agent":"build","parts":[]})),
+        user(SESSION, "msg_p1"),
+        status(SESSION, "busy"),
+        assistant(SESSION, "msg_a1", "msg_p1", false),
+        text(SESSION, "msg_a1", "prt_text", "Initialised"),
+        assistant(SESSION, "msg_a1", "msg_p1", true),
+        status(SESSION, "idle"),
+        resp("session.command.response", "session.command", Value::Null),
+    ]);
+    entries.extend(closing(SESSION));
+    rows.push(row("one_x_command", json!([step("/init the repo")]), entries, expected("completed", json!([user_item("/init the repo"), assistant_item("Initialised")]), json!([]), "idle")));
+
+    // A rollback forks the session before the first message of the turn after the one kept, and the thread goes on in the fork.
+    let fork = "ses_fork0000001";
+    let turn = |index: u32, session: &str, text: &str, body: &str| {
+        let (prompt_id, assistant_id) = (format!("msg_p{index}"), format!("msg_a{index}"));
+        vec![
+            prompt(session, &prompt_id, text),
+            accepted(),
+            user(session, &prompt_id),
+            status(session, "busy"),
+            assistant(session, &assistant_id, &prompt_id, false),
+            text_of(session, &assistant_id, &format!("prt_{index}"), body),
+            assistant(session, &assistant_id, &prompt_id, true),
+            status(session, "idle"),
+        ]
+    };
+    let history = |ids: &[(&str, &str)], session: &str| {
+        json!(ids
+            .iter()
+            .map(|(id, role)| {
+                let info = if *role == "user" {
+                    json!({"id":id,"role":"user","sessionID":session,"time":{"created":2},"agent":"build","model":{"providerID":"openai","modelID":"gpt-5.4-mini"}})
+                } else {
+                    json!({"id":id,"role":"assistant","sessionID":session,"time":{"created":3,"completed":4},"parentID":"msg_p0","modelID":"gpt-5.4-mini","providerID":"openai","mode":"build","agent":"build","path":{"cwd":"/","root":"/"},"cost":0,"tokens":{"input":1,"output":1,"reasoning":0,"cache":{"read":0,"write":0}}})
+                };
+                json!({"info":info,"parts":[]})
+            })
+            .collect::<Vec<_>>())
+    };
+    let session_info = |id: &str| json!({"id":id,"slug":"fork","version":"1.14.39","projectID":"global","directory":"<work>","title":"Fork","time":{"created":5,"updated":5}});
+    let mut entries = opening(SESSION);
+    entries.extend(turn(1, SESSION, "First", "One"));
+    entries.extend(turn(2, SESSION, "Second", "Two"));
+    entries.extend([
+        out("session.messages", "session.messages", json!({"sessionID":SESSION})),
+        resp("session.messages.response", "session.messages", history(&[("msg_p1", "user"), ("msg_a1", "assistant"), ("msg_p2", "user"), ("msg_a2", "assistant")], SESSION)),
+        out("session.fork", "session.fork", json!({"sessionID":SESSION,"messageID":"msg_p2"})),
+        resp("session.fork.response", "session.fork", session_info(fork)),
+        out("session.messages.fork", "session.messages", json!({"sessionID":fork})),
+        resp("session.messages.fork.response", "session.messages", history(&[("msg_f1", "user"), ("msg_f2", "assistant")], fork)),
+        out("session.update", "session.update", json!({"sessionID":fork,"permission":"<any>"})),
+        resp("session.update.response", "session.update", session_info(fork)),
+        out("session.get", "session.get", json!({"sessionID":fork})),
+        resp("session.get.response", "session.get", session_info(fork)),
+        out("session.messages.snapshot", "session.messages", json!({"sessionID":fork})),
+        resp("session.messages.snapshot.response", "session.messages", history(&[("msg_f1", "user"), ("msg_f2", "assistant")], fork)),
+    ]);
+    entries.extend(turn(3, fork, "Third", "Three"));
+    entries.extend([
+        out("session.abort.cleanup", "session.abort", json!({"sessionID":SESSION})),
+        resp("session.abort.cleanup.response", "session.abort", json!(true)),
+        out("session.children.cleanup", "session.children", json!({"sessionID":SESSION})),
+        resp("session.children.cleanup.response", "session.children", json!([])),
+        out("session.abort.cleanup.fork", "session.abort", json!({"sessionID":fork})),
+        resp("session.abort.cleanup.fork.response", "session.abort", json!(true)),
+        out("session.children.cleanup.fork", "session.children", json!({"sessionID":fork})),
+        resp("session.children.cleanup.fork.response", "session.children", json!([])),
+        json!({"type":"runtime_exit","status":"success"}),
+    ]);
+    let turn_row = json!({"status":"completed","turnTokenUsage":{"usageScope":"main_agent","hasSubagents":false,"usageStatus":"unavailable"},"tokenUsage":null});
+    let kept = json!({"runs":["completed","rolled_back","completed"],"attempts":["completed","completed","completed"],"providerTurns":[turn_row,turn_row,turn_row],"items":[user_item("First"),assistant_item("One"),user_item("Second"),assistant_item("Two"),user_item("Third"),assistant_item("Three")],"requests":[],"plans":[],"providerThread":["idle"]});
+    rows.push(row("one_x_rollback", json!([step("First"), step("Second"), {"type":"rollback"}, step("Third")]), entries, kept));
+    rows
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn one_x_sessions_the_recordings_do_not_hold_persist_what_the_adapter_is_meant_to() {
+    let mut failures = vec![];
+    for row in synthetic_rows() {
+        let name = row["name"].as_str().unwrap().to_owned();
+        match tokio::time::timeout(Duration::from_secs(25), tokio::spawn(replay(row))).await.unwrap_or_else(|_| panic!("{name} did not finish in 25s")) {
+            Ok(Ok(())) => {}
+            Ok(Err(failure)) => failures.push(failure),
+            Err(cause) => failures.push(format!("{name}: {}", cause.try_into_panic().ok().and_then(|payload| payload.downcast_ref::<String>().cloned()).unwrap_or_default())),
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

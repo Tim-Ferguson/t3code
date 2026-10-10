@@ -44,8 +44,20 @@ const LACKING: &[(&str, &[&str])] = &[
     ]),
     // OpenCode 2.x steers a running turn by queueing the message into it (`supportsActiveSteering`, covered by the
     // `opencode2_inbox` replay); the restart-by-interrupt form the original also declares is never needed, so the
-    // port does not offer it. 1.x, which the port does not drive, declares another set.
+    // port does not offer it. 1.x declares another set (below).
     ("opencode", &[
+        "turns.supportsSteeringByInterruptRestart",
+    ]),
+    // OpenCode 1.x also steers a running turn natively (another prompt into it, `opencode1_flows.rs`), so the restart form
+    // is not offered either. What else the port lacks: a summary of the conversation for a handoff (the original
+    // generates it with a text-generation call the port does not make), and forking a subagent's thread or from one
+    // (the child sessions are read-only threads here and no scripted session forks them). Everything else the original
+    // declares, among it MCP tools, the todo list and tool output, is exercised by the 1.x replays and
+    // `opencode1_turn_flow.rs` / `opencode1_flows.rs`.
+    ("opencode1", &[
+        "context.canGenerateSummaries",
+        "subagents.canForkSubagentThread",
+        "threads.canForkFromSubagentThread",
         "turns.supportsSteeringByInterruptRestart",
     ]),
 ];
@@ -69,6 +81,7 @@ fn the_capability_files_differ_from_the_original_only_where_the_port_lacks_a_fea
         ("grok", include_str!("../src/grok-capabilities.json")),
         ("pi", include_str!("../src/pi-capabilities.json")),
         ("opencode", include_str!("../src/opencode-capabilities.json")),
+        ("opencode1", include_str!("../src/opencode1-capabilities.json")),
     ];
     for (driver, file) in files {
         let (mut declared, mut ported) = (vec![], vec![]);

@@ -108,12 +108,16 @@ impl Api {
             request = request.query(query);
         }
         if let Some(directory) = &self.directory {
-            let encoded = url::form_urlencoded::byte_serialize(directory.as_bytes()).collect::<String>().replace('+', "%20");
-            if let Ok(value) = HeaderValue::from_str(&encoded) {
-                request = request.header("x-opencode-directory", value);
-            }
-            if method == Method::GET && !query.iter().any(|(name, _)| name == "directory") {
-                request = request.query(&[("directory", directory.as_str())]);
+            // The SDK client moves the header into the `directory` query of a GET, and keeps it on any other method.
+            if method == Method::GET {
+                if !query.iter().any(|(name, _)| name == "directory") {
+                    request = request.query(&[("directory", directory.as_str())]);
+                }
+            } else {
+                let encoded = url::form_urlencoded::byte_serialize(directory.as_bytes()).collect::<String>().replace('+', "%20");
+                if let Ok(value) = HeaderValue::from_str(&encoded) {
+                    request = request.header("x-opencode-directory", value);
+                }
             }
         }
         if let Some(authorization) = &self.authorization {
@@ -180,8 +184,9 @@ fn transport(error: reqwest::Error) -> ApiError {
 }
 fn status_error(status: u16, body: &[u8]) -> ApiError {
     let parsed: Option<Value> = serde_json::from_slice(body).ok();
-    let tag = parsed.as_ref().and_then(|body| body["_tag"].as_str()).map(str::to_owned);
-    let message = parsed.as_ref().and_then(|body| body["message"].as_str()).unwrap_or("").chars().take(500).collect();
+    // 2.x tags its errors with `_tag`; 1.x names them (`NotFoundError`, `BadRequestError`) and nests the message in `data`.
+    let tag = parsed.as_ref().and_then(|body| body["_tag"].as_str().or_else(|| body["name"].as_str())).map(str::to_owned);
+    let message = parsed.as_ref().and_then(|body| body["message"].as_str().or_else(|| body["data"]["message"].as_str())).unwrap_or("").chars().take(500).collect();
     ApiError::Status { status, tag, message }
 }
 /// The body up to `max` bytes and whether more followed.
