@@ -13,6 +13,9 @@ GROK_FIXTURE_SCRIPT names {"prompts": [[step, ...], ...]}: the Nth `session/prom
   {"end": "end_turn"}               answers the prompt
   {"hang": true}                    keeps the prompt open until the process is stopped
 GROK_FIXTURE_LOG receives every message the client sends, with this process's pid.
+With GROK_FIXTURE_DETACH_DIR set, this process writes its own pid to agent-<pid>.pid there when it starts, and
+a detached tool leaves <name>.pid, which it removes itself when it is told to end: the test's cleanup guard
+signals exactly the pids still listed (see PidGuard in grok_turn_flow.rs).
 """
 import json
 import os
@@ -25,6 +28,9 @@ log_path = os.environ["GROK_FIXTURE_LOG"]
 detach_dir = os.environ.get("GROK_FIXTURE_DETACH_DIR")
 SESSION = "grok-turn-session"
 MODELS = {"currentModelId": "grok-4.7", "availableModels": [{"modelId": "grok-4.7", "name": "Grok 4.7"}]}
+if detach_dir:
+    with open(os.path.join(detach_dir, "agent-%d.pid" % os.getpid()), "w") as handle:
+        handle.write(str(os.getpid()))
 # A process that replaces a stopped one carries on with the next prompt of the script.
 prompts_seen = sum(1 for line in open(log_path) if json.loads(line)["in"].get("method") == "session/prompt") if os.path.exists(log_path) else 0
 prompt_request = None
@@ -34,7 +40,7 @@ next_id = 100
 
 # `sleep` and the shell below are the tool; ignoring SIGHUP is what a detached tool does.
 STUBBORN = 'trap "" TERM; exec {hold}>"$2"; echo ready >&{fd}; while :; do sleep 0.1; done'
-DETACHED = 'trap \'echo exited > "$2"; exit 0\' TERM; echo ready >&{fd}; while :; do sleep 0.1; done'
+DETACHED = 'trap \'rm -f "$3"; echo exited > "$2"; exit 0\' TERM; echo ready >&{fd}; while :; do sleep 0.1; done'
 
 
 def emit(value):
@@ -57,7 +63,7 @@ def detach(name, stubborn=False):
     if not os.path.exists(fifo):
         os.mkfifo(fifo)
     child = subprocess.Popen(
-        ["/bin/sh", "-c", (STUBBORN if stubborn else DETACHED).format(fd=ready_write, hold=ready_write + 10), "sh", name, fifo],
+        ["/bin/sh", "-c", (STUBBORN if stubborn else DETACHED).format(fd=ready_write, hold=ready_write + 10), "sh", name, fifo, os.path.join(detach_dir, name + ".pid")],
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

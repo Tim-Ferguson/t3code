@@ -17,7 +17,41 @@ use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persis
 const CLI: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/grok-fake-cli.py");
 const AGENT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/grok-turn-agent.py");
 
+/// Ends what a test started on any exit path. The agent records its own pid and each tool it detaches records
+/// its own, in the test's detach directory (see the fixture); a tool removes its record when it is told to end.
+/// Whatever is still listed when the test panics is signalled by that pid and nothing else: no names, no paths.
+struct PidGuard(PathBuf);
+impl PidGuard {
+    fn listed(&self, agents: bool) -> Vec<(PathBuf, i32)> {
+        let Ok(entries) = std::fs::read_dir(&self.0) else { return vec![] };
+        entries.filter_map(|entry| {
+            let path = entry.ok()?.path();
+            let name = path.file_name()?.to_str()?;
+            (name.ends_with(".pid") && name.starts_with("agent-") == agents).then_some(())?;
+            let pid: i32 = std::fs::read_to_string(&path).ok()?.trim().parse().ok()?;
+            (pid > 1).then_some((path, pid))
+        }).collect()
+    }
+    /// Kills every pid still listed, agents included or not, and returns them.
+    fn reap(&self, agents: bool) -> Vec<i32> {
+        self.listed(false).into_iter().chain(if agents { self.listed(true) } else { vec![] }).map(|(path, pid)| {
+            unsafe { libc::kill(pid, libc::SIGKILL) };
+            let _ = std::fs::remove_file(path);
+            pid
+        }).collect()
+    }
+}
+impl Drop for PidGuard {
+    fn drop(&mut self) {
+        if std::thread::panicking() {
+            self.reap(true);
+        }
+    }
+}
+
 struct Flow {
+    /// Declared before the directory: it signals the pids the directory holds.
+    guard: PidGuard,
     _directory: tempfile::TempDir,
     served: Served,
     store: Store,
@@ -62,7 +96,7 @@ impl Flow {
         let execution = ExecutionService::start(store.clone(), providers.clone());
         let served = serve(&store, &providers, &execution).await;
         let command = served.connect().await;
-        Self { _directory: directory, served, store, execution, thread, command, next: 0, log, detached }
+        Self { guard: PidGuard(detached.clone()), _directory: directory, served, store, execution, thread, command, next: 0, log, detached }
     }
     fn view(&self) -> Value {
         self.store.projection("thread", &self.thread).unwrap().unwrap()
@@ -106,9 +140,19 @@ impl Flow {
         let name = name.to_owned();
         tokio::spawn(blocking_step(format!("the detached tool {name} to be told to end"), move || std::fs::read_to_string(&fifo).unwrap()))
     }
+    /// A tool that is known to be dead (its fifo closed) and could not remove its own record.
+    fn forget(&self, name: &str) {
+        let _ = std::fs::remove_file(self.detached.join(format!("{name}.pid")));
+    }
     async fn finish(self) {
         self.served.stop().await;
         self.execution.shutdown().await;
+        // The server ended the agent; its records go. A tool still listed was left running by the test.
+        for (path, _) in self.guard.listed(true) {
+            let _ = std::fs::remove_file(path);
+        }
+        let leaked = self.guard.reap(false);
+        assert!(leaked.is_empty(), "tools left running: {leaked:?}");
     }
 }
 
@@ -231,5 +275,32 @@ async fn a_tool_that_ignores_the_request_to_end_is_killed_once_the_grace_has_pas
     flow.dispatch(json!({"type":"run.interrupt","commandId":"stop","threadId":flow.thread,"runId":run})).await;
     flow.run_status(1, "interrupted").await;
     assert_eq!(closed.await.unwrap(), "", "it was killed, not asked");
+    flow.forget("stubborn");
     flow.finish().await;
+}
+
+/// The guard ends what is listed when a test panics, by pid and nothing else, and leaves a test that passes alone.
+#[test]
+fn the_guard_ends_the_processes_it_lists_when_a_test_panics() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut stray = std::process::Command::new("/bin/sleep").arg("600").spawn().unwrap();
+    let mut bystander = std::process::Command::new("/bin/sleep").arg("600").spawn().unwrap();
+    std::fs::write(directory.path().join("build.pid"), stray.id().to_string()).unwrap();
+    let path = directory.path().to_owned();
+    let panicked = std::panic::catch_unwind(move || {
+        let _guard = PidGuard(path);
+        panic!("a test failed before it pressed Stop");
+    });
+    assert!(panicked.is_err());
+    assert!(!stray.wait().unwrap().success(), "the listed process was signalled");
+    assert!(bystander.try_wait().unwrap().is_none(), "an unlisted process is left alone");
+    assert!(!directory.path().join("build.pid").exists());
+    // A guard dropped without a panic signals nothing.
+    let mut quiet = std::process::Command::new("/bin/sleep").arg("600").spawn().unwrap();
+    std::fs::write(directory.path().join("quiet.pid"), quiet.id().to_string()).unwrap();
+    drop(PidGuard(directory.path().to_owned()));
+    assert!(quiet.try_wait().unwrap().is_none());
+    quiet.kill().unwrap();
+    bystander.kill().unwrap();
+    let _ = (quiet.wait(), bystander.wait());
 }
