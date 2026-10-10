@@ -1,0 +1,413 @@
+{
+  "runs": [
+    {
+      "id": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "ordinal": 1,
+      "providerInstanceId": "codex",
+      "modelSelection": { "instanceId": "codex", "model": "fixture-model" },
+      "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+      "userMessageId": "dba7d2a6-5bfc-4468-b996-ee7b58c61f20",
+      "rootNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "activeAttemptId": "492e3f64-c64d-422f-874a-2dcd5f4a4908",
+      "status": "completed",
+      "requestedAt": "2026-10-10T07:33:29.995Z",
+      "startedAt": "2026-10-10T07:33:30.532Z",
+      "completedAt": "2026-10-10T07:33:30.668Z",
+      "checkpointId": "checkpoint:scope:checkpoint-scope%3Athread%3A69942070-7a72-4d86-85bd-5378dcdeaaec%3Aname%3Aroot:name:1",
+      "contextHandoffId": null
+    }
+  ],
+  "attempts": [
+    {
+      "id": "492e3f64-c64d-422f-874a-2dcd5f4a4908",
+      "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "attemptOrdinal": 1,
+      "rootNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "providerInstanceId": "codex",
+      "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+      "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+      "reason": "initial",
+      "status": "completed",
+      "startedAt": "2026-10-10T07:33:30.532Z",
+      "completedAt": "2027-01-15T08:00:01.000Z"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "parentNodeId": null,
+      "rootNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "kind": "root_turn",
+      "status": "completed",
+      "countsForRun": true,
+      "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+      "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+      "nativeItemRef": null,
+      "runtimeRequestId": null,
+      "checkpointScopeId": "checkpoint-scope:thread:69942070-7a72-4d86-85bd-5378dcdeaaec:name:root",
+      "startedAt": "2026-10-10T07:33:30.532Z",
+      "completedAt": "2026-10-10T07:33:30.668Z"
+    },
+    {
+      "id": "node:provider:codex:native-item:fixture-turn-2-tool",
+      "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "parentNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "rootNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "kind": "tool_call",
+      "status": "completed",
+      "countsForRun": false,
+      "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+      "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+      "nativeItemRef": {
+        "driver": "codex",
+        "nativeId": "fixture-turn-2-tool",
+        "strength": "strong"
+      },
+      "runtimeRequestId": null,
+      "checkpointScopeId": null,
+      "startedAt": "2026-10-10T07:33:30.554Z",
+      "completedAt": "2026-10-10T07:33:30.567Z"
+    },
+    {
+      "id": "node:provider:codex:native-item:fixture-turn-2-assistant",
+      "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "parentNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "rootNodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "kind": "assistant_message",
+      "status": "completed",
+      "countsForRun": false,
+      "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+      "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+      "nativeItemRef": {
+        "driver": "codex",
+        "nativeId": "fixture-turn-2-assistant",
+        "strength": "strong"
+      },
+      "runtimeRequestId": null,
+      "checkpointScopeId": null,
+      "startedAt": "2026-10-10T07:33:30.589Z",
+      "completedAt": "2026-10-10T07:33:30.590Z"
+    }
+  ],
+  "visibleTurnItems": [
+    {
+      "visibility": "inherited",
+      "sourceThreadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+      "sourceItemId": "turn-item:message:ae39c6c2-ef69-41d8-bd6d-4d310f4b0c24",
+      "item": {
+        "id": "turn-item:message:ae39c6c2-ef69-41d8-bd6d-4d310f4b0c24",
+        "threadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+        "runId": "dfd86059-3723-427b-86f4-540b73d6402f",
+        "nodeId": "cb321346-4267-44c3-8b69-6c9434fb151e",
+        "providerThreadId": "4ed84b5f-910d-42da-81f8-5251d443e7fb",
+        "providerTurnId": null,
+        "nativeItemRef": null,
+        "parentItemId": null,
+        "ordinal": 0,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:24.047Z",
+        "completedAt": "2026-10-10T07:33:24.047Z",
+        "updatedAt": "2026-10-10T07:33:24.047Z",
+        "type": "user_message",
+        "createdBy": "user",
+        "creationSource": "web",
+        "messageId": "ae39c6c2-ef69-41d8-bd6d-4d310f4b0c24",
+        "inputIntent": "turn_start",
+        "text": "Show me the project files.",
+        "attachments": []
+      },
+      "position": 0
+    },
+    {
+      "visibility": "inherited",
+      "sourceThreadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+      "sourceItemId": "workspace-preparation:dfd86059-3723-427b-86f4-540b73d6402f",
+      "item": {
+        "id": "workspace-preparation:dfd86059-3723-427b-86f4-540b73d6402f",
+        "threadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+        "runId": "dfd86059-3723-427b-86f4-540b73d6402f",
+        "nodeId": "cb321346-4267-44c3-8b69-6c9434fb151e",
+        "providerThreadId": "4ed84b5f-910d-42da-81f8-5251d443e7fb",
+        "providerTurnId": null,
+        "nativeItemRef": null,
+        "parentItemId": null,
+        "ordinal": 1,
+        "status": "completed",
+        "title": "Workspace ready",
+        "startedAt": "2026-10-10T07:33:24.047Z",
+        "completedAt": "2026-10-10T07:33:24.047Z",
+        "updatedAt": "2026-10-10T07:33:24.047Z",
+        "type": "command_execution",
+        "input": "Preparing workspace",
+        "exitCode": 0,
+        "outputOmitted": true
+      },
+      "position": 1
+    },
+    {
+      "visibility": "inherited",
+      "sourceThreadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+      "sourceItemId": "turn-item:provider:codex:native-item:fixture-turn-2-tool",
+      "item": {
+        "id": "turn-item:provider:codex:native-item:fixture-turn-2-tool",
+        "threadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+        "runId": "dfd86059-3723-427b-86f4-540b73d6402f",
+        "nodeId": "node:provider:codex:native-item:fixture-turn-2-tool",
+        "providerThreadId": "4ed84b5f-910d-42da-81f8-5251d443e7fb",
+        "providerTurnId": "6402ee9e-8e3e-490e-a039-fef850645f37",
+        "nativeItemRef": {
+          "driver": "codex",
+          "nativeId": "fixture-turn-2-tool",
+          "strength": "strong"
+        },
+        "parentItemId": null,
+        "ordinal": 2,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:24.868Z",
+        "completedAt": "2026-10-10T07:33:24.873Z",
+        "updatedAt": "2026-10-10T07:33:24.873Z",
+        "type": "command_execution",
+        "input": "printf 'fixture tool output'",
+        "exitCode": 0,
+        "outputOmitted": true
+      },
+      "position": 2
+    },
+    {
+      "visibility": "inherited",
+      "sourceThreadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+      "sourceItemId": "turn-item:provider:codex:native-item:fixture-turn-2-assistant",
+      "item": {
+        "id": "turn-item:provider:codex:native-item:fixture-turn-2-assistant",
+        "threadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+        "runId": "dfd86059-3723-427b-86f4-540b73d6402f",
+        "nodeId": "node:provider:codex:native-item:fixture-turn-2-assistant",
+        "providerThreadId": "4ed84b5f-910d-42da-81f8-5251d443e7fb",
+        "providerTurnId": "6402ee9e-8e3e-490e-a039-fef850645f37",
+        "nativeItemRef": {
+          "driver": "codex",
+          "nativeId": "fixture-turn-2-assistant",
+          "strength": "strong"
+        },
+        "parentItemId": null,
+        "ordinal": 3,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:24.877Z",
+        "completedAt": "2026-10-10T07:33:24.881Z",
+        "updatedAt": "2026-10-10T07:33:24.881Z",
+        "type": "assistant_message",
+        "messageId": "message:provider:codex:native-item:fixture-turn-2-assistant",
+        "text": "Fixture response: Show me the project files.",
+        "streaming": false
+      },
+      "position": 3
+    },
+    {
+      "visibility": "inherited",
+      "sourceThreadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+      "sourceItemId": "turn-item:provider:codex:native-item:checkpoint%3Acheckpoint%3Ascope%3Acheckpoint-scope%253Athread%253Ab0ced8d0-a6d3-45ae-907c-d6513c1f33f4%253Aname%253Aroot%3Aname%3A1",
+      "item": {
+        "id": "turn-item:provider:codex:native-item:checkpoint%3Acheckpoint%3Ascope%3Acheckpoint-scope%253Athread%253Ab0ced8d0-a6d3-45ae-907c-d6513c1f33f4%253Aname%253Aroot%3Aname%3A1",
+        "threadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+        "runId": "dfd86059-3723-427b-86f4-540b73d6402f",
+        "nodeId": "cb321346-4267-44c3-8b69-6c9434fb151e",
+        "providerThreadId": "4ed84b5f-910d-42da-81f8-5251d443e7fb",
+        "providerTurnId": "6402ee9e-8e3e-490e-a039-fef850645f37",
+        "nativeItemRef": null,
+        "parentItemId": null,
+        "ordinal": 199,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:24.928Z",
+        "completedAt": "2026-10-10T07:33:24.928Z",
+        "updatedAt": "2026-10-10T07:33:24.928Z",
+        "type": "checkpoint",
+        "checkpointId": "checkpoint:scope:checkpoint-scope%3Athread%3Ab0ced8d0-a6d3-45ae-907c-d6513c1f33f4%3Aname%3Aroot:name:1",
+        "scopeId": "checkpoint-scope:thread:b0ced8d0-a6d3-45ae-907c-d6513c1f33f4:name:root",
+        "files": []
+      },
+      "position": 4
+    },
+    {
+      "visibility": "synthetic",
+      "sourceThreadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+      "sourceItemId": "turn-item:fork:69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "item": {
+        "id": "turn-item:fork:69942070-7a72-4d86-85bd-5378dcdeaaec",
+        "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+        "runId": null,
+        "nodeId": null,
+        "providerTurnId": null,
+        "nativeItemRef": null,
+        "parentItemId": null,
+        "ordinal": 0,
+        "status": "completed",
+        "title": "Forked from conversation",
+        "startedAt": null,
+        "completedAt": "2026-10-10T07:33:29.978Z",
+        "updatedAt": "2026-10-10T07:33:29.978Z",
+        "type": "fork",
+        "source": {
+          "type": "run",
+          "threadId": "b0ced8d0-a6d3-45ae-907c-d6513c1f33f4",
+          "runId": "dfd86059-3723-427b-86f4-540b73d6402f"
+        },
+        "targetThreadId": "69942070-7a72-4d86-85bd-5378dcdeaaec"
+      },
+      "position": 5
+    },
+    {
+      "visibility": "local",
+      "sourceThreadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "sourceItemId": "turn-item:message:dba7d2a6-5bfc-4468-b996-ee7b58c61f20",
+      "item": {
+        "id": "turn-item:message:dba7d2a6-5bfc-4468-b996-ee7b58c61f20",
+        "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+        "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+        "nodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+        "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+        "providerTurnId": null,
+        "nativeItemRef": null,
+        "parentItemId": null,
+        "ordinal": 0,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:29.995Z",
+        "completedAt": "2026-10-10T07:33:29.995Z",
+        "updatedAt": "2026-10-10T07:33:29.995Z",
+        "type": "user_message",
+        "createdBy": "user",
+        "creationSource": "web",
+        "messageId": "dba7d2a6-5bfc-4468-b996-ee7b58c61f20",
+        "inputIntent": "turn_start",
+        "text": "Continue from the fork: now list only the TypeScript files.",
+        "attachments": []
+      },
+      "position": 6
+    },
+    {
+      "visibility": "local",
+      "sourceThreadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "sourceItemId": "turn-item:provider:codex:native-item:fixture-turn-2-tool",
+      "item": {
+        "id": "turn-item:provider:codex:native-item:fixture-turn-2-tool",
+        "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+        "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+        "nodeId": "node:provider:codex:native-item:fixture-turn-2-tool",
+        "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+        "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+        "nativeItemRef": {
+          "driver": "codex",
+          "nativeId": "fixture-turn-2-tool",
+          "strength": "strong"
+        },
+        "parentItemId": null,
+        "ordinal": 1,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:30.554Z",
+        "completedAt": "2026-10-10T07:33:30.567Z",
+        "updatedAt": "2026-10-10T07:33:30.567Z",
+        "type": "command_execution",
+        "input": "printf 'fixture tool output'",
+        "exitCode": 0,
+        "outputOmitted": true
+      },
+      "position": 7
+    },
+    {
+      "visibility": "local",
+      "sourceThreadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "sourceItemId": "turn-item:provider:codex:native-item:fixture-turn-2-assistant",
+      "item": {
+        "id": "turn-item:provider:codex:native-item:fixture-turn-2-assistant",
+        "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+        "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+        "nodeId": "node:provider:codex:native-item:fixture-turn-2-assistant",
+        "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+        "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+        "nativeItemRef": {
+          "driver": "codex",
+          "nativeId": "fixture-turn-2-assistant",
+          "strength": "strong"
+        },
+        "parentItemId": null,
+        "ordinal": 2,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:30.589Z",
+        "completedAt": "2026-10-10T07:33:30.590Z",
+        "updatedAt": "2026-10-10T07:33:30.590Z",
+        "type": "assistant_message",
+        "messageId": "message:provider:codex:native-item:fixture-turn-2-assistant",
+        "text": "Fixture response: Continue from the fork: now list only the TypeScript files.",
+        "streaming": false
+      },
+      "position": 8
+    },
+    {
+      "visibility": "local",
+      "sourceThreadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "sourceItemId": "turn-item:provider:codex:native-item:checkpoint%3Acheckpoint%3Ascope%3Acheckpoint-scope%253Athread%253A69942070-7a72-4d86-85bd-5378dcdeaaec%253Aname%253Aroot%3Aname%3A1",
+      "item": {
+        "id": "turn-item:provider:codex:native-item:checkpoint%3Acheckpoint%3Ascope%3Acheckpoint-scope%253Athread%253A69942070-7a72-4d86-85bd-5378dcdeaaec%253Aname%253Aroot%3Aname%3A1",
+        "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+        "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+        "nodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+        "providerThreadId": "3d83d331-c89d-44a0-9099-f62381f5aab6",
+        "providerTurnId": "f550744b-df72-490b-9f1e-bcde6c327664",
+        "nativeItemRef": null,
+        "parentItemId": null,
+        "ordinal": 199,
+        "status": "completed",
+        "title": null,
+        "startedAt": "2026-10-10T07:33:30.668Z",
+        "completedAt": "2026-10-10T07:33:30.668Z",
+        "updatedAt": "2026-10-10T07:33:30.668Z",
+        "type": "checkpoint",
+        "checkpointId": "checkpoint:scope:checkpoint-scope%3Athread%3A69942070-7a72-4d86-85bd-5378dcdeaaec%3Aname%3Aroot:name:1",
+        "scopeId": "checkpoint-scope:thread:69942070-7a72-4d86-85bd-5378dcdeaaec:name:root",
+        "files": []
+      },
+      "position": 9
+    }
+  ],
+  "messages": [
+    {
+      "createdBy": "user",
+      "creationSource": "web",
+      "id": "dba7d2a6-5bfc-4468-b996-ee7b58c61f20",
+      "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "nodeId": "986c6af3-220b-4bfe-84a8-e9f6ccbdd9f5",
+      "role": "user",
+      "text": "Continue from the fork: now list only the TypeScript files.",
+      "attachments": [],
+      "streaming": false,
+      "createdAt": "2026-10-10T07:33:29.995Z",
+      "updatedAt": "2026-10-10T07:33:29.995Z"
+    },
+    {
+      "createdBy": "agent",
+      "creationSource": "provider",
+      "id": "message:provider:codex:native-item:fixture-turn-2-assistant",
+      "threadId": "69942070-7a72-4d86-85bd-5378dcdeaaec",
+      "runId": "853c5046-d9f9-41b9-b09b-db8ae5e4d69b",
+      "nodeId": "node:provider:codex:native-item:fixture-turn-2-assistant",
+      "role": "assistant",
+      "text": "Fixture response: Continue from the fork: now list only the TypeScript files.",
+      "attachments": [],
+      "streaming": false,
+      "createdAt": "2026-10-10T07:33:30.589Z",
+      "updatedAt": "2026-10-10T07:33:30.590Z"
+    }
+  ]
+}

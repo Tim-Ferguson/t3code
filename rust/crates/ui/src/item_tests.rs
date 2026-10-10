@@ -1472,3 +1472,26 @@ fn standard_base64(bytes: &[u8]) -> String {
         })
         .collect()
 }
+
+/// A fork carries its parent's answers, and a provider that numbers its items per session gives the
+/// fork's own answers the same ids. Rows are keyed by their identity, so two rows with one key made
+/// the diff abort the WebAssembly module as soon as the thread opened (the browser fixture's
+/// "Forked thread" did exactly that). `forked-thread-projection.json` is that thread's projection as
+/// the server sent it; every copy must show, and an update must apply.
+#[test]
+fn a_fork_whose_items_repeat_its_parents_ids_renders_every_row_and_takes_updates() {
+    let fixture: Value = serde_json::from_str(include_str!("../tests/fixtures/forked-thread-projection.json")).unwrap();
+    let items: Vec<Value> = fixture["visibleTurnItems"].as_array().unwrap().iter().map(|row| with(row["item"].clone(), json!({"sourceThreadId":row["sourceThreadId"],"visibility":row["visibility"]}))).collect();
+    assert_eq!(items.iter().filter(|item| item["id"] == "turn-item:provider:codex:native-item:fixture-turn-2-assistant").count(), 2, "the fork repeats its parent's answer id");
+    let (mut dom, props) = synth(Value::Array(items), fixture["runs"].clone(), json!({}));
+    let shown = text(&dom);
+    assert!(shown.contains("Fixture response: Show me the project files."), "{shown}");
+    let mut thread = state_of(&props).thread();
+    for row in thread.write().projection.as_mut().unwrap()["visibleTurnItems"].as_array_mut().unwrap() {
+        if row["item"]["type"] == "assistant_message" {
+            row["item"]["text"] = json!("Fixture response: edited.");
+        }
+    }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(text(&dom).contains("Fixture response: edited."), "{}", text(&dom));
+}

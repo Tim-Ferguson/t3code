@@ -161,9 +161,22 @@ pub(crate) struct Rows<'a> {
     pub working_since: Option<&'a str>,
     pub disclosures: Disclosures,
     pub edit_target: fn(&std::collections::BTreeMap<String, Target>, &str, &Value) -> Option<Target>,
+    /// The row markers handed out by the current `render`, so none is handed out twice.
+    pub markers: std::cell::RefCell<std::collections::HashMap<String, u32>>,
 }
 
 impl Rows<'_> {
+    /// A marker no earlier row of this render has, used as the row's key and `data-timeline-row`.
+    /// Sibling keys must be unique or the diff misplaces rows (and aborts the web build in debug).
+    /// Item identities repeat in practice: a fork carries its parent's answer, and a provider that
+    /// numbers its own items per session gives the fork's new answer the same id. The first row
+    /// keeps the plain marker, so ordinary threads are unchanged.
+    fn unique(&self, marker: String) -> String {
+        let mut seen = self.markers.borrow_mut();
+        let count = seen.entry(marker.clone()).or_insert(0);
+        *count += 1;
+        if *count == 1 { marker } else { format!("{marker}#{count}") }
+    }
     fn key(&self, row: &Value) -> String {
         serde_json::to_string(&(self.environment_key, &row["sourceThreadId"], &row["sourceItemId"])).expect("scoped item identity")
     }
@@ -171,7 +184,7 @@ impl Rows<'_> {
     fn item(&self, index: usize, prefix: &str) -> Element {
         let row = &self.items[index];
         let key = self.key(row);
-        let marker = format!("{prefix}{key}");
+        let marker = self.unique(format!("{prefix}{key}"));
         // A report about a subagent the parent knows is that subagent's row, with the status the report carried.
         if row["item"]["type"] == "notification" {
             let at = row["item"]["startedAt"].as_str().or_else(|| row["item"]["updatedAt"].as_str()).unwrap_or_default();
@@ -203,13 +216,13 @@ impl Rows<'_> {
         }}
     }
     fn members(&self, group: &str, members: &[usize]) -> Element {
-        let marker = format!("members:{group}");
+        let marker = self.unique(format!("members:{group}"));
         let limit = self.disclosures.shown.read().get(group).copied().unwrap_or(MEMBER_PAGE).max(MEMBER_PAGE);
         let hidden = members.len().saturating_sub(limit);
         let mut shown = self.disclosures.shown;
         let key = group.to_owned();
         rsx! { div { key:"{marker}",class:"work-members","data-timeline-row":"{marker}",
-            for &member in members.iter().take(limit) {{ let row = &self.items[self.entries[member].row]; let key = self.key(row); rsx!{ div { key:"{key}",class:"work-member",
+            for &member in members.iter().take(limit) {{ let row = &self.items[self.entries[member].row]; let key = self.unique(format!("member:{}", self.key(row))); rsx!{ div { key:"{key}",class:"work-member",
                 TimelineItem { environment_key:self.environment_key.to_owned(),item:row["item"].clone(),state:self.state,transport:self.transport.clone(),
                     source_thread_id:row["sourceThreadId"].as_str().unwrap_or(self.thread_id).to_owned(),source_item_id:row["sourceItemId"].as_str().unwrap_or_default().to_owned(),
                     rewind:None,active_run:if item_cards::in_progress(&row["item"]) { self.active_run_id.map(str::to_owned) } else { None },visibility:row["visibility"].as_str().unwrap_or("local").to_owned() }
@@ -221,6 +234,7 @@ impl Rows<'_> {
     pub(crate) fn render(&self, rows: &[Row]) -> Vec<Element> {
         let Disclosures { runs, attempts, groups, .. } = self.disclosures;
         let mut out = Vec::with_capacity(rows.len());
+        self.markers.borrow_mut().clear();
         for row in rows {
             let element = match row {
                 Row::Entry { entry } | Row::Single { entry, .. } | Row::Compaction { entry, .. } => self.item(self.entries[*entry].row, ""),
@@ -228,7 +242,7 @@ impl Rows<'_> {
                 Row::Created { entry } => self.item(self.entries[*entry].row, "summary:"),
                 Row::Footer { message } => {
                     let item = &self.items[self.entries[*message].row]["item"];
-                    let marker = format!("assistant-meta:{}", item["messageId"].as_str().or_else(|| item["id"].as_str()).unwrap_or_default());
+                    let marker = self.unique(format!("assistant-meta:{}", item["messageId"].as_str().or_else(|| item["id"].as_str()).unwrap_or_default()));
                     // An inherited answer forks from its own thread; its session is only known when that is this one.
                     let source = self.items[self.entries[*message].row]["sourceThreadId"].as_str().unwrap_or(self.thread_id);
                     let capabilities = if source == self.thread_id { t3_client::thread_relations::item_capabilities(self.projection, item) } else { None };
@@ -239,7 +253,7 @@ impl Rows<'_> {
                 }
                 Row::Subagents { entries } => {
                     let first = self.items[self.entries[entries[0]].row]["sourceItemId"].as_str().unwrap_or_default().to_owned();
-                    let marker = format!("subagents:{first}");
+                    let marker = self.unique(format!("subagents:{first}"));
                     let items: Vec<&Value> = entries.iter().map(|&entry| &self.items[self.entries[entry].row]["item"]).collect();
                     let cards = crate::subagent_rows::cards(self.state, self.projection, &items);
                     rsx! { div { key:"{marker}",class:"subagent-batch","data-timeline-row":"{marker}",
@@ -251,16 +265,16 @@ impl Rows<'_> {
                     }}
                 }
                 Row::TurnFold { run_id, label, expanded, .. } => {
-                    let marker = format!("turn-fold:{run_id}");
+                    let marker = self.unique(format!("turn-fold:{run_id}"));
                     rsx! { div { key:"{marker}",class:"fold-row","data-timeline-row":"{marker}",FoldRow {attempt:false,id:run_id.clone(),label:label.clone(),expanded:*expanded,set:runs}} }
                 }
                 Row::AttemptFold { attempt_id, label, expanded, .. } => {
-                    let marker = format!("attempt-fold:{attempt_id}");
+                    let marker = self.unique(format!("attempt-fold:{attempt_id}"));
                     rsx! { div { key:"{marker}",class:"fold-row","data-timeline-row":"{marker}",FoldRow {attempt:true,id:attempt_id.clone(),label:label.clone(),expanded:*expanded,set:attempts}} }
                 }
-                Row::Toggle { id, group, entries, summary, kind, surface, icon, has_failure, expanded, .. } => rsx! { div { key:"{id}",class:"work-row","data-timeline-row":"{id}",
+                Row::Toggle { id, group, entries, summary, kind, surface, icon, has_failure, expanded, .. } => { let id = self.unique(id.clone()); rsx! { div { key:"{id}",class:"work-row","data-timeline-row":"{id}",
                     WorkSummary {group:group.clone(),summary:summary.clone(),count:entries.len(),glyph:glyph(*kind,surface.as_deref()).to_owned(),icon:icon.clone(),failed:*has_failure,expanded:*expanded,set:groups}
-                }},
+                }}},
                 Row::Live { id, group, entry, label, expanded, active, thought, surface, icon, failed, .. } => {
                     let text_of = |index: usize| self.items[self.entries[index].row]["item"]["text"].as_str().unwrap_or_default();
                     let thought_line = thought.map(|index| words::live_thought_line(text_of(index))).filter(|line| !line.is_empty());
@@ -269,6 +283,7 @@ impl Rows<'_> {
                     let shown = if is_thought { (if *active { "Thinking" } else { "Thought" }).to_owned() }
                         else if self.items[self.entries[*entry].row]["item"]["type"] == "reasoning" { words::live_thought_line(text_of(*entry)) }
                         else { label.clone() };
+                    let id = self.unique(id.clone());
                     rsx! { div { key:"{id}",class:"work-row","data-timeline-row":"{id}",
                         LiveRow {group:group.clone(),label:shown,thought:thought_line,active:*active,failed:*failed,glyph:glyph(SummaryKind::Mixed,surface.as_deref()).to_owned(),icon:icon.clone(),expanded:*expanded,set:groups}
                     }}
@@ -276,7 +291,7 @@ impl Rows<'_> {
                 Row::Members { group, entries } => self.members(group, entries),
                 Row::Working { since } => rsx! { composer_panels::WorkingRow { key:"working:{self.thread_id}", started: since.clone().or_else(|| self.working_since.map(str::to_owned)) } },
                 Row::Thinking { group, expanded, .. } => {
-                    let marker = format!("thinking:{}", group.as_deref().unwrap_or("live"));
+                    let marker = self.unique(format!("thinking:{}", group.as_deref().unwrap_or("live")));
                     rsx! { div { key:"{marker}",class:"work-row","data-timeline-row":"{marker}",ThinkingRow {group:group.clone(),expanded:*expanded,set:groups}} }
                 }
             };

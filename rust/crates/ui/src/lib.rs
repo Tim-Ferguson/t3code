@@ -1,5 +1,6 @@
 #![cfg_attr(test, recursion_limit = "512")]
 mod appearance;
+mod crash;
 mod attachments;
 mod branch;
 mod changed_files;
@@ -86,12 +87,19 @@ use t3_client::{connection::ConnectionStatus, rpc::RequestKind, timeline_items a
 
 const STYLES: &str = include_str!("../assets/app.css");
 
+/// Installs the web target's panic hook (the static error screen); see `crash`.
+#[cfg(target_arch = "wasm32")]
+pub use crash::install as install_panic_screen;
+
 /// Lets the command palette open the "Add project" dialog the application shell owns.
 #[derive(Clone, Copy)]
 pub(crate) struct AddProject(pub Signal<bool>);
 
 #[component]
 pub fn App() -> Element {
+    // The web runtime sets its own panic hook when it starts; this puts the error screen back on top.
+    #[cfg(target_arch = "wasm32")]
+    use_hook(crash::install);
     use_context_provider(timeline_scroll::Positions::default);
     let state = use_store(UiModel::default);
     let transport = use_hook(runtime::TransportHandle::default);
@@ -387,6 +395,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 }
                             }
                         } else {
+                            // A failure inside the open conversation shows a card in its place; the sidebar and
+                            // the header stay usable. A new thread (a new key) starts a fresh boundary.
+                            ErrorBoundary { key: "boundary:{timeline_key}", handle_error: crash::thread_failed,
                             for current in [active.as_ref().unwrap().clone()] {
                                 ThreadTimeline { key:"{timeline_key}",state, transport: transport.clone(),environment_key:environment_key.clone(), thread_id: current.id.to_string(), can_operate }
                             }
@@ -411,6 +422,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             }
                             for current in [active.as_ref().unwrap().clone()] {
                                 terminal_pane::Drawer {key:"terminal:{timeline_key}",state,transport:transport.clone(),environment:environment_key.clone(),thread_id:current.id.to_string(),cwd:projects.iter().find(|project|project.id==current.project_id).map(|p|p.workspace_root.to_string()).unwrap_or_default(),worktree:current.worktree_path.as_ref().map(ToString::to_string)}
+                            }
                             }
                         }
                     },
@@ -525,7 +537,7 @@ fn ThreadTimeline(
         active_turn_started_at: working_since.as_deref().or(runless.as_deref()),
     });
     t3_client::timeline_rows::place_left_out(&mut derived, &entries, items);
-    let mut rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, projection: projection.unwrap_or(&Value::Null), items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target }.render(&derived);
+    let mut rendered = work_rows::Rows { state, transport: transport.clone(), environment_key: &environment_key, thread_id: &thread_id, projection: projection.unwrap_or(&Value::Null), items, entries: &entries, offers: &offers, active_run_id: active_run_id.as_deref(), working_since: working_since.as_deref(), disclosures, edit_target, markers: Default::default() }.render(&derived);
     // The worktree setup sits under the message that started the thread, or at the end before any.
     let setup_at = derived.iter().position(|row| matches!(row, t3_client::timeline_rows::Row::Entry { entry } if matches!(entries[*entry].kind, t3_client::timeline_rows::Kind::Message { role_user: true, .. }))).map_or(rendered.len(), |first| first + 1).min(rendered.len());
     rendered.insert(setup_at, rsx! { worktree_setup::Card {key:"setup:{thread_id}",state,transport:transport.clone(),thread_id:thread_id.clone(),turn_live:latest_run.as_ref().is_some_and(|run| run.started_at.is_some())} });

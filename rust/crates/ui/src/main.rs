@@ -1,4 +1,6 @@
 fn main() {
+    #[cfg(target_arch = "wasm32")]
+    t3_ui::install_panic_screen();
     #[cfg(feature = "desktop")]
     if let Some(path) = std::env::var_os("T3_UI_DATA_DIR").filter(|path| !path.is_empty()) {
         dioxus::LaunchBuilder::desktop()
