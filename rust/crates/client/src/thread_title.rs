@@ -27,12 +27,13 @@ pub fn title_seed(text: &str, first_image: Option<&str>, first_file: Option<&str
     truncate(&seed, 50)
 }
 
-/// The seed a message to an existing thread carries: the thread's own title, as the original's
-/// `startThreadTurn` callers send `activeThread.title`. Only a new or draft thread is titled from its
-/// message (`title_seed`), so a fork keeps the name it was given and the server's first-message
-/// retitle (which fires on any seed while a thread has no messages) re-applies the same title.
-pub fn existing_thread_seed(title: &str) -> String {
-    title.trim().to_owned()
+/// Whether a message to an existing thread puts its seed on the wire (`shouldSendTitleSeed` of
+/// `startThreadTurn`): only while the thread's own projection holds no messages, so the server titles it
+/// from its first message, or whenever the server resolves command context itself. A fork has no messages
+/// of its own until it is first used, so its first message renames it as a new thread's does. With no
+/// projection loaded for the thread (`None`) nothing is sent, as the original's `undefined === 0`.
+pub fn seed_to_send(seed: String, projection_messages: Option<usize>, server_resolves_context: bool) -> Option<String> {
+    (server_resolves_context || projection_messages == Some(0)).then_some(seed)
 }
 
 /// Names of the first image and the first file among wire attachments.
@@ -59,9 +60,12 @@ mod tests {
     }
 
     #[test]
-    fn a_message_to_an_existing_thread_seeds_with_its_own_title() {
-        assert_eq!(existing_thread_seed("Fix the login bug fork"), "Fix the login bug fork");
-        assert_ne!(existing_thread_seed("Fix the login bug fork"), title_seed("go on", None, None));
+    fn a_seed_goes_on_the_wire_only_for_a_thread_with_no_messages_or_a_server_that_resolves_context() {
+        let seed = || title_seed("go on", None, None);
+        assert_eq!(seed_to_send(seed(), Some(0), false).as_deref(), Some("go on"));
+        assert_eq!(seed_to_send(seed(), Some(3), false), None);
+        assert_eq!(seed_to_send(seed(), None, false), None);
+        assert_eq!(seed_to_send(seed(), Some(3), true).as_deref(), Some("go on"));
     }
 
     #[test]

@@ -39,6 +39,7 @@ pub mod provider_settings;
 pub mod requests;
 pub mod review;
 pub mod rollback;
+pub mod route;
 pub mod scheduled_tasks;
 pub mod rpc;
 pub mod secret_request;

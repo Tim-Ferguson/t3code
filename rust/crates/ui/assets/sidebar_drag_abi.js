@@ -114,6 +114,10 @@ const begin = () => {
   g.phase = "dragging";
   g.row.classList.add("lifted");
   document.body.classList.add("sidebar-dragging");
+  // Where the row sits in the layout now that the drop areas are shown, and how far the list has
+  // scrolled: the lifted row is placed from these, so it stays under the pointer whatever moved.
+  g.top = g.row.getBoundingClientRect().top;
+  g.scroll = list()?.scrollTop ?? 0;
   document.getSelection()?.removeAllRanges();
   try {
     g.row.setPointerCapture(g.pointerId);
@@ -126,13 +130,13 @@ const begin = () => {
 const update = (event) => {
   const g = gesture;
   const pane = list();
-  const lifted = event.clientY - g.startY + (pane ? pane.scrollTop - g.scroll : 0);
-  g.row.style.transform = `translateY(${lifted}px)`;
   if (pane) {
     const rect = pane.getBoundingClientRect();
     if (event.clientY < rect.top + EDGE) pane.scrollTop -= 8;
     else if (event.clientY > rect.bottom - EDGE) pane.scrollTop += 8;
   }
+  const lifted = event.clientY - g.grab - g.top + (pane ? pane.scrollTop - g.scroll : 0);
+  g.row.style.transform = `translateY(${lifted}px)`;
   g.target = locate(event.clientX, event.clientY);
   mark(g.target);
 };
@@ -151,7 +155,10 @@ const onMove = (event) => {
   }
 };
 const onUp = (event) => {
-  if (gesture && event.pointerId === gesture.pointerId) finish(true);
+  if (!gesture || event.pointerId !== gesture.pointerId) return;
+  // The row lands where the pointer is released, which need not be where the last move was.
+  if (gesture.phase === "dragging") update(event);
+  finish(true);
 };
 const onDown = (event) => {
   if (busy || gesture || !event.isPrimary || (event.pointerType === "mouse" && event.button !== 0))
@@ -176,6 +183,8 @@ const onDown = (event) => {
     touch,
     startX: event.clientX,
     startY: event.clientY,
+    grab: event.clientY - row.getBoundingClientRect().top,
+    top: 0,
     scroll: pane.scrollTop,
     phase: "pending",
     target: null,

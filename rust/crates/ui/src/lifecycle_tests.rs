@@ -30,8 +30,16 @@ async fn with_app(git_repository: bool, scopes: &[AuthEnvironmentScope], body: i
         until(&mut dom, "the shell", |_| state.peek().shell.snapshot.as_ref().is_some_and(|s| s.threads.len() == 2)).await;
         state
     };
+    // The new-thread form's choices exist once the server's configuration has arrived.
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
     body(&fixture, &mut dom, &props, state).await;
     fixture.finish(dom).await;
+}
+
+/// Opens the project's menu and picks "Remove project".
+fn remove_project_item(dom: &mut VirtualDom) {
+    click_control(dom, "Project actions for Project");
+    click_control(dom, "Remove project Project");
 }
 
 fn thread_state(state: Store<UiModel>, id: &str) -> Option<t3_contracts::ThreadShell> {
@@ -105,12 +113,18 @@ async fn archiving_can_be_taken_back_from_the_notice_or_the_archived_list() {
 #[tokio::test(flavor = "current_thread")]
 async fn removing_a_project_with_threads_is_refused_first_then_asked_in_full_and_removes_it_with_its_threads() {
     with_app(true, &OPERATOR, async |fixture, dom, _props, state| {
-        click_control(dom, "Remove project Project");
+        // The project's menu holds the removal, and Escape closes it.
+        assert!(control(dom, "Remove project Project").is_none());
+        click_control(dom, "Project actions for Project");
+        assert!(control(dom, "Remove project Project").is_some() && control(dom, "Copy project path").is_some());
+        key_on(dom, "Project actions", Key::Escape);
+        assert!(control(dom, "Remove project Project").is_none(), "Escape closes the menu");
+        remove_project_item(dom);
         wait_for_rendered_text(dom, "Project is not empty").await;
         assert!(rendered_text(dom).contains("Delete all threads in this project before removing it."));
         key_on(dom, "Cancel", Key::Escape);
         assert!(control(dom, "Delete anyway").is_none());
-        click_control(dom, "Remove project Project");
+        remove_project_item(dom);
         click_control(dom, "Delete anyway");
         wait_for_rendered_text(dom, "Remove project \"Project\" and delete its 2 threads?").await;
         let text = rendered_text(dom);
@@ -125,7 +139,7 @@ async fn removing_a_project_with_threads_is_refused_first_then_asked_in_full_and
         assert_eq!(state.peek().shell.snapshot.as_ref().unwrap().projects.len(), 1, "asking removes nothing");
         key_on(dom, "Cancel", Key::Escape);
         assert_eq!(state.peek().shell.snapshot.as_ref().unwrap().projects.len(), 1);
-        click_control(dom, "Remove project Project");
+        remove_project_item(dom);
         click_control(dom, "Delete anyway");
         click_control(dom, "Confirm");
         until(dom, "the project to go", |_| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.projects.is_empty())).await;
@@ -141,9 +155,12 @@ async fn removing_a_project_with_threads_is_refused_first_then_asked_in_full_and
 async fn a_connection_that_may_not_operate_cannot_end_anything() {
     with_app(true, &READER, async |_fixture, dom, props, state| {
         open_thread(dom, props, state, "thread-a").await;
-        for label in ["Archive thread", "Delete thread", "Remove project Project"] {
+        for label in ["Archive thread", "Delete thread"] {
             assert!(disabled(dom, label), "{label}");
         }
+        click_control(dom, "Project actions for Project");
+        assert!(disabled(dom, "Remove project Project"));
+        assert!(!disabled(dom, "Copy project path"), "reading is enough to copy a path");
         assert!(live(state, "thread-a"));
     })
     .await;

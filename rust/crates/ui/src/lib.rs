@@ -39,6 +39,7 @@ mod provider_auth;
 mod provider_manage;
 mod provider_settings;
 mod rollback;
+mod routing;
 mod runtime;
 mod scheduled_tasks_page;
 mod scroll_state;
@@ -265,10 +266,12 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     sidebar_sections::DragBridge { state, transport: transport.clone() }
                     for project in projects.iter() {
                         div { class: "project-group", key: "{project.id}",
-                            button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
-                                file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string(), title: project.title.to_string() } "{project.title}"
+                            div { class: "project-header",
+                                button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
+                                    file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string(), title: project.title.to_string() } "{project.title}"
+                                }
+                                sidebar_rows::ProjectMenu { key: "menu:{project.id}", state, project_id: project.id.to_string(), title: project.title.to_string(), workspace_root: project.workspace_root.to_string(), can_operate }
                             }
-                            button { class: "project-remove", "aria-label": "Remove project {project.title}", title: "Remove project", disabled: !can_operate, onclick: { let id = project.id.to_string(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" }
                             clone_view::ProjectState { key: "clone:{project.id}", state, project_id: project.id.to_string() }
                             sidebar_sections::ProjectThreads { key: "threads:{project.id}", project_id: project.id.to_string(), workspace_root: project.workspace_root.to_string(), state, transport: transport.clone(), caps: row_caps, can_operate, tick: wake_tick() }
                             thread_lifecycle::Archived { key: "archived:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string() }
@@ -288,6 +291,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     span { class: "workspace-title", "{title}" }
                     command_palette::Button { state }
                     if let Some(active_thread) = active.clone() {
+                      div { class: "header-actions",
                         {
                             let project_cwd = projects.iter().find(|project| project.id == active_thread.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
                             let worktree = active_thread.worktree_path.as_ref().map(ToString::to_string);
@@ -311,6 +315,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
                         thread_lifecycle::HeaderButtons { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
                         pull_request_links::HeaderLinks { state, transport: transport.clone(), thread: active_thread.clone() }
+                      }
                     }
                 }
                 if let Some(error) = error {
@@ -411,15 +416,18 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     }
                 } }
             }
+            // Inside `.app`, which is where the theme tokens (`--card`, `--border`, `--foreground`) are
+            // defined: outside it a dialog or notice has no surface of its own.
+            if routing::enabled() { routing::Router { state, transport: transport.clone() } }
+            theme_library::ThemeEditorHost {}
+            command_palette::Host { state, transport: transport.clone() }
+            pull_request_thread::Host { state, transport: transport.clone() }
+            notice::Host { state }
+            clone_view::Notices { state, transport: transport.clone() }
+            import_projects::Host { state, transport: transport.clone() }
+            thread_lifecycle::Host { state, transport: transport.clone() }
+            thread_relations::Host { state, transport: transport.clone() }
         }
-        theme_library::ThemeEditorHost {}
-        command_palette::Host { state, transport: transport.clone() }
-        pull_request_thread::Host { state, transport: transport.clone() }
-        notice::Host { state }
-        clone_view::Notices { state, transport: transport.clone() }
-        import_projects::Host { state, transport: transport.clone() }
-        thread_lifecycle::Host { state, transport: transport.clone() }
-        thread_relations::Host { state, transport: transport.clone() }
     }
 }
 

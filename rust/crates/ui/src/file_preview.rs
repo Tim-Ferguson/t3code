@@ -95,7 +95,8 @@ pub(crate) fn ProjectFavicon(state: Store<UiModel>, transport: runtime::Transpor
     });
     let shown = resource.read();
     match &*shown {
-        Some(Some(preview)) => rsx! {img {class:"project-favicon","aria-hidden":"true",alt:"",src:"{preview.url}",width:"14",height:"14",loading:"lazy"}},
+        // The server's marker for "no icon" is never loaded: it would be a request that fails.
+        Some(Some(preview)) if !t3_client::attachments::is_project_favicon_fallback(&preview.url) => rsx! {img {class:"project-favicon","aria-hidden":"true",alt:"",src:"{preview.url}",width:"14",height:"14",loading:"lazy"}},
         _ => {
             // No icon the server will serve: the project's first letter on a tile of its own colour.
             let letter = title.chars().find(|c| c.is_alphanumeric()).map(|c| c.to_uppercase().to_string()).unwrap_or_else(|| "\u{25c7}".to_owned());

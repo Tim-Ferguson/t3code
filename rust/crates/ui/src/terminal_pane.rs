@@ -729,6 +729,9 @@ fn CanvasPane(
                         }
                     }
                     Some("write") | Some("resize") => {
+                        if event["type"] == "resize" && crate::terminal_bridge::resize_size(&event).is_none() {
+                            continue;
+                        }
                         if !owns_pane(state, &environment, &thread)
                             || !operates(state)
                             || (event["type"] == "resize" && !*running.peek())
@@ -746,9 +749,10 @@ fn CanvasPane(
                                 json!({"threadId":thread,"terminalId":terminal,"data":event["data"]}),
                             )
                         } else {
+                            let (cols, rows) = crate::terminal_bridge::resize_size(&event).expect("checked above");
                             (
                                 "terminal.resize",
-                                json!({"threadId":thread,"terminalId":terminal,"cols":event["cols"].as_u64().unwrap_or(1).min(1000),"rows":event["rows"].as_u64().unwrap_or(1).min(500)}),
+                                json!({"threadId":thread,"terminalId":terminal,"cols":cols,"rows":rows}),
                             )
                         };
                         let _ = actions.unbounded_send(crate::terminal_bridge::Action {

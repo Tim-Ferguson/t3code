@@ -407,6 +407,29 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     }
 }
 
+/// The menu of a project's header: what the original's project context menu holds that this UI has
+/// a handler for (the path to copy, and removing it with its own confirmation).
+#[component]
+pub(crate) fn ProjectMenu(state: Store<UiModel>, project_id: String, title: String, workspace_root: String, can_operate: bool) -> Element {
+    let mut open = use_signal(|| false);
+    let (id, path, remove_label) = (project_id.clone(), workspace_root.clone(), format!("Remove project {title}"));
+    rsx! {
+        div {class:"project-menu",
+            button {class:"icon-button project-menu-button",r#type:"button","aria-label":"Project actions for {title}","aria-haspopup":"menu","aria-expanded":"{open()}",title:"Project actions",
+                onclick:move |_| open.set(!open()),"\u{22ef}"}
+            if open() {
+                div {class:"menu-backdrop",onclick:move |_| open.set(false),oncontextmenu:move |event| {event.prevent_default();open.set(false);}}
+                div {class:"context-menu project-menu-popup",role:"menu","aria-label":"Project actions",tabindex:"0",
+                    onmounted:move |event| {drop(event.set_focus(true));},
+                    onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();open.set(false);}},
+                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Copy project path",onclick:move |_| {open.set(false);copy_text(&path);},"Copy path"}
+                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"{remove_label}",disabled:!can_operate,onclick:move |_| {open.set(false);thread_lifecycle::request_remove_project(state,&id);},"Remove project"}
+                }
+            }
+        }
+    }
+}
+
 /// What `thread.copyReference` copies for the open thread: its pull request's link when it has one,
 /// else its ID (`resolveThreadReferenceCopyTarget`).
 pub(crate) fn reference_target(state: Store<UiModel>) -> Option<(&'static str, String)> {

@@ -32,12 +32,18 @@ pub fn NewThreadControls(
     let key = serde_json::to_string(&(&destination, &project.id)).expect("identity");
     rsx! {
         div { class:"new-thread-controls",
-            label { "Project"
-                select { "aria-label":"Project",value:"{project.id}",onchange:move|e|state.selected_project().set(Some(e.value())),
-                    for p in &projects { option {value:"{p.id}",selected:p.id==project.id,"{p.title}"} }
-                }
+            for project in [project.clone()] {NewThreadOptions { key:"{key}",state,transport:transport.clone(),projects:projects.clone(),project,can_operate }}
+        }
+    }
+}
+/// The project the new thread is for, among the pickers under the message box.
+#[component]
+fn ProjectPicker(state: Store<UiModel>, projects: Vec<ProjectShell>, current: String) -> Element {
+    rsx! {
+        label { "Project"
+            select { "aria-label":"Project",value:"{current}",onchange:move|e|state.selected_project().set(Some(e.value())),
+                for p in &projects { option {value:"{p.id}",selected:p.id.as_str()==current,"{p.title}"} }
             }
-            for project in [project.clone()] {NewThreadOptions { key:"{key}",state,transport:transport.clone(),project,can_operate }}
         }
     }
 }
@@ -160,6 +166,7 @@ fn key(selection: &ModelSelection) -> String {
 fn NewThreadOptions(
     state: Store<UiModel>,
     transport: runtime::TransportHandle,
+    projects: Vec<ProjectShell>,
     project: ProjectShell,
     can_operate: bool,
 ) -> Element {
@@ -168,7 +175,7 @@ fn NewThreadOptions(
     let config_signal = state.typed_config();
     let config = config_signal.read();
     let Some(config) = config.as_ref() else {
-        return rsx! {p {class:"muted","Loading provider catalog…"}};
+        return rsx! {div {class:"new-thread-pickers",ProjectPicker {state,projects:projects.clone(),current:project.id.to_string()} p {class:"muted","Loading provider catalog…"}}};
     };
     let client_signal = state.client_settings();
     let client = client_signal.read();
@@ -330,6 +337,26 @@ fn NewThreadOptions(
     rsx! {
         crate::clone_view::Banner { state, transport: transport.clone(), project_id: project_id.clone() }
         if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
+        // The message box is the main thing on the screen, laid out as the thread's composer is; the
+        // choices that shape the thread sit beneath it.
+        div {class:"new-thread-card new-thread-attachments",ondragover:move|event|event.prevent_default(),ondrop:move|event|{if let Some(handler)=drop_files.as_mut(){handler(event);}},
+            crate::prompt_stash::Dock {state,transport:transport.clone()}
+            if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
+            div {class:"new-thread-prompt",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:{let draft_key=draft_key.clone();move|e|{
+                if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
+            }}}}
+            if let Some(target)=attachment_target.clone() {
+                crate::attachments::Shelf {state,transport:transport.clone(),target:target.clone(),locked:pending,can_operate,paste_target:".new-thread-prompt textarea"}
+            }
+            div {class:"composer-toolbar",
+                if can_operate { if let Some(target)=attachment_target.clone() { crate::attachments::AttachButton {state,transport:transport.clone(),target} } }
+                span {}
+                button {"aria-label":"Start in background",disabled:disabled || clone_blocked || (prompt.trim().is_empty() && attachment_count==0 && chip_count==0),title:"Start the thread without leaving this form",onclick:{let mut launch=launch.clone();move|_|launch(true)},"Start in background"}
+                button {class:"primary","aria-label":"Create new thread",disabled:disabled || clone_blocked,title:clone_block.read().unwrap_or(""),onclick:{let mut launch=launch.clone();move|_|launch(false)},if pending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 && chip_count==0 {"New thread"} else {"Start chat"}}
+            }
+        }
+        div {class:"new-thread-pickers",
+            ProjectPicker {state,projects:projects.clone(),current:project_id.clone()}
         label { "Model"
             select {"aria-label":"Model",value:selected_key,onchange:{let rows=rows.clone();let draft_key=draft_key.clone();move|event| {
                 if let Some(row)=rows.iter().find(|r|key(&r.selection())==event.value()) {
@@ -375,19 +402,7 @@ fn NewThreadOptions(
                 None=>{choices.base_ref=chosen.name;choices.worktree_path=None;}
             }
         })}}}
-        div {class:"new-thread-attachments",ondragover:move|event|event.prevent_default(),ondrop:move|event|{if let Some(handler)=drop_files.as_mut(){handler(event);}},
-        crate::prompt_stash::Dock {state,transport:transport.clone()}
-        if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
-        label {class:"new-thread-prompt","First message",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:move|e|{
-            if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
-        }}}
-        if let Some(target)=attachment_target.clone() {
-            crate::attachments::Shelf {state,transport:transport.clone(),target:target.clone(),locked:pending,can_operate,paste_target:".new-thread-prompt textarea"}
-            if can_operate {crate::attachments::AttachButton {state,transport:transport.clone(),target}}
         }
-        }
-        button {class:"primary","aria-label":"Create new thread",disabled:disabled || clone_blocked,title:clone_block.read().unwrap_or(""),onclick:{let mut launch=launch.clone();move|_|launch(false)},if pending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 && chip_count==0 {"New thread"} else {"Start chat"}}
-        button {"aria-label":"Start in background",disabled:disabled || clone_blocked || (prompt.trim().is_empty() && attachment_count==0 && chip_count==0),title:"Start the thread without leaving this form",onclick:{let mut launch=launch.clone();move|_|launch(true)},"Start in background"}
         if rows.is_empty() {p {class:"muted","No ready providers. Check provider setup in Settings."}}
     }
 }

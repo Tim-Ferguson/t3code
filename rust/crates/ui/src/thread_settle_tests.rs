@@ -18,8 +18,15 @@ fn settled(state: Store<UiModel>) -> bool {
 fn disabled(dom: &VirtualDom, label: &str) -> bool {
     control_attribute(dom, label, "disabled").and_then(|(_, value)| value).as_deref() == Some("true")
 }
+/// A message to thread-a whose words are its title from then on ("Quiet work"), because a thread's first
+/// message titles it: the menu is found by that title, and no other thread shares it.
+async fn say(dom: &mut VirtualDom, props: &super::diff_tests::Harness, state: Store<UiModel>, number: usize) {
+    crate::runtime::transport_tests::input_control(dom, "Message", "Quiet work");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(dom, "the turn", |_| completed_runs(state) == number).await;
+}
 fn menu(dom: &mut VirtualDom) {
-    key_on(dom, "Thread thread-a", Key::ContextMenu);
+    key_on(dom, "Thread Quiet work", Key::ContextMenu);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -29,7 +36,7 @@ async fn a_thread_with_a_live_session_settles_and_its_line_and_a_message_bring_i
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
-    turn(&mut dom, &props, state, 1).await;
+    say(&mut dom, &props, state, 1).await;
     assert!(control(&dom, "Un-settle").is_none(), "no line while the thread is active");
     // The menu offers the settle with the session still live; the server releases the session itself.
     menu(&mut dom);
@@ -91,7 +98,7 @@ async fn a_thread_can_opt_out_of_automatic_settling_and_the_sweep_settles_the_ot
     open_thread(&mut dom, &props, state, "thread-b").await;
     turn(&mut dom, &props, state, 1).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
-    turn(&mut dom, &props, state, 1).await;
+    say(&mut dom, &props, state, 1).await;
     menu(&mut dom);
     // The choice is a setting with the current one marked; it is on by default.
     assert_eq!(control_attribute(&dom, "Auto-settle behavior: Enabled", "aria-checked").and_then(|(_, value)| value).as_deref(), Some("true"));

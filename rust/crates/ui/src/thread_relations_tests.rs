@@ -41,7 +41,7 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
         model.active_thread.as_deref().is_some_and(|id| id != "thread-a") && model.thread.synchronized && model.thread.projection.as_ref().is_some_and(|p| p["thread"]["lineage"]["relationshipToParent"] == "fork")
     })
     .await;
-    assert_eq!(forks_of(state, "thread-a fork").len(), 1, "one click, one fork: {:?}", state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|t| (t.id.to_string(), t.title.clone())).collect::<Vec<_>>());
+    assert_eq!(forks_of(state, "Do the work 1 fork").len(), 1, "one click, one fork: {:?}", state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|t| (t.id.to_string(), t.title.clone())).collect::<Vec<_>>());
     let fork_id = state.peek().active_thread.clone().unwrap();
     until(&mut dom, "the fork's marker", |dom| control(dom, "Open source conversation").is_some()).await;
     let text = rendered_text(&dom);
@@ -52,21 +52,22 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
     until(&mut dom, "the lineage button", |dom| control(dom, "Thread lineage").is_some()).await;
     click_control(&mut dom, "Thread lineage");
     assert!(rendered_text(&dom).contains("Do the work 1"), "{}", rendered_text(&dom));
-    assert!(disabled(&dom, "Merge back to thread-a"), "no finished run in the fork yet");
+    assert!(disabled(&dom, "Merge back to Do the work 1"), "no finished run in the fork yet");
     key_on(&mut dom, "Thread lineage", Key::Escape);
-    assert!(control(&dom, "Merge back to thread-a").is_none(), "Escape closes the panel");
+    assert!(control(&dom, "Merge back to Do the work 1").is_none(), "Escape closes the panel");
 
-    // The fork goes on on its own, then merges back; the parent is opened.
+    // The fork goes on on its own, then merges back; the parent is opened. Its projection holds none of
+    // the inherited messages (they are timeline rows), so its first message carries a seed and retitles it.
+    assert_eq!(state.peek().thread.projection.as_ref().unwrap()["messages"].as_array().map(Vec::len), Some(0));
     crate::runtime::transport_tests::input_control(&mut dom, "Message", "Fork work");
     dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
     until(&mut dom, "the fork's turn", |_| completed_runs(state) == 1).await;
-    // A message to an existing thread seeds with its own title: the fork keeps its name, not the message's.
     let titles: Vec<String> = state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|thread| thread.title.clone()).collect();
-    assert!(titles.iter().any(|title| title == "thread-a fork") && !titles.iter().any(|title| title == "Fork work"), "the fork keeps its title after its first message: {titles:?}");
+    assert!(titles.iter().any(|title| title == "Fork work") && !titles.iter().any(|title| title == "Do the work 1 fork"), "the fork is retitled by its first message, as in the original: {titles:?}");
     click_control(&mut dom, "Thread lineage");
-    until(&mut dom, "merge enabled", |dom| control(dom, "Merge back to thread-a").is_some() && !disabled(dom, "Merge back to thread-a")).await;
-    click_control(&mut dom, "Merge back to thread-a");
-    click_control(&mut dom, "Merge back to thread-a");
+    until(&mut dom, "merge enabled", |dom| control(dom, "Merge back to Do the work 1").is_some() && !disabled(dom, "Merge back to Do the work 1")).await;
+    click_control(&mut dom, "Merge back to Do the work 1");
+    click_control(&mut dom, "Merge back to Do the work 1");
     until(&mut dom, "the parent opened", |_| {
         let model = state.peek();
         model.active_thread.as_deref() == Some("thread-a") && model.thread.synchronized && model.thread.projection.as_ref().is_some_and(|p| p["thread"]["id"] == "thread-a")
@@ -79,7 +80,7 @@ async fn a_response_is_forked_once_the_fork_opens_and_merges_back_into_its_paren
     // Text only the parent has: its second answer, which the fork never inherited.
     until(&mut dom, "the parent's conversation", |dom| rendered_text(dom).contains("Fixture response: Do the work 2") && control(dom, "Thread lineage").is_some()).await;
     click_control(&mut dom, "Thread lineage");
-    until(&mut dom, "the fork in the parent's lineage", |dom| control(dom, "thread-a fork*").is_some()).await;
+    until(&mut dom, "the fork in the parent's lineage", |dom| control(dom, "Fork work*").is_some()).await;
     key_on(&mut dom, "Thread lineage", Key::Escape);
 
     // The next message to the parent carries the fork's work, and the timeline says so.
@@ -104,7 +105,7 @@ async fn a_refused_fork_says_why_and_can_be_tried_again() {
     assert!(state.peek().relations.fork.is_none(), "the button is free again");
     assert!(!disabled(&dom, "Fork from this response"));
     assert_eq!(state.peek().active_thread.as_deref(), Some("thread-a"), "a refused fork opens nothing");
-    assert!(forks_of(state, "thread-a fork").is_empty());
+    assert!(forks_of(state, "Do the work 1 fork").is_empty());
     click_control(&mut dom, "Fork from this response");
     until(&mut dom, "the fork", |_| state.peek().active_thread.as_deref().is_some_and(|id| id != "thread-a")).await;
     fixture.finish(dom).await;

@@ -208,6 +208,30 @@ assert.equal(shared.__t3RustTerminals.get("pane"), owned);
 next.send({ type: "dispose" });
 await next.task;
 assert.equal(shared.__t3RustTerminals.size, 0);
+// A surface that has no box reports a zero grid: it never reaches the pane, a real grid does.
+let report;
+const measuring = harness({
+  module: {
+    mount_terminal: async (_host, _options, callback) => {
+      report = callback;
+      return measuring.surface;
+    },
+  },
+});
+await measuring.ready.promise;
+for (const size of [
+  { cols: 0, rows: 24 },
+  { cols: 80, rows: 0 },
+  { cols: 80, rows: 24 },
+])
+  report(JSON.stringify({ type: "resize", ...size }));
+report(JSON.stringify({ type: "write", data: "x" }));
+measuring.send({ type: "dispose" });
+await measuring.task;
+assert.deepEqual(measuring.events.slice(1), [
+  { type: "resize", cols: 80, rows: 24 },
+  { type: "write", data: "x" },
+]);
 console.log(
   JSON.stringify({
     abiScenarios: 5,

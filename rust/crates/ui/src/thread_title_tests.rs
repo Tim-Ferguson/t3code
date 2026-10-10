@@ -20,18 +20,22 @@ fn set_marker(state: Store<UiModel>, on: bool) {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
-async fn a_message_to_an_existing_thread_keeps_its_title_and_a_new_thread_is_titled_from_its_message() {
+async fn the_first_message_titles_an_empty_thread_and_a_later_one_leaves_the_title_alone() {
     let fixture = Fixture::start(true).await;
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
     assert_eq!(title_of(state), "thread-a");
-    // The message goes with the thread's own title as its seed, so the server has nothing new to call it.
+    // The thread has no messages, so its first one carries the seed made from that message ("Do the work 1").
     turn(&mut dom, &props, state, 1).await;
-    assert_eq!(title_of(state), "thread-a");
+    assert_eq!(title_of(state), "Do the work 1");
     assert_eq!(error(state), None);
-    // A new thread has no title yet: it takes one from its first message.
+    // With a message in the projection nothing is sent, and the title stays.
+    turn(&mut dom, &props, state, 2).await;
+    assert_eq!(title_of(state), "Do the work 1");
+    assert_eq!(error(state), None);
+    // A new thread takes one from its first message.
     dom.in_scope(ScopeId::APP, || crate::runtime::new_thread(&props.transport, state, Some("project".into())));
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     crate::runtime::transport_tests::input_control(&mut dom, "First message", "Name the new thread");

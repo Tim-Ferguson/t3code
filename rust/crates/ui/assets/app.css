@@ -118,8 +118,29 @@ select:focus-visible {
   overflow: auto;
   padding: 0 8px;
 }
+.project-header {
+  display: flex;
+  align-items: center;
+}
+.project-menu {
+  position: relative;
+  flex: none;
+}
+.project-menu-button {
+  padding: 4px 8px;
+  opacity: 0.7;
+}
+.project-menu-button:hover,
+.project-menu-button[aria-expanded="true"] {
+  opacity: 1;
+}
+.context-menu.project-menu-popup {
+  left: auto;
+  right: 0;
+}
 .project-heading {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -184,22 +205,61 @@ select:focus-visible {
   display: flex;
   flex-direction: column;
 }
+/* The header is one row while its actions fit beside the title; when they do not they drop to a
+   row of their own (and wrap again if that is too wide) instead of squeezing the title away. */
 .workspace-header {
-  height: 48px;
   min-height: 48px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px;
+  gap: 4px 10px;
+  padding: 4px 12px;
   border-bottom: 1px solid var(--border);
 }
 .workspace-title {
-  flex: 1;
+  flex: 1 1 8rem;
+  min-width: 0;
   font-size: 0.8125rem;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 10px;
+  min-width: 0;
+  max-width: 100%;
+  margin-left: auto;
+}
+.header-actions > * {
+  flex: none;
+  max-width: 100%;
+}
+.header-actions button,
+.header-actions a,
+.workspace-header .icon-button {
+  white-space: nowrap;
+}
+.header-actions .branch-control {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.git-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+.open-in .menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+  right: auto;
+  left: 0;
 }
 .icon-button {
   border: 0;
@@ -212,12 +272,14 @@ select:focus-visible {
 }
 .empty-state {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
   text-align: center;
-  padding: 24px;
+  padding: 24px max(16px, 3vw);
 }
 .empty-state h1 {
   font-size: 1.5rem;
@@ -230,14 +292,35 @@ select:focus-visible {
   color: var(--muted-foreground);
   line-height: 1.5;
 }
+/* The new-thread screen: the message box in the thread composer's card, the choices beneath it. */
 .new-thread-controls {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: min(780px, 100%);
   margin-top: 12px;
+  text-align: left;
+}
+.new-thread-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: 0 2px 5px #00000006;
+}
+.new-thread-pickers {
+  display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  align-items: end;
+  gap: 8px 12px;
+}
+.new-thread-pickers > label {
+  flex: 0 1 200px;
+  min-width: 0;
 }
 .new-thread-controls select {
+  width: 100%;
   max-width: 280px;
   padding: 8px;
 }
@@ -421,9 +504,10 @@ select:focus-visible {
   place-items: center;
   background: #0005;
   padding: 18px;
-  z-index: 20;
+  z-index: 60;
 }
-.dialog {
+.dialog,
+.modal {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -431,7 +515,8 @@ select:focus-visible {
   width: min(440px, 100%);
   box-shadow: 0 15px 45px #0002;
 }
-.dialog h2 {
+.dialog h2,
+.modal h2 {
   font-size: 1.125rem;
   margin: 0 0 20px;
 }
@@ -439,15 +524,18 @@ select:focus-visible {
   display: grid;
   gap: 8px;
 }
-.dialog label {
+.dialog label,
+.modal label {
   font-size: 0.8125rem;
   margin-top: 5px;
 }
-.dialog input {
+.dialog input,
+.modal input {
   width: 100%;
   padding: 9px;
 }
-.dialog-actions {
+.dialog-actions,
+.modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
@@ -466,8 +554,18 @@ select:focus-visible {
   .sidebar-open .sidebar {
     display: flex;
   }
-  .workspace-header {
-    height: 48px;
+  .header-actions {
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+    position: relative;
+  }
+  /* The branch and git menus open under the whole actions row, so they cannot run off the right edge. */
+  .header-actions .branch-control {
+    position: static;
+  }
+  .branch-picker {
+    max-width: 100%;
   }
   .timeline {
     padding: 20px 16px;
@@ -481,10 +579,8 @@ select:focus-visible {
   .branch-label {
     display: none;
   }
-  .new-thread-controls {
-    flex-direction: column;
-    width: 100%;
-    max-width: 320px;
+  .new-thread-pickers > label {
+    flex: 1 1 140px;
   }
   .new-thread-controls select {
     max-width: 100%;
@@ -566,8 +662,9 @@ select:focus-visible {
 }
 .thread-status-line {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   min-width: 0;
   padding: 0 16px 8px;
   color: var(--muted-foreground);
@@ -577,6 +674,16 @@ select:focus-visible {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 760px) {
+  /* The label wraps at phone width instead of cutting off what the line says. */
+  .thread-status-label {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+.thread-status-action {
   white-space: nowrap;
 }
 .thread-status-action {
@@ -734,16 +841,17 @@ select:focus-visible {
   align-items: center;
   padding: 8px 0;
 }
-.new-thread-controls > button {
-  align-self: end;
+.new-thread-card .composer-toolbar button {
   padding: 8px 12px;
 }
-.new-thread-prompt {
-  flex-basis: 100%;
-}
 .new-thread-prompt textarea {
-  min-height: 64px;
-  resize: vertical;
+  width: 100%;
+  min-height: 96px;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 4px;
   font-size: 0.875rem;
 }
 @media (max-width: 720px) {
@@ -2343,7 +2451,7 @@ html[data-theme-token-probe] *::after {
   max-height: min(560px, 76vh);
   display: flex;
   flex-direction: column;
-  background: var(--card);
+  background: var(--popover, var(--card));
   color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -3182,12 +3290,7 @@ html[data-theme-token-probe] *::after {
   color: var(--destructive);
 }
 
-/* Ending threads and projects: the remove-project control, the archived group, the undo notice. */
-.project-remove {
-  font-size: 0.75rem;
-  opacity: 0.7;
-  padding: 0 0.5rem;
-}
+/* Ending threads and projects: the archived group, the undo notice. */
 .archived-threads {
   margin: 0.25rem 0 0.5rem 0.5rem;
   font-size: 0.8125rem;
@@ -5151,11 +5254,14 @@ button.subagent-row:hover,
   box-shadow: 0 6px 18px #00000026;
 }
 @media (max-width: 640px) {
+  /* Under the header's actions row, across it, whatever height the header has grown to. */
+  .lineage-anchor {
+    position: static;
+  }
   .lineage-panel {
-    position: fixed;
-    top: 48px;
-    right: 8px;
-    left: 8px;
+    left: 0;
+    right: 0;
+    min-width: 0;
     max-width: none;
   }
 }
@@ -5279,7 +5385,26 @@ body.sidebar-dragging {
   background: var(--card);
   will-change: transform;
 }
-.project-group:has(.lifted) .thread-section:empty,
+/* Showing the drop areas must not move a row: an empty Pinned area floats over the bottom of the
+   project heading, a section that has rows gets a small tag over its top right corner, and only an
+   empty Active section or the empty Settled shelf (which have no rows above or beside them to move)
+   open up in the flow. */
+.project-group:has(.lifted) {
+  position: relative;
+}
+.project-group:has(.lifted) .thread-section[data-section="pinned"]:empty {
+  display: block;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 30px;
+  transform: translateY(-100%);
+  z-index: 3;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--sidebar);
+}
+.project-group:has(.lifted) .thread-section[data-section="active"]:empty,
 .project-group:has(.lifted) .thread-shelf[data-empty="true"] {
   display: block;
   min-height: 30px;
@@ -5287,13 +5412,29 @@ body.sidebar-dragging {
   border: 1px dashed var(--border);
   border-radius: 6px;
 }
-.project-group:has(.lifted) .thread-section::before,
+.project-group:has(.lifted) .thread-section:empty::before,
 .project-group:has(.lifted) .thread-shelf[data-empty="true"]::before {
   content: attr(data-label);
   display: block;
   padding: 2px 10px;
   font-size: 0.6875rem;
   color: var(--muted-foreground);
+}
+.project-group:has(.lifted) .thread-section:not(:empty) {
+  position: relative;
+}
+.project-group:has(.lifted) .thread-section:not(:empty)::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  z-index: 3;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--sidebar);
+  color: var(--muted-foreground);
+  font-size: 0.625rem;
+  pointer-events: none;
 }
 .thread-section.drop-target:empty,
 .thread-shelf.drop-target {
@@ -5421,4 +5562,20 @@ body.sidebar-dragging {
 }
 .message-attribution .link-button {
   font-size: inherit;
+}
+
+/* The General settings page at phone width: switches wrap their text beside the control, and no
+   field is wider than the page. */
+.switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.field-row > * {
+  min-width: 0;
+}
+.settings-page select,
+.settings-page input:not([type="checkbox"]) {
+  max-width: 100%;
+  min-width: 0;
 }

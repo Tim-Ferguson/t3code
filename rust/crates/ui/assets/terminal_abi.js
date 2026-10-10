@@ -9,7 +9,11 @@ try {
   const host = document.getElementById(args.id);
   if (!host) return;
   const surface = await module.mount_terminal(host, JSON.stringify(args.options), (event) => {
-    if (!slot.disposed) dioxus.send(JSON.parse(event));
+    if (slot.disposed) return;
+    const message = JSON.parse(event);
+    // A surface with no box (hidden drawer, zero width) measures a zero grid; the server refuses it.
+    if (message.type === "resize" && !(message.cols >= 1 && message.rows >= 1)) return;
+    dioxus.send(message);
   });
   slot.surface = surface;
   if (slot.disposed) return;

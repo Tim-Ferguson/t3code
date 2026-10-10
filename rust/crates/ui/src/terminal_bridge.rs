@@ -171,6 +171,27 @@ mod tests {
     }
 }
 
+/// The grid a surface's `resize` event asks the server for, capped at the server's limits; `None` for a
+/// grid with no column or row, which a hidden or zero-width surface reports and the server refuses.
+pub fn resize_size(event: &serde_json::Value) -> Option<(u64, u64)> {
+    let (cols, rows) = (event["cols"].as_u64()?, event["rows"].as_u64()?);
+    (cols >= 1 && rows >= 1).then(|| (cols.min(1000), rows.min(500)))
+}
+#[cfg(test)]
+mod resize_tests {
+    use super::resize_size;
+    use serde_json::json;
+    #[test]
+    fn an_empty_or_missing_grid_is_never_sent() {
+        assert_eq!(resize_size(&json!({"type":"resize","cols":0,"rows":24})), None);
+        assert_eq!(resize_size(&json!({"type":"resize","cols":80,"rows":0})), None);
+        assert_eq!(resize_size(&json!({"type":"resize","cols":null,"rows":24})), None);
+        assert_eq!(resize_size(&json!({"type":"resize"})), None);
+        assert_eq!(resize_size(&json!({"type":"resize","cols":1,"rows":1})), Some((1, 1)));
+        assert_eq!(resize_size(&json!({"type":"resize","cols":5000,"rows":900})), Some((1000, 500)));
+    }
+}
+
 pub struct Action<O> {
     pub owner: O,
     pub method: &'static str,

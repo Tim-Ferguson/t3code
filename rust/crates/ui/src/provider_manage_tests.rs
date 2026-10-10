@@ -207,6 +207,23 @@ async fn a_failed_update_shows_the_servers_reason_and_what_the_command_printed()
     page.finish().await;
 }
 
+/// A Codex that signs in on its own has no sign-in stream on the server: asking for one failed with
+/// "This provider instance is no longer available." in the app-wide banner on opening Settings.
+#[tokio::test(flavor = "current_thread")]
+async fn a_provider_that_offers_no_sign_in_has_no_account_section_and_asks_for_no_stream() {
+    let (harness, _registry, _prefix, _tools) = outdated_codex("0.156.1", "0.158.0").await;
+    let token = harness.manager.clone();
+    let mut page = Page::open(harness, &token, None).await;
+    page.select("Codex").await;
+    page.wait("Binary path").await;
+    assert!(control(&page.dom, "Provider account").is_none() && !page.text().contains("Sign in on"), "{}", page.text());
+    assert_eq!(page.state.peek().error, None);
+    assert!(!crate::provider_auth::offered(&json!({"driver":"codex","installed":true})));
+    assert!(crate::provider_auth::offered(&json!({"driver":"codex","setup":{"canAuthenticate":true}})));
+    assert!(crate::provider_auth::offered(&json!({"driver":"acpRegistry","installed":true})));
+    page.finish().await;
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn a_connection_that_cannot_manage_providers_can_refresh_and_read_the_command_but_not_run_it() {
     let (harness, registry, _prefix, tools) = outdated_codex("0.156.1", "0.158.0").await;

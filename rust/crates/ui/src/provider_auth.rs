@@ -57,6 +57,13 @@ struct Action {
     popup: Option<document::Eval>,
 }
 
+/// Whether a provider has an Account section at all: it says it can sign in (or cannot, and says so),
+/// or it is an installed ACP registry agent (`ProviderSettingsPanel`'s condition). Any other provider has
+/// no sign-in stream on the server, and subscribing to one fails with "no longer available".
+pub(crate) fn offered(provider: &Value) -> bool {
+    provider["setup"]["canAuthenticate"].is_boolean() || (provider["driver"] == "acpRegistry" && provider["installed"] == true)
+}
+
 #[component]
 pub(crate) fn Authentication(
     state: Store<UiModel>,
@@ -102,7 +109,7 @@ pub(crate) fn Authentication(
                 let Some(owner) = owner.filter(|_| allowed) else {
                     return;
                 };
-                let mut stream = match runtime::request_stream(
+                let mut stream = match runtime::request_stream_reported(
                     &transport,
                     state,
                     "provider.auth.subscribe",

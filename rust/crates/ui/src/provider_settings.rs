@@ -247,7 +247,7 @@ fn ProviderEditor(
             p {class:"muted","The executable runs on this environment."}
             crate::provider_manage::CommandArguments {config:row.instance["config"].clone(),disabled,onchange:move |next:Value|modify.call(("commandArgs".into(),next["commandArgs"].clone()))}
         }
-        if let Some(provider)=runtime {crate::provider_auth::Authentication {state,transport:transport.clone(),provider:provider.clone(),environment:environment_label.clone(),allowed}}
+        if let Some(provider)=runtime.filter(|provider|crate::provider_auth::offered(provider)) {crate::provider_auth::Authentication {state,transport:transport.clone(),provider:provider.clone(),environment:environment_label.clone(),allowed}}
         if let Some(provider)=runtime.filter(|provider|provider["driver"]=="acpRegistry") {crate::provider_manage::Acp {state,transport:transport.clone(),provider:provider.clone(),allowed}}
         div {class:"provider-editor-actions",
             if !row.is_default {button {"aria-label":"Delete instance",disabled,onclick:{let id=row.instance_id.clone();move |_|onupdate.call(json!({"patch":{},"providerInstanceMutation":{"operation":"remove","instanceId":id}}))},"Delete instance"}}

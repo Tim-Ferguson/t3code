@@ -237,6 +237,10 @@ impl Fixture {
     }
     /// A client paired with exactly these scopes.
     pub(crate) fn client(&self, gate: Gate, scopes: &[AuthEnvironmentScope]) -> (VirtualDom, Harness) {
+        self.client_with(gate, scopes, |_| {})
+    }
+    /// As `client`, with `setup` run on the document before the first render (a context to provide).
+    pub(crate) fn client_with(&self, gate: Gate, scopes: &[AuthEnvironmentScope], setup: impl FnOnce(&mut VirtualDom)) -> (VirtualDom, Harness) {
         let credential = self
             .auth
             .create_pairing_credential(
@@ -253,6 +257,7 @@ impl Fixture {
             gate,
         };
         let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        setup(&mut dom);
         dom.rebuild_in_place();
         (dom, props)
     }

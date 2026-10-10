@@ -188,6 +188,13 @@ pub enum Upload {
     /// Restored without bytes or a server copy; the user must attach it again.
     NeedsReattach,
 }
+/// Whether a signed favicon URL is the server's answer for "this project has no icon"
+/// (`isProjectFaviconFallbackUrl`): a URL that names the marker and is never loaded, so a project
+/// with no icon makes no failing request.
+pub fn is_project_favicon_fallback(url: &str) -> bool {
+    let path = url.split(['?', '#']).next().unwrap_or_default();
+    path.rsplit('/').next() == Some("project-favicon-missing")
+}
 #[derive(Debug, Clone, PartialEq)]
 pub struct Preview {
     pub url: String,
@@ -623,6 +630,15 @@ mod tests {
         assert_eq!(restored[0].size_bytes, 5);
         assert_eq!(restored[2].attachment_id.as_deref(), Some("pending-a"));
         assert_eq!(restored[3].attachment_id, None);
+    }
+
+    #[test]
+    fn the_servers_missing_favicon_marker_is_recognised_whatever_the_origin_and_query() {
+        assert!(is_project_favicon_fallback("/api/assets/token/project-favicon-missing"));
+        assert!(is_project_favicon_fallback("https://host.example/api/assets/abc/project-favicon-missing?x=1"));
+        assert!(!is_project_favicon_fallback("/api/assets/token/favicon.svg"));
+        assert!(!is_project_favicon_fallback("/api/assets/project-favicon-missing/favicon.svg"));
+        assert!(!is_project_favicon_fallback(""));
     }
 
     #[test]

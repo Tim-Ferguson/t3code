@@ -488,6 +488,25 @@ pub fn request_stream(
     method: &str,
     payload: Value,
 ) -> Result<StreamRequest, String> {
+    open_stream(handle, state, method, payload, false)
+}
+/// A stream whose failure the caller shows itself (`StreamRequest::next` ends with it), so the
+/// app-wide banner does not repeat it.
+pub fn request_stream_reported(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+) -> Result<StreamRequest, String> {
+    open_stream(handle, state, method, payload, true)
+}
+fn open_stream(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+    reported: bool,
+) -> Result<StreamRequest, String> {
     let id = request(handle, state, method, payload, RequestKind::Stream).ok_or_else(|| {
         state
             .peek()
@@ -495,6 +514,9 @@ pub fn request_stream(
             .clone()
             .unwrap_or_else(|| "Stream unavailable.".into())
     })?;
+    if reported {
+        handle.borrow_mut().reported.insert(id.clone());
+    }
     // futures mpsc reserves one slot per sender: zero extra capacity means one
     // admitted chunk. Its ACK is sent on consumption, never in the socket loop.
     let (sender, receiver) = futures_channel::mpsc::channel(0);
@@ -1163,9 +1185,16 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
         &(destination.clone(), thread_id.clone()),
         &choices,
     );
-    // A message to an existing thread seeds with the thread's own title (`startThreadTurn` callers
-    // send `activeThread.title`), so a fork keeps its name; only a new thread is titled from its message.
-    let title_seed = t3_client::thread_title::existing_thread_seed(&thread.title);
+    // The seed always comes from the message (`ChatView`'s `titleSeed`) and rides only while the thread's
+    // projection holds no messages, so a fork's first message retitles it as a new thread's does.
+    let title_seed = {
+        let (image, file) = t3_client::thread_title::first_attachment_names(&json!(attachments));
+        let seed = t3_client::thread_title::title_seed(&prompt, image.as_deref(), file.as_deref());
+        let model = state.peek();
+        let held = model.thread.projection.as_ref().filter(|p| p["thread"]["id"] == thread_id.as_str()).map(|p| p["messages"].as_array().map_or(0, Vec::len));
+        let resolves = model.typed_config.as_ref().is_some_and(|config| config.environment.capabilities.server_resolved_command_context == Some(true));
+        t3_client::thread_title::seed_to_send(seed, held, resolves)
+    };
     let pending_id = uuid::Uuid::new_v4().to_string();
     let generation = handle.borrow().generation;
     state.pending_messages().write().insert(
@@ -1219,7 +1248,10 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
             command(&handle, state, "queued-run.edit", json!({"threadId":thread_id,"runId":run_id,"text":text,"attachments":attachments}))
         } else {
             let mode = options.mode.unwrap_or("auto");
-            let mut payload = json!({"threadId":thread_id,"messageId":message_id,"modelSelection":selection,"text":text,"titleSeed":title_seed,"attachments":attachments,"createdBy":"user","creationSource":creation_source()});
+            let mut payload = json!({"threadId":thread_id,"messageId":message_id,"modelSelection":selection,"text":text,"attachments":attachments,"createdBy":"user","creationSource":creation_source()});
+            if let Some(seed) = title_seed {
+                payload["titleSeed"] = json!(seed);
+            }
             if let Some(run_id) = options.manual_continuation.clone() {
                 payload.as_object_mut().expect("payload object").remove("titleSeed");
                 payload["manualContinuationOfRunId"] = json!(run_id);
@@ -2786,6 +2818,10 @@ mod pull_request_tests;
 #[cfg(all(test, unix))]
 #[path = "thread_title_tests.rs"]
 mod thread_title_tests;
+
+#[cfg(all(test, unix))]
+#[path = "routing_tests.rs"]
+mod routing_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "rollback_tests.rs"]
