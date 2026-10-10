@@ -201,6 +201,7 @@ impl Store {
               available_at TEXT NOT NULL, lease_owner TEXT, lease_expires_at TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_error TEXT);
             CREATE INDEX IF NOT EXISTS rust_effect_claim ON rust_effect_outbox(status,available_at);")?;
+        crate::shared_rows::ensure(&connection)?;
         let (committed, _) = tokio::sync::broadcast::channel(256);
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),

@@ -363,7 +363,7 @@ function writeFixture(name, paths, reference, { database = "statev2.sqlite", ext
   gzipTo(plain, join(userdata, `${database}.gz`));
   rmSync(plain, { force: true });
   if (extras) {
-    for (const file of ["settings.json", "keybindings.json"])
+    for (const file of ["settings.json", "keybindings.json", "environment-id"])
       if (existsSync(join(paths.userdata, file)))
         copyFileSync(join(paths.userdata, file), join(userdata, file));
     for (const directoryName of ["attachments", "secrets"])

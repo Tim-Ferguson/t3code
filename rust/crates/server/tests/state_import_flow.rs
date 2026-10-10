@@ -38,6 +38,11 @@ fn home(name: &str, base: &Path) -> PathBuf {
     let home = base.join(format!("home-{name}"));
     let userdata = home.join("userdata");
     copy_tree(&fixtures().join(name).join("userdata"), &userdata);
+    // The original keeps its environment's identity in `environment-id`; the reference records the identity it served.
+    if !userdata.join("environment-id").exists() {
+        let id = reference(name)["config"]["environment"]["environmentId"].as_str().unwrap().to_owned();
+        std::fs::write(userdata.join("environment-id"), format!("{id}\n")).unwrap();
+    }
     for file in std::fs::read_dir(&userdata).unwrap().flatten().map(|entry| entry.path()).collect::<Vec<_>>() {
         if file.extension().is_some_and(|extension| extension == "gz") {
             std::fs::write(file.with_extension(""), gunzip(&file)).unwrap();
@@ -113,7 +118,9 @@ async fn serve(state_dir: &Path) -> Served {
         )
         .unwrap()
         .1;
-    let environment = json!({"environmentId":"import-fixture","label":"Fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
+    // The identity the server starts with is the one in `rust-environment-id`, which an import writes.
+    let identity = std::fs::read_to_string(state_dir.join("rust-environment-id")).map(|text| text.trim().to_owned()).unwrap_or_else(|_| "import-fixture".into());
+    let environment = json!({"environmentId":identity,"label":"Fixture","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}});
     // The settings service starts as the server starts it: with the store as the history its load-time migrations read.
     let mut options = SettingsOptions::file(state_dir.join("settings.json"), ServerSecretStore::open(state_dir.join("secrets")).unwrap());
     options.watch = false;
@@ -193,8 +200,15 @@ fn differences(left: &Value, right: &Value, at: &str, ignore: &dyn Fn(&str) -> b
     }
     match (left, right) {
         (Value::Object(a), Value::Object(b)) => {
+            // A key that is absent is not a key that is null: the schema accepts both, a client may tell them apart.
             for key in a.keys().chain(b.keys().filter(|key| !a.contains_key(*key))) {
-                differences(a.get(key).unwrap_or(&Value::Null), b.get(key).unwrap_or(&Value::Null), &format!("{at}.{key}"), ignore, out);
+                let path = format!("{at}.{key}");
+                match (a.get(key), b.get(key)) {
+                    (Some(x), Some(y)) => differences(x, y, &path, ignore, out),
+                    (Some(x), None) if !ignore(&path) => out.push(format!("{path}: served {}, absent in the original's", short(x))),
+                    (None, Some(y)) if !ignore(&path) => out.push(format!("{path}: absent here, the original's is {}", short(y))),
+                    _ => {}
+                }
             }
         }
         (Value::Array(a), Value::Array(b)) => {
@@ -214,73 +228,60 @@ fn short(value: &Value) -> String {
     if text.len() > 90 { format!("{}...", text.chars().take(90).collect::<String>()) } else { text }
 }
 
-fn by_id(rows: &Value) -> std::collections::BTreeMap<String, Value> {
-    rows.as_array().map(|rows| rows.iter().map(|row| (row["id"].as_str().unwrap_or_default().to_owned(), row.clone())).collect()).unwrap_or_default()
-}
-
-/// Paths where this server answers differently from the original for reasons that are not the import: shell summary fields its
-/// shell derivation does not compute (`thread::shell` leaves them out or empty; they are read from the same projections the
-/// import fills, and the thread projection below is compared whole), and values computed when asked.
-fn computed(path: &str) -> bool {
-    // A V1 thread's `updatedAt` is the time V1 recorded. The original, importing a transcript lazily, appends the older messages
-    // after the thread's shell event, so its thread ends up stamped with the time of the last message it hydrated; the import writes
-    // the whole transcript first and the shell last.
-    if LEGACY.with(|legacy| legacy.get()) && (path.ends_with("].updatedAt") || path.ends_with(".thread.updatedAt")) {
+/// The differences from what the original served that are intended, and why. Every other difference fails the comparison, in any
+/// field of the shell and of each thread projection, and "absent" is not "null".
+///
+/// 1. `repositoryIdentity` of a project, and `resolvedRepositoryIdentityRoots`: the original resolves them from the workspace's git
+///    remote with a service of its own (`ProjectEnrichmentService`) and sends them after the snapshot; this server runs no such
+///    service, sends null, and says so in its environment descriptor (`capabilities.repositoryIdentity: false`).
+/// 2. A V1 thread's `updatedAt` (the shell's, and its projection's `thread` and `updatedAt`), for the two V1 homes only: V1 recorded
+///    when the thread last changed. The original, importing a transcript lazily at first open, appends the older messages after the
+///    thread's shell event, so its thread ends up stamped with the time of the last message it hydrated, which is when it happened
+///    to hydrate them. The import writes the whole transcript first and the shell last, so the thread keeps V1's own time.
+fn allowed(path: &str) -> bool {
+    if path.contains(".repositoryIdentity") || path.contains("resolvedRepositoryIdentityRoots") {
         return true;
     }
-    const SHELL_GAPS: [&str; 9] = [
-        ".latestRunRequestedAt", ".latestRunStartedAt", ".latestRunCompletedAt", ".latestUserAuthoredMessageAt", ".latestVisibleMessage", ".providerInstanceHistory",
-        ".pullRequests", ".itemCount", ".visibleItemCount",
-    ];
-    path.contains(".repositoryIdentity")
-        || path.ends_with(".snapshotSequence")
-        || path.contains("resolvedRepositoryIdentityRoots")
-        || (path.starts_with("shell.threads") && SHELL_GAPS.iter().any(|gap| path.ends_with(gap)))
+    LEGACY.with(|legacy| legacy.get()) && (path.starts_with("shell.threads[") || path.starts_with("thread[")) && (path.ends_with("].updatedAt") || path.ends_with(".thread.updatedAt"))
 }
 
-/// The lists of a served projection that the comparison with the original's served rows is made on, as a subset: every row the
-/// original served must be served here, equal. This server also serves rows the original's read leaves out (the runs a rollback
-/// undid and what hangs off them, a wake's notification message), and leaves out provider threads of child threads that the
-/// original joins in; neither is a matter of what was imported (`imported_projections_equal_the_originals_rows` compares the
-/// imported rows with the original's own).
-fn served_subset(have: &Value, want: &Value, thread: &str, problems: &mut Vec<String>) {
+/// A served thread projection against the one the original served for the same thread: every field, every row. A list is compared as
+/// the rows it holds, by identity (a row missing, a row served that the original did not serve), then in the order served, then
+/// row by row. `allowed` names the differences that are intended.
+fn projection_differences(have: &Value, want: &Value, thread: &str, problems: &mut Vec<String>) {
+    let identity = |row: &Value| match (row["sourceThreadId"].as_str(), row["sourceItemId"].as_str()) {
+        (Some(source), Some(item)) => format!("{source}/{item}"),
+        _ => row["id"].as_str().map_or_else(|| row.to_string(), str::to_owned),
+    };
     for (field, wanted) in want.as_object().unwrap() {
-        if matches!(field.as_str(), "providerThreads" | "providerSessions" | "visibleTurnItems" | "updatedAt") {
-            continue;
-        }
+        let at = format!("thread[{thread}].{field}");
         match (wanted.as_array(), have[field].as_array()) {
             (Some(wanted), Some(have)) => {
-                let by = |rows: &[Value]| rows.iter().map(|row| (row["id"].as_str().map_or_else(|| row.to_string(), str::to_owned), row.clone())).collect::<std::collections::BTreeMap<_, _>>();
-                let have = by(have);
-                for (id, row) in by(wanted) {
-                    match have.get(&id) {
-                        Some(found) => differences(found, &row, &format!("thread[{thread}].{field}[{id}]"), &computed, problems),
-                        None => problems.push(format!("thread[{thread}].{field}[{id}]: not served")),
+                let (served, original): (Vec<String>, Vec<String>) = (have.iter().map(identity).collect(), wanted.iter().map(identity).collect());
+                for id in original.iter().filter(|id| !served.contains(id)) {
+                    problems.push(format!("{at}[{id}]: not served"));
+                }
+                for id in served.iter().filter(|id| !original.contains(id)) {
+                    problems.push(format!("{at}[{id}]: served, but not by the original"));
+                }
+                let common = |ids: &[String], other: &[String]| ids.iter().filter(|id| other.contains(id)).cloned().collect::<Vec<_>>();
+                if common(&served, &original) != common(&original, &served) {
+                    problems.push(format!("{at}: rows are in another order"));
+                }
+                for row in wanted {
+                    if let Some(found) = have.iter().find(|candidate| identity(candidate) == identity(row)) {
+                        differences(found, row, &format!("{at}[{}]", identity(row)), &allowed, problems);
                     }
                 }
             }
-            _ => differences(&have[field], wanted, &format!("thread[{thread}].{field}"), &computed, problems),
+            _ => differences(&have[field], wanted, &at, &allowed, problems),
         }
     }
-}
-
-/// A thread projection with every list ordered by the identity of its rows: the original lists rows in the order its queries
-/// give them and this server in the order events wrote them; the rows themselves must be equal.
-fn ordered(mut projection: Value) -> Value {
-    if let Some(object) = projection.as_object_mut() {
-        for (key, rows) in object.iter_mut() {
-            if let Some(rows) = rows.as_array_mut() {
-                let identity = |row: &Value| row["id"].as_str().or_else(|| row["item"]["id"].as_str()).map(str::to_owned).unwrap_or_else(|| row.to_string());
-                rows.sort_by_key(|row| identity(row));
-                if key == "visibleTurnItems" {
-                    for row in rows.iter_mut() {
-                        row["position"] = Value::Null;
-                    }
-                }
-            }
+    for field in have.as_object().unwrap().keys().filter(|field| !want.as_object().unwrap().contains_key(*field)) {
+        if !have[field].is_null() {
+            problems.push(format!("thread[{thread}].{field}: served, but not by the original"));
         }
     }
-    projection
 }
 
 thread_local! { static LEGACY: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
@@ -293,34 +294,51 @@ async fn compare_inner(served: &Served, name: &str) {
     let expected = reference(name);
     let mut socket = served.connect().await;
     let mut problems = Vec::new();
-    // The shell: threads and projects, row for row.
+    // The shell: the snapshot's own fields, then threads and projects row for row and in the order sent.
     let shell = shell_snapshot(&mut socket).await;
     let wanted = &expected["shell"]["snapshot"];
-    for kind in ["threads", "projects"] {
-        let (have, want) = (by_id(&shell[kind]), by_id(&wanted[kind]));
-        assert_eq!(have.keys().collect::<Vec<_>>(), want.keys().collect::<Vec<_>>(), "{name}: the shell's {kind}");
-        for (id, row) in &want {
-            differences(&have[id], row, &format!("shell.{kind}[{id}]"), &computed, &mut problems);
+    let archived = success(&rpc(&mut socket, 1, "orchestration.getArchivedShellSnapshot", json!({})).await).clone();
+    for (label, have, want) in [("shell", &shell, wanted), ("archived", &archived, &expected["archived"])] {
+        // This server numbers its log as the original's, continuing after the events it replayed (a V1 import adds baseline
+        // events), so a snapshot is at least where the original's was, and exactly there when nothing was added.
+        let (have_at, want_at) = (have["snapshotSequence"].as_u64().unwrap(), want["snapshotSequence"].as_u64().unwrap());
+        assert!(if LEGACY.with(|legacy| legacy.get()) { have_at >= want_at } else { have_at == want_at }, "{name}: {label} snapshotSequence {have_at} against the original's {want_at}");
+        for (field, wanted_field) in want.as_object().unwrap() {
+            let ids = |rows: &Value| rows.as_array().map(|rows| rows.iter().map(|row| row["id"].as_str().unwrap_or_default().to_owned()).collect::<Vec<_>>());
+            match (ids(wanted_field), ids(&have[field])) {
+                (Some(want_ids), Some(have_ids)) => {
+                    assert_eq!(have_ids, want_ids, "{name}: the {label}'s {field}, in the order sent");
+                    for (served, original) in have[field].as_array().unwrap().iter().zip(wanted_field.as_array().unwrap()) {
+                        differences(served, original, &format!("{label}.{field}[{}]", original["id"].as_str().unwrap_or_default()), &allowed, &mut problems);
+                    }
+                }
+                _ if field == "snapshotSequence" => {}
+                _ => differences(&have[field], wanted_field, &format!("{label}.{field}"), &allowed, &mut problems),
+            }
+        }
+        for field in have.as_object().unwrap().keys().filter(|field| !want.as_object().unwrap().contains_key(*field)) {
+            problems.push(format!("{label}.{field}: served, but not by the original"));
         }
     }
-    let archived = success(&rpc(&mut socket, 1, "orchestration.getArchivedShellSnapshot", json!({})).await).clone();
-    assert_eq!(by_id(&archived["threads"]).keys().collect::<Vec<_>>(), by_id(&expected["archived"]["threads"]).keys().collect::<Vec<_>>(), "{name}: archived threads");
     // Each thread's projection.
     let mut compared = 0;
     for (id, want) in expected["threads"].as_object().unwrap() {
         let exit = rpc(&mut socket, 100 + compared, "orchestration.getThreadProjection", json!({"threadId":id})).await;
         let have = success(&exit);
-        served_subset(have, want, id, &mut problems);
+        projection_differences(have, want, id, &mut problems);
         compared += 1;
     }
     // Settings, keybindings, scheduled tasks.
     let settings = success(&rpc(&mut socket, 2, "server.getSettings", json!({})).await).clone();
-    differences(&settings, &expected["settings"], "settings", &computed, &mut problems);
+    differences(&settings, &expected["settings"], "settings", &allowed, &mut problems);
     let config = success(&rpc(&mut socket, 3, "server.getConfig", json!({})).await).clone();
-    differences(&config["keybindings"], &expected["config"]["keybindings"], "config.keybindings", &computed, &mut problems);
+    differences(&config["keybindings"], &expected["config"]["keybindings"], "config.keybindings", &allowed, &mut problems);
+    // The environment is the same one: what saved connections and client state are keyed by.
+    differences(&config["environment"]["environmentId"], &expected["config"]["environment"]["environmentId"], "config.environment.environmentId", &allowed, &mut problems);
     let tasks = success(&rpc(&mut socket, 4, "scheduledTasks.list", json!({})).await).clone();
-    differences(&tasks, &expected["scheduledTasks"], "scheduledTasks", &computed, &mut problems);
+    differences(&tasks, &expected["scheduledTasks"], "scheduledTasks", &allowed, &mut problems);
     assert!(compared > 0 || name == "v1" || name == "oldest", "{name}: no threads compared");
+    if std::env::var("T3_IMPORT_VERBOSE").is_ok() { for problem in &problems { eprintln!("{problem}"); } }
     assert!(problems.is_empty(), "{name}: {} differences from what the original served:\n{}", problems.len(), summary(&problems));
 }
 
@@ -684,6 +702,45 @@ fn imported_projections_equal_the_originals_rows() {
     assert!(problems.is_empty(), "{} differences from the original's projection rows ({compared} rows compared):\n{}", problems.len(), summary(&problems));
 }
 
+/// The environment is the same one after the import: the identity saved connections, client state, pairing links and the check
+/// a client makes that it reached the server it meant (`expectedEnvironmentId`) are keyed by.
+#[test]
+fn the_environments_identity_is_the_originals() {
+    use std::os::unix::fs::PermissionsExt;
+    let base = tempfile::tempdir().unwrap();
+    let from = home("full", base.path());
+    let original = std::fs::read_to_string(from.join("userdata/environment-id")).unwrap().trim().to_owned();
+    assert_eq!(original, reference("full")["config"]["environment"]["environmentId"].as_str().unwrap());
+    // A new state directory takes it.
+    let state = base.path().join("state");
+    let report = imported(&from, &state);
+    let file = state.join("rust-environment-id");
+    assert_eq!(std::fs::read_to_string(&file).unwrap().trim(), original);
+    assert_eq!(std::fs::metadata(&file).unwrap().permissions().mode() & 0o777, 0o600);
+    assert_eq!(report.environment_id.as_deref(), Some(original.as_str()));
+    assert!(report.files.iter().any(|file| file.name == "environment-id" && file.action == "adopted"), "{:?}", report.files);
+    // A state directory with an identity of its own and no store, so nothing paired to it, is given the original's.
+    let other = base.path().join("other");
+    std::fs::create_dir_all(&other).unwrap();
+    std::fs::write(other.join("rust-environment-id"), "5f1f2fbe-8d2c-4a43-a7c5-0cc52c7a3f11\n").unwrap();
+    let report = imported(&from, &other);
+    assert_eq!(std::fs::read_to_string(other.join("rust-environment-id")).unwrap().trim(), original);
+    assert!(report.files.iter().any(|file| file.name == "environment-id" && file.action.contains("replacing an identity no client was paired to")), "{:?}", report.files);
+    // An identity this server cannot use is not adopted, and the import says so.
+    let odd = home("v1", base.path());
+    std::fs::write(odd.join("userdata/environment-id"), "not-a-uuid\n").unwrap();
+    let state = base.path().join("state-odd");
+    let report = imported(&odd, &state);
+    assert!(!state.join("rust-environment-id").exists());
+    assert!(report.environment_id.is_none() && report.warnings.iter().any(|line| line.contains("environment-id is not a UUID")), "{:?}", report.warnings);
+    // A home with none has nothing to adopt.
+    let bare = home("inflight", base.path());
+    std::fs::remove_file(bare.join("userdata/environment-id")).unwrap();
+    let state = base.path().join("state-bare");
+    assert!(imported(&bare, &state).environment_id.is_none());
+    assert!(!state.join("rust-environment-id").exists());
+}
+
 #[test]
 fn serve_imports_in_place_on_first_start_only_and_leaves_the_originals_files_where_they_are() {
     let base = tempfile::tempdir().unwrap();
@@ -698,6 +755,8 @@ fn serve_imports_in_place_on_first_start_only_and_leaves_the_originals_files_whe
     assert!(t3_server::state_import::automatic(&userdata).unwrap().is_none(), "the second start imports nothing");
     // Only the files this server adds are new: every file of the original is byte for byte what it was.
     let after = digest(&userdata);
+    // The server in place reads its identity from `rust-environment-id`; the original's is written there beside its own file.
+    assert_eq!(std::fs::read_to_string(userdata.join("rust-environment-id")).unwrap(), std::fs::read_to_string(userdata.join("environment-id")).unwrap());
     for (name, bytes) in &before {
         assert_eq!(after.iter().find(|(other, _)| other == name).map(|(_, bytes)| bytes), Some(bytes), "{name}");
     }

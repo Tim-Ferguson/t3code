@@ -516,7 +516,7 @@ async fn thread_history(
         .map(Json)
         .map_err(history_error)
 }
-fn read_thread_snapshot(store: &Store, id: &str) -> Result<Value, StoreError> {
+fn read_thread_snapshot(store: &Store, id: &str, windowed: bool) -> Result<Value, StoreError> {
     store.read(|connection| {
         let sequence: u64 = connection.query_row(
             "SELECT COALESCE(MAX(sequence),0) FROM rust_application_events",
@@ -525,8 +525,9 @@ fn read_thread_snapshot(store: &Store, id: &str) -> Result<Value, StoreError> {
         )?;
         let projection = read_projection(connection, "thread", id)?
             .ok_or_else(|| StoreError::InvalidCommand(format!("Thread {id} does not exist.")))?;
-        // A fork's inherited history is its source's as it is now.
-        let projection = crate::thread_fork::refreshed(projection, &|source| read_projection(connection, "thread", source).ok().flatten());
+        // As the original serves it: a fork's history is its source's as it is now, rows other threads wrote are joined in, lists
+        // are in the original's order and a bounded snapshot leaves out what its window does not lead to.
+        let projection = crate::projection_read::served(connection, projection, windowed)?;
         Ok(json!({"snapshotSequence":sequence,"projection":projection}))
     })
 }
@@ -1169,7 +1170,10 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
         },
         "orchestration.getThreadProjection"=>{
             let id=request.payload["threadId"].as_str().ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":"","message":"threadId is required."}))?;
-            ThreadService::new(state.store.clone()).projection(id).map_err(error)?.map(|value|crate::wire_projection::projection(&value)).ok_or_else(||json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":id,"message":"Thread does not exist."}))
+            // The compatibility read: the bounded snapshot's projection (the original reads a window, then bounds it).
+            if ThreadService::new(state.store.clone()).projection(id).map_err(error)?.is_none(){return Err(json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":id,"message":"Thread does not exist."}));}
+            let found=crate::history::HistoryService::new(state.store.clone()).snapshot(id,true).map_err(error)?;
+            Ok(found["projection"].clone())
         },
         "orchestration.getWorkflowScript"=>{
             // `threadId` only scopes the request; the path is checked against the scripts root alone.
@@ -1942,7 +1946,7 @@ async fn stream_inner(
         );
     }
     let mut snapshot = if is_thread {
-        read_thread_snapshot(&state.store, thread_id.unwrap())
+        read_thread_snapshot(&state.store, thread_id.unwrap(), request.payload["acceptBoundedSnapshot"] == true)
     } else {
         ThreadService::new(state.store.clone()).shell_snapshot()
     }

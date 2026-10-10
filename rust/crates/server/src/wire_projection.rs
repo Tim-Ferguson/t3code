@@ -540,6 +540,11 @@ pub fn item(item: &Value) -> Value {
             for key in ["prompt", "progress", "result"] {
                 truncate_field(&mut output, key, DETAIL);
             }
+            // The original writes `progress: truncateDetail(item.progress)`, a key whose value may be undefined, which its JSON
+            // codec sends as null.
+            if output.get("progress").is_none() {
+                output["progress"] = Value::Null;
+            }
         }
         Some("dynamic_tool") => {
             if let Some(input) = item.get("input") {
@@ -576,6 +581,9 @@ pub fn detail(item: &Value) -> Value {
             for key in ["prompt", "progress", "result"] {
                 truncate_field(&mut output, key, ON_DEMAND);
             }
+            if output.get("progress").is_none() {
+                output["progress"] = Value::Null;
+            }
         }
         Some("handoff" | "file_change") => return self::item(item),
         _ => {}
@@ -592,6 +600,10 @@ pub fn handoff(value: &Value) -> Value {
 }
 pub fn projection(value: &Value) -> Value {
     let mut value = value.clone();
+    // The counters the shell is read from are stored with the projection; no client is sent them.
+    if let Some(object) = value.as_object_mut() {
+        object.remove(crate::shell_state::KEY);
+    }
     for field in ["turnItems", "visibleTurnItems", "contextHandoffs"] {
         if let Some(array) = value[field].as_array_mut() {
             for row in array {

@@ -57,6 +57,45 @@ fn copy_tree(from: &Path, to: &Path) -> std::io::Result<u64> {
     Ok(copied)
 }
 
+/// The environment's identity (`<userdata>/environment-id`, a UUID the original made once). Saved connections, drafts and the client
+/// state keyed by an environment, the pairing and relay links that name it, and the check a client makes that it reached the
+/// server it meant (`expectedEnvironmentId`) all hold it, so an import that kept this server's own would make every one of them
+/// a different environment. This server reads its identity from `rust-environment-id`; the import writes the original's there.
+///
+/// A store of this server may already have clients paired to the identity it has; then it is kept (a store is only imported into
+/// before it exists, so this is a guard, not a path an import takes).
+pub fn adopt_environment_identity(userdata: &Path, state_dir: &Path, report: &mut Report) -> Result<(), ImportError> {
+    let Ok(text) = fs::read_to_string(userdata.join("environment-id")) else { return Ok(()) };
+    let original = text.trim().to_owned();
+    if uuid::Uuid::parse_str(&original).is_err() {
+        report.warnings.push("environment-id is not a UUID, which this server requires of an identity; the server makes its own, and clients saved against the original's must be added again".into());
+        note(report, "environment-id", "not adopted (not a UUID)", 0);
+        return Ok(());
+    }
+    let target = state_dir.join("rust-environment-id");
+    let existing = fs::read_to_string(&target).ok().map(|text| text.trim().to_owned()).filter(|text| !text.is_empty());
+    if existing.as_deref() == Some(original.as_str()) {
+        note(report, "environment-id", "already this server's identity", 0);
+    } else if existing.is_some() && state_dir.join("rust-state.sqlite").exists() {
+        report.warnings.push(format!("this server already has the identity {} with a store that devices may be paired to, so it was kept; clients saved against the original's identity ({original}) must be added again", existing.unwrap_or_default()));
+        note(report, "environment-id", "not adopted (this server's identity has clients)", 0);
+    } else {
+        let mut temporary = target.as_os_str().to_os_string();
+        temporary.push(".importing");
+        let temporary = PathBuf::from(temporary);
+        fs::write(&temporary, format!("{original}\n"))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))?;
+        }
+        fs::rename(&temporary, &target)?;
+        note(report, "environment-id", if existing.is_some() { "adopted, replacing an identity no client was paired to" } else { "adopted" }, 1);
+    }
+    report.environment_id = Some(original);
+    Ok(())
+}
+
 pub fn copy(userdata: &Path, state_dir: &Path, report: &mut Report) -> Result<(), ImportError> {
     if fs::canonicalize(userdata).ok().as_deref() == Some(state_dir) {
         note(report, "settings.json, keybindings.json, attachments/, secrets/", "used in place (same directory)", 0);
@@ -101,10 +140,32 @@ pub fn copy(userdata: &Path, state_dir: &Path, report: &mut Report) -> Result<()
             note(report, name, "not carried (this server keeps no usage scan cache; usage is rescanned from provider transcripts, so usage from transcripts that were deleted is not shown)", 0);
         }
     }
-    for name in ["themes", "browser-artifacts", "logs", "model-manifest.json", "environment-id", "anonymous-id", "server-runtime.json"] {
+    for name in ["themes", "browser-artifacts", "logs", "model-manifest.json", "anonymous-id", "server-runtime.json"] {
         if userdata.join(name).exists() {
             note(report, name, "not carried (caches and identifiers this server makes for itself)", 0);
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A store this server already made may have devices paired to its identity, so the original's does not replace it.
+    #[test]
+    fn an_identity_a_store_may_have_clients_for_is_kept() {
+        let directory = tempfile::tempdir().unwrap();
+        let (userdata, state) = (directory.path().join("userdata"), directory.path().join("state"));
+        fs::create_dir_all(&userdata).unwrap();
+        fs::create_dir_all(&state).unwrap();
+        fs::write(userdata.join("environment-id"), "0d555e0a-6745-47b5-a5aa-bb51118f46ae\n").unwrap();
+        fs::write(state.join("rust-environment-id"), "5f1f2fbe-8d2c-4a43-a7c5-0cc52c7a3f11\n").unwrap();
+        fs::write(state.join("rust-state.sqlite"), b"").unwrap();
+        let mut report = Report::default();
+        adopt_environment_identity(&userdata, &state, &mut report).unwrap();
+        assert_eq!(fs::read_to_string(state.join("rust-environment-id")).unwrap().trim(), "5f1f2fbe-8d2c-4a43-a7c5-0cc52c7a3f11");
+        assert!(report.warnings.iter().any(|line| line.contains("kept") && line.contains("0d555e0a-6745-47b5-a5aa-bb51118f46ae")), "{:?}", report.warnings);
+        assert!(report.files.iter().any(|file| file.action.contains("not adopted")));
+    }
 }

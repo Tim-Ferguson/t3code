@@ -412,8 +412,13 @@ pub fn reduce_project_event(
     let id = &event.aggregate_id;
     let mut state = match event.event_type.as_str() {
         "project.created" => {
+            // The row the original keeps (`ProjectStoreV2.apply`): what the event names, and null where it says nothing.
             let mut payload = event.payload.clone();
-            payload["defaultThreadEnvMode"] = Value::Null;
+            for field in ["defaultThreadEnvMode", "faviconPath", "projectIcon"] {
+                if payload.get(field).is_none() {
+                    payload[field] = Value::Null;
+                }
+            }
             payload["autoPull"] = Value::Bool(false);
             payload["deletedAt"] = Value::Null;
             payload
@@ -438,18 +443,28 @@ pub fn reduce_project_event(
                 state[key] = value.clone();
             }
         }
+        // A deleted project's row is stamped with the time it was deleted.
+        if event.event_type == "project.deleted" {
+            state["updatedAt"] = event.payload["deletedAt"].clone();
+        }
     }
     write_projection(transaction, "project", id, &state)
 }
 
-pub fn to_shell(mut row: Value) -> Value {
-    row["id"] = row["projectId"].clone();
-    row["repositoryIdentity"] = Value::Null;
-    if let Some(object) = row.as_object_mut() {
-        object.remove("projectId");
-        object.remove("deletedAt");
+/// `toShell`: the fields of a project the original sends and no others; `repositoryIdentity` is resolved from the workspace's git
+/// remote by a service this server does not run, so it is null (the environment descriptor says so).
+pub fn to_shell(row: Value) -> Value {
+    let mut shell = serde_json::Map::new();
+    shell.insert("id".into(), row["projectId"].clone());
+    shell.insert("repositoryIdentity".into(), Value::Null);
+    for field in ["title", "workspaceRoot", "defaultModelSelection", "defaultThreadEnvMode", "autoPull", "faviconPath", "projectIcon", "scripts", "createdAt", "updatedAt"] {
+        shell.insert(field.into(), row.get(field).cloned().unwrap_or(match field {
+            "autoPull" => Value::Bool(false),
+            "scripts" => json!([]),
+            _ => Value::Null,
+        }));
     }
-    row
+    Value::Object(shell)
 }
 
 #[cfg(test)]

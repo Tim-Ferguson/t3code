@@ -110,7 +110,9 @@ impl ThreadService {
         self.store.read(|connection| {
             let sequence: u64 = connection.query_row("SELECT COALESCE(MAX(sequence),0) FROM rust_application_events",[],|row| row.get(0))?;
             let projects = read_projections(connection,"project")?.into_iter().filter(|row| row["deletedAt"].is_null()).map(crate::project::to_shell).collect::<Vec<_>>();
-            let rows = read_projections(connection,"thread")?;
+            let mut rows = read_projections(connection,"thread")?;
+            // The original lists threads by when they last changed, then by id.
+            rows.sort_by(|left, right| (left["thread"]["updatedAt"].as_str(), left["thread"]["id"].as_str()).cmp(&(right["thread"]["updatedAt"].as_str(), right["thread"]["id"].as_str())));
             let threads = rows.iter().filter(|projection| projection["thread"]["deletedAt"].is_null() && projection["thread"]["archivedAt"].is_null()).map(shell).collect::<Vec<_>>();
             let archived = rows.iter().filter(|projection| projection["thread"]["deletedAt"].is_null() && !projection["thread"]["archivedAt"].is_null()).map(shell).collect::<Vec<_>>();
             Ok(json!({"schemaVersion":2,"snapshotSequence":sequence,"projects":projects,"threads":threads,"archivedThreads":archived}))
@@ -923,6 +925,7 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
         if let Some(source) = source {
             let local = projection["visibleTurnItems"].as_array().cloned().unwrap_or_default();
             projection["visibleTurnItems"] = Value::Array(crate::thread_fork::visible_with_inherited(&projection, &source, local));
+            crate::shell_state::inherit(&mut projection, &source);
         }
     }
     if event.event_type == "run.updated"
@@ -934,6 +937,7 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
         transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
     }
     write_projection(transaction, "thread", &event.aggregate_id, &projection)?;
+    crate::shared_rows::apply(transaction, event)?;
     // A fork or merge-back is listed by both threads it joins, as the original's projection reads them.
     if matches!(event.event_type.as_str(), "context-transfer.created" | "context-transfer.updated") && matches!(event.payload["type"].as_str(), Some("fork" | "merge_back")) {
         let other = if event.payload["sourceThreadId"] == event.aggregate_id { &event.payload["targetThreadId"] } else { &event.payload["sourceThreadId"] };
@@ -951,6 +955,22 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
     }
     Ok(())
 }
+/// Events whose payload is the whole thread record, and that therefore stamp their own `updatedAt`. Every other event of a thread
+/// moves the thread's `updatedAt` to the time it occurred (`ProjectionStore.apply`, which lists these and not the two the list
+/// forgot, `thread.active-reordered` and `thread.pull-request-synced`; they are moved too, as the original does).
+const STAMP_THEIR_OWN: [&str; 19] = [
+    "thread.created", "thread.archived", "thread.unarchived", "thread.deleted", "thread.settled", "thread.unsettled", "thread.snoozed", "thread.unsnoozed",
+    "thread.auto-settle-set", "thread.pinned", "thread.unpinned", "thread.pin-reordered", "thread.visited", "thread.marked-unread", "thread.metadata-updated",
+    "thread.runtime-mode-updated", "thread.interaction-mode-updated", "thread.model-selection-updated", "thread.provider-switched",
+];
+
+/// `isQueuedProviderThreadPlaceholder`: a provider thread reserved for a queued run, not yet the thread's.
+fn queued_provider_thread_placeholder(provider_thread: &Value) -> bool {
+    provider_thread["status"] == "not_loaded" && provider_thread["firstRunOrdinal"].is_null() && provider_thread["nativeThreadRef"].is_null() && provider_thread["providerSessionId"].is_null()
+}
+
+/// One event applied to a thread's projection: `applyToProjection` and the SQL projection the original reads. The importer runs
+/// the events the original wrote through this too, so there is one reducer.
 pub(crate) fn projection_after(
     projection: Option<Value>,
     event: &Event,
@@ -977,6 +997,7 @@ pub(crate) fn projection_after(
         ] {
             projection[field] = json!([]);
         }
+        projection[crate::shell_state::KEY] = crate::shell_state::empty();
         projection
     } else {
         projection.ok_or_else(|| StoreError::InvalidProjection {
@@ -985,6 +1006,10 @@ pub(crate) fn projection_after(
             detail: "missing thread".into(),
         })?
     };
+    // A thread stored by an earlier build has no counters yet: they are made from its history, once, and kept from here on.
+    if projection.get(crate::shell_state::KEY).is_none_or(|state| !state.is_object()) {
+        projection[crate::shell_state::KEY] = crate::shell_state::scan(&projection);
+    }
     let field = match event.event_type.as_str() {
         "run.created" | "run.updated" => Some("runs"),
         "run-attempt.created" | "run-attempt.updated" => Some("attempts"),
@@ -1010,6 +1035,11 @@ pub(crate) fn projection_after(
                 StoreError::InvalidCommand("Provider sessions are not an array.".into())
             })?
             .retain(|session| session["id"] != event.payload["providerSessionId"]);
+    } else if event.event_type == "run.background-work-cancelled" {
+        // Only this field of the run changes, so a lifecycle write that raced it is not undone.
+        for run in projection["runs"].as_array_mut().into_iter().flatten().filter(|run| run["id"] == event.payload["runId"]) {
+            run["restartCancelledBackgroundWork"] = event.payload["restartCancelledBackgroundWork"].clone();
+        }
     } else if let Some(field) = field {
         let rows =
             projection[field]
@@ -1019,22 +1049,28 @@ pub(crate) fn projection_after(
                     id: event.aggregate_id.clone(),
                     detail: format!("{field} is not an array"),
                 })?;
-        if let Some(existing) = rows.iter_mut().find(|row| row["id"] == event.payload["id"]) {
+        let replaced = if let Some(existing) = rows.iter_mut().find(|row| row["id"] == event.payload["id"]) {
+            let before = crate::shell_state::before(field, existing);
             let mut next = event.payload.clone();
             // A stale snapshot must not erase what another event recorded: a run's delegated-completion
-            // cohort and a task's completion delivery are kept when the update carries none.
-            for (row_field, kept) in [("runs", "delegatedCompletion"), ("subagents", "completionDelivery")] {
+            // cohort and the work a restart cancelled, a task's completion delivery, and a provider turn's
+            // token usage are kept when the update carries none.
+            for (row_field, kept) in [("runs", "delegatedCompletion"), ("runs", "restartCancelledBackgroundWork"), ("subagents", "completionDelivery"), ("providerTurns", "tokenUsage")] {
                 if field == row_field && next.get(kept).is_none() && existing.get(kept).is_some() {
                     next[kept] = existing[kept].clone();
                 }
             }
             *existing = next;
+            Some(before)
         } else {
             rows.push(event.payload.clone());
-        }
+            None
+        };
+        crate::shell_state::applied(&mut projection, field, &event.payload, replaced);
+        // A provider thread that is not a queued placeholder becomes the thread's own.
         if field == "providerThreads"
             && event.payload["appThreadId"] == event.aggregate_id
-            && !event.payload["nativeThreadRef"].is_null()
+            && !queued_provider_thread_placeholder(&event.payload)
         {
             projection["thread"]["activeProviderThreadId"] = event.payload["id"].clone();
         }
@@ -1053,57 +1089,90 @@ pub(crate) fn projection_after(
             event.event_type
         )));
     }
-    if !matches!(
-        event.event_type.as_str(),
-        "thread.visited" | "thread.marked-unread"
-    ) {
-        projection["updatedAt"] = json!(event.occurred_at);
+    if !STAMP_THEIR_OWN.contains(&event.event_type.as_str()) {
+        projection["thread"]["updatedAt"] = json!(event.occurred_at);
     }
+    // The projection is read as of its thread's last update.
+    projection["updatedAt"] = projection["thread"]["updatedAt"].clone();
     Ok(projection)
 }
 
+/// The thread shell the original builds from a thread's projection (`threadShellFromProjection`, `selectShellThreadRows`), field for
+/// field: what the sidebar needs and nothing of the transcript (`latestVisibleMessage` is always null, as the original sends it).
+/// The counters come from `shell_state`, kept by the reducer; the rest looks at runs, requests, plans and provider threads, which
+/// are few.
 pub fn shell(projection: &Value) -> Value {
     let mut shell = projection["thread"].clone();
     // The rollback bookkeeping belongs to the thread record only; the shell schema does not carry it.
     if let Some(record) = shell.as_object_mut() {
         record.remove("rollbackRequestId");
         record.remove("rollbackFailure");
+        // The fields the original always sends, null when the thread says nothing.
+        for field in ["unsettledAt", "snoozedUntil", "snoozedAt", "pinnedAt", "autoSettleDisabledAt", "pinOrderKey", "titleRegeneration", "limitRecovery"] {
+            record.entry(field).or_insert(Value::Null);
+        }
     }
+    shell["pullRequests"] = json!(crate::thread_pull_requests::links(&projection["thread"]));
     // The run the thread's outcome is read from, and why it stopped (`orchestrationV2ThreadError`).
     let (latest, last_error, last_error_class, usage_limit_reset_at) = crate::usage_limits::shell_fields(projection);
     shell["lastError"] = last_error;
     shell["lastErrorClass"] = last_error_class;
     shell["usageLimitResetAt"] = usage_limit_reset_at;
-    let active = array(projection, "runs").iter().rev().find(|run| {
-        matches!(
-            string(run, "status"),
-            Some("preparing" | "starting" | "running" | "waiting")
-        )
-    });
+    let runs = array(projection, "runs");
+    let newest = |statuses: &[&str]| runs.iter().filter(|run| statuses.iter().any(|status| run["status"] == *status)).max_by_key(|run| (run["ordinal"].as_u64(), run["id"].as_str()));
+    // Interruptible runs; a run waiting on a person is not one (`isInterruptibleRunForShell`).
+    let active = newest(&["preparing", "starting", "running"]);
     shell["latestRunId"] = latest.map(|run| run["id"].clone()).unwrap_or(Value::Null);
+    for (field, source) in [("latestRunRequestedAt", "requestedAt"), ("latestRunStartedAt", "startedAt"), ("latestRunCompletedAt", "completedAt")] {
+        shell[field] = latest.and_then(|run| run.get(source)).cloned().unwrap_or(Value::Null);
+    }
     shell["activeRunId"] = active.map(|run| run["id"].clone()).unwrap_or(Value::Null);
     // The run the thread is doing work for, waiting included (`isActivityRunForShell`).
-    let activity = array(projection, "runs").iter().filter(|run| matches!(string(run, "status"), Some("preparing" | "starting" | "running" | "waiting"))).max_by_key(|run| run["ordinal"].as_u64());
+    let activity = newest(&["preparing", "starting", "running", "waiting"]);
     shell["activityRunStatus"] = activity.map_or(Value::Null, |run| run["status"].clone());
     shell["activityRunStartedAt"] = activity.map_or(Value::Null, |run| [&run["workStartedAt"], &run["startedAt"], &run["requestedAt"]].into_iter().find(|value| !value.is_null()).cloned().unwrap_or(Value::Null));
     shell["status"] = latest
         .map(|run| run["status"].clone())
         .unwrap_or(json!("idle"));
-    shell["pendingRuntimeRequest"] = array(projection,"runtimeRequests").iter().rev().find(|request| request["status"] == "pending").map(|request| json!({"id":request["id"],"kind":request["kind"],"createdAt":request["createdAt"]})).unwrap_or(Value::Null);
-    let messages = array(projection, "messages");
-    shell["latestVisibleMessage"] = messages.last().map(|message| json!({"id":message["id"],"role":message["role"],"text":message["text"],"updatedAt":message["updatedAt"]})).unwrap_or(Value::Null);
-    shell["latestUserMessageAt"] = messages
-        .iter()
-        .rev()
-        .find(|message| message["role"] == "user")
-        .map(|message| message["updatedAt"].clone())
-        .unwrap_or(Value::Null);
-    shell["hasActionableProposedPlan"] = json!(false);
+    // The newest pending request; or, for a secret a card asks for, that card of a run that is working (`secretRequestAsPendingInput`).
+    let request = array(projection, "runtimeRequests").iter().filter(|request| request["status"] == "pending").max_by_key(|request| (request["createdAt"].as_str(), request["id"].as_str()));
+    shell["pendingRuntimeRequest"] = match request {
+        Some(request) => json!({"id":request["id"],"kind":request["kind"],"createdAt":request["createdAt"]}),
+        None if activity.is_some() => array(projection, "turnItems")
+            .iter()
+            .filter(|item| item["type"] == "secret_request" && item["status"] == "waiting" && !item["nodeId"].is_null())
+            .filter(|item| runs.iter().any(|run| run["id"] == item["runId"] && matches!(run["status"].as_str(), Some("preparing" | "starting" | "running" | "waiting"))))
+            .max_by_key(|item| (item["updatedAt"].as_str(), item["id"].as_str()))
+            .map_or(Value::Null, |item| json!({"id":item["id"],"kind":"user_input","createdAt":if item["startedAt"].is_null() { &item["updatedAt"] } else { &item["startedAt"] }})),
+        None => Value::Null,
+    };
+    // Message bodies belong to the thread's own read; a shell stays the same size however long the conversation is.
+    shell["latestVisibleMessage"] = Value::Null;
+    let state = crate::shell_state::of(projection);
+    shell["latestUserMessageAt"] = state["userMessage"]["at"].clone();
+    shell["latestUserAuthoredMessageAt"] = state["authoredMessage"]["at"].clone();
+    shell["hasActionableProposedPlan"] = json!(array(projection, "plans").iter().any(|plan| plan["kind"] == "proposed_plan" && plan["status"] == "active"));
     shell["pendingBackgroundTasks"] = json!(crate::background_work::derive_for(projection));
-    shell["providerInstanceHistory"] = json!([]);
-    shell["itemCount"] = json!(array(projection, "turnItems").len());
-    shell["visibleItemCount"] = json!(array(projection, "visibleTurnItems").len());
+    shell["providerInstanceHistory"] = json!(provider_instance_history(projection));
+    // The native goal lives on the provider thread that owns the conversation.
+    shell["goal"] = array(projection, "providerThreads").iter().find(|thread| thread["id"] == projection["thread"]["activeProviderThreadId"]).and_then(|thread| thread.get("goal")).cloned().unwrap_or(Value::Null);
+    shell["itemCount"] = json!(crate::shell_state::item_count(projection));
+    shell["visibleItemCount"] = json!(crate::shell_state::visible_item_count(projection));
     shell
+}
+
+/// Provider instances that have owned the thread's root conversation, oldest first. A subagent's provider thread has an owner node
+/// and is left out, so a delegated Codex child does not make a Claude thread look handed off (`providerInstanceHistoryForShell`).
+fn provider_instance_history(projection: &Value) -> Vec<Value> {
+    let mut threads: Vec<&Value> = array(projection, "providerThreads").iter().filter(|thread| thread["appThreadId"] == projection["thread"]["id"] && thread["ownerNodeId"].is_null()).collect();
+    threads.sort_by(|left, right| (left["createdAt"].as_str(), left["id"].as_str()).cmp(&(right["createdAt"].as_str(), right["id"].as_str())));
+    let mut history: Vec<Value> = Vec::new();
+    for thread in threads {
+        if !history.contains(&thread["providerInstanceId"]) {
+            history.push(thread["providerInstanceId"].clone());
+        }
+    }
+    history
 }
 
 pub fn wire_event(event: &StoredEvent) -> Value {
@@ -1445,5 +1514,168 @@ mod tests {
         let normalized = normalize_command(&update).unwrap();
         assert!(normalized.get("title").is_none());
         assert!(normalized.get("branch").unwrap().is_null());
+    }
+
+    // ---- the reducer: the original's rules (`applyToProjection`, `ProjectionStore.apply`) ----
+
+    fn event(thread: &str, event_type: &str, payload: Value, at: &str) -> Event {
+        Event { event_id: format!("event:{event_type}:{at}"), aggregate_kind: "thread".into(), aggregate_id: thread.into(), occurred_at: at.into(), command_id: None, causation_event_id: None, correlation_id: None, event_type: event_type.into(), payload, metadata: json!({}) }
+    }
+    fn fixture_payloads() -> Vec<(String, Value)> {
+        use std::io::Read;
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(&include_bytes!("../tests/fixtures/event-payloads.jsonl.gz")[..]).read_to_string(&mut text).unwrap();
+        text.lines().map(|line| serde_json::from_str::<Value>(line).unwrap()).filter(|row| row["aggregate"] == "thread").map(|row| (row["type"].as_str().unwrap().to_owned(), row["canonical"].clone())).collect()
+    }
+    fn created() -> Value {
+        static BASE: std::sync::LazyLock<Value> = std::sync::LazyLock::new(|| {
+            let (_, payload) = fixture_payloads().into_iter().find(|(kind, _)| kind == "thread.created").unwrap();
+            let mut payload = t3_contracts::normalize_event_payload("thread.created", payload).unwrap();
+            payload["id"] = json!("thread:rules");
+            payload["activeProviderThreadId"] = Value::Null;
+            projection_after(None, &event("thread:rules", "thread.created", payload, "2026-01-01T00:00:00.000Z")).unwrap()
+        });
+        BASE.clone()
+    }
+
+    /// Every event type the original can write is reduced, and what it says is kept: a thread event is the thread record, anything
+    /// else is the row of its list (or, for a session detached or a rollback request, the lists it leaves alone).
+    #[test]
+    fn every_event_type_the_original_writes_is_reduced_and_kept() {
+        let mut types = std::collections::BTreeSet::new();
+        for (kind, canonical) in fixture_payloads() {
+            let payload = t3_contracts::normalize_event_payload(&kind, canonical.clone()).unwrap();
+            let mut base = created();
+            let at = "2026-01-02T03:04:05.000Z";
+            let after = projection_after(Some(base.clone()), &event("thread:rules", &kind, payload.clone(), at)).unwrap_or_else(|error| panic!("{kind}: {error}"));
+            types.insert(kind.clone());
+            if kind.starts_with("thread.") {
+                // The thread event carries the whole record.
+                let mut expected = payload.clone();
+                if !STAMP_THEIR_OWN.contains(&kind.as_str()) {
+                    expected["updatedAt"] = json!(at);
+                }
+                assert_eq!(after["thread"], expected, "{kind}");
+                continue;
+            }
+            let list = match kind.as_str() {
+                "run.created" | "run.updated" => "runs",
+                "run-attempt.created" | "run-attempt.updated" => "attempts",
+                "node.updated" => "nodes",
+                "provider-session.attached" | "provider-session.updated" => "providerSessions",
+                "provider-thread.updated" => "providerThreads",
+                "provider-turn.updated" => "providerTurns",
+                "runtime-request.updated" => "runtimeRequests",
+                "message.updated" => "messages",
+                "turn-item.updated" => "turnItems",
+                "plan.updated" => "plans",
+                "checkpoint-scope.created" => "checkpointScopes",
+                "checkpoint.captured" => "checkpoints",
+                "context-handoff.updated" => "contextHandoffs",
+                "context-transfer.created" | "context-transfer.updated" => "contextTransfers",
+                "subagent.updated" => "subagents",
+                // These leave the lists as they are: nothing to detach, no run to mark, a request only.
+                "provider-session.detached" | "run.background-work-cancelled" | "checkpoint.rollback-requested" => {
+                    for list in ["providerSessions", "runs", "checkpoints"] {
+                        assert_eq!(after[list], base[list], "{kind}");
+                    }
+                    continue;
+                }
+                other => panic!("{other} is an event type of the original this test does not place"),
+            };
+            assert_eq!(after[list][0], payload, "{kind}");
+            base = after;
+            assert_eq!(base["thread"]["updatedAt"], at, "{kind} moves the thread's updatedAt");
+        }
+        assert_eq!(types.len(), 43, "{types:?}");
+    }
+
+    #[test]
+    fn a_provider_turn_keeps_its_token_usage_and_a_run_the_work_a_restart_cancelled_when_an_update_omits_them() {
+        let base = created();
+        let turn = json!({"id":"turn","providerThreadId":"pt","nodeId":"n","runAttemptId":null,"nativeTurnRef":null,"ordinal":1,"status":"running","startedAt":null,"completedAt":null,"tokenUsage":{"usedTokens":10,"updatedAt":"2026-01-01T00:00:01.000Z"}});
+        let mut later = turn.clone();
+        later["status"] = json!("completed");
+        later.as_object_mut().unwrap().remove("tokenUsage");
+        let after = [("provider-turn.updated", &turn), ("provider-turn.updated", &later)].iter().fold(base.clone(), |projection, (kind, payload)| projection_after(Some(projection), &event("thread:rules", kind, (*payload).clone(), "2026-01-01T00:00:02.000Z")).unwrap());
+        assert_eq!((after["providerTurns"][0]["status"].clone(), after["providerTurns"][0]["tokenUsage"]["usedTokens"].clone()), (json!("completed"), json!(10)));
+        // A report of newer usage replaces it.
+        let mut newer = later.clone();
+        newer["tokenUsage"] = json!({"usedTokens":99,"updatedAt":"2026-01-01T00:00:03.000Z"});
+        let after = projection_after(Some(after), &event("thread:rules", "provider-turn.updated", newer, "2026-01-01T00:00:03.000Z")).unwrap();
+        assert_eq!(after["providerTurns"][0]["tokenUsage"]["usedTokens"], 99);
+
+        let run = json!({"id":"run","threadId":"thread:rules","ordinal":1,"providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"m"},"providerThreadId":null,"userMessageId":"m","rootNodeId":"root","activeAttemptId":null,"status":"running","requestedAt":"2026-01-01T00:00:00.000Z","startedAt":null,"completedAt":null,"checkpointId":null,"contextHandoffId":null});
+        let other = json!({"id":"other","threadId":"thread:rules","ordinal":2,"providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"m"},"providerThreadId":null,"userMessageId":"m2","rootNodeId":"root2","activeAttemptId":null,"status":"queued","requestedAt":"2026-01-01T00:00:00.000Z","startedAt":null,"completedAt":null,"checkpointId":null,"contextHandoffId":null});
+        let mut projection = projection_after(Some(base), &event("thread:rules", "run.created", run.clone(), "2026-01-01T00:00:01.000Z")).unwrap();
+        projection = projection_after(Some(projection), &event("thread:rules", "run.created", other, "2026-01-01T00:00:01.000Z")).unwrap();
+        // The work a restart cancelled is recorded on its run alone, and a later update of that run does not erase it.
+        let work = json!([{"taskId":"t","description":"d","kind":"command"}]);
+        projection = projection_after(Some(projection), &event("thread:rules", "run.background-work-cancelled", json!({"runId":"run","restartCancelledBackgroundWork":work}), "2026-01-01T00:00:02.000Z")).unwrap();
+        assert_eq!((projection["runs"][0]["restartCancelledBackgroundWork"].clone(), projection["runs"][1].get("restartCancelledBackgroundWork").cloned()), (work.clone(), None));
+        let mut ended = run;
+        ended["status"] = json!("completed");
+        projection = projection_after(Some(projection), &event("thread:rules", "run.updated", ended, "2026-01-01T00:00:03.000Z")).unwrap();
+        assert_eq!((projection["runs"][0]["status"].clone(), projection["runs"][0]["restartCancelledBackgroundWork"].clone()), (json!("completed"), work));
+    }
+
+    #[test]
+    fn a_provider_thread_becomes_the_threads_own_unless_it_is_a_queued_placeholder() {
+        let thread = |id: &str, app: &str, status: &str, first: Value, native: Value, session: Value| json!({"id":id,"driver":"codex","providerInstanceId":"codex","providerSessionId":session,"appThreadId":app,"ownerNodeId":null,"nativeThreadRef":native,"nativeConversationHeadRef":null,"status":status,"firstRunOrdinal":first,"lastRunOrdinal":null,"handoffIds":[],"forkedFrom":null,"createdAt":"2026-01-01T00:00:00.000Z","updatedAt":"2026-01-01T00:00:00.000Z"});
+        let apply = |projection: Value, payload: Value| projection_after(Some(projection), &event("thread:rules", "provider-thread.updated", payload, "2026-01-01T00:00:01.000Z")).unwrap();
+        let native = json!({"driver":"codex","nativeId":"n","strength":"strong"});
+        // A reserved thread for a queued run is not the thread's yet.
+        let reserved = apply(created(), thread("reserved", "thread:rules", "not_loaded", Value::Null, Value::Null, Value::Null));
+        assert!(reserved["thread"]["activeProviderThreadId"].is_null());
+        // One with no native reference but a session, an ordinal or a status of its own is (this server used to ask for a reference).
+        for payload in [thread("a", "thread:rules", "idle", Value::Null, Value::Null, Value::Null), thread("b", "thread:rules", "not_loaded", json!(1), Value::Null, Value::Null), thread("c", "thread:rules", "not_loaded", Value::Null, Value::Null, json!("session")), thread("d", "thread:rules", "not_loaded", Value::Null, native, Value::Null)] {
+            let id = payload["id"].clone();
+            assert_eq!(apply(created(), payload)["thread"]["activeProviderThreadId"], id);
+        }
+        // Another app thread's provider thread is not this thread's.
+        assert!(apply(created(), thread("e", "thread:other", "idle", json!(1), Value::Null, Value::Null))["thread"]["activeProviderThreadId"].is_null());
+    }
+
+    #[test]
+    fn the_shell_is_what_the_original_sends() {
+        let mut projection = created();
+        fn apply(projection: &mut Value, kind: &str, payload: Value, at: &str) {
+            *projection = projection_after(Some(projection.clone()), &event("thread:rules", kind, payload, at)).unwrap();
+        }
+        let run = |id: &str, ordinal: u64, status: &str, started: Value| json!({"id":id,"threadId":"thread:rules","ordinal":ordinal,"providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"m"},"providerThreadId":null,"userMessageId":"m","rootNodeId":format!("root:{id}"),"activeAttemptId":null,"status":status,"requestedAt":"2026-01-01T00:00:01.000Z","startedAt":started,"completedAt":if status == "completed" { json!("2026-01-01T00:00:09.000Z") } else { Value::Null },"checkpointId":null,"contextHandoffId":null});
+        let message = |id: &str, role: &str, by: &str, at: &str| json!({"createdBy":by,"creationSource":"web","id":id,"threadId":"thread:rules","runId":null,"nodeId":null,"role":role,"text":"body that is not sent","attachments":[],"streaming":false,"createdAt":at,"updatedAt":at});
+        let item = |id: &str, ordinal: u64, run: Option<&str>| json!({"id":id,"threadId":"thread:rules","runId":run,"nodeId":null,"providerThreadId":null,"providerTurnId":null,"nativeItemRef":null,"parentItemId":null,"ordinal":ordinal,"status":"completed","title":null,"startedAt":null,"completedAt":null,"updatedAt":"2026-01-01T00:00:01.000Z","type":"system_notice","message":"x"});
+        apply(&mut projection, "run.created", run("r1", 1, "completed", json!("2026-01-01T00:00:02.000Z")), "2026-01-01T00:00:03.000Z");
+        apply(&mut projection, "run.created", run("r2", 2, "waiting", json!("2026-01-01T00:00:04.000Z")), "2026-01-01T00:00:05.000Z");
+        apply(&mut projection, "message.updated", message("a", "user", "user", "2026-01-01T00:00:06.000Z"), "2026-01-01T00:00:06.000Z");
+        apply(&mut projection, "message.updated", message("b", "user", "agent", "2026-01-01T00:00:07.000Z"), "2026-01-01T00:00:07.000Z");
+        apply(&mut projection, "message.updated", message("c", "assistant", "agent", "2026-01-01T00:00:08.000Z"), "2026-01-01T00:00:08.000Z");
+        for (id, ordinal, run) in [("i1", 1, Some("r1")), ("i2", 2, Some("r2")), ("i3", 3, None)] {
+            apply(&mut projection, "turn-item.updated", item(id, ordinal, run), "2026-01-01T00:00:08.500Z");
+        }
+        let shell = shell(&projection);
+        // The run the thread is on, with the times it recorded.
+        assert_eq!((shell["latestRunId"].clone(), shell["status"].clone()), (json!("r2"), json!("waiting")));
+        assert_eq!((shell["latestRunRequestedAt"].clone(), shell["latestRunStartedAt"].clone(), shell["latestRunCompletedAt"].clone()), (json!("2026-01-01T00:00:01.000Z"), json!("2026-01-01T00:00:04.000Z"), Value::Null));
+        // A run waiting on a person is not one that can be interrupted, but it is the thread's activity.
+        assert_eq!((shell["activeRunId"].clone(), shell["activityRunStatus"].clone()), (Value::Null, json!("waiting")));
+        // Wakes and agent messages use the user role too; the one a person wrote is the one that counts.
+        assert_eq!((shell["latestUserMessageAt"].clone(), shell["latestUserAuthoredMessageAt"].clone()), (json!("2026-01-01T00:00:07.000Z"), json!("2026-01-01T00:00:06.000Z")));
+        // The transcript stays out of the shell.
+        assert_eq!(shell["latestVisibleMessage"], Value::Null);
+        assert_eq!((shell["itemCount"].clone(), shell["visibleItemCount"].clone()), (json!(3), json!(3)));
+        assert_eq!((shell["pullRequests"].clone(), shell["providerInstanceHistory"].clone(), shell["goal"].clone(), shell["hasActionableProposedPlan"].clone()), (json!([]), json!([]), Value::Null, json!(false)));
+        for field in ["unsettledAt", "snoozedUntil", "snoozedAt", "pinnedAt", "autoSettleDisabledAt", "pinOrderKey", "titleRegeneration", "limitRecovery"] {
+            assert_eq!(shell.get(field), Some(&Value::Null), "{field} is sent, null");
+        }
+        // The thread moved with the events.
+        assert_eq!(shell["updatedAt"], "2026-01-01T00:00:08.500Z");
+        assert_eq!(projection["updatedAt"], shell["updatedAt"]);
+        // A rollback takes its run's items out of the count.
+        let mut rolled = run("r1", 1, "rolled_back", json!("2026-01-01T00:00:02.000Z"));
+        rolled["completedAt"] = json!("2026-01-01T00:00:10.000Z");
+        apply(&mut projection, "run.updated", rolled, "2026-01-01T00:00:10.000Z");
+        let shell = super::shell(&projection);
+        assert_eq!((shell["itemCount"].clone(), shell["visibleItemCount"].clone()), (json!(2), json!(2)));
     }
 }

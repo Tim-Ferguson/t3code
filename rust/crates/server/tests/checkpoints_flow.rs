@@ -552,6 +552,54 @@ async fn rolling_back_to_the_latest_checkpoint_restores_the_worktree_without_tou
     harness.finish().await;
 }
 
+/// The shell of `thread_id` as `orchestration.subscribeShell` sends it first (chunks acknowledged until the snapshot has come).
+async fn first_shell_of(socket: &mut Socket, id: u64, thread_id: &str) -> Value {
+    socket.send(Message::Text(json!({"_tag":"Request","id":id,"tag":"orchestration.subscribeShell","payload":{"requestCompletionMarker":true},"headers":[]}).to_string().into())).await.unwrap();
+    let mut shell = Value::Null;
+    loop {
+        let message = socket.next().await.unwrap().unwrap();
+        let value: Value = serde_json::from_str(message.to_text().unwrap()).unwrap();
+        if value["_tag"] != "Chunk" {
+            continue;
+        }
+        socket.send(Message::Text(json!({"_tag":"Ack","requestId":id}).to_string().into())).await.unwrap();
+        for item in value["values"].as_array().unwrap() {
+            if item["kind"] == "snapshot" {
+                shell = item["snapshot"]["threads"].as_array().unwrap().iter().find(|thread| thread["id"] == thread_id).cloned().unwrap_or(Value::Null);
+            }
+            if item["kind"] == "synchronized" {
+                return shell;
+            }
+        }
+    }
+}
+
+/// A rollback leaves `rollbackRequestId` (and, if the provider could not do it, `rollbackFailure`) on the thread record. The shell
+/// schema has neither: the original builds its shell from a field list, so they never reach it. Over the real socket the outbound
+/// schema check refuses a shell that carries either, which it did before the shell dropped them.
+#[tokio::test]
+async fn a_thread_that_was_rolled_back_is_served_a_shell_that_the_schema_accepts() {
+    let harness = harness_with("codex", true, true).await;
+    let mut socket = harness.connect(&harness.operator).await;
+    turn(&harness, &mut socket, 1, 1).await;
+    let after = turn(&harness, &mut socket, 2, 2).await;
+    let (scope, first) = (after["checkpointScopes"][0]["id"].clone(), checkpoint(&after, 1)["id"].clone());
+    let mut events = harness.store.subscribe();
+    let exit = rpc(&mut socket, 3, "orchestration.dispatchCommand", rollback(&harness, "shell-rollback", &scope, &first, Some(false))).await;
+    assert!(success(&exit)["sequence"].is_number(), "{exit}");
+    let projection = rolled_back(&harness, &mut events, "shell-rollback").await;
+    assert_eq!(projection["thread"]["rollbackRequestId"], "shell-rollback", "the record the shell is built from carries the bookkeeping");
+    let shell = first_shell_of(&mut socket, 4, &harness.thread_id).await;
+    assert_eq!(shell["id"], harness.thread_id.as_str());
+    for field in ["rollbackRequestId", "rollbackFailure"] {
+        assert!(shell.get(field).is_none(), "the shell carries {field}: {shell}");
+    }
+    // The thread projection (the record itself) keeps them.
+    let served = success(&rpc(&mut socket, 5, "orchestration.getThreadProjection", json!({"threadId":harness.thread_id})).await).clone();
+    assert_eq!(served["thread"]["rollbackRequestId"], "shell-rollback");
+    harness.finish().await;
+}
+
 #[tokio::test]
 async fn rollback_refusals_name_their_reason_and_change_nothing() {
     // Not isolated: a thread in the project's own checkout may share it with other work.

@@ -91,8 +91,13 @@ imports nothing, and a source written by a newer original than this build reads 
 migration above 59) is refused. Work in flight is not carried: the effect outbox, pending
 launches, signed-in sessions and T3 Connect's link key stay behind; runs and requests the
 source left open are settled by the server's ordinary startup recovery, and devices pair
-again. Usage that the original kept for transcripts since deleted (its scan cache) is not
-carried.
+again. The environment keeps the original's identity (`environment-id` is written to
+`rust-environment-id`), so saved connections, client state and the check a client makes that it
+reached the server it meant still name it; an identity this server already has with a store
+behind it is kept, and the import says so. Usage that the original kept for transcripts since
+deleted (its scan cache) is not carried. What the import serves is held to what the original
+served for the same state (`tests/state_import_flow.rs`): every field of the shell and of each
+thread's projection, with a short list of differences that are intended and why.
 
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and

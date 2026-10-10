@@ -106,6 +106,11 @@ pub mod agent_sessions;
 mod usage_tests;
 pub mod thread;
 mod thread_fork;
+mod shell_state;
+mod shared_rows;
+mod projection_read;
+#[cfg(test)]
+mod reducer_bench;
 mod context_handoff;
 mod context_transfer;
 mod claude_fork;

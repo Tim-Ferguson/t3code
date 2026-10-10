@@ -74,8 +74,8 @@ pub struct EventRow {
     pub version: i64,
 }
 
-/// A row of the log as a Rust event, or what is wrong with it; and the top-level payload fields the codec does not know (kept).
-pub fn decode(row: &EventRow) -> Result<(Event, Vec<String>), String> {
+/// A row of the log as a Rust event, or what is wrong with it.
+pub fn decode(row: &EventRow) -> Result<Event, String> {
     let payload: Value = serde_json::from_str(&row.payload_json).map_err(|error| format!("the payload is not JSON ({})", redact(&error.to_string())))?;
     let metadata: Value = serde_json::from_str(&row.metadata_json).map_err(|error| format!("the metadata is not JSON ({})", redact(&error.to_string())))?;
     if !metadata.is_object() {
@@ -90,38 +90,24 @@ pub fn decode(row: &EventRow) -> Result<(Event, Vec<String>), String> {
                 }
             }
             let decoded: DomainEvent = serde_json::from_value(wire).map_err(|error| redact(&error.to_string()))?;
-            // The payload as the original's schema canonicalizes it, which is what the Rust planners write. Its typed codecs drop
-            // the fields they do not model (`tokenUsage` of a provider turn is one); those are put back, so nothing the original
-            // wrote is lost, and counted in the report.
-            let mut normalized = decoded.payload;
-            let mut retained = Vec::new();
-            if let (Some(kept), Some(raw)) = (normalized.as_object_mut(), payload.as_object()) {
-                for (key, value) in raw {
-                    if !kept.contains_key(key) {
-                        kept.insert(key.clone(), value.clone());
-                        retained.push(format!("{}.{key}", row.event_type));
-                    }
-                }
-            }
-            Ok((
-                Event {
-                    event_id: row.event_id.clone(),
-                    aggregate_kind: "thread".into(),
-                    aggregate_id: row.stream_id.clone(),
-                    occurred_at: iso(&row.occurred_at)?,
-                    command_id: row.command_id.clone(),
-                    causation_event_id: row.causation_event_id.clone(),
-                    correlation_id: row.correlation_id.clone(),
-                    event_type: row.event_type.clone(),
-                    payload: normalized,
-                    metadata,
-                },
-                retained,
-            ))
+            // The payload as the original's schema canonicalizes it, which is what the Rust planners write. The typed codecs keep every
+            // field of every event type (`tests/event_payload_roundtrip.rs`), so what is stored is what the original wrote.
+            Ok(Event {
+                event_id: row.event_id.clone(),
+                aggregate_kind: "thread".into(),
+                aggregate_id: row.stream_id.clone(),
+                occurred_at: iso(&row.occurred_at)?,
+                command_id: row.command_id.clone(),
+                causation_event_id: row.causation_event_id.clone(),
+                correlation_id: row.correlation_id.clone(),
+                event_type: row.event_type.clone(),
+                payload: decoded.payload,
+                metadata,
+            })
         }
         "project" => {
             project_payload(&row.event_type, &payload, &row.stream_id)?;
-            Ok((Event {
+            Ok(Event {
                 event_id: row.event_id.clone(),
                 aggregate_kind: "project".into(),
                 aggregate_id: row.stream_id.clone(),
@@ -132,7 +118,7 @@ pub fn decode(row: &EventRow) -> Result<(Event, Vec<String>), String> {
                 event_type: row.event_type.clone(),
                 payload,
                 metadata,
-            }, Vec::new()))
+            })
         }
         other => Err(format!("the aggregate kind {other} is not one this server knows")),
     }
@@ -155,77 +141,12 @@ fn project_payload(event_type: &str, payload: &Value, stream: &str) -> Result<()
     if ok { Ok(()) } else { Err(format!("the {event_type} payload is missing or malformed in a required field")) }
 }
 
-/// Where the original's reducer (`applyToProjection`, `upsertProviderTurn`, `preserveRunRecordedFields`) differs from the one this
-/// server runs for the events it writes itself (`thread::projection_after`), for events the original wrote: a provider turn's
-/// `tokenUsage` and a run's `restartCancelledBackgroundWork` survive a later update that omits them, a provider thread becomes
-/// the thread's active one unless it is a queued placeholder (this server asks for a native reference instead), and
-/// `run.background-work-cancelled` records the work a restart cancelled. Applied to both paths, so the imported projections are
-/// what the original's own would be.
-struct Prior {
-    turn: Option<Value>,
-    run: Option<Value>,
-    active: Value,
-}
-fn prior_of(projection: Option<&Value>, event: &Event) -> Prior {
-    let found = |field: &str| projection.and_then(|projection| projection[field].as_array()).and_then(|rows| rows.iter().find(|row| row["id"] == event.payload["id"])).cloned();
-    Prior {
-        turn: (event.event_type == "provider-turn.updated").then(|| found("providerTurns")).flatten(),
-        run: matches!(event.event_type.as_str(), "run.created" | "run.updated").then(|| found("runs")).flatten(),
-        active: projection.map_or(Value::Null, |projection| projection["thread"]["activeProviderThreadId"].clone()),
-    }
-}
-fn correct(prior: &Prior, event: &Event, projection: &mut Value) {
-    let payload = &event.payload;
-    match event.event_type.as_str() {
-        "provider-turn.updated" => {
-            if let (Some(kept), true) = (prior.turn.as_ref().and_then(|turn| turn.get("tokenUsage")), payload.get("tokenUsage").is_none_or(Value::is_null)) {
-                if let Some(row) = projection["providerTurns"].as_array_mut().and_then(|rows| rows.iter_mut().find(|row| row["id"] == payload["id"])) {
-                    row["tokenUsage"] = kept.clone();
-                }
-            }
-        }
-        "run.created" | "run.updated" => {
-            if let (Some(kept), true) = (prior.run.as_ref().and_then(|run| run.get("restartCancelledBackgroundWork")), payload.get("restartCancelledBackgroundWork").is_none()) {
-                if let Some(row) = projection["runs"].as_array_mut().and_then(|rows| rows.iter_mut().find(|row| row["id"] == payload["id"])) {
-                    row["restartCancelledBackgroundWork"] = kept.clone();
-                }
-            }
-        }
-        "provider-thread.updated" => {
-            let placeholder = payload["status"] == "not_loaded" && payload["firstRunOrdinal"].is_null() && payload["nativeThreadRef"].is_null() && payload["providerSessionId"].is_null();
-            projection["thread"]["activeProviderThreadId"] = if payload["appThreadId"] == projection["thread"]["id"] && !placeholder { payload["id"].clone() } else { prior.active.clone() };
-        }
-        _ => {}
-    }
-}
-/// `run.background-work-cancelled`: the work a restart cancelled, recorded on its run.
-fn background_work_cancelled(projection: &mut Value, event: &Event) {
-    if let Some(run) = projection["runs"].as_array_mut().and_then(|rows| rows.iter_mut().find(|row| row["id"] == event.payload["runId"])) {
-        run["restartCancelledBackgroundWork"] = event.payload["restartCancelledBackgroundWork"].clone();
-    }
-    projection["updatedAt"] = json!(event.occurred_at);
-}
-
-/// One event through `thread::reduce` itself (and the corrections above): the slow path the tests hold the projector to.
+/// One event through `thread::reduce` itself: the slow path the tests hold the projector to.
 pub fn apply_reference(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
-    let event = &stored.event;
-    if event.aggregate_kind == "project" {
+    if stored.event.aggregate_kind == "project" {
         return reduce_project_event(transaction, stored);
     }
-    let before = read_projection(transaction, "thread", &event.aggregate_id)?;
-    if event.event_type == "run.background-work-cancelled" {
-        let mut projection = before.ok_or_else(|| StoreError::InvalidCommand("missing thread".into()))?;
-        background_work_cancelled(&mut projection, event);
-        return write_projection(transaction, "thread", &event.aggregate_id, &projection);
-    }
-    let prior = prior_of(before.as_ref(), event);
-    crate::thread::reduce(transaction, stored)?;
-    if matches!(event.event_type.as_str(), "provider-turn.updated" | "run.created" | "run.updated" | "provider-thread.updated") {
-        let mut projection = read_projection(transaction, "thread", &event.aggregate_id)?.ok_or_else(|| StoreError::InvalidCommand("missing thread".into()))?;
-        correct(&prior, event, &mut projection);
-        write_projection(transaction, "thread", &event.aggregate_id, &projection)?;
-    }
-    Ok(())
+    crate::thread::reduce(transaction, stored)
 }
 
 /// Thread projections held across one transaction's events, so a thread's whole batch is parsed once and written once.
@@ -252,21 +173,15 @@ impl Projector {
             other => return Err(StoreError::InvalidCommand(format!("no reducer for {other}"))),
         }
         self.load(transaction, &event.aggregate_id)?;
-        if event.event_type == "run.background-work-cancelled" {
-            let projection = self.threads.get_mut(&event.aggregate_id).ok_or_else(|| StoreError::InvalidCommand("missing thread".into()))?;
-            background_work_cancelled(projection, event);
-            self.dirty.insert(event.aggregate_id.clone());
-            return Ok(());
-        }
-        let prior = prior_of(self.threads.get(&event.aggregate_id), event);
+        crate::shared_rows::apply(transaction, event)?;
         let current = self.threads.remove(&event.aggregate_id);
         let mut projection = projection_after(current, event)?;
-        correct(&prior, event, &mut projection);
         if matches!(event.event_type.as_str(), "thread.created" | "turn-item.updated" | "run.updated" | "run-attempt.updated") && projection["thread"]["forkedFrom"]["type"] == "run" {
             let source_id = projection["thread"]["forkedFrom"]["threadId"].as_str().unwrap_or("").to_owned();
             if let Some(source) = self.load(transaction, &source_id)? {
                 let local = projection["visibleTurnItems"].as_array().cloned().unwrap_or_default();
                 projection["visibleTurnItems"] = Value::Array(crate::thread_fork::visible_with_inherited(&projection, source, local));
+                crate::shell_state::inherit(&mut projection, source);
             }
         }
         self.threads.insert(event.aggregate_id.clone(), projection);
@@ -381,13 +296,7 @@ fn model_selection(stored: &Option<String>, legacy_model: &Option<String>, provi
 pub fn canonical_thread_event(mut event: Event) -> Result<Event, String> {
     let wire = json!({"id":event.event_id,"threadId":event.aggregate_id,"type":event.event_type,"occurredAt":event.occurred_at,"payload":event.payload});
     let decoded: DomainEvent = serde_json::from_value(wire).map_err(|error| redact(&error.to_string()))?;
-    let mut normalized = decoded.payload;
-    if let (Some(kept), Some(raw)) = (normalized.as_object_mut(), event.payload.as_object()) {
-        for (key, value) in raw {
-            kept.entry(key.clone()).or_insert_with(|| value.clone());
-        }
-    }
-    event.payload = normalized;
+    event.payload = decoded.payload;
     Ok(event)
 }
 

@@ -88,8 +88,6 @@ pub struct Report {
     pub tables: BTreeMap<String, TableReport>,
     /// Rows of the event log by type: `[read, stored]`.
     pub events: BTreeMap<String, [u64; 2]>,
-    /// Payload fields of events that the Rust codecs do not model and the import kept as written: `event type.field` and how many events.
-    pub retained_fields: BTreeMap<String, u64>,
     pub legacy_events_not_carried: u64,
     pub legacy_threads_imported: u64,
     pub legacy_projects_imported: u64,
@@ -97,6 +95,8 @@ pub struct Report {
     /// Rows in the source's projection tables against the rows now in the thread projections.
     pub projection_checks: BTreeMap<String, [u64; 2]>,
     pub files: Vec<FileReport>,
+    /// The environment identity the original had and this server now has (the original's `environment-id`), when it had one.
+    pub environment_id: Option<String>,
     pub credentials_to_reenter: Vec<String>,
     pub warnings: Vec<String>,
 }
@@ -330,6 +330,7 @@ fn import_into_staging(options: &Options<'_>, progress: Progress<'_>) -> Result<
     // 3. Files.
     let userdata = source::userdata_of(&options.from);
     if !phase_done("files")? {
+        crate::state_import_files::adopt_environment_identity(&userdata, &state_dir, &mut report)?;
         crate::state_import_files::copy(&userdata, &state_dir, &mut report)?;
         mark("files")?;
     }
@@ -424,7 +425,7 @@ fn replay_events(options: &Options<'_>, source: &Source, store: &Store, report: 
         // Decode first, outside the transaction: a row that cannot be imported fails before anything of the batch is written.
         let mut decoded = Vec::with_capacity(rows.len());
         for row in &rows {
-            let (event, retained) = events::decode(row).map_err(|detail| EventError::Row {
+            let event = events::decode(row).map_err(|detail| EventError::Row {
                 sequence: row.sequence,
                 event_type: row.event_type.clone(),
                 version: row.version,
@@ -432,9 +433,6 @@ fn replay_events(options: &Options<'_>, source: &Source, store: &Store, report: 
                 stream: row.stream_id.clone(),
                 detail,
             })?;
-            for key in retained {
-                *report.retained_fields.entry(key).or_default() += 1;
-            }
             decoded.push((row.sequence, event));
         }
         let last = rows.last().map_or(cursor, |row| row.sequence);
@@ -779,6 +777,9 @@ pub fn print_report(report: &Report) {
         if table.read > 0 {
             eprintln!("  {name}: {} rows read, {} now in the store -- {}", table.read, table.imported, table.disposition);
         }
+    }
+    if let Some(id) = &report.environment_id {
+        eprintln!("  environment: {id} (the original's identity; saved connections to it stay valid after pairing again)");
     }
     for file in &report.files {
         eprintln!("  files: {} {} ({})", file.action, file.name, file.count);

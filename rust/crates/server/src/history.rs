@@ -350,7 +350,7 @@ impl HistoryService {
     pub fn snapshot(&self, id: &str, bounded: bool) -> Result<Value, StoreError> {
         self.store.read(|connection| {
             let projection=read_projection(connection,"thread",id)?.ok_or_else(||StoreError::InvalidCommand("Thread not found.".into()))?;
-            let projection=crate::thread_fork::refreshed(projection,&|source|read_projection(connection,"thread",source).ok().flatten());
+            let projection=crate::projection_read::served(connection,projection,bounded)?;
             let sequence:u64=connection.query_row("SELECT COALESCE(MAX(sequence),0) FROM rust_application_events WHERE aggregate_kind='thread' AND aggregate_id=?",[id],|row|row.get(0))?;
             let projection=crate::wire_projection::projection(&projection);
             let value=if bounded {bounded_projection(&projection,sequence,PagePolicy::default())} else {json!({"snapshotSequence":sequence,"projection":projection})};
