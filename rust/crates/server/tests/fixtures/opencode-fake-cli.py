@@ -383,6 +383,7 @@ V1_ROUTES = [
     ("POST", "/session/{sessionID}/prompt_async", "session.promptAsync"), ("POST", "/session/{sessionID}/abort", "session.abort"),
     ("POST", "/session/{sessionID}/revert", "session.revert"), ("POST", "/session/{sessionID}/unrevert", "session.unrevert"),
     ("POST", "/session/{sessionID}/fork", "session.fork"), ("POST", "/session", "session.create"),
+    ("POST", "/session/{sessionID}/message", "session.prompt"),
     ("POST", "/permission/{requestID}/reply", "permission.reply"), ("POST", "/question/{requestID}/reply", "question.reply"),
     ("GET", "/mcp", "mcp.status"), ("POST", "/mcp", "mcp.add"), ("GET", "/event", "event.subscribe"),
 ]

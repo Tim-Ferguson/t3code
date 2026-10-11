@@ -180,7 +180,7 @@ fn open(io: &CliEnvironment) -> Result<Context<'_>, String> {
     let defaults = BuildDefaults::default();
     let env = |name: &str| (io.env)(name);
     // An unconfigured Clerk application cannot sign in or refresh; its endpoints are empty, so nothing is requested.
-    let oauth = io.oauth.clone().unwrap_or_else(|| cloud_cli_oauth_config(&env, &defaults).unwrap_or_else(|_| crate::connect::unconfigured_oauth()));
+    let oauth = io.oauth.clone().unwrap_or_else(|| cloud_cli_oauth_config(&env, &defaults).unwrap_or_else(|_| t3_remote::config::CloudCliOAuthConfig::unconfigured()));
     let hosted_app_url = hosted_app_url_config(&env).unwrap_or_else(|_| DEFAULT_HOSTED_APP_URL.to_owned());
     let tokens = Arc::new(CliTokenManager::new(secrets.clone(), io.clock.clone(), oauth, hosted_app_url));
     Ok(Context { io, secrets, tokens })

@@ -341,7 +341,9 @@ fn the_services_main_builds_answer_through_the_binary() {
         assert_eq!(http.post(format!("{base}/mcp")).body("{}").send().await.unwrap().status(), 401);
         let hook = http.post(format!("{base}/api/hooks/none/none")).body("{}").send().await.unwrap();
         assert!(hook.headers().contains_key("x-t3-hook-outcome"), "the webhook route is mounted over the scheduled tasks");
-        assert_eq!(http.get(format!("{base}/.well-known/oauth-protected-resource/mcp")).send().await.unwrap().status().as_u16() / 100, 4);
+        // The MCP OAuth server's discovery document, from the origin the request reached.
+        let resource: Value = http.get(format!("{base}/.well-known/oauth-protected-resource/mcp")).send().await.unwrap().json().await.unwrap();
+        assert_eq!(resource["resource"], format!("{base}/mcp"));
     }));
     signal(&server, libc::SIGTERM);
     assert!(wait_exit(server).success());

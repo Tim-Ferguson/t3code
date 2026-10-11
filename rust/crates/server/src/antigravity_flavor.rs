@@ -34,18 +34,7 @@ impl Antigravity {
     /// A normal launch refuses a browser sign-in: the user signs in from Settings. A URL on either stream ends the
     /// launch with the message that says so.
     pub fn protocol_options(&self) -> ProtocolOptions {
-        let refused = Arc::new(tokio::sync::Notify::new());
-        let observed = refused.clone();
-        let lines = std::sync::Mutex::new(StderrLines::default());
-        ProtocolOptions {
-            transform_stdout: Some(Arc::new(move |stdout| authorization_lines(stdout, None, Some(refused.clone())))),
-            on_stderr: Some(Arc::new(move |bytes| {
-                if !lines.lock().unwrap().feed(bytes).is_empty() {
-                    observed.notify_one();
-                }
-            })),
-            ..Default::default()
-        }
+        refuse_sign_in_options()
     }
     /// A sign-in launch hands the Google URL to `on_url`, from whichever stream the agent prints it on.
     pub fn sign_in_options(on_url: OnAuthorizationUrl) -> ProtocolOptions {
@@ -69,6 +58,7 @@ impl Antigravity {
         self.registry.antigravity_update(instance_id, |instance, snapshot, now| {
             let auth = instance.auth();
             crate::antigravity_instance::session_started(snapshot, &started, Some(&cwd), auth.label(), &auth.auth_method, now);
+            snapshot["supportsTextGeneration"] = serde_json::json!(instance.text_generation_available());
         });
     }
     /// A session that could not start because the account is signed out clears what was known about it.
@@ -127,6 +117,21 @@ impl Antigravity {
             prefer_resume: true,
             additional_directories: self.instance.attachments_dir().map(|dir| dir.to_string_lossy().into_owned()).into_iter().collect(),
         }
+    }
+}
+/// The protocol options of every launch that has nobody to sign in: a Google URL ends it.
+pub fn refuse_sign_in_options() -> ProtocolOptions {
+    let refused = Arc::new(tokio::sync::Notify::new());
+    let observed = refused.clone();
+    let lines = std::sync::Mutex::new(StderrLines::default());
+    ProtocolOptions {
+        transform_stdout: Some(Arc::new(move |stdout| authorization_lines(stdout, None, Some(refused.clone())))),
+        on_stderr: Some(Arc::new(move |bytes| {
+            if !lines.lock().unwrap().feed(bytes).is_empty() {
+                observed.notify_one();
+            }
+        })),
+        ..Default::default()
     }
 }
 fn reply<T: serde::de::DeserializeOwned>(result: Result<Value, AcpError>) -> Result<T, AcpError> {

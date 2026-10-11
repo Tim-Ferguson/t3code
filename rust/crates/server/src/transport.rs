@@ -135,6 +135,7 @@ pub fn router(state: ApiState) -> Router {
         .merge(crate::attachment_http::routes())
         .merge(crate::scheduled_tasks_http::routes())
         .merge(crate::connect_http::routes())
+        .merge(crate::mcp_oauth_http::routes())
         .fallback(get(static_asset))
         .layer(axum::middleware::from_fn_with_state(state.clone(), dpop_layer))
         .layer(axum::middleware::map_response(no_cache))
@@ -491,17 +492,17 @@ async fn session_state(State(state): State<ApiState>, headers: HeaderMap) -> Jso
 }
 /// The address a request came from, when the server was built to know it (`axum::serve` over
 /// `into_make_service_with_connect_info`).
-struct Peer(Option<std::net::IpAddr>);
+pub(crate) struct Peer(pub(crate) Option<std::net::IpAddr>);
 impl<S: Send + Sync> axum::extract::FromRequestParts<S> for Peer {
     type Rejection = std::convert::Infallible;
     async fn from_request_parts(parts: &mut axum::http::request::Parts, _: &S) -> Result<Self, Self::Rejection> {
         Ok(Peer(parts.extensions.get::<axum::extract::ConnectInfo<std::net::SocketAddr>>().map(|info| info.0.ip())))
     }
 }
-fn user_agent(headers: &HeaderMap) -> Option<&str> {
+pub(crate) fn user_agent(headers: &HeaderMap) -> Option<&str> {
     headers.get(header::USER_AGENT).and_then(|value| value.to_str().ok())
 }
-fn named_cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+pub(crate) fn named_cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers.get(header::COOKIE).and_then(|value| value.to_str().ok()).and_then(|cookies| {
         cookies.split(';').find_map(|part| {
             let (key, value) = part.trim().split_once('=')?;
@@ -1507,6 +1508,7 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
             // RUST-PORT EXTENSION (`import_status`): the notice of the import is cleared once seen.
             let directory=state.store.state_dir().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"This store has no state directory."}))?;
             let acknowledged=crate::import_status::acknowledge(directory).map_err(|error|json!({"_tag":"NativeServiceError","method":request.tag,"message":error.to_string()}))?;
+            if acknowledged {crate::import_status::announce_acknowledged(&state.store);}
             Ok(json!({"acknowledged":acknowledged}))
         },
         "projects.mutate"=>{
@@ -2315,6 +2317,9 @@ async fn config_stream(
             pump_provider_statuses(source,initial,changes).await;
         })));
         let mut provider_active = _provider_task.is_some();
+        // What a snapshot sent later holds: the config as subscribed, kept current by the events that follow.
+        let mut current=config.clone();
+        let mut acknowledgements=crate::import_status::acknowledgements(&state.store);
         let mut item=json!({"version":1,"type":"snapshot","config":config});
         loop {
             let typed:t3_contracts::ServerConfigStreamEvent=serde_json::from_value(item).map_err(|_|json!({"_tag":"NativeServiceError","message":"Native config event did not match its contract."}))?;
@@ -2326,11 +2331,19 @@ async fn config_stream(
                 tokio::select! {
                     biased;
                     _=service.closed()=>return Ok(()),
-                    next=settings.recv()=>break match next {Some(settings)=>json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}}),None=>return Ok(())},
-                    next=keybindings.recv()=>break match next {Some(state)=>crate::keybindings_rpc::updated_event(&state),None=>return Ok(())},
+                    next=settings.recv()=>break match next {Some(settings)=>{current["settings"]=crate::provider_registry::redact_settings(&settings);json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}})},None=>return Ok(())},
+                    next=keybindings.recv()=>break match next {Some(state)=>{crate::keybindings_rpc::apply(&mut current,&state);crate::keybindings_rpc::updated_event(&state)},None=>return Ok(())},
                     next=provider_events.recv(),if provider_active=>match next {
-                        Some(providers)=>break json!({"version":1,"type":"providerStatuses","payload":{"providers":providers.as_ref()}}),
+                        Some(providers)=>{current["providers"]=json!(providers.as_ref());break json!({"version":1,"type":"providerStatuses","payload":{"providers":providers.as_ref()}})},
                         None=>provider_active=false,
+                    },
+                    // The notice of the import was seen (RUST-PORT EXTENSION): the config goes out again without it. The
+                    // original's stream has no event that removes a key, so a snapshot, which replaces the whole config, is the one.
+                    changed=acknowledgements.changed()=>{
+                        if changed.is_ok() && current.get("stateImport").is_some() {
+                            crate::import_status::overlay_config(&state.store,&mut current);
+                            break json!({"version":1,"type":"snapshot","config":current.clone()});
+                        }
                     },
                 }
             };

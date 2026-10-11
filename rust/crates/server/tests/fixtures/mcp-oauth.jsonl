@@ -1,0 +1,34 @@
+{"kind":"clientId","name":"Claude Code","redirectUris":["http://localhost/callback"],"clientId":"eyJ2IjoxLCJuIjoiQ2xhdWRlIENvZGUiLCJyIjpbImh0dHA6Ly9sb2NhbGhvc3QvY2FsbGJhY2siXX0.Ag20mbGpKkfa1mamyS74uZkDtyLL-U2FMQJpvPZy69I"}
+{"kind":"clientId","name":"Hosted bot","redirectUris":["https://bot.example/oauth/callback","http://127.0.0.1:8080/cb?x=1&y=2"],"clientId":"eyJ2IjoxLCJuIjoiSG9zdGVkIGJvdCIsInIiOlsiaHR0cHM6Ly9ib3QuZXhhbXBsZS9vYXV0aC9jYWxsYmFjayIsImh0dHA6Ly8xMjcuMC4wLjE6ODA4MC9jYj94PTEmeT0yIl19.hIj1ZOU54zK4dzbVvBS39zpmY8yW1GnL5quiH6fj0tE"}
+{"kind":"clientId","name":"MCP client","redirectUris":["http://[::1]/cb"],"clientId":"eyJ2IjoxLCJuIjoiTUNQIGNsaWVudCIsInIiOlsiaHR0cDovL1s6OjFdL2NiIl19.eQatLVteQh1CzvEkBAUuVCMCdjYJln52BkuBJ9eMKI0"}
+{"kind":"clientId","name":"Quote \" backslash \\ tab \t newline \n control \u0001 del ","redirectUris":["https://bot.example/a b"],"clientId":"eyJ2IjoxLCJuIjoiUXVvdGUgXCIgYmFja3NsYXNoIFxcIHRhYiBcdCBuZXdsaW5lIFxuIGNvbnRyb2wgXHUwMDAxIGRlbCB_IiwiciI6WyJodHRwczovL2JvdC5leGFtcGxlL2EgYiJdfQ.AsA12EdGTpZujQqS3endg11_iiqG0SHT-V8trTw7xcA"}
+{"kind":"clientId","name":"Line   para   sep, snowman ☃, emoji 😀, accent é","redirectUris":["https://bot.example/ü?q=ö"],"clientId":"eyJ2IjoxLCJuIjoiTGluZSDigKggcGFyYSDigKkgc2VwLCBzbm93bWFuIOKYgywgZW1vamkg8J-YgCwgYWNjZW50IMOpIiwiciI6WyJodHRwczovL2JvdC5leGFtcGxlL8O8P3E9w7YiXX0.fbvf4ikpUwths1PBMp5rzHi1LWcYS-cR5MQXCuGbHFQ"}
+{"kind":"clientId","name":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","redirectUris":["http://localhost/a","http://localhost/b","http://localhost/c","http://localhost/d","https://e.example/"],"clientId":"eyJ2IjoxLCJuIjoieHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eCIsInIiOlsiaHR0cDovL2xvY2FsaG9zdC9hIiwiaHR0cDovL2xvY2FsaG9zdC9iIiwiaHR0cDovL2xvY2FsaG9zdC9jIiwiaHR0cDovL2xvY2FsaG9zdC9kIiwiaHR0cHM6Ly9lLmV4YW1wbGUvIl19.jKvPW5FvA6U8RjjN8Fog_Zeu6o1KH5brTjLdHxbme_g"}
+{"kind":"pkce","verifier":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-verifier-for-tests","challenge":"DeB41nTVkPwpbbYecrnqtVq7VXLezustdHAK4SWt13c"}
+{"kind":"pkce","verifier":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","challenge":"DwBzhbb51LfusnSGBa_hqYSgo7-j8BTQnip4TOnlzRo"}
+{"kind":"pkce","verifier":"z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~z-._~","challenge":"UtmmovYIUdyOHZz7bN5_pBIHzaxVVrj8H8-72u3pw80"}
+{"kind":"csrf","sessionId":"session-1","clientId":"eyJ2IjoxLCJuIjoiQ2xhdWRlIENvZGUiLCJyIjpbImh0dHA6Ly9sb2NhbGhvc3QvY2FsbGJhY2siXX0.Ag20mbGpKkfa1mamyS74uZkDtyLL-U2FMQJpvPZy69I","redirectUri":"http://localhost:51234/callback","codeChallenge":"DeB41nTVkPwpbbYecrnqtVq7VXLezustdHAK4SWt13c","token":"h68_0hXfI3cqaWY7fmZEFOGB4RbC-xuZ310atpKtSSQ"}
+{"kind":"csrf","sessionId":"session-2","clientId":"eyJ2IjoxLCJuIjoiSG9zdGVkIGJvdCIsInIiOlsiaHR0cHM6Ly9ib3QuZXhhbXBsZS9vYXV0aC9jYWxsYmFjayIsImh0dHA6Ly8xMjcuMC4wLjE6ODA4MC9jYj94PTEmeT0yIl19.hIj1ZOU54zK4dzbVvBS39zpmY8yW1GnL5quiH6fj0tE","redirectUri":"https://bot.example/oauth/callback","codeChallenge":"DwBzhbb51LfusnSGBa_hqYSgo7-j8BTQnip4TOnlzRo","token":"1j0D4RnzfBZYUxyDll6Uquldl6U_WbVQ_Iqrtj27V4g"}
+{"kind":"redirectMatches","registered":"http://localhost/callback","presented":"http://localhost:9/callback","result":true}
+{"kind":"redirectMatches","registered":"http://127.0.0.1:1/callback","presented":"http://127.0.0.1:2/callback","result":true}
+{"kind":"redirectMatches","registered":"http://localhost/callback","presented":"http://127.0.0.1/callback","result":false}
+{"kind":"redirectMatches","registered":"http://localhost/callback","presented":"https://localhost/callback","result":false}
+{"kind":"redirectMatches","registered":"https://bot.example/cb","presented":"https://bot.example/cb","result":true}
+{"kind":"redirectMatches","registered":"https://bot.example/cb","presented":"https://bot.example:8443/cb","result":false}
+{"kind":"redirectMatches","registered":"https://bot.example/cb","presented":"https://bot.example:443/cb","result":true}
+{"kind":"redirectMatches","registered":"https://bot.example/cb","presented":"https://bot.example/cb?x=1","result":false}
+{"kind":"redirectMatches","registered":"https://bot.example/cb","presented":"https://evil.example/cb","result":false}
+{"kind":"redirectMatches","registered":"http://[::1]:5/cb","presented":"http://[::1]:6/cb","result":true}
+{"kind":"redirectMatches","registered":"http://localhost/cb?a=1","presented":"http://localhost:7/cb?a=1","result":true}
+{"kind":"redirectMatches","registered":"http://localhost/cb?a=1","presented":"http://localhost:7/cb?a=2","result":false}
+{"kind":"redirectMatches","registered":"http://LOCALHOST/cb","presented":"http://localhost:7/cb","result":true}
+{"kind":"redirectMatches","registered":"http://localhost/cb","presented":"http://localhost:7/CB","result":false}
+{"kind":"redirectMatches","registered":"http://bot.example/cb","presented":"http://bot.example/cb","result":false}
+{"kind":"redirectMatches","registered":"https://u:p@bot.example/cb","presented":"https://u:p@bot.example/cb","result":false}
+{"kind":"redirectMatches","registered":"https://bot.example/cb#","presented":"https://bot.example/cb","result":false}
+{"kind":"redirectMatches","registered":"javascript:alert(1)","presented":"javascript:alert(1)","result":false}
+{"kind":"redirectMatches","registered":"http://localhost/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","presented":"http://localhost/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","result":false}
+{"kind":"redirectMatches","registered":"https://bot.example/%7Euser","presented":"https://bot.example/~user","result":false}
+{"kind":"redirectMatches","registered":"https://bot.example","presented":"https://bot.example/","result":true}
+{"kind":"redirectMatches","registered":"http://127.1/cb","presented":"http://127.0.0.1:3/cb","result":true}
+{"kind":"redirectMatches","registered":"not a url","presented":"not a url","result":false}

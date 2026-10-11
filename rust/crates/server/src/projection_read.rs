@@ -141,16 +141,14 @@ pub(crate) fn served(connection: &Connection, projection: Value, windowed: bool)
     }
     provider_threads.sort_by_key(|thread| (thread["firstRunOrdinal"].as_i64().unwrap_or(0), text(thread, "id").to_owned()));
 
-    // Provider sessions bound to the thread, as their one row now says (or, with no binding, as the thread holds them).
-    let mut sessions = take(&mut projection, "providerSessions");
+    // Provider sessions bound to the thread, as their one row now says. Only a bound session is the thread's: the original joins its
+    // session rows to the bindings, so a session the thread's own events updated but never attached is not served.
+    let mut sessions: Vec<Value> = Vec::new();
+    take(&mut projection, "providerSessions");
     {
         let mut statement = connection.prepare("SELECT s.json FROM rust_provider_sessions s JOIN rust_provider_session_bindings b ON b.session_id = s.id WHERE b.thread_id = ?1")?;
         for json in statement.query_map([&thread_id], |row| row.get::<_, String>(0))? {
-            let found: Value = serde_json::from_str(&json?)?;
-            match sessions.iter_mut().find(|existing| existing["id"] == found["id"]) {
-                Some(existing) => *existing = found,
-                None => sessions.push(found),
-            }
+            sessions.push(serde_json::from_str(&json?)?);
         }
     }
     if windowed {

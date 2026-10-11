@@ -80,7 +80,7 @@ pub async fn open_stream(config: &mut Value) -> Result<Subscription, Value> {
     Ok(subscription)
 }
 
-fn apply(config: &mut Value, state: &ConfigState) {
+pub(crate) fn apply(config: &mut Value, state: &ConfigState) {
     config["keybindings"] = state.keybindings_json();
     config["issues"] = Value::Array(state.issues.clone());
 }

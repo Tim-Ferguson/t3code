@@ -32,6 +32,15 @@ axum.workspace = true
 # already in the lock file through other workspace crates.
 libc.workspace = true
 
+[features]
+# The fakes in `test_support`, shared by this crate's flows and the server's.
+test-support = ["dep:tempfile"]
+
+[dependencies.tempfile]
+version = "3"
+optional = true
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
+t3-remote = { path = ".", features = ["test-support"] }
 tempfile = "3"

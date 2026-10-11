@@ -163,6 +163,21 @@ pub struct CloudCliOAuthConfig {
     pub scopes: [&'static str; 4],
 }
 
+impl CloudCliOAuthConfig {
+    /// The CLI's OAuth application when no Clerk values are configured. Its endpoints are empty, so any use of it fails at once as
+    /// a request with no address and nothing is sent. (The original fails such a use with the missing-configuration error.)
+    pub fn unconfigured() -> Self {
+        Self {
+            token_endpoint: String::new(),
+            device_authorization_endpoint: String::new(),
+            client_id: String::new(),
+            loopback_port: CLOUD_CLI_OAUTH_LOOPBACK_PORT,
+            redirect_uri: connect_loopback_redirect_uri(CLOUD_CLI_OAUTH_LOOPBACK_PORT),
+            scopes: CONNECT_OAUTH_SCOPES,
+        }
+    }
+}
+
 /// The loopback callback URI registered on the Clerk CLI OAuth application.
 pub fn connect_loopback_redirect_uri(port: u16) -> String {
     format!("http://127.0.0.1:{port}/callback")

@@ -140,6 +140,13 @@ fn parse_options(
         }
         match arg.as_str() {
             "serve" | "pair" | "import" => options.command = arg,
+            // The original's `start` refuses to start over a running server; the runtime lock does that here.
+            "start" => options.command = "serve".into(),
+            // Nothing opens a browser, so there is nothing for the flag to switch off.
+            "--no-browser" => {}
+            _ if arg.starts_with("--no-browser=") => {
+                parse_boolean(&arg["--no-browser=".len()..]).ok_or("--no-browser requires a boolean")?;
+            }
             "connect" => {
                 options.command = arg;
                 options.connect = Some((t3_server::connect_cli::Subcommand::Connect, Default::default()));
@@ -231,6 +238,13 @@ fn parse_options(
     }
     options.fixture_github_api_origin = t3_server::fixture::github_api_origin(options.fixture, env(t3_server::fixture::GITHUB_API_ORIGIN_VARIABLE))?;
     Ok(options)
+}
+
+/// `resolveStaticDir`: without `--assets`, the web app bundled beside the executable (`client/index.html`) is served, so a server
+/// started the way the remote SSH launch starts it (`serve --host --port --base-dir`) answers its readiness probe at `/`.
+fn bundled_assets(executable: &Path) -> Option<PathBuf> {
+    let directory = executable.parent()?.join("client");
+    directory.join("index.html").is_file().then_some(directory)
 }
 
 fn apply_bootstrap(
@@ -337,20 +351,7 @@ fn acquire_bootstrap(options: &mut Options) -> Result<Option<()>, Box<dyn std::e
 }
 
 fn secret(path: &Path) -> Result<[u8; 32], Box<dyn std::error::Error>> {
-    match fs::read(path) {
-        Ok(bytes) => {
-            return bytes
-                .try_into()
-                .map_err(|_| "Invalid native signing-secret length".into());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(error.into()),
-    }
-    let bytes = rand::random::<[u8; 32]>();
-    publish_once(path, &bytes)?;
-    fs::read(path)?
-        .try_into()
-        .map_err(|_| "Invalid native signing-secret length".into())
+    t3_server::cli_commands::signing_secret(path)
 }
 
 fn identity(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
@@ -361,33 +362,8 @@ fn identity(path: &Path) -> Result<String, Box<dyn std::error::Error>> {
     Ok(identity)
 }
 
-/// Publish a fully synced inode using an atomic, exclusive hard link. Concurrent
-/// serve/pair invocations observe the same complete identity and secret.
 fn publish_once(path: &Path, bytes: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    if path.exists() {
-        return Ok(());
-    }
-    let temporary = path.with_extension(format!("{}.tmp", uuid::Uuid::new_v4()));
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let result = (|| -> std::io::Result<()> {
-        let mut file = options.open(&temporary)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        match fs::hard_link(&temporary, path) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
-            Err(error) => Err(error),
-        }
-    })();
-    let _ = fs::remove_file(temporary);
-    result?;
-    Ok(())
+    t3_server::cli_commands::publish_once(path, bytes)
 }
 
 #[cfg(test)]
@@ -395,6 +371,23 @@ mod tests {
     use super::*;
     fn envelope() -> t3_contracts::DesktopBackendBootstrap {
         serde_json::from_value(json!({"mode":"desktop","noBrowser":true,"port":3773,"host":"127.0.0.1","t3Home":" /tmp/bootstrap-home ","desktopBootstrapToken":"fixture-IPC","tailscaleServeEnabled":false,"tailscaleServePort":443})).unwrap()
+    }
+    #[test]
+    fn the_originals_start_command_and_no_browser_flag_are_understood() {
+        let started = parse_options(["start".to_owned(), "--no-browser".to_owned(), "--port".to_owned(), "0".to_owned()], |_| None).unwrap();
+        assert_eq!((started.command.as_str(), started.port), ("serve", 0));
+        assert!(parse_options(["serve".to_owned(), "--no-browser=false".to_owned()], |_| None).is_ok());
+        assert!(parse_options(["serve".to_owned(), "--no-browser=maybe".to_owned()], |_| None).is_err());
+    }
+    #[test]
+    fn the_web_app_bundled_beside_the_executable_is_found_only_when_it_has_an_index() {
+        let directory = tempfile::tempdir().unwrap();
+        let executable = directory.path().join("t3-server");
+        assert_eq!(bundled_assets(&executable), None);
+        fs::create_dir(directory.path().join("client")).unwrap();
+        assert_eq!(bundled_assets(&executable), None, "an empty directory is no web app");
+        fs::write(directory.path().join("client").join("index.html"), "<html></html>").unwrap();
+        assert_eq!(bundled_assets(&executable), Some(directory.path().join("client")));
     }
     #[test]
     fn the_fixture_origin_is_an_error_without_the_flag_and_is_checked_with_it() {
@@ -708,6 +701,18 @@ fn adopt_desktop_descriptors(
     }
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // `--version`, `pair`, `auth`, `project` and the hidden helpers of the remote launch are not the server.
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(outcome) = t3_server::cli_commands::dispatch(&arguments, &|key| std::env::var(key).ok()) {
+        {
+            use std::io::Write;
+            let mut stdout = std::io::stdout();
+            let _ = stdout.write_all(outcome.stdout.as_bytes());
+            let _ = stdout.flush();
+        }
+        eprint!("{}", outcome.stderr);
+        std::process::exit(outcome.code);
+    }
     if let Some(result) = t3_server::agent_device_launcher::dispatch(std::env::args_os().skip(1)) {
         match result {
             Ok(code) => std::process::exit(code),
@@ -1128,6 +1133,10 @@ async fn run(
     } else {
         None
     };
+    // Agents T3 Code did not launch sign in to `/mcp` through this authorization server (its signing key is a secret of the state
+    // directory, so client ids survive a restart).
+    let mcp_oauth = std::sync::Arc::new(t3_server::mcp_oauth::McpOAuth::new(auth.clone(), &t3_server::server_secret_store::ServerSecretStore::open(state_dir.join("secrets"))?)?);
+    t3_server::mcp_oauth::install(&store, mcp_oauth.clone());
     let mcp = t3_server::mcp_http::McpHttpService::new(
         mcp_registry.clone(),
         devices
@@ -1139,6 +1148,7 @@ async fn run(
                 executable: native_executable.clone(),
             }),
     )
+    .with_clients(mcp_oauth.clone(), environment_id.parse()?)
     .with_controls(t3_server::mcp_control::McpControlTools {
         store: store.clone(),
         execution: Some(execution.clone()),
@@ -1191,7 +1201,7 @@ async fn run(
         environment,
         config,
         cors_origins: None,
-        assets: options.assets.map(fs::canonicalize).transpose()?,
+        assets: options.assets.or_else(|| std::env::current_exe().ok().and_then(|exe| bundled_assets(&exe))).map(fs::canonicalize).transpose()?,
         providers: Some(native_config.providers),
         execution: Some(execution.clone()),
         workspace: Some(t3_server::workspace_entries::WorkspaceEntries::from_host()?),

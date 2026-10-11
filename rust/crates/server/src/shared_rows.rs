@@ -46,6 +46,17 @@ pub(crate) fn apply(transaction: &Transaction<'_>, event: &Event) -> Result<(), 
                 "INSERT OR REPLACE INTO rust_provider_threads(id,app_thread_id,owner_node_id,json) VALUES(?1,?2,?3,?4)",
                 params![payload["id"].as_str(), payload["appThreadId"].as_str(), payload["ownerNodeId"].as_str(), serde_json::to_string(payload)?],
             )?;
+            // The original's SQL projection makes the provider thread the active one of the thread it names, whichever thread's
+            // stream wrote the event (`ProjectionStore.apply`, `provider-thread.updated`), when that thread exists and the
+            // provider thread is not a queued placeholder. The thread's own stream does this in its reducer.
+            if let Some(app_thread) = payload["appThreadId"].as_str().filter(|app_thread| *app_thread != event.aggregate_id && !crate::thread::queued_provider_thread_placeholder(payload)) {
+                if let Some(mut projection) = crate::persistence::read_projection(transaction, "thread", app_thread)? {
+                    projection["thread"]["activeProviderThreadId"] = payload["id"].clone();
+                    projection["thread"]["updatedAt"] = payload["updatedAt"].clone();
+                    projection["updatedAt"] = payload["updatedAt"].clone();
+                    crate::persistence::write_projection(transaction, "thread", app_thread, &projection)?;
+                }
+            }
         }
         "provider-session.attached" | "provider-session.updated" => {
             transaction.execute("INSERT OR REPLACE INTO rust_provider_sessions(id,json) VALUES(?1,?2)", params![payload["id"].as_str(), serde_json::to_string(payload)?])?;
@@ -66,6 +77,46 @@ mod tests {
     use super::*;
     use crate::persistence::{Store, StoredEvent};
     use serde_json::{Value, json};
+
+    /// A provider thread another thread's stream wrote becomes the active one of the thread it names, as the original's SQL
+    /// projection does (`ProjectionStore.apply`); a queued placeholder and a thread that does not exist change nothing.
+    #[test]
+    fn a_provider_thread_written_in_another_stream_becomes_the_active_one_of_the_thread_it_names() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::open(directory.path().join("rust-state.sqlite")).unwrap();
+        let stamp = "2026-01-01T00:00:00.000Z";
+        let event = |aggregate: &str, kind: &str, payload: Value, sequence: u64| StoredEvent {
+            sequence,
+            event: Event { event_id: format!("e{sequence}"), aggregate_kind: "thread".into(), aggregate_id: aggregate.into(), occurred_at: "2026-01-01T00:00:09.000Z".into(), command_id: None, causation_event_id: None, correlation_id: None, event_type: kind.into(), payload, metadata: json!({}) },
+        };
+        let thread = |id: &str| json!({"createdBy":"user","creationSource":"web","id":id,"projectId":"p","title":"T","providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null,"activeProviderThreadId":null,"lineage":{"parentThreadId":null,"relationshipToParent":null,"rootThreadId":id},"forkedFrom":null,"createdAt":stamp,"updatedAt":stamp,"archivedAt":null,"settledOverride":null,"settledAt":null,"lastVisitedAt":null,"deletedAt":null});
+        let provider_thread = |id: &str, app: &str, status: &str, session: Value, updated: &str| json!({"id":id,"appThreadId":app,"ownerNodeId":null,"providerInstanceId":"codex","status":status,"firstRunOrdinal":null,"lastRunOrdinal":null,"nativeThreadRef":null,"providerSessionId":session,"updatedAt":updated});
+        let mut sequence = 0;
+        let mut apply = |aggregate: &str, kind: &str, payload: Value| {
+            sequence += 1;
+            let stored = event(aggregate, kind, payload, sequence);
+            store.transaction(|transaction| crate::thread::reduce(transaction, &stored)).unwrap();
+        };
+        apply("thread:a", "thread.created", thread("thread:a"));
+        apply("thread:b", "thread.created", thread("thread:b"));
+        let active = |id: &str| {
+            let projection = store.projection("thread", id).unwrap().unwrap();
+            (projection["thread"]["activeProviderThreadId"].clone(), projection["thread"]["updatedAt"].clone(), projection["updatedAt"].clone())
+        };
+        // Written in A's stream for B.
+        apply("thread:a", "provider-thread.updated", provider_thread("pt-1", "thread:b", "idle", json!("session-1"), "2026-01-01T00:00:05.000Z"));
+        assert_eq!(active("thread:b"), (json!("pt-1"), json!("2026-01-01T00:00:05.000Z"), json!("2026-01-01T00:00:05.000Z")));
+        assert!(active("thread:a").0.is_null(), "the writer's own thread is not the one the row names");
+        // A queued placeholder is reserved, not active.
+        apply("thread:a", "provider-thread.updated", provider_thread("pt-2", "thread:b", "not_loaded", Value::Null, "2026-01-01T00:00:06.000Z"));
+        assert_eq!(active("thread:b").0, json!("pt-1"));
+        // A thread that does not exist is not made.
+        apply("thread:a", "provider-thread.updated", provider_thread("pt-3", "thread:missing", "idle", json!("session-1"), "2026-01-01T00:00:07.000Z"));
+        assert!(store.projection("thread", "thread:missing").unwrap().is_none());
+        // The thread's own stream still does it in its own reducer.
+        apply("thread:a", "provider-thread.updated", provider_thread("pt-4", "thread:a", "idle", json!("session-1"), "2026-01-01T00:00:08.000Z"));
+        assert_eq!(active("thread:a").0, json!("pt-4"));
+    }
 
     /// A store written by an earlier build has neither the shared tables nor the shell counters. Opening it fills the tables from the
     /// stored projections; the shell is read from the history until the thread's next event stores the counters. No rebuild.

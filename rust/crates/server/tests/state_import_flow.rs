@@ -810,3 +810,44 @@ async fn the_config_reports_the_import_until_it_is_acknowledged() {
     assert_eq!(success(&rpc(&mut socket, 6, "server.acknowledgeStateImport", json!({})).await), &json!({"acknowledged":false}));
     served.finish().await;
 }
+
+/// The next event of the config stream (request 2), acknowledged as a client does so the stream goes on.
+async fn config_chunk(socket: &mut Socket) -> Value {
+    let message = loop {
+        let message = next(socket).await;
+        if message["_tag"] == "Chunk" {
+            break message;
+        }
+        assert_ne!(message["_tag"], "Exit", "the config stream ended: {message}");
+    };
+    socket.send(Message::Text(json!({"_tag":"Ack","requestId":2}).to_string().into())).await.unwrap();
+    message["values"][0].clone()
+}
+
+/// RUST-PORT EXTENSION: a client that already holds the config is told the notice is gone when it is acknowledged, by the
+/// stream it holds open, and not only by its next read.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_config_stream_pushes_the_notice_away_when_it_is_acknowledged() {
+    let base = tempfile::tempdir().unwrap();
+    let from = home("full", base.path());
+    let state = base.path().join("state");
+    imported(&from, &state);
+    let served = serve(&state).await;
+    let mut watcher = served.connect().await;
+    let mut other = served.connect().await;
+    send(&mut watcher, json!({"_tag":"Request","id":2,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
+    let first = config_chunk(&mut watcher).await;
+    assert_eq!((first["type"].clone(), first["config"]["stateImport"]["status"].clone()), (json!("snapshot"), json!("imported")));
+    // The acknowledgement comes from another connection; nothing is waited for but the stream's next event.
+    assert_eq!(success(&rpc(&mut other, 7, "server.acknowledgeStateImport", json!({})).await), &json!({"acknowledged":true}));
+    let pushed = config_chunk(&mut watcher).await;
+    assert_eq!(pushed["type"], "snapshot");
+    assert!(pushed["config"].get("stateImport").is_none(), "{}", pushed["config"]["stateImport"]);
+    // The rest of the config is what the first snapshot held.
+    let mut before = first["config"].clone();
+    before.as_object_mut().unwrap().remove("stateImport");
+    assert_eq!(pushed["config"], before);
+    // A second acknowledgement has nothing to clear and pushes nothing.
+    assert_eq!(success(&rpc(&mut other, 8, "server.acknowledgeStateImport", json!({})).await), &json!({"acknowledged":false}));
+    served.finish().await;
+}

@@ -7,11 +7,11 @@
 //! writer that is disabled, unavailable or unable to write text gives way to the general choice. A
 //! provider that is enabled but not installed or not signed in is not skipped; asking it fails, and
 //! the failure is the caller's. Providers this server has no adapter for (Cursor, Grok,
-//! OpenCode, Antigravity, ACP Registry instances) are skipped everywhere as if not installed.
+//! ACP Registry instances) are skipped everywhere as if not installed.
 use serde_json::{Value, json};
 
 /// The drivers this server can run a one-shot generation with.
-pub const SUPPORTED_DRIVERS: [&str; 3] = ["codex", "claudeAgent", "pi"];
+pub const SUPPORTED_DRIVERS: [&str; 5] = ["codex", "claudeAgent", "pi", "opencode", "antigravity"];
 
 fn instance_config(settings: &Value, instance_id: &str) -> Option<t3_contracts::ProviderInstanceConfig> {
     serde_json::from_value(settings["providerInstances"].get(instance_id)?.clone()).ok()

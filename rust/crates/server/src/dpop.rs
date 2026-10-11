@@ -138,7 +138,9 @@ fn non_empty<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
 }
 
 /// `verifyDpopProof`. The order of the checks is the original's, so the failure a caller sees is too. The original tells a
-/// signature that does not verify from a key or signature that cannot be read; both read as `invalid_proof` to the client.
+/// signature that does not verify (`invalid_signature`: noble's `verify` answers false, for a wrong signature, one of the wrong
+/// length or out of range, and a key that is not a point of the curve) from a key or signature that cannot be read
+/// (`invalid_proof`: base64url that does not decode, a coordinate that is not 32 bytes); both read as `invalid_proof` to the client.
 pub fn verify(input: &Proof<'_>) -> Verified {
     let Some(proof) = input.proof.filter(|proof| !proof.trim().is_empty()) else {
         return reject(FailureCode::MissingProof, "Missing DPoP proof.");
@@ -193,7 +195,9 @@ pub fn verify(input: &Proof<'_>) -> Verified {
 
     // The key is the uncompressed point; the signature is r || s over the SHA-256 of `header.payload`.
     let (Some(x), Some(y), Some(signature)) = (decode(x), decode(y), decode(parts[2])) else { return invalid() };
-    if x.len() != 32 || y.len() != 32 || signature.len() != 64 {
+    // A coordinate that is not 32 bytes cannot be read as a key at all (the original throws); a signature of any other length is
+    // one that does not verify (noble answers false), so it is a bad signature, not an unreadable proof.
+    if x.len() != 32 || y.len() != 32 {
         return invalid();
     }
     let mut point = Vec::with_capacity(65);
@@ -201,7 +205,8 @@ pub fn verify(input: &Proof<'_>) -> Verified {
     point.extend_from_slice(&x);
     point.extend_from_slice(&y);
     let signed = format!("{}.{}", parts[0], parts[1]);
-    if UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, &point).verify(signed.as_bytes(), &signature).is_err() {
+    // A point off the curve, a value out of range and a signature that is simply wrong all fail to verify alike.
+    if signature.len() != 64 || UnparsedPublicKey::new(&ECDSA_P256_SHA256_FIXED, &point).verify(signed.as_bytes(), &signature).is_err() {
         return reject(FailureCode::InvalidSignature, "Invalid DPoP signature.");
     }
 
@@ -352,6 +357,37 @@ mod tests {
         assert_eq!(code(&client.proof(wrong_alg, claims(url)), None, None).0, FailureCode::MalformedProof);
         assert_eq!(code(&client.proof(client.header(), serde_json::json!({"htm":"POST","htu":url,"jti":"","iat":NOW})), None, None), (FailureCode::MalformedProof, "Invalid DPoP JWT payload."));
         assert_eq!(code(&client.proof(client.header(), serde_json::json!({"htm":"POST","htu":url,"jti":"j","iat":1.5})), None, None).0, FailureCode::MalformedProof);
+    }
+
+    /// Proofs broken in each way a key or signature can be, held to what the unchanged original's `verifyDpopProof` makes of them
+    /// (`tools/generate_dpop_verification_fixtures.mjs`).
+    #[test]
+    fn broken_keys_and_signatures_fail_as_the_original_fails_them() {
+        let rows: Vec<serde_json::Value> = include_str!("../tests/fixtures/dpop-verification.jsonl").lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+        assert!(rows.len() >= 20);
+        for row in &rows {
+            let input = Proof { proof: row["proof"].as_str(), method: row["method"].as_str().unwrap(), url: row["url"].as_str().unwrap(), now_epoch_seconds: row["now"].as_i64().unwrap(), expected_thumbprint: None, expected_access_token: None };
+            let got = verify(&input);
+            let expected = &row["result"];
+            if expected["ok"] == true {
+                let Verified::Ok { thumbprint, jti, iat } = got else { panic!("{} was refused: {got:?}", row["name"]) };
+                assert_eq!((thumbprint.as_str(), jti.as_str(), iat), (expected["thumbprint"].as_str().unwrap(), expected["jti"].as_str().unwrap(), expected["iat"].as_i64().unwrap()), "{}", row["name"]);
+            } else {
+                let Verified::Rejected { code, reason } = got else { panic!("{} was accepted", row["name"]) };
+                let name = match code {
+                    FailureCode::MissingProof => "missing_proof",
+                    FailureCode::MalformedProof => "malformed_proof",
+                    FailureCode::KeyMismatch => "key_mismatch",
+                    FailureCode::MethodMismatch => "method_mismatch",
+                    FailureCode::UrlMismatch => "url_mismatch",
+                    FailureCode::AccessTokenHashMismatch => "access_token_hash_mismatch",
+                    FailureCode::TimeWindow => "time_window",
+                    FailureCode::InvalidSignature => "invalid_signature",
+                    FailureCode::InvalidProof => "invalid_proof",
+                };
+                assert_eq!((name, reason), (expected["code"].as_str().unwrap(), expected["reason"].as_str().unwrap()), "{}", row["name"]);
+            }
+        }
     }
 
     #[test]

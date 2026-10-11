@@ -259,7 +259,7 @@ impl Native {
     }
 }
 
-enum Frame {
+pub(crate) enum Frame {
     Event(Value),
     Closed,
 }
@@ -274,7 +274,7 @@ impl Drop for Live {
     }
 }
 /// Reads the stream until it ends or goes silent, handing every event to the actor.
-fn start_reader(mut stream: EventStream, clock: Arc<dyn SchedulerClock>) -> (mpsc::UnboundedReceiver<Frame>, tokio::task::JoinHandle<()>) {
+pub(crate) fn start_reader(mut stream: EventStream, clock: Arc<dyn SchedulerClock>) -> (mpsc::UnboundedReceiver<Frame>, tokio::task::JoinHandle<()>) {
     let (sender, receiver) = mpsc::unbounded_channel();
     let handle = tokio::spawn(async move {
         loop {

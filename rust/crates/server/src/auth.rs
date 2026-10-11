@@ -12,16 +12,56 @@ use std::{
 };
 use t3_contracts::{
     AuthClientMetadata, AuthClientMetadataDeviceType, AuthClientSession, AuthEnvironmentScope,
-    AuthPairingLink, AuthSessionId, ServerAuthSessionMethod, TrimmedNonEmptyString, UtcDateTime,
+    AuthMcpClientAccess, AuthPairingLink, AuthSessionId, ServerAuthSessionMethod, TrimmedNonEmptyString, UtcDateTime,
 };
 
 /// The subject of the pairing link the server mints for itself at start. The original keeps it out of
 /// the list of pairing links (`EnvironmentAuth.ts` `INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT`).
 pub const ADMINISTRATIVE_BOOTSTRAP_SUBJECT: &str = "administrative-bootstrap";
 const ONE_TIME_TOKEN_SUBJECT: &str = "one-time-token";
+/// The subject of the sessions MCP OAuth issues to agents T3 Code did not launch (`MCP_CLIENT_SUBJECT`).
+pub const MCP_CLIENT_SUBJECT: &str = "mcp-client";
+const MCP_CLIENT_SESSION_TTL_DAYS: i64 = 30;
 /// What `PairingGrantStore.ts` draws a pairing credential from (no 0/1/I/O) and how long it is.
 const PAIRING_TOKEN_ALPHABET: &[u8] = b"23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const PAIRING_TOKEN_LENGTH: usize = 12;
+
+/// What an MCP client's token stands for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct McpClientSession {
+    pub session_id: String,
+    pub label: String,
+    pub access: AuthMcpClientAccess,
+}
+
+/// `mcpClientScopes`: a read-only grant holds `orchestration:read` alone, any other also `orchestration:operate`.
+pub fn mcp_client_scopes(access: AuthMcpClientAccess) -> Vec<AuthEnvironmentScope> {
+    if access == AuthMcpClientAccess::ReadOnly {
+        vec![AuthEnvironmentScope::OrchestrationRead]
+    } else {
+        vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate]
+    }
+}
+
+/// `ServerAuthMcpApprovalCodeError`, and the storage failure that is not the code's fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpApprovalCodeError {
+    UnknownOrUsed,
+    NotAPairingCode,
+    InsufficientScope,
+    Internal,
+}
+impl McpApprovalCodeError {
+    /// `error.message` of the original.
+    pub fn message(self) -> &'static str {
+        match self {
+            Self::InsufficientScope => "That pairing code cannot grant this access, and it is now used up. Create one with the standard scopes, or choose Read only with a new code.",
+            Self::NotAPairingCode => "That is not a one-time pairing code.",
+            Self::UnknownOrUsed => "That pairing code is unknown, expired, or already used.",
+            Self::Internal => "The code could not be checked. Try again.",
+        }
+    }
+}
 
 /// A change to who can reach the server, the live half of `subscribeAuthAccess`.
 #[derive(Debug, Clone)]
@@ -90,6 +130,10 @@ pub struct Session {
     /// The thumbprint of the DPoP key the session is bound to (`proofKeyThumbprint`); set only on `dpop-access-token` sessions.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proof_key_thumbprint: Option<String>,
+    /// The runtime mode an MCP client session's threads never run above (`runtimeModeCeiling`); absent on every other
+    /// session and on a read-only MCP client.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime_mode_ceiling: Option<AuthMcpClientAccess>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -239,6 +283,21 @@ impl AuthService {
         ttl: chrono::Duration,
         proof_key_thumbprint: Option<String>,
     ) -> Result<(Session, String), AuthError> {
+        self.issue_session_with_ceiling(subject, method, scopes, client, now, ttl, proof_key_thumbprint, None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn issue_session_with_ceiling(
+        &self,
+        subject: &str,
+        method: &str,
+        scopes: Vec<AuthEnvironmentScope>,
+        client: Value,
+        now: DateTime<Utc>,
+        ttl: chrono::Duration,
+        proof_key_thumbprint: Option<String>,
+        runtime_mode_ceiling: Option<AuthMcpClientAccess>,
+    ) -> Result<(Session, String), AuthError> {
         if !matches!(method, "browser-session-cookie" | "bearer-access-token" | "dpop-access-token") {
             return Err(AuthError::Invalid("Unsupported session method."));
         }
@@ -256,6 +315,7 @@ impl AuthService {
             expires_at: now + ttl,
             revoked_at: None,
             proof_key_thumbprint,
+            runtime_mode_ceiling,
         };
         let token = self.session_token(&session, now)?;
         let replaced = self.store.transaction(|transaction| {
@@ -303,6 +363,10 @@ impl AuthService {
     }
 
     pub fn verify_session(&self, token: &str, now: DateTime<Utc>) -> Result<Session, AuthError> {
+        self.verify_session_for(token, now, false)
+    }
+
+    fn verify_session_for(&self, token: &str, now: DateTime<Utc>, mcp_client: bool) -> Result<Session, AuthError> {
         let claims = self.decode(token)?;
         if claims.kind != "session"
             || !matches!(claims.v, 1 | 2)
@@ -315,7 +379,7 @@ impl AuthService {
         if claims.exp <= now.timestamp_millis() {
             return Err(AuthError::Invalid("Session token expired."));
         }
-        let session = self.active_session(&claims.sid, now)?;
+        let session = self.stored_active_session(&claims.sid, now, mcp_client)?;
         if claims.sub.as_deref() != Some(&session.subject)
             || claims.method.as_deref() != Some(&session.method)
             || claims.exp != session.expires_at.timestamp_millis()
@@ -328,6 +392,12 @@ impl AuthService {
     }
 
     pub fn active_session(&self, id: &str, now: DateTime<Utc>) -> Result<Session, AuthError> {
+        self.stored_active_session(id, now, false)
+    }
+
+    /// The live session `id` names. An MCP client's session (`mcp-client`) is returned only to a caller that asks for it:
+    /// everything else refuses it, so an agent's token cannot reach the API around the access it was approved for.
+    fn stored_active_session(&self, id: &str, now: DateTime<Utc>, mcp_client: bool) -> Result<Session, AuthError> {
         let session = self
             .store
             .read(|connection| {
@@ -349,12 +419,94 @@ impl AuthService {
         if session.revoked_at.is_some() {
             return Err(AuthError::Invalid("Session token revoked."));
         }
-        if session.subject == "mcp-client" {
+        if session.subject == MCP_CLIENT_SUBJECT && !mcp_client {
             return Err(AuthError::Invalid(
                 "MCP credentials cannot access the client API.",
             ));
         }
         Ok(session)
+    }
+
+    // ---- MCP clients (`EnvironmentAuth.ts`: `issueMcpClientSession`, `authenticateMcpClient`, `consumeMcpApprovalCode`) ----
+
+    /// The session an agent signed in through MCP OAuth holds for 30 days: `orchestration:read` alone for read-only access,
+    /// otherwise also `orchestration:operate`, with the runtime mode it may never run above.
+    pub fn issue_mcp_client_session(&self, label: &str, access: AuthMcpClientAccess, client: Value, now: DateTime<Utc>) -> Result<(Session, String), AuthError> {
+        let mut client = client;
+        if let Some(object) = client.as_object_mut() {
+            object.insert("label".into(), json!(label));
+            object.insert("deviceType".into(), json!("bot"));
+        }
+        let ceiling = (access != AuthMcpClientAccess::ReadOnly).then_some(access);
+        self.issue_session_with_ceiling(MCP_CLIENT_SUBJECT, "bearer-access-token", mcp_client_scopes(access), client, now, chrono::Duration::days(MCP_CLIENT_SESSION_TTL_DAYS), None, ceiling)
+    }
+
+    /// An MCP client's bearer token: only a live `mcp-client` bearer session passes, and nothing else does here.
+    pub fn authenticate_mcp_client(&self, token: &str, now: DateTime<Utc>) -> Result<McpClientSession, AuthError> {
+        let session = self.verify_session_for(token, now, true)?;
+        if session.subject != MCP_CLIENT_SUBJECT || session.method != "bearer-access-token" {
+            return Err(AuthError::Invalid("Only MCP client sessions are accepted here."));
+        }
+        let access = if session.scopes.contains(&AuthEnvironmentScope::OrchestrationOperate) {
+            session.runtime_mode_ceiling.unwrap_or(AuthMcpClientAccess::ApprovalRequired)
+        } else {
+            AuthMcpClientAccess::ReadOnly
+        };
+        let label = session.client["label"].as_str().unwrap_or("MCP client").to_owned();
+        Ok(McpClientSession { session_id: session.session_id, label, access })
+    }
+
+    /// A signed-in browser: its cookie names a live browser session that no DPoP key binds.
+    pub fn authenticate_browser_session(&self, token: &str, now: DateTime<Utc>) -> Result<Session, AuthError> {
+        let session = self.verify_session(token, now)?;
+        if session.method != "browser-session-cookie" || session.proof_key_thumbprint.is_some() {
+            return Err(AuthError::Invalid("Not a browser session."));
+        }
+        Ok(session)
+    }
+
+    /// Spends a one-time pairing code as the approval of an MCP sign-in. The code is used up even when it cannot grant
+    /// `access`. A code bound to a DPoP key (a T3 Connect client's) is refused without being spent.
+    pub fn consume_mcp_approval_code(&self, code: &str, access: AuthMcpClientAccess, now: DateTime<Utc>) -> Result<(), McpApprovalCodeError> {
+        let credential = code.trim();
+        let (method, scopes): (&str, Vec<AuthEnvironmentScope>) = 'resolved: {
+            if let Some(grant) = &self.desktop_bootstrap {
+                let valid = if let Some(secret) = &grant.secret {
+                    valid_desktop_bootstrap_token(secret, credential, now.timestamp_millis())
+                } else {
+                    now < grant.expires_at && !grant.token.is_empty() && constant_time_token_eq(&grant.token, credential)
+                };
+                if valid {
+                    break 'resolved ("desktop-bootstrap", t3_contracts::AUTH_ADMINISTRATIVE_SCOPES.to_vec());
+                }
+            }
+            let consumed = self
+                .store
+                .transaction(|transaction| {
+                    let hash = token_hash(credential);
+                    let row: Option<(String, i64, Option<i64>, String, Option<i64>, Option<String>)> = transaction
+                        .query_row("SELECT scopes_json,expires_at,consumed_at,id,revoked_at,proof_key_thumbprint FROM rust_pairing_credentials WHERE token_hash=?1", [&hash], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)))
+                        .optional()?;
+                    let Some((scopes, expires_at, consumed, id, revoked, bound)) = row else { return Ok(None) };
+                    if consumed.is_some() || revoked.is_some() || expires_at <= now.timestamp_millis() || bound.is_some() {
+                        return Ok(None);
+                    }
+                    transaction.execute("UPDATE rust_pairing_credentials SET consumed_at=?1 WHERE token_hash=?2", params![now.timestamp_millis(), hash])?;
+                    Ok(Some((serde_json::from_str::<Vec<AuthEnvironmentScope>>(&scopes)?, id)))
+                })
+                .map_err(|_| McpApprovalCodeError::Internal)?;
+            let Some((scopes, id)) = consumed else { return Err(McpApprovalCodeError::UnknownOrUsed) };
+            self.publish(AccessChange::PairingLinkRemoved(id));
+            ("one-time-token", scopes)
+        };
+        if method != "one-time-token" {
+            return Err(McpApprovalCodeError::NotAPairingCode);
+        }
+        if mcp_client_scopes(access).iter().all(|scope| scopes.contains(scope)) {
+            Ok(())
+        } else {
+            Err(McpApprovalCodeError::InsufficientScope)
+        }
     }
 
     pub fn issue_websocket_ticket(
@@ -789,7 +941,7 @@ impl AuthService {
             // The link's label names the client that used it.
             let mut client=client.clone();
             if let (Some(label),Some(object))=(label.as_deref().filter(|label|!label.is_empty()),client.as_object_mut()) {object.insert("label".into(),Value::String(label.to_owned()));}
-            let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject,method:method.into(),scopes,client,issued_at:Some(now),last_connected_at:None,expires_at:now+session_ttl,revoked_at:None,proof_key_thumbprint:proof_key_thumbprint.map(str::to_owned)};
+            let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject,method:method.into(),scopes,client,issued_at:Some(now),last_connected_at:None,expires_at:now+session_ttl,revoked_at:None,proof_key_thumbprint:proof_key_thumbprint.map(str::to_owned),runtime_mode_ceiling:None};
             let mut replaced=Vec::new();
             if let Some(previous)=&replace {
                 // Only a live session of the same method is replaced, as the original's UPDATE does.

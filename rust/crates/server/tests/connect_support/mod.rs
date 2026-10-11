@@ -19,8 +19,7 @@ use t3_server::{
     transport::{ApiState, router},
 };
 
-#[path = "../../../remote/tests/support/mod.rs"]
-pub mod remote;
+pub use t3_remote::test_support as remote;
 pub use remote::{FakeRelay, FakeSpawner, FixedClock, FixedResolver, NOW_MS, RecordedRequest, within};
 
 pub const ENVIRONMENT_ID: &str = "env_123";

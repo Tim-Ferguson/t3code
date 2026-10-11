@@ -25,9 +25,32 @@ pub struct McpHttpService {
     registry: McpSessionRegistry,
     devices: Option<McpDeviceTools>,
     controls: Option<McpControlTools>,
+    clients: Option<ClientAdmission>,
     state: Arc<Mutex<HttpState>>,
     stopped: tokio::sync::watch::Sender<bool>,
     idle: Arc<tokio::sync::Notify>,
+}
+/// Admits the agents that signed in through MCP OAuth (`McpClientAuthenticator`): a bearer token that is not a provider
+/// session's. Their scope has no calling thread, and never carries preview or device access: those tools act on the caller's
+/// own thread.
+#[derive(Clone)]
+struct ClientAdmission {
+    oauth: Arc<crate::mcp_oauth::McpOAuth>,
+    environment_id: t3_contracts::EnvironmentId,
+}
+impl ClientAdmission {
+    fn scope(&self, token: &str) -> Option<InvocationScope> {
+        use crate::mcp_invocation::{ClientCaller, McpCapability};
+        let client = self.oauth.authenticate_client(token)?;
+        Some(InvocationScope {
+            environment_id: self.environment_id.clone(),
+            capabilities: [McpCapability::Orchestration, McpCapability::Worktree, McpCapability::PullRequests].into_iter().collect(),
+            issued_at: chrono::Utc::now().timestamp_millis(),
+            request_namespace: format!("client:{}", client.session_id),
+            thread: None,
+            client: Some(ClientCaller { session_id: client.session_id, label: client.label, access: client.access }),
+        })
+    }
 }
 #[derive(Default)]
 struct HttpState {
@@ -97,6 +120,7 @@ impl McpHttpService {
             registry,
             devices,
             controls: None,
+            clients: None,
             state: Default::default(),
             stopped,
             idle: Default::default(),
@@ -104,6 +128,11 @@ impl McpHttpService {
     }
     pub fn with_controls(mut self, controls: McpControlTools) -> Self {
         self.controls = Some(controls);
+        self
+    }
+    /// Lets `/mcp` admit OAuth clients, and point a request without a provider token at the OAuth metadata.
+    pub fn with_clients(mut self, oauth: Arc<crate::mcp_oauth::McpOAuth>, environment_id: t3_contracts::EnvironmentId) -> Self {
+        self.clients = Some(ClientAdmission { oauth, environment_id });
         self
     }
     pub fn router(&self) -> Router {
@@ -146,7 +175,9 @@ impl McpHttpService {
             .and_then(|value| value.strip_prefix("Bearer "))
             .map(t3_contracts::trim_wire_string)
             .unwrap_or("");
-        let Some(scope) = self.registry.resolve(token) else {
+        let scope = self.registry.resolve(token).or_else(|| self.clients.as_ref().filter(|_| !token.is_empty()).and_then(|clients| clients.scope(token)));
+        let Some(scope) = scope else {
+            tracing::warn!(reason = if token.is_empty() { "missing_bearer_token" } else { "unknown_or_expired_token" }, "rejected MCP request with an unusable credential");
             let mut response = json_response(
                 401,
                 json!({"error":"invalid_mcp_credential","message":"A valid T3 Code MCP credential is required."}),
@@ -154,16 +185,13 @@ impl McpHttpService {
             response
                 .headers_mut()
                 .insert("cache-control", "no-store".parse().unwrap());
-            response.headers_mut().insert(
-                "www-authenticate",
-                if token.is_empty() {
-                    "Bearer"
-                } else {
-                    "Bearer error=\"invalid_token\""
-                }
-                .parse()
-                .unwrap(),
-            );
+            // Agents T3 Code launched carry a registry token (a bare secret) and are never sent into an OAuth flow when it
+            // dies: they cannot open a browser, and a sign-in would mint a credential that outlives their session.
+            let offer_oauth = self.clients.is_some() && (token.is_empty() || token.contains('.'));
+            let metadata = offer_oauth.then(|| format!("resource_metadata=\"{}/.well-known/oauth-protected-resource/mcp\"", crate::mcp_oauth::request_urls(header(&headers, "host"), header(&headers, "x-forwarded-proto"), "/mcp").issuer));
+            let details: Vec<String> = metadata.into_iter().chain((!token.is_empty()).then(|| "error=\"invalid_token\"".to_owned())).collect();
+            let challenge = if details.is_empty() { "Bearer".to_owned() } else { format!("Bearer {}", details.join(", ")) };
+            response.headers_mut().insert("www-authenticate", challenge.parse().unwrap());
             return response;
         };
         tokio::select! {biased;_=stopped.wait_for(|value|*value)=>empty(503),response=self.process(method, headers, body, &scope)=>response}

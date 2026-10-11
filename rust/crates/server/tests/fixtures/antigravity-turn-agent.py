@@ -10,7 +10,11 @@ the Nth `session/prompt` plays the Nth list. Steps:
   {"hang": true}                    keeps the prompt open until the process is stopped
 `authenticate` with "sign_in": "loopback" prints the Google authorization URL the way the agent does, listens on a
 loopback port for the redirect, and answers once it has had the code; "refused" prints the URL and waits for nothing
-(a launch that cannot sign in). ANTIGRAVITY_FIXTURE_LOG receives every message the client sends, with this pid.
+(a launch that cannot sign in). Further script keys: "session_id" (the id session/new answers, default agy-turn-session), "models" (the model options),
+"current_model", and "conversation_files" (session/new writes the conversation files the real agent keeps in its profile,
+$GEMINI_HOME/antigravity-acp/conversations/<id>.meta and .db, for the cwd it was given). A step {"write_file": name} writes
+that file into the session's cwd.
+ANTIGRAVITY_FIXTURE_LOG receives every message the client sends, with this pid.
 """
 import http.server
 import json
@@ -21,10 +25,11 @@ import urllib.parse
 
 script = json.load(open(os.environ["ANTIGRAVITY_FIXTURE_SCRIPT"])) if os.environ.get("ANTIGRAVITY_FIXTURE_SCRIPT") else {}
 log_path = os.environ.get("ANTIGRAVITY_FIXTURE_LOG")
-SESSION = "agy-turn-session"
-MODELS = [{"value": "gemini-3.8-flash-high", "name": "Gemini 3.8 Flash (High)"}, {"value": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}]
+SESSION = script.get("session_id", "agy-turn-session")
+MODELS = script.get("models", [{"value": "gemini-3.8-flash-high", "name": "Gemini 3.8 Flash (High)"}, {"value": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}])
 MODES = [{"value": "default", "name": "Default"}, {"value": "auto_edit", "name": "Auto edit"}, {"value": "yolo", "name": "YOLO"}]
-state = {"model": "gemini-3.8-flash-low", "mode": "default"}
+state = {"model": script.get("current_model", "gemini-3.8-flash-low"), "mode": "default"}
+session_cwd = None
 prompts_seen = sum(1 for line in open(log_path) if json.loads(line)["in"].get("method") == "session/prompt") if log_path and os.path.exists(log_path) else 0
 prompt_request = None
 queue = []
@@ -66,6 +71,9 @@ def run():
             params = dict(step["request"]["params"])
             params.setdefault("sessionId", SESSION)
             emit({"jsonrpc": "2.0", "id": next_id, "method": step["request"]["method"], "params": params})
+        elif "write_file" in step:
+            with open(os.path.join(session_cwd, step["write_file"]), "w") as handle:
+                handle.write("written by the agent")
         elif "end" in step:
             reply(prompt_request, {"stopReason": step["end"]})
             prompt_request = None
@@ -134,6 +142,14 @@ for line in sys.stdin:
         if script.get("needs_sign_in"):
             emit({"jsonrpc": "2.0", "id": message["id"], "error": {"code": -32000, "message": "Authentication required"}})
         else:
+            session_cwd = message["params"].get("cwd")
+            if script.get("conversation_files"):
+                directory = os.path.join(os.environ["GEMINI_HOME"], "antigravity-acp", "conversations")
+                os.makedirs(directory, exist_ok=True)
+                with open(os.path.join(directory, SESSION + ".meta"), "w") as handle:
+                    json.dump({"cwd": session_cwd}, handle)
+                with open(os.path.join(directory, SESSION + ".db"), "w") as handle:
+                    handle.write("db")
             reply(message, {"sessionId": SESSION, "configOptions": options()})
     elif method in ("session/resume", "session/load"):
         reply(message, {"configOptions": options()})

@@ -35,6 +35,25 @@ fn stamp(block: &StateImportStatus) -> String {
     block.at.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
+/// Tells the streams of the server config that the notice was acknowledged, so they push the config without it
+/// (the next read would show it gone, but a client that already holds the config would keep the notice).
+struct Acknowledgements(tokio::sync::watch::Sender<u64>);
+impl Default for Acknowledgements {
+    fn default() -> Self {
+        Self(tokio::sync::watch::channel(0).0)
+    }
+}
+
+/// A receiver that wakes each time the notice is acknowledged through [`announce_acknowledged`].
+pub fn acknowledgements(store: &Store) -> tokio::sync::watch::Receiver<u64> {
+    store.extension(Acknowledgements::default).0.subscribe()
+}
+
+/// Wakes every receiver of [`acknowledgements`].
+pub fn announce_acknowledged(store: &Store) {
+    store.extension(Acknowledgements::default).0.send_modify(|count| *count += 1);
+}
+
 /// Records that the block was seen. Answers whether there was one to clear.
 pub fn acknowledge(state_dir: &Path) -> std::io::Result<bool> {
     let Some(block) = status(state_dir) else { return Ok(false) };

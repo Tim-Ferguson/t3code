@@ -79,11 +79,15 @@ async fn forward_callback(callback: &url::Url) -> bool {
     let Ok(client) = reqwest::Client::builder().no_proxy().redirect(reqwest::redirect::Policy::none()).timeout(FORWARD_TIMEOUT).build() else { return false };
     client.get(callback.as_str()).send().await.is_ok_and(|response| response.status().is_success())
 }
+/// A native session id is a version 4 UUID; anything else names no file of ours.
+pub(crate) fn is_native_session_id(session_id: &str) -> bool {
+    static NATIVE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    NATIVE.get_or_init(|| regex::Regex::new(r"(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").unwrap()).is_match(session_id)
+}
 /// `removeAntigravitySessionFiles`: the temporary session a sign-in made is removed once its process has ended. The
 /// unique temporary working directory proves which session is ours.
-fn remove_session_files(profile: &Path, session_id: &str, cwd: &Path) {
-    let native = regex::Regex::new(r"(?i)^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$").unwrap();
-    if !native.is_match(session_id) {
+pub(crate) fn remove_session_files(profile: &Path, session_id: &str, cwd: &Path) {
+    if !is_native_session_id(session_id) {
         return;
     }
     let directory = profile.join("antigravity-acp");
@@ -207,7 +211,10 @@ impl AntigravityAuth {
         let started = json!({"version":initialize["agentInfo"]["version"],"setup":serde_json::to_value(&session.setup_response).unwrap_or_default()});
         let session_id = session.setup_response.session_id.to_string();
         let (label, auth_type) = (auth.label(), auth.auth_method.clone());
-        self.registry.antigravity_update(&self.instance.instance_id, |_, snapshot, now| crate::antigravity_instance::session_started(snapshot, &started, None, label, &auth_type, now));
+        self.registry.antigravity_update(&self.instance.instance_id, |instance, snapshot, now| {
+            crate::antigravity_instance::session_started(snapshot, &started, None, label, &auth_type, now);
+            snapshot["supportsTextGeneration"] = json!(instance.text_generation_available());
+        });
         session.shutdown().await;
         self.close_peer().await;
         if let Some(profile) = profile {

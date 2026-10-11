@@ -10,11 +10,11 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use t3_contracts::ExecutionEnvironmentDescriptor;
-use t3_remote::cloud_link::*;
-use t3_remote::endpoint_runtime::*;
+use crate::cloud_link::*;
+use crate::endpoint_runtime::*;
 pub mod ssh_fakes;
 
-use t3_remote::relay_client::{
+use crate::relay_client::{
     InstallError, InstallProgressStage, RelayClientResolver, RelayClientStatus,
 };
 
@@ -47,7 +47,7 @@ pub fn temp_dir(name: &str) -> tempfile::TempDir {
 
 /// The rows of the oracle fixture (`rust/tools/generate_remote_fixtures.mjs`) of one kind.
 pub fn fixture_rows(kind: &str) -> Vec<Value> {
-    let text = include_str!("../fixtures/remote.txt");
+    let text = include_str!("../../tests/fixtures/remote.txt");
     text.lines()
         .map(|line| serde_json::from_str::<Value>(line).expect("fixture row"))
         .filter(|row| row["kind"] == kind)
@@ -156,20 +156,20 @@ impl PairingIssuer for FakePairing {
     }
 }
 
-pub struct FakeCredentials(pub Option<t3_remote::cli_token::PersistedToken>);
+pub struct FakeCredentials(pub Option<crate::cli_token::PersistedToken>);
 
 #[async_trait]
 impl CliCredentials for FakeCredentials {
     async fn get_existing(
         &self,
-    ) -> Result<Option<t3_remote::cli_token::PersistedToken>, t3_remote::cli_token::CliTokenError>
+    ) -> Result<Option<crate::cli_token::PersistedToken>, crate::cli_token::CliTokenError>
     {
         Ok(self.0.clone())
     }
 }
 
-pub fn token(access: &str) -> t3_remote::cli_token::PersistedToken {
-    t3_remote::cli_token::PersistedToken {
+pub fn token(access: &str) -> crate::cli_token::PersistedToken {
+    crate::cli_token::PersistedToken {
         access_token: access.into(),
         refresh_token: "refresh".into(),
         expires_at_epoch_ms: i64::MAX / 2,
@@ -184,7 +184,7 @@ impl FixedResolver {
     pub fn available() -> Arc<Self> {
         Arc::new(Self(Mutex::new(RelayClientStatus::Available {
             executable_path: "/fake/cloudflared".into(),
-            source: t3_remote::relay_client::ExecutableSource::Override,
+            source: crate::relay_client::ExecutableSource::Override,
             version: "test".into(),
         })))
     }
@@ -582,12 +582,12 @@ pub fn header_map(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
 
 // ---- clock, scripted control plane, harness ------------------------------------------------
 
-use t3_remote::backoff::{FixedRandom, Random};
-use t3_remote::clock::Clock;
-use t3_remote::control_plane::{ControlPlane, HttpControlPlane, RelayResult};
-use t3_remote::jwt::KeyPair;
-use t3_remote::secrets::MemorySecretStore;
-use t3_remote::types::*;
+use crate::backoff::{FixedRandom, Random};
+use crate::clock::Clock;
+use crate::control_plane::{ControlPlane, HttpControlPlane, RelayResult};
+use crate::jwt::KeyPair;
+use crate::secrets::MemorySecretStore;
+use crate::types::*;
 
 pub const NOW_MS: i64 = 1_700_000_000_000;
 
@@ -624,7 +624,7 @@ pub struct Harness {
 
 pub struct HarnessOptions {
     pub secrets: Vec<(&'static str, String)>,
-    pub token: Option<t3_remote::cli_token::PersistedToken>,
+    pub token: Option<crate::cli_token::PersistedToken>,
     pub relay_url: Option<String>,
     pub control_plane: Arc<dyn ControlPlane>,
     pub port: Option<u16>,
@@ -650,7 +650,7 @@ impl Harness {
     pub fn new(options: HarnessOptions) -> Self {
         let secrets = Arc::new(MemorySecretStore::new());
         for (name, value) in &options.secrets {
-            use t3_remote::secrets::SecretStore;
+            use crate::secrets::SecretStore;
             secrets.set(name, value.as_bytes()).unwrap();
         }
         let spawner = FakeSpawner::new();
@@ -698,7 +698,7 @@ pub fn http_control_plane() -> Arc<dyn ControlPlane> {
 
 /// The relay's mint key pair and a stored-link secret set that trusts it.
 pub fn linked_secrets(relay_url: &str, relay_keys: &KeyPair) -> Vec<(&'static str, String)> {
-    use t3_remote::secrets::*;
+    use crate::secrets::*;
     vec![
         (CLOUD_LINKED_USER_ID, "user-123".into()),
         (RELAY_URL_SECRET, relay_url.into()),
@@ -787,12 +787,12 @@ impl ScriptedControlPlane {
     }
 }
 
-pub fn unavailable() -> t3_remote::relay_error::RelayRequestError {
-    t3_remote::relay_error::RelayRequestError::transport("TransportError")
+pub fn unavailable() -> crate::relay_error::RelayRequestError {
+    crate::relay_error::RelayRequestError::transport("TransportError")
 }
 
-pub fn forbidden() -> t3_remote::relay_error::RelayRequestError {
-    t3_remote::relay_error::filter_relay_response(403, None, b"").unwrap_err()
+pub fn forbidden() -> crate::relay_error::RelayRequestError {
+    crate::relay_error::filter_relay_response(403, None, b"").unwrap_err()
 }
 
 #[async_trait]

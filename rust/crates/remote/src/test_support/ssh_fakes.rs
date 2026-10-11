@@ -10,8 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use t3_remote::ssh_auth::{DisabledSshPasswordPrompt, SshAuthHost};
-use t3_remote::ssh_tunnel::*;
+use crate::ssh_auth::{DisabledSshPasswordPrompt, SshAuthHost};
+use crate::ssh_tunnel::*;
 
 #[derive(Debug, Clone)]
 pub struct RecordedCall {

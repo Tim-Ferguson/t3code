@@ -965,7 +965,7 @@ const STAMP_THEIR_OWN: [&str; 19] = [
 ];
 
 /// `isQueuedProviderThreadPlaceholder`: a provider thread reserved for a queued run, not yet the thread's.
-fn queued_provider_thread_placeholder(provider_thread: &Value) -> bool {
+pub(crate) fn queued_provider_thread_placeholder(provider_thread: &Value) -> bool {
     provider_thread["status"] == "not_loaded" && provider_thread["firstRunOrdinal"].is_null() && provider_thread["nativeThreadRef"].is_null() && provider_thread["providerSessionId"].is_null()
 }
 

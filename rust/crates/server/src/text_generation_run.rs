@@ -417,6 +417,17 @@ impl CliRunner {
         outcome.unwrap_or_else(|_| Err(failed("Pi request timed out.")))
     }
 
+    /// `makeOpenCodeTextGeneration` / `OpenCode2TextGeneration.make`, by the generation of the instance's server.
+    async fn opencode(&self, instance: crate::opencode_instance::OpenCodeInstance, clock: Arc<dyn crate::scheduled_tasks::SchedulerClock>, request: Request) -> Result<Value, TextGenerationError> {
+        let run = crate::text_generation_opencode::Run { instance: &instance, clock, attachments_dir: self.attachments_dir.as_deref(), timeout: self.timeout() };
+        run.text(&request).await
+    }
+
+    /// `makeAntigravityTextGeneration`.
+    async fn antigravity(&self, instance: crate::antigravity_instance::AntigravityInstance, request: Request) -> Result<Value, TextGenerationError> {
+        crate::text_generation_antigravity::run(&instance, &request, self.timeout()).await
+    }
+
     fn timeout(&self) -> Duration {
         (self.options)().timeout
     }
@@ -431,6 +442,8 @@ impl Runner for CliRunner {
                 Some(TextInstance::Codex(instance, models)) => Box::pin(self.codex(instance, models, request)).await,
                 Some(TextInstance::Claude(instance)) => Box::pin(self.claude(instance, request)).await,
                 Some(TextInstance::Pi(instance)) => Box::pin(self.pi(instance, request)).await,
+                Some(TextInstance::OpenCode(instance, clock)) => Box::pin(self.opencode(instance, clock, request)).await,
+                Some(TextInstance::Antigravity(instance)) => Box::pin(self.antigravity(instance, request)).await,
                 Some(TextInstance::Other(driver)) => Err(TextGenerationError::new(request.operation, format!("Provider driver '{driver}' cannot write text in this server."))),
             }
         })

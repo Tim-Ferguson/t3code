@@ -30,6 +30,14 @@ impl Client {
     pub(crate) async fn session_create(&self, permission: &Value) -> Result<Value, ApiError> {
         self.call(Method::POST, "/session".into(), Some(json!({"permission":permission})), None).await
     }
+    /// A session with a title, as text generation names its temporary ones.
+    pub(crate) async fn session_create_titled(&self, title: &str, permission: &Value) -> Result<Value, ApiError> {
+        self.call(Method::POST, "/session".into(), Some(json!({"title":title,"permission":permission})), None).await
+    }
+    /// `session.prompt`: the route answers when the generation ends, which can be long.
+    pub(crate) async fn prompt(&self, session: &str, body: &Value) -> Result<Value, ApiError> {
+        self.call(Method::POST, format!("/session/{}/message", segment(session)), Some(body.clone()), Some(Duration::from_secs(24 * 60 * 60))).await
+    }
     pub(crate) async fn session_get(&self, session: &str) -> Result<Value, ApiError> {
         self.call(Method::GET, format!("/session/{}", segment(session)), None, None).await
     }

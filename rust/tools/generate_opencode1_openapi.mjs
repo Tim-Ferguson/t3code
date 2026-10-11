@@ -26,6 +26,7 @@ for (const statement of source.statements) {
 // The operations the adapter and the instance use (the SDK's class and method name, and its request type).
 const OPERATIONS = [
   ["session.create", "SessionCreateData"],
+  ["session.prompt", "SessionPromptData"],
   ["session.get", "SessionGetData"],
   ["session.update", "SessionUpdateData"],
   ["session.children", "SessionChildrenData"],

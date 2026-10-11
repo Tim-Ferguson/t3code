@@ -21,6 +21,8 @@ t3-vcs.workspace = true
 # T3 Connect: the cloud link, the managed tunnel and the relay client (`connect.rs` wires them in).
 t3-remote = { path = "../remote" }
 async-trait = "0.1"
+# The pairing QR code `pair --tailscale` prints (the library the original's `@t3tools/shared/qrCode` is).
+qrcodegen = "1.8"
 # Verifies DPoP proofs (ES256), which `dpop.rs` checks the way the original's noble-curves does.
 ring = "0.17"
 serde.workspace = true
@@ -56,6 +58,8 @@ outbound-check = []
 
 [dev-dependencies]
 t3-server = { path = ".", features = ["outbound-check"] }
+# The fakes of the relay, the connector and the services, shared with the remote crate's own flows.
+t3-remote = { path = "../remote", features = ["test-support"] }
 flate2.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 tempfile = "3"

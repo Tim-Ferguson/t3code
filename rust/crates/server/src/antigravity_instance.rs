@@ -163,6 +163,12 @@ impl AntigravityInstance {
 
     // ---- the snapshot ----
 
+    /// Whether the profile allows text generation (`isAntigravityTextGenerationAvailable`); a profile that cannot be
+    /// read does not.
+    pub fn text_generation_available(&self) -> bool {
+        self.directories().is_some_and(|(profile, _)| crate::text_generation_antigravity::available(&profile).unwrap_or(false))
+    }
+
     fn base_snapshot(&self) -> Value {
         let mut snapshot = json!({
             "instanceId":self.instance_id,"driver":"antigravity","displayName":self.display_name,"enabled":self.enabled,
@@ -206,6 +212,7 @@ impl AntigravityInstance {
                 snapshot["version"] = json!(executable.version.clone().unwrap_or_else(|| "unknown".into()));
                 snapshot["message"] = json!(AUTH_UNCHECKED_MESSAGE);
                 snapshot["skills"] = json!(discover_skills(cwd, &self.user_home()).unwrap_or_default());
+                snapshot["supportsTextGeneration"] = json!(self.text_generation_available());
                 finish(snapshot)
             }
         }
@@ -541,6 +548,7 @@ pub fn keep_signed_out(previous: &Value, next: &mut Value) {
     {
         next["auth"] = previous["auth"].clone();
         next["message"] = json!(SIGN_IN_MESSAGE);
+        next["supportsTextGeneration"] = json!(false);
     }
 }
 

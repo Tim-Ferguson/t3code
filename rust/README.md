@@ -114,7 +114,7 @@ which this server does not.
 
 Usage reads OpenCode and Antigravity as well as Claude Code and Codex (`usage_readers.rs`: OpenCode's databases and
 pre-migration JSON files under `OPENCODE_DATA_DIR`, Antigravity's per-conversation databases under `ANTIGRAVITY_DATA_DIR`, the
-default `~/.gemini/antigravity*` directories and each Antigravity instance's profile), opened read-only on every scan, with the
+default `~/.gemini/antigravity*` directories and each Antigravity instance's profile), opened read-only on every scan (the original reads them afresh on every scan too and caches only transcripts), with the
 original's alias merging; `tests/usage_readers_flow.rs` replays what the unchanged readers made of the same stores
 (`rust/tools/generate_usage_reader_fixtures.mjs`). Grok and Cursor are still not read. The pull request sync has a flow test
 (`tests/pull_request_sync_flow.rs`) over a fake GitHub.
@@ -137,6 +137,38 @@ key, and every request with `Authorization: DPoP` proves the key again, once per
 home) are the original's `t3 connect` commands; the running server writes `server-runtime.json` so `unlink` can ask it to stop its
 tunnel. Not ported: the offer to install the background service at the end of `t3 connect`. The relay, Clerk, GitHub releases and
 a Tailscale daemon are never contacted by the tests (loopback fakes only); the real hosted service is unverified.
+
+One-shot text generation (commit messages, change request content, branch names, thread titles) runs through Codex, Claude, Pi,
+OpenCode (1.x and 2.x, by what the instance's probe says the server is) and Antigravity (`text_generation_*.rs`); Cursor and Grok are not
+written for. OpenCode runs the prompt in a temporary session on the instance's own server with every tool refused (1.x denies, 2.x asks
+and rejects each ask as it arrives; 2.x removes the session afterwards, as the original does and its 1.x path does not). Antigravity runs
+a short ACP session of the instance's own login in an empty temporary directory, with no MCP servers and no client tools, and fails the
+request on any tool call, permission or question, written file, output beyond 128,000 UTF-16 units or model the account does not offer;
+a profile with global hooks or MCP configuration cannot write text (its `supportsTextGeneration` is false). Not ported: the original
+registers the Antigravity helper with the sign-in flow so a sign-out stops it (`withProcess`), and tells an OpenCode 2.x execution end it
+cannot decode from a readable one by its schema (here the readable reason is reported).
+
+The MCP OAuth server (`mcp_oauth.rs`, `mcp_oauth_http.rs`; `McpOAuth.ts`) lets agents T3 Code did not launch sign in to `/mcp`:
+`/.well-known/oauth-protected-resource[/mcp]`, `/.well-known/oauth-authorization-server`, `/oauth/mcp/{register,authorize,approval,decision,token}`,
+issuer and resource from the request's own `Host` (https behind `x-forwarded-proto: https`). A client id is its signed metadata
+(HMAC-SHA256 with the secret `mcp-oauth-signing-key`, byte-identical to the original's, so ids survive a restart and an import), a code lives in
+memory for 60 seconds and is spent by the first request that presents it, PKCE is S256 only, and the token is a 30-day bearer session of the
+`mcp-client` kind that only `/mcp` accepts (every other route refuses it). Approval is by a one-time pairing code (spent even when its scopes
+fall short; a code bound to a DPoP key is refused unspent) or one click of a browser session holding `access:write` and the scopes of the access
+chosen. A request to `/mcp` without a credential that looks like a provider token is pointed at the metadata (`resource_metadata`).
+
+The command line besides the server (`cli_commands.rs`): `--version`/`-v` prints `t3 v<version>`; `pair [--scope S]... [--ttl D] [--label L]`
+prints the credential alone (with `--tailscale [--tailscale-serve-port N]` it publishes the running server on the tailnet as the original does
+and prints the pairing URL with its QR code); `auth pairing create|list|revoke` and `auth session issue|list|revoke` print what the original's
+do; `project add|remove|rename` runs against the running server when one answers and on the state otherwise; `start` is `serve`, and
+`--no-browser` is accepted (nothing opens a browser). The hidden `__ssh-helper pick-port|wait-ready|runtime-port` and
+`__service-preflight` are what the remote SSH launch and a staged update run. The location flags are `--base-dir` (its `userdata`),
+`--state-dir` and `T3CODE_HOME`, else `.t3-rust` where `serve` keeps its state. Without `--assets` the server serves the web app bundled beside
+its executable (`client/index.html`) so the launch script's readiness probe of `/` gets a 2xx. Not done: `theme set|clear|show` (needs the
+backend environment theme store), `service install|restart|uninstall|status`, `update` and `uninstall` (they change the user's system; they
+would need the boot-service files `t3_remote::boot_service*` write, the pinned runtime and the self-update download wired to a real release
+feed), `app` (the desktop activation socket), `browser setup`, `trace summary`, `triage`, `connect` is as before, `serve` positional `cwd`,
+`--dev-url`, `--auto-bootstrap-project-from-cwd` and `--log-websocket-events`.
 
 A start that finds the original's database and no store of this server's own imports it first (see above). When that import
 fails the server does not open a store: it serves the environment descriptor, the web assets (`--assets`) and the failure at
@@ -176,6 +208,16 @@ comment, or a review that carries the line comments collected on the Code tab. I
 rewrites the title, description and your own remarks, files a pull request under a thread (shown
 in the thread header and as the badge of its sidebar row), starts a thread from one in a dialog,
 and lists the environment's pull requests.
+The Connections page has a T3 Connect section (`connect_page.rs`, `t3_client::connect`): the environment's link read from
+`GET /api/connect/link-state` when the page opens, when the window is focused again (a read newer than five seconds is kept) and
+after each change; switches for the managed tunnel (desktop only), for publishing agent activity and for holding webhooks while
+the environment is offline (managed links only), each gated on `relay:write` and on what the change needs; and the relay client's
+status with its installation (`cloud.getRelayClientStatus`, `cloud.installRelayClient`), confirmed first and followed step by step.
+The original links an environment with the account sign-in of the hosted service (Clerk) in the browser; this app has none, so it
+does not link: turning the link off and changing the preferences of an existing link work, and what needs the account token (linking,
+changing between a managed tunnel and publishing alone) is described, not offered. Link an environment with `t3 connect`.
+A pairing link made in the Authorized clients list can be shared: the panel offers the endpoint to reach the machine at, the link
+and a QR code (`t3_client::qr`, `qrcodegen`, the same generator as the original's `qrCode.ts`, compared by hash with its output).
 Pairing credentials exchange into bearer sessions;
 saved connections can be forgotten. The desktop UI defaults to the Rust server's
 port 3774, with `T3_SERVER_URL` available for another existing server. Mobile
@@ -321,6 +363,17 @@ open "<dir>/T3 Code.app"        # or run <dir>/T3 Code.app/Contents/MacOS/t3-ui 
 | `T3_DESKTOP_STATE_DIR` | Moves only the server's state directory. It is refused when it is inside `~/.t3`, the original app's live data.                                                                                                                  |
 | `T3_SERVER_BIN`        | The server program, instead of `t3-server` beside the app.                                                                                                                                                                       |
 | `T3_SERVER_URL`        | Use this existing server and start none.                                                                                                                                                                                         |
+
+The app learns that the server is ready from the `T3_SERVER_READY {json}` line the server prints on standard output once it is
+bound and every service runs (see the process contract above), not by asking it; the server's output, with its error output, is
+copied to `logs/server.log` as before. A server that prints no such line (the original's) is also asked over HTTP once three
+seconds have passed, and a start that is neither announced nor answering within the supervisor's sixty seconds is ended and
+tried again. `server.pid` is removed when the server has stopped on quit. When the server stops with the failure of the import
+of the original app's data (`GET /api/rust/state-import`), the window shows the import-failed screen, and "Try again" there starts
+the server again. The Connections page's T3 Connect section, relay client row and share panel are described in the UI list above:
+the share panel (QR code and the choice among advertised endpoints) offers the one endpoint this app has, the server's own loopback
+address, which gets no code because a device that scanned it would dial itself; LAN and Tailscale endpoints (the original's
+`getAdvertisedEndpoints`) need a server that listens beyond loopback, which this app does not start.
 
 The server is started with the environment of your login shell (`$SHELL -ilc`, then `/bin/zsh` or `/bin/bash`; `launchctl getenv
 PATH` on macOS as a last resort), so provider tools on your `PATH` are found when the app is opened from the Finder. The shell is

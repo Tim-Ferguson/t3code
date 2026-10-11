@@ -244,6 +244,11 @@ impl CliTokenManager {
         }
     }
 
+    /// A manager for a build that has no Clerk values: it reads what is stored and every use of the OAuth endpoints fails at once.
+    pub fn unconfigured(secrets: Arc<dyn SecretStore>, clock: Arc<dyn Clock>, hosted_app_url: String) -> Self {
+        Self::new(secrets, clock, CloudCliOAuthConfig::unconfigured(), hosted_app_url)
+    }
+
     fn read(&self) -> Result<Option<PersistedToken>, CliTokenError> {
         let Some(bytes) = self
             .secrets

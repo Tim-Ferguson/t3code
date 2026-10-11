@@ -1639,7 +1639,7 @@ version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab8ecd87370524b461f8557c119c405552c396ed91fc0a8eec68679eab26f94a"
 dependencies = [
- "libloading 0.7.4",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -4784,6 +4784,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcodegen"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4339fc7a1021c9c1621d87f5e3505f2805c8c105420ba2f2a4df86814590c142"
+
+[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5947,6 +5953,7 @@ dependencies = [
  "icu_normalizer",
  "indexmap",
  "libm",
+ "qrcodegen",
  "regex",
  "serde",
  "serde_json",
@@ -6010,6 +6017,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "t3-contracts",
+ "t3-remote",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -6040,6 +6048,7 @@ dependencies = [
  "libc",
  "notify 8.2.0",
  "portable-pty",
+ "qrcodegen",
  "rand 0.9.5",
  "regex",
  "reqwest",
@@ -6112,6 +6121,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tokio-tungstenite 0.28.0",
+ "url",
  "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",

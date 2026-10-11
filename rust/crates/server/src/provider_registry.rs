@@ -707,6 +707,12 @@ impl ProviderRegistry {
         if let Some(instance) = state.pi.get(instance_id) {
             return Some(TextInstance::Pi(instance.clone()));
         }
+        if let Some(instance) = state.opencode.get(instance_id) {
+            return Some(TextInstance::OpenCode(instance.clone(), self.idle_release().clock()));
+        }
+        if let Some(instance) = state.antigravity.get(instance_id) {
+            return Some(TextInstance::Antigravity(instance.clone()));
+        }
         Some(TextInstance::Other(snapshot["driver"].as_str().unwrap_or("").to_string()))
     }
     /// How one-shot text generations are bounded; tests tighten it.
@@ -723,6 +729,9 @@ pub enum TextInstance {
     Codex(CodexInstance, Vec<Value>),
     Claude(ClaudeInstance),
     Pi(crate::pi_instance::PiInstance),
+    /// With the clock its server's idle window runs on.
+    OpenCode(OpenCodeInstance, Arc<dyn crate::scheduled_tasks::SchedulerClock>),
+    Antigravity(AntigravityInstance),
     /// A driver with no adapter here.
     Other(String),
 }

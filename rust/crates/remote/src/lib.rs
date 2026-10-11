@@ -167,3 +167,8 @@ pub mod tailscale_pair;
 pub mod types;
 pub mod update_handoff;
 pub mod util;
+
+/// Fakes of everything outside the crate (a relay on loopback, a connector process, the server's services) for the flows of this
+/// crate and of the server (`test-support` feature).
+#[cfg(feature = "test-support")]
+pub mod test_support;

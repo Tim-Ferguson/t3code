@@ -175,19 +175,6 @@ pub struct ConnectOptions {
     pub allow_loopback_http_relay: bool,
 }
 
-/// The CLI's OAuth application when no Clerk values are configured. Its endpoints are empty, so any use of it fails at once
-/// as a request with no address; nothing is sent. (The original fails such a use with the missing-configuration error.)
-pub(crate) fn unconfigured_oauth() -> CloudCliOAuthConfig {
-    CloudCliOAuthConfig {
-        token_endpoint: String::new(),
-        device_authorization_endpoint: String::new(),
-        client_id: String::new(),
-        loopback_port: t3_remote::config::CLOUD_CLI_OAUTH_LOOPBACK_PORT,
-        redirect_uri: t3_remote::config::connect_loopback_redirect_uri(t3_remote::config::CLOUD_CLI_OAUTH_LOOPBACK_PORT),
-        scopes: t3_remote::config::CONNECT_OAUTH_SCOPES,
-    }
-}
-
 /// The T3 home for a state directory: the directory above `userdata`, or the state directory itself when it is not one.
 pub fn base_dir_of(state_dir: &Path) -> PathBuf {
     match (state_dir.file_name().and_then(|name| name.to_str()), state_dir.parent()) {
@@ -209,7 +196,7 @@ impl ConnectOptions {
             environment,
             relay_url: relay_url_config(&env, &defaults.relay_url).ok(),
             has_cloud_public_config: has_cloud_public_config(&env, &defaults),
-            cli_oauth: cloud_cli_oauth_config(&env, &defaults).unwrap_or_else(|_| unconfigured_oauth()),
+            cli_oauth: cloud_cli_oauth_config(&env, &defaults).unwrap_or_else(|_| CloudCliOAuthConfig::unconfigured()),
             hosted_app_url: hosted_app_url_config(&env).unwrap_or_else(|_| DEFAULT_HOSTED_APP_URL.to_owned()),
             local_port,
             control_plane: Arc::new(HttpControlPlane::new()),

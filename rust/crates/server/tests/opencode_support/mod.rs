@@ -25,6 +25,15 @@ impl FakeServer {
     }
     /// With a gate: the event labelled `label` is held back until [`FakeServer::release`] writes to the pipe.
     pub fn start_gated(directory: &Path, scenario: &str, protocol: &str, version: &str, entries: &Value, password: Option<&str>, gate: Option<&str>) -> Self {
+        Self::start_with(directory, scenario, protocol, version, entries, password, gate, None)
+    }
+    /// With the answers a status check gets before the first event subscription, for a recording that holds none
+    /// (`OPENCODE_FIXTURE_CANNED`: operation name to body).
+    pub fn start_canned(directory: &Path, scenario: &str, protocol: &str, version: &str, entries: &Value, password: Option<&str>, canned: &Value) -> Self {
+        Self::start_with(directory, scenario, protocol, version, entries, password, None, Some(canned))
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn start_with(directory: &Path, scenario: &str, protocol: &str, version: &str, entries: &Value, password: Option<&str>, gate: Option<&str>, canned: Option<&Value>) -> Self {
         let transcript = directory.join("transcript.json");
         let mut recording = json!({"scenario":scenario,"protocol":protocol,"version":version,"entries":entries});
         if let Some(label) = gate {
@@ -37,6 +46,9 @@ impl FakeServer {
         let status = directory.join("replay-status.json");
         let mut command = Command::new("python3");
         command.arg(FAKE).args(["serve", "--hostname=127.0.0.1", "--port=0"]).env_clear().env("OPENCODE_FIXTURE_TRANSCRIPT", &transcript).env("OPENCODE_FIXTURE_STATUS", &status).env("PATH", std::env::var("PATH").unwrap_or_default()).stdout(Stdio::piped()).stderr(Stdio::null());
+        if let Some(canned) = canned {
+            command.env("OPENCODE_FIXTURE_CANNED", canned.to_string());
+        }
         if let Some(password) = password {
             command.env(if protocol == "opencode-sdk.sse" { "OPENCODE_SERVER_PASSWORD" } else { "OPENCODE_PASSWORD" }, password);
         }
