@@ -21,6 +21,8 @@ pub enum Follow {
     /// Runs a git action again, the way its menu entry would: the control that owns the
     /// workspace asks what the original asks first (the default branch).
     Git { label: String, cwd: String, action: t3_client::git_actions::Action },
+    /// Opens a thread of this environment.
+    Thread { label: String, thread_id: String },
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Level {
@@ -80,7 +82,7 @@ pub(crate) fn dismiss(state: Store<UiModel>, id: u64) {
 }
 
 #[component]
-pub(crate) fn Host(state: Store<UiModel>) -> Element {
+pub(crate) fn Host(state: Store<UiModel>, transport: crate::runtime::TransportHandle) -> Element {
     let notices = state.notices().read().clone();
     if notices.is_empty() {
         return rsx! {};
@@ -98,6 +100,12 @@ pub(crate) fn Host(state: Store<UiModel>) -> Element {
                             button { class: "notice-follow", r#type: "button", onclick: { let id = notice.id; move |_| {
                                 state.notices().write().retain(|notice| notice.id != id);
                                 crate::git_control::ask(state, &cwd, crate::git_control::Ask::Start(crate::git_control::Spec::of(action)));
+                            } }, "{label}" }
+                        },
+                        Some(Follow::Thread { label, thread_id }) => rsx! {
+                            button { class: "notice-follow", r#type: "button", onclick: { let (id, transport) = (notice.id, transport.clone()); move |_| {
+                                state.notices().write().retain(|notice| notice.id != id);
+                                crate::runtime::select_thread(&transport, state, thread_id.clone());
                             } }, "{label}" }
                         },
                         _ => rsx! {},

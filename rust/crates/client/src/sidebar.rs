@@ -93,12 +93,17 @@ pub fn status(thread: &ThreadShell) -> Status {
 }
 
 /// When the latest run finished, as a shell lets a client tell (`presentThreadShell`).
-fn completed_at(thread: &ThreadShell) -> Option<chrono::DateTime<Utc>> {
+pub fn completed_at(thread: &ThreadShell) -> Option<chrono::DateTime<Utc>> {
     thread.latest_run_id.as_ref()?;
     match thread.latest_run_completed_at {
         Some(completed) => completed.map(|at| at.0),
         None => (thread.status == ThreadStatus::Idle || terminal(thread.status)).then_some(thread.updated_at.0),
     }
+}
+/// The status of the latest run as `presentThreadShell` words it: an idle thread's run completed.
+pub fn latest_run_status(thread: &ThreadShell) -> Option<&'static str> {
+    thread.latest_run_id.as_ref()?;
+    Some(if thread.status == ThreadStatus::Idle { "completed" } else { status_name(thread.status) })
 }
 /// `hasUnseenCompletion`: the latest run finished after the last time the thread was visited. A
 /// server that does not track visits (`lastVisitedAt` absent) never reports it.

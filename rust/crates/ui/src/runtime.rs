@@ -99,6 +99,10 @@ pub struct UiModel {
     pub diff: crate::diff_panel::DiffModel,
     /// The file the panel beside the conversation shows (opened from the file picker or the content search).
     pub file_panel: Option<crate::file_panel::Target>,
+    /// The files open in that panel, in the order they were opened; `file_panel` is the one shown.
+    pub file_tabs: Vec<crate::file_panel::Target>,
+    /// Whether the custom snooze dialog is open for the chosen threads.
+    pub custom_snooze: bool,
     pub rewind: crate::rollback::Model,
     pub palette: crate::command_palette::Model,
     /// Whether the open thread's branch control offers its picker, and how often something has
@@ -233,6 +237,14 @@ impl PartialEq for TransportHandle {
 #[cfg(feature = "desktop")]
 pub(crate) fn connected_to_loopback(handle: &TransportHandle) -> bool {
     handle.borrow().endpoint.as_ref().is_some_and(|endpoint| matches!(endpoint.http("").host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
+}
+
+/// `GET /api/rust/state-import` of a server whose import failed: that server serves nothing else. Any other answer
+/// (a missing route, a page, an unreachable server) is none.
+pub(crate) async fn probe_state_import(address: &str) -> Option<t3_contracts::StateImportStatus> {
+    let url = format!("{}/api/rust/state-import", address.trim_end_matches('/'));
+    let body = reqwest::Client::new().get(url).send().await.ok()?.json::<Value>().await.ok()?;
+    serde_json::from_value(body.get("stateImport")?.clone()).ok()
 }
 
 pub fn default_address() -> String {
@@ -1544,18 +1556,33 @@ pub async fn load_earlier(handle: TransportHandle, state: Store<UiModel>) -> Res
 /// and tunnelled connections work) with the connection's credential. The answer is dropped, as an
 /// error, when the connection it was asked on is no longer the one the caller is on.
 pub async fn post_environment_json(handle: &TransportHandle, state: Store<UiModel>, path: &str, payload: &Value) -> Result<Value, String> {
+    environment_json(handle, state, Some(payload), path).await
+}
+
+/// The same for a read (`payload` none) or a write: the pairing links and signed-in clients of the environment.
+pub(crate) async fn environment_json(handle: &TransportHandle, state: Store<UiModel>, payload: Option<&Value>, path: &str) -> Result<Value, String> {
     let Some(owner) = response_owner(handle, state) else { return Err("Reconnect to read this.".into()) };
     let (endpoint, token) = {
         let transport = handle.borrow();
         let Some(endpoint) = transport.endpoint.clone() else { return Err("Connect to a server to read this.".into()) };
         (endpoint, transport.bearer_token.clone())
     };
-    let request = reqwest::Client::new().post(endpoint.http(path)).header("x-t3-orchestration-protocol", "2").json(payload);
+    let client = reqwest::Client::new();
+    let request = match payload {
+        Some(payload) => client.post(endpoint.http(path)).json(payload),
+        None => client.get(endpoint.http(path)),
+    }
+    .header("x-t3-orchestration-protocol", "2");
     let answer = read_json_within(request, &token, path, 60).await;
     if response_owner(handle, state) != Some(owner) {
         return Err("The connection changed while this was being read.".into());
     }
     answer
+}
+
+/// The address this connection reaches the server at, for a link another device can open.
+pub(crate) fn connected_origin(handle: &TransportHandle) -> Option<String> {
+    handle.borrow().endpoint.as_ref().map(|endpoint| endpoint.http("").origin().ascii_serialization())
 }
 
 pub(crate) async fn delay(milliseconds: u64) {
@@ -2864,6 +2891,14 @@ mod review_tests;
 #[cfg(all(test, unix))]
 #[path = "git_action_tests.rs"]
 mod git_action_tests;
+
+#[cfg(all(test, unix))]
+#[path = "access_page_tests.rs"]
+mod access_page_tests;
+
+#[cfg(all(test, unix))]
+#[path = "import_notice_tests.rs"]
+mod import_notice_tests;
 
 #[cfg(all(test, unix))]
 #[path = "pull_request_tests.rs"]

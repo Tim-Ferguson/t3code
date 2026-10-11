@@ -129,3 +129,36 @@ async fn without_the_filesystem_grant_both_dialogs_say_so_and_ask_nothing() {
     }
     fixture.finish(dom).await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn files_open_as_tabs_a_markdown_file_renders_and_a_tab_closes_to_its_neighbour() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, _props, state) = connected(&fixture).await;
+    std::fs::create_dir_all(fixture.workspace.join("notes")).unwrap();
+    std::fs::write(fixture.workspace.join("notes/guide.md"), "# Guide heading\n\nSome *words* here.\n").unwrap();
+    std::fs::write(fixture.workspace.join("src/plain.txt"), "plain text line\n").unwrap();
+    let cwd = fixture.workspace.to_string_lossy().into_owned();
+    let owner = Some("thread-a".to_owned());
+    crate::file_panel::open(state, owner.clone(), cwd.clone(), "notes/guide.md".into(), None);
+    // One file is no row of tabs; its markdown is shown rendered, with a way to its source.
+    wait_for_rendered_text(&mut dom, "Guide heading").await;
+    assert!(control(&dom, "Close guide.md").is_none());
+    assert!(control(&dom, "Show markdown source").is_some());
+    crate::file_panel::open(state, owner, cwd, "src/plain.txt".into(), None);
+    wait_for_rendered_text(&mut dom, "plain text line").await;
+    assert_eq!(state.peek().file_tabs.iter().map(|tab| tab.path.as_str()).collect::<Vec<_>>(), ["notes/guide.md", "src/plain.txt"]);
+    assert!(control(&dom, "Close guide.md").is_some() && control(&dom, "Close plain.txt").is_some());
+    assert!(control(&dom, "Show markdown source").is_none(), "only markdown has the toggle");
+    // Back to the first tab, which draws its source on request.
+    click_when_enabled(&mut dom, "Close plain.txt").await;
+    until(&mut dom, "the neighbour", |dom| rendered_text(dom).contains("Guide heading")).await;
+    assert_eq!(state.peek().file_panel.as_ref().map(|target| target.path.clone()).as_deref(), Some("notes/guide.md"));
+    click_when_enabled(&mut dom, "Show markdown source").await;
+    wait_for_rendered_text(&mut dom, "# Guide heading").await;
+    assert!(control(&dom, "Show rendered markdown").is_some());
+    // Closing the last tab closes the panel.
+    click_when_enabled(&mut dom, "Close file").await;
+    until(&mut dom, "the panel gone", |dom| control(dom, "Close file").is_none()).await;
+    assert!(state.peek().file_tabs.is_empty());
+    fixture.finish(dom).await;
+}

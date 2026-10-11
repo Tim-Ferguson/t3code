@@ -303,3 +303,69 @@ async fn a_long_failure_is_shown_once_clamped_and_escape_dismisses_it() {
     assert!(control(&dom, "Retry action").is_none() && state.peek().git_runs.is_empty());
     fixture.finish(dom).await;
 }
+
+/// A repository with no remote offers "Publish repository"; the dialog finds the signed-in host and
+/// account, a refusal from the host stays in the dialog, and a second try creates the repository,
+/// adds the remote and pushes the branch.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_repository_without_a_remote_is_published_through_the_dialog() {
+    use crate::runtime::source_control_tests::world;
+    use crate::runtime::transport_tests::{click_when_enabled, input_when_enabled, until_enabled};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let world = world();
+    let _alone = world.exclusive().lock().await;
+    world.reset_everything_signed_in();
+    let fixture = Fixture::start(true).await;
+    let root = std::fs::canonicalize(fixture.directory.path()).unwrap();
+    let bare = root.join("published.git");
+    git(&root, &["init", "-q", "--bare", bare.to_str().unwrap()]);
+    let refuse = std::sync::Arc::new(AtomicBool::new(true));
+    {
+        let (refuse, bare) = (refuse.clone(), bare.clone());
+        world.script(std::sync::Arc::new(move |asked| {
+            if asked.method == "GET" && asked.path.ends_with("/user") {
+                return Some((200, r#"{"login":"octo","id":1}"#.into()));
+            }
+            if asked.method == "POST" && asked.path.ends_with("/user/repos") {
+                if refuse.load(Ordering::SeqCst) {
+                    return Some((422, r#"{"message":"name already exists on this account"}"#.into()));
+                }
+                return Some((201, serde_json::json!({"full_name":"octo/widgets","html_url":"https://github.com/octo/widgets","ssh_url":bare,"default_branch":"main"}).to_string()));
+            }
+            None
+        }));
+    }
+    let (mut dom, props) = client(&fixture, WRITER);
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+
+    click_when_enabled(&mut dom, "Publish repository").await;
+    // The scan finds the signed-in hosts; the first by name is chosen, as in the original, and a host that is not ready says so.
+    until_enabled(&mut dom, "Next").await;
+    assert!(rendered_text(&dom).contains("Setup Required"), "{}", rendered_text(&dom));
+    assert_eq!(control_attribute(&dom, "Azure DevOps", "aria-checked").unwrap().1.as_deref(), Some("true"));
+    click_control(&mut dom, "GitHub");
+    assert_eq!(control_attribute(&dom, "GitHub", "aria-checked").unwrap().1.as_deref(), Some("true"));
+    click_control(&mut dom, "Next");
+    // The account is the start of the repository, which needs a name after it.
+    until(&mut dom, "the repository step", |dom| control(dom, "Repository").is_some()).await;
+    assert_eq!(control_attribute(&dom, "Repository", "value").unwrap().1.as_deref(), Some("octo/"));
+    assert_eq!(control_attribute(&dom, "Publish", "disabled").unwrap().1.as_deref(), Some("true"), "an owner alone is not a repository");
+    input_when_enabled(&mut dom, "Repository", "octo/widgets").await;
+    click_when_enabled(&mut dom, "Publish").await;
+    wait_for_rendered_text(&mut dom, "name already exists on this account").await;
+    assert!(rendered_text(&dom).contains("Publish failed") && control(&dom, "Repository").is_some(), "the refusal stays in the dialog, ready for another try");
+
+    refuse.store(false, Ordering::SeqCst);
+    click_when_enabled(&mut dom, "Publish").await;
+    wait_for_rendered_text(&mut dom, "Repository published").await;
+    let branch = git(&fixture.workspace, &["rev-parse", "--abbrev-ref", "HEAD"]).trim().to_owned();
+    assert!(rendered_text(&dom).contains(&format!("{branch} is now live on GitHub.")) && rendered_text(&dom).contains("octo/widgets"));
+    assert_eq!(git(&bare, &["rev-parse", &format!("refs/heads/{branch}")]).trim(), git(&fixture.workspace, &["rev-parse", "HEAD"]).trim());
+    assert_eq!(git(&fixture.workspace, &["remote"]).trim(), "origin");
+    click_control(&mut dom, "Done");
+    assert!(control(&dom, "Done").is_none());
+    assert_eq!(error(state), None);
+    fixture.finish(dom).await;
+}

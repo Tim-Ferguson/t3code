@@ -21,6 +21,7 @@ indexmap.workspace = true
 serde_json.workspace = true
 serde.workspace = true
 chrono.workspace = true
+base64.workspace = true
 dioxus-stores = "0.7"
 dioxus = { workspace = true, features = ["document", "asset", "mounted"] }
 ewebsock = { version = "0.8", features = ["tls"] }

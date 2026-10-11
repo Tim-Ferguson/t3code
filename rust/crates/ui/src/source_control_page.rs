@@ -403,7 +403,7 @@ fn FetchInterval(state: Store<UiModel>, saving: bool, writable: bool, onsave: Ev
         section { class: "sc-section", "aria-label": "Git fetch interval",
             h2 { "Git fetch interval" }
             p { class: "muted", "Refresh remote branches in the background. Set to 0 to avoid automatic Git prompts. This interval is configured for Git only; the shared Background activity policy still decides whether Git refreshes may run when the timer fires." }
-            div { class: "field-row",
+            div { class: "fetch-stepper",
                 button { r#type: "button", "aria-label": "Decrease fetch interval", disabled: off || seconds == 0, onclick: move |_| onsave.call(interval::fetch_patch(&activity.peek(), Some(seconds.saturating_sub(interval::FETCH_STEP_SECONDS)))), "\u{2212}" }
                 input { r#type: "number", min: "0", step: "{interval::FETCH_STEP_SECONDS}", "aria-label": "Automatic Git fetch interval in seconds", value: "{seconds}", disabled: off,
                     onchange: move |event| { if let Some(next) = interval::parse_seconds(&event.value()).filter(|next| *next != seconds) { onsave.call(interval::fetch_patch(&activity.peek(), Some(next))) } } }

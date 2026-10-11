@@ -72,7 +72,11 @@ fn Layers(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
     });
     rsx! {
         div { class: "context-menu pr-stack-menu", role: "menu", "aria-label": "Stack #{number}", tabindex: "0",
-            onmounted: move |event| { drop(event.set_focus(true)); },
+            // Placed under the chip in the viewport, inside it: a list or a panel that clips its children would cut the popover off.
+            onmounted: move |event| {
+                drop(event.set_focus(true));
+                dioxus::document::eval("const m=document.querySelector('.pr-stack-menu');const c=m?.parentElement?.querySelector('.pr-stack-chip');if(m&&c){const r=c.getBoundingClientRect();const w=m.offsetWidth,h=m.offsetHeight;m.style.position='fixed';m.style.left=Math.max(8,Math.min(r.left,window.innerWidth-w-8))+'px';m.style.top=(r.bottom+h+8>window.innerHeight?Math.max(8,r.top-h-4):r.bottom+4)+'px';}");
+            },
             onclick: move |event| event.stop_propagation(),
             onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); on_close.call(()); } },
             p { class: "pr-stack-title", "Stack #{number}" }

@@ -156,6 +156,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                 div { key: "scoped:{scope}", ScopedRows { state, transport: transport.clone(), project: project.clone() } }
                 section { class: "sc-section", "aria-label": "Behavior",
                     h2 { "Behavior" }
+                    crate::notifications::ModeRow { state }
                     ClientRows { state, rows: &settings_rows::BEHAVIOR }
                     // These belong to the environment, not to one project.
                     if project.is_none() {

@@ -46,6 +46,7 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
     gitlab: "fixture-gitlab",
     conversations: "fixture-conversations",
     commitcheck: "fixture-commitcheck",
+    ship: "fixture-ship",
   };
   for (const [key, id] of Object.entries(projectIds)) {
     const title = paths.projects[key].split("/").pop();
@@ -252,6 +253,13 @@ export async function seed(rpc, { paths, say, resetAtSeconds, withGrok, hosts })
     project: "dirty",
     title: "Dirty tree: open the commit dialog and diff panel from here",
     text: "Summarise what is uncommitted.",
+  });
+
+  // -- a thread in the project the git actions run on ---------------------------------------------------------
+  await launch({
+    project: "ship",
+    title: "Ship: push, commit on a new branch, open a pull request",
+    text: "Summarise what is unpushed.",
   });
 
   // -- threads linked to the fake hosts' pull requests -----------------------------------------------------------

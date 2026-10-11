@@ -50,6 +50,15 @@ export function writeBin(paths, python) {
   wrapper("glab", join(TOOL_DIR, "fakes", "fake_glab.py"));
   wrapper("gh", join(TOOL_DIR, "fakes", "fake_gh.py"));
   wrapper("grok", join(FIXTURES, "grok-fake-cli.py"));
+  // The GitHub project's origin is named by a host that does not exist, and git's own URL rewriting would also change what
+  // `git remote -v` says (which is how the server reads the host). So only commands that read from a remote are rewritten
+  // to the local bare repository: that is what makes "Check out" a pull request succeed.
+  const bare = join(paths.remotes, "widgets.git");
+  writeFileSync(
+    join(paths.bin, "git"),
+    `#!/bin/sh\nfor arg in "$@"; do\n  case "$arg" in\n    fetch|ls-remote|pull)\n      exec /usr/bin/git -c ${shellQuote(`url.file://${bare}.insteadOf=https://github.t3code-test.invalid/acme/widgets.git`)} "$@" ;;\n  esac\ndone\nexec /usr/bin/git "$@"\n`,
+  );
+  chmodSync(join(paths.bin, "git"), 0o755);
   // The server opens editors and the file manager through `open` on macOS (the probe that lists them scans /Applications, which
   // no setting changes); this one refuses, so nothing of the developer's is launched.
   wrapper("open", join(TOOL_DIR, "fakes", "fake_refuse.py"));

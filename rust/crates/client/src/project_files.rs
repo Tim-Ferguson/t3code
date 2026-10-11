@@ -340,3 +340,15 @@ mod tests {
         assert!(lines("").is_empty());
     }
 }
+
+/// A path the panel shows as a picture (`isWorkspaceImagePreviewPath`).
+pub fn is_image_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    [".avif", ".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"].iter().any(|extension| lower.ends_with(extension))
+}
+
+/// A path whose contents the panel can show rendered (`isMarkdownPreviewFile`).
+pub fn is_markdown_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".mdx")
+}

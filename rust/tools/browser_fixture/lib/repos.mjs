@@ -181,7 +181,7 @@ export function buildBranchProject(
   path,
   remotePath,
   remoteUrl,
-  { title, branch, description },
+  { title, branch, description, pullRef },
 ) {
   initRepo(git, path);
   write(path, "README.md", describe(title, description));
@@ -223,10 +223,65 @@ export function buildBranchProject(
   git(path, "rm", "-q", "src/legacy.ts");
   git(path, "commit", "-q", "-m", "Remove the legacy module");
   git(path, "push", "-q", "-u", "origin", branch);
+  // The ref a host publishes for a pull request's head, which "Check out" fetches.
+  if (pullRef) {
+    git(path, "push", "-q", "origin", `HEAD:refs/pull/${pullRef}/head`);
+    // A second pull request's branch, which exists only on the remote: checking it out has to fetch it.
+    git(path, "switch", "-q", "-c", "feature/smoke-test", "main");
+    write(
+      path,
+      "src/smoke.test.ts",
+      `import { name } from "./index";\nconsole.assert(name.length > 0);\n`,
+    );
+    git(path, "add", ".");
+    git(path, "commit", "-q", "-m", "Add a passing smoke test");
+    git(path, "push", "-q", "origin", "feature/smoke-test");
+    git(path, "push", "-q", "origin", `HEAD:refs/pull/${pullRef + 1}/head`);
+    git(path, "switch", "-q", branch);
+    git(path, "branch", "-q", "-D", "feature/smoke-test");
+  }
   // From here the remote has the host's name, and only pushes still reach the local bare repository:
   // `git remote -v` reports the fetch URL as written, which is what makes the server read a host.
   git(path, "remote", "set-url", "origin", remoteUrl);
   git(path, "config", `url.file://${remotePath}.pushInsteadOf`, remoteUrl);
+}
+
+/**
+ * A second clone of the GitHub project's repository, for the git actions. It sits on `feature/ship-demo` with one commit
+ * that is not pushed and two uncommitted edits (one tracked, one new), so push, commit and push, commit on a new branch
+ * and "Create PR" each have something to do. The bare remote can be made to refuse pushes (see `refuseWhenToggled`).
+ */
+export function buildShipProject(git, path, remotePath, remoteUrl) {
+  git(dirname(path), "clone", "-q", `file://${remotePath}`, path);
+  git(path, "config", "user.name", "Fixture Author");
+  git(path, "config", "user.email", "fixture-author@example.invalid");
+  git(path, "config", "commit.gpgsign", "false");
+  git(path, "switch", "-q", "-c", "feature/ship-demo");
+  write(
+    path,
+    "README.md",
+    describe(
+      "t3code-rust-port-test-ship",
+      "A second clone of the GitHub project's repository, for the git actions.",
+    ),
+  );
+  git(path, "add", ".");
+  git(path, "commit", "-q", "-m", "Describe the ship project");
+  write(path, "src/config.ts", `export const config = { retries: 2, timeoutMs: 1500 };\n`);
+  write(path, "src/ship.ts", `export const ship = () => "shipped";\n`);
+  git(path, "remote", "set-url", "origin", remoteUrl);
+  git(path, "config", `url.file://${remotePath}.pushInsteadOf`, remoteUrl);
+}
+
+/** A hook that makes the bare repository refuse every push while the file `<toggles>/push` exists. */
+export function refuseWhenToggled(remotePath, toggles) {
+  const hook = join(remotePath, "hooks", "pre-receive");
+  mkdirSync(dirname(hook), { recursive: true });
+  writeFileSync(
+    hook,
+    `#!/bin/sh\nif [ -e '${join(toggles, "push")}' ]; then\n  echo 'fixture: the remote refused this push' >&2\n  exit 1\nfi\nexit 0\n`,
+    { mode: 0o755 },
+  );
 }
 
 export function buildPlainProject(git, path, title, description) {

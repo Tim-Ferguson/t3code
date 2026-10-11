@@ -1111,6 +1111,7 @@ pub fn ThemeControls() -> Element {
         .collect();
     rsx! {
         if let Some(error)=themes.error.read().clone(){p {class:"error-banner",role:"alert","{error}"}}
+        div {class:"appearance-choices",
         label {"Appearance mode"}
         select {"aria-label":"Appearance mode",disabled,value:snapshot.appearance_mode.key(),onchange:move|event|{if let Some(mode)=Mode::parse(&event.value()){mode_service.change(Action::Mode(mode));}},
             for (mode,label) in [(Mode::System,"System"),(Mode::Light,"Light"),(Mode::Dark,"Dark")] {option {value:mode.key(),selected:mode==snapshot.appearance_mode,"{label}"}}
@@ -1131,6 +1132,7 @@ pub fn ThemeControls() -> Element {
                     for theme in &options{option {value:theme.id.clone(),selected:theme.id==owner,disabled:theme.colors(mode).is_none(),"{theme.label}"}}
                 }
             }}
+        }
         }
         crate::theme_library::ThemeLibrary {}
     }

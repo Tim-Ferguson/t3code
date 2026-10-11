@@ -100,6 +100,9 @@ pub struct ServerConfig {
     pub pid_file: Option<PathBuf>,
     pub host: String,
     pub port: u16,
+    /// The login shell's environment for the server (`shell_env`), asked for once and reused for every start;
+    /// None starts the server with the environment this app has.
+    pub login_shell: Option<std::sync::Arc<crate::shell_env::Cached>>,
 }
 
 impl ServerConfig {
@@ -164,10 +167,10 @@ impl Process for ChildProcess {
         }
     }
     fn terminate(&mut self) {
-        // The server finishes its work on an interrupt; it does not handle the terminate signal.
+        // The server finishes its work on a terminate signal (and on an interrupt).
         #[cfg(unix)]
         if let Some(pid) = self.pid {
-            unsafe { libc::kill(pid as i32, libc::SIGINT) };
+            unsafe { libc::kill(pid as i32, libc::SIGTERM) };
             return;
         }
         let _ = self.child.start_kill();
@@ -238,6 +241,10 @@ impl Launcher for ServerLauncher {
         // Provider tools are found the way the person's own shell finds them, not through the server's
         // settings of an earlier run.
         command.env_remove("T3CODE_HOME").env_remove("T3CODE_PORT").env_remove("T3CODE_HOST").env_remove("T3CODE_MODE").env_remove("T3CODE_BOOTSTRAP_FD");
+        // A program started from the Finder has launchd's bare environment: the server gets what the person's login shell has.
+        if let Some(login_shell) = &self.config.login_shell {
+            command.envs(login_shell.get());
+        }
         let line = self.config.bootstrap_line(&credential);
         #[cfg(unix)]
         {
@@ -357,7 +364,7 @@ mod tests {
 
     #[test]
     fn the_server_is_started_in_desktop_mode_on_loopback_with_the_credential_on_the_descriptor_not_in_the_arguments() {
-        let config = ServerConfig { binary: "/app/t3-server".into(), state_dir: "/data/server".into(), log_file: "/data/logs/server.log".into(), pid_file: None, host: "127.0.0.1".into(), port: 3775 };
+        let config = ServerConfig { binary: "/app/t3-server".into(), state_dir: "/data/server".into(), log_file: "/data/logs/server.log".into(), pid_file: None, host: "127.0.0.1".into(), port: 3775, login_shell: None };
         assert_eq!(config.address(), "http://127.0.0.1:3775");
         assert_eq!(config.args(), ["serve", "--state-dir", "/data/server", "--host", "127.0.0.1", "--port", "3775", "--mode", "desktop", "--bootstrap-fd", "3"]);
         let credential = new_credential();
@@ -417,7 +424,7 @@ mod tests {
         let script = directory.join("t3-server");
         std::fs::write(&script, format!("#!/bin/sh\n{body}\n")).unwrap();
         std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
-        ServerConfig { binary: script, state_dir: directory.join("state"), log_file: directory.join("logs/server.log"), pid_file: Some(directory.join("server.pid")), host: "127.0.0.1".into(), port: 3779 }
+        ServerConfig { binary: script, state_dir: directory.join("state"), log_file: directory.join("logs/server.log"), pid_file: Some(directory.join("server.pid")), host: "127.0.0.1".into(), port: 3779, login_shell: None }
     }
 
     #[cfg(unix)]
@@ -443,6 +450,31 @@ mod tests {
         process.wait().await;
         assert_eq!(second.last_words(), Some("to stderr".into()));
         assert!(std::fs::read_to_string(&second.config.log_file).unwrap().matches("envelope:").count() == 2);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_server_is_started_with_the_login_shells_path_asked_for_once() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::tempdir().unwrap();
+        // A login shell at a temporary path, never the person's own: it adds a directory of provider tools to PATH.
+        let shell = directory.path().join("fake-login-shell");
+        let asked = directory.path().join("asked");
+        std::fs::write(&shell, format!("#!/bin/sh\necho asked >> '{}'\nPATH='/only/the/shell/knows:/usr/bin:/bin'; export PATH\nshift\nexec /bin/sh -c \"$1\"\n", asked.display())).unwrap();
+        std::fs::set_permissions(&shell, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut shell_config = crate::shell_env::Config::for_process();
+        shell_config.env = [("SHELL".to_owned(), shell.to_string_lossy().into_owned()), ("PATH".to_owned(), "/usr/bin:/bin".to_owned())].into();
+        shell_config.fallback_shell = None;
+        let mut config = stand_in(directory.path(), "echo \"path: $PATH\"");
+        config.login_shell = Some(std::sync::Arc::new(crate::shell_env::Cached::new(shell_config)));
+        let mut launcher = ServerLauncher::new(config.clone());
+        for attempt in 1..=2 {
+            let Launched { mut process, .. } = launcher.launch(attempt).unwrap();
+            process.wait().await;
+        }
+        let log = std::fs::read_to_string(&config.log_file).unwrap();
+        assert_eq!(log.matches("path: /only/the/shell/knows:").count(), 2, "{log}");
+        assert_eq!(std::fs::read_to_string(&asked).unwrap().lines().count(), 1, "the shell was asked once for two starts");
     }
 
     #[cfg(unix)]

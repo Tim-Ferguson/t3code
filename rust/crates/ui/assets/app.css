@@ -544,7 +544,8 @@ select:focus-visible {
   font-size: 1.125rem;
   margin: 0 0 20px;
 }
-.dialog form {
+.dialog form,
+.dialog .dialog-form {
   display: grid;
   gap: 8px;
 }
@@ -7421,7 +7422,8 @@ body.sidebar-dragging {
 .shell-banner {
   position: fixed;
   top: 0;
-  left: 0;
+  /* Over the main column only: the sidebar's own header stays visible. */
+  left: 260px;
   right: 0;
   z-index: 60;
   display: flex;
@@ -7470,4 +7472,343 @@ body.sidebar-dragging {
   font-size: 24px;
   font-weight: 700;
   box-shadow: 0 20px 40px rgb(0 0 0 / 25%);
+}
+
+/* Publish repository dialog. */
+.publish-dialog {
+  width: min(520px, 100%);
+}
+.publish-dialog h2 {
+  margin-bottom: 8px;
+}
+.publish-dialog > p {
+  margin: 0 0 12px;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+}
+.publish-steps {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.publish-step.current {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.publish-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.publish-label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.publish-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.publish-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.publish-card.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+.publish-card.unavailable {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.publish-setup {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  color: var(--warning, #b45309);
+}
+.publish-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.publish-path {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.publish-host {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-right: 1px solid var(--border);
+  background: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  color: var(--muted-foreground);
+}
+.publish-dialog .publish-path input {
+  border: 0;
+  font-family: var(--font-mono);
+}
+.publish-advanced {
+  justify-self: start;
+  border: 0;
+  background: none;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.publish-options {
+  display: grid;
+  gap: 8px;
+}
+.publish-error {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--destructive, #dc2626) 40%, transparent);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--destructive, #dc2626);
+  background: color-mix(in srgb, var(--destructive, #dc2626) 8%, transparent);
+}
+.publish-error-title {
+  margin: 0 0 2px;
+  font-weight: 600;
+}
+.publish-done {
+  justify-items: center;
+  text-align: center;
+}
+.publish-done h3 {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.publish-name {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.publish-open {
+  font-size: 0.8125rem;
+}
+
+/* Appearance: each choice's label beside its select, without a label wrapping onto two lines. */
+.appearance-choices {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 20rem);
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 12px;
+}
+.appearance-choices > label {
+  margin: 0;
+  white-space: nowrap;
+}
+/* Source control: the fetch interval's stepper is a compact row, not three equal columns. */
+.fetch-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.fetch-stepper input {
+  width: 6rem;
+}
+
+/* The one-time import of the original app's data: the first-run notice and the screen of a failed import. */
+.import-notice {
+  width: min(560px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.import-notice h3 {
+  margin: 14px 0 4px;
+  font-size: 0.8125rem;
+}
+.import-notice ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+.import-failed {
+  max-width: 640px;
+  margin: 12vh auto 0;
+  padding: 0 24px;
+}
+.import-error {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+/* Authorized clients on the Connections page. */
+.access-section {
+  margin-top: 24px;
+}
+.access-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.access-heading h2,
+.access-heading p {
+  margin: 0;
+}
+.access-actions {
+  display: flex;
+  gap: 8px;
+}
+.access-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.access-main {
+  flex: 1;
+  min-width: 0;
+}
+.access-main p {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+}
+.access-url {
+  width: 100%;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+.access-badge {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  background: var(--accent);
+}
+.access-dialog {
+  width: min(520px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+}
+.access-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.access-presets h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.access-scopes {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.access-scopes li + li {
+  border-top: 1px solid var(--border);
+}
+.dialog .access-scope {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.dialog .access-scope input {
+  width: auto;
+  margin-top: 2px;
+}
+
+@media (max-width: 760px) {
+  .shell-banner {
+    left: 0;
+  }
+}
+/* "Browse..." beside a project directory is a button of its own size, not a full-width grid row. */
+.dialog .browse-folder {
+  justify-self: start;
+  width: auto;
+}
+/* macOS desktop: the traffic lights sit over the page's top left corner, and the header is where the window is dragged. */
+.desktop-inset .brand {
+  padding-left: 82px;
+}
+.desktop-inset .workspace-header,
+.desktop-inset .brand {
+  user-select: none;
+}
+
+/* The file panel: tabs for the open files, rendered markdown and an image. */
+.file-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  width: 100%;
+  margin-bottom: 6px;
+}
+.file-tab {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.file-tab.selected {
+  background: var(--accent);
+}
+.file-tab-name,
+.file-tab-close {
+  border: 0;
+  background: none;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+  color: inherit;
+}
+.file-tab-name {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-markdown,
+.file-image {
+  padding: 8px 12px;
+  overflow: auto;
+}
+.file-image img {
+  max-width: 100%;
+  height: auto;
 }

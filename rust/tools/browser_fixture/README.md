@@ -65,6 +65,7 @@ Every project is named `t3code-rust-port-test-...` and its README says "Created 
 | `-gitlab`        | the GitLab merge request panel, same shape: `https://gitlab.t3code-test.invalid/acme/lab.git`, branch `feature/mr-panel-demo`                                                                                                                                                             |
 | `-conversations` | where most seeded threads run; the tree stays clean                                                                                                                                                                                                                                       |
 | `-commitcheck`   | `check.mjs` writes a file here and commits it through `git.runStackedAction`, to prove commit messages can be written                                                                                                                                                                     |
+| `-ship`          | the git actions: a second clone of the GitHub project's repository (same host, same bare remote) on `feature/ship-demo`, one commit not pushed and two uncommitted edits, so push, commit and push, commit on a new branch and create a pull request each have something to do            |
 
 ## The fakes
 
@@ -115,6 +116,19 @@ usage-limit stop, a pending question.
   the hook list). `--no-sandbox` removes it; on Linux there is none.
 - The server's PID is the process that was started (no shell wraps it); `stop.sh` checks its command and working directory first.
 - Nothing is committed, pushed or changed in this repository.
+
+## Toggles (making a write fail)
+
+A file in `<scratch>/toggles/` makes one fake write fail, so each git action shows both outcomes. Create it to fail, delete it to
+succeed; its text, if any, is the message. `push` makes the bare remote's `pre-receive` hook refuse every push; `createPullRequest`
+and `createRepository` make the fake GitHub API answer 422 to creating a pull request or a repository. Without them,
+`POST repos/*/*/pulls` opens the next pull request (#44 and on) and `POST user/repos` makes a bare repository under `remotes/` and
+answers with its `file://` URL, so "Publish repository" can finish. The fake `gh` answers for `github.com` too, which is where a
+repository with no remote is published. Pull requests #42 and #43 are layers 1 and 2 of one stack (`stack { number size }` on the
+rows, `GET repos/*/*/stacks`), and the GitHub project's bare remote holds `refs/pull/42/head`, `refs/pull/43/head` and the branch
+`feature/smoke-test` (only on the remote), so "Check out" a pull request succeeds: a `git` in `<scratch>/bin` rewrites the
+host's URL to the bare repository for `fetch`, `ls-remote` and `pull` only, since rewriting it for `git remote -v` would change the
+host the server reads.
 
 ## Server hooks (testing only)
 

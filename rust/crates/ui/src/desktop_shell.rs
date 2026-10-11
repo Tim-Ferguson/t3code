@@ -58,7 +58,15 @@ fn start_backend(dirs: &AppDirs) -> Backend {
         dirs.check_state_is_not_live_data(home.as_deref())?;
         let binary = launch::find_server_binary(env, std::env::current_exe().ok().as_deref())?;
         let port = launch::find_port(launch::FIRST_PORT, launch::port_is_free).ok_or("No port is free for the server.")?;
-        let config = ServerConfig { binary, state_dir: dirs.server_state.clone(), log_file: dirs.server_log.clone(), pid_file: Some(dirs.server_pid.clone()), host: "127.0.0.1".into(), port };
+        // Asked now, beside the window opening, so the first start of the server does not wait for the person's shell.
+        let login_shell = std::sync::Arc::new(t3_desktop::shell_env::Cached::new(t3_desktop::shell_env::Config::for_process()));
+        std::thread::Builder::new().name("t3-login-shell".into()).spawn({
+            let login_shell = login_shell.clone();
+            move || {
+                login_shell.get();
+            }
+        }).map_err(|error| format!("Cannot ask the login shell: {error}"))?;
+        let config = ServerConfig { binary, state_dir: dirs.server_state.clone(), log_file: dirs.server_log.clone(), pid_file: Some(dirs.server_pid.clone()), host: "127.0.0.1".into(), port, login_shell: Some(login_shell) };
         Handle::spawn(ServerLauncher::new(config), Timing::default(), true).map_err(|error| format!("Cannot start the supervisor: {error}"))
     })();
     match result {
@@ -86,13 +94,25 @@ pub fn launch(app: fn() -> Element) {
     if let Some(bounds) = saved.bounds {
         window = window.with_position(LogicalPosition::new(f64::from(bounds.x), f64::from(bounds.y)));
     }
+    // macOS: the page draws under a transparent title bar, with the traffic lights over its top left corner (`hiddenInset`).
+    #[cfg(target_os = "macos")]
+    {
+        use dioxus::desktop::tao::platform::macos::WindowBuilderExtMacOS;
+        window = window.with_titlebar_transparent(true).with_fullsize_content_view(true).with_title_hidden(true);
+    }
     let menu = build_menu(&menu::application_menu(Platform::current(), TITLE), TITLE);
     let config = dioxus::desktop::Config::new()
+        .with_close_behaviour(window_close_behaviour())
         .with_window(window)
         .with_menu(menu)
         .with_data_directory(dirs.webview.clone())
         .with_on_window(move |window, _| place_window(&window, &saved));
     dioxus::LaunchBuilder::desktop().with_cfg(config).with_context(shell).launch(app);
+}
+
+/// What closing the window does: on macOS it hides (the app and its server keep running), elsewhere it closes and the app ends.
+fn window_close_behaviour() -> dioxus::desktop::WindowCloseBehaviour {
+    if cfg!(target_os = "macos") { dioxus::desktop::WindowCloseBehaviour::WindowHides } else { dioxus::desktop::WindowCloseBehaviour::WindowCloses }
 }
 
 /// Puts the window where it was, if a display still holds it; otherwise near the top left at the default size.
@@ -263,9 +283,20 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
                         }
                     });
                 }
-                WindowEvent::CloseRequested => quit(),
+                // The original quits when its last window closes, except on macOS, where the app stays in the dock with its server
+                // running and a click on the dock icon opens the window again. The window is only hidden there (`window_close_behaviour`).
+                WindowEvent::CloseRequested if !cfg!(target_os = "macos") => quit(),
                 _ => {}
             }
+        }
+    });
+    // Dock icon clicked with no window showing.
+    use_wry_event_handler(|event, _| {
+        if let Event::Reopen { has_visible_windows: false, .. } = event {
+            let window = dioxus::desktop::window();
+            window.set_minimized(false);
+            window.set_visible(true);
+            window.set_focus();
         }
     });
 
@@ -274,6 +305,12 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
     use_muda_event_handler({
         let quit = quit.clone();
         move |event| {
+            if let Some(choice) = event.id().0.strip_prefix(CONTEXT_ID) {
+                if let Some(act) = MENU_CHOICE.with(|pending| pending.borrow_mut().take()) {
+                    act(choice);
+                }
+                return;
+            }
             let Some(action) = Action::from_id(&event.id().0) else { return };
             match action {
                 Action::OpenSettings => state.view().set(View::General),
@@ -368,6 +405,22 @@ const BRIDGE: &str = r#"
     } else if (active) { send(true, event); }
   }, true);
   window.addEventListener('keyup', (event) => { if (active) send(false, event); }, true);
+  // The title bar is the page's own (the window has no native one on macOS): a press on the header's empty space moves the window.
+  document.addEventListener('mousedown', (event) => {
+    if (event.button !== 0 || !(event.target instanceof Element)) return;
+    if (!event.target.closest('.brand, .workspace-header') || event.target.closest('button, a, input, select, textarea, summary, [role=button], [role=menu], [contenteditable]')) return;
+    dioxus.send({ kind: 'drag' });
+  }, false);
+  // The window's own right-click menu (`installContextMenu` in the original): cut, copy, paste and select all, "Copy Link" over a link and
+  // "Copy Image" over an image, in place of the web view's. Menus of the app's own (the sidebar's rows, the open menus) and the terminal keep theirs.
+  document.addEventListener('contextmenu', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element) || target.closest('.sidebar, .menu-backdrop, .context-menu, [role=menu], .notices, canvas, [class*=terminal]')) return;
+    event.preventDefault();
+    const link = target.closest('a[href]');
+    const image = target instanceof HTMLImageElement ? target : target.closest('img');
+    dioxus.send({ kind: 'context', link: link ? link.href : null, image: image ? image.currentSrc || image.src : null });
+  }, false);
   document.addEventListener('click', (event) => {
     const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
     if (!link) return;
@@ -397,6 +450,12 @@ async fn page_bridge(state: Store<UiModel>, mut hint: Signal<Option<quit_hold::M
                 if let Some(url) = message["href"].as_str().and_then(safe_external_url) {
                     open_external(&url);
                 }
+            }
+            Some("context") => {
+                page_context_menu(message["link"].as_str().and_then(safe_external_url), message["image"].as_str().map(str::to_owned));
+            }
+            Some("drag") => {
+                let _ = dioxus::desktop::window().drag_window();
             }
             Some("key") => {
                 let key = quit_hold::Key {
@@ -456,6 +515,91 @@ fn apply(effects: Vec<quit_hold::Effect>, hold: &Rc<RefCell<QuitHold>>, timer: &
             quit_hold::Effect::Disarm => timer.set(timer.get() + 1),
         }
     }
+}
+
+thread_local! {
+    /// What the open native context menu does with the entry chosen, until a choice or the next menu replaces it.
+    static MENU_CHOICE: RefCell<Option<Box<dyn FnOnce(&str)>>> = const { RefCell::new(None) };
+}
+
+/// The id prefix of the entries of a native context menu, apart from the application menu's.
+const CONTEXT_ID: &str = "ctx:";
+
+/// Shows the window's own context menu where the pointer is. Cut, copy, paste and select all act on the web view as the
+/// system's own editing menu does; "Copy Link" and "Copy Image" are the original's other two entries.
+fn page_context_menu(link: Option<String>, image: Option<String>) {
+    #[cfg(target_os = "macos")]
+    {
+        use dioxus::desktop::{muda::ContextMenu, tao::platform::macos::WindowExtMacOS};
+        use muda::PredefinedMenuItem as Predefined;
+        let menu = muda::Menu::new();
+        if let Some(link) = &link {
+            let _ = menu.append(&muda::MenuItem::with_id(format!("{CONTEXT_ID}copy-link"), "Copy Link", true, None));
+            let _ = menu.append(&Predefined::separator());
+            let _ = link;
+        }
+        if image.is_some() {
+            let _ = menu.append(&muda::MenuItem::with_id(format!("{CONTEXT_ID}copy-image"), "Copy Image", true, None));
+            let _ = menu.append(&Predefined::separator());
+        }
+        let _ = menu.append(&Predefined::cut(None));
+        let _ = menu.append(&Predefined::copy(None));
+        let _ = menu.append(&Predefined::paste(None));
+        let _ = menu.append(&Predefined::select_all(None));
+        MENU_CHOICE.with(|choice| {
+            *choice.borrow_mut() = Some(Box::new(move |id| match id {
+                "copy-link" => {
+                    if let Some(link) = &link {
+                        let text = serde_json::to_string(link).unwrap_or_default();
+                        let _ = document::eval(&format!("navigator.clipboard.writeText({text})"));
+                    }
+                }
+                "copy-image" => {
+                    if let Some(image) = &image {
+                        let url = serde_json::to_string(image).unwrap_or_default();
+                        let _ = document::eval(&format!("(async()=>{{try{{const blob=await (await fetch({url})).blob();await navigator.clipboard.write([new ClipboardItem({{[blob.type||'image/png']:blob}})]);}}catch(error){{console.warn('Copy Image:',error);}}}})()"));
+                    }
+                }
+                _ => {}
+            }));
+        });
+        let view = dioxus::desktop::window().ns_view();
+        // Returns when the menu closes; a choice arrives through the menu event handler.
+        unsafe { menu.show_context_menu_for_nsview(view, None) };
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (link, image);
+}
+
+/// A notification through the system. macOS shows it through the system's `osascript`, as the app that runs it;
+/// the original shows it as T3 Code, which needs a signed bundle this build does not have. Returns whether it was shown.
+pub(crate) fn notify(title: &str, body: &str) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let script = format!("display notification {} with title {}", apple_script_string(body), apple_script_string(title));
+        std::process::Command::new("/usr/bin/osascript").args(["-e", &script]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn().is_ok()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (title, body);
+        false
+    }
+}
+#[cfg(target_os = "macos")]
+fn apple_script_string(text: &str) -> String {
+    format!("\"{}\"", text.replace('\\', "\\\\").replace('"', "\\\""))
+}
+
+/// The count on the dock icon, from the thread that owns the window: tao's window reaches the application's dock tile
+/// only from there, which is where the interface runs. Nothing is shown for none.
+pub(crate) fn set_badge(count: usize) {
+    #[cfg(target_os = "macos")]
+    {
+        use dioxus::desktop::tao::platform::macos::WindowExtMacOS;
+        dioxus::desktop::window().set_badge_label((count > 0).then(|| if count > 9 { "9+".to_owned() } else { count.to_string() }));
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = count;
 }
 
 /// Hands a link to the system browser. Only what `safe_external_url` accepted gets here.

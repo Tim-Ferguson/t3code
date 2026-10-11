@@ -4,7 +4,14 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
 import { layout, validateScratch } from "./layout.mjs";
-import { buildBranchProject, buildDirtyProject, buildPlainProject, makeGit } from "./repos.mjs";
+import {
+  buildBranchProject,
+  buildDirtyProject,
+  buildPlainProject,
+  buildShipProject,
+  makeGit,
+  refuseWhenToggled,
+} from "./repos.mjs";
 import {
   TOOL_DIR,
   buildSettings,
@@ -129,6 +136,7 @@ export async function main(argv) {
     paths.tmp,
     paths.logs,
     paths.remotes,
+    paths.toggles,
     paths.serverCwd,
     join(paths.providers, "codex-home"),
     join(paths.providers, "claude-home"),
@@ -157,8 +165,18 @@ export async function main(argv) {
         branch: "feature/pr-panel-demo",
         description:
           "A repository whose remote is read as a GitHub host. Pull requests come from the fake GitHub API.",
+        pullRef: 42,
       },
     );
+  if (!again) {
+    buildShipProject(
+      git,
+      paths.projects.ship,
+      join(paths.remotes, "widgets.git"),
+      `https://${GITHUB_HOST}/acme/widgets.git`,
+    );
+    refuseWhenToggled(join(paths.remotes, "widgets.git"), paths.toggles);
+  }
   if (!again)
     buildBranchProject(
       git,
@@ -215,7 +233,12 @@ export async function main(argv) {
     ]);
     const child = spawn(apiCommand, apiArgs, {
       cwd: paths.serverCwd,
-      env: { PATH: "/usr/bin:/bin", T3_FIXTURE_CALL_LOG: paths.calls },
+      env: {
+        PATH: "/usr/bin:/bin",
+        T3_FIXTURE_CALL_LOG: paths.calls,
+        T3_FIXTURE_TOGGLES: paths.toggles,
+        T3_FIXTURE_REMOTES: paths.remotes,
+      },
       detached: true,
       stdio: "ignore",
     });

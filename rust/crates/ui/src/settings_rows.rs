@@ -45,13 +45,16 @@ impl Row {
 }
 
 /// The rows that follow this device's preferences.
-pub(crate) const BEHAVIOR: [Row; 5] = [
+pub(crate) const BEHAVIOR: [Row; 6] = [
     Row::choice("sendShortcut", "Send shortcut", "Choose when Enter sends a prompt or inserts a new line", "\"enter\"", &[("\"enter\"", "Enter sends"), ("\"mod-enter-multiline\"", "Mod+Enter sends, Enter adds a line"), ("\"mod-enter\"", "Mod+Enter sends")]),
     Row::choice("followUpBehavior", "Follow-up behavior", "What a message sent while a run is going does. Queue waits for the run to end; steer redirects it now.", "\"queue\"", &[("\"queue\"", "Queue"), ("\"steer\"", "Steer")]),
     Row::switch("showSkillsInSlashMenu", "Show skills in slash menu", "Also include skills in the / command menu. Skills always appear when you type $.", true),
     Row::switch("planModeEnabled", "Plan mode (legacy)", "Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode.", false),
+    Row::switch("inAppNotificationsEnabled", "In-app notifications", "Show a toast when another thread finishes, fails, or needs input or approval while this app has focus.", false),
     Row::switch("sidebarWorkingShelfEnabled", "Working section (beta)", "Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you.", false),
 ];
+/// How a thread that finishes or needs you is announced outside the window. Changing it asks the system for permission first.
+pub(crate) const NOTIFICATION_MODE: Row = Row::choice("notificationMode", "Thread notifications", t3_client::thread_notifications::DESCRIPTION, "\"off\"", &t3_client::thread_notifications::MODE_OPTIONS);
 pub(crate) const CONFIRMATIONS: [Row; 3] = [
     Row::switch("confirmThreadArchive", "Archive confirmation", "Require a second click on the inline archive action before a thread is archived.", false),
     Row::switch("confirmThreadDelete", "Delete confirmation", "Ask before deleting a thread and its chat history.", true),
@@ -116,7 +119,7 @@ pub(crate) fn control(row: Row, current: &Value, disabled: bool, change: EventHa
 
 /// One change to this device's preferences. Without a writer (a document nothing persists, as in a
 /// test) the change applies to what the app holds.
-fn patch(state: Store<UiModel>, change: Value) {
+pub(crate) fn patch(state: Store<UiModel>, change: Value) {
     if let Some(writer) = try_consume_context::<Writer>() {
         writer.patch(state, change);
         return;
@@ -144,7 +147,7 @@ pub(crate) fn ClientRows(state: Store<UiModel>, rows: &'static [Row]) -> Element
 }
 
 /// Every row that follows this device's preferences, for "Restore device defaults".
-const DEVICE: [&[Row]; 5] = [&BEHAVIOR, &CONFIRMATIONS, &DIFFS, &LAYOUT, &DISPLAY];
+const DEVICE: [&[Row]; 6] = [&[NOTIFICATION_MODE], &BEHAVIOR, &CONFIRMATIONS, &DIFFS, &LAYOUT, &DISPLAY];
 
 /// The titles of the device preferences that are not at their defaults.
 pub(crate) fn changed_labels(state: Store<UiModel>) -> Vec<&'static str> {

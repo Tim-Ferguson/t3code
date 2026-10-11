@@ -133,6 +133,10 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
                             rsx! { button { key: "{label}", class: "menu-item", role: "menuitem", r#type: "button", disabled: item.disabled, "aria-label": "{label}", onclick: move |_| { close(); run(Action::Snooze, Some(until.clone())); }, "{label}" } }
                         }
                     }
+                    {
+                        let label = format!("{}: Custom\u{2026}", item.label);
+                        rsx! { button { class: "menu-item", role: "menuitem", r#type: "button", disabled: item.disabled, "aria-label": "{label}", onclick: move |_| { close(); state.custom_snooze().set(true); }, "{label}" } }
+                    }
                 } else {
                     {
                         let mut run = run.clone();
@@ -168,5 +172,77 @@ pub(crate) fn prune(state: Store<UiModel>) {
     let gone: Vec<String> = selection.keys.iter().filter(|key| !present.contains(*key)).cloned().collect();
     if !gone.is_empty() {
         state.selection().write().remove(&gone);
+    }
+}
+
+/// The custom snooze dialog (`CustomSnoozeDialog.tsx`): a date and time, or a length of time, for the chosen threads.
+#[component]
+pub(crate) fn CustomSnoozeHost(state: Store<UiModel>, transport: TransportHandle) -> Element {
+    if !*state.custom_snooze().read() {
+        return rsx! {};
+    }
+    rsx! { CustomSnooze { state, transport } }
+}
+
+#[component]
+fn CustomSnooze(state: Store<UiModel>, transport: TransportHandle) -> Element {
+    use t3_client::custom_snooze as logic;
+    let offset = crate::scheduled_tasks_page::zone(Utc::now().timestamp_millis());
+    let initial = Utc::now() + chrono::Duration::hours(1) + chrono::Duration::minutes(i64::from(offset));
+    let mut by_date = use_signal(|| true);
+    let mut date = use_signal(|| initial.format("%Y-%m-%d").to_string());
+    let mut time = use_signal(|| initial.format("%H:%M").to_string());
+    let mut amount = use_signal(|| "2".to_owned());
+    let mut unit = use_signal(|| "hours".to_owned());
+    let mut error = use_signal(|| None::<&'static str>);
+    let close = move || state.custom_snooze().set(false);
+    let submit = use_callback(move |()| {
+        let (date, time, amount, unit_text) = (date.peek().clone(), time.peek().clone(), amount.peek().clone(), unit.peek().clone());
+        let input = if *by_date.peek() { logic::Input::Date { date: &date, time: &time } } else { logic::Input::Duration { amount: &amount, unit: logic::Unit::parse(&unit_text).unwrap_or(logic::Unit::Hours) } };
+        let Some(until) = logic::resolve(&input, Utc::now(), offset) else {
+            error.set(Some(if *by_date.peek() { logic::DATE_ERROR } else { logic::DURATION_ERROR }));
+            return;
+        };
+        for (_, facts) in chosen(state).into_iter().filter(|(_, facts)| facts.can_snooze) {
+            runtime::command(&transport, state, "thread.snooze", json!({"threadId": facts.id, "snoozedUntil": until}));
+        }
+        state.selection().write().clear();
+        close();
+    });
+    rsx! {
+        div { class: "modal-backdrop",
+            div { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "custom-snooze-heading", tabindex: "-1",
+                onmounted: move |event| { let element = event.data(); spawn(async move { let _ = element.set_focus(true).await; }); },
+                onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); close(); } else if event.key() == Key::Enter { event.prevent_default(); submit.call(()); } },
+                div { class: "dialog-form",
+                    h2 { id: "custom-snooze-heading", "Custom snooze" }
+                    p { class: "muted", "Choose when snoozed threads return to your inbox." }
+                    div { class: "publish-cards", role: "radiogroup", "aria-label": "Schedule type",
+                        button { class: if by_date() { "publish-card selected" } else { "publish-card" }, r#type: "button", role: "radio", "aria-checked": "{by_date()}", "aria-label": "Date and time", onclick: move |_| { by_date.set(true); error.set(None); }, "Date and time" }
+                        button { class: if by_date() { "publish-card" } else { "publish-card selected" }, r#type: "button", role: "radio", "aria-checked": "{!by_date()}", "aria-label": "Duration", onclick: move |_| { by_date.set(false); error.set(None); }, "Duration" }
+                    }
+                    if by_date() {
+                        label { r#for: "snooze-date", "Date" }
+                        input { id: "snooze-date", r#type: "date", required: true, "aria-label": "Date", value: "{date}", oninput: move |event| { date.set(event.value()); error.set(None); } }
+                        label { r#for: "snooze-time", "Time" }
+                        input { id: "snooze-time", r#type: "time", required: true, "aria-label": "Time", value: "{time}", oninput: move |event| { time.set(event.value()); error.set(None); } }
+                    } else {
+                        label { r#for: "snooze-amount", "Snooze for" }
+                        input { id: "snooze-amount", r#type: "number", min: "0", step: "any", required: true, "aria-label": "Snooze for", value: "{amount}", oninput: move |event| { amount.set(event.value()); error.set(None); } }
+                        label { r#for: "snooze-unit", "Unit" }
+                        select { id: "snooze-unit", "aria-label": "Unit", value: "{unit}", onchange: move |event| { unit.set(event.value()); error.set(None); },
+                            option { value: "minutes", selected: unit() == "minutes", "Minutes" }
+                            option { value: "hours", selected: unit() == "hours", "Hours" }
+                            option { value: "days", selected: unit() == "days", "Days" }
+                        }
+                    }
+                    if let Some(message) = error() { p { class: "publish-error", role: "alert", "{message}" } }
+                    div { class: "dialog-actions",
+                        button { r#type: "button", "aria-label": "Cancel", onclick: move |_| close(), "Cancel" }
+                        button { class: "primary", r#type: "button", "aria-label": "Snooze", onclick: move |_| submit.call(()), "Snooze" }
+                    }
+                }
+            }
+        }
     }
 }

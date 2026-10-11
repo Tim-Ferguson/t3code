@@ -15,6 +15,8 @@ export function layout(scratch) {
     logs: join(scratch, "logs"),
     providers: join(scratch, "providers"),
     remotes: join(scratch, "remotes"),
+    // A file here makes one fake write fail (README, "Toggles").
+    toggles: join(scratch, "toggles"),
     // The server serves the directory it runs in: the diff panel refuses a repository outside it, so it runs in the
     // directory that holds every project.
     serverCwd: join(scratch, "projects"),
@@ -30,6 +32,7 @@ export function layout(scratch) {
       gitlab: join(scratch, "projects", NAME_PREFIX + "gitlab"),
       conversations: join(scratch, "projects", NAME_PREFIX + "conversations"),
       commitcheck: join(scratch, "projects", NAME_PREFIX + "commitcheck"),
+      ship: join(scratch, "projects", NAME_PREFIX + "ship"),
     },
   };
 }

@@ -21,6 +21,7 @@ import json
 import os
 import re
 import itertools
+import subprocess
 import sys
 import threading
 import time
@@ -88,6 +89,34 @@ LOCK = threading.RLock()
 SEQ = itertools.count(100)
 NOW = lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 HEAD_OID = "e4d3c2b1a0f9e8d7c6b5a4938271605f4e3d2c1b"
+# Writes that can be made to fail: a file named after the write in $T3_FIXTURE_TOGGLES makes it answer 422 with the file's
+# text (or a default), so one fixture shows both outcomes. "createPullRequest" and "createRepository".
+TOGGLES = os.environ.get("T3_FIXTURE_TOGGLES")
+REMOTES = os.environ.get("T3_FIXTURE_REMOTES")
+
+
+def refusal(name):
+    if not TOGGLES:
+        return None
+    path = os.path.join(TOGGLES, name)
+    if not os.path.exists(path):
+        return None
+    return open(path).read().strip() or "browser fixture: %s refused" % name
+
+
+# #42 and #43 are layers 1 and 2 of stack 7 (the host-native stacks preview).
+STACK = {"number": 7, "members": [42, 43]}
+
+
+def stack_of(number):
+    if number not in STACK["members"]:
+        return None
+    return {"number": STACK["number"], "size": len(STACK["members"]), "baseRefName": "main"}, {"position": STACK["members"].index(number) + 1}
+
+
+def stack_rest():
+    return {"id": "ST_7", "number": STACK["number"], "url": "https://github.t3code-test.invalid/%s/stacks/7" % REPO, "html_url": "https://github.t3code-test.invalid/%s/stacks/7" % REPO, "base": "main",
+            "pull_requests": [{"number": n, "title": pull(n)["title"], "draft": pull(n)["draft"], "head": {"ref": pull(n)["head"], "sha": HEAD_OID}, "state": pull(n)["state"].lower(), "merged_at": pull(n).get("merged")} for n in STACK["members"]]}
 LABELS = [("bug", "d73a4a"), ("enhancement", "a2eeef"), ("refactor", "0e8a16"), ("wontfix", "ffffff"), ("documentation", "0075ca"), ("good first issue", "7057ff")]
 USERS = ["alice", "bob", "carol", "dana", "erin"]
 VIEWED = {"src/config.ts": True}
@@ -182,7 +211,7 @@ def summary_pull(number):
     return {"pullRequest": {"number": number, "title": p["title"], "url": url(number), "state": p["state"], "isDraft": p["draft"], "mergeable": "MERGEABLE", "reviewDecision": p["decision"],
             "additions": p["additions"], "deletions": p["deletions"], "changedFiles": p["files"], "updatedAt": p["updated"], "mergedAt": p.get("merged"), "closedAt": p.get("closed"),
             "headRefName": p["head"], "baseRefName": "main", "author": actor(p["author"]), "latestReviews": {"nodes": [{"state": "CHANGES_REQUESTED", "author": {"login": "bob"}}] if number == 42 else []},
-            "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": p["rollup"]} if p["rollup"] else None}}]}, "stack": None, "stackEntry": None}}
+            "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": p["rollup"]} if p["rollup"] else None}}]}, "stack": (stack_of(number) or (None, None))[0], "stackEntry": (stack_of(number) or (None, None))[1]}}
 
 
 def preview(number):
@@ -236,7 +265,8 @@ def search_row(number, repository=REPO):
             "mergeable": "MERGEABLE", "reviewDecision": p["decision"], "latestReviews": {"nodes": []}, "createdAt": p["created"], "updatedAt": p["updated"], "mergedAt": p.get("merged"),
             "repository": {"nameWithOwner": repository}, "reviewRequests": {"nodes": [{"requestedReviewer": {"login": login}} for login in p["reviewers"]]},
             "labels": {"nodes": [{"name": n, "color": c} for n, c in p["labels"]]},
-            "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": p["rollup"]} if p["rollup"] else None}}]}}
+            "commits": {"nodes": [{"commit": {"statusCheckRollup": {"state": p["rollup"]} if p["rollup"] else None}}]},
+            "stack": (stack_of(number) or (None, None))[0], "stackEntry": (stack_of(number) or (None, None))[1]}
 
 
 def search(variables):
@@ -328,7 +358,32 @@ def mutate(query, variables):
 
 
 def rest_write(method, rest, body):
-    """The REST writes: reviews, reviewer requests and labels. Returns (status, json)."""
+    """The REST writes: pull requests, repositories, reviews, reviewer requests and labels. Returns (status, json)."""
+    if method == "POST" and re.match(r"^repos/[^/]+/[^/]+/pulls$", rest):
+        reason = refusal("createPullRequest")
+        if reason:
+            return 422, {"message": reason}
+        head = (body.get("head") or "").split(":")[-1]
+        existing = next((n for n, p in PULLS.items() if p["head"] == head and p["state"] == "OPEN"), None)
+        if existing:
+            return 422, {"message": "A pull request already exists for %s." % head}
+        number = max(PULLS) + 1
+        PULLS[number] = {"title": body.get("title") or "Untitled", "state": "OPEN", "draft": False, "author": ME, "head": head, "decision": None, "additions": 1, "deletions": 0, "files": 1,
+                         "created": NOW(), "updated": NOW(), "rollup": None, "labels": [], "reviewers": [], "body": body.get("body") or "", "auto": None, "behind": 0}
+        return 201, {"number": number, "html_url": url(number)}
+    if method == "POST" and re.match(r"^(user|orgs/[^/]+)/repos$", rest):
+        reason = refusal("createRepository")
+        if reason:
+            return 422, {"message": reason}
+        name = body.get("name") or "published"
+        if not REMOTES:
+            return 500, {"message": "browser fixture: T3_FIXTURE_REMOTES is not set"}
+        bare = os.path.join(REMOTES, name + ".git")
+        if os.path.exists(bare):
+            return 422, {"message": "name already exists on this account"}
+        subprocess.run(["git", "init", "-q", "--bare", "-b", "main", bare], check=True, env={"PATH": "/usr/bin:/bin", "HOME": REMOTES, "GIT_CONFIG_GLOBAL": "/dev/null"})
+        owner = rest.split("/")[1] if rest.startswith("orgs/") else ME
+        return 201, {"full_name": "%s/%s" % (owner, name), "html_url": "file://" + bare, "ssh_url": "file://" + bare, "default_branch": "main"}
     m = re.match(r"^repos/[^/]+/[^/]+/pulls/(\d+)/reviews$", rest)
     if m and method == "POST":
         event = body.get("event")
@@ -504,6 +559,11 @@ class Handler(BaseHTTPRequestHandler):
         if "/contents/" in rest:
             return self.reply(200, "contents at %s\n" % (parts.query or "HEAD"), "text/plain")
         if "/stacks" in rest:
+            if re.search(r"/stacks/\d+$", rest):
+                return self.reply(200, stack_rest())
+            wanted = parse_qs(parts.query).get("pull_request", [""])[0]
+            if wanted.isdigit() and int(wanted) in STACK["members"]:
+                return self.reply(200, [stack_rest()])
             return self.reply(404, {})
         return self.unhandled("GET " + rest)
 

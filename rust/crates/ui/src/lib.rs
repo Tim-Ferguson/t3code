@@ -30,7 +30,11 @@ mod projects_page;
 mod pull_request_stack;
 mod thread_pull_requests_panel;
 mod thread_selection;
+mod access_page;
+mod import_notice;
+mod notifications;
 mod project_search;
+mod publish_dialog;
 mod review_diff;
 mod draft_storage;
 mod empty_state;
@@ -148,6 +152,12 @@ pub fn App() -> Element {
             runtime::connect(transport, state, runtime::default_address(), String::new()).await;
         }
     });
+    let failed_import = import_notice::use_failed_import(state);
+    let mut failed_import_again = failed_import;
+    let failed = failed_import.read().clone().flatten();
+    if let Some(status) = failed {
+        return rsx! { style { "{STYLES}" } style { {include_str!("../assets/theme-tokens.css")} } import_notice::FailedScreen { status, retry: move |()| failed_import_again.restart() } };
+    }
     rsx! { Application { state, transport } }
 }
 
@@ -169,7 +179,7 @@ fn browse_button(transport: &runtime::TransportHandle, mut title: Signal<String>
         return rsx! {};
     }
     rsx! {
-        button { r#type: "button", "aria-label": "Browse for a folder",
+        button { class: "browse-folder", r#type: "button", "aria-label": "Browse for a folder",
             onclick: move |_| {
                 spawn(async move {
                     if let Some(folder) = desktop_shell::pick_folder().await {
@@ -295,10 +305,11 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 .unwrap_or_default()
         })
         .unwrap_or_default();
-    let layout_class = if *state.sidebar_open().read() {
-        "app sidebar-open"
-    } else {
-        "app"
+    let layout_class = match (*state.sidebar_open().read(), cfg!(all(feature = "desktop", target_os = "macos"))) {
+        (true, true) => "app sidebar-open desktop-inset",
+        (true, false) => "app sidebar-open",
+        (false, true) => "app desktop-inset",
+        (false, false) => "app",
     };
     let status_label = match &*state.status().read() {
         ConnectionStatus::Connected => "Connected",
@@ -332,6 +343,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     rsx! {
         style { "{STYLES}" }
         style { {include_str!("../assets/theme-tokens.css")} }
+        import_notice::Notice { state, transport: transport.clone() }
         div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
@@ -427,6 +439,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 button { class: "primary", r#type: "submit", "Connect" }
                             }
                             p { class: "muted", "{status_label}" }
+                            access_page::Authorized { state, transport: transport.clone() }
                             if !saved_connections.is_empty() { h2 { "Saved connections" }
                                 for (id,label,saved_address) in saved_connections {
                                     article {class:"connection-row",key:"{id}",
@@ -527,7 +540,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             theme_library::ThemeEditorHost {}
             command_palette::Host { state, transport: transport.clone() }
             pull_request_thread::Host { state, transport: transport.clone() }
-            notice::Host { state }
+            notice::Host { state, transport: transport.clone() }
+            thread_selection::CustomSnoozeHost { state, transport: transport.clone() }
+            notifications::Coordinator { state, transport: transport.clone() }
             clone_view::Notices { state, transport: transport.clone() }
             import_projects::Host { state, transport: transport.clone() }
             thread_lifecycle::Host { state, transport: transport.clone() }

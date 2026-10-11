@@ -25,24 +25,61 @@ pub struct Target {
     pub request: u64,
 }
 
-/// Opens the panel on a file; the diff and pull request panels give way, since they share the margin.
+/// Opens the panel on a file, as a tab beside the files already open in the same place; the diff and pull request
+/// panels give way, since they share the margin. Files of another thread or folder start a new row of tabs.
 pub(crate) fn open(state: Store<UiModel>, owner: Option<String>, cwd: String, path: String, line: Option<u64>) {
     state.diff().write().open = false;
     state.pr_panel().set(None);
     state.thread_prs().set(None);
     let request = state.file_panel().peek().as_ref().map_or(0, |target| target.request) + 1;
+    {
+        let mut tabs = state.file_tabs();
+        let mut tabs = tabs.write();
+        if tabs.first().is_some_and(|first| first.owner != owner || first.cwd != cwd) {
+            tabs.clear();
+        }
+        if !tabs.iter().any(|tab| tab.path == path) {
+            tabs.push(Target { owner: owner.clone(), cwd: cwd.clone(), path: path.clone(), line: None, request: 0 });
+        }
+    }
     state.file_panel().set(Some(Target { owner, cwd, path, line, request }));
 }
+/// Closes the panel and every tab.
 pub(crate) fn close(state: Store<UiModel>) {
+    state.file_tabs().set(Vec::new());
     state.file_panel().set(None);
+}
+/// Shows another open tab.
+fn select(state: Store<UiModel>, path: &str) {
+    let Some(current) = state.file_panel().peek().clone() else { return };
+    if current.path != path {
+        state.file_panel().set(Some(Target { path: path.to_owned(), line: None, request: current.request + 1, ..current }));
+    }
+}
+/// Closes one tab; the one beside it is shown, and the panel closes with the last.
+fn close_tab(state: Store<UiModel>, path: &str) {
+    let tabs = state.file_tabs().peek().clone();
+    let Some(index) = tabs.iter().position(|tab| tab.path == path) else { return };
+    state.file_tabs().write().remove(index);
+    let remaining = state.file_tabs().peek().clone();
+    let current = state.file_panel().peek().clone();
+    if current.as_ref().is_none_or(|current| current.path != path) {
+        return;
+    }
+    match remaining.get(index.min(remaining.len().saturating_sub(1))) {
+        Some(next) => select(state, &next.path.clone()),
+        None => state.file_panel().set(None),
+    }
 }
 
 #[component]
 pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle, thread_id: Option<String>) -> Element {
     let target = use_memo(move || state.file_panel().read().clone().filter(|target| target.owner == thread_id));
-    match target() {
-        Some(target) => rsx! { Panel { key: "{target.cwd}:{target.path}:{target.request}", state, transport, target } },
-        None => rsx! {},
+    // A list of one: a new key then makes a new panel, which reads its own file (a lone keyed child would be reused).
+    rsx! {
+        for target in target().into_iter() {
+            Panel { key: "{target.cwd}:{target.path}:{target.request}", state, transport: transport.clone(), target }
+        }
     }
 }
 
@@ -68,8 +105,12 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     use_future({
         let (transport, cwd, path) = (transport.clone(), target.cwd.clone(), target.path.clone());
         move || {
+            let skip = files::is_image_path(&path);
             let (transport, cwd, path) = (transport.clone(), cwd.clone(), path.clone());
             async move {
+                if skip {
+                    return;
+                }
                 let owner = runtime::response_owner(&transport, state);
                 let answer = runtime::request_value_reported(transport.clone(), state, files::READ_FILE, json!({"cwd":cwd,"relativePath":path})).await;
                 // Another connection answered by now: not this panel's file.
@@ -103,17 +144,73 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     let (from, to) = ((*start.read()).min(total), (*end.read()).min(total));
     let window = loaded.as_ref().map(|loaded| loaded.lines[from..to].join("\n")).unwrap_or_default();
     let coloured = syntax_highlighting::use_lines(&window, &language);
+    let tabs = state.file_tabs().read().clone();
+    let is_image = t3_client::project_files::is_image_path(&target.path);
+    let is_markdown = t3_client::project_files::is_markdown_path(&target.path);
+    // The choice between the rendered page and its source is kept on this device, as the original keeps it.
+    let mut rendered = use_signal(|| true);
+    use_hook(move || spawn(async move {
+        if let Ok(Some(stored)) = document::eval("try{return window.localStorage.getItem('t3code.renderMarkdown');}catch{return null;}").join::<Option<String>>().await {
+            rendered.set(stored != "false");
+        }
+    }));
+    let editor_busy = use_signal(|| false);
+    let last = try_consume_context::<crate::open_in::Last>().map_or_else(|| use_signal(|| None::<String>), |last| last.0);
+    let editor = crate::open_in::favorite(state, last.read().as_deref());
+    let full_path = format!("{}/{}", target.cwd.trim_end_matches('/'), target.path);
+    let environment_key = state.destination().read().as_ref().map(ToString::to_string).unwrap_or_default();
+    let show_rendered = is_markdown && rendered();
+    let markdown_text = loaded.as_ref().filter(|_| show_rendered).map(|loaded| loaded.lines.join("\n")).unwrap_or_default();
     rsx! {
         section { class: "diff-panel file-panel", role: "region", "aria-label": "File {name}",
             header { class: "diff-header",
+                if tabs.len() > 1 {
+                    div { class: "file-tabs", role: "tablist", "aria-label": "Open files",
+                        for tab in tabs.iter() {
+                            {
+                                let tab_name = tab.path.rsplit('/').next().unwrap_or(&tab.path).to_owned();
+                                let selected = tab.path == target.path;
+                                let (select_path, close_path) = (tab.path.clone(), tab.path.clone());
+                                rsx! {
+                                    span { key: "{tab.path}", class: if selected { "file-tab selected" } else { "file-tab" },
+                                        button { class: "file-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", title: "{tab.path}", onclick: move |_| select(state, &select_path), "{tab_name}" }
+                                        button { class: "file-tab-close", r#type: "button", "aria-label": "Close {tab_name}", onclick: move |_| close_tab(state, &close_path), "\u{00d7}" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 div { class: "diff-header-main",
                     span { class: "file-panel-path", title: "{target.path}", span { class: "muted", "{directory}" } strong { "{name}" } }
-                    button { class: "icon-button diff-close", "aria-label": "Close file", title: "Close file", onclick: move |_| close(state), "\u{00d7}" }
+                    if is_markdown {
+                        button { r#type: "button", "aria-label": if rendered() { "Show markdown source" } else { "Show rendered markdown" }, "aria-pressed": "{rendered()}", onclick: move |_| { let next = !rendered(); rendered.set(next); document::eval(&format!("try{{window.localStorage.setItem('t3code.renderMarkdown','{next}');}}catch{{}}")); },
+                            if rendered() { "Show markdown source" } else { "Show rendered markdown" } }
+                    }
+                    if let Some(editor) = editor {
+                        {
+                            let (transport, full_path) = (transport.clone(), full_path.clone());
+                            rsx! { button { r#type: "button", "aria-label": "Open {name} in editor", title: "Open this file in an editor on the server's machine", disabled: editor_busy(), onclick: move |_| crate::open_in::open(&transport, state, editor_busy, last, full_path.clone(), editor.clone(), false), "Open in editor" } }
+                        }
+                    }
+                    button { class: "icon-button diff-close", "aria-label": "Close file", title: "Close file", onclick: move |_| match tabs.len() { 0 | 1 => close(state), _ => close_tab(state, &target.path) }, "\u{00d7}" }
                 }
             }
+            if is_image {
+                match target.owner.clone() {
+                    Some(thread_id) => rsx! { div { class: "file-image", crate::file_preview::WorkspaceImage { key: "{target.path}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, path: target.path.clone() } } },
+                    None => rsx! { p { class: "muted file-panel-note", role: "status", "Open a thread to preview this image." } },
+                }
+            } else {
             match &*read.read() {
                 Read::Loading => rsx! { p { class: "muted file-panel-note", role: "status", "Loading file\u{2026}" } },
                 Read::Failed(message) => rsx! { p { class: "error-banner", role: "alert", "{message}" } },
+                Read::Ready(_) if show_rendered => rsx! {
+                    if loaded.as_ref().is_some_and(|loaded| loaded.truncated) {
+                        p { class: "muted file-panel-note", role: "status", "This file is large, so only the start of it ({loaded.as_ref().map_or(0, |loaded| loaded.byte_length)} bytes in all) is shown." }
+                    }
+                    div { class: "file-markdown", "aria-label": "Rendered {name}", crate::markdown::Markdown { text: markdown_text } }
+                },
                 Read::Ready(_) => rsx! {
                     if loaded.as_ref().is_some_and(|loaded| loaded.truncated) {
                         p { class: "muted file-panel-note", role: "status", "This file is large, so only the start of it ({loaded.as_ref().map_or(0, |loaded| loaded.byte_length)} bytes in all) is shown." }
@@ -141,6 +238,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                         }
                     }
                 },
+            }
             }
         }
     }

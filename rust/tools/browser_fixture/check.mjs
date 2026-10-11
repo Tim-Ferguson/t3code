@@ -74,7 +74,7 @@ const projects = shell?.projects ?? [];
 const byTitle = (needle) => threads.find((thread) => thread.title.startsWith(needle));
 const projectBy = (needle) => projects.find((project) => project.title.endsWith(needle));
 await check("projects listed", async () => {
-  for (const name of ["dirty", "github", "gitlab", "conversations", "commitcheck"])
+  for (const name of ["dirty", "github", "gitlab", "conversations", "commitcheck", "ship"])
     assert(projectBy(name), `no project ending in -${name}`);
   return `${projects.length} projects, ${threads.length} threads`;
 });

@@ -1,9 +1,11 @@
 //! Platform-independent client state and the Effect RPC transport lifecycle.
+pub mod access;
 pub mod attachments;
 pub mod checkpoints;
 pub mod client_preferences;
 pub mod command_label;
 pub mod composer_send;
+pub mod custom_snooze;
 pub mod composer_context;
 pub mod composer_menu;
 pub mod connection;
@@ -30,6 +32,7 @@ pub mod project_files;
 pub mod provider_goal;
 pub mod project_folder;
 pub mod project_import;
+pub mod publish_repository;
 pub mod pin_order;
 pub mod prompt_history;
 pub mod pull_request;
@@ -77,6 +80,7 @@ pub mod user_message;
 pub mod thread_search;
 pub mod thread;
 pub mod thread_nav;
+pub mod thread_notifications;
 pub mod timeline_items;
 pub mod timeline_rows;
 pub mod timeline_scroll;

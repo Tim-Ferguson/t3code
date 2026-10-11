@@ -240,6 +240,7 @@ pub(crate) fn Actions(
     let mut menu = use_signal(|| false);
     let mut commit = use_signal(|| None::<CommitDraft>);
     let mut confirm = use_signal(|| None::<Pending>);
+    let mut publish = use_signal(|| false);
     let can_write = use_memo(move || {
         let destination = state.destination().read().clone();
         *state.status().read() == ConnectionStatus::Connected && destination.is_some_and(|destination| state.environments().read().allows(&destination, AuthEnvironmentScope::SourceControlWrite))
@@ -313,6 +314,22 @@ pub(crate) fn Actions(
             }
         });
     }
+    // The status is read again when the window is focused or shown, as the original does (`GIT_STATUS_WINDOW_REFRESH_DEBOUNCE_MS`):
+    // what changed in the repository while the app was in the background shows without opening the menu.
+    {
+        let (transport, cwd) = (transport.clone(), cwd.clone());
+        use_future(move || {
+            let (transport, cwd) = (transport.clone(), cwd.clone());
+            async move {
+                let mut watcher = document::eval(
+                    "let timer=null;const refresh=()=>{clearTimeout(timer);timer=setTimeout(()=>{timer=null;dioxus.send(1);},250);};const visible=()=>{if(document.visibilityState==='visible')refresh();};window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',visible);try{await dioxus.recv();}finally{clearTimeout(timer);window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',visible);}",
+                );
+                while watcher.recv::<i32>().await.is_ok() {
+                    let _ = runtime::request_value_reported(transport.clone(), state, t3_client::vcs::REFRESH_STATUS, json!({"cwd":cwd})).await;
+                }
+            }
+        });
+    }
     let snapshot = view.read().clone();
     let status: Option<Status> = snapshot.status.clone();
     let live = snapshot.live;
@@ -340,7 +357,7 @@ pub(crate) fn Actions(
     let quick_clone = quick.clone();
     let primary = move |_| match quick_clone.kind {
         QuickKind::RunPull => on_pull.call(()),
-        QuickKind::OpenPublish => notice::push(state, Level::Info, "Publish repository", "Publishing a repository is not available in this client yet. Add a remote with git, then push."),
+        QuickKind::OpenPublish => publish.set(true),
         QuickKind::RunAction => {
             if let Some(action) = quick_clone.action {
                 start.call((Spec::of(action), false));
@@ -429,6 +446,9 @@ pub(crate) fn Actions(
                         }
                     }
                 }
+            }
+            if publish() {
+                crate::publish_dialog::Dialog { state, transport: transport.clone(), cwd: cwd.clone(), on_close: move |()| publish.set(false) }
             }
             if let Some(draft) = draft {
                 {

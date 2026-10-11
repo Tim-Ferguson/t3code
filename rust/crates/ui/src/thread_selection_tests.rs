@@ -87,3 +87,39 @@ async fn deleting_the_chosen_threads_asks_once_and_removes_them_all() {
     until(&mut dom, "the choice emptied", |_| !state.peek().selection.has_selection()).await;
     fixture.finish(dom).await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_custom_snooze_for_the_chosen_threads_is_a_duration_or_a_date_and_refuses_the_past() {
+    use crate::runtime::transport_tests::input_control;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, _props, state) = connected(&fixture).await;
+    // The server's config says what threads can do; this fixture's offers snoozing to the item tests the same way.
+    {
+        let mut config = state.typed_config();
+        config.write().as_mut().expect("the server's config").environment.capabilities.thread_snooze = Some(true);
+    }
+    until(&mut dom, "both rows", |dom| control(dom, "Thread thread-a").is_some() && control(dom, "Thread thread-b").is_some()).await;
+    toggle(&mut dom, "thread-a");
+    mouse_control(&mut dom, "Thread thread-b", "click", false, false, true);
+    until(&mut dom, "both chosen", |dom| chosen(dom, "thread-a") && chosen(dom, "thread-b")).await;
+    mouse_control(&mut dom, "Thread thread-a", "contextmenu", false, false, false);
+    until(&mut dom, "the bulk menu", |dom| control(dom, "Selected threads").is_some()).await;
+    click_when_enabled(&mut dom, "Snooze (2): Custom\u{2026}").await;
+    until(&mut dom, "the dialog", |dom| control(dom, "Date and time").is_some()).await;
+    // A date in the past is refused where the person is looking, and nothing is sent.
+    input_control(&mut dom, "Date", "2001-01-01");
+    click_when_enabled(&mut dom, "Snooze").await;
+    wait_for_rendered_text(&mut dom, "Choose a valid date and time in the future.").await;
+    click_when_enabled(&mut dom, "Duration").await;
+    input_control(&mut dom, "Snooze for", "0");
+    click_when_enabled(&mut dom, "Snooze").await;
+    wait_for_rendered_text(&mut dom, "Enter a positive duration.").await;
+    input_control(&mut dom, "Snooze for", "3");
+    click_when_enabled(&mut dom, "Snooze").await;
+    until(&mut dom, "both snoozed and the dialog closed", |dom| {
+        let snoozed = state.peek().shell.snapshot.as_ref().map_or(0, |snapshot| snapshot.threads.iter().filter(|thread| thread.snoozed_until.flatten().is_some()).count());
+        snoozed == 2 && control(dom, "Date and time").is_none()
+    })
+    .await;
+    fixture.finish(dom).await;
+}
