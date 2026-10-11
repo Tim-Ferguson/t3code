@@ -494,7 +494,7 @@ fn account_auth(account: &Value) -> Value {
     }
     auth
 }
-fn plan_label(plan: Option<&str>) -> Option<&'static str> {
+pub(crate) fn plan_label(plan: Option<&str>) -> Option<&'static str> {
     match plan {
         Some("free") => Some("ChatGPT Free Subscription"),
         Some("go") => Some("ChatGPT Go Subscription"),

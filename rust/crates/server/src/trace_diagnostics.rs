@@ -1,8 +1,8 @@
 //! `server.getTraceDiagnostics` (port of `diagnostics/TraceDiagnostics.ts`): folds the server's
 //! local trace file, with its rotated backups, into counts, the slowest spans, common failures and
 //! the latest warnings. The files are streamed a line at a time, so memory stays bounded however
-//! large the trace is. This server writes no trace of its own; a state directory shared with the
-//! original server reports that server's.
+//! large the trace is. This server writes the spans browsers export (`trace_sink.rs`) and none of its own; a state
+//! directory shared with the original server also reports that server's.
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde_json::{Map, Value, json};
 use std::{collections::HashMap, io::BufRead};

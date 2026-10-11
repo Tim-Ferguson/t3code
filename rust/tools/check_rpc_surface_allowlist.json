@@ -20,9 +20,7 @@
     "partial": {
       "device.testHost": "A host that is not this machine answers the probe's failure envelope: SSH device hosts are not ported.",
       "device.configure": "Remote SSH device hosts are stored but never connected to.",
-      "server.getConfig": "observability.localTracingEnabled is false (no local trace file is written), and usage-limit sources are not merged. directEndpoints and remoteOpenTargets are served (environment_endpoints.rs).",
-      "subscribeServerConfig": "No usageLimitSourcesUpdated events (sources are not polled). environmentThemesUpdated is served; directEndpoints/remoteOpenTargets are in the snapshot.",
-      "provider.consumeResetCredit": "Provider reset credits only; the CLIProxyAPI usage-limit source variant is not ported.",
+      "server.getConfig": "OTLP export is not ported (the otlp*Enabled flags are false), and the local trace file holds the spans browsers exported but none of the server's own (trace_sink.rs). directEndpoints and remoteOpenTargets are served (environment_endpoints.rs).",
       "server.updateServer": "Answers as an unconfigured build (no launcher IPC channel, so never boot-service managed); the desktop-app path runs over the control channel. Nothing is downloaded or installed.",
       "server.updateServerWithProgress": "As server.updateServer.",
       "server.commitDesktopUpdate": "As server.updateServer: commits through the desktop app's control channel only."
@@ -31,7 +29,6 @@
   "http": {
     "omitted": {},
     "pending": {
-      "POST /api/observability/v1/traces": "OTLP traces proxy for the browser (BrowserTraceCollector, http.ts): not ported; needs the observability layer.",
       "GET /api/preview-stream/*": "Preview browser frame stream: not ported.",
       "POST /api/preview-stream/upload": "Preview browser file upload: not ported."
     },
@@ -78,7 +75,6 @@
   },
   "env": {
     "pending": {
-      "usageLimitSources": "Usage-limit sources (UsageLimitSources.ts, cliproxyApi.ts) are not polled or streamed.",
       "serverBrowser": "Server-side browser (preview/ServerBrowser.ts): not ported."
     }
   }

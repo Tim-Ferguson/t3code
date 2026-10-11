@@ -36,6 +36,9 @@ pub fn violations(method: &str, message: &RpcServerMessage) -> Vec<Violation> {
         RpcServerMessage::Chunk { values, .. } => ("chunk", Value::Array(values.clone())),
         _ => return Vec::new(),
     };
+    if is_unconfigured_service_extension(method, &wire) {
+        return Vec::new();
+    }
     let schemas = response_schemas();
     // A reply can nest as deeply as a thread does, and the interpreter is recursive: a thread of its own with room for it.
     let outcome = std::thread::scope(|scope| {
@@ -89,6 +92,22 @@ fn is_state_import_extension(method: &str, wire: &Value, path: &[String], messag
         };
     }
     serde_json::from_value::<t3_contracts::StateImportStatus>(found.clone()).is_ok()
+}
+
+/// The methods the resource-telemetry service answers, which the original's group types with `EnvironmentAuthorizationError` alone
+/// because its server always runs a monitor.
+const RESOURCE_TELEMETRY_METHODS: [&str; 3] = ["server.getResourceTelemetryHistory", "server.retryResourceTelemetry", "subscribeResourceTelemetry"];
+
+/// RUST-PORT EXTENSION: a server started without a resource monitor says so (`NativeServiceUnavailableError`, whose only keys are
+/// `_tag` and `message`) instead of an empty history, and the diagnostics page (`rust/crates/ui/src/resource_section.rs`) shows that
+/// answer. It is let through only for the resource-telemetry methods, only as the sole failure of the exit, and only in this shape.
+fn is_unconfigured_service_extension(method: &str, wire: &Value) -> bool {
+    if !RESOURCE_TELEMETRY_METHODS.contains(&method) || wire["_tag"] != "Failure" {
+        return false;
+    }
+    let Some([cause]) = wire["cause"].as_array().map(Vec::as_slice) else { return false };
+    let error = &cause["error"];
+    cause["_tag"] == "Fail" && error["_tag"] == "NativeServiceUnavailableError" && error["message"].is_string() && error.as_object().is_some_and(|keys| keys.len() == 2)
 }
 
 /// Whether the original's group has the method, which is what a reply can be checked against.

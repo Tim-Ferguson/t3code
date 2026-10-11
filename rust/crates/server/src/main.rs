@@ -30,6 +30,8 @@ struct Options {
     fixture: bool,
     /// The validated `T3CODE_FIXTURE_GITHUB_API_ORIGIN`; only ever set together with `fixture`.
     fixture_github_api_origin: Option<String>,
+    /// `--fixture-acp-registry FILE`: the ACP registry catalog read from this file; only ever set together with `fixture`.
+    fixture_acp_registry: Option<PathBuf>,
     /// `import --from`: the original's T3 home (or its `userdata` directory).
     from: Option<PathBuf>,
     /// `--no-import`: start with an empty store even though the original's database is beside it.
@@ -88,6 +90,7 @@ fn parse_options(
         overrides: Default::default(),
         fixture: false,
         fixture_github_api_origin: None,
+        fixture_acp_registry: None,
         from: None,
         no_import: false,
         strict_import: false,
@@ -256,6 +259,7 @@ fn parse_options(
                 )
             }
             "--fixture" => options.fixture = true,
+            "--fixture-acp-registry" => options.fixture_acp_registry = Some(PathBuf::from(args.next().ok_or("--fixture-acp-registry requires the path of a registry index")?)),
             "--dev-url" => options.dev_url = Some(args.next().ok_or("--dev-url requires a URL")?.parse().map_err(|error| format!("--dev-url is not a URL: {error}"))?),
             _ if arg.starts_with("--dev-url=") => options.dev_url = Some(arg["--dev-url=".len()..].parse().map_err(|error| format!("--dev-url is not a URL: {error}"))?),
             "--auto-bootstrap-project-from-cwd" => options.auto_bootstrap = true,
@@ -271,7 +275,7 @@ fn parse_options(
             }
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair|import|connect [login|link|publish|status|unlink|logout]] [--state-dir PATH] [--from T3_HOME] [--no-import] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--tailscale-serve] [--tailscale-serve-port PORT] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\nconnect sets up T3 Connect (--headless; link --publish-only; publish --disable; status --json; --base-dir PATH names the T3 home).\nimport --from T3_HOME --state-dir DIR imports the original server's database into DIR (see rust/README.md); serve does the same on first start when DIR holds the original's database and no store of this server, unless --no-import.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
+                    "t3-server [serve|pair|import|connect [login|link|publish|status|unlink|logout]] [--state-dir PATH] [--from T3_HOME] [--no-import] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--tailscale-serve] [--tailscale-serve-port PORT] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture [--fixture-acp-registry FILE]]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\nconnect sets up T3 Connect (--headless; link --publish-only; publish --disable; status --json; --base-dir PATH names the T3 home).\nimport --from T3_HOME --state-dir DIR imports the original server's database into DIR (see rust/README.md); serve does the same on first start when DIR holds the original's database and no store of this server, unless --no-import.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag. --fixture-acp-registry FILE (with --fixture) reads the ACP registry catalog from that file, so the catalog never fetches cdn.agentclientprotocol.com."
                 );
                 std::process::exit(0)
             }
@@ -279,6 +283,9 @@ fn parse_options(
         }
     }
     options.fixture_github_api_origin = t3_server::fixture::github_api_origin(options.fixture, env(t3_server::fixture::GITHUB_API_ORIGIN_VARIABLE))?;
+    if options.fixture_acp_registry.is_some() && !options.fixture {
+        return Err("--fixture-acp-registry is only read with --fixture, a testing flag. Remove it, or pass --fixture.".into());
+    }
     Ok(options)
 }
 
@@ -449,6 +456,16 @@ mod tests {
             assert!(parse_options(["--fixture".to_owned()], origin(bad)).is_err(), "{bad}");
         }
     }
+    #[test]
+    fn the_fixture_registry_file_is_an_error_without_the_flag() {
+        let args = |extra: &[&str]| extra.iter().map(|arg| arg.to_string()).collect::<Vec<_>>();
+        let error = parse_options(args(&["--fixture-acp-registry", "/tmp/registry.json"]), |_| None).err().unwrap().to_string();
+        assert!(error.contains("--fixture"), "{error}");
+        let fixture = parse_options(args(&["--fixture", "--fixture-acp-registry", "/tmp/registry.json"]), |_| None).unwrap();
+        assert_eq!(fixture.fixture_acp_registry, Some(PathBuf::from("/tmp/registry.json")));
+        assert!(parse_options(args(&["--fixture", "--fixture-acp-registry"]), |_| None).is_err());
+        assert!(parse_options(Vec::new(), |_| None).unwrap().fixture_acp_registry.is_none());
+    }
     fn tailscale_envelope(enabled: bool, port: u16) -> t3_contracts::DesktopBackendBootstrap {
         serde_json::from_value(json!({"mode":"desktop","noBrowser":true,"port":3773,"host":"127.0.0.1","desktopBootstrapToken":"fixture-IPC","tailscaleServeEnabled":enabled,"tailscaleServePort":port})).unwrap()
     }
@@ -611,6 +628,7 @@ mod tests {
             overrides: Default::default(),
             fixture: false,
             fixture_github_api_origin: None,
+            fixture_acp_registry: None,
             from: None,
             no_import: false,
             strict_import: false,
@@ -912,7 +930,7 @@ async fn run(
         .init();
     // Before anything uses the process's source control host.
     if options.fixture {
-        t3_server::fixture::install(options.fixture_github_api_origin.as_deref())?;
+        t3_server::fixture::install(options.fixture_github_api_origin.as_deref(), options.fixture_acp_registry.as_deref())?;
     }
     // `path.resolve(expandHomePath(cwd.trim()))`, made if it is not there (`fs.makeDirectory(cwd, { recursive: true })`).
     let server_cwd = match &options.cwd {
@@ -1220,6 +1238,17 @@ async fn run(
     // directory, so client ids survive a restart).
     // The palettes this machine publishes under `<state dir>/themes`, streamed to the clients that follow them.
     t3_server::environment_theme::install(&store, t3_server::environment_theme::EnvironmentThemes::start(state_dir.join("themes"), t3_server::environment_theme::WATCH_DEBOUNCE).await);
+    // Browsers' span exports are written to the local trace file (`<logs>/server.trace.ndjson`).
+    match t3_server::trace_sink::TraceSink::open(&state_dir.join("logs").join(t3_server::trace_diagnostics::TRACE_FILE_NAME), t3_server::trace_sink::MAX_BYTES, t3_server::trace_sink::MAX_FILES) {
+        Ok(sink) => {
+            let _ = sink.start(t3_server::trace_sink::BATCH_WINDOW);
+            t3_server::trace_sink::install(&store, sink);
+        }
+        Err(error) => tracing::warn!(%error, "The local trace file could not be opened; no trace is written"),
+    }
+    let trace_sink = t3_server::trace_sink::current(&store);
+    // The quota of the configured usage-limit sources, read on the provider health interval and when the entries change.
+    t3_server::usage_limit_sources::install(&store, t3_server::usage_limit_sources::start_production(settings_service.clone(), background.clone()).await);
     let mcp_oauth = std::sync::Arc::new(t3_server::mcp_oauth::McpOAuth::new(auth.clone(), &t3_server::server_secret_store::ServerSecretStore::open(state_dir.join("secrets"))?)?);
     t3_server::mcp_oauth::install(&store, mcp_oauth.clone());
     let mcp = t3_server::mcp_http::McpHttpService::new(
@@ -1326,6 +1355,10 @@ async fn run(
         None => None,
     };
     serve_until_stopped(listener, router(state).merge(mcp.router()), signals, (options.mode == "desktop").then_some(parent), async move { stopping_mcp.shutdown().await }).await?;
+    // Records still in the batch window are written before the server ends.
+    if let Some(sink) = trace_sink {
+        sink.flush();
+    }
     // The server's finalizers: the link (releasing a CLI-managed tunnel unless an update is replacing this server), the
     // connector, and Tailscale Serve if this server configured it.
     connect.shutdown().await;

@@ -341,6 +341,8 @@ struct Inner {
     cache_dir: PathBuf,
     tools_dir: PathBuf,
     url: String,
+    /// A registry index on disk read in place of the fetch (`--fixture-acp-registry`), so a test never leaves the machine.
+    index_file: Option<PathBuf>,
     http: reqwest::Client,
     index: Mutex<Option<Index>>,
     revision: AtomicU64,
@@ -364,7 +366,16 @@ struct Inner {
 }
 impl Catalog {
     pub fn new(cache_dir: PathBuf, tools_dir: PathBuf) -> Result<Self, RegistryError> {
-        Self::with_origin(cache_dir, tools_dir, REGISTRY_URL.into())
+        Self::with_origin(cache_dir, tools_dir, REGISTRY_URL.into()).map(|catalog| match crate::fixture::acp_registry_file() {
+            Some(file) => catalog.reading(file.to_path_buf()),
+            None => catalog,
+        })
+    }
+    /// The same catalog reading its index from `file`, held to the bounds and decoding of the fetched one.
+    fn reading(self, file: PathBuf) -> Self {
+        let mut inner = Arc::try_unwrap(self.0).unwrap_or_else(|_| unreachable!("a catalog just built has one owner"));
+        inner.index_file = Some(file);
+        Self(Arc::new(inner))
     }
     /// Where registry agents and other managed provider tools are installed.
     pub fn tools_dir(&self) -> &Path {
@@ -385,6 +396,7 @@ impl Catalog {
             cache_dir: cache_dir.join("acp-registry"),
             tools_dir,
             url,
+            index_file: None,
             http,
             index: Mutex::new(None),
             revision: AtomicU64::new(0),
@@ -428,14 +440,16 @@ impl Catalog {
         }
     }
     async fn fetch(&self) -> Result<Index, RegistryError> {
-        let bytes = self
-            .download(
-                &self.0.url,
-                MAX_REGISTRY,
-                Duration::from_secs(30),
-                "registry_unavailable",
-            )
-            .await?;
+        let bytes = match &self.0.index_file {
+            Some(file) => {
+                let bytes = tokio::fs::read(file).await.map_err(|e| error("registry_unavailable", e))?;
+                if bytes.len() > MAX_REGISTRY {
+                    return Err(error("registry_unavailable", "Response exceeds source byte bound."));
+                }
+                bytes
+            }
+            None => self.download(&self.0.url, MAX_REGISTRY, Duration::from_secs(30), "registry_unavailable").await?,
+        };
         let index = decode_index(&bytes)?;
         // Source writeRegistryCache ignores write failures. Keep the complete
         // write/rename operation with its temporary-file guard even if the

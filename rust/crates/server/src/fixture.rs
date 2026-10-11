@@ -41,9 +41,23 @@ pub fn github_api_endpoints(origin: &str, host: &str) -> (String, String) {
     (format!("{origin}/rest/{host}"), format!("{origin}/graphql/{host}"))
 }
 
-/// Puts the fixture in place. It must run before the first use of `Host::process_default`.
-pub fn install(github_api_origin: Option<&str>) -> Result<(), String> {
+/// The registry index the ACP catalog reads instead of fetching `cdn.agentclientprotocol.com`, set only by `--fixture`.
+static ACP_REGISTRY_FILE: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// The file the ACP registry catalog is read from, when the server runs as a fixture with one.
+pub fn acp_registry_file() -> Option<&'static std::path::Path> {
+    ACP_REGISTRY_FILE.get().map(std::path::PathBuf::as_path)
+}
+
+/// Puts the fixture in place. It must run before the first use of `Host::process_default` and before the provider catalog is built.
+pub fn install(github_api_origin: Option<&str>, acp_registry: Option<&std::path::Path>) -> Result<(), String> {
     crate::external_launcher::offer_no_editors();
+    if let Some(file) = acp_registry {
+        if !file.is_file() {
+            return Err(format!("--fixture-acp-registry {} is not a file.", file.display()));
+        }
+        let _ = ACP_REGISTRY_FILE.set(file.to_path_buf());
+    }
     let Some(origin) = github_api_origin else { return Ok(()) };
     let origin = origin.to_owned();
     let host = Host::new(HostOptions { github_api: Some(Arc::new(move |host| github_api_endpoints(&origin, host))), ..HostOptions::default() });

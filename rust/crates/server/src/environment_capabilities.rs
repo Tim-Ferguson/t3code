@@ -79,6 +79,8 @@ fn base() -> Value {
         "serverResolvedCommandContext": true,
         "pullRequestStackActions": true,
         "projectWorktreeCleanup": true,
+        // The quota of the configured `usageLimitSources`, streamed as `usageLimitSourcesUpdated` (`usage_limit_sources`).
+        "usageLimitSources": true,
     })
 }
 
@@ -106,17 +108,16 @@ mod tests {
     }
 
     /// Held back because their feature is not (fully) ported: the
-    /// quota streamed from usage-limit sources,
-    /// the browser, and the self-update entries.
+    /// browser, and the self-update entries.
     #[test]
     fn the_advertised_capabilities_are_valid_and_leave_out_what_is_not_ported() {
         let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":advertised()});
         let decoded: t3_contracts::ExecutionEnvironmentDescriptor = serde_json::from_value(descriptor.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap()["capabilities"], descriptor["capabilities"]);
-        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases", "repositoryIdentity", "storageCleanup", "projectWorktreeCleanup", "serverResolvedCommandContext", "pullRequestStackActions"] {
+        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases", "repositoryIdentity", "storageCleanup", "projectWorktreeCleanup", "serverResolvedCommandContext", "pullRequestStackActions", "usageLimitSources"] {
             assert_eq!(advertised()[ported], true, "{ported}");
         }
-        for held_back in ["usageLimitSources", "serverBrowser"] {
+        for held_back in ["serverBrowser"] {
             assert!(advertised().get(held_back).is_none(), "{held_back}");
         }
     }

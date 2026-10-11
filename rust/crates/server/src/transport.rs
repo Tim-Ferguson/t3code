@@ -151,6 +151,7 @@ pub fn router(state: ApiState) -> Router {
         .route("/ws", get(upgrade))
         .merge(crate::attachment_http::routes())
         .merge(crate::scheduled_tasks_http::routes())
+        .merge(crate::trace_sink::routes())
         .merge(crate::connect_http::routes())
         .merge(crate::mcp_oauth_http::routes())
         .fallback(get(static_asset))
@@ -1194,6 +1195,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                 crate::external_launcher::overlay_config(&mut config).await;
                 crate::environment_endpoints::overlay_config(&state.store, &mut config).await;
         crate::import_status::overlay_config(&state.store, &mut config);
+                crate::trace_sink::overlay_config(&state.store, &mut config);
                 return Ok(config);
             }
             return Ok(settings);
@@ -2338,8 +2340,11 @@ async fn config_stream(
 ) {
     let result=async {
         let flags:t3_contracts::SubscribeServerConfigInput=serde_json::from_value(request.payload.clone()).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid config subscription payload."}))?;
-        // Optional sources are merged once their native services are available (the usage-limit sources are not yet).
-        let _=(flags.usage_limit_sources,flags.usage_limits_command);
+        // The quota of the configured usage-limit sources follows the snapshot as events, for a client that asked (its decoder would not
+        // know the event otherwise), and `/usage-limits` is offered on the providers they report on, for one that asked for the command.
+        let sources=crate::usage_limit_sources::current(&state.store);
+        let mut usage_sources=match (flags.usage_limit_sources.flatten(),&sources) {(Some(true),Some(sources))=>Some(sources.subscribe()),_=>None};
+        let command_sources=sources.filter(|_|flags.usage_limits_command.flatten()==Some(true));
         // The published themes: the stream's first event after the snapshot is the set now, then each change. A client that did not
         // ask for them (its decoder would not know the event) is sent none.
         let mut themes=match (flags.environment_themes.flatten(),crate::environment_theme::current(&state.store)) {
@@ -2352,6 +2357,11 @@ async fn config_stream(
             Some(registry)=>{let (snapshot,changes)=registry.snapshot_and_subscribe();(Some(snapshot),Some(changes))},
             None=>(None,None),
         };
+        let providers_now=providers.clone().unwrap_or_default();
+        let providers=providers.map(|providers|match &command_sources {
+            Some(sources)=>crate::usage_limit_sources::with_usage_limits_commands(&providers,sources.current().as_slice()),
+            None=>providers,
+        });
         let mut config=state.config.clone().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Native configuration is unavailable."}))?;
         config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);
         if let Some(providers)=providers {config["providers"]=json!(providers);}
@@ -2361,14 +2371,19 @@ async fn config_stream(
         crate::external_launcher::overlay_config(&mut config).await;
         crate::environment_endpoints::overlay_config(&state.store, &mut config).await;
         crate::import_status::overlay_config(&state.store, &mut config);
+        crate::trace_sink::overlay_config(&state.store, &mut config);
         let (changes,mut provider_events)=mpsc::unbounded_channel();
         struct Abort(tokio::task::JoinHandle<()>);
         impl Drop for Abort {fn drop(&mut self) {self.0.abort();}}
         let initial=serde_json::to_string(&config["providers"]).unwrap();
         let _provider_task=provider_changes.map(|provider_changes|Abort(tokio::spawn(async move {
-            let source=futures_util::stream::unfold(provider_changes,|mut changes|async move {
-                changes.recv().await.map(|next|(next,changes))
-            });
+            // Without the command the catalog is the registry's own.
+            let source=match command_sources {
+                Some(sources)=>crate::usage_limit_sources::command_catalogs(provider_changes,providers_now,&sources).boxed(),
+                None=>futures_util::stream::unfold(provider_changes,|mut changes|async move {
+                    changes.recv().await.map(|next|(next,changes))
+                }).boxed(),
+            };
             pump_provider_statuses(source,initial,changes).await;
         })));
         let mut provider_active = _provider_task.is_some();
@@ -2388,6 +2403,10 @@ async fn config_stream(
                     _=service.closed()=>return Ok(()),
                     next=settings.recv()=>break match next {Some(settings)=>{current["settings"]=crate::provider_registry::redact_settings(&settings);json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}})},None=>return Ok(())},
                     next=keybindings.recv()=>break match next {Some(state)=>{crate::keybindings_rpc::apply(&mut current,&state);crate::keybindings_rpc::updated_event(&state)},None=>return Ok(())},
+                    set=async {match usage_sources.as_mut() {Some(sources)=>sources.next().await,None=>std::future::pending().await}}=>match set {
+                        Some(set)=>break crate::usage_limit_sources::event(set.as_slice()),
+                        None=>usage_sources=None,
+                    },
                     set=async {match themes.as_mut() {Some(themes)=>themes.next().await,None=>std::future::pending().await}}=>match set {
                         Some(set)=>break crate::environment_theme::event(&set),
                         None=>themes=None,
@@ -2534,8 +2553,11 @@ async fn stream_inner(
     }
     let mut pending: Vec<crate::project_enrichment::Change> = Vec::new();
     let mut flush_at: Option<tokio::time::Instant> = None;
+    // A thread stream holds running tool updates for a moment and sends the newest of each call (`ThreadLiveEventCoalescer`).
+    let mut window = crate::thread_live_coalescer::ThreadLiveCoalescer::default();
     loop {
         let flush_due = flush_at;
+        let window_due = window.deadline();
         tokio::select! {
             events = live.recv() => {
                 let lost=|error: tokio::sync::broadcast::error::RecvError|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":format!("Live subscription lost continuity; reconnect with its sequence: {error}")});
@@ -2553,7 +2575,20 @@ async fn stream_inner(
                 }
                 let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
                 authorize_rpc(&active, &request.tag)?;
-                for value in live_items(state, events, is_thread, archive, thread_id, through)? {
+                let mut items = live_items(state, events, is_thread, archive, thread_id, through)?;
+                if is_thread {
+                    items = items.into_iter().flat_map(|item| window.offer(item)).collect();
+                }
+                for value in items {
+                    if !send_item(output, ack, &request.id, &mut dedupe, value).await {
+                        return Ok(());
+                    }
+                }
+            }
+            _ = async move { match window_due { Some(at) => tokio::time::sleep_until(at).await, None => std::future::pending().await } } => {
+                let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
+                authorize_rpc(&active, &request.tag)?;
+                for value in window.flush() {
                     if !send_item(output, ack, &request.id, &mut dedupe, value).await {
                         return Ok(());
                     }
@@ -2617,9 +2652,7 @@ fn stream_item(
     thread_id: Option<&str>,
 ) -> Result<Option<Value>, Value> {
     if is_thread {
-        // TODO(original ThreadLiveEventCoalescer.ts): the original keeps only the newest running update of each tool call within a
-        // 50 ms window (`coalesceLiveToolUpdatedEvents`); here every update is sent. The adapters flush output every 50 ms, so the
-        // difference is small, and a client replays the same final row either way.
+        // Running tool updates are held back to the newest of each call by the stream loop (`thread_live_coalescer`), after this.
         return Ok((event.event.aggregate_kind=="thread"&&Some(event.event.aggregate_id.as_str())==thread_id).then(||json!({"kind":"event","sequence":event.sequence,"event":crate::wire_projection::domain_event(crate::thread::wire_event(event))})));
     }
     if event.event.aggregate_kind == "project" {

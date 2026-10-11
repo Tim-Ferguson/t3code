@@ -118,3 +118,22 @@ fn a_chunk_is_checked_against_the_element_of_the_stream() {
     let chunk = |values: Vec<Value>| t3_contracts::RpcServerMessage::Chunk { request_id: "1".into(), values };
     assert_eq!(violations("subscribeBackgroundPolicy", &chunk(vec![serde_json::json!({"nonsense":true})])).is_empty(), false);
 }
+
+/// A server without a resource monitor answers the resource-telemetry methods with `NativeServiceUnavailableError`, which the
+/// original's contract (`EnvironmentAuthorizationError` alone) does not name: let through there, in that shape, and nowhere else.
+#[test]
+fn an_unconfigured_resource_monitor_is_let_through_for_the_telemetry_methods_only() {
+    use crate::rpc_response::violations;
+    let unavailable = |error: Value| serde_json::json!({"_tag":"Failure","cause":[{"_tag":"Fail","error":error}]});
+    let native = unavailable(serde_json::json!({"_tag":"NativeServiceUnavailableError","message":"Resource telemetry is not configured."}));
+    for method in ["server.getResourceTelemetryHistory", "server.retryResourceTelemetry", "subscribeResourceTelemetry"] {
+        assert_eq!(violations(method, &exit(native.clone())), vec![], "{method}");
+        // Another shape of the error is not let through.
+        assert!(!violations(method, &exit(unavailable(serde_json::json!({"_tag":"NativeServiceUnavailableError","message":"x","detail":1})))).is_empty(), "{method}");
+        assert!(!violations(method, &exit(unavailable(serde_json::json!({"_tag":"NativeServiceUnavailableError","message":5})))).is_empty(), "{method}");
+        assert!(!violations(method, &exit(unavailable(serde_json::json!({"_tag":"NativeMethodUnsupportedError","message":"x"})))).is_empty(), "{method}");
+    }
+    // Other methods keep the original's contract.
+    assert!(!violations("server.getHostResources", &exit(native.clone())).is_empty());
+    assert!(!violations("assets.createUrl", &exit(native)).is_empty());
+}

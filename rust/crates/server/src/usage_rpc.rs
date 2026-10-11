@@ -26,12 +26,20 @@ pub(crate) fn decode_summary(payload: &Value) -> Result<(), Value> {
     }
     Ok(())
 }
-/// A reset credit is spent on an instance, or on a usage limit source (which this server answers for itself).
+/// A reset credit is spent on an instance, or through a usage limit source's hub (the source named, and the account and credit on
+/// it, both non-empty once trimmed).
 pub(crate) fn decode_reset_credit(payload: &Value) -> Result<(), Value> {
-    if payload.get("sourceId").is_some() || payload["instanceId"].as_str().is_some_and(|id| !id.is_empty()) {
+    if payload["instanceId"].as_str().is_some_and(|id| !id.is_empty()) {
         return Ok(());
     }
-    Err(decode_error("provider.consumeResetCredit needs an instanceId or a sourceId."))
+    if payload["sourceId"].is_string() && trimmed(&payload["accountId"]).is_some() && trimmed(&payload["creditId"]).is_some() {
+        return Ok(());
+    }
+    Err(decode_error("provider.consumeResetCredit needs an instanceId, or a sourceId with an accountId and a creditId."))
+}
+/// `TrimmedNonEmptyString`
+fn trimmed(value: &Value) -> Option<String> {
+    value.as_str().map(str::trim).filter(|text| !text.is_empty()).map(str::to_owned)
 }
 
 pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Value, Value> {
@@ -70,9 +78,15 @@ fn setup_error(instance: &str, detail: impl Into<String>) -> Value {
 }
 
 async fn consume_reset_credit(state: &ApiState, payload: &Value) -> Result<Value, Value> {
-    // A cliproxy usage-limit source banks credits on another account; this server has none configured.
-    if payload.get("sourceId").is_some() {
-        return Err(json!({"_tag":"UsageLimitSourceError","detail":"Usage limit sources are not configured on this server."}));
+    // A cliproxy usage-limit source banks credits on another account: redeemed through its hub.
+    if let Some(source_id) = payload.get("sourceId") {
+        let (Some(source), Some(account), Some(credit)) = (source_id.as_str(), trimmed(&payload["accountId"]), trimmed(&payload["creditId"])) else {
+            return Err(decode_error("provider.consumeResetCredit needs an instanceId, or a sourceId with an accountId and a creditId."));
+        };
+        let Some(sources) = crate::usage_limit_sources::current(&state.store) else {
+            return Err(json!({"_tag":"UsageLimitSourceError","detail":"The usage limit source is missing or disabled."}));
+        };
+        return sources.consume_reset_credit(source, &account, &credit).await.map_err(|error| error.wire());
     }
     let Some(instance) = payload["instanceId"].as_str().filter(|id| !id.is_empty()) else { return Err(decode_error("provider.consumeResetCredit needs an instanceId or a sourceId.")) };
     let providers = state.providers.as_ref().ok_or_else(|| setup_error(instance, "Provider instance not found."))?;

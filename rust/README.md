@@ -82,9 +82,18 @@ whole text and an interrupted answer keeps its text; the ACP family (`acpRegistr
 reached through a trait and never run by the tests) and the environment advertises `storageCleanup`, `projectWorktreeCleanup`,
 `serverResolvedCommandContext` and `pullRequestStackActions` (`pull_request_stack.rs`: GitHub's merge of a stack up to a layer, polled to its end, and the
 cascade rebase in a scratch clone under the temporary directory, pushed layer by layer with a lease on the reviewed head; the heads the reader reviewed
-must still be the stack's, or nothing is sent). Still open on the server: usage-limit sources and the usage scan cache, SSH device
-hosts, `observability.localTracingEnabled` (no trace file is written), the reusable dev credential, the OTLP trace proxy and the provider event
-NDJSON logs, the preview/browser host registry, and the ChatGPT-signed-in Codex flows, Cursor and analytics.
+must still be the stack's, or nothing is sent). Usage-limit sources (`usage_limit_sources.rs`, `cliproxy_api.rs`) read each enabled
+`usageLimitSources` entry (a CLIProxyAPI hub and its pooled Codex and Claude accounts) on the provider health interval, when the entries change and on an
+untargeted `server.refreshProviders`; `subscribeServerConfig` streams them as `usageLimitSourcesUpdated` to a client that asks, offers `/usage-limits`
+on the providers they report on to one that sends `usageLimitsCommand`, and `provider.consumeResetCredit { sourceId, accountId, creditId }` redeems through
+the hub. Their tests serve a scripted hub from a loopback socket, with the answers of the unchanged original for the same scripts
+(`tools/generate_usage_limit_source_fixtures.mjs`); Codex's `codexRateLimitsToLimits` and `codexPlanLabel` are ported there too
+(`codex_usage_limits.rs`; the Codex adapter does not call them yet). A thread stream sends the newest running update of each tool call within a 50 ms window
+(`thread_live_coalescer.rs`), and the server writes the spans browsers export to `<logs>/server.trace.ndjson` (`trace_sink.rs`; none of its own, and nothing is
+exported over OTLP). `t3-server serve --fixture --fixture-acp-registry FILE` reads the ACP registry catalog from a file instead of
+`cdn.agentclientprotocol.com`, for tests of a client (an error without `--fixture`). Still open on the server: the usage scan cache (usage for
+transcripts since deleted is not kept; a scan re-reads what is on disk), SSH device hosts, the reusable dev credential, the provider event NDJSON logs,
+the preview/browser host registry, and the ChatGPT-signed-in Codex flows, Cursor and analytics.
 Responses are compressed as the original's router does (`response_compression.rs`: brotli, gzip or deflate by `Accept-Encoding`, text-like types of
 1024 bytes or more); a body of unknown length is sent as it is.
 Writing a streamed delta costs what the delta is, not what the thread is, except for the stored document itself: a thread is one JSON document

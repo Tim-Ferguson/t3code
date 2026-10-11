@@ -44,6 +44,13 @@ pub async fn command(state: &ApiState, tag: &str, payload: Value) -> Result<Valu
     match tag {
         "server.refreshProviders" => {
             let input: ServerRefreshProvidersInput = decode(payload)?;
+            // An untargeted refresh is "re-read everything's status", which includes quota from configured usage-limit sources.
+            // Awaited, not spawned: the answer carries the providers, and a client that asked for a refresh expects the quota current.
+            if input.instance_id.is_none() {
+                if let Some(sources) = crate::usage_limit_sources::current(&state.store) {
+                    sources.refresh().await;
+                }
+            }
             let snapshots = providers.management().refresh(providers, &input).await.map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
             providers_payload(snapshots)
         }
