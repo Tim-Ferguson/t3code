@@ -342,3 +342,97 @@ impl Drop for Release {
         let _ = std::fs::write(&self.0, "go");
     }
 }
+
+const WRITER: [AuthEnvironmentScope; 3] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::SourceControlWrite];
+
+/// A worktree beside the project and a thread (`thread-wt`, plus `sharing` when given) that works in it.
+async fn thread_in_worktree(fixture: &Fixture, dom: &mut VirtualDom, props: &Harness, state: Store<UiModel>, sharing: bool) -> std::path::PathBuf {
+    git(&fixture.workspace, &["branch", "-m", "main"]);
+    let worktree = fixture.workspace.parent().unwrap().join("delete-wt");
+    git(&fixture.workspace, &["worktree", "add", "-q", "-b", "delete-branch", worktree.to_str().unwrap()]);
+    let names: &[&str] = if sharing { &["thread-wt", "thread-sharing"] } else { &["thread-wt"] };
+    for name in names {
+        dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.create", json!({"createdBy":"user","creationSource":"web","threadId":name,"projectId":"project","title":name,"modelSelection":{"instanceId":"codex","model":"fixture-model"},"runtimeMode":"full-access","interactionMode":"default","branch":"delete-branch","worktreePath":worktree}))).unwrap();
+    }
+    until(dom, "the threads", |_| names.iter().all(|name| live(state, name))).await;
+    worktree
+}
+fn listed(fixture: &Fixture, worktree: &std::path::Path) -> bool {
+    let wanted = std::fs::canonicalize(worktree).ok();
+    git(&fixture.workspace, &["worktree", "list", "--porcelain"]).lines().filter_map(|line| line.strip_prefix("worktree ")).any(|path| std::fs::canonicalize(path).ok() == wanted && wanted.is_some())
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn deleting_the_only_thread_of_a_worktree_offers_to_remove_it_and_a_yes_removes_it_after_the_thread() {
+    with_app(true, &WRITER, async |fixture, dom, props, state| {
+        let worktree = thread_in_worktree(fixture, dom, props, state, false).await;
+        open_thread(dom, props, state, "thread-wt").await;
+        click_control(dom, "Delete thread");
+        click_control(dom, "Confirm");
+        // The question names the folder, in the original's words, and nothing is deleted before it is answered.
+        wait_for_rendered_text(dom, "Delete the worktree too?").await;
+        assert!(rendered_text(dom).contains("This thread is the only one linked to this worktree:\ndelete-wt"), "{}", rendered_text(dom));
+        assert!(live(state, "thread-wt") && worktree.exists());
+        click_control(dom, "Confirm");
+        until(dom, "the thread to go", |_| !live(state, "thread-wt")).await;
+        until(dom, "the worktree to go", |_| !worktree.exists()).await;
+        assert!(!listed(fixture, &worktree), "git forgot it too");
+        assert_eq!(error(state), None);
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn declining_the_worktree_question_still_deletes_the_thread_and_leaves_the_worktree() {
+    with_app(true, &WRITER, async |fixture, dom, props, state| {
+        let worktree = thread_in_worktree(fixture, dom, props, state, false).await;
+        open_thread(dom, props, state, "thread-wt").await;
+        click_control(dom, "Delete thread");
+        click_control(dom, "Confirm");
+        wait_for_rendered_text(dom, "Delete the worktree too?").await;
+        key_on(dom, "Cancel", Key::Escape);
+        until(dom, "the thread to go", |_| !live(state, "thread-wt")).await;
+        assert!(worktree.exists() && listed(fixture, &worktree), "the worktree was kept");
+        assert!(control(dom, "Confirm").is_none(), "no question is left open");
+        assert_eq!(error(state), None);
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_worktree_another_thread_uses_is_not_offered_and_the_last_of_them_to_go_is_asked_about() {
+    with_app(true, &WRITER, async |fixture, dom, props, state| {
+        let worktree = thread_in_worktree(fixture, dom, props, state, true).await;
+        open_thread(dom, props, state, "thread-wt").await;
+        click_control(dom, "Delete thread");
+        click_control(dom, "Confirm");
+        until(dom, "the first thread to go", |_| !live(state, "thread-wt")).await;
+        assert!(!rendered_text(dom).contains("Delete the worktree too?") && worktree.exists());
+        open_thread(dom, props, state, "thread-sharing").await;
+        click_control(dom, "Delete thread");
+        click_control(dom, "Confirm");
+        wait_for_rendered_text(dom, "Delete the worktree too?").await;
+        click_control(dom, "Confirm");
+        until(dom, "the worktree to go", |_| !worktree.exists()).await;
+        assert_eq!(error(state), None);
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_connection_that_may_not_write_source_control_is_not_asked_about_the_worktree() {
+    with_app(true, &OPERATOR, async |fixture, dom, props, state| {
+        let worktree = thread_in_worktree(fixture, dom, props, state, false).await;
+        open_thread(dom, props, state, "thread-wt").await;
+        click_control(dom, "Delete thread");
+        click_control(dom, "Confirm");
+        until(dom, "the thread to go", |_| !live(state, "thread-wt")).await;
+        assert!(!rendered_text(dom).contains("Delete the worktree too?") && worktree.exists());
+        assert_eq!(error(state), None);
+    })
+    .await;
+}

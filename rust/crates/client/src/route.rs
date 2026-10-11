@@ -17,9 +17,13 @@ pub enum SettingsPage {
     Projects,
     /// The server's live processes and trace summary (`/settings/diagnostics`).
     Diagnostics,
+    /// Worktree, artifact and log cleanup (`/settings/storage`).
+    Storage,
+    /// Archived threads (`/settings/archived`).
+    Archived,
 }
 impl SettingsPage {
-    pub const ALL: [SettingsPage; 10] = [Self::General, Self::Projects, Self::Providers, Self::Appearance, Self::Connections, Self::Keybindings, Self::ScheduledTasks, Self::SourceControl, Self::TextGeneration, Self::Diagnostics];
+    pub const ALL: [SettingsPage; 12] = [Self::General, Self::Projects, Self::Providers, Self::Appearance, Self::Connections, Self::Keybindings, Self::ScheduledTasks, Self::SourceControl, Self::TextGeneration, Self::Diagnostics, Self::Storage, Self::Archived];
     pub fn segment(self) -> &'static str {
         match self {
             Self::General => "general",
@@ -32,6 +36,8 @@ impl SettingsPage {
             Self::TextGeneration => "text-generation",
             Self::Projects => "projects",
             Self::Diagnostics => "diagnostics",
+            Self::Storage => "storage",
+            Self::Archived => "archived",
         }
     }
     fn of(segment: &str) -> Option<Self> {
@@ -47,6 +53,8 @@ pub enum Route {
     Settings(SettingsPage),
     PullRequests,
     Usage,
+    /// `/projects/<key>`: the original redirects to that project's settings (`/settings/projects?project=<key>`); so does this.
+    Project(String),
 }
 
 /// The route an address names, or `None` for one that names nothing the app shows. A query or fragment
@@ -64,6 +72,7 @@ pub fn parse(address: &str) -> Option<Route> {
         ["settings", page] => SettingsPage::of(page).map(Route::Settings),
         ["pull-requests"] => Some(Route::PullRequests),
         ["usage"] => Some(Route::Usage),
+        ["projects", key] if !key.is_empty() => Some(Route::Project(decode(key)?)),
         [environment, thread] if !environment.is_empty() && !thread.is_empty() && !matches!(*environment, "settings" | "draft") => {
             Some(Route::Thread { environment: decode(environment)?, thread: decode(thread)? })
         }
@@ -79,7 +88,14 @@ pub fn path(route: &Route) -> String {
         Route::Settings(page) => format!("/settings/{}", page.segment()),
         Route::PullRequests => "/pull-requests".to_owned(),
         Route::Usage => "/usage".to_owned(),
+        Route::Project(key) => format!("/projects/{}", encode(key)),
     }
+}
+
+/// The project a settings address names in its query (`/settings/projects?project=<key>`), if it names one.
+pub fn project_query(address: &str) -> Option<String> {
+    let query = address.split('#').next()?.split_once('?')?.1;
+    query.split('&').find_map(|pair| pair.strip_prefix("project=")).and_then(decode).filter(|key| !key.is_empty())
 }
 
 /// One path segment, with everything outside the unreserved set escaped.
@@ -119,7 +135,7 @@ mod tests {
     fn every_route_round_trips_through_its_address() {
         let thread = Route::Thread { environment: "env-1".into(), thread: "0a1b-2c".into() };
         assert_eq!(path(&thread), "/env-1/0a1b-2c");
-        let mut routes = vec![Route::Start, thread, Route::PullRequests, Route::Usage];
+        let mut routes = vec![Route::Start, thread, Route::PullRequests, Route::Usage, Route::Project("env:project-1".into())];
         routes.extend(SettingsPage::ALL.map(Route::Settings));
         for route in routes {
             assert_eq!(parse(&path(&route)), Some(route.clone()), "{route:?}");
@@ -143,6 +159,16 @@ mod tests {
         assert_eq!(parse(""), Some(Route::Start));
         assert_eq!(parse("/?token=abc#frag"), Some(Route::Start));
         assert_eq!(parse("/env/thread?x=1"), Some(Route::Thread { environment: "env".into(), thread: "thread".into() }));
+    }
+
+    #[test]
+    fn a_project_address_and_a_settings_query_name_a_project() {
+        assert_eq!(parse("/projects/p%3A1"), Some(Route::Project("p:1".into())));
+        assert_eq!(parse("/settings/storage"), Some(Route::Settings(SettingsPage::Storage)));
+        assert_eq!(parse("/settings/archived"), Some(Route::Settings(SettingsPage::Archived)));
+        assert_eq!(project_query("/settings/projects?project=p%3A1&machine=x").as_deref(), Some("p:1"));
+        assert_eq!(project_query("/settings/projects?machine=x"), None);
+        assert_eq!(project_query("/settings/projects"), None);
     }
 
     #[test]

@@ -29,6 +29,8 @@ pub(crate) struct Caps {
     /// `thread.auto-settle.set` is understood: a thread can opt out of automatic settling.
     pub auto_settle_opt_out: bool,
     pub title_regeneration: bool,
+    /// `threadVisitedTracking`: the server keeps when a thread was last visited and can mark it unread.
+    pub visited_tracking: bool,
     /// The beta Working shelf (a client setting): busy threads fold out of Active.
     pub working_shelf: bool,
 }
@@ -52,6 +54,7 @@ fn caps_of(state: Store<UiModel>) -> Caps {
         auto_settle_opt_out: capabilities.is_some_and(|c| c.thread_auto_settle_opt_out == Some(true)),
         snooze: capabilities.is_some_and(|c| c.thread_snooze == Some(true)),
         title_regeneration: capabilities.is_some_and(|c| c.thread_title_regeneration == Some(true)),
+        visited_tracking: capabilities.is_some_and(|c| c.thread_visited_tracking == Some(true)),
         working_shelf: state.client_settings().read().sidebar_working_shelf_enabled,
     }
 }
@@ -396,7 +399,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     if !view.previous_providers.is_empty() {span {class:"thread-providers",title:"Earlier: {earlier}",for (name,driver) in view.previous_providers.iter().cloned() {crate::provider_glyph::Glyph {key:"{name}",driver,name}}}}
                 }
             }
-            if let Some(woke) = view.woke_at.clone().filter(|_| can) {
+            if let Some(woke) = view.woke_at.clone().filter(|_| can && caps(state).visited_tracking) {
                 // Dismissing is a visit at the moment of the wake, as in the original.
                 button {class:"thread-woke-dismiss",r#type:"button","aria-label":"Dismiss Woke notification",title:"Dismiss Woke notification",disabled:busy(),
                     onclick:{let (transport, id) = (transport.clone(), id.clone());move |_| send(&transport,state,busy,"thread.visit",json!({"threadId":id,"visitedAt":woke}),"Could not dismiss the notification")},"\u{d7}"}
@@ -455,7 +458,7 @@ async fn run_menu(state: Store<UiModel>, transport: runtime::TransportHandle, vi
     }
     // Marking a thread that has not finished a run unread has nothing to mark.
     if let Some(item) = items.iter_mut().find(|item| item.id == "mark-unread") {
-        item.disabled |= !view.has_completed_run;
+        item.disabled |= !view.has_completed_run || !caps(state).visited_tracking;
     }
     // Another thread's history, attached to the draft being written so the agent can read it.
     let target = crate::composer_chips::open_target(state);

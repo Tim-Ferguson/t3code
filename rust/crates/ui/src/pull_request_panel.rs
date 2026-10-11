@@ -285,7 +285,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                             }
                         }
                         if tab() == Tab::Summary {
-                            crate::pull_request_summary::ChecksLine { value: value.clone(), writable, busy: busy.clone(), why: write_reason.clone(), stale: false,
+                            crate::pull_request_summary::ChecksLine { state, value: value.clone(), writable, busy: busy.clone(), why: write_reason.clone(), stale: false,
                                 on_action: move |(action, method): (String, Option<String>)| {
                                     if pr::confirmation(&action, reference.number, method.as_deref().unwrap_or("merge"), 0).is_some() { confirm.set(Some(format!("{action}|{}", method.unwrap_or_default()))); } else { run.call((action, method)); }
                                 } }
@@ -429,11 +429,18 @@ mod tests {
     }
     fn harness(props: Props) -> Element {
         let calls = props.calls.clone();
-        let (state, reference) = (use_store(UiModel::default), Reference { project_id: "p".into(), host: None, repository: "acme/web".into(), number: 7 });
+        // The environment these checks come from advertises them (`pullRequestChecks`), as the real server does.
+        let state = use_store(|| {
+            let directory = tempfile::tempdir().unwrap();
+            let mut model = UiModel::default();
+            model.typed_config = Some(serde_json::from_value(crate::runtime::transport_tests::api_fixture(&directory, "checks-env").config.unwrap()).unwrap());
+            model
+        });
+        let reference = Reference { project_id: "p".into(), host: None, repository: "acme/web".into(), number: 7 };
         let on_action = move |call: (String, Option<String>)| calls.borrow_mut().push(call);
         rsx! {
             crate::pull_request_summary::Actions { value: props.value.clone(), show_writes: props.show_writes, why: None, writable: props.writable, busy: props.busy.clone(), preferred: "merge".to_owned(), on_method: |_| {}, on_action }
-            crate::pull_request_summary::ChecksLine { value: props.value.clone(), writable: props.writable, busy: props.busy.clone(), why: None, stale: false, on_action: |_| {} }
+            crate::pull_request_summary::ChecksLine { state, value: props.value.clone(), writable: props.writable, busy: props.busy.clone(), why: None, stale: false, on_action: |_| {} }
             crate::pull_request_summary::Summary { state, transport: TransportHandle::default(), reference, value: props.value.clone(), activity: Read::Loading, writable: props.show_writes && props.writable, on_changed: |_| {}, on_retry: |_| {} }
         }
     }

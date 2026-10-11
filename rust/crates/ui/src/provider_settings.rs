@@ -117,6 +117,12 @@ fn EnvironmentProviders(
             pending.set(true);
             let saving = Saving(pending);
             error.set(None);
+            // Deleting a registry agent's last instance leaves files the server prepared for it; the server decides, from its
+            // latest settings, whether this was the last, so the cleanup is asked for after every such deletion.
+            let managed_agent = (input["providerInstanceMutation"]["operation"] == "remove")
+                .then(|| input["providerInstanceMutation"]["instanceId"].as_str())
+                .flatten()
+                .and_then(|id| t3_client::acp_registry::managed_agent(&state.config().peek()["settings"]["providerInstances"][id]));
             let transport = transport.clone();
             spawn(async move {
                 let _saving = saving;
@@ -132,6 +138,11 @@ fn EnvironmentProviders(
                 .await;
                 if runtime::connection_owner(&transport, state).as_ref() != Some(&owner) {
                     return;
+                }
+                if let (Ok(_), Some(agent)) = (&result, managed_agent) {
+                    if let Err(message) = runtime::request_value_reported(transport.clone(), state, t3_client::acp_registry::UNINSTALL_MANAGED_BINARY, json!({"agentId": agent})).await {
+                        crate::notice::push(state, crate::notice::Level::Warning, "Provider deleted, but managed files remain", if message.trim().is_empty() { "Managed binary cleanup failed.".to_owned() } else { message });
+                    }
                 }
                 match result {
                     Ok(_) if !runtime::live_config_active(&transport, state) => {
@@ -248,6 +259,7 @@ fn ProviderEditor(
             crate::provider_manage::CommandArguments {config:row.instance["config"].clone(),disabled,onchange:move |next:Value|modify.call(("commandArgs".into(),next["commandArgs"].clone()))}
         }
         if let Some(provider)=runtime.filter(|provider|crate::provider_auth::offered(provider)) {crate::provider_auth::Authentication {state,transport:transport.clone(),provider:provider.clone(),environment:environment_label.clone(),allowed}}
+        if let Some(action)=runtime.map(|provider|provider["auth"]["action"].clone()).filter(Value::is_object) {crate::acp_registry_step::UrlAuth {state,transport:transport.clone(),instance_id:row.instance_id.clone(),action}}
         if let Some(provider)=runtime.filter(|provider|provider["driver"]=="acpRegistry") {crate::provider_manage::Acp {state,transport:transport.clone(),provider:provider.clone(),allowed}}
         div {class:"provider-editor-actions",
             if !row.is_default {button {"aria-label":"Delete instance",disabled,onclick:{let id=row.instance_id.clone();move |_|onupdate.call(json!({"patch":{},"providerInstanceMutation":{"operation":"remove","instanceId":id}}))},"Delete instance"}}

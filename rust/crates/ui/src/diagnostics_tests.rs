@@ -76,3 +76,48 @@ fn the_trace_section_names_failures_slow_spans_and_the_busiest_names_or_says_the
     let missing = drawn(Answers { processes: json!({"processes": [], "error": {"_tag": "None"}}), traces: json!({"error": {"_tag": "Some", "value": {"kind": "trace-file-not-found", "message": "No local trace files were found."}}}), can_signal: false });
     assert!(missing.contains("No local trace files were found."), "{missing}");
 }
+
+// A server with no monitor answers the stream and the history with its refusal, which the server's own outbound check rejects as
+// something the original's schema cannot encode (the original's server always has a monitor), so the page's state for it is drawn
+// from the refusal's text here and was read from a real server without telemetry in the browser.
+#[test]
+fn a_server_without_a_resource_monitor_says_so_instead_of_drawing_empty_charts() {
+    let mut dom = VirtualDom::new_with_props(|message: String| rsx! { crate::resource_section::Unavailable { message } }, "Resource telemetry is not configured.".to_owned());
+    dom.rebuild_in_place();
+    let text = crate::runtime::transport_tests::rendered_text(&dom);
+    assert!(text.contains("Resource telemetry is not configured.") && text.contains("This server runs no resource monitor"), "{text}");
+    assert!(!text.contains("Restart monitor"), "there is no monitor to restart");
+}
+
+#[test]
+fn the_usage_groups_the_monitors_health_and_a_restart_for_a_monitor_that_is_not_sampling_are_drawn() {
+    let snapshot = json!({
+        "readAt": "2026-10-11T10:00:00.000Z", "sampleIntervalMs": 2500,
+        "groups": {
+            "backend": {"processCount": 3, "currentCpuPercent": 12.5, "currentRssBytes": 150 * 1024 * 1024, "ioReadBytesPerSecond": 2048, "ioWriteBytesPerSecond": 0},
+            "electron": {"processCount": 0, "currentCpuPercent": 0, "currentRssBytes": 0, "ioReadBytesPerSecond": 0, "ioWriteBytesPerSecond": 0},
+            "monitor": {"processCount": 1, "currentCpuPercent": 0.4, "currentRssBytes": 5 * 1024 * 1024, "ioReadBytesPerSecond": 0, "ioWriteBytesPerSecond": 0},
+            "allT3": {"processCount": 4, "currentCpuPercent": 12.9, "currentRssBytes": 155 * 1024 * 1024, "ioReadBytesPerSecond": 2048, "ioWriteBytesPerSecond": 0},
+        },
+        "health": {"native": {"status": "degraded", "lastError": {"_tag": "Some", "value": "sampler stalled"}}, "desktop": {"status": "unavailable", "lastError": {"_tag": "None"}}},
+    });
+    let drawn = |retry: bool, can_retry: bool| {
+        let mut dom = VirtualDom::new_with_props(move |props: (Value, bool, bool)| rsx! { crate::resource_section::Snapshot { value: props.0, retry: props.1, can_retry: props.2, restarting: false, onretry: |_| {} } }, (snapshot.clone(), retry, can_retry));
+        dom.rebuild_in_place();
+        crate::runtime::transport_tests::rendered_text(&dom)
+    };
+    let text = drawn(true, true);
+    for expected in ["Sampled every 2.5 seconds.", "Backend", "12.5%", "150 MB", "2.00 KB/s", "All T3 Code", "degraded", "sampler stalled", "unavailable", "Restart monitor"] {
+        assert!(text.contains(expected), "{expected} is drawn: {text}");
+    }
+    assert!(!drawn(false, true).contains("Restart monitor"), "a monitor that is sampling is not restarted");
+
+    let buckets = vec![
+        json!({"avgCpuPercent": 5.0, "maxCpuPercent": 20.0, "ioReadBytes": 1024, "ioWriteBytes": 0}),
+        json!({"avgCpuPercent": 50.0, "maxCpuPercent": 80.0, "ioReadBytes": 0, "ioWriteBytes": 4096}),
+    ];
+    let mut dom = VirtualDom::new_with_props(|buckets: Vec<Value>| rsx! { crate::resource_section::History { buckets } }, buckets);
+    dom.rebuild_in_place();
+    // One box per sample, labelled for what it shows; the heights are `t3_client::resource_telemetry::bar_height`'s.
+    assert!(crate::runtime::transport_tests::control(&dom, "CPU and I/O history, 2 samples").is_some());
+}

@@ -392,6 +392,13 @@ async fn read(source: Source) -> Option<Rc<[u8]>> {
 
 /// Adds picked, pasted or dropped files to a draft. Limits are checked first, and
 /// every admitted file takes its slot at once so concurrent adds see each other.
+/// What the connected environment says it accepts (`capabilities.attachmentUploads`, `fileAttachments`).
+pub(crate) fn limits(state: Store<UiModel>) -> rules::Limits {
+    let config = state.typed_config();
+    let config = config.read();
+    rules::Limits::of(config.as_ref().map(|config| &config.environment.capabilities))
+}
+
 pub fn attach(
     handle: &TransportHandle,
     state: Store<UiModel>,
@@ -420,7 +427,8 @@ pub fn attach(
             size_bytes: file.size,
         })
         .collect();
-    let (admitted, error) = rules::admit(existing, &candidates);
+    let limits = limits(state);
+    let (admitted, error) = rules::admit_with(existing, &candidates, &limits);
     set_error(state, target, error);
     let mut sources: Vec<_> = incoming.into_iter().map(|file| Some(file.source)).collect();
     let mut jobs = vec![];
@@ -450,7 +458,7 @@ pub fn attach(
             let problem = match &bytes {
                 None => Some(format!("'{name}' is empty or could not be read.")),
                 Some(bytes) => entry(state, &target, &id).and_then(|a| {
-                    let limit = if a.kind == Kind::Image { rules::MAX_IMAGE_BYTES } else { rules::MAX_FILE_BYTES };
+                    let limit = if a.kind == Kind::Image { rules::MAX_IMAGE_BYTES } else { limits.file_staging_limit().unwrap_or(rules::MAX_FILE_BYTES) };
                     (bytes.len() as u64 > limit).then(|| rules::too_large_message(&name, limit))
                 }),
             };
@@ -591,7 +599,7 @@ pub fn for_send(
     let Some(list) = model.draft_attachments.get(target).filter(|list| !list.is_empty()) else {
         return Ok((vec![], vec![]));
     };
-    if let Some(reason) = rules::block_reason(list) {
+    if let Some(reason) = rules::block_reason_for(list, &limits(state)) {
         return Err(reason);
     }
     if let Some(error) = rules::limit_error(list) {
@@ -624,6 +632,10 @@ pub fn AttachButton(
 ) -> Element {
     // Remounting the input clears it, so choosing the same file twice still fires.
     let mut picks = use_signal(|| 0u32);
+    // Nothing to attach to on a server that takes no uploads.
+    if !limits(state).attach_action() {
+        return rsx! {};
+    }
     rsx! {
         label { class:"attach-button", title:"Attach files",
             span { "aria-hidden":"true", "📎" }
@@ -689,7 +701,7 @@ pub fn Shelf(
         .clone()
         .filter(|(owner, _)| owner == &target)
         .map(|(_, message)| message);
-    let blocked = rules::block_reason(&list);
+    let blocked = rules::block_reason_for(&list, &limits(state));
     if list.is_empty() && error.is_none() {
         return rsx! {};
     }

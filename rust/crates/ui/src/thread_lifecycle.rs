@@ -4,15 +4,18 @@
 //! easier to trigger than there. Every write is guarded against a second click until the server
 //! answers, and a refusal shows the server's own reason.
 //!
-//! Deleting a thread stops its runs and removes its attachments and terminals on the server; it
-//! leaves the worktree, its branch and the checkpoint refs on disk, and says nothing more than
-//! the original does.
+//! Deleting a thread stops its runs and removes its attachments and terminals on the server and leaves the branch and
+//! the checkpoint refs. Its worktree is left too unless the thread was the only one using it, the connection may write
+//! source control and the server does not take the worktree away itself (the `worktreeOnDelete` cleanup rule): then the
+//! reader is asked, and a yes removes the worktree with `vcs.removeWorktree` after the thread is gone
+//! (`useThreadActions.ts`, `deleteThread`).
 use crate::{
     notice::{self, Level},
-    runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
+    runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View},
 };
 use dioxus::prelude::*;
 use serde_json::{Value, json};
+use std::cell::RefCell;
 use t3_client::{connection::ConnectionStatus, lifecycle as words};
 use t3_contracts::{AuthEnvironmentScope, ThreadShell};
 
@@ -33,7 +36,85 @@ pub enum Dialog {
     /// The first answer to removing a project that has threads.
     NotEmpty(Project),
     Remove(Project),
+    /// The question about a worktree no other thread uses; answered through `answer_worktree`.
+    Worktree { display: String },
 }
+
+thread_local! {
+    /// Who waits for the answer to the worktree question: the delete that asked it.
+    static WORKTREE_ANSWER: RefCell<Option<futures_channel::oneshot::Sender<bool>>> = const { RefCell::new(None) };
+}
+fn answer_worktree(state: Store<UiModel>, delete_it: bool) {
+    state.lifecycle().write().dialog = None;
+    WORKTREE_ANSWER.with(|slot| {
+        if let Some(sender) = slot.borrow_mut().take() {
+            let _ = sender.send(delete_it);
+        }
+    });
+}
+/// Closing any question without answering it; the worktree question then means no.
+fn close_dialog(state: Store<UiModel>) {
+    if matches!(state.lifecycle().peek().dialog, Some(Dialog::Worktree { .. })) {
+        answer_worktree(state, false);
+    } else {
+        state.lifecycle().write().dialog = None;
+    }
+}
+async fn ask_worktree(state: Store<UiModel>, display: String) -> bool {
+    let (sender, receiver) = futures_channel::oneshot::channel();
+    WORKTREE_ANSWER.with(|slot| *slot.borrow_mut() = Some(sender));
+    state.lifecycle().write().dialog = Some(Dialog::Worktree { display });
+    receiver.await.unwrap_or(false)
+}
+
+/// A worktree to take away once its thread is gone.
+struct Removal {
+    cwd: String,
+    path: String,
+}
+/// The worktree the thread's deletion may take with it, if the reader says so: the one only this thread uses, in a project
+/// that is not Scratch, on a connection that may write source control, unless the server removes it on its own.
+async fn worktree_to_remove(state: Store<UiModel>, thread: &ThreadShell, deleted: &std::collections::BTreeSet<String>) -> Option<Removal> {
+    let (path, root, automatic) = {
+        let model = state.shell();
+        let shell = model.peek();
+        let snapshot = shell.snapshot.as_ref()?;
+        let surviving: Vec<(&str, Option<&str>)> = snapshot.threads.iter().filter(|other| other.id == thread.id || !deleted.contains(other.id.as_str())).map(|other| (other.id.as_str(), other.worktree_path.as_ref().map(|path| path.as_str()))).collect();
+        let path = words::orphaned_worktree_path(&surviving, thread.id.as_str())?;
+        let project = snapshot.projects.iter().find(|project| project.id == thread.project_id)?;
+        let config = state.config().peek().clone();
+        if words::is_scratch_project(project.workspace_root.as_str(), config["scratchWorkspaceRoot"].as_str()) {
+            return None;
+        }
+        (path, project.workspace_root.to_string(), words::worktree_on_delete(&config["settings"], thread.project_id.as_str()))
+    };
+    let may_write = state.destination().peek().as_ref().is_some_and(|destination| state.environments().peek().allows(destination, AuthEnvironmentScope::SourceControlWrite));
+    if !may_write || automatic {
+        return None;
+    }
+    let display = words::display_worktree_path(&path);
+    ask_worktree(state, display).await.then_some(Removal { cwd: root, path })
+}
+/// `vcs.removeWorktree`, then a fresh look at the project's status; each failure is said once, and the thread stays deleted.
+async fn remove_worktree(transport: &TransportHandle, state: Store<UiModel>, removal: Removal) {
+    let may_write = state.destination().peek().as_ref().is_some_and(|destination| state.environments().peek().allows(destination, AuthEnvironmentScope::SourceControlWrite));
+    let display = words::display_worktree_path(&removal.path);
+    let removed = if may_write {
+        runtime::request_value_reported(transport.clone(), state, "vcs.removeWorktree", json!({"cwd":removal.cwd,"path":removal.path,"force":true})).await
+    } else {
+        Err("This connection can no longer remove worktrees.".to_owned())
+    };
+    let refreshed = match &removed {
+        Ok(_) => Some(runtime::request_value_reported(transport.clone(), state, t3_client::vcs::REFRESH_STATUS, json!({"cwd":removal.cwd})).await),
+        Err(_) => None,
+    };
+    match (removed, refreshed) {
+        (Err(reason), _) => notice::push(state, Level::Error, "Failed to delete worktree", format!("Could not remove {display}. {reason}")),
+        (Ok(_), Some(Err(reason))) => notice::push(state, Level::Error, "Worktree deleted, but Git status refresh failed", reason),
+        _ => {}
+    }
+}
+
 /// The archives the reader can still take back, for a few seconds.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Undo {
@@ -248,13 +329,20 @@ fn delete_many(state: Store<UiModel>, transport: &TransportHandle, ids: Vec<Stri
         let mut deleted = std::collections::BTreeSet::new();
         let mut failure = None;
         for id in &ids {
-            let answer = dispatch(&transport, state, "thread.delete", json!({"threadId":id})).await;
+            let Some(thread) = thread_of(state, id) else { continue };
+            let answer = delete_thread(&transport, state, &thread, &deleted).await;
             if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                 return;
             }
             match answer {
-                Ok(_) => {
+                Ok(removal) => {
                     deleted.insert(id.clone());
+                    if let Some(removal) = removal {
+                        remove_worktree(&transport, state, removal).await;
+                        if owner != runtime::response_owner(&transport, state) {
+                            return;
+                        }
+                    }
                 }
                 Err(reason) => {
                     failure = Some(reason);
@@ -282,24 +370,37 @@ fn delete(state: Store<UiModel>, transport: &TransportHandle, id: &str) {
     // The view goes to the project's next thread, chosen before the delete as the original does (`getFallbackThreadIdAfterDelete`).
     let order = state.client_settings().peek().sidebar_thread_sort_order;
     let fallback = state.shell().peek().snapshot.as_ref().and_then(|snapshot| t3_client::thread_sort::fallback_after_delete(&snapshot.threads, id, order).map(|next| next.id.to_string()));
-    let id = id.to_owned();
     run(state, transport, move |transport| async move {
         let owner = runtime::response_owner(&transport, state);
-        let answer = dispatch(&transport, state, "thread.delete", json!({"threadId":id})).await;
+        let answer = delete_thread(&transport, state, &thread, &std::collections::BTreeSet::new()).await;
         if owner.is_none() || owner != runtime::response_owner(&transport, state) {
             return;
         }
         match answer {
-            Ok(_) => {
+            Ok(removal) => {
                 state.lifecycle().write().archive_revision += 1;
                 match fallback {
                     Some(next) if state.active_thread().peek().as_deref() == Some(thread.id.as_str()) => runtime::select_thread(&transport, state, next),
                     _ => leave_if_open(state, &transport, &thread),
                 }
+                if let Some(removal) = removal {
+                    remove_worktree(&transport, state, removal).await;
+                }
             }
             Err(reason) => notice::push(state, Level::Error, "Failed to delete thread", reason),
         }
     });
+}
+/// Asks about the thread's worktree if it should be asked about, then deletes the thread; the worktree to take away (the
+/// reader said yes) is handed back for the caller to remove once it has left the thread's view. The caller checks that its
+/// connection is still the one it started on before it acts on the answer.
+async fn delete_thread(transport: &TransportHandle, state: Store<UiModel>, thread: &ThreadShell, already_deleted: &std::collections::BTreeSet<String>) -> Result<Option<Removal>, String> {
+    let owner = runtime::response_owner(transport, state);
+    let removal = worktree_to_remove(state, thread, already_deleted).await;
+    if owner.is_none() || owner != runtime::response_owner(transport, state) {
+        return Ok(None);
+    }
+    dispatch(transport, state, "thread.delete", json!({"threadId":thread.id.as_str()})).await.map(|_| removal)
 }
 
 fn project_of(state: Store<UiModel>, id: &str) -> Option<Project> {
@@ -364,7 +465,7 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
     let model = state.lifecycle().read().clone();
     let environments = state.environments().read().records.len();
     let environment_label = state.destination().read().as_ref().and_then(|destination| state.environments().read().records.get(destination).map(|record| record.label.clone())).filter(|_| environments > 1);
-    let cancel = move |_| state.lifecycle().write().dialog = None;
+    let cancel = move |_| close_dialog(state);
     rsx! {
         if let Some(undo) = model.undo.clone() {
             div { class: "undo-notice", role: "status",
@@ -381,23 +482,29 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
                     Dialog::Unpin { title, .. } => (format!("Unpin thread \"{title}\"?\nThis will move the thread out of your pinned section."), false),
                     Dialog::NotEmpty(_) => (String::new(), true),
                     Dialog::Remove(project) => (words::remove_project_message(&project.title, &project.path, environment_label.as_deref(), project.threads), false),
+                    Dialog::Worktree { display } => (words::delete_worktree_message(display), false),
                 };
                 let (title, description) = if ask_again { (words::NOT_EMPTY_TITLE.to_owned(), Some(words::NOT_EMPTY_BODY.to_owned())) } else { words::confirm_copy(&message) };
                 let destructive = !matches!(dialog, Dialog::Archive { .. } | Dialog::Unpin { .. });
                 let confirm_label = if ask_again { words::NOT_EMPTY_ACTION } else { words::CONFIRM_BUTTON };
-                let busy = model.busy;
+                // The worktree question comes up while the delete that asks it holds the guard.
+                let busy = model.busy && !matches!(dialog, Dialog::Worktree { .. });
                 let transport = transport.clone();
                 rsx! {
                     div { class: "modal-backdrop", onclick: cancel,
                         div { class: "dialog confirm-dialog", role: "alertdialog", "aria-modal": "true", "aria-labelledby": "lifecycle-heading", "aria-describedby": "lifecycle-body", tabindex: "-1",
                             onclick: move |event| event.stop_propagation(),
                             onmounted: move |event| { let element = event.data(); spawn(async move { let _ = element.set_focus(true).await; }); },
-                            onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); state.lifecycle().write().dialog = None; } },
+                            onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); close_dialog(state); } },
                             h2 { id: "lifecycle-heading", "{title}" }
                             if let Some(description) = description { p { id: "lifecycle-body", style: "white-space: pre-line", "{description}" } }
                             div { class: "dialog-actions",
                                 button { r#type: "button", "aria-label": "Cancel", onclick: cancel, "Cancel" }
                                 button { class: if destructive { "destructive" } else { "primary" }, r#type: "button", "aria-label": "{confirm_label}", disabled: busy, onclick: move |_| {
+                                    if matches!(dialog, Dialog::Worktree { .. }) {
+                                        answer_worktree(state, true);
+                                        return;
+                                    }
                                     state.lifecycle().write().dialog = None;
                                     match dialog.clone() {
                                         Dialog::Archive { id, .. } => archive(state, &transport, &id),
@@ -410,6 +517,7 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
                                             state.lifecycle().write().dialog = Some(Dialog::Remove(latest));
                                         }
                                         Dialog::Remove(project) => remove_project(state, &transport, &project.id),
+                                        Dialog::Worktree { .. } => {}
                                     }
                                 }, "{confirm_label}" }
                             }
@@ -485,4 +593,73 @@ async fn archived_menu(state: Store<UiModel>, transport: TransportHandle, id: St
         Some("delete") => request_delete(state, &transport, &id),
         _ => {}
     }
+}
+
+/// The Archived threads settings page (`/settings/archived`, `ArchivedThreadsPanel`): every project's archived threads in one
+/// list, each with the way back and the way out. Read when the page opens and again when a thread comes or goes.
+#[component]
+pub(crate) fn ArchivedPage(state: Store<UiModel>, transport: TransportHandle) -> Element {
+    let mut list = use_signal(|| None::<Result<Vec<(String, String, String, String)>, String>>);
+    let readable = use_memo(move || *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationRead)));
+    let allowed = *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationOperate));
+    let titles: std::collections::BTreeMap<String, String> = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.projects.iter().map(|project| (project.id.to_string(), project.title.to_string())).collect()).unwrap_or_default();
+    {
+        let transport = transport.clone();
+        use_resource(move || {
+            // Read here, in the part that runs again when it changes: a thread coming back or going reads the list again.
+            let (transport, wanted, _revision) = (transport.clone(), readable(), state.lifecycle().read().archive_revision);
+            async move {
+                if !wanted {
+                    return;
+                }
+                let owner = runtime::response_owner(&transport, state);
+                let answer = runtime::request_value_reported(transport.clone(), state, "orchestration.getArchivedShellSnapshot", json!({})).await;
+                if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+                    return;
+                }
+                list.set(Some(answer.map(|snapshot| {
+                    let mut threads: Vec<(String, String, String, String)> = snapshot["threads"].as_array().into_iter().flatten().filter(|thread| thread["deletedAt"].is_null()).filter_map(|thread| Some((thread["projectId"].as_str()?.to_owned(), thread["id"].as_str()?.to_owned(), thread["title"].as_str()?.to_owned(), thread["archivedAt"].as_str().unwrap_or_default().to_owned()))).collect();
+                    // Newest archive first within a project, as the original lists them.
+                    threads.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| b.3.cmp(&a.3)));
+                    threads
+                })));
+            }
+        });
+    }
+    rsx! {
+        section { class: "settings-page", crate::settings_common::Tabs { state, current: View::Archived }
+            h1 { "Archived threads" }
+            p { class: "muted", "Threads you archived stay here until you bring them back or delete them." }
+            if !readable() { p { class: "muted", role: "status", "Connect an environment to see its archived threads." } }
+            else {
+                match list.read().clone() {
+                    None => rsx! { p { class: "muted", role: "status", "Loading archived threads\u{2026}" } },
+                    Some(Err(message)) => rsx! { p { class: "error-banner", role: "alert", "{message}" } },
+                    Some(Ok(threads)) if threads.is_empty() => rsx! { p { class: "muted", "No archived threads yet." } },
+                    Some(Ok(threads)) => {
+                        let mut projects: Vec<String> = threads.iter().map(|thread| thread.0.clone()).collect();
+                        projects.dedup();
+                        rsx! {
+                            for project in projects {
+                                section { key: "{project}", class: "sc-section", "aria-label": "Archived in {titles.get(&project).cloned().unwrap_or_else(|| project.clone())}",
+                                    h2 { "{titles.get(&project).cloned().unwrap_or_else(|| project.clone())}" }
+                                    for (_, id, title, archived_at) in threads.iter().filter(|thread| thread.0 == project).cloned() {
+                                        div { key: "{id}", class: "thread-line",
+                                            button { class: "thread-row", onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| { state.view().set(View::Chat); runtime::select_thread(&transport, state, id.clone()) } }, span { class: "thread-title", "{title}" } }
+                                            span { class: "muted", "Archived {relative_archive(&archived_at)}" }
+                                            button { "aria-label": "Unarchive {title}", disabled: !allowed, onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| unarchive(state, &transport, &id) }, "Unarchive" }
+                                            button { "aria-label": "Delete {title}", disabled: !allowed, onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| request_delete(state, &transport, &id) }, "Delete" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+fn relative_archive(at: &str) -> String {
+    chrono::DateTime::parse_from_rfc3339(at).map(|at| t3_client::thread_status::ago_label(at.with_timezone(&chrono::Utc), chrono::Utc::now())).unwrap_or_default()
 }

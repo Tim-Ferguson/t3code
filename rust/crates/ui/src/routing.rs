@@ -35,6 +35,8 @@ fn page_view(page: SettingsPage) -> View {
         SettingsPage::TextGeneration => View::TextGeneration,
         SettingsPage::Projects => View::Projects,
         SettingsPage::Diagnostics => View::Diagnostics,
+        SettingsPage::Storage => View::Storage,
+        SettingsPage::Archived => View::Archived,
     }
 }
 
@@ -56,14 +58,27 @@ pub(crate) fn route_of(view: &View, thread: Option<&str>, environment: Option<&E
         View::TextGeneration => page(SettingsPage::TextGeneration),
         View::Projects => page(SettingsPage::Projects),
         View::Diagnostics => page(SettingsPage::Diagnostics),
+        View::Storage => page(SettingsPage::Storage),
+        View::Archived => page(SettingsPage::Archived),
         View::PullRequests => Route::PullRequests,
         View::Usage => Route::Usage,
     }
 }
 
 /// Whether the route can be shown now: a thread needs the server's list of threads.
+/// Opens the Projects settings on the project a key names: a project id, or an environment id and a project id joined by a colon.
+fn open_project_settings(state: Store<UiModel>, key: &str) {
+    let project = state.peek().shell.snapshot.as_ref().and_then(|snapshot| snapshot.projects.iter().find(|project| key == project.id.as_str() || key.rsplit_once(':').is_some_and(|(_, id)| id == project.id.as_str())).map(|project| project.id.to_string()));
+    if let Some(project) = project {
+        state.settings_project().set(Some(project));
+    }
+    if *state.view().peek() != View::Projects {
+        state.view().set(View::Projects);
+    }
+}
+
 fn needs_data(route: &Route) -> bool {
-    matches!(route, Route::Thread { .. })
+    matches!(route, Route::Thread { .. } | Route::Project(_))
 }
 
 /// Shows the view an address names. A thread that is not on this server (or not in this environment)
@@ -88,6 +103,15 @@ fn apply(transport: &runtime::TransportHandle, state: Store<UiModel>, page: Opti
     };
     match wanted {
         Route::Start => start(transport),
+        // The original redirects `/projects/<key>` to the project's settings and rewrites the address; so does this. The key is a
+        // project id, or an environment id and a project id joined by a colon.
+        Route::Project(key) => {
+            open_project_settings(state, &key);
+            replace("/settings/projects");
+        }
+        Route::Settings(SettingsPage::Projects) if route::project_query(address).is_some() => {
+            open_project_settings(state, &route::project_query(address).unwrap_or_default());
+        }
         Route::Settings(settings) => {
             let view = page_view(settings);
             if *state.view().peek() != view {

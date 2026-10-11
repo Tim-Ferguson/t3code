@@ -277,7 +277,7 @@ fn NewThreadOptions(
         .as_ref()
         .and_then(|target| {
             state.draft_attachments().read().get(target).map(|list| {
-                (list.len(), t3_client::attachments::block_reason(list))
+                (list.len(), t3_client::attachments::block_reason_for(list, &crate::attachments::limits(state)))
             })
         })
         .unwrap_or_default();
@@ -357,6 +357,7 @@ fn NewThreadOptions(
             if let Some(target)=attachment_target.clone() {
                 crate::attachments::Shelf {state,transport:transport.clone(),target:target.clone(),locked:pending,can_operate,paste_target:".new-thread-prompt textarea"}
             }
+            crate::composer_panels::PromptLength {state,text:Some(prompt.clone())}
             div {class:"composer-toolbar",
                 if can_operate { if let Some(target)=attachment_target.clone() { crate::attachments::AttachButton {state,transport:transport.clone(),target} } }
                 span {}

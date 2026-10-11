@@ -98,10 +98,10 @@ pub(crate) fn Actions(value: Rc<Value>, show_writes: bool, why: Option<String>, 
 /// The checks as one line beside the tabs, and the list behind it; or, where workflows wait for someone to let them run,
 /// the button that does (`showsApproveWorkflows`).
 #[component]
-pub(crate) fn ChecksLine(value: Rc<Value>, writable: bool, busy: Option<String>, why: Option<String>, stale: bool, on_action: Callback<(String, Option<String>)>) -> Element {
+pub(crate) fn ChecksLine(state: Store<UiModel>, value: Rc<Value>, writable: bool, busy: Option<String>, why: Option<String>, stale: bool, on_action: Callback<(String, Option<String>)>) -> Element {
     let mut open = use_signal(|| false);
     let mut all = use_signal(|| false);
-    let Some(checks) = value["checks"].as_array().cloned() else { return rsx! {} };
+    let Some(checks) = value["checks"].as_array().cloned().filter(|_| crate::pull_request_links::checks_supported(state)) else { return rsx! {} };
     let approvals = value["workflowApprovalsRequired"].as_u64().unwrap_or(0);
     if approvals > 0 && !stale && pr::can_perform(&value, "approve-workflows") {
         let working = busy.as_deref() == Some("approve-workflows");
@@ -248,7 +248,7 @@ pub(crate) fn Summary(state: Store<UiModel>, transport: TransportHandle, referen
                 crate::pull_request_edit::Reactions { state, transport: transport.clone(), reference: reference.clone(), reactions: value["reactions"].as_array().cloned().unwrap_or_default(), subject: None, can_react: value["capabilities"]["reactions"] == true, writable, on_changed }
             }
             // A host that reports no checks at all (the answer is null) shows no section: nothing is not "no checks".
-            if value["checks"].is_array() {
+            if value["checks"].is_array() && crate::pull_request_links::checks_supported(state) {
                 details { class: "pr-checks", "aria-label": "Checks",
                     summary { "Checks" }
                     if checks.is_empty() { p { class: "muted", "No checks reported." } }

@@ -30,6 +30,8 @@ pub enum View {
     TextGeneration,
     Projects,
     Diagnostics,
+    Storage,
+    Archived,
     PullRequests,
     Usage,
 }
@@ -84,6 +86,8 @@ pub struct UiModel {
     pub environments: EnvironmentCatalog,
     pub error: Option<String>,
     pub draft: String,
+    /// Set when a send was refused for the prompt's length; the composer shows it for as long as the prompt is still too long.
+    pub prompt_length_error: Option<String>,
     /// Composer attachments by draft; only the composer that owns a draft reads its entry.
     pub draft_attachments:
         std::collections::BTreeMap<t3_client::draft_storage::DraftTarget, Vec<t3_client::attachments::Attachment>>,
@@ -134,6 +138,7 @@ pub struct UiModel {
     /// The dialog that starts a thread from a pull request, while it is open.
     pub pr_checkout: Option<crate::pull_request_thread::Open>,
     pub lifecycle: crate::thread_lifecycle::Model,
+    pub server_update: crate::server_update::Model,
     pub relations: crate::thread_relations::Model,
     /// The SSH environments added, and the one the window is switched to.
     pub ssh: crate::ssh_environments::Model,
@@ -457,6 +462,8 @@ pub struct StreamRequest {
     destination: EnvironmentId,
     ended: bool,
     _guard: UnaryRequestGuard,
+    /// The background-activity scope this stream keeps wanted while it runs (`background_activity`).
+    _scope: Option<crate::background_activity::ScopeLease>,
 }
 impl StreamRequest {
     /// The error the server ended the stream with, when it did and this client has not lost the
@@ -552,6 +559,7 @@ fn open_stream(
     payload: Value,
     reported: bool,
 ) -> Result<StreamRequest, String> {
+    let scope_input = payload.clone();
     let id = request(handle, state, method, payload, RequestKind::Stream).ok_or_else(|| {
         state
             .peek()
@@ -581,6 +589,7 @@ fn open_stream(
             cause: cause.clone(),
         },
     );
+    let scope = crate::background_activity::retain_for_stream(&destination.to_string(), method, &scope_input);
     Ok(StreamRequest {
         receiver: receiver.peekable(),
         failure,
@@ -588,6 +597,7 @@ fn open_stream(
         state,
         destination,
         ended: false,
+        _scope: scope,
         _guard: UnaryRequestGuard {
             handle: handle.clone(),
             id,
@@ -962,6 +972,10 @@ pub fn launch_thread(
     workspace: t3_contracts::ThreadLaunchWorkspaceStrategy,
     initial_text: Option<&str>,
 ) -> Option<String> {
+    if let Some(message) = initial_text.and_then(t3_client::composer_submission::prompt_length_message) {
+        state.prompt_length_error().set(Some(message));
+        return None;
+    }
     let owned = state.peek();
     let destination = owned.destination.clone()?;
     let active_thread = owned.active_thread.clone();
@@ -1147,6 +1161,12 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
     let Some(destination) = model.destination.clone() else {
         return;
     };
+    // A prompt the provider would refuse never leaves the composer (`submitComposerDraft`).
+    if let Some(message) = t3_client::composer_submission::prompt_length_message(&text) {
+        drop(model);
+        state.prompt_length_error().set(Some(message));
+        return;
+    }
     if crate::rollback::is_rewinding(state, &(destination.to_string(), thread_id.clone())) {
         return;
     }
@@ -2415,6 +2435,12 @@ fn rpc_error_message(value: &Value) -> String {
     // Most errors say `message`; the source control repository errors say `detail`, with what
     // actually went wrong in their cause.
     let text = |error: &Value| {
+        // `ServerSelfUpdateError.message` is "Server update failed: <reason>".
+        if error["_tag"] == "ServerSelfUpdateError" {
+            if let Some(reason) = error["reason"].as_str() {
+                return Some(format!("Server update failed: {reason}"));
+            }
+        }
         error["message"].as_str().map(str::to_owned).or_else(|| {
             let detail = error["detail"].as_str()?;
             Some(match error["cause"]["message"].as_str() {
@@ -3124,3 +3150,23 @@ mod sidebar_groups_tests;
 #[cfg(all(test, unix))]
 #[path = "file_tree_tests.rs"]
 mod file_tree_tests;
+
+#[cfg(all(test, unix))]
+#[path = "background_activity_tests.rs"]
+mod background_activity_tests;
+
+#[cfg(all(test, unix))]
+#[path = "storage_tests.rs"]
+mod storage_tests;
+
+#[cfg(all(test, unix))]
+#[path = "composer_validation_tests.rs"]
+mod composer_validation_tests;
+
+#[cfg(all(test, unix))]
+#[path = "server_update_tests.rs"]
+mod server_update_tests;
+
+#[cfg(all(test, unix))]
+#[path = "acp_registry_tests.rs"]
+mod acp_registry_tests;

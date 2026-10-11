@@ -393,7 +393,14 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"threadSettlement":true,"threadAutoSettlement":true,"threadAutoSettleOptOut":true,"projectCloneTracking":true}});
+    let mut environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"threadSettlement":true,"threadAutoSettlement":true,"threadAutoSettleOptOut":true,"projectCloneTracking":true}});
+    // The capabilities that gate the features of the composer, the pull request checks, visits and the storage page are what the real
+    // server advertises, so those features are on here as they are there. The others stay as each test sets them: some change what
+    // the client sends (`serverResolvedCommandContext`) or offers (`threadTitleRegeneration`).
+    const GATING: [&str; 9] = ["attachmentUploads", "questionAttachments", "fileAttachments", "pullRequestChecks", "inlineMessageContext", "threadVisitedTracking", "threadRestartContinuation", "storageCleanup", "projectWorktreeCleanup"];
+    for (key, value) in t3_server::environment_capabilities::advertised_with(None).as_object().into_iter().flatten().filter(|(key, _)| GATING.contains(&key.as_str())) {
+        environment["capabilities"].as_object_mut().unwrap().entry(key.clone()).or_insert_with(|| value.clone());
+    }
     let config = json!({"environment":environment,"auth":auth.descriptor(),"cwd":directory.path().to_string_lossy(),"keybindingsConfigPath":"/isolated/keybindings.json","keybindings":t3_contracts::default_resolved_keybindings(),"issues":[],"providers":[],"availableEditors":[],"observability":{"logsDirectoryPath":"/isolated/logs","localTracingEnabled":false,"otlpTracesEnabled":false,"otlpMetricsEnabled":false},"settings":t3_contracts::ServerSettings::default()});
     let _: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
     let api = ApiState {

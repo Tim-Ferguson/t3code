@@ -76,9 +76,9 @@ pub enum Placement {
 /// Where each catalog entry lives in this app, or why it does not. The port's settings table.
 pub fn placement(id: &str) -> Placement {
     match id {
-        "storage-worktrees" => Placement::Here("general"),
-        "storage-worktrees-location" => Placement::Here("general"),
-        "storage-artifacts" => Placement::Here("general"),
+        "storage-worktrees" => Placement::Here("storage"),
+        "storage-worktrees-location" => Placement::Here("storage"),
+        "storage-artifacts" => Placement::Here("storage"),
         "project-defaults" => Placement::Here("projects"),
         "project-overview" => Placement::Here("projects"),
         "default-model" => Placement::Here("general"),
@@ -176,7 +176,7 @@ pub fn placement(id: &str) -> Placement {
         "follow-change-request-templates" => Placement::Here("text-generation"),
         "source-control-writer-model" => Placement::Here("text-generation"),
         "project-actions" => Placement::Missing("unported feature: project actions (scripts) editor"),
-        "environment-icon" => Placement::Missing("unported feature: environment icons"),
+        "environment-icon" => Placement::Here("connections"),
         "local-environment" => Placement::Missing("unported feature: desktop and cloud connection management"),
         "network-access" => Placement::Missing("unported feature: desktop and cloud connection management"),
         "tailscale-https" => Placement::Missing("unported feature: desktop and cloud connection management"),
@@ -188,7 +188,7 @@ pub fn placement(id: &str) -> Placement {
         "remote-environments" => Placement::Here("connections"),
         "load-balancing" => Placement::Missing("unported feature: load balancing between environments"),
         "github-routing" => Placement::Missing("unported feature: GitHub sharing between environments"),
-        "archive" => Placement::Missing("shown in the sidebar's Archived list, not a settings page"),
+        "archive" => Placement::Here("archived"),
         _ => Placement::Missing("unported feature"),
     }
 }

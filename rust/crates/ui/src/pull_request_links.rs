@@ -146,3 +146,8 @@ fn StopWatching(state: Store<UiModel>, transport: TransportHandle, thread_id: St
             });
         }, "\u{1f441}" } }
 }
+
+/// Whether the environment lists a pull request's checks (`capabilities.pullRequestChecks`); the original shows none otherwise.
+pub(crate) fn checks_supported(state: Store<UiModel>) -> bool {
+    state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.pull_request_checks == Some(true))
+}

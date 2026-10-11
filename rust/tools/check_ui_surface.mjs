@@ -294,6 +294,9 @@ const routesSection = () => {
     rustPaths.add(`/settings/${m[1]}`);
   for (const m of routeRs.matchAll(/\["([a-z-]+)"\] =>/g)) rustPaths.add(`/${m[1]}`);
   if (/Route::Thread/.test(routeRs)) rustPaths.add("/$environmentId/$threadId");
+  // A route with one parameter after a fixed segment (`["projects", key] => Some(Route::Project(..))`).
+  for (const m of routeRs.matchAll(/\["([a-z-]+)", \w+\] (?:if [^=]+)?=> Some\(Route::\w+\(/g))
+    rustPaths.add(`/${m[1]}/*`);
   for (const file of routeFiles.sort()) {
     const name = file.replace(/\.tsx$/, "");
     if (["__root", "_chat", "settings"].includes(name)) continue; // layouts, not pages
@@ -311,7 +314,9 @@ const routesSection = () => {
     classify(
       "routes",
       key,
-      rustPaths.has(key) || (key === "/" && rustPaths.has("/")),
+      rustPaths.has(key) ||
+        (key === "/" && rustPaths.has("/")) ||
+        (/^\/[a-z-]+\/\$\w+$/.test(key) && rustPaths.has(key.replace(/\/\$\w+$/, "/*"))),
       "client/route.rs",
       `; original: routes/${file}`,
     );

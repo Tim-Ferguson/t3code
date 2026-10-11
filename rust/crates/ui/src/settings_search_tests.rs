@@ -23,7 +23,7 @@ async fn the_palette_finds_a_setting_by_what_it_does_and_opens_its_page() {
     input_control(&mut dom, PALETTE, "worktree location");
     until(&mut dom, "the setting", |dom| control(dom, "Worktree location").is_some_and(|_| rendered_text(dom).contains("Settings \u{b7} Storage"))).await;
     click_when_enabled(&mut dom, "Worktree location").await;
-    until(&mut dom, "the page", |dom| state.peek().view == View::General && control(dom, "Worktree location").is_some_and(|(_, value)| value.is_some())).await;
+    until(&mut dom, "the page", |dom| state.peek().view == View::Storage && control(dom, "Worktree location").is_some_and(|(_, value)| value.is_some())).await;
     fixture.finish(dom).await;
 }
 

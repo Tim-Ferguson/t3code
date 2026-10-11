@@ -111,6 +111,9 @@ fn AddInstance(state: Store<UiModel>, transport: TransportHandle, instance_ids: 
     let mut attempted = use_signal(|| false);
     let mut saving = use_signal(|| false);
     let mut failure = use_signal(|| None::<String>);
+    // The registry agent that was prepared, and whether the registry search is the step showing (it is the first for ACP).
+    let mut chosen = use_signal(|| None::<Value>);
+    let mut searching = use_signal(|| false);
     let taken = {
         let ids = instance_ids.clone();
         move |id: &str| ids.iter().any(|existing| existing == id)
@@ -121,8 +124,12 @@ fn AddInstance(state: Store<UiModel>, transport: TransportHandle, instance_ids: 
     let suggestion = logic::available_instance_id(&current, &label.read(), &taken);
     let id = id_override.read().clone().unwrap_or(suggestion.clone());
     let id_error = logic::validate_instance_id(&id, &taken);
-    let local_missing = current == "acpRegistry" && config["commandPath"].as_str().is_none_or(|path| path.trim().is_empty());
+    let registry_agent = chosen.read().clone().filter(|_| current == "acpRegistry");
+    let selected_driver = if *searching.read() { "acp-registry".to_owned() } else { current.clone() };
+    let local_missing = current == "acpRegistry" && registry_agent.is_none() && config["commandPath"].as_str().is_none_or(|path| path.trim().is_empty());
+    let instances = state.config().read()["settings"]["providerInstances"].clone();
     let fields = policy::fields(&current, &config);
+    let search_transport = transport.clone();
     let save = {
         let (id, current, ids, config) = (id.clone(), current.clone(), instance_ids.clone(), if current == "codex" { let mut config = config.clone(); config["setupMode"] = json!("existing"); config } else { config.clone() });
         move |_| {
@@ -157,8 +164,39 @@ fn AddInstance(state: Store<UiModel>, transport: TransportHandle, instance_ids: 
             h2 { "Add provider" }
             p { class: "muted", "Adds an instance to {environment}." }
             div { class: "provider-field", div { strong { "Provider" } }
-                select { "aria-label": "Provider driver", value: "{current}", disabled: *saving.read(), onchange: move |event| { driver.set(event.value()); id_override.set(None); failure.set(None); },
+                select { "aria-label": "Provider driver", value: "{selected_driver}", disabled: *saving.read(), onchange: move |event| {
+                        let value = event.value();
+                        failure.set(None);
+                        id_override.set(None);
+                        chosen.set(None);
+                        if value == "acp-registry" {
+                            searching.set(true);
+                        } else {
+                            searching.set(false);
+                            driver.set(value);
+                        }
+                    },
+                    option { value: "acp-registry", selected: *searching.read(), "ACP Registry" }
                     for option in policy::drivers().iter() { option { key: "{option[\"value\"]}", value: option["value"].as_str().unwrap_or_default(), selected: option["value"] == current.as_str(), { if option["value"] == "acpRegistry" { "Local ACP command".to_owned() } else { option["label"].as_str().unwrap_or_default().to_owned() } } } }
+                }
+            }
+            if *searching.read() {
+                crate::acp_registry_step::Step { state, transport: search_transport.clone(), instances: instances.clone(),
+                    on_prepared: move |agent: Value| {
+                        let name = agent["name"].as_str().unwrap_or_default().to_owned();
+                        configs.write().insert("acpRegistry".to_owned(), t3_client::acp_registry::instance_config(&agent));
+                        label.set(name);
+                        id_override.set(None);
+                        driver.set("acpRegistry".to_owned());
+                        chosen.set(Some(agent));
+                        searching.set(false);
+                    },
+                    on_manual: move |()| { chosen.set(None); configs.write().remove("acpRegistry"); driver.set("acpRegistry".to_owned()); searching.set(false); },
+                    on_local: move |()| { chosen.set(None); configs.write().remove("acpRegistry"); driver.set("acpRegistry".to_owned()); searching.set(false); } }
+            } else {
+            if let Some(agent) = registry_agent.clone() {
+                div { class: "provider-field", div { strong { "Agent" } p { class: "muted", "From the ACP registry, prepared on {environment}." } }
+                    span { "{agent[\"name\"].as_str().unwrap_or_default()} {agent[\"version\"].as_str().unwrap_or_default()}" if let Some(distribution) = agent["distribution"].as_str() { span { class: "muted", " ({distribution})" } } }
                 }
             }
             div { class: "provider-field", div { strong { "Label" } p { class: "muted", "Shown in the provider list." } }
@@ -168,7 +206,7 @@ fn AddInstance(state: Store<UiModel>, transport: TransportHandle, instance_ids: 
                 input { "aria-label": "Instance ID", placeholder: "{current}_work", value: "{id}", disabled: *saving.read(), oninput: move |event| id_override.set(Some(event.value())) }
             }
             if *attempted.read() || id_override.read().is_some() { if let Some(error) = id_error.clone() { p { class: "error-banner", role: "alert", "{error}" } } }
-            for field in fields.iter().filter(|field| !(current == "acpRegistry" && field.key == "source")) {
+            for field in fields.iter().filter(|field| registry_agent.is_none() && !(current == "acpRegistry" && field.key == "source")) {
                 crate::provider_settings::ProviderField { key: "{field.key}", field: field.clone(), config: config.clone(), disabled: *saving.read(), onchange: {
                     let (current, config) = (current.clone(), config.clone());
                     move |(key, value): (String, Value)| {
@@ -178,14 +216,15 @@ fn AddInstance(state: Store<UiModel>, transport: TransportHandle, instance_ids: 
                     }
                 } }
             }
-            if current == "acpRegistry" {
+            if current == "acpRegistry" && registry_agent.is_none() {
                 CommandArguments { config: config.clone(), disabled: *saving.read(), onchange: { let current = current.clone(); move |next: Value| { configs.write().insert(current.clone(), next); } } }
                 if *attempted.read() && local_missing { p { class: "error-banner", role: "alert", "Executable is required." } }
             }
             if let Some(message) = failure.read().clone() { p { class: "error-banner", role: "alert", "{message}" } }
             div { class: "dialog-actions",
                 button { r#type: "button", "aria-label": "Cancel adding a provider", onclick: move |_| onclose.call(()), "Cancel" }
-                button { class: "primary", r#type: "button", "aria-label": "Add instance", disabled: *saving.read(), onclick: save, if *saving.read() { "Adding..." } else { "Add instance" } }
+                if !*searching.read() { button { class: "primary", r#type: "button", "aria-label": "Add instance", disabled: *saving.read(), onclick: save, if *saving.read() { "Adding..." } else { "Add instance" } } }
+            }
             }
         }
     } }

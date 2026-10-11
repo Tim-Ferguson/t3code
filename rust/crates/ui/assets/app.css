@@ -3660,6 +3660,167 @@ html[data-theme-token-probe] *::after {
   border: 1px solid var(--border, #444);
 }
 
+/* Notices docked above the message box. */
+.composer-banner-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.composer-banner-stack:empty {
+  display: none;
+}
+.composer-banner {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.375rem 0.625rem;
+  border: 1px solid var(--border, #444);
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+.composer-banner[data-variant="error"] {
+  border-color: var(--error, #c0392b);
+  background: var(--error-surface, transparent);
+}
+.composer-banner[data-priority="urgent"] {
+  font-weight: 600;
+}
+.composer-banner-icon {
+  flex: none;
+}
+.composer-banner-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.composer-banner-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.composer-banner-separator {
+  opacity: 0.6;
+}
+.composer-banner-description {
+  font-weight: 400;
+}
+.composer-banner-actions {
+  display: flex;
+  flex: none;
+  gap: 0.25rem;
+}
+.composer-banner-dismiss {
+  flex: none;
+}
+
+/* Adding a provider from the ACP registry. */
+.acp-registry-step {
+  display: grid;
+  gap: 0.75rem;
+}
+.acp-registry-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.acp-registry-search input {
+  flex: 1;
+  min-width: 10rem;
+}
+.acp-registry-results {
+  display: flex;
+  flex-direction: column;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+.acp-registry-agent {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.625rem 0;
+}
+.acp-registry-agent-text {
+  flex: 1;
+  min-width: 0;
+}
+.acp-registry-agent-text h4,
+.acp-registry-agent-text p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acp-registry-empty {
+  padding: 1rem;
+  text-align: center;
+  border: 1px dashed var(--border, #444);
+  border-radius: 1rem;
+}
+.acp-url-auth {
+  display: grid;
+  gap: 0.375rem;
+  max-width: 36rem;
+  font-size: 0.75rem;
+}
+.acp-url-auth code {
+  word-break: break-all;
+}
+
+/* Resource usage and its history on the Diagnostics page. */
+.resource-telemetry {
+  display: grid;
+  gap: 0.5rem;
+}
+.resource-history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+.resource-history .selected {
+  font-weight: 600;
+}
+.resource-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.75rem;
+}
+.resource-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  height: 8rem;
+  padding: 0.5rem 0.5rem 0.25rem;
+  overflow: hidden;
+  border: 1px solid var(--border, #444);
+  border-radius: 0.5rem;
+}
+.resource-bucket {
+  display: grid;
+  flex: 1;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  align-items: end;
+  height: 100%;
+  min-width: 0.25rem;
+}
+.resource-bar {
+  display: block;
+  border-radius: 2px 2px 0 0;
+}
+.resource-bar.cpu {
+  background: color-mix(in srgb, currentColor 65%, transparent);
+}
+.resource-bar.read {
+  background: color-mix(in srgb, var(--info, #4a90d9) 70%, transparent);
+}
+.resource-bar.write {
+  background: color-mix(in srgb, var(--warning, #d9a14a) 80%, transparent);
+}
+
 /* Worktree setup card. */
 .worktree-setup {
   margin: 0.5rem 1rem;

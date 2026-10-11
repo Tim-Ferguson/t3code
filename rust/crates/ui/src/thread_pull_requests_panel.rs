@@ -80,6 +80,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -
     let supports = supported(state);
     let value = thread_value(state, &thread_id);
     let operable = connected_allows(state, AuthEnvironmentScope::OrchestrationOperate);
+    let checks_supported = crate::pull_request_links::checks_supported(state);
     let watch_supported = state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.thread_pull_request_watch == Some(true));
     let project_id = value.as_ref().and_then(|thread| thread["projectId"].as_str()).unwrap_or_default().to_owned();
     let lines = value.as_ref().map(logic::lines).unwrap_or_default();
@@ -158,7 +159,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -
                                             span { class: "pr-link-number", title: "{tip}", "#{number}" }
                                             span { class: "pr-link-title", "{title}" }
                                             if is_open && watching { span { class: "pr-link-signal", role: "img", "aria-label": "Watching", title: "{logic::WATCHING_HINT}", "\u{25c9}" } }
-                                            if is_open { if let Some(text) = t3_client::pull_request::checks_state_label(snapshot["checksState"].as_str()) { span { class: "pr-link-signal muted", "{text}" } } }
+                                            if is_open && checks_supported { if let Some(text) = t3_client::pull_request::checks_state_label(snapshot["checksState"].as_str()) { span { class: "pr-link-signal muted", "{text}" } } }
                                             if is_open { if let Some(text) = t3_client::pull_request::review_decision_label(snapshot["reviewDecision"].as_str()) { span { class: "pr-link-signal muted", "{text}" } } }
                                             if t3_client::pull_request::has_size(additions, deletions) { span { class: "pr-link-stat", "+{additions} \u{2212}{deletions}" } }
                                         }

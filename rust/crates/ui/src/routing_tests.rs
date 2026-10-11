@@ -17,7 +17,7 @@ pub(crate) struct Browser {
     incoming: VecDeque<Value>,
     waker: Option<Waker>,
     /// What the app asked the page to do.
-    sent: Vec<Value>,
+    pub(crate) sent: Vec<Value>,
 }
 impl Browser {
     pub(crate) fn go(&mut self, address: &str) {

@@ -53,6 +53,12 @@ pub(crate) fn for_send(state: Store<UiModel>, target: &DraftTarget, prompt: &str
     let records = contexts_of(state, target);
     let ids = records.iter().filter_map(|record| record["contextId"].as_str().map(str::to_owned)).collect();
     let (text, context) = logic::compose(prompt, &records);
+    // A server that does not advertise `inlineMessageContext` drops the records and sends the references as literal text, so
+    // the context travels inside the message instead (`ChatView.tsx`, `serializeLegacyContextMessage`).
+    let inline = state.typed_config().peek().as_ref().is_some_and(|config| config.environment.capabilities.inline_message_context == Some(true));
+    if context.is_some() && !inline {
+        return (t3_client::composer_context_legacy::serialize(&text, &records), None, ids);
+    }
     (text, context, ids)
 }
 /// A send was accepted: its chips leave the draft.

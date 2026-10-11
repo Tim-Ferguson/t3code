@@ -101,6 +101,63 @@ pub fn too_large_message(name: &str, max_bytes: u64) -> String {
     format!("'{name}' exceeds the {limit} attachment limit.")
 }
 
+/// What the server says about attachments (`capabilities.attachmentUploads`, `fileAttachments.maxUploadBytes`), as the
+/// composer reads it (`composerAttachmentFiles.ts`). Before the environment's configuration has arrived nothing is known, and
+/// the composer stages files against the contract's own limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Limits {
+    pub known: bool,
+    pub uploads: bool,
+    pub max_file_bytes: Option<u64>,
+}
+impl Limits {
+    pub fn of(capabilities: Option<&t3_contracts::ExecutionEnvironmentCapabilities>) -> Self {
+        match capabilities {
+            None => Self::default(),
+            Some(capabilities) => Self {
+                known: true,
+                uploads: capabilities.attachment_uploads == Some(true),
+                max_file_bytes: capabilities.file_attachments.as_ref().map(|capability| capability.max_upload_bytes.0),
+            },
+        }
+    }
+    /// `fileAttachmentStagingLimit`: the byte limit for adding a generic file, or none when the server takes no files.
+    pub fn file_staging_limit(&self) -> Option<u64> {
+        if !self.known {
+            return Some(MAX_FILE_BYTES);
+        }
+        if !self.uploads {
+            return None;
+        }
+        // The contract caps what a turn may reference, so a larger advertised value does not admit more.
+        self.max_file_bytes.map(|advertised| advertised.min(MAX_FILE_BYTES))
+    }
+    /// Whether the composer offers to attach anything (`showComposerAttachAction`). A server that takes no uploads takes no
+    /// images from this client either: it sends no image inline, as the original's composer does.
+    pub fn attach_action(&self) -> bool {
+        self.file_staging_limit().is_some()
+    }
+    /// `fileAttachmentCapabilityBlockReason`: why the files held cannot be sent to this server.
+    pub fn file_block_reason(&self, attachments: &[Attachment]) -> Option<String> {
+        let files: Vec<_> = attachments.iter().filter(|attachment| attachment.kind == Kind::File).collect();
+        if files.is_empty() {
+            return None;
+        }
+        if !self.known {
+            return Some("Waiting for the server before file attachments can send".into());
+        }
+        let Some(limit) = self.file_staging_limit() else {
+            return Some("This server does not accept file attachments right now. Remove the files to send.".into());
+        };
+        files.iter().find(|file| file.size_bytes > limit).map(|file| too_large_message(&file.name, limit))
+    }
+}
+
+/// `block_reason` with what the server accepts counted first, as the composer orders them.
+pub fn block_reason_for(attachments: &[Attachment], limits: &Limits) -> Option<String> {
+    limits.file_block_reason(attachments).or_else(|| if limits.known && !limits.uploads { None } else { block_reason(attachments) })
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Candidate {
     pub name: String,
@@ -119,6 +176,11 @@ pub struct Admitted {
 /// and pastes see each other's reserved slots. As in the original, the last
 /// refusal in a batch is the one reported.
 pub fn admit(existing: usize, candidates: &[Candidate]) -> (Vec<Admitted>, Option<String>) {
+    admit_with(existing, candidates, &Limits::default())
+}
+/// `admit` against what the server accepts: a server without uploads takes nothing, and one without a file limit takes no
+/// generic files.
+pub fn admit_with(existing: usize, candidates: &[Candidate], limits: &Limits) -> (Vec<Admitted>, Option<String>) {
     let mut admitted = vec![];
     let mut error = None;
     let mut reserved = existing;
@@ -127,6 +189,10 @@ pub fn admit(existing: usize, candidates: &[Candidate]) -> (Vec<Admitted>, Optio
             error = Some(format!(
                 "You can attach up to {MAX_ATTACHMENTS} files per message."
             ));
+            continue;
+        }
+        if limits.known && !limits.uploads {
+            error = Some("This server does not support attachments.".into());
             continue;
         }
         let class = classify(&candidate.name, &candidate.mime_type);
@@ -144,7 +210,11 @@ pub fn admit(existing: usize, candidates: &[Candidate]) -> (Vec<Admitted>, Optio
         let limit = if kind == Kind::Image {
             MAX_IMAGE_BYTES
         } else {
-            MAX_FILE_BYTES
+            let Some(limit) = limits.file_staging_limit() else {
+                error = Some("This server does not support file attachments.".into());
+                continue;
+            };
+            limit
         };
         if candidate.size_bytes == 0 {
             error = Some(format!("'{}' is empty or could not be read.", candidate.name));
@@ -630,6 +700,43 @@ mod tests {
         assert_eq!(restored[0].size_bytes, 5);
         assert_eq!(restored[2].attachment_id.as_deref(), Some("pending-a"));
         assert_eq!(restored[3].attachment_id, None);
+    }
+
+    #[test]
+    fn the_server_decides_whether_and_how_big_a_file_may_be_staged() {
+        let known = |uploads, max| Limits { known: true, uploads, max_file_bytes: max };
+        // Nothing is known before the configuration arrives: the contract's own limit applies, and nothing is refused.
+        assert_eq!(Limits::default().file_staging_limit(), Some(MAX_FILE_BYTES));
+        assert_eq!(known(true, Some(1024)).file_staging_limit(), Some(1024));
+        assert_eq!(known(true, Some(MAX_FILE_BYTES * 2)).file_staging_limit(), Some(MAX_FILE_BYTES), "a larger advertised limit admits no more");
+        assert_eq!(known(true, None).file_staging_limit(), None);
+        assert_eq!(known(false, Some(1024)).file_staging_limit(), None);
+        assert!(!known(false, None).attach_action() && known(true, Some(1)).attach_action());
+
+        let files = [candidate("a.txt", "text/plain", 2048), candidate("b.png", "image/png", 100)];
+        let (admitted, error) = admit_with(0, &files, &known(true, Some(1024)));
+        assert_eq!(admitted.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["b.png"]);
+        assert_eq!(error.as_deref(), Some("'a.txt' exceeds the 1 KB attachment limit."));
+        let (admitted, error) = admit_with(0, &files, &known(true, None));
+        assert_eq!((admitted.len(), error.as_deref()), (1, Some("This server does not support file attachments.")));
+        let (admitted, error) = admit_with(0, &files, &known(false, None));
+        assert_eq!((admitted.len(), error.as_deref()), (0, Some("This server does not support attachments.")));
+    }
+
+    #[test]
+    fn files_the_server_would_refuse_block_the_send_before_anything_else() {
+        let file = |size| Attachment { kind: Kind::File, size_bytes: size, ..entry(Upload::Ready) };
+        assert_eq!(known_block(&[file(10)], true, Some(100)), None);
+        assert_eq!(known_block(&[file(200)], true, Some(100)).as_deref(), Some("'notes.pdf' exceeds the 100 bytes attachment limit."));
+        assert_eq!(known_block(&[file(10)], false, None).as_deref(), Some("This server does not accept file attachments right now. Remove the files to send."));
+        assert_eq!(block_reason_for(&[file(10)], &Limits::default()).as_deref(), Some("Waiting for the server before file attachments can send"));
+        assert_eq!(block_reason_for(&[], &Limits::default()), None);
+        // The upload states still block once the server accepts the files.
+        let failed = Attachment { upload: Upload::Failed { reason: "x".into(), retry: Retry::Upload }, ..file(10) };
+        assert_eq!(known_block(&[failed], true, Some(100)).as_deref(), Some("Retry or remove the failed attachment"));
+    }
+    fn known_block(list: &[Attachment], uploads: bool, max: Option<u64>) -> Option<String> {
+        block_reason_for(list, &Limits { known: true, uploads, max_file_bytes: max })
     }
 
     #[test]

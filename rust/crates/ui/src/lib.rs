@@ -2,10 +2,12 @@
 mod appearance;
 mod crash;
 mod attachments;
+mod background_activity;
 mod branch;
 mod changed_files;
 mod client_settings;
 mod command_palette;
+mod composer_banners;
 mod composer_menu;
 mod composer_panels;
 mod item_cards;
@@ -37,6 +39,7 @@ mod pull_request_stack;
 mod thread_pull_requests_panel;
 mod thread_selection;
 mod access_page;
+mod acp_registry_step;
 mod connect_page;
 mod import_notice;
 mod notifications;
@@ -46,6 +49,7 @@ mod review_diff;
 mod draft_storage;
 mod empty_state;
 mod header_more;
+mod environment_icon;
 mod error_text;
 mod file_preview;
 mod font_service;
@@ -65,6 +69,7 @@ mod provider_auth;
 mod provider_manage;
 mod provider_settings;
 mod rollback;
+mod resource_section;
 mod routing;
 mod runtime;
 mod scheduled_tasks_page;
@@ -84,7 +89,9 @@ mod settings_rows;
 fn wire_text(value: &impl serde::Serialize) -> String {
     serde_json::to_value(value).ok().and_then(|value| value.as_str().map(str::to_owned)).unwrap_or_default()
 }
+mod server_update;
 mod source_control_page;
+mod storage_page;
 mod subagent_rows;
 mod thread_status_line;
 mod syntax_highlighting;
@@ -338,7 +345,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     use_effect(use_reactive(&unseen, {
         let transport = transport.clone();
         move |unseen| {
-            if let Some(id) = unseen.filter(|_| state.status().peek().clone() == ConnectionStatus::Connected) {
+            // Against a server that does not track visits (`threadVisitedTracking`) there is nothing to tell it.
+            let tracked = state.typed_config().peek().as_ref().is_some_and(|config| config.environment.capabilities.thread_visited_tracking == Some(true));
+            if let Some(id) = unseen.filter(|_| tracked && state.status().peek().clone() == ConnectionStatus::Connected) {
                 runtime::command(&transport, state, "thread.visit", json!({"threadId":id,"visitedAt":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)}));
             }
         }
@@ -406,6 +415,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         style { "{STYLES}" }
         style { {include_str!("../assets/theme-tokens.css")} }
         import_notice::Notice { state, transport: transport.clone() }
+        background_activity::Reporter { state, transport: transport.clone() }
         div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
@@ -512,6 +522,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 button { class: "primary", r#type: "submit", "Connect" }
                             }
                             p { class: "muted", "{status_label}" }
+                            environment_icon::Picker { state, transport: transport.clone() }
                             connect_page::Section { state, transport: transport.clone() }
                             access_page::Authorized { state, transport: transport.clone() }
                             ssh_environments::Section { state, transport: transport.clone() }
@@ -534,6 +545,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::Projects => rsx! {projects_page::Page {state,transport:transport.clone()}},
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
                     View::Diagnostics => rsx! {diagnostics_page::Page {state,transport:transport.clone()}},
+                    View::Storage => rsx! {storage_page::Page {state,transport:transport.clone()}},
+                    View::Archived => rsx! {thread_lifecycle::ArchivedPage {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {
                         pull_request_list::Page {state,transport:transport.clone()}
                         pull_request_panel::Host {key:"pr:list",state,transport:transport.clone(),thread_id:String::new()}
@@ -891,7 +904,7 @@ fn Composer(
         .as_ref()
         .and_then(|target| {
             state.draft_attachments().read().get(target).map(|list| {
-                (list.len(), t3_client::attachments::block_reason(list))
+                (list.len(), t3_client::attachments::block_reason_for(list, &attachments::limits(state)))
             })
         })
         .unwrap_or_default();
@@ -996,6 +1009,7 @@ fn Composer(
     rsx! {
         limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) }
         limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
+        composer_banners::Stack { server_update::Banners { state, transport: transport.clone() } }
         composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint,steer_hint:steer_hint.clone()}
         composer_panels::GoalStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
@@ -1009,6 +1023,7 @@ fn Composer(
             composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, on_send: enter_send, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
             if let Some(target)=target.clone() { attachments::Shelf {state,transport:transport.clone(),target,locked:pending,can_operate,paste_target:".composer textarea"} }
             if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}
+            composer_panels::PromptLength { state, text: None }
             div { class: "composer-toolbar",
                 if can_operate { if let Some(target)=target.clone() { attachments::AttachButton {state,transport:transport.clone(),target} } }
                 crate::thread_controls::ThreadControls {state,transport:transport.clone(),thread:thread.clone()}

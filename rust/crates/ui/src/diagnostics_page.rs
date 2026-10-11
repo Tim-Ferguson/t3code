@@ -1,7 +1,8 @@
 //! Settings, Diagnostics: the server's live child processes with a way to interrupt or kill one, and what its trace file says
 //! about failures and slow work. Port of the "Live Processes" and "Trace Diagnostics" sections of `DiagnosticsSettings.tsx`
 //! (`server.getProcessDiagnostics`, `server.signalProcess`, `server.getTraceDiagnostics`) for the one environment this app is
-//! connected to. Not ported: the resource history charts and the resource telemetry panel (`ResourceTelemetryDiagnostics.tsx`).
+//! connected to, with the resource usage and its history (`resource_section.rs`). Not ported: the per-process history and the
+//! process tree of `ResourceTelemetryDiagnostics.tsx`.
 //!
 //! Nothing here ticks: the page reads once when it opens and again when Refresh is pressed or a signal has been sent, so the
 //! numbers are those of the moment shown beside "Checked".
@@ -139,6 +140,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                     Some(Ok(result)) => rsx! { Traces { result } },
                 }
             }
+            crate::resource_section::Section { state, transport: transport.clone() }
             if let Some(signal) = pending {
                 Confirm { label: "SIGKILL", title: "Send SIGKILL?", body: format!("Send SIGKILL to process {}? This cannot be handled by the process.", signal.pid), confirm: "Send SIGKILL", busy: false,
                     oncancel: move |()| asking.set(None),

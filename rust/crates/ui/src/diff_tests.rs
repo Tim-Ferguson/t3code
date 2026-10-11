@@ -21,6 +21,11 @@ pub(crate) async fn wait_for_rendered_text(dom: &mut VirtualDom, expected: &str)
     until(dom, expected, |dom| rendered_text(dom).contains(expected)).await;
 }
 
+thread_local! {
+    static OFFERED: RefCell<Option<Value>> = const { RefCell::new(None) };
+    static WITH_BACKGROUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 #[derive(Clone)]
 pub(crate) struct Harness {
     pub(crate) state: Rc<RefCell<Option<Store<UiModel>>>>,
@@ -150,6 +155,20 @@ impl Fixture {
         Self::build_with_settings(false, environment, false, None, false, settings, Some(365 * 24 * 60 * 60 * 1000), "diff-ui").await
     }
     /// A server of another environment, for a test that reaches a second machine from the window of the first.
+    /// A server whose descriptor advertises `capabilities` as well (another kind of server, or an older or newer one).
+    pub(crate) async fn start_offering(capabilities: Value) -> Self {
+        OFFERED.with(|offered| *offered.borrow_mut() = Some(capabilities));
+        let fixture = Self::build(false, &[], false).await;
+        OFFERED.with(|offered| *offered.borrow_mut() = None);
+        fixture
+    }
+    /// A server with the background policy, which learns from the window's activity reports.
+    pub(crate) async fn start_with_background(git_repository: bool) -> Self {
+        WITH_BACKGROUND.with(|flag| flag.set(true));
+        let fixture = Self::build(git_repository, &[], false).await;
+        WITH_BACKGROUND.with(|flag| flag.set(false));
+        fixture
+    }
     pub(crate) async fn start_named(environment_id: &str) -> Self {
         Self::build_with_settings(false, &[], false, None, false, json!({}), None, environment_id).await
     }
@@ -196,6 +215,12 @@ impl Fixture {
             git(&workspace, &["commit", "-q", "-m", "initial"]);
         }
         let mut api = api_fixture(&directory, environment_id);
+        // What a test says its server advertises beyond the real server's own set (`start_offering`).
+        if let Some(offered) = OFFERED.with(|offered| offered.borrow().clone()) {
+            for (key, value) in offered.as_object().into_iter().flatten() {
+                api.environment["capabilities"][key] = value.clone();
+            }
+        }
         let binary = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../server/tests/fixtures/codex-provider.py")
             .canonicalize()
@@ -231,6 +256,15 @@ impl Fixture {
         }
         api.config = Some(snapshot);
         api.settings = Some(settings_service.clone());
+        // The window's activity reports (`background_activity`) reach the server's policy, as on a real server. A server with a policy
+        // runs its periodic work only while some window has said it is looking, so this is for the tests that report.
+        if WITH_BACKGROUND.with(std::cell::Cell::get) {
+            let clock: t3_server::desktop_telemetry::Clock = std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis());
+            let mut telemetry = t3_server::desktop_telemetry::DesktopTelemetryOptions::unavailable("web");
+            telemetry.clock = clock.clone();
+            let desktop = t3_server::desktop_telemetry::DesktopTelemetryReceiver::new(telemetry).await;
+            api.background = Some(t3_server::background_policy::BackgroundPolicy::start(settings_service.clone(), desktop, clock).await.unwrap());
+        }
         let clock = timed.map(|idle_timeout| {
             let clock = t3_server::scheduled_tasks::ManualClock::new(chrono::Utc::now().timestamp_millis());
             native.providers.idle_release().configure(clock.clone(), idle_timeout, t3_server::provider_idle::MAX_PIN_MS);

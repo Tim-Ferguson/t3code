@@ -642,3 +642,40 @@ async fn long_pasted_text_becomes_a_file_named_for_the_paste_and_short_text_does
     assert_eq!(state.peek().draft_attachments.get(&draft).map_or(0, Vec::len), 2);
     fixture.finish(dom).await;
 }
+
+/// Changes what the connected environment advertises, as another server (or a reconnect to an older one) would.
+fn advertise(state: Store<UiModel>, change: impl FnOnce(&mut t3_contracts::ExecutionEnvironmentCapabilities)) {
+    let mut field = state.typed_config();
+    let mut config = field.write();
+    change(&mut config.as_mut().expect("the configuration has arrived").environment.capabilities);
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_advertised_upload_limit_and_capability_decide_what_the_composer_takes() {
+    let fixture = Fixture::start().await;
+    let (mut dom, props) = fixture.operator();
+    let state = seed(&mut dom, &props, fixture.directory.path()).await;
+    open(&mut dom, &props, state, "thread-a").await;
+    until(&mut dom, "the configuration", |_| state.peek().typed_config.is_some()).await;
+    let draft = target(state, "thread-a");
+
+    // A server that advertises a four byte limit takes a three byte file and refuses a ten byte one in its own words.
+    advertise(state, |capabilities| capabilities.file_attachments = Some(t3_contracts::FileAttachmentCapability { max_upload_bytes: t3_contracts::PositiveInt(4) }));
+    pick(&mut dom, "Attach files", vec![("big.txt", "text/plain", vec![b'x'; 10])]);
+    assert_eq!(state.attachment_error().peek().as_ref().unwrap().1, "'big.txt' exceeds the 4 bytes attachment limit.");
+    assert!(attachments(state, &draft).is_empty());
+    pick(&mut dom, "Attach files", vec![("ok.txt", "text/plain", b"abc".to_vec())]);
+    until(&mut dom, "the small file to upload", |_| all_ready(state, &draft, 1)).await;
+
+    // A server without file uploads is offered no attach control and takes nothing, not even a direct attempt.
+    advertise(state, |capabilities| capabilities.attachment_uploads = None);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(control(&dom, "Attach files").is_none(), "nothing to attach to");
+    dom.in_scope(ScopeId::APP, || {
+        crate::attachments::attach(&props.transport, state, &draft, vec![crate::attachments::Incoming { name: "a.txt".into(), mime_type: "text/plain".into(), size: 1, source: crate::attachments::Source::Bytes(Rc::from(&b"a"[..])) }])
+    });
+    assert_eq!(state.attachment_error().peek().as_ref().unwrap().1, "This server does not support attachments.");
+    assert_eq!(attachments(state, &draft).len(), 1, "the file already staged stays until it is removed");
+    fixture.finish(dom).await;
+}

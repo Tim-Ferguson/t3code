@@ -230,3 +230,25 @@ async fn a_pin_moves_up_and_down_among_the_pins_by_writing_fractional_keys() {
     until(&mut dom, "the order again", |_| order(state) == first).await;
     fixture.finish(dom).await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_server_without_inline_message_context_gets_the_reference_as_its_plain_label_and_no_records() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    // Another server, or an older one: it does not advertise `inlineMessageContext`.
+    state.typed_config().write().as_mut().unwrap().environment.capabilities.inline_message_context = None;
+    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
+    click_control(&mut dom, "Reference in chat");
+    until(&mut dom, "the chip", |dom| control(dom, "Remove thread-b").is_some()).await;
+    input_control(&mut dom, "Message", "compare with that one");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the turn", |_| completed_runs(state) == 1).await;
+    assert!(message_context(state).is_empty(), "the records are not sent");
+    let projection = state.peek().thread.projection.clone().unwrap();
+    let text = projection["messages"].as_array().unwrap().iter().find(|message| message["role"] == "user").unwrap()["text"].as_str().unwrap().to_owned();
+    assert_eq!(text, "compare with that one thread-b");
+    fixture.finish(dom).await;
+}

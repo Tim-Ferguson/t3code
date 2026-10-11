@@ -31,25 +31,13 @@
       "mcpApps.readResource": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
       "mcpApps.toolInfo": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
       "mcpApps.updateModelContext": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
-      "server.getProcessResourceHistory": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
-      "server.getResourceTelemetryHistory": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
-      "server.retryResourceTelemetry": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
-      "server.getHostResources": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
-      "subscribeResourceTelemetry": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
-      "server.reportClientActivity": "Background policy reporter (backgroundActivityReporter.ts): the Rust UI never tells the server it is visible or idle, so the policy leases never open. The server handles it.",
       "filesystem.browse": "Server-side folder browser of the Add project dialog (CommandPalette.tsx) for a browser client; the Rust web build asks for a typed path (the desktop build has a native picker). The server handles it.",
       "provider.uploadFeedback": "'Send feedback' on a thread (ChatView uploadThreadFeedback): no entry point in the Rust UI. The server handles it.",
       "pullRequests.preview": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
       "pullRequests.routing": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
       "pullRequests.routingIdentity": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
-      "server.acceptAcpRegistryUrlAuth": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
-      "server.prepareAcpRegistryAgent": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
-      "server.searchAcpRegistry": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
-      "server.uninstallAcpRegistryManagedBinary": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
-      "server.commitDesktopUpdate": "Updating an outdated remote server from the client (outdatedHostUpdate.ts, ServerUpdateAction): the Rust UI shows no update action for a server. The server handles it.",
-      "server.updateServer": "Updating an outdated remote server from the client (outdatedHostUpdate.ts, ServerUpdateAction): the Rust UI shows no update action for a server. The server handles it.",
-      "server.updateServerWithProgress": "Updating an outdated remote server from the client (outdatedHostUpdate.ts, ServerUpdateAction): the Rust UI shows no update action for a server. The server handles it.",
-      "vcs.removeWorktree": "Deleting a thread offers to remove its worktree (useThreadActions.ts); the Rust delete never removes the worktree. The server handles it."
+      "server.getHostResources": "Host resources for choosing where to run (useLoadBalancedEnvironment, the Load balancing setting): not built. The server handles it.",
+      "server.getProcessResourceHistory": "One process's history in the process tree of ResourceTelemetryDiagnostics (DiagnosticsSettings): the Rust Diagnostics page shows the groups and the history of all, not the per-process tree. The server handles it."
     },
     "omitted": {
       "server.probe": "The original opens a probe request to learn the connection answers (rpc/session.ts); the Rust client checks the socket with its heartbeat and the first config read.",
@@ -85,13 +73,9 @@
         "reason": "a /pair#token=... link pairs this browser (runtime::take_pairing_link, pair_from_link)"
       }
     },
-    "partial": {
-      "/settings/storage": "The storage controls live on the General page; there is no /settings/storage address, and two of them have no effect (the server never runs cleanup)."
-    },
+    "partial": {},
     "pending": {
       "/draft/$draftId": "Several local drafts, each at its own address: the Rust start screen is one draft (route.rs). Reopened drafts and the draft list are not built.",
-      "/projects/$projectKey": "A redirect to /settings/projects?project=KEY in the original; the Rust router has no deep link to a project's settings.",
-      "/settings/archived": "Archived threads as a settings page: the Rust sidebar lists them in its Archived section only.",
       "/settings/integrations": "Integrations page (browser preview, agent browser/device access): not built.",
       "/settings/open-source-licenses": "Licenses page: the original fetches third-party-licenses.json from its web bundle; the Rust build generates no manifest, so the server has no data to serve.",
       "/welcome": "The onboarding wizard (WelcomeWizard); only its project import step exists, as a dialog."
@@ -131,9 +115,6 @@
   "settings": {
     "handled": {},
     "partial": {
-      "archive": "Archived threads are in the sidebar's Archived section; there is no settings page for them.",
-      "storage-worktrees": "The control writes worktreeCleanup but the server never acts on it (check_rpc_surface: the hourly cleanup sweep is not ported).",
-      "storage-artifacts": "The control writes storageCleanup but the server never acts on it (cleanup sweep not ported).",
       "response-streaming": "Written and read, but the server applies it to the OpenCode adapters only (check_rpc_surface: responseStreamingMode)."
     },
     "pending": {
@@ -162,7 +143,6 @@
       "cli-command": "Desktop only. The t3 command install row (CliCommandSettingsRow, DesktopCliCommand.ts): not built.",
       "open-source-licenses": "Licenses page: no generated manifest (see routes).",
       "project-actions": "Project actions (scripts) editor of the project settings: not built.",
-      "environment-icon": "Environment icon picker (EnvironmentIconPicker; capability environmentIcon): not built. The server handles the icon.",
       "local-environment": "Desktop only. The local environment switch (LocalEnvironmentSetting; setLocalEnvironmentEnabled): the desktop app always runs and uses its own server.",
       "network-access": "Desktop only. Exposing the app's server to the local network (setServerExposureMode): the server this app starts listens on loopback only.",
       "tailscale-https": "Desktop only. Tailscale Serve toggle (setTailscaleServeEnabled): not wired.",
@@ -185,28 +165,14 @@
   },
   "caps": {
     "handled": {},
-    "partial": {
-      "attachmentUploads": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "questionAttachments": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "inlineMessageContext": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "requiredWorktreeBootstrap": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "pullRequestChecks": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "threadVisitedTracking": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "threadRestartContinuation": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
-      "fileAttachments": "Not read: the Rust composer uses the original's constants for the file size limit instead of the advertised maxUploadBytes."
-    },
+    "partial": {},
     "pending": {
-      "projectWorktreeCleanup": "Per-project worktree cleanup rows (StorageSettings): not built; the server never cleans up either.",
       "usagePriceOverrides": "Price override editor of the Usage page (UsagePriceOverrides): not built.",
       "usageModelAliases": "Model alias editor of the Usage page: not built.",
       "pullRequestStackActions": "Stack merge/rebase actions (PullRequestDetailPanel): to be gated on this flag once the server advertises it.",
-      "serverSelfUpdate": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
-      "serverInstallation": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
-      "serverSelfUpdateProgress": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
-      "serverUpdateThreadContinuation": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
-      "desktopAppUpdate": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
-      "environmentIcon": "Environment icon picker: not built.",
-      "serverBrowser": "Server-side browser (preview): not built."
+      "serverBrowser": "Server-side browser (preview): not built.",
+      "questionAttachments": "Attachments on an answer to an agent's question (the question card's attach control, attachmentsByQuestionId on runtime-request.respond, the answered question's attachments in the timeline): the Rust question card takes text answers only. Server advertises it.",
+      "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Server advertises it."
     },
     "omitted": {
       "connectionProbe": "See rpc server.probe: the Rust client does not probe."
@@ -598,6 +564,14 @@
       "composer useComposerTriggerState": {
         "probe": "composer_menu.rs::fn slash_entries",
         "reason": "trigger state"
+      },
+      "composer ComposerPromptLengthValidation": {
+        "probe": "composer_panels.rs::data-chat-composer-validation.{1,20}prompt-length && runtime.rs::prompt_length_message\\(&text\\) \\{[^}]*prompt_length_error",
+        "reason": "composer_panels.rs::PromptLength shows the refusal; runtime::send_with and launch_thread refuse an over-long prompt before anything is sent"
+      },
+      "composer ComposerServerUpdateStatus": {
+        "probe": "server_update.rs::Updating \\{ \\}|title: format!\\(\"Updating",
+        "reason": "server_update.rs::Banners shows the running stage and the failure under the composer"
       }
     },
     "partial": {
@@ -609,12 +583,11 @@
       "right panel surface file": "One file at a time in a panel; the original keeps several file tabs and reopens closed ones.",
       "right panel surface pull-request": "One pull request panel at a time, not peer tabs.",
       "right panel surface pull-requests": "The thread's linked pull requests are a panel (thread_pull_requests_panel.rs), not a singleton tab.",
-      "composer ComposerBanner": "Provider status, usage-limit and server-update banners are separate notices; there is no banner stack above the box.",
-      "composer ComposerBannerStack": "As ComposerBanner.",
-      "composer ComposerPromptLengthValidation": "The server rejects an over-long prompt; the box shows no length warning before send.",
       "composer ComposerTasksBadge": "Background work is listed in composer_panels; the scheduled-tasks badge/popover (ThreadAutomationsPanel) is not built.",
       "composer composer-code-block": "Rich text composer: not built.",
-      "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo)."
+      "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo).",
+      "composer ComposerBanner": "The banner and its stack exist (composer_banners.rs) and carry the server update notice; the provider status and usage-limit notices are still separate panels, not banners of the stack.",
+      "composer ComposerBannerStack": "As ComposerBanner: the stack holds the server update banner only."
     },
     "pending": {
       "timeline row html-render": "HtmlRenderTimelineRow (the t3 html_render tool result in a sandboxed frame): the Rust timeline shows the tool call only.",
@@ -626,7 +599,6 @@
       "composer ComposerCodeBlockLanguagePicker": "Rich text composer code blocks: not built.",
       "composer ComposerCodeBlockNodeView": "Rich text composer code blocks: not built.",
       "composer ComposerFeedback": "Thumbs up/down feedback on a reply (uploadFeedback): not built.",
-      "composer ComposerServerUpdateStatus": "Server update status under the box: see rpc server.updateServer.",
       "composer composer-rich-text": "The rich text composer (Tiptap, block Markdown): the Rust composer is a plain text box.",
       "composer composerMentionDrag": "Dragging a file or a tree row into the composer (composerMentionDrag, workspaceFileDrop): not built."
     },

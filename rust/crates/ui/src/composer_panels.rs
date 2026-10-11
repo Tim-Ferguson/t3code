@@ -389,3 +389,22 @@ pub(crate) fn latest_run_settled(projection: &Value) -> Option<String> {
     let run = projection["runs"].as_array()?.last()?;
     matches!(run["status"].as_str(), Some("completed" | "failed" | "cancelled" | "interrupted")).then(|| run["id"].as_str().unwrap_or_default().to_owned())
 }
+
+/// The refusal of a send whose prompt is too long (`ComposerPromptLengthValidation`). It appears when a send is refused and
+/// follows the prompt from then on: it says by how much it is still over, and goes once it is not. `text` is the prompt of a
+/// composer that keeps it elsewhere than in the thread draft.
+#[component]
+pub(crate) fn PromptLength(state: Store<UiModel>, text: Option<String>) -> Element {
+    // Nothing is read of the prompt until there is something to say about it.
+    let refused = state.prompt_length_error().read().is_some();
+    let now = refused.then(|| t3_client::composer_submission::prompt_length_message(&text.unwrap_or_else(|| state.draft().read().clone()))).flatten();
+    use_effect(use_reactive(&(refused, now.is_none()), move |(refused, fine)| {
+        if refused && fine {
+            state.prompt_length_error().set(None);
+        }
+    }));
+    match now {
+        Some(message) => rsx! { p { class: "error-banner", role: "alert", "data-chat-composer-validation": "prompt-length", "{message}" } },
+        None => rsx! {},
+    }
+}

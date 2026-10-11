@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use t3_client::connection::ConnectionStatus;
 use t3_contracts::AuthEnvironmentScope;
 
-const TABS: [(View, &str); 10] = [
+const TABS: [(View, &str); 12] = [
     (View::General, "General"),
     (View::Projects, "Projects"),
     (View::Providers, "Providers"),
@@ -15,6 +15,8 @@ const TABS: [(View, &str); 10] = [
     (View::ScheduledTasks, "Scheduled tasks"),
     (View::SourceControl, "Source control"),
     (View::TextGeneration, "Text generation"),
+    (View::Storage, "Storage"),
+    (View::Archived, "Archived threads"),
     (View::Diagnostics, "Diagnostics"),
 ];
 
@@ -31,6 +33,8 @@ pub(crate) fn page_view(page: &str) -> Option<View> {
         "source-control" => View::SourceControl,
         "text-generation" => View::TextGeneration,
         "diagnostics" => View::Diagnostics,
+        "storage" => View::Storage,
+        "archived" => View::Archived,
         _ => return None,
     })
 }

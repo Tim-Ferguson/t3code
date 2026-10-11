@@ -30,6 +30,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
     let capabilities = config["environment"]["capabilities"].clone();
     let overrides_supported = capabilities["projectSettingsOverrides"] == true;
     let auto_settlement = capabilities["threadAutoSettlement"] == true;
+    let restart_continuation = capabilities["threadRestartContinuation"] == true;
     let projects: Vec<(String, String)> = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.projects.iter().map(|project| (project.id.to_string(), project.title.to_string())).collect()).unwrap_or_default();
     let project = Some(scope.read().clone()).filter(|id| !id.is_empty() && overrides_supported && projects.iter().any(|(project, _)| project == id));
     let writable = settings_write() && !*saving.read() && config.is_object() && config["settings"].is_object();
@@ -164,7 +165,11 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                     // These belong to the environment, not to one project.
                     if project.is_none() {
                         for row in settings_rows::ENVIRONMENT {
-                            { settings_rows::control(row, &env_value(row), !writable, { let set = set.clone(); EventHandler::new(move |value: Value| set(row.key, value)) }) }
+                            // Resuming a cut turn needs a server that does it (`threadRestartContinuation`).
+                            { settings_rows::control(row, &env_value(row), !writable || (row.key == "continueThreadsAfterServerUpdate" && !restart_continuation), { let set = set.clone(); EventHandler::new(move |value: Value| set(row.key, value)) }) }
+                            if row.key == "continueThreadsAfterServerUpdate" && !restart_continuation {
+                                p { class: "muted", role: "status", "This environment must support restart continuation." }
+                            }
                         }
                     }
                 }
@@ -172,8 +177,12 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                 section { class: "sc-section", "aria-label": "Diffs", h2 { "Diffs" } ClientRows { state, rows: &settings_rows::DIFFS } }
                 section { class: "sc-section", "aria-label": "Display", h2 { "Display" } ClientRows { state, rows: &settings_rows::DISPLAY } }
                 if project.is_none() {
-                    section { class: "sc-section", id: "storage", "aria-label": "Storage", h2 { "Storage" }
-                        { storage_rows(&settings, writable, set.clone()) }
+                    section { class: "sc-section", id: "new-projects", "aria-label": "New projects", h2 { "New projects" }
+                        div { class: "setting-row", id: "add-project-starts-in", "data-setting": "addProjectBaseDirectory",
+                            div { class: "font-description", strong { "Add project starts in" } p { class: "muted", "Leave empty to use \"~/\" when the Add Project browser opens." } }
+                            div { class: "font-controls", input { "aria-label": "Add project starts in", placeholder: "~/", value: "{settings[\"addProjectBaseDirectory\"].as_str().unwrap_or_default()}", disabled: !writable, autocapitalize: "none", spellcheck: "false",
+                                onchange: { let set = set.clone(); move |event| set("addProjectBaseDirectory", Value::String(event.value().trim().to_owned())) } } }
+                        }
                     }
                 }
             }
@@ -201,58 +210,5 @@ fn RestoreDefaults(state: Store<UiModel>) -> Element {
                 }
             },
             "Restore device defaults" }
-    }
-}
-
-/// The environment's storage settings: where worktrees go and when old files are cleaned up.
-fn storage_rows(settings: &Value, writable: bool, set: impl Fn(&str, Value) + Clone + 'static) -> Element {
-    let cleanup = settings["storageCleanup"].clone();
-    let patch = {
-        let set = set.clone();
-        move |key: &'static str, value: Value| set("storageCleanup", serde_json::json!({ key: value }))
-    };
-    let days = |key: &str| cleanup[key].as_u64();
-    let retention = |key: &'static str, title: &'static str, description: &'static str| -> Element {
-        let current = days(key);
-        let patch = patch.clone();
-        rsx! { div { key: "{key}", class: "setting-row", "data-setting": "{key}",
-            div { class: "font-description", strong { "{title}" } p { class: "muted", "{description}" } }
-            div { class: "font-controls",
-                input { r#type: "checkbox", role: "switch", "aria-label": "{title}", checked: current.is_some(), disabled: !writable, onchange: { let patch = patch.clone(); move |event| patch(key, if event.checked() { Value::from(8) } else { Value::Null }) } }
-                if let Some(current) = current {
-                    input { r#type: "number", min: "1", max: "3650", "aria-label": "{title} in days", value: "{current}", disabled: !writable,
-                        onchange: { let patch = patch.clone(); move |event| { if let Ok(days) = event.value().parse::<u64>() { patch(key, Value::from(days.clamp(1, 3650))); } } } }
-                    " days"
-                }
-            }
-        } }
-    };
-    let flag = |key: &'static str, title: &'static str, description: &'static str| -> Element {
-        let on = cleanup[key].as_bool().unwrap_or(false);
-        let patch = patch.clone();
-        rsx! { div { key: "{key}", class: "setting-row", "data-setting": "{key}",
-            div { class: "font-description", strong { "{title}" } p { class: "muted", "{description}" } }
-            div { class: "font-controls", input { r#type: "checkbox", role: "switch", "aria-label": "{title}", checked: on, disabled: !writable, onchange: move |event| patch(key, Value::Bool(event.checked())) } }
-        } }
-    };
-    let location = settings["worktreesDirectory"].as_str().unwrap_or_default().to_owned();
-    let add_base = settings["addProjectBaseDirectory"].as_str().unwrap_or_default().to_owned();
-    rsx! {
-        div { class: "setting-row", id: "storage-worktrees-location", "data-setting": "worktreesDirectory",
-            div { class: "font-description", strong { "Worktree location" } p { class: "muted", "Folder where new worktrees are created, such as ~/worktrees. Existing worktrees stay where they are. Leave empty to use the default." } }
-            div { class: "font-controls", input { "aria-label": "Worktree location", placeholder: "Default", value: "{location}", disabled: !writable, autocapitalize: "none", spellcheck: "false",
-                onchange: { let set = set.clone(); move |event| set("worktreesDirectory", Value::String(event.value().trim().to_owned())) } } }
-        }
-        div { class: "setting-row", id: "add-project-starts-in", "data-setting": "addProjectBaseDirectory",
-            div { class: "font-description", strong { "Add project starts in" } p { class: "muted", "Leave empty to use \"~/\" when the Add Project browser opens." } }
-            div { class: "font-controls", input { "aria-label": "Add project starts in", placeholder: "~/", value: "{add_base}", disabled: !writable, autocapitalize: "none", spellcheck: "false",
-                onchange: { let set = set.clone(); move |event| set("addProjectBaseDirectory", Value::String(event.value().trim().to_owned())) } } }
-        }
-        {retention("worktreeAfterDays", "Worktree cleanup", "Delete a worktree after its thread has been inactive this long.")}
-        {flag("worktreeOnMerge", "Delete worktrees when merged", "Delete a thread's worktree when its pull request merges.")}
-        {flag("worktreeOnDelete", "Delete worktrees with the thread", "Delete a thread's worktree when the thread is deleted.")}
-        {flag("worktreeUnchanged", "Delete unchanged worktrees", "Delete worktrees that were never changed.")}
-        {retention("browserArtifactsAfterDays", "Artifacts and logs", "Delete browser screenshots and captures after this long.")}
-        {retention("logsAfterDays", "Rotated logs", "Delete rotated server logs after this long.")}
     }
 }

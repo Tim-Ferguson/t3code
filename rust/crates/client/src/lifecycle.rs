@@ -76,6 +76,81 @@ pub fn undo_line(action: &str, count: usize) -> String {
     format!("{action} {count} thread{},", if count == 1 { "" } else { "s" })
 }
 
+/// `getOrphanedWorktreePathForThread` (`worktreeCleanup.ts`): the worktree this thread alone is linked to, which is the one
+/// deleting it may take away. `threads` are `(id, worktree path)` of the threads that survive, the target included.
+pub fn orphaned_worktree_path(threads: &[(&str, Option<&str>)], thread_id: &str) -> Option<String> {
+    let trimmed = |path: Option<&str>| path.map(str::trim).filter(|path| !path.is_empty()).map(str::to_owned);
+    let target = trimmed(threads.iter().find(|(id, _)| *id == thread_id)?.1)?;
+    let shared = threads.iter().any(|(id, path)| *id != thread_id && trimmed(*path).as_deref() == Some(target.as_str()));
+    (!shared).then_some(target)
+}
+
+/// `formatWorktreePathForDisplay`: the folder's own name.
+pub fn display_worktree_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return path.to_owned();
+    }
+    let normalized = trimmed.replace('\\', "/");
+    let normalized = normalized.trim_end_matches('/');
+    let last = normalized.rsplit('/').next().map(str::trim).unwrap_or_default();
+    if last.is_empty() { trimmed.to_owned() } else { last.to_owned() }
+}
+
+/// The question asked about a worktree no other thread uses, when the thread goes.
+pub fn delete_worktree_message(display_path: &str) -> String {
+    ["This thread is the only one linked to this worktree:", display_path, "", "Delete the worktree too?"].join("\n")
+}
+
+/// A project's own worktree cleanup policy (`inherit`, `off` or `custom`), as the settings hold it for that project.
+pub fn project_cleanup_mode(settings: &serde_json::Value, project_id: &str) -> &'static str {
+    let overrides = &settings["projectSettingsOverrides"][project_id];
+    if !overrides.get("worktreeCleanup").is_some_and(|policy| policy.is_object()) {
+        return "inherit";
+    }
+    match overrides["worktreeCleanup"]["mode"].as_str() {
+        Some("off") => "off",
+        Some("custom") => "custom",
+        _ => "inherit",
+    }
+}
+
+/// `resolveWorktreeCleanup(settings, projectId)`: the four rules in force, as JSON with the settings' own keys. A project's
+/// own policy (`custom` rules or `off`) outranks the environment's `storageCleanup`; `project_id` is none for the
+/// environment itself.
+pub fn worktree_cleanup_rules(settings: &serde_json::Value, project_id: Option<&str>) -> serde_json::Value {
+    use serde_json::json;
+    let overrides = project_id.map(|id| &settings["projectSettingsOverrides"][id]);
+    let policy = match overrides.filter(|entry| entry.get("worktreeCleanup").is_some()) {
+        Some(entry) => &entry["worktreeCleanup"],
+        None => &settings["worktreeCleanup"],
+    };
+    match policy["mode"].as_str() {
+        Some("custom") => policy["rules"].clone(),
+        Some("off") => json!({"worktreeAfterDays": null, "worktreeOnMerge": false, "worktreeOnDelete": false, "worktreeUnchanged": false}),
+        _ => {
+            let cleanup = &settings["storageCleanup"];
+            json!({"worktreeAfterDays": cleanup["worktreeAfterDays"], "worktreeOnMerge": cleanup["worktreeOnMerge"], "worktreeOnDelete": cleanup["worktreeOnDelete"], "worktreeUnchanged": cleanup["worktreeUnchanged"]})
+        }
+    }
+}
+
+/// `resolveWorktreeCleanup(settings, projectId).worktreeOnDelete`: whether the server takes the worktree away by itself when
+/// the thread goes, in which case the client does not ask.
+pub fn worktree_on_delete(settings: &serde_json::Value, project_id: &str) -> bool {
+    worktree_cleanup_rules(settings, Some(project_id))["worktreeOnDelete"].as_bool().unwrap_or(false)
+}
+
+/// Whether the project is the environment's Scratch project (`isScratchProject`): its folder is the scratch root.
+pub fn is_scratch_project(workspace_root: &str, scratch_root: Option<&str>) -> bool {
+    let comparable = |path: &str| {
+        let normalized = crate::source_control::normalize_project_path(path);
+        let windows = normalized.starts_with("\\\\") || (normalized.len() >= 2 && normalized.as_bytes()[0].is_ascii_alphabetic() && normalized.as_bytes()[1] == b':');
+        if windows { normalized.replace('/', "\\").to_lowercase() } else { normalized }
+    };
+    scratch_root.is_some_and(|root| !comparable(root).is_empty() && comparable(root) == comparable(workspace_root))
+}
+
 /// A thread as far as picking the previous worktree cares.
 pub struct WorktreeThread<'a> {
     pub branch: Option<&'a str>,
@@ -128,6 +203,39 @@ mod tests {
         assert_eq!(confirm_copy("No question here"), ("Confirm action".to_owned(), Some("No question here".to_owned())));
         assert_eq!(confirm_copy("Really? Yes, really."), ("Really?".to_owned(), Some("Yes, really.".to_owned())));
         assert_eq!(confirm_copy("  "), ("Confirm action".to_owned(), Some("This action requires your confirmation.".to_owned())));
+    }
+
+    #[test]
+    fn a_worktree_is_offered_only_when_no_other_surviving_thread_uses_it() {
+        let threads = [("a", Some("/w/feature")), ("b", Some(" /w/feature ")), ("c", Some("/w/other")), ("d", None), ("e", Some("  "))];
+        assert_eq!(orphaned_worktree_path(&threads, "c").as_deref(), Some("/w/other"));
+        assert_eq!(orphaned_worktree_path(&threads, "a"), None, "b shares it");
+        assert_eq!(orphaned_worktree_path(&threads[..1], "a").as_deref(), Some("/w/feature"));
+        assert_eq!(orphaned_worktree_path(&threads, "d"), None);
+        assert_eq!(orphaned_worktree_path(&threads, "e"), None);
+        assert_eq!(orphaned_worktree_path(&threads, "missing"), None);
+        assert_eq!(display_worktree_path("/w/feature/"), "feature");
+        assert_eq!(display_worktree_path("C:\\work\\feature"), "feature");
+        let (title, body) = confirm_copy(&delete_worktree_message("feature"));
+        assert_eq!((title.as_str(), body.as_deref()), ("Delete the worktree too?", Some("This thread is the only one linked to this worktree:\nfeature")));
+    }
+
+    #[test]
+    fn a_projects_own_cleanup_policy_decides_whether_the_server_removes_the_worktree_for_us() {
+        use serde_json::json;
+        let settings = json!({"worktreeCleanup": null, "storageCleanup": {"worktreeOnDelete": true}, "projectSettingsOverrides": {
+            "off": {"worktreeCleanup": {"mode": "off"}},
+            "custom": {"worktreeCleanup": {"mode": "custom", "rules": {"worktreeOnDelete": false}}},
+            "inherit": {"worktreeCleanup": {"mode": "inherit"}},
+        }});
+        assert!(worktree_on_delete(&settings, "p"));
+        assert!(worktree_on_delete(&settings, "inherit"));
+        assert!(!worktree_on_delete(&settings, "off"));
+        assert!(!worktree_on_delete(&settings, "custom"));
+        assert!(!worktree_on_delete(&json!({"storageCleanup": {"worktreeOnDelete": false}}), "p"));
+        assert!(is_scratch_project("/scratch/", Some("/scratch")));
+        assert!(!is_scratch_project("/work", Some("/scratch")));
+        assert!(!is_scratch_project("/work", None));
     }
 
     #[test]
