@@ -87,6 +87,9 @@ pub struct Session {
     pub last_connected_at: Option<DateTime<Utc>>,
     pub expires_at: DateTime<Utc>,
     pub revoked_at: Option<DateTime<Utc>>,
+    /// The thumbprint of the DPoP key the session is bound to (`proofKeyThumbprint`); set only on `dpop-access-token` sessions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub proof_key_thumbprint: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -139,6 +142,8 @@ impl AuthService {
                 ("label", "TEXT"),
                 ("created_at", "INTEGER"),
                 ("revoked_at", "INTEGER"),
+                // The DPoP key the link was issued for, if any: only a request proving that key may use it.
+                ("proof_key_thumbprint", "TEXT"),
             ] {
                 let present: i64 = transaction.query_row(
                     "SELECT count(*) FROM pragma_table_info('rust_pairing_credentials') WHERE name=?1",
@@ -195,7 +200,7 @@ impl AuthService {
         } else {
             vec!["one-time-token"]
         };
-        json!({"policy":self.policy,"bootstrapMethods":methods,"sessionMethods":["browser-session-cookie","bearer-access-token"],"sessionCookieName":self.cookie_name,"serverUpdateScope":"environment:maintain"})
+        json!({"policy":self.policy,"bootstrapMethods":methods,"sessionMethods":["browser-session-cookie","bearer-access-token","dpop-access-token"],"sessionCookieName":self.cookie_name,"serverUpdateScope":"environment:maintain"})
     }
 
     pub fn session_state(&self, session: Option<&Session>) -> Value {
@@ -219,7 +224,22 @@ impl AuthService {
         now: DateTime<Utc>,
         ttl: chrono::Duration,
     ) -> Result<(Session, String), AuthError> {
-        if !matches!(method, "browser-session-cookie" | "bearer-access-token") {
+        self.issue_session_bound(subject, method, scopes, client, now, ttl, None)
+    }
+
+    /// A session that, when `proof_key_thumbprint` is given, only answers to requests that prove that DPoP key.
+    #[allow(clippy::too_many_arguments)]
+    pub fn issue_session_bound(
+        &self,
+        subject: &str,
+        method: &str,
+        scopes: Vec<AuthEnvironmentScope>,
+        client: Value,
+        now: DateTime<Utc>,
+        ttl: chrono::Duration,
+        proof_key_thumbprint: Option<String>,
+    ) -> Result<(Session, String), AuthError> {
+        if !matches!(method, "browser-session-cookie" | "bearer-access-token" | "dpop-access-token") {
             return Err(AuthError::Invalid("Unsupported session method."));
         }
         if ttl <= chrono::Duration::zero() {
@@ -235,6 +255,7 @@ impl AuthService {
             last_connected_at: None,
             expires_at: now + ttl,
             revoked_at: None,
+            proof_key_thumbprint,
         };
         let token = self.session_token(&session, now)?;
         let replaced = self.store.transaction(|transaction| {
@@ -624,6 +645,20 @@ impl AuthService {
         now: DateTime<Utc>,
         ttl: chrono::Duration,
     ) -> Result<IssuedPairingLink, AuthError> {
+        self.issue_pairing_link_bound(scopes, subject, label, now, ttl, None)
+    }
+
+    /// A link only a request that proves the DPoP key `proof_key_thumbprint` can use (`proofKeyThumbprint` of
+    /// `issueOneTimeToken`); T3 Connect issues these for the clients its relay vouches for.
+    pub fn issue_pairing_link_bound(
+        &self,
+        scopes: &[AuthEnvironmentScope],
+        subject: &str,
+        label: Option<&str>,
+        now: DateTime<Utc>,
+        ttl: chrono::Duration,
+        proof_key_thumbprint: Option<&str>,
+    ) -> Result<IssuedPairingLink, AuthError> {
         if scopes.iter().any(|scope| !scope.is_grantable()) || ttl <= chrono::Duration::zero() {
             return Err(AuthError::Invalid("Invalid pairing grant."));
         }
@@ -634,8 +669,8 @@ impl AuthService {
         let label = label.map(str::to_owned);
         self.store.transaction(|transaction| {
             transaction.execute(
-                "INSERT INTO rust_pairing_credentials(token_hash,scopes_json,expires_at,id,subject,label,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                params![hash, serde_json::to_string(scopes)?, expires_at.timestamp_millis(), id, subject, label, now.timestamp_millis()],
+                "INSERT INTO rust_pairing_credentials(token_hash,scopes_json,expires_at,id,subject,label,created_at,proof_key_thumbprint) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                params![hash, serde_json::to_string(scopes)?, expires_at.timestamp_millis(), id, subject, label, now.timestamp_millis(), proof_key_thumbprint],
             )?;
             Ok(())
         })?;
@@ -667,7 +702,7 @@ impl AuthService {
             .and_then(|token| self.verify_session(token, now).ok())
             .filter(|session| session.method == "browser-session-cookie")
             .map(|session| session.session_id);
-        self.exchange_pairing(credential, client, now, "browser-session-cookie", None, replace)
+        self.exchange_pairing(credential, client, now, "browser-session-cookie", None, replace, None)
     }
 
     pub fn exchange_pairing_bearer(
@@ -677,7 +712,21 @@ impl AuthService {
         client: Value,
         now: DateTime<Utc>,
     ) -> Result<(Session, String), AuthError> {
-        self.exchange_pairing(credential, client, now, "bearer-access-token", scopes, None)
+        self.exchange_pairing(credential, client, now, "bearer-access-token", scopes, None, None)
+    }
+
+    /// The exchange of a client that proved a DPoP key: the session is bound to it and lives an hour
+    /// (`exchangeBootstrapCredentialForAccessToken` with a `proofKeyThumbprint`). A link issued for another key is refused
+    /// and stays unused.
+    pub fn exchange_pairing_dpop(
+        &self,
+        credential: &str,
+        scopes: Option<&[AuthEnvironmentScope]>,
+        client: Value,
+        now: DateTime<Utc>,
+        proof_key_thumbprint: &str,
+    ) -> Result<(Session, String), AuthError> {
+        self.exchange_pairing(credential, client, now, "dpop-access-token", scopes, None, Some(proof_key_thumbprint))
     }
 
     fn exchange_pairing(
@@ -688,7 +737,10 @@ impl AuthService {
         method: &str,
         requested: Option<&[AuthEnvironmentScope]>,
         replace: Option<String>,
+        proof_key_thumbprint: Option<&str>,
     ) -> Result<(Session, String), AuthError> {
+        // A DPoP session is short: the client proves its key again with every request and exchanges again when it ends.
+        let session_ttl = if proof_key_thumbprint.is_some() { chrono::Duration::hours(1) } else { chrono::Duration::days(30) };
         if let Some(grant) = &self.desktop_bootstrap {
             let valid = if let Some(secret) = &grant.secret {
                 valid_desktop_bootstrap_token(secret, credential, now.timestamp_millis())
@@ -713,28 +765,31 @@ impl AuthService {
                 if scopes.is_empty() {
                     return Err(AuthError::ScopeNotGranted);
                 }
-                return self.issue_session(
+                return self.issue_session_bound(
                     "desktop-bootstrap",
                     method,
                     scopes,
                     client,
                     now,
-                    chrono::Duration::days(30),
+                    session_ttl,
+                    proof_key_thumbprint.map(str::to_owned),
                 );
             }
         }
         let (session, link_id, replaced) = self.store.transaction(|transaction| {
             let hash=token_hash(credential);
-            let raw:Option<(String,i64,Option<i64>,Option<String>,String,Option<String>,Option<i64>)>=transaction.query_row("SELECT scopes_json,expires_at,consumed_at,id,subject,label,revoked_at FROM rust_pairing_credentials WHERE token_hash=?1",[&hash],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?))).optional()?;
-            let Some((scopes,expires_at,consumed,id,subject,label,revoked))=raw else {return Ok(None)};
+            let raw:Option<(String,i64,Option<i64>,Option<String>,String,Option<String>,Option<i64>,Option<String>)>=transaction.query_row("SELECT scopes_json,expires_at,consumed_at,id,subject,label,revoked_at,proof_key_thumbprint FROM rust_pairing_credentials WHERE token_hash=?1",[&hash],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?,row.get(4)?,row.get(5)?,row.get(6)?,row.get(7)?))).optional()?;
+            let Some((scopes,expires_at,consumed,id,subject,label,revoked,bound_to))=raw else {return Ok(None)};
             if consumed.is_some() || revoked.is_some() || expires_at<=now.timestamp_millis() {return Ok(None)};
+            // A link issued for a DPoP key is used by a request that proves that key, and by nothing else; a refusal leaves it unused.
+            if bound_to.as_deref().is_some_and(|bound| Some(bound)!=proof_key_thumbprint) {return Ok(None)};
             let grants:Vec<AuthEnvironmentScope>=serde_json::from_str(&scopes)?;
             let scopes=requested.map(|requested|{let mut granted=Vec::new();for scope in requested {if scope.is_grantable() && grants.contains(scope) && !granted.contains(scope) {granted.push(*scope);}}granted}).unwrap_or(grants);
             if scopes.is_empty() { return Ok(Some(Err(AuthError::ScopeNotGranted))); }
             // The link's label names the client that used it.
             let mut client=client.clone();
             if let (Some(label),Some(object))=(label.as_deref().filter(|label|!label.is_empty()),client.as_object_mut()) {object.insert("label".into(),Value::String(label.to_owned()));}
-            let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject,method:method.into(),scopes,client,issued_at:Some(now),last_connected_at:None,expires_at:now+chrono::Duration::days(30),revoked_at:None};
+            let session=Session{session_id:uuid::Uuid::new_v4().to_string(),subject,method:method.into(),scopes,client,issued_at:Some(now),last_connected_at:None,expires_at:now+session_ttl,revoked_at:None,proof_key_thumbprint:proof_key_thumbprint.map(str::to_owned)};
             let mut replaced=Vec::new();
             if let Some(previous)=&replace {
                 // Only a live session of the same method is replaced, as the original's UPDATE does.

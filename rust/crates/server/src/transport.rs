@@ -134,7 +134,9 @@ pub fn router(state: ApiState) -> Router {
         .route("/ws", get(upgrade))
         .merge(crate::attachment_http::routes())
         .merge(crate::scheduled_tasks_http::routes())
+        .merge(crate::connect_http::routes())
         .fallback(get(static_asset))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), dpop_layer))
         .layer(axum::middleware::map_response(no_cache))
         .layer(axum::middleware::from_fn_with_state(cors_origins, cors))
         .with_state(state)
@@ -275,10 +277,21 @@ async fn no_cache(mut response: Response) -> Response {
     response
 }
 async fn environment(State(state): State<ApiState>) -> Json<Value> {
-    Json(state.environment)
+    // Read per request: the publishing capability follows the link and the opt-in (`ServerEnvironment.getDescriptor`).
+    Json(match crate::connect::current(&state.store) {
+        Some(connect) => connect.descriptor(),
+        None => state.environment,
+    })
 }
 
-fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Session, ApiError> {
+/// Set by `dpop_layer` on a request whose `Authorization: DPoP` proof checked out: the token it was checked for. Any value a
+/// client sends under this name is removed before the layer decides, so only the layer can set it.
+const DPOP_VERIFIED: &str = "x-t3-internal-dpop-verified";
+/// Set by `dpop_layer` when the proof was refused: the category the client is told (`internal` for a replay marker that
+/// could not be recorded). Removed from incoming requests like [`DPOP_VERIFIED`].
+const DPOP_FAILURE: &str = "x-t3-internal-dpop-failure";
+
+pub(crate) fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Session, ApiError> {
     let cookies = headers
         .get(header::COOKIE)
         .and_then(|value| value.to_str().ok());
@@ -290,11 +303,18 @@ fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Session, ApiErr
             })
         })
     };
+    let dpop_token = headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("DPoP "))
+        .map(str::trim)
+        .filter(|token| !token.is_empty());
     if let Some(token) = cookie_token(&state.auth.cookie_name) {
         return state
             .auth
             .verify_session(token, Utc::now())
-            .map_err(|_| unauthorized());
+            .map_err(|_| unauthorized())
+            .and_then(|session| bound_to_key(session, dpop_token, headers));
     }
     if let Some(authorization) = headers.get(header::AUTHORIZATION) {
         let value = authorization.to_str().map_err(|_| unauthorized())?;
@@ -306,14 +326,15 @@ fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Session, ApiErr
             return state
                 .auth
                 .verify_session(token, Utc::now())
-                .map_err(|_| unauthorized());
+                .map_err(|_| unauthorized())
+                .and_then(|session| bound_to_key(session, dpop_token, headers));
         }
-        if value
-            .strip_prefix("DPoP ")
-            .map(str::trim)
-            .is_some_and(|token| !token.is_empty())
-        {
-            return Err(unauthorized());
+        if let Some(token) = dpop_token {
+            return state
+                .auth
+                .verify_session(token, Utc::now())
+                .map_err(|_| unauthorized())
+                .and_then(|session| bound_to_key(session, Some(token), headers));
         }
     }
     if state.auth.policy == "remote-reachable" {
@@ -321,10 +342,124 @@ fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Session, ApiErr
             return state
                 .auth
                 .verify_session(token, Utc::now())
-                .map_err(|_| unauthorized());
+                .map_err(|_| unauthorized())
+                .and_then(|session| bound_to_key(session, dpop_token, headers));
         }
     }
     Err(unauthorized())
+}
+
+/// A session bound to a DPoP key answers only to a request that presented its token as `Authorization: DPoP` with a proof
+/// that `dpop_layer` verified; an unbound one never takes that scheme (`authenticateRequest`).
+fn bound_to_key(session: Session, dpop_token: Option<&str>, headers: &HeaderMap) -> Result<Session, ApiError> {
+    let header_text = |name: &str| headers.get(name).and_then(|value| value.to_str().ok());
+    match (&session.proof_key_thumbprint, dpop_token) {
+        (None, None) => Ok(session),
+        (None, Some(_)) => Err(unauthorized_dpop(crate::dpop::FailureReason::InvalidProof)),
+        (Some(_), None) => Err(unauthorized_dpop(crate::dpop::FailureReason::InvalidProof)),
+        (Some(_), Some(token)) => {
+            if header_text(DPOP_VERIFIED) == Some(token) {
+                return Ok(session);
+            }
+            match header_text(DPOP_FAILURE) {
+                Some("internal") => Err(internal("DPoP replay state could not be recorded")),
+                Some(reason) => Err(unauthorized_dpop(crate::dpop::FailureReason::parse(reason).unwrap_or(crate::dpop::FailureReason::InvalidProof))),
+                None => Err(unauthorized_dpop(crate::dpop::FailureReason::InvalidProof)),
+            }
+        }
+    }
+}
+
+/// `EnvironmentAuthInvalidError` for a DPoP failure: the category rides in `dpopFailureReason`.
+fn unauthorized_dpop(reason: crate::dpop::FailureReason) -> ApiError {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(json!({"_tag":"EnvironmentAuthInvalidError","code":"auth_invalid","reason":"invalid_credential","dpopFailureReason":reason.as_str(),"traceId":"unavailable"})),
+    )
+}
+
+/// The URL a request was made to as the original rebuilds it (`HttpServerRequest.toURL`): the request target on the scheme and
+/// `Host` the request names, `https` only when a proxy said so.
+fn request_url(headers: &HeaderMap, target: &str) -> Option<String> {
+    let host = headers.get(header::HOST).and_then(|value| value.to_str().ok()).unwrap_or("localhost");
+    let scheme = if headers.get("x-forwarded-proto").and_then(|value| value.to_str().ok()) == Some("https") { "https" } else { "http" };
+    url::Url::parse(&format!("{scheme}://{host}")).ok()?.join(target).ok().map(|url| url.to_string())
+}
+
+/// Checks the DPoP proof of a request (`verifyRequestDpopProof`) and consumes it. `expected` is the session's key and the
+/// access token it must hash; the token exchange has neither.
+fn verify_request_proof(
+    state: &ApiState,
+    method: &axum::http::Method,
+    uri: &axum::http::Uri,
+    headers: &HeaderMap,
+    expected: Option<(&str, &str)>,
+) -> Result<String, crate::dpop::Refusal> {
+    use crate::dpop::{FailureReason, Proof, Refusal, ReplayMarkers};
+    let invalid = |diagnostic: &str| Refusal::Invalid { reason: FailureReason::InvalidProof, diagnostic: diagnostic.to_owned() };
+    let target = uri.path_and_query().map_or("/", |target| target.as_str());
+    let url = request_url(headers, target).ok_or_else(|| invalid("Invalid DPoP request URL."))?;
+    let now = Utc::now();
+    let proof = headers.get("dpop").and_then(|value| value.to_str().ok());
+    let input = Proof {
+        proof,
+        method: method.as_str(),
+        url: &url,
+        now_epoch_seconds: now.timestamp_millis().div_euclid(1000),
+        expected_thumbprint: expected.map(|(thumbprint, _)| thumbprint),
+        expected_access_token: expected.map(|(_, token)| token),
+    };
+    let stamp = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    match state.store.state_dir().map(|directory| crate::server_secret_store::ServerSecretStore::open(directory.join("secrets"))) {
+        Some(Ok(secrets)) => crate::dpop::verify_and_consume(&input, &stamp, ReplayMarkers::Directory(&secrets)),
+        Some(Err(error)) => {
+            tracing::error!(%error, "DPoP replay markers could not be opened");
+            Err(Refusal::Internal("Failed to record DPoP proof replay state.".into()))
+        }
+        None => crate::dpop::verify_and_consume(&input, &stamp, ReplayMarkers::Memory(&state.store.extension(std::sync::Mutex::<std::collections::HashSet<String>>::default))),
+    }
+}
+
+/// Verifies the proof of every request that presents `Authorization: DPoP`, so `authenticate` (which sees headers only) can
+/// tell. A refused proof is not an error here: the route decides, as the original's, whether it needs a session at all. A
+/// 401 for such a request names the scheme in `WWW-Authenticate`.
+async fn dpop_layer(State(state): State<ApiState>, mut request: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    request.headers_mut().remove(DPOP_VERIFIED);
+    request.headers_mut().remove(DPOP_FAILURE);
+    let token = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("DPoP "))
+        .map(|token| token.trim().to_owned())
+        .filter(|token| !token.is_empty());
+    let uses_dpop = token.is_some() || request.headers().get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()).is_some_and(|value| value.starts_with("DPoP "))
+        || (request.uri().path().starts_with("/oauth/token") && request.headers().contains_key("dpop"));
+    if let Some(token) = token {
+        // The token is checked first: a proof is only consumed for a credential that is itself good and bound.
+        if let Some(thumbprint) = state.auth.verify_session(&token, Utc::now()).ok().and_then(|session| session.proof_key_thumbprint) {
+            let (method, uri, headers) = (request.method().clone(), request.uri().clone(), request.headers().clone());
+            let outcome = verify_request_proof(&state, &method, &uri, &headers, Some((&thumbprint, &token)));
+            match outcome {
+                Ok(_) => {
+                    if let Ok(value) = token.parse() {
+                        request.headers_mut().insert(DPOP_VERIFIED, value);
+                    }
+                }
+                Err(crate::dpop::Refusal::Invalid { reason, .. }) => {
+                    request.headers_mut().insert(DPOP_FAILURE, reason.as_str().parse().expect("a category is header-safe"));
+                }
+                Err(crate::dpop::Refusal::Internal(_)) => {
+                    request.headers_mut().insert(DPOP_FAILURE, "internal".parse().expect("header-safe"));
+                }
+            }
+        }
+    }
+    let mut response = next.run(request).await;
+    if uses_dpop && response.status() == StatusCode::UNAUTHORIZED {
+        response.headers_mut().insert(header::WWW_AUTHENTICATE, "DPoP".parse().expect("header-safe"));
+    }
+    response
 }
 pub(crate) fn authenticate_media_request(
     state: &ApiState,
@@ -342,7 +477,7 @@ pub(crate) fn authenticate_media_request(
     .map_err(IntoResponse::into_response)?;
     require(&session, scope).map_err(IntoResponse::into_response)
 }
-fn require(session: &Session, scope: AuthEnvironmentScope) -> Result<(), ApiError> {
+pub(crate) fn require(session: &Session, scope: AuthEnvironmentScope) -> Result<(), ApiError> {
     if session.scopes.contains(&scope) {
         Ok(())
     } else {
@@ -523,18 +658,27 @@ async fn revoke_other_client_sessions(State(state): State<ApiState>, headers: He
 
 async fn exchange_token(
     State(state): State<ApiState>,
+    method: axum::http::Method,
+    uri: axum::http::Uri,
     headers: HeaderMap,
     Peer(peer): Peer,
     Form(input): Form<t3_contracts::AuthTokenExchangeRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    if headers.contains_key("dpop") {
-        return Err(unauthorized());
-    }
     let requested = input
         .scope
         .as_ref()
         .map(|scope| requested_scopes(scope.as_str()))
         .transpose()?;
+    // A client that sends a proof gets a session bound to its key; one that does not, a bearer token.
+    let thumbprint = if headers.contains_key("dpop") {
+        match verify_request_proof(&state, &method, &uri, &headers, None) {
+            Ok(thumbprint) => Some(thumbprint),
+            Err(crate::dpop::Refusal::Invalid { reason, .. }) => return Err(unauthorized_dpop(reason)),
+            Err(crate::dpop::Refusal::Internal(error)) => return Err(internal_because("access_token_issuance_failed", error)),
+        }
+    } else {
+        None
+    };
     let now = Utc::now();
     let client = crate::auth::derive_client_metadata(
         user_agent(&headers),
@@ -545,14 +689,11 @@ async fn exchange_token(
             os: input.client_os.as_ref().map(|os| os.as_str().to_owned()),
         },
     );
-    let (session, token) = state
-        .auth
-        .exchange_pairing_bearer(
-            input.subject_token.as_str(),
-            requested.as_deref(),
-            client,
-            now,
-        )
+    let exchanged = match &thumbprint {
+        Some(thumbprint) => state.auth.exchange_pairing_dpop(input.subject_token.as_str(), requested.as_deref(), client, now, thumbprint),
+        None => state.auth.exchange_pairing_bearer(input.subject_token.as_str(), requested.as_deref(), client, now),
+    };
+    let (session, token) = exchanged
         .map_err(|error| match error {
             crate::auth::AuthError::ScopeNotGranted => invalid_request("scope_not_granted"),
             crate::auth::AuthError::Invalid(_) => unauthorized(),
@@ -571,7 +712,7 @@ async fn exchange_token(
         .collect::<Vec<_>>()
         .join(" ");
     Ok(Json(
-        json!({"access_token":token,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":"Bearer","expires_in":(session.expires_at-now).num_seconds().max(0),"scope":scopes}),
+        json!({"access_token":token,"issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":if thumbprint.is_some() {"DPoP"} else {"Bearer"},"expires_in":(session.expires_at-now).num_seconds().max(0),"scope":scopes}),
     ))
 }
 fn requested_scopes(value: &str) -> Result<Vec<AuthEnvironmentScope>, ApiError> {
@@ -833,9 +974,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -880,6 +1021,9 @@ async fn execute_session_unary(
     rpc_client: t3_contracts::RpcClientId,
     reported: &std::sync::atomic::AtomicBool,
 ) -> Result<Value, Value> {
+    if request.tag == crate::connect_rpc::STATUS {
+        return crate::connect_rpc::relay_client_status(&state.store).await;
+    }
     if request.tag.starts_with("provider.auth.") {
         return crate::provider_auth_rpc::command(
             state.provider_auth.as_ref(),
@@ -1024,6 +1168,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                     config["providers"] = json!(providers.snapshots());
                 }
                 crate::keybindings_rpc::overlay(&mut config).await?;
+                crate::connect::overlay_config(&state.store, &mut config);
                 crate::project_folders::ManagedProjectFolders::overlay_config(&state.store, &mut config).await;
                 crate::external_launcher::overlay_config(&mut config).await;
         crate::import_status::overlay_config(&state.store, &mut config);
@@ -1498,6 +1643,38 @@ async fn provider_auth_stream(
 }
 
 /// `provider.install.subscribe`: the install state now, then every change, until the client leaves.
+/// `cloud.installRelayClient`: each event of the installation is a chunk the client acknowledges; a failed installation ends the
+/// stream with its error.
+async fn install_relay_client_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut events = crate::connect_rpc::install_relay_client(&state.store)?;
+        while let Some(event) = events.recv().await {
+            state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
+            match event {
+                Ok(event) => {
+                    let value = serde_json::to_value(&event).map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+                    if !chunk(&output, &mut ack, &request.id, vec![value]).await {
+                        return Ok(());
+                    }
+                }
+                Err(error) => return Err(crate::connect_rpc::install_failure(&error)),
+            }
+        }
+        Ok::<(), Value>(())
+    }.await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
+}
+
 async fn provider_install_stream(
     request: RpcRequest,
     state: ApiState,
@@ -2123,6 +2300,7 @@ async fn config_stream(
         config["settings"]=crate::provider_registry::redact_settings(&settings.snapshot);
         if let Some(providers)=providers {config["providers"]=json!(providers);}
         let mut keybindings=crate::keybindings_rpc::open_stream(&mut config).await?;
+        crate::connect::overlay_config(&state.store,&mut config);
         crate::project_folders::ManagedProjectFolders::overlay_config(&state.store,&mut config).await;
         crate::external_launcher::overlay_config(&mut config).await;
         crate::import_status::overlay_config(&state.store, &mut config);

@@ -36,6 +36,24 @@ struct Options {
     no_import: bool,
     /// `--strict-import`: a failed import ends the process with an error, as it must when nothing watches the status page.
     strict_import: bool,
+    /// `--tailscale-serve` / `T3CODE_TAILSCALE_SERVE`, else the desktop bootstrap's; off when none says.
+    tailscale_serve: Option<bool>,
+    /// `--tailscale-serve-port` / `T3CODE_TAILSCALE_SERVE_PORT`, else the bootstrap's; 443 when none says.
+    tailscale_serve_port: Option<u16>,
+    /// `connect <subcommand>`: the T3 Connect commands, which run against the state directory and do not start a server.
+    connect: Option<(t3_server::connect_cli::Subcommand, t3_server::connect_cli::Flags)>,
+}
+/// What `Config.Boolean` reads.
+fn parse_boolean(value: &str) -> Option<bool> {
+    match value.trim().to_lowercase().as_str() {
+        "true" | "yes" | "on" | "1" | "y" => Some(true),
+        "false" | "no" | "off" | "0" | "n" => Some(false),
+        _ => None,
+    }
+}
+/// What `Config.Port` reads.
+fn parse_port(value: &str) -> Option<u16> {
+    value.trim().parse::<u16>().ok().filter(|port| *port >= 1)
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     parse_options(std::env::args().skip(1), |key| std::env::var(key).ok())
@@ -65,6 +83,9 @@ fn parse_options(
         from: None,
         no_import: false,
         strict_import: false,
+        tailscale_serve: None,
+        tailscale_serve_port: None,
+        connect: None,
     };
     for (key, name) in [
         ("T3CODE_HOST", "--host"),
@@ -98,6 +119,12 @@ fn parse_options(
             options.overrides.insert(name.to_owned());
         }
     }
+    if let Some(value) = env("T3CODE_TAILSCALE_SERVE") {
+        options.tailscale_serve = Some(parse_boolean(&value).ok_or("T3CODE_TAILSCALE_SERVE requires a boolean")?);
+    }
+    if let Some(value) = env("T3CODE_TAILSCALE_SERVE_PORT") {
+        options.tailscale_serve_port = Some(parse_port(&value).ok_or("T3CODE_TAILSCALE_SERVE_PORT must be between 1 and 65535")?);
+    }
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         if matches!(
@@ -113,6 +140,34 @@ fn parse_options(
         }
         match arg.as_str() {
             "serve" | "pair" | "import" => options.command = arg,
+            "connect" => {
+                options.command = arg;
+                options.connect = Some((t3_server::connect_cli::Subcommand::Connect, Default::default()));
+            }
+            "login" | "link" | "publish" | "status" | "unlink" | "logout" if options.connect.is_some() => {
+                if let Some((subcommand, _)) = &mut options.connect {
+                    *subcommand = t3_server::connect_cli::Subcommand::parse(&arg).expect("a connect subcommand");
+                }
+            }
+            "--headless" | "--publish-only" | "--disable" | "--json" if options.connect.is_some() => {
+                if let Some((_, flags)) = &mut options.connect {
+                    match arg.as_str() {
+                        "--headless" => flags.headless = true,
+                        "--publish-only" => flags.publish_only = true,
+                        "--disable" => flags.disable = true,
+                        _ => flags.json = true,
+                    }
+                }
+            }
+            // The original's flag for the T3 home; the state directory is `<home>/userdata`.
+            "--base-dir" => {
+                options.state_dir = PathBuf::from(args.next().ok_or("--base-dir requires a path")?).join("userdata");
+                options.overrides.insert("--state-dir".to_owned());
+            }
+            "--tailscale-serve" => options.tailscale_serve = Some(true),
+            "--tailscale-serve-port" => options.tailscale_serve_port = Some(parse_port(&args.next().ok_or("--tailscale-serve-port requires a port")?).ok_or("--tailscale-serve-port must be between 1 and 65535")?),
+            _ if arg.starts_with("--tailscale-serve=") => options.tailscale_serve = Some(parse_boolean(&arg["--tailscale-serve=".len()..]).ok_or("--tailscale-serve requires a boolean")?),
+            _ if arg.starts_with("--tailscale-serve-port=") => options.tailscale_serve_port = Some(parse_port(&arg["--tailscale-serve-port=".len()..]).ok_or("--tailscale-serve-port must be between 1 and 65535")?),
             "--from" => options.from = Some(PathBuf::from(args.next().ok_or("--from requires the original's T3 home")?)),
             "--no-import" => options.no_import = true,
             "--strict-import" => options.strict_import = true,
@@ -167,7 +222,7 @@ fn parse_options(
             "--fixture" => options.fixture = true,
             "--help" | "-h" => {
                 println!(
-                    "t3-server [serve|pair|import] [--state-dir PATH] [--from T3_HOME] [--no-import] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\nimport --from T3_HOME --state-dir DIR imports the original server's database into DIR (see rust/README.md); serve does the same on first start when DIR holds the original's database and no store of this server, unless --no-import.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
+                    "t3-server [serve|pair|import|connect [login|link|publish|status|unlink|logout]] [--state-dir PATH] [--from T3_HOME] [--no-import] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--tailscale-serve] [--tailscale-serve-port PORT] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\nconnect sets up T3 Connect (--headless; link --publish-only; publish --disable; status --json; --base-dir PATH names the T3 home).\nimport --from T3_HOME --state-dir DIR imports the original server's database into DIR (see rust/README.md); serve does the same on first start when DIR holds the original's database and no store of this server, unless --no-import.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
                 );
                 std::process::exit(0)
             }
@@ -184,10 +239,12 @@ fn apply_bootstrap(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // These services are still explicit parity gaps. Refuse requested external
     // side effects until their implementations exist; don't silently claim them.
-    if envelope.tailscale_serve_enabled {
-        return Err(
-            "Desktop bootstrap requests Tailscale Serve; this service is not ported yet".into(),
-        );
+    // Tailscale Serve: a flag or the environment decides before the envelope does.
+    if options.tailscale_serve.is_none() {
+        options.tailscale_serve = Some(envelope.tailscale_serve_enabled);
+    }
+    if options.tailscale_serve_port.is_none() {
+        options.tailscale_serve_port = u16::try_from(envelope.tailscale_serve_port.0).ok().filter(|port| *port >= 1);
     }
     if [
         envelope.otlp_traces_url.as_ref(),
@@ -357,6 +414,64 @@ mod tests {
             assert!(parse_options(["--fixture".to_owned()], origin(bad)).is_err(), "{bad}");
         }
     }
+    fn tailscale_envelope(enabled: bool, port: u16) -> t3_contracts::DesktopBackendBootstrap {
+        serde_json::from_value(json!({"mode":"desktop","noBrowser":true,"port":3773,"host":"127.0.0.1","desktopBootstrapToken":"fixture-IPC","tailscaleServeEnabled":enabled,"tailscaleServePort":port})).unwrap()
+    }
+    fn env_of(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |key| pairs.iter().find(|(name, _)| *name == key).map(|(_, value)| (*value).to_owned())
+    }
+    #[test]
+    fn tailscale_serve_follows_the_flag_then_the_environment_then_the_envelope() {
+        // Off at 443 when nothing says.
+        let mut none = parse_options(Vec::new(), |_| None).unwrap();
+        assert_eq!((none.tailscale_serve, none.tailscale_serve_port), (None, None));
+        apply_bootstrap(&mut none, tailscale_envelope(false, 443)).unwrap();
+        assert_eq!((none.tailscale_serve, none.tailscale_serve_port), (Some(false), Some(443)));
+        // The envelope's request is accepted now (it was refused while the service was not ported).
+        let mut envelope = parse_options(Vec::new(), |_| None).unwrap();
+        apply_bootstrap(&mut envelope, tailscale_envelope(true, 8443)).unwrap();
+        assert_eq!((envelope.tailscale_serve, envelope.tailscale_serve_port), (Some(true), Some(8443)));
+        // The environment beats the envelope; the flag beats both.
+        let mut environment = parse_options(Vec::new(), env_of(&[("T3CODE_TAILSCALE_SERVE", "false"), ("T3CODE_TAILSCALE_SERVE_PORT", "9443")])).unwrap();
+        apply_bootstrap(&mut environment, tailscale_envelope(true, 8443)).unwrap();
+        assert_eq!((environment.tailscale_serve, environment.tailscale_serve_port), (Some(false), Some(9443)));
+        let mut flags = parse_options(["--tailscale-serve", "--tailscale-serve-port", "10443"].map(String::from), env_of(&[("T3CODE_TAILSCALE_SERVE", "false"), ("T3CODE_TAILSCALE_SERVE_PORT", "9443")])).unwrap();
+        apply_bootstrap(&mut flags, tailscale_envelope(false, 8443)).unwrap();
+        assert_eq!((flags.tailscale_serve, flags.tailscale_serve_port), (Some(true), Some(10443)));
+        let explicit = parse_options(["--tailscale-serve=false", "--tailscale-serve-port=1"].map(String::from), |_| None).unwrap();
+        assert_eq!((explicit.tailscale_serve, explicit.tailscale_serve_port), (Some(false), Some(1)));
+        for bad in [["--tailscale-serve-port", "0"], ["--tailscale-serve-port", "70000"], ["--tailscale-serve=maybe", "--x"]] {
+            assert!(parse_options(bad.map(String::from), |_| None).is_err(), "{bad:?}");
+        }
+        assert!(parse_options(Vec::new(), env_of(&[("T3CODE_TAILSCALE_SERVE", "perhaps")])).is_err());
+        assert!(parse_options(Vec::new(), env_of(&[("T3CODE_TAILSCALE_SERVE_PORT", "0")])).is_err());
+        for (text, expected) in [("true", true), ("YES", true), ("on", true), ("1", true), ("y", true), ("false", false), ("No", false), ("off", false), ("0", false), ("n", false)] {
+            assert_eq!(parse_boolean(text), Some(expected), "{text}");
+        }
+    }
+    #[test]
+    fn the_connect_commands_take_their_subcommand_and_flags() {
+        use t3_server::connect_cli::Subcommand::*;
+        let parsed = |args: &[&str]| parse_options(args.iter().map(|arg| arg.to_string()), |_| None).unwrap();
+        assert!(parsed(&["serve"]).connect.is_none());
+        let connect = parsed(&["connect", "--headless"]);
+        assert_eq!(connect.command, "connect");
+        let (subcommand, flags) = connect.connect.unwrap();
+        assert!(subcommand == Connect && flags.headless && !flags.publish_only);
+        for (name, expected) in [("login", Login), ("link", Link), ("publish", Publish), ("status", Status), ("unlink", Unlink), ("logout", Logout)] {
+            assert!(parsed(&["connect", name]).connect.unwrap().0 == expected, "{name}");
+        }
+        let link = parsed(&["connect", "link", "--publish-only", "--headless"]).connect.unwrap();
+        assert!(link.1.publish_only && link.1.headless);
+        assert!(parsed(&["connect", "publish", "--disable"]).connect.unwrap().1.disable);
+        assert!(parsed(&["connect", "status", "--json"]).connect.unwrap().1.json);
+        // The original's flag for the T3 home.
+        let home = parsed(&["connect", "status", "--base-dir", "/tmp/t3-home"]);
+        assert_eq!(home.state_dir, PathBuf::from("/tmp/t3-home/userdata"));
+        // These words mean something only after `connect`.
+        assert!(parse_options(["status".to_owned()], |_| None).is_err());
+        assert!(parse_options(["--headless".to_owned()], |_| None).is_err());
+    }
     #[test]
     fn bootstrap_startup_precedence_keeps_explicit_flags_then_environment_then_envelope() {
         let mut defaults = parse_options(Vec::new(), |_| None).unwrap();
@@ -464,6 +579,9 @@ mod tests {
             from: None,
             no_import: false,
             strict_import: false,
+            tailscale_serve: None,
+            tailscale_serve_port: None,
+            connect: None,
         };
         let descriptors = adopt_desktop_descriptors(&options, None).unwrap();
         assert_ne!(
@@ -747,6 +865,17 @@ async fn run(
     }
     fs::create_dir_all(&options.state_dir)?;
     let state_dir = fs::canonicalize(&options.state_dir)?;
+    if let Some((subcommand, flags)) = options.connect {
+        // T3 Connect's commands work on the state directory and never start a server.
+        let environment = t3_server::connect_cli::CliEnvironment::production(state_dir);
+        return match t3_server::connect_cli::run(subcommand, flags, &environment).await {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1)
+            }
+        };
+    }
     if options.command == "import" {
         let from = options.from.clone().ok_or("import requires --from, the original's T3 home")?;
         let code = tokio::task::spawn_blocking(move || t3_server::state_import::run_command(from, state_dir)).await?;
@@ -1039,6 +1168,22 @@ async fn run(
     let cwd = std::env::current_dir()?;
     t3_server::server_lifecycle::publish(&store, "welcome", json!({"environment":environment,"cwd":cwd,"projectName":cwd.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned())}));
     t3_server::server_lifecycle::publish(&store, "ready", json!({"at":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),"environment":environment}));
+    // T3 Connect: built now that the listener has an address, started when the routes serve (below).
+    let local_port = listener.local_addr()?.port();
+    let connect = t3_server::connect::Connect::new(t3_server::connect::ConnectOptions::production(
+        store.clone(),
+        auth.clone(),
+        environment.clone(),
+        &state_dir,
+        std::sync::Arc::new(move || Some(local_port)),
+    ))?;
+    t3_server::connect::install(&store, connect.clone());
+    // The origin a CLI on this machine reaches the running server at (`t3 connect unlink`).
+    let runtime_state = state_dir.join("server-runtime.json");
+    t3_server::connect::persist_runtime_state(&runtime_state, &options.host, listener.local_addr()?.port());
+    let tailscale = options.tailscale_serve.unwrap_or(false).then(|| {
+        t3_server::connect::TailscaleServe::activate(std::sync::Arc::new(t3_remote::tailscale::Tailscale::new(cfg!(windows))), local_port, options.tailscale_serve_port.unwrap_or(443))
+    });
     let state = ApiState {
         settings: settings_service.clone(),
         store,
@@ -1063,7 +1208,15 @@ async fn run(
     let stopping_mcp = mcp.clone();
     let signals = StopSignals::install();
     announce_ready(&listener)?;
+    connect.start();
     serve_until_stopped(listener, router(state).merge(mcp.router()), signals, (options.mode == "desktop").then_some(parent), async move { stopping_mcp.shutdown().await }).await?;
+    // The server's finalizers: the link (releasing a CLI-managed tunnel unless an update is replacing this server), the
+    // connector, and Tailscale Serve if this server configured it.
+    connect.shutdown().await;
+    if let Some(tailscale) = tailscale {
+        tailscale.deactivate().await;
+    }
+    let _ = fs::remove_file(&runtime_state);
     mcp.shutdown().await;
     if let Some(background) = background {
         background.shutdown().await;

@@ -43,7 +43,7 @@ the envelope; `T3CODE_HOME` and envelope `t3Home` select `<home>/userdata`, whil
 `--state-dir` selects its directory directly. Desktop bootstrap credentials are
 reusable and support the original rotating-secret windows. The envelope also
 supplies telemetry channels and an explicit resource-monitor executable.
-Browser IPC, Tailscale Serve and OTLP requests currently fail explicitly.
+Browser IPC and OTLP requests currently fail explicitly.
 Automatic browser launching remains unimplemented, so `noBrowser` has no
 launcher to control. Windows inherited descriptors and the desktop producer
 remain pending. Host resources are
@@ -111,6 +111,32 @@ backend left behind by a desktop that was killed keeps the state directory's loc
 operating system, so none is ever stale. On Windows the bootstrap envelope is read from standard input (`--bootstrap-fd 0`, the
 delivery the original's desktop uses across the WSL boundary); the original maps an inherited pipe handle to a descriptor number,
 which this server does not.
+
+Usage reads OpenCode and Antigravity as well as Claude Code and Codex (`usage_readers.rs`: OpenCode's databases and
+pre-migration JSON files under `OPENCODE_DATA_DIR`, Antigravity's per-conversation databases under `ANTIGRAVITY_DATA_DIR`, the
+default `~/.gemini/antigravity*` directories and each Antigravity instance's profile), opened read-only on every scan, with the
+original's alias merging; `tests/usage_readers_flow.rs` replays what the unchanged readers made of the same stores
+(`rust/tools/generate_usage_reader_fixtures.mjs`). Grok and Cursor are still not read. The pull request sync has a flow test
+(`tests/pull_request_sync_flow.rs`) over a fake GitHub.
+
+T3 Connect (`t3-remote`, wired by `server/src/connect.rs`) is built once the listener has an address and started when the routes
+serve; it is built whether or not anything is configured, as the original's `CloudLink` is, and without a relay URL and Clerk
+keys (`T3CODE_RELAY_URL`, `T3CODE_CLERK_PUBLISHABLE_KEY`, `T3CODE_CLERK_CLI_OAUTH_CLIENT_ID`; the Rust build embeds none) it
+reads only what is stored and makes no request. It serves `POST /api/connect/link-proof`, `relay-config`, `unlink`,
+`preferences`, `GET /api/connect/link-state` (sessions with `relay:write`/`relay:read`), and the proof-authenticated
+`POST /api/t3-connect/health` and `/api/{connect,t3-connect}/mint-credential`; the RPCs `cloud.getRelayClientStatus` and
+`cloud.installRelayClient` (a stream); relay-signed delivery proofs on the webhook route; the descriptor capability
+`agentActivityPublishing` (read per request); and the hourly sweep of replay markers. Credentials the relay vouches for are
+DPoP-bound (`dpop.rs`): `/oauth/token` with a `DPoP` header issues a one-hour `dpop-access-token` session bound to the proof's
+key, and every request with `Authorization: DPoP` proves the key again, once per proof (replay markers are secrets named
+`dpop-proof-*`, as in the original). `agent_awareness.rs` publishes each thread's state to the relay (the original's
+`AgentAwarenessRelay`): committed events pass `should_publish`, the thread shell is projected, and `t3_remote::awareness` decides.
+`--tailscale-serve [--tailscale-serve-port N]` (or `T3CODE_TAILSCALE_SERVE[_PORT]`, or the desktop bootstrap) runs
+`tailscale serve` once the server runs and switches it off at shutdown only if it was switched on. `t3-server connect
+[--headless] | login | link [--publish-only] | publish [--disable] | status [--json] | unlink | logout` (`--base-dir` names the T3
+home) are the original's `t3 connect` commands; the running server writes `server-runtime.json` so `unlink` can ask it to stop its
+tunnel. Not ported: the offer to install the background service at the end of `t3 connect`. The relay, Clerk, GitHub releases and
+a Tailscale daemon are never contacted by the tests (loopback fakes only); the real hosted service is unverified.
 
 A start that finds the original's database and no store of this server's own imports it first (see above). When that import
 fails the server does not open a store: it serves the environment descriptor, the web assets (`--assets`) and the failure at
@@ -274,3 +300,28 @@ output. Full visual fidelity, other browser flows, native desktop runtime, and
 mobile builds have not yet been verified.
 See the [Dioxus setup guide](https://dioxuslabs.com/learn/0.7/getting_started/)
 for target tooling and native platform dependencies.
+
+## Run the desktop app
+
+The desktop app is the Dioxus UI (`t3-ui`, feature `desktop`) in a native window. It starts its own `t3-server` (the one
+beside it in the bundle, or the one named by `T3_SERVER_BIN`), pairs with it, and stops it on quit. Closing the window on
+macOS only hides it: the app and its server keep running, and a click on the dock icon shows the window again; elsewhere
+closing the window quits.
+
+```sh
+CARGO_TARGET_DIR=<ui target> cargo build -p t3-ui --no-default-features --features desktop
+CARGO_TARGET_DIR=<server target> cargo build -p t3-server
+rust/tools/bundle_desktop_macos.sh --ui <ui target>/debug/t3-ui --server <server target>/debug/t3-server --out <dir>
+open "<dir>/T3 Code.app"        # or run <dir>/T3 Code.app/Contents/MacOS/t3-ui from a terminal
+```
+
+| Variable               | Effect                                                                                                                                                                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `T3_UI_DATA_DIR`       | Where the app keeps everything: the server's state (`server/`), its log (`logs/server.log`), the window's saved place, the web view's storage and `server.pid`. Default `~/Library/Application Support/T3 Code (Rust)` on macOS. |
+| `T3_DESKTOP_STATE_DIR` | Moves only the server's state directory. It is refused when it is inside `~/.t3`, the original app's live data.                                                                                                                  |
+| `T3_SERVER_BIN`        | The server program, instead of `t3-server` beside the app.                                                                                                                                                                       |
+| `T3_SERVER_URL`        | Use this existing server and start none.                                                                                                                                                                                         |
+
+The server is started with the environment of your login shell (`$SHELL -ilc`, then `/bin/zsh` or `/bin/bash`; `launchctl getenv
+PATH` on macOS as a last resort), so provider tools on your `PATH` are found when the app is opened from the Finder. The shell is
+asked once per run, for at most five seconds. Windows is not covered yet: the server cannot be started there by this app.

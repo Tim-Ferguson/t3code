@@ -10,7 +10,8 @@
 //! Divergence: the original keeps every parsed file in a persisted scan cache for 90 days so usage
 //! survives its transcripts being deleted and a warm scan resumes appended files from a byte
 //! position. This port re-reads transcripts newer than the window on every scan and remembers only
-//! the last parse of each file in memory. Grok, Cursor, OpenCode and Antigravity are not read.
+//! the last parse of each file in memory. OpenCode and Antigravity are read from their databases (`usage_readers`) on every scan.
+//! Grok and Cursor are not read.
 use crate::{
     usage_aggregation::{Aggregator, Options, resolve_model_aliases},
     usage_pricing::{RateTable, override_table, parse_rate_table},
@@ -221,9 +222,9 @@ impl UsageService {
             let missing = dir.files.is_none();
             sources.push(json!({
                 "fingerprint":{"hostId":host_id,"provider":dir.provider,"resolvedHomePath":dir.dir,"volumeId":dir.volume_id},
-                "status":if missing && scanned_files == 0 { "missing" } else { "ok" },
+                "status":if missing && scanned_files == 0 { "missing" } else { dir.status },
                 "scannedFiles":scanned_files,"skippedFiles":skipped_files,"malformedRecords":0,"distinctSessions":sessions.len(),
-                "message":if missing { json!("No transcript directory on this environment.") } else { Value::Null },
+                "message":match (dir.message, missing) { (Some(message), _) => json!(message), (None, true) => json!("No transcript directory on this environment."), _ => Value::Null },
             }));
         }
         let aggregated = aggregator.finish();
@@ -239,7 +240,7 @@ impl UsageService {
         for (provider, dir) in transcript_dirs(settings) {
             let volume_id = volume_id(&dir);
             if !dir.is_dir() {
-                scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: None });
+                scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: None, status: "ok", message: None });
                 continue;
             }
             let mut files = vec![];
@@ -247,9 +248,71 @@ impl UsageService {
                 let records = self.file_records(&path, size, mtime_ms, provider);
                 files.push((path.to_string_lossy().into_owned(), records));
             }
-            scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: Some(files) });
+            scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: Some(files), status: "ok", message: None });
         }
+        scanned.extend(self.scan_opencode(window_start_ms));
+        scanned.extend(self.scan_antigravity(settings, window_start_ms));
         scanned
+    }
+
+    /// OpenCode's data directories: `OPENCODE_DATA_DIR` (a comma list), else `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`.
+    fn scan_opencode(&self, window_start_ms: i64) -> Vec<ScannedDir> {
+        let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+        let data_home = std::env::var("XDG_DATA_HOME").ok().map(|value| value.trim().to_owned()).filter(|value| Path::new(value).is_absolute());
+        let default = data_home.map_or_else(|| home.join(".local").join("share"), PathBuf::from).join("opencode");
+        env_roots("OPENCODE_DATA_DIR", vec![default], &home)
+            .into_iter()
+            .map(|dir| {
+                let read = crate::usage_readers::read_opencode_usage(&dir, window_start_ms);
+                ScannedDir {
+                    provider: "opencode",
+                    volume_id: volume_id(&dir),
+                    files: if read.missing && !read.error { None } else { Some(read.files.into_iter().map(|(path, records)| (path.to_string_lossy().into_owned(), Arc::new(records))).collect()) },
+                    dir: dir.to_string_lossy().into_owned(),
+                    status: if read.error { "partial" } else { "ok" },
+                    message: read.error.then_some("Some OpenCode history could not be read."),
+                }
+            })
+            .collect()
+    }
+
+    /// Antigravity's conversation directories: `ANTIGRAVITY_DATA_DIR`, else the CLI and IDE defaults, and the profile of every
+    /// Antigravity instance in the settings. A store is read once however many names it has.
+    fn scan_antigravity(&self, settings: &Value, window_start_ms: i64) -> Vec<ScannedDir> {
+        let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+        let defaults = ["antigravity", "antigravity-cli", "antigravity-ide", "antigravity-backup"].iter().map(|name| home.join(".gemini").join(name)).chain(std::iter::once(home.join(".config").join("antigravity"))).collect();
+        let mut roots = env_roots_uncanonical("ANTIGRAVITY_DATA_DIR", defaults, &home);
+        for (instance_id, instance) in settings["providerInstances"].as_object().into_iter().flatten() {
+            if instance["driver"] == "antigravity" {
+                roots.push(crate::antigravity_acp::instance_directories(&self.state_dir, instance_id).0.join("antigravity-acp"));
+            }
+        }
+        let mut directories: Vec<PathBuf> = vec![];
+        for root in roots {
+            let resolved = std::fs::canonicalize(&root).unwrap_or(root);
+            let nested = resolved.join("conversations");
+            let dir = if nested.exists() { nested } else { resolved };
+            let dir = std::fs::canonicalize(&dir).unwrap_or(dir);
+            if !directories.contains(&dir) {
+                directories.push(dir);
+            }
+        }
+        let read = crate::usage_readers::read_antigravity_usage(&directories, window_start_ms);
+        directories
+            .into_iter()
+            .map(|dir| {
+                let failed = read.errors.iter().any(|error| error.starts_with(&dir));
+                let files = read.files.iter().filter(|file| file.root == dir).map(|file| (file.path.to_string_lossy().into_owned(), Arc::new(file.records.clone()))).collect();
+                ScannedDir {
+                    provider: "antigravity",
+                    volume_id: volume_id(&dir),
+                    files: if !dir.exists() && !failed { None } else { Some(files) },
+                    dir: dir.to_string_lossy().into_owned(),
+                    status: if failed { "partial" } else { "ok" },
+                    message: failed.then_some("Some Antigravity history could not be read."),
+                }
+            })
+            .collect()
     }
 
     /// One transcript's records, reusing the last parse when the file is unchanged.
@@ -272,6 +335,9 @@ struct ScannedDir {
     volume_id: String,
     /// Parsed records per file, `None` when the directory does not exist.
     files: Option<Vec<(String, Arc<Vec<UsageRecord>>)>>,
+    /// `partial` when some of the history could not be read; the source then says so.
+    status: &'static str,
+    message: Option<&'static str>,
 }
 
 /// Codex sessions with records in more than one file, such as a rollout that moved after it was
@@ -298,6 +364,24 @@ fn shared_codex_sessions<'a>(files: impl Iterator<Item = &'a (String, Arc<Vec<Us
         }
     }
     shared
+}
+
+/// `envRoots`: the directories a comma-separated variable names (default when it names none), with `~` expanded and each resolved to its
+/// real path, once however many names it has.
+fn env_roots(key: &str, defaults: Vec<PathBuf>, home: &Path) -> Vec<PathBuf> {
+    let mut canonical: Vec<PathBuf> = vec![];
+    for root in env_roots_uncanonical(key, defaults, home) {
+        let resolved = std::fs::canonicalize(&root).unwrap_or(root);
+        if !canonical.contains(&resolved) {
+            canonical.push(resolved);
+        }
+    }
+    canonical
+}
+
+fn env_roots_uncanonical(key: &str, defaults: Vec<PathBuf>, home: &Path) -> Vec<PathBuf> {
+    let named: Vec<PathBuf> = std::env::var(key).ok().into_iter().flat_map(|value| value.split(',').map(|part| part.trim().to_owned()).filter(|part| !part.is_empty()).collect::<Vec<_>>()).map(|part| std::path::absolute(crate::claude_skills::expand_home(&part, home)).unwrap_or_default()).collect();
+    if named.is_empty() { defaults.into_iter().map(|root| std::path::absolute(&root).unwrap_or(root)).collect() } else { named }
 }
 
 fn hostname() -> String {

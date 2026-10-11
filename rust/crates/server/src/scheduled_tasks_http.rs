@@ -3,9 +3,10 @@
 //! the raw body so the signature is checked over the exact bytes, and answers with a short JSON body and
 //! an `x-t3-hook-outcome` header naming what happened to the request.
 //!
-//! Not ported: the T3 Connect relay's signed delivery proof. Every request is handled as a direct one,
-//! which is also what the original does when the environment is not linked to T3 Connect, so a relay
-//! delivery id or receive time is never trusted.
+//! A request that comes through the T3 Connect relay carries the relay's signed delivery proof; the delivery id and the
+//! receive time count only with it (the URL can also be called directly), and the receive time matters for requests the
+//! relay held while this environment was offline. Without a valid proof, or on a server with no T3 Connect (also what the
+//! original does when the environment is not linked), a request is a direct one.
 use crate::{
     scheduled_tasks::{ScheduledTasks, WebhookTriggerRequest, WebhookTriggerResult},
     scheduled_tasks_webhook::WebhookRequest,
@@ -76,6 +77,10 @@ async fn handle(
     };
     service.ensure_launcher(state.execution.as_ref());
     let body_text = String::from_utf8_lossy(&bytes).into_owned();
+    let relay = crate::connect::current(&state.store).and_then(|connect| {
+        let lowered: std::collections::BTreeMap<String, String> = request_headers.iter().map(|(name, value)| (name.clone(), value.clone())).collect();
+        connect.verify_delivery(&lowered, &hook_id)
+    });
     let request = WebhookTriggerRequest {
         hook_id: hook_id.clone(),
         token,
@@ -87,8 +92,8 @@ async fn handle(
             body_text,
         },
         body: bytes.to_vec(),
-        relay_delivery_id: None,
-        received_at: None,
+        relay_delivery_id: relay.as_ref().map(|proof| proof.delivery_id.clone()),
+        received_at: relay.map(|proof| proof.received_at),
     };
     match service.trigger_webhook(request).await {
         Ok(WebhookTriggerResult::Accepted { delivery_id, outcome }) => reply(StatusCode::ACCEPTED, json!({"deliveryId": delivery_id}), outcome),

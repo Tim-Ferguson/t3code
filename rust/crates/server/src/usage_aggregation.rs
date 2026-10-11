@@ -242,6 +242,11 @@ impl Aggregator {
     }
 }
 
+/// `String.prototype.localeCompare`.
+pub(crate) fn locale_compare(left: &str, right: &str) -> std::cmp::Ordering {
+    collator().compare(left, right)
+}
+
 fn collator() -> icu_collator::CollatorBorrowed<'static> {
     let preferences: icu_collator::CollatorPreferences = crate::workspace_entries::locale_from_environment().into();
     icu_collator::Collator::try_new(preferences, Default::default()).expect("compiled ICU collation data")

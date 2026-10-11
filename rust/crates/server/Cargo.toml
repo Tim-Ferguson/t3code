@@ -18,6 +18,11 @@ portable-pty.workspace = true
 t3-contracts.workspace = true
 t3-acp.workspace = true
 t3-vcs.workspace = true
+# T3 Connect: the cloud link, the managed tunnel and the relay client (`connect.rs` wires them in).
+t3-remote = { path = "../remote" }
+async-trait = "0.1"
+# Verifies DPoP proofs (ES256), which `dpop.rs` checks the way the original's noble-curves does.
+ring = "0.17"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

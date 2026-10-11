@@ -700,8 +700,10 @@ impl ScheduledTasks {
             .map_err(|error| ScheduledTaskError::new("Scheduled task storage stopped.").caused_by(&error))?
     }
 
+    /// The relay's hook URL prefix: the one set by hand, else the link as it is now (`ScheduledTaskWebhookOrigin` reads the
+    /// secrets on every use, so a task shows its URL as soon as the managed tunnel exists).
     fn relay_base(&self) -> Option<String> {
-        self.inner.relay_hook_base_url.lock().unwrap().clone()
+        self.inner.relay_hook_base_url.lock().unwrap().clone().or_else(|| crate::connect::relay_hook_base_url(&self.inner.store))
     }
 
     // ---- reads ---------------------------------------------------------------------------------
