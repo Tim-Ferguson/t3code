@@ -260,7 +260,7 @@ async fn a_file_tabs_menu_closes_the_others_or_the_ones_to_its_right() {
         crate::file_panel::open(state, Some("thread-a".to_owned()), cwd.clone(), format!("src/{name}.txt"), None);
         wait_for_rendered_text(&mut dom, &format!("contents of {name}")).await;
     }
-    let tabs = |state: Store<UiModel>| state.peek().file_tabs.iter().map(|tab| tab.path.clone()).collect::<Vec<_>>();
+    let tabs = crate::right_panel::file_tabs;
     assert_eq!(tabs(state), ["src/one.txt", "src/two.txt", "src/three.txt"]);
     // The last tab has nothing to its right, and the only tab nothing beside it: those are switched off, not left out.
     mouse_control(&mut dom, "three.txt", "contextmenu", false, false, false);
@@ -276,13 +276,13 @@ async fn a_file_tabs_menu_closes_the_others_or_the_ones_to_its_right() {
     click_control(&mut dom, "Close to the right");
     until(&mut dom, "the tab to its right gone", |_| tabs(state) == ["src/one.txt", "src/two.txt"]).await;
     wait_for_rendered_text(&mut dom, "contents of two").await;
-    assert_eq!(state.peek().file_panel.as_ref().map(|target| target.path.clone()).as_deref(), Some("src/two.txt"));
-    // Closing the others leaves the one chosen, shown; a panel with one file has no row of tabs.
+    assert_eq!(crate::right_panel::shown_file(state).map(|(path, _)| path).as_deref(), Some("src/two.txt"));
+    // Closing the others leaves the one chosen, shown; the panel keeps its tab bar.
     mouse_control(&mut dom, "one.txt", "contextmenu", false, false, false);
     until(&mut dom, "the tab menu", |dom| control(dom, "Tab actions").is_some()).await;
     click_when_enabled(&mut dom, "Close others").await;
     until(&mut dom, "the others gone", |_| tabs(state) == ["src/one.txt"]).await;
     wait_for_rendered_text(&mut dom, "contents of one").await;
-    assert_eq!(state.peek().file_panel.as_ref().map(|target| target.path.clone()).as_deref(), Some("src/one.txt"));
+    assert_eq!(crate::right_panel::shown_file(state).map(|(path, _)| path).as_deref(), Some("src/one.txt"));
     fixture.finish(dom).await;
 }

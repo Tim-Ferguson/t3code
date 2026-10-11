@@ -1962,13 +1962,14 @@ html[data-theme-token-probe] *::after {
 .workspace {
   --diff-panel-width: clamp(380px, 46vw, 760px);
 }
-.workspace:has(> .diff-panel) {
+.workspace:has(> .diff-panel, > .right-panel) {
   padding-right: var(--diff-panel-width);
 }
-.workspace:has(> .diff-panel) > .scroll-to-end {
+.workspace:has(> .diff-panel, > .right-panel) > .scroll-to-end {
   right: calc(var(--diff-panel-width) + 28px);
 }
-.diff-panel {
+.diff-panel,
+.right-panel {
   position: absolute;
   z-index: 5;
   top: 0;
@@ -1982,6 +1983,18 @@ html[data-theme-token-probe] *::after {
   background: var(--background);
 }
 .diff-panel:focus {
+  outline: none;
+}
+/* A body in the tabbed panel fills the area under the tab bar; the panel itself is the box beside the conversation. */
+.right-panel-body > .diff-panel {
+  position: static;
+  flex: 1;
+  width: auto;
+  min-height: 0;
+  border-left: 0;
+  animation: none;
+}
+.right-panel-body > .diff-panel:focus {
   outline: none;
 }
 .diff-header {
@@ -2248,13 +2261,14 @@ html[data-theme-token-probe] *::after {
   font-size: 0.6875rem;
 }
 @media (max-width: 760px) {
-  .workspace:has(> .diff-panel) {
+  .workspace:has(> .diff-panel, > .right-panel) {
     padding-right: 0;
   }
-  .workspace:has(> .diff-panel) > .scroll-to-end {
+  .workspace:has(> .diff-panel, > .right-panel) > .scroll-to-end {
     right: 28px;
   }
-  .diff-panel {
+  .diff-panel,
+  .right-panel {
     width: 100%;
     border-left: 0;
   }
@@ -6982,17 +6996,19 @@ body.sidebar-dragging {
   }
 }
 @media (max-width: 1900px) {
-  .workspace:has(> .diff-panel) .header-more-group {
+  .workspace:has(> .diff-panel, > .right-panel) .header-more-group {
     position: relative;
     display: inline-flex;
   }
-  .workspace:has(> .diff-panel) .header-more {
+  .workspace:has(> .diff-panel, > .right-panel) .header-more {
     display: inline-flex;
   }
-  .workspace:has(> .diff-panel) .header-secondary {
+  .workspace:has(> .diff-panel, > .right-panel) .header-secondary {
     display: none;
   }
-  .workspace:has(> .diff-panel) .header-more-group[data-open="true"] .header-secondary {
+  .workspace:has(> .diff-panel, > .right-panel)
+    .header-more-group[data-open="true"]
+    .header-secondary {
     display: flex;
     flex-direction: column;
     align-items: stretch;
@@ -7007,7 +7023,7 @@ body.sidebar-dragging {
     background: var(--popover, var(--card));
     box-shadow: 0 10px 30px #0002;
   }
-  .workspace:has(> .diff-panel) .header-secondary .icon-button {
+  .workspace:has(> .diff-panel, > .right-panel) .header-secondary .icon-button {
     padding: 6px 10px;
     text-align: left;
   }
@@ -7436,7 +7452,8 @@ body.sidebar-dragging {
 .app[data-contrast="custom"] {
   filter: contrast(var(--ui-contrast, 1));
 }
-.diff-panel {
+.diff-panel,
+.right-panel {
   animation: panel-in var(--panel-ms, 0ms) ease-out;
 }
 @keyframes panel-in {
@@ -7629,10 +7646,37 @@ body.sidebar-dragging {
   padding: 4px 8px;
   font-size: 0.75rem;
 }
+.pr-stack-warning {
+  color: var(--warning, currentColor);
+  font-size: 0.75rem;
+}
+.pr-stack-merge {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+.pr-stack-confirm-layers {
+  max-height: 12rem;
+  overflow-y: auto;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.pr-stack-confirm-layer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+  font-size: 0.875rem;
+}
 .content-group {
   padding-bottom: 8px;
 }
 .file-panel,
+.files-panel,
 .thread-prs-panel {
   overflow: hidden;
 }
@@ -7991,38 +8035,7 @@ body.sidebar-dragging {
   user-select: none;
 }
 
-/* The file panel: tabs for the open files, rendered markdown and an image. */
-.file-tabs {
-  display: flex;
-  gap: 2px;
-  overflow-x: auto;
-  width: 100%;
-  margin-bottom: 6px;
-}
-.file-tab {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-.file-tab.selected {
-  background: var(--accent);
-}
-.file-tab-name,
-.file-tab-close {
-  border: 0;
-  background: none;
-  padding: 3px 6px;
-  font-size: 0.75rem;
-  color: inherit;
-}
-.file-tab-name {
-  max-width: 12rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* The file panel: rendered markdown and an image. */
 .file-markdown,
 .file-image {
   padding: 8px 12px;
@@ -8458,4 +8471,160 @@ body.sidebar-dragging {
 .file-line-comment:focus-visible {
   color: var(--foreground);
   text-decoration: underline;
+}
+
+/* The tabbed panel beside the conversation: the tab bar, the add menu, the launcher an empty panel shows. */
+.right-panel {
+  background: var(--background);
+}
+.right-panel[data-maximized="true"] {
+  width: 100%;
+  border-left: 0;
+  z-index: 6;
+}
+.right-panel-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.right-panel-tabs {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.right-panel-tabs::-webkit-scrollbar {
+  display: none;
+}
+.right-panel-tab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  max-width: 9rem;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+}
+.right-panel-tab:hover {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+  color: var(--foreground);
+}
+.right-panel-tab.selected {
+  background: var(--accent);
+  color: var(--foreground);
+}
+.right-panel-tab-name,
+.right-panel-tab-close {
+  border: 0;
+  background: none;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+  color: inherit;
+}
+.right-panel-tab-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.right-panel-tab-close {
+  padding-left: 2px;
+}
+.right-panel-add {
+  flex: none;
+  position: relative;
+}
+.right-panel-menu {
+  top: 100%;
+  left: 0;
+  min-width: 14rem;
+}
+.right-panel-menu .menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.menu-shortcut,
+.surface-launcher-row kbd {
+  font-family: inherit;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+}
+.right-panel-controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.right-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.surface-launcher {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 0 24px 48px;
+  outline: none;
+}
+.surface-launcher-list {
+  width: 100%;
+  max-width: 20rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 24px 0;
+}
+.surface-launcher-list h3 {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.surface-launcher-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  text-align: left;
+}
+.surface-launcher-row:hover,
+.surface-launcher-row.selected {
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.surface-launcher-row.disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.surface-launcher-row.disabled:hover {
+  background: none;
+}
+.surface-launcher-row .muted {
+  font-size: 0.75rem;
+  text-align: right;
+}
+/* The Files tab: the project's tree on its own. */
+.file-explorer.standalone {
+  flex: 1;
+  width: auto;
+  border-left: 0;
 }

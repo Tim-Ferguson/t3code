@@ -78,6 +78,8 @@ impl Mounted {
         wait_for_rendered_text(&mut self.dom, &format!("PR #{} \u{b7} Open", self.number)).await;
         click_control(&mut self.dom, &format!("pull request #{}", self.number));
         wait_for_rendered_text(&mut self.dom, "Please").await;
+        // Where the host has stacks, what can be done with the pull request is known once its stack lookup has answered.
+        until(&mut self.dom, "the stack lookup answered", |dom| control(dom, crate::pull_request_summary::CHECKING_STACK).is_none()).await;
     }
     fn asked(&self, kind: &str) -> usize {
         world().asked().iter().filter(|asked| kind_of(asked) == kind).count()
@@ -651,9 +653,9 @@ async fn a_thread_row_carries_its_pull_requests_state_and_opens_the_panel_on_it(
         assert!(class.contains("thread-pr") && class.contains("pr-open"), "{class}");
         // Clicking it opens the panel on that request, in its thread, as it opens from the header.
         click_control(&mut app.dom, "Close pull request panel");
-        assert!(app.state.peek().pr_panel.is_none());
+        assert_eq!(crate::right_panel::shown_pull_request(app.state), None);
         click_control(&mut app.dom, "PR #43*");
-        until(&mut app.dom, "the panel", |_| app.state.peek().pr_panel.as_ref().is_some_and(|target| target.reference.number == 43 && target.thread_id == "thread-a")).await;
+        until(&mut app.dom, "the panel", |_| crate::right_panel::shown_pull_request(app.state) == Some(43)).await;
         // The way out: unlinked, the row carries nothing.
         wait_for_rendered_text(&mut app.dom, "Please").await;
         click_when_enabled(&mut app.dom, "Unlink from this thread").await;
@@ -718,7 +720,7 @@ async fn a_pull_request_filed_under_the_thread_by_anything_else_shows_in_its_hea
         until(&mut app.dom, "the header link", |dom| control(dom, "Linked pull request #99").is_some()).await;
         // Choosing it opens the panel on that pull request, in this thread.
         click_control(&mut app.dom, "Linked pull request #99");
-        until(&mut app.dom, "the panel", |_| app.state.peek().pr_panel.as_ref().is_some_and(|target| target.reference.number == 99 && target.thread_id == "thread-a")).await;
+        until(&mut app.dom, "the panel", |_| crate::right_panel::shown_pull_request(app.state) == Some(99)).await;
     })
     .await;
 }
@@ -906,7 +908,9 @@ async fn toggling_a_label_sends_exactly_that_label_to_the_host() {
         assert_eq!(posted.len(), 1);
         assert_eq!(posted[0].body.clone().unwrap(), json!({"labels":["docs"]}), "adding applies the one label and no other");
         assert!(posted[0].path.ends_with("/issues/62/labels"), "{}", posted[0].path);
-        // A label the pull request already has is taken off by name, not by replacing the set.
+        // A label the pull request already has is taken off by name, not by replacing the set. The rows take no click while the
+        // first change is under way, so it is waited out.
+        until(&mut app.dom, "the first change to finish", |dom| control_attribute(dom, "bug", "aria-disabled").and_then(|(_, value)| value).as_deref() == Some("false")).await;
         click_control(&mut app.dom, "bug");
         until(&mut app.dom, "the removal", |_| world().asked().iter().any(|asked| asked.method == "DELETE" && asked.path.contains("/labels/"))).await;
         let removed: Vec<_> = world().asked().into_iter().filter(|asked| asked.method == "DELETE" && asked.path.contains("/labels/")).collect();
@@ -1000,6 +1004,185 @@ async fn the_hash_menu_repaints_neither_the_application_nor_the_conversation() {
         assert_eq!((after.0.0, after.0.1), (before.0.0, before.0.1), "the application and the conversation");
         assert_eq!(after.1, before.1, "no event of the server was involved");
         assert!(after.0.2 > before.0.2, "the composer shows what is typed");
+    })
+    .await;
+}
+
+/// Where the host's answers about a stack are counted: reading it, and the one write that merges it.
+fn stack_reads() -> usize {
+    world().asked().iter().filter(|asked| kind_of(asked) == "GET repos/acme/web/stacks").count()
+}
+fn stack_merges(number: u64) -> Vec<Value> {
+    world().asked().iter().filter(|asked| kind_of(asked) == format!("PUT repos/acme/web/pulls/{number}/merge-async")).filter_map(|asked| asked.body.clone()).collect()
+}
+/// The host's stack was scripted after the panel's thread was open, by which time the server may have asked about the pull request
+/// and been told there is no stack; the panel's refresh goes around what it kept.
+async fn read_the_stack_afresh(app: &mut Mounted) {
+    click_when_enabled(&mut app.dom, "Refresh pull request").await;
+}
+
+/// A stack of three open layers, the middle one being pull request `n`, numbered by it: each test has its own, since the server
+/// keeps what the host said of a stack for a while and tests share the host's address.
+fn three_layers(n: u64, shas: [&str; 3]) -> Value {
+    super::fake_github::stack_of(n, &[(n - 1, "open", false, shas[0]), (n, "open", false, shas[1]), (n + 1, "open", false, shas[2])])
+}
+fn query_has(asked: &super::source_control_tests::Asked, text: &str) -> bool {
+    asked.body.as_ref().and_then(|body| body["query"].as_str()).is_some_and(|query| query.contains(text))
+}
+
+/// A pull request in the host's stack is merged with the layers under it, after the question, naming the heads that were read;
+/// the stack is read again whatever the answer, and a stack that moved is refused in the server's words.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_stack_is_merged_through_the_layer_in_view_after_asking_and_is_read_again_whatever_the_answer() {
+    with_app(30, &WRITER, async |app| {
+        app.github.passing();
+        app.github.set(|data| data.stack = Some(three_layers(30, ["aaa1111", "bbb2222", "ccc3333"])));
+        app.open_panel().await;
+        read_the_stack_afresh(app).await;
+        until(&mut app.dom, "the stack in the header", |dom| control(dom, "Stack 30, layer 2 of 3").is_some() && control(dom, "Merge stack").is_some()).await;
+        assert!(control(&app.dom, "Merge").is_none(), "a pull request in a stack is not merged on its own");
+
+        // Asking sends nothing; the question says how many layers and with what.
+        click_when_enabled(&mut app.dom, "Merge stack").await;
+        wait_for_rendered_text(&mut app.dom, "Merge 2 pull requests?").await;
+        assert!(rendered_text(&app.dom).contains("Merge #30 and its unmerged layers below into main using merge."));
+        assert!(rendered_text(&app.dom).contains("Layer 29") && rendered_text(&app.dom).contains("Layer 30") && !rendered_text(&app.dom).contains("Layer 31"), "the layers it reaches, and not the one above");
+        click_control(&mut app.dom, "Cancel");
+        assert!(stack_merges(30).is_empty());
+
+        // Confirmed: one request, to the layer in view, naming its head; the answer is said and the stack read again.
+        let reads = stack_reads();
+        click_when_enabled(&mut app.dom, "Merge stack").await;
+        click_control(&mut app.dom, "Confirm Merge stack");
+        wait_for_rendered_text(&mut app.dom, "GitHub merged the stack or added it to its merge queue.").await;
+        assert!(rendered_text(&app.dom).contains("Stack merge request completed"));
+        assert_eq!(stack_merges(30), [json!({"merge_method":"merge","merge_action":"default","sha":"bbb2222"})]);
+        until(&mut app.dom, "the stack read again", |_| stack_reads() >= reads + 2).await;
+        assert!(control(&app.dom, "Confirm Merge stack").is_none(), "the question is closed");
+
+        // The host refuses: its reason is said, the stack is read again, and nothing is left half done on screen.
+        app.github.set(|data| data.stack_merge = "failed");
+        let reads = stack_reads();
+        click_when_enabled(&mut app.dom, "Merge stack").await;
+        click_control(&mut app.dom, "Confirm Merge stack");
+        wait_for_rendered_text(&mut app.dom, "GitHub refused the stack merge.").await;
+        assert!(rendered_text(&app.dom).contains("Stack operation did not complete"));
+        until(&mut app.dom, "the stack read again after the refusal", |_| stack_reads() >= reads + 2).await;
+        assert_eq!(stack_merges(30).len(), 2);
+
+        // A layer moved since the panel read the stack: the server reads it again before sending anything, finds another head and
+        // refuses; the panel then reads it as it is, and the next try names the head it now has.
+        app.github.set(|data| {
+            data.stack_merge = "merged";
+            data.stack_list = Some(three_layers(30, ["aaa1111", "bbb9999", "ccc3333"]));
+        });
+        click_when_enabled(&mut app.dom, "Merge stack").await;
+        click_control(&mut app.dom, "Confirm Merge stack");
+        wait_for_rendered_text(&mut app.dom, "The stack changed. Refresh it before trying again.").await;
+        assert_eq!(stack_merges(30).len(), 2, "nothing was sent for a stack that moved");
+        app.github.set(|data| {
+            data.stack = Some(three_layers(30, ["aaa1111", "bbb9999", "ccc3333"]));
+            data.stack_list = None;
+        });
+        let details = || world().asked().iter().filter(|asked| kind_of(asked) == "GET repos/acme/web/stacks/30").count();
+        let before = details();
+        click_control(&mut app.dom, "Refresh pull request");
+        until(&mut app.dom, "the stack read as it is", |_| details() > before).await;
+        click_when_enabled(&mut app.dom, "Merge stack").await;
+        click_control(&mut app.dom, "Confirm Merge stack");
+        until(&mut app.dom, "the third merge", |_| stack_merges(30).len() == 3).await;
+        assert_eq!(stack_merges(30)[2]["sha"], "bbb9999");
+        assert_eq!(error(app.state), None);
+    })
+    .await;
+}
+
+/// Rebasing the stack names every open layer and the top one; the account's right to push to every branch is checked by the server
+/// before a layer is touched, and its refusal is said in its words. A rebase of a stack that moved is refused too.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_stack_rebase_asks_first_names_every_open_layer_and_says_why_it_was_refused() {
+    with_app(40, &WRITER, async |app| {
+        app.github.passing();
+        app.github.set(|data| {
+            data.stack = Some(three_layers(40, ["aaa1111", "bbb2222", "ccc3333"]));
+            data.stack_branches_writable = false;
+        });
+        app.open_panel().await;
+        read_the_stack_afresh(app).await;
+        until(&mut app.dom, "the stack in the header", |dom| control(dom, "Stack 40, layer 2 of 3").is_some()).await;
+        click_when_enabled(&mut app.dom, "Stack 40, layer 2 of 3").await;
+        until(&mut app.dom, "the menu", |dom| control(dom, "Rebase stack").is_some() && control(dom, "Merge stack (2)").is_some()).await;
+        click_when_enabled(&mut app.dom, "Rebase stack").await;
+        wait_for_rendered_text(&mut app.dom, "Rebase 3 pull requests?").await;
+        assert!(rendered_text(&app.dom).contains("Rebase the remote branches from bottom to top onto main."));
+        click_control(&mut app.dom, "Cancel");
+        assert!(world().asked().iter().all(|asked| !query_has(asked, "maintainerCanModify")), "asking reads nothing about the branches");
+
+        // Confirmed: the branches of every open layer are looked at, and the account may not push to them.
+        click_when_enabled(&mut app.dom, "Stack 40, layer 2 of 3").await;
+        click_when_enabled(&mut app.dom, "Rebase stack").await;
+        click_control(&mut app.dom, "Confirm Rebase stack");
+        wait_for_rendered_text(&mut app.dom, "You cannot update every branch in this stack.").await;
+        assert!(rendered_text(&app.dom).contains("Stack operation did not complete"));
+        let looked_at = world().asked().into_iter().find(|asked| query_has(asked, "maintainerCanModify")).and_then(|asked| asked.body).unwrap()["query"].as_str().unwrap().to_owned();
+        assert!(looked_at.contains("pr39:") && looked_at.contains("pr40:") && looked_at.contains("pr41:"), "every open layer: {looked_at}");
+
+        // A stack that moved is refused before any branch is read.
+        app.github.set(|data| data.stack_list = Some(three_layers(40, ["aaa1111", "bbb2222", "ccc7777"])));
+        let looks = world().asked().iter().filter(|asked| query_has(asked, "maintainerCanModify")).count();
+        click_when_enabled(&mut app.dom, "Stack 40, layer 2 of 3").await;
+        click_when_enabled(&mut app.dom, "Rebase stack").await;
+        click_control(&mut app.dom, "Confirm Rebase stack");
+        wait_for_rendered_text(&mut app.dom, "The stack changed. Refresh it before trying again.").await;
+        assert_eq!(world().asked().iter().filter(|asked| query_has(asked, "maintainerCanModify")).count(), looks);
+        assert_eq!(error(app.state), None);
+    })
+    .await;
+}
+
+/// What the stack allows follows the layers and the account: a draft under the layer in view stops the merge and says why; an account
+/// that may not write sees the layers and no way to act on them; a pull request in no stack keeps its own merge once the lookup is done.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_stack_offers_only_what_the_layers_and_the_account_allow() {
+    with_app(50, &WRITER, async |app| {
+        app.github.passing();
+        app.github.set(|data| data.stack = Some(super::fake_github::stack_of(50, &[(49, "open", true, "aaa1111"), (50, "open", false, "bbb2222")])));
+        app.open_panel().await;
+        read_the_stack_afresh(app).await;
+        until(&mut app.dom, "the stack in the header", |dom| control(dom, "Stack 50, layer 2 of 2").is_some()).await;
+        assert!(disabled(&app.dom, "Merge stack"), "a draft under the layer stops the merge");
+        click_control(&mut app.dom, "Stack 50, layer 2 of 2");
+        until(&mut app.dom, "the menu", |dom| control(dom, "Merge stack (2)").is_some()).await;
+        assert!(rendered_text(&app.dom).contains("Every layer being merged must be open and ready for review."));
+        assert!(disabled(&app.dom, "Merge stack (2)") && !disabled(&app.dom, "Rebase stack"));
+        // The layers open their pull requests as tabs of the thread's panel.
+        click_control(&mut app.dom, "Layer 49, #49");
+        until(&mut app.dom, "the other layer", |_| crate::right_panel::shown_pull_request(app.state) == Some(49)).await;
+    })
+    .await;
+
+    // No stack at the host: the pull request is merged on its own, once the lookup has said so.
+    with_app(61, &WRITER, async |app| {
+        app.github.passing();
+        app.open_panel().await;
+        read_the_stack_afresh(app).await;
+        until(&mut app.dom, "its own merge", |dom| control(dom, "Merge").is_some()).await;
+        assert!(control(&app.dom, "Merge stack").is_none() && control(&app.dom, "Stack 61, layer 1 of 1").is_none());
+    })
+    .await;
+
+    // An account that cannot write: the stack is there to read and move through, with nothing to do to it.
+    with_app(70, &READER, async |app| {
+        app.github.set(|data| data.stack = Some(three_layers(70, ["aaa1111", "bbb2222", "ccc3333"])));
+        app.open_panel().await;
+        read_the_stack_afresh(app).await;
+        until(&mut app.dom, "the stack in the header", |dom| control(dom, "Stack 70, layer 2 of 3").is_some()).await;
+        click_control(&mut app.dom, "Stack 70, layer 2 of 3");
+        until(&mut app.dom, "the menu", |dom| control(dom, "Stack #70").is_some()).await;
+        assert!(control(&app.dom, "Merge stack").is_none() && control(&app.dom, "Merge stack (2)").is_none() && control(&app.dom, "Rebase stack").is_none());
     })
     .await;
 }

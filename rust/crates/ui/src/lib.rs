@@ -26,6 +26,7 @@ mod pull_request_summary;
 mod pull_request_thread;
 mod pull_request_files;
 mod diff_panel;
+mod right_panel;
 #[cfg(feature = "desktop")]
 mod desktop_updates;
 #[cfg(feature = "desktop")]
@@ -178,6 +179,7 @@ fn Main() -> Element {
             client_settings::hydrate(state).await;
             draft_storage::hydrate(state).await;
             prompt_stash::hydrate(state).await;
+            right_panel::hydrate(state).await;
             #[cfg(feature = "desktop")]
             desktop_shell::connect(transport, state).await;
             #[cfg(not(feature = "desktop"))]
@@ -282,6 +284,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         let _ = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.snapshot_sequence);
         thread_selection::prune(state);
     });
+    right_panel::use_persist(state);
     let runner = keys::use_keys(state, transport.clone());
     clone_view::use_stream(state, transport.clone());
     let new_thread_hint = runner.keys.label("chat.new");
@@ -465,6 +468,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     button { class: "icon-button", "aria-label": "Toggle main sidebar", onclick: move |_| { let open=state.peek().sidebar_open; state.sidebar_open().set(!open); }, "☰" }
                     span { class: "workspace-title", "{title}" }
                     command_palette::Button { state }
+                    if view == View::Chat && (active.is_some() || state.selected_project().read().is_some()) { right_panel::Toggle { state, hint: runner.keys.label("rightPanel.toggle") } }
                     if let Some(active_thread) = active.clone() {
                       div { class: "header-actions",
                         {
@@ -549,7 +553,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::Archived => rsx! {thread_lifecycle::ArchivedPage {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {
                         pull_request_list::Page {state,transport:transport.clone()}
-                        pull_request_panel::Host {key:"pr:list",state,transport:transport.clone(),thread_id:String::new()}
+                        pull_request_panel::Host {key:"pr:list",state,transport:transport.clone()}
                     },
                     View::Usage => rsx! {usage_page::Page {state,transport:transport.clone()}},
                     View::Appearance => rsx! {
@@ -561,7 +565,15 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         }
                     },
                     View::Chat => rsx! {
-                        file_panel::Host { key: "file:{timeline_key}", state, transport: transport.clone(), thread_id: active_id.clone() }
+                        {
+                            // Beside a thread the panel works in its checkout; with none open, in the project the new-thread form is on.
+                            let selected = state.selected_project().read().clone();
+                            let panel_cwd = match active.as_ref() {
+                                Some(thread) => thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string())).unwrap_or_default(),
+                                None => projects.iter().find(|project| Some(project.id.as_str()) == selected.as_deref()).map(|project| project.workspace_root.to_string()).unwrap_or_default(),
+                            };
+                            rsx! { right_panel::Shell { key: "panel:{timeline_key}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id: active_id.clone(), cwd: panel_cwd } }
+                        }
                         if active.is_none() {
                             section { class: "empty-state",
                                 h1 { "What should we work on?" }
@@ -587,19 +599,6 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             }
                             for current in [active.as_ref().unwrap().clone()] {
                                 if is_subagent_thread(&current) { ReadOnlyThread { key:"{timeline_key}", state, transport: transport.clone(), parent: current.lineage.parent_thread_id.as_ref().map(ToString::to_string) } } else { Composer { key:"{timeline_key}",state, transport: transport.clone(), thread: current, can_operate } }
-                            }
-                            for current in [active.as_ref().unwrap().clone()] {
-                                {
-                                    let project_cwd = projects.iter().find(|project| project.id == current.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
-                                    let cwd = current.worktree_path.as_ref().map(ToString::to_string).unwrap_or(project_cwd);
-                                    rsx! { diff_panel::Host {key:"diff:{timeline_key}:{cwd}",state,transport:transport.clone(),environment_key:environment_key.clone(),thread_id:current.id.to_string(),cwd} }
-                                }
-                            }
-                            for current in [active.as_ref().unwrap().clone()] {
-                                pull_request_panel::Host {key:"pr:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
-                            }
-                            for current in [active.as_ref().unwrap().clone()] {
-                                thread_pull_requests_panel::Host {key:"prs:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
                             }
                             for current in [active.as_ref().unwrap().clone()] {
                                 terminal_pane::Drawer {key:"terminal:{timeline_key}",state,transport:transport.clone(),environment:environment_key.clone(),thread_id:current.id.to_string(),cwd:projects.iter().find(|project|project.id==current.project_id).map(|p|p.workspace_root.to_string()).unwrap_or_default(),worktree:current.worktree_path.as_ref().map(ToString::to_string)}

@@ -28,20 +28,30 @@ pub struct Target {
     pub reference: Reference,
 }
 
-/// Opens the panel on a pull request; the diff panel gives way, since they share the margin.
+/// Opens the panel on a pull request, as a tab of its thread's panel. A target with no thread belongs to the pull requests
+/// page, whose panel stands alone beside the list.
 pub(crate) fn open(state: Store<UiModel>, target: Target) {
-    state.diff().write().open = false;
-    state.file_panel().set(None);
-    state.thread_prs().set(None);
-    state.pr_panel().set(Some(target));
+    if target.thread_id.is_empty() {
+        state.pr_panel().set(Some(target));
+        return;
+    }
+    let thread_id = target.thread_id;
+    let reference = target.reference;
+    crate::right_panel::open_pull_request(state, &thread_id, t3_client::right_panel::PullRequestTarget { environment_id: None, project_id: reference.project_id, host: reference.host, repository: reference.repository, number: reference.number, url: None });
 }
+/// Closes the pull request in view: the page's panel, or the thread's shown tab.
 pub(crate) fn close(state: Store<UiModel>) {
-    state.pr_panel().set(None);
+    if state.pr_panel().peek().is_some() && *state.view().peek() == runtime::View::PullRequests {
+        state.pr_panel().set(None);
+    } else {
+        crate::right_panel::close_shown_pull_request(state);
+    }
 }
 
+/// The pull requests page's panel, beside its list.
 #[component]
-pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
-    let target = use_memo(move || state.pr_panel().read().clone().filter(|target| target.thread_id == thread_id));
+pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element {
+    let target = use_memo(move || state.pr_panel().read().clone().filter(|target| target.thread_id.is_empty()));
     match target() {
         Some(target) => rsx! { Panel { key: "{target.reference.key()}", state, transport, thread_id: target.thread_id, reference: target.reference } },
         None => rsx! {},
@@ -65,7 +75,7 @@ enum Tab {
 }
 
 #[component]
-fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, reference: Reference) -> Element {
+pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, reference: Reference) -> Element {
     let mut detail = use_signal(Read::<Rc<Value>>::default);
     let mut activity = use_signal(Read::<Rc<Value>>::default);
     let mut tab = use_signal(|| Tab::Summary);
@@ -77,6 +87,8 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
     let mut preferred = use_signal(|| "merge".to_owned());
     // Whether what is shown was read on a connection that is still up.
     let mut fresh = use_signal(|| false);
+    // The host's own stack of this pull request, where it keeps one (read with the detail, and again at each refresh).
+    let mut stack = use_signal(crate::pull_request_stack::Held::default);
     let connected = use_memo(move || *state.status().read() == ConnectionStatus::Connected);
     let can_write = use_memo(move || {
         let destination = state.destination().read().clone();
@@ -149,6 +161,53 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                             detail.set(Read::Failed(message));
                         }
                         fresh.set(false);
+                    }
+                }
+            }
+        });
+    }
+
+    // Whether this pull request can be in a stack, and the host acts on stacks: the original asks once the detail has landed, so a
+    // pull request nobody can read costs one request rather than two.
+    let stack_wanted = use_memo(move || matches!(&*detail.read(), Read::Ready(value) if value["capabilities"]["stacks"] == true) && crate::thread_pull_requests_panel::supported(state));
+    let supports_stack_actions = use_memo(move || {
+        stack_wanted()
+            && matches!(&*detail.read(), Read::Ready(value) if value["capabilities"]["stackActions"] == true)
+            && state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.pull_request_stack_actions == Some(true))
+    });
+    {
+        let (transport, reference) = (transport.clone(), reference.clone());
+        use_resource(move || {
+            let (transport, mut reference, wanted, readable, _attempt) = (transport.clone(), reference.clone(), stack_wanted(), can_read(), refresh_count());
+            async move {
+                if !wanted || !readable {
+                    return;
+                }
+                // The host of the address the detail names, for a reference that was opened without one.
+                if reference.host.is_none() {
+                    reference.host = match &*detail.peek() {
+                        Read::Ready(value) => value["url"].as_str().and_then(|url| url::Url::parse(url).ok()).and_then(|url| url.host_str().map(str::to_owned)),
+                        _ => None,
+                    };
+                }
+                stack.write().pending = true;
+                let owner = runtime::response_owner(&transport, state);
+                let answer = runtime::request_value_reported(transport.clone(), state, crate::pull_request_stack::STACK, reference.payload(json!({}))).await;
+                if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+                    return;
+                }
+                let mut held = stack.write();
+                held.pending = false;
+                match answer {
+                    Ok(value) => {
+                        held.data = if value.is_null() { None } else { Some(Rc::new(value)) };
+                        held.succeeded = true;
+                        held.error = None;
+                    }
+                    // A failed refresh keeps the layers that were read; the menu says they may be old.
+                    Err(message) => {
+                        held.succeeded = false;
+                        held.error = Some(message);
                     }
                 }
             }
@@ -240,6 +299,9 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
         refresh_count.set(next);
     });
     let write_ok = use_memo(move || can_write() && fresh());
+    let held = stack.read().clone();
+    let stack_view = t3_client::pull_request_stack::view(held.data.is_some(), held.succeeded, held.pending, held.error.as_deref());
+    let single_merge = t3_client::pull_request_stack::single_merge_allowed(supports_stack_actions(), held.data.is_some(), held.pending || !held.succeeded && held.error.is_none(), held.error.is_some());
     let _editing = crate::pull_request_edit::provide(state, transport.clone(), reference.clone(), write_ok, Callback::new(move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); }));
     let detail_now = detail.read().clone();
     let busy = acting.read().clone();
@@ -269,9 +331,14 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                             if let Some(url) = github_url.clone() { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request #{reference.number} on GitHub", "Open on GitHub" } }
                         } } } },
                 Read::Ready(value) => rsx! {
-                    Header { state, transport: transport.clone(), thread_id: thread_id.clone(), value: value.clone(), activity: activity.read().clone(), reference: reference.clone(), writable, refreshing: refreshing(), on_refresh: refresh_from_host, on_close: move |_| close(state) }
+                    Header { state, transport: transport.clone(), thread_id: thread_id.clone(), value: value.clone(), activity: activity.read().clone(), reference: reference.clone(), writable, refreshing: refreshing(), on_refresh: refresh_from_host, on_close: move |_| close(state),
+                        stack: held.clone(), stack_view: stack_view.clone(), stack_wanted: stack_wanted(), supports_stack_actions: supports_stack_actions(),
+                        can_merge_stack: stack_view.fresh && supports_stack_actions() && writable && pr::can_perform(&value, "merge") && !pr::allowed_merge_methods(&value).is_empty(),
+                        can_rebase_stack: stack_view.fresh && supports_stack_actions() && writable && value["viewerPermissions"]["stackRebase"] == true,
+                        merge_method: pr::resolve_merge_method(&pr::allowed_merge_methods(&value), &preferred()),
+                        on_stack_changed: move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); } }
                     if stale { p { class: "diff-banner", role: "status", if connected() { "Could not refresh. This is the last pull request read." } else { "Offline. This is the last pull request read." } } }
-                    crate::pull_request_summary::Actions { value: value.clone(), show_writes: true, why: write_reason.clone(), writable, busy: busy.clone(), preferred: preferred(), on_method: move |method: String| preferred.set(method),
+                    crate::pull_request_summary::Actions { value: value.clone(), show_writes: true, why: write_reason.clone(), writable, busy: busy.clone(), preferred: preferred(), single_merge, settled: !supports_stack_actions() || held.succeeded || held.error.is_some(), on_method: move |method: String| preferred.set(method),
                         on_action: move |(action, method): (String, Option<String>)| {
                             if pr::confirmation(&action, reference.number, method.as_deref().unwrap_or("merge"), 0).is_some() { confirm.set(Some(format!("{action}|{}", method.unwrap_or_default()))); } else { run.call((action, method)); }
                         } }
@@ -380,7 +447,8 @@ fn state_label(value: &Value) -> &'static str {
 }
 
 #[component]
-fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, value: Rc<Value>, activity: Read<Rc<Value>>, reference: Reference, writable: bool, refreshing: bool, on_refresh: Callback<()>, on_close: Callback<()>) -> Element {
+fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, value: Rc<Value>, activity: Read<Rc<Value>>, reference: Reference, writable: bool, refreshing: bool, on_refresh: Callback<()>, on_close: Callback<()>,
+    stack: crate::pull_request_stack::Held, stack_view: t3_client::pull_request_stack::View, stack_wanted: bool, supports_stack_actions: bool, can_merge_stack: bool, can_rebase_stack: bool, merge_method: String, on_stack_changed: Callback<()>) -> Element {
     let title = value["title"].as_str().unwrap_or_default().to_owned();
     let url = value["url"].as_str().filter(|url| url.starts_with("https://") || url.starts_with("http://")).map(str::to_owned);
     let label = state_label(&value);
@@ -391,7 +459,15 @@ fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
             div { class: "diff-header-main",
                 strong { class: "pr-number", oncontextmenu: { let (url, provider) = (menu_url.clone(), menu_provider.clone()); move |event| { event.prevent_default(); event.stop_propagation(); let at = event.client_coordinates(); if let Some(url) = url.clone() { let provider = provider.clone(); spawn(async move { crate::link_menus::pull_request_number(state, url, provider, (at.x, at.y)).await }); } } }, "#{reference.number}" }
                 span { class: "pr-state", "data-state": "{label}", "{label}" }
-                if let (Some(stack_number), Some(position), Some(size)) = (value["stack"]["number"].as_u64(), value["stack"]["position"].as_u64(), value["stack"]["size"].as_u64()) {
+                if stack_wanted {
+                    // The host's stack, read with the pull request: its layers, and what can be done to all of them.
+                    if let Some(data) = stack.data.clone() {
+                        crate::pull_request_stack::Menu { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), stack: data, notice: stack_view.notice.map(str::to_owned),
+                            retry: stack.error.is_some().then(|| on_stack_changed), can_merge: can_merge_stack, can_rebase: can_rebase_stack, merge_method: merge_method.clone(), on_acted: on_stack_changed }
+                    } else if supports_stack_actions && stack.error.is_some() {
+                        button { r#type: "button", "aria-label": "Retry stack lookup", onclick: move |_| on_stack_changed.call(()), "Retry stack lookup" }
+                    }
+                } else if let (Some(stack_number), Some(position), Some(size)) = (value["stack"]["number"].as_u64(), value["stack"]["position"].as_u64(), value["stack"]["size"].as_u64()) {
                     crate::pull_request_stack::Chip { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), number: stack_number, position, size }
                 }
                 if let Some(url) = url { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request #{reference.number} on host", title: "{host_label}", "{host_label}" } }

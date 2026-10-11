@@ -664,7 +664,11 @@ async fn moving_the_selection_or_the_thread_mid_load_never_shows_the_old_diff() 
     until(&mut dom, "held again", |_| gate.held.borrow().len() == 1).await;
     dom.in_scope(ScopeId::APP, || select_thread(&props.transport, state, "thread-b".into()));
     until(&mut dom, "thread-b", |_| state.peek().thread.synchronized && state.peek().thread.projection.as_ref().unwrap()["thread"]["id"] == "thread-b").await;
-    // thread-b has no remembered selection, so its panel starts on "Changes".
+    // Each thread has its own panel: thread-b's is closed, which ends thread-a's request, and the one opened there has no
+    // remembered selection, so it starts on "Changes".
+    until(&mut dom, "thread-a's panel gone", |dom| control(dom, "Diff scope").is_none()).await;
+    dom.in_scope(ScopeId::APP, || crate::diff_panel::toggle(state));
+    until(&mut dom, "thread-b's panel", |dom| control(dom, "Diff scope").is_some()).await;
     change_control(&mut dom, "Diff scope", "latest");
     wait_for_rendered_text(&mut dom, "No completed turns yet.").await;
     assert!(gate.held.borrow()[0].1.is_canceled(), "thread-a's request ended with its panel");

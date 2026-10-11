@@ -102,10 +102,8 @@ pub struct UiModel {
     pub pending_launches: std::collections::BTreeMap<String, PendingLaunch>,
     pub view: View,
     pub diff: crate::diff_panel::DiffModel,
-    /// The file the panel beside the conversation shows (opened from the file picker or the content search).
-    pub file_panel: Option<crate::file_panel::Target>,
-    /// The files open in that panel, in the order they were opened; `file_panel` is the one shown.
-    pub file_tabs: Vec<crate::file_panel::Target>,
+    /// The tabbed panel beside the conversation: its tabs per thread, the history of closed ones, and what shows of it.
+    pub right_panel: crate::right_panel::Model,
     /// The files whose edits are not on disk yet (`cwd`, a NUL, the path): the dot on a tab.
     pub file_pending: std::collections::BTreeSet<String>,
     /// What was last handed to the server to write for such a file, until a write confirms it, so a panel opened again before that
@@ -129,7 +127,7 @@ pub struct UiModel {
     pub git_runs: std::collections::BTreeMap<String, crate::git_control::Run>,
     /// A notice's call to action asking the control of a workspace to run an action again.
     pub git_follow: Option<crate::git_control::FollowRequest>,
-    /// The pull request the open thread's panel shows, and the one its branch has to offer.
+    /// The pull request the pull requests page's panel shows, and the one the open thread's branch has to offer.
     pub pr_panel: Option<crate::pull_request_panel::Target>,
     pub pr_available: Option<crate::pull_request_panel::Target>,
     /// The reviews being written, by pull request, until each is sent: the summary and the line comments. They outlive the
@@ -162,8 +160,7 @@ pub struct UiModel {
     /// The `/usage-limits` result shown over the open thread's composer.
     pub usage_panel: Option<crate::limits_view::Panel>,
     /// The threads chosen in the sidebar with Ctrl/Cmd+click and Shift+click, and where their menu is open.
-    /// The thread whose Pull requests tab is open beside the conversation, and the thread whose link dialog is open.
-    pub thread_prs: Option<String>,
+    /// The thread whose link dialog is open.
     /// The project the Projects settings page is showing.
     pub settings_project: Option<String>,
     pub link_dialog: Option<String>,
@@ -3138,6 +3135,10 @@ mod thread_selection_tests;
 #[cfg(all(test, unix))]
 #[path = "thread_pull_requests_panel_tests.rs"]
 mod thread_pull_requests_panel_tests;
+
+#[cfg(all(test, unix))]
+#[path = "right_panel_tests.rs"]
+mod right_panel_tests;
 
 #[cfg(all(test, unix))]
 #[path = "settings_search_tests.rs"]

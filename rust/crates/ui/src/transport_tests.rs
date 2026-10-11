@@ -393,7 +393,7 @@ pub(crate) fn api_fixture(directory: &tempfile::TempDir, environment_id: &str) -
         "loopback-browser".into(),
     )
     .unwrap();
-    let mut environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"threadSettlement":true,"threadAutoSettlement":true,"threadAutoSettleOptOut":true,"projectCloneTracking":true}});
+    let mut environment = json!({"environmentId":environment_id,"label":"Isolated integration","platform":{"os":"linux","arch":"x64"},"serverVersion":"rust-test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true,"projectSettingsOverrides":true,"pullRequests":true,"threadPullRequests":true,"threadPullRequestLinking":true,"pullRequestStackActions":true,"threadPinning":true,"threadPinReorder":true,"threadActiveReorder":true,"threadSnooze":true,"threadSettlement":true,"threadAutoSettlement":true,"threadAutoSettleOptOut":true,"projectCloneTracking":true}});
     // The capabilities that gate the features of the composer, the pull request checks, visits and the storage page are what the real
     // server advertises, so those features are on here as they are there. The others stay as each test sets them: some change what
     // the client sends (`serverResolvedCommandContext`) or offers (`threadTitleRegeneration`).

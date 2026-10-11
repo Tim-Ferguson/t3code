@@ -232,7 +232,7 @@ async fn a_thread_opened_by_its_address_before_the_connection_is_ready_shows_its
 
     // The reload: the address is in the bar, the diff panel is open, and nothing is known yet.
     let (mut dom, _props, state, _browser) = cold(&fixture, &format!("/{environment}/thread-a"), &scopes, |_| {});
-    state.diff().write().open = true;
+    state.right_panel().write().panels.open(&format!("{environment}:thread-a"), t3_client::right_panel::Kind::Diff);
     assert!(state.peek().active_thread.is_none() && !state.peek().shell.synchronized);
     until(&mut dom, "the thread named by the address", |_| state.peek().active_thread.as_deref() == Some("thread-a") && state.peek().thread.synchronized).await;
     until(&mut dom, "the conversation", |dom| rendered_text(dom).contains("Fixture response")).await;

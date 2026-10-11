@@ -150,7 +150,8 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             let terminal_open = catalog.as_ref().zip(pane_key(state)).is_some_and(|(catalog, key)| catalog.is_open(&key));
             Context::base(desktop())
                 .with("terminalOpen", terminal_open)
-                .with("diffOpen", state.diff().read().open)
+                .with("diffOpen", crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Diff))
+                .with("rightPanelOpen", crate::right_panel::is_open(state))
                 .with("turnRunning", open_thread(state).is_some_and(|thread| thread.working))
                 .with("commandPaletteOpen", state.palette().read().open)
                 .with("modelPickerOpen", *picker.open.read())
@@ -195,6 +196,24 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                     set.insert("composer.previousWorktree".into());
                 }
             }
+            // The panel beside the conversation: any thread or the new-thread form has one; the others need it open (or a tab in it).
+            if chat && (open.is_some() || state.selected_project().read().is_some()) {
+                set.insert("rightPanel.toggle".into());
+            }
+            if chat && crate::right_panel::is_open(state) {
+                set.extend(["rightPanel.new", "rightPanel.toggleMaximized"].map(String::from));
+            }
+            // Nothing shown: the key keeps its meaning of closing the window or the browser's tab.
+            if chat && crate::right_panel::shown_surface(state).is_some() {
+                set.insert("rightPanel.close".into());
+            }
+            if crate::right_panel::can_reopen(state) {
+                set.insert("view.reopenClosed".into());
+            }
+            // The page's own history exists where the address follows the view (the web build); a window without an address has none.
+            if crate::routing::enabled() {
+                set.extend(["navigation.back", "navigation.forward"].map(String::from));
+            }
             if state.lifecycle().read().undo.is_some() && allows(state, AuthEnvironmentScope::OrchestrationOperate) {
                 set.insert("thread.undo".into());
             }
@@ -216,7 +235,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                 set.insert("composer.stash".into());
             }
             if chat && open.is_some() {
-                if state.diff().read().open || allows(state, AuthEnvironmentScope::OrchestrationRead) {
+                if crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Diff) || allows(state, AuthEnvironmentScope::OrchestrationRead) {
                     set.insert("diff.toggle".into());
                 }
                 set.extend(["composer.mode", "composer.effort"].map(String::from));
@@ -260,7 +279,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                     set.insert("composer.branch".into());
                 }
                 // `pullRequest.copyNumber` belongs to the open pull request panel, as in the original.
-                if state.pr_panel().read().is_some() {
+                if state.pr_panel().read().is_some() || matches!(crate::right_panel::shown_surface(state), Some(t3_client::right_panel::Surface::PullRequest(_))) {
                     set.insert("pullRequest.copyNumber".into());
                 }
             }
@@ -443,6 +462,17 @@ impl Runner {
             "usage.period.quarter" => crate::usage_page::select_period(&self.transport, state, 90),
             "chat.newWithoutProject" => project_create::start_scratch(&self.transport, state),
             "diff.toggle" => crate::diff_panel::toggle(state),
+            "navigation.back" => {
+                let _ = document::eval("window.history.back();");
+            }
+            "navigation.forward" => {
+                let _ = document::eval("window.history.forward();");
+            }
+            "rightPanel.toggle" => crate::right_panel::toggle_panel(state),
+            "rightPanel.new" => crate::right_panel::open_add_menu(state),
+            "rightPanel.toggleMaximized" => crate::right_panel::toggle_maximized(state),
+            "rightPanel.close" => crate::right_panel::close_shown(state),
+            "view.reopenClosed" => crate::right_panel::reopen_closed(&self.transport, state),
             "editor.openFavorite" => {
                 let last = self.last_editor.0.peek().clone();
                 if let (Some(editor), Some(cwd)) = (crate::open_in::favorite(state, last.as_deref()), crate::open_in::thread_cwd(state)) {
@@ -475,9 +505,12 @@ impl Runner {
                 }
             }
             "pullRequest.copyNumber" => {
-                let open = state.pr_panel().peek().clone();
-                if let Some(target) = open {
-                    let text = format!("#{}", target.reference.number);
+                let shown = match crate::right_panel::shown_peek(state) {
+                    Some(t3_client::right_panel::Surface::PullRequest(target)) => Some(target.number),
+                    _ => state.pr_panel().peek().as_ref().map(|target| target.reference.number),
+                };
+                if let Some(number) = shown {
+                    let text = format!("#{number}");
                     let args = serde_json::json!(text);
                     dioxus::document::eval(&format!("navigator.clipboard?.writeText({args});"));
                     crate::notice::push(state, crate::notice::Level::Success, "PR number copied", text);

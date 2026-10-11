@@ -30,6 +30,15 @@ pub(crate) struct Data {
     pub(crate) write_refusal: Option<String>,
     /// `reactionGroups` of the description and of each remark, by the host's id for the subject.
     pub(crate) reactions: Vec<(String, Vec<Value>)>,
+    /// The host's stack of this pull request, in the shape of its REST `stacks` answer; none is a host that has no stack for it.
+    pub(crate) stack: Option<Value>,
+    /// What the host's list of stacks says when it says something other than `stack` (a stack that moved after the panel read its
+    /// details): the server's own read before an action is the list, the panel's is the details.
+    pub(crate) stack_list: Option<Value>,
+    /// What the host answers a stack merge with: `merged`, `pending` or `failed`.
+    pub(crate) stack_merge: &'static str,
+    /// Whether the account may push to every branch of the stack (the permission read before a rebase).
+    pub(crate) stack_branches_writable: bool,
 }
 impl Data {
     fn new(number: u64) -> Self {
@@ -49,11 +58,22 @@ impl Data {
             body: "Please **merge** this.".into(),
             write_refusal: None,
             reactions: vec![],
+            stack: None,
+            stack_list: None,
+            stack_merge: "merged",
+            stack_branches_writable: true,
         }
     }
     fn groups(&self, subject: &str) -> Value {
         self.reactions.iter().find(|(id, _)| id == subject).map_or(json!([]), |(_, groups)| json!(groups))
     }
+}
+
+/// A stack as the host's REST API gives it: `(number, state, draft, head sha)` of each layer, bottom to top, on `main`.
+pub(crate) fn stack_of(number: u64, layers: &[(u64, &str, bool, &str)]) -> Value {
+    json!({"number":number,"url":format!("https://github.com/acme/web/stacks/{number}"),"base":{"ref":"main"},"pull_requests":layers.iter().map(|(layer, state, draft, sha)| json!({
+        "number":layer,"title":format!("Layer {layer}"),"draft":draft,"state":if *state == "merged" { "closed" } else { *state },"merged_at":if *state == "merged" { json!("2026-01-03T00:00:00Z") } else { Value::Null },
+        "head":{"sha":sha,"ref":format!("layer-{layer}")}})).collect::<Vec<_>>()})
 }
 
 pub(crate) fn actor(login: &str) -> Value {
@@ -215,6 +235,12 @@ fn answer(data: &mut Data, asked: &Asked) -> (u16, String) {
     if asked.path == "/rest/github.com/user" {
         return json(json!({"id":4242,"login":"octo"}));
     }
+    if asked.path.starts_with("/graphql/") && query_of(asked).contains("maintainerCanModify") {
+        // The access to every branch of the stack, asked before a rebase touches one.
+        let layers = data.stack.as_ref().and_then(|stack| stack["pull_requests"].as_array().cloned()).unwrap_or_default();
+        let access = json!({"headRepository":{"viewerPermission":if data.stack_branches_writable { "WRITE" } else { "READ" }},"maintainerCanModify":false});
+        return json(json!({"data":{"repository":layers.iter().map(|layer| (format!("pr{}", layer["number"]), access.clone())).collect::<serde_json::Map<_, _>>()}}));
+    }
     if asked.path.starts_with("/graphql/") {
         let variables = variables_of(asked);
         let query = query_of(asked);
@@ -364,7 +390,15 @@ fn answer(data: &mut Data, asked: &Asked) -> (u16, String) {
         return json(json!({"base":{"sha":"1111111"},"head":{"sha":"2222222"}}));
     }
     if asked.path.contains("/stacks") {
-        return (404, "{}".into());
+        return match (&data.stack, &data.stack_list) {
+            (_, Some(list)) if asked.path.ends_with("/stacks") => (200, json!([list]).to_string()),
+            (Some(stack), _) if asked.path.ends_with("/stacks") => (200, json!([stack]).to_string()),
+            (Some(stack), _) => (200, stack.to_string()),
+            _ => (404, "{}".into()),
+        };
+    }
+    if asked.method == "PUT" && asked.path.contains("/merge-async") {
+        return (200, json!({"status":data.stack_merge,"details":{"uuid":"job-1"}}).to_string());
     }
     (500, json!({"message":format!("unscripted {} {}", asked.method, asked.path)}).to_string())
 }

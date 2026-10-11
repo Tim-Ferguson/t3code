@@ -87,16 +87,13 @@
   },
   "commands": {
     "handled": {},
-    "partial": {},
-    "pending": {
-      "navigation.back": "Back/forward through the person's own navigation history (useNavigationHistory): not built; the browser's buttons work on the web build.",
+    "partial": {
+      "navigation.back": "The page's history, on the web build, where the address follows the view; the desktop window has no address, so the command is not offered there (useNavigationHistory).",
       "navigation.forward": "As navigation.back.",
-      "rightPanel.toggle": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
-      "rightPanel.new": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
-      "rightPanel.toggleMaximized": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
-      "rightPanel.close": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
-      "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel) as a toggle: the Rust header shows its parts inline.",
-      "view.reopenClosed": "Reopen the last closed panel tab (closedViewStore): no tabs, nothing to reopen.",
+      "view.reopenClosed": "Reopens panel tabs (the diff, files, a file, pull requests); the original also brings back a closed browser tab, and has a View menu entry on the desktop that this window's shell does not have."
+    },
+    "pending": {
+      "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel/ThreadDetailsCard) as a toggle beside the right panel: the Rust header shows its parts inline.",
       "preview.toggle": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.refresh": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.focusUrl": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
@@ -138,7 +135,7 @@
       "setting-glass-opacity": "Translucent menus and dialogs: not built (the CSS has no backdrop-filter layer).",
       "environment-identification": "The environment stage pill and artwork (EnvironmentIdentification): not built.",
       "composer-context": "The composer's persistent context strip: not built.",
-      "proactive-panels": "Panels that open on their own: there are no tabbed panels.",
+      "proactive-panels": "Panels that open on their own (a finished turn's diff, a linked pull request: ChatView's openProactive and ChatView.logic's rules, with the per-thread count of the person's own choices): the tabbed panel exists (right_panel.rs) but nothing opens it unasked yet.",
       "composer-collapse": "The composer's resting layout (collapse on scroll): not built.",
       "cli-command": "Desktop only. The t3 command install row (CliCommandSettingsRow, DesktopCliCommand.ts): not built.",
       "open-source-licenses": "Licenses page: no generated manifest (see routes).",
@@ -169,7 +166,6 @@
     "pending": {
       "usagePriceOverrides": "Price override editor of the Usage page (UsagePriceOverrides): not built.",
       "usageModelAliases": "Model alias editor of the Usage page: not built.",
-      "pullRequestStackActions": "Stack merge/rebase actions (PullRequestDetailPanel): to be gated on this flag once the server advertises it.",
       "serverBrowser": "Server-side browser (preview): not built.",
       "questionAttachments": "Attachments on an answer to an agent's question (the question card's attach control, attachmentsByQuestionId on runtime-request.respond, the answered question's attachments in the timeline): the Rust question card takes text answers only. Server advertises it.",
       "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Server advertises it."
@@ -572,17 +568,32 @@
       "composer ComposerServerUpdateStatus": {
         "probe": "server_update.rs::Updating \\{ \\}|title: format!\\(\"Updating",
         "reason": "server_update.rs::Banners shows the running stage and the failure under the composer"
+      },
+      "right panel surface diff": {
+        "probe": "right_panel.rs::Surface::Diff",
+        "reason": "a tab of right_panel.rs (client/right_panel.rs keeps the tabs)"
+      },
+      "right panel surface files": {
+        "probe": "right_panel.rs::Surface::Files",
+        "reason": "a tab of right_panel.rs (client/right_panel.rs keeps the tabs)"
+      },
+      "right panel surface file": {
+        "probe": "right_panel.rs::Surface::File",
+        "reason": "a tab of right_panel.rs (client/right_panel.rs keeps the tabs)"
+      },
+      "right panel surface pull-request": {
+        "probe": "right_panel.rs::Surface::PullRequest",
+        "reason": "a tab of right_panel.rs (client/right_panel.rs keeps the tabs)"
+      },
+      "right panel surface pull-requests": {
+        "probe": "right_panel.rs::Surface::PullRequests",
+        "reason": "a tab of right_panel.rs (client/right_panel.rs keeps the tabs)"
       }
     },
     "partial": {
       "message context mention": "The @file reference is sent as text and shown as text; the original's inline file chip with its icon (FileTagChip, SkillInlineText) is not drawn.",
       "message context skill": "As mention: a $skill token shows as plain text, not the original's inline chip.",
-      "right panel surface terminal": "The terminal is a drawer under the conversation, not a tab of the right panel; splits and multiple terminals work.",
-      "right panel surface diff": "A separate panel, not a tab: opening another panel closes it.",
-      "right panel surface files": "The file tree lives inside the file panel; there is no 'Files' tab.",
-      "right panel surface file": "One file at a time in a panel; the original keeps several file tabs and reopens closed ones.",
-      "right panel surface pull-request": "One pull request panel at a time, not peer tabs.",
-      "right panel surface pull-requests": "The thread's linked pull requests are a panel (thread_pull_requests_panel.rs), not a singleton tab.",
+      "right panel surface terminal": "The terminal is a drawer under the conversation, not a tab of the right panel; splits and multiple terminals work there.",
       "composer ComposerTasksBadge": "Background work is listed in composer_panels; the scheduled-tasks badge/popover (ThreadAutomationsPanel) is not built.",
       "composer composer-code-block": "Rich text composer: not built.",
       "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo).",

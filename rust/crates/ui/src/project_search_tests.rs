@@ -42,8 +42,8 @@ async fn go_to_file_asks_once_per_pause_marks_the_match_and_opens_the_file_in_th
     until(&mut dom, "the panel", |dom| control(dom, "Close file").is_some()).await;
     wait_for_rendered_text(&mut dom, "fn beta_needle() {}").await;
     assert!(control(&dom, PICKER).is_none(), "choosing a file closes the picker");
-    let target = state.peek().file_panel.clone().unwrap();
-    assert_eq!((target.path.as_str(), target.line, target.owner.as_deref()), ("src/needle_target.rs", None, Some("thread-a")));
+    assert_eq!(crate::right_panel::shown_file(state), Some(("src/needle_target.rs".to_owned(), None)));
+    assert_eq!(state.peek().active_thread.as_deref(), Some("thread-a"), "the file is a tab of the open thread's panel");
 
     // The file panel and the diff panel share the margin: the diff takes it back.
     assert_eq!(press(&mut dom, chord("d", false, false), Dom::default()).await.as_deref(), Some("diff.toggle"));
@@ -99,8 +99,7 @@ async fn content_search_counts_matches_honours_its_options_and_opens_the_file_at
     click_when_enabled(&mut dom, "src/needle_target.rs line 2").await;
     until(&mut dom, "the panel", |dom| control(dom, "Close file").is_some()).await;
     wait_for_rendered_text(&mut dom, "fn gamma() {}").await;
-    let target = state.peek().file_panel.clone().unwrap();
-    assert_eq!((target.path.as_str(), target.line), ("src/needle_target.rs", Some(2)));
+    assert_eq!(crate::right_panel::shown_file(state), Some(("src/needle_target.rs".to_owned(), Some(2))));
     assert!(control(&dom, input).is_none(), "choosing a match closes the dialog");
     // The line the match names is the one marked.
     let text = rendered_text(&dom);
@@ -140,25 +139,25 @@ async fn files_open_as_tabs_a_markdown_file_renders_and_a_tab_closes_to_its_neig
     let cwd = fixture.workspace.to_string_lossy().into_owned();
     let owner = Some("thread-a".to_owned());
     crate::file_panel::open(state, owner.clone(), cwd.clone(), "notes/guide.md".into(), None);
-    // One file is no row of tabs; its markdown is shown rendered, with a way to its source.
+    // Its markdown is shown rendered, with a way to its source; the panel's tab bar holds the file.
     wait_for_rendered_text(&mut dom, "Guide heading").await;
-    assert!(control(&dom, "Close guide.md").is_none());
+    assert!(control(&dom, "Close guide.md tab").is_some());
     assert!(control(&dom, "Show markdown source").is_some());
     crate::file_panel::open(state, owner, cwd, "src/plain.txt".into(), None);
     wait_for_rendered_text(&mut dom, "plain text line").await;
-    assert_eq!(state.peek().file_tabs.iter().map(|tab| tab.path.as_str()).collect::<Vec<_>>(), ["notes/guide.md", "src/plain.txt"]);
-    assert!(control(&dom, "Close guide.md").is_some() && control(&dom, "Close plain.txt").is_some());
+    assert_eq!(crate::right_panel::file_tabs(state), ["notes/guide.md", "src/plain.txt"]);
+    assert!(control(&dom, "Close guide.md tab").is_some() && control(&dom, "Close plain.txt tab").is_some());
     assert!(control(&dom, "Show markdown source").is_none(), "only markdown has the toggle");
     // Back to the first tab, which draws its source on request.
-    click_when_enabled(&mut dom, "Close plain.txt").await;
+    click_when_enabled(&mut dom, "Close plain.txt tab").await;
     until(&mut dom, "the neighbour", |dom| rendered_text(dom).contains("Guide heading")).await;
-    assert_eq!(state.peek().file_panel.as_ref().map(|target| target.path.clone()).as_deref(), Some("notes/guide.md"));
+    assert_eq!(crate::right_panel::shown_file(state).map(|(path, _)| path).as_deref(), Some("notes/guide.md"));
     click_when_enabled(&mut dom, "Show markdown source").await;
     wait_for_rendered_text(&mut dom, "# Guide heading").await;
     assert!(control(&dom, "Show rendered markdown").is_some());
     // Closing the last tab closes the panel.
     click_when_enabled(&mut dom, "Close file").await;
     until(&mut dom, "the panel gone", |dom| control(dom, "Close file").is_none()).await;
-    assert!(state.peek().file_tabs.is_empty());
+    assert!(crate::right_panel::file_tabs(state).is_empty());
     fixture.finish(dom).await;
 }

@@ -18,18 +18,17 @@ use t3_client::{
 };
 use t3_contracts::AuthEnvironmentScope;
 
-/// Shows the tab for a thread; the other panels give way, since they share the margin.
+/// Shows the tab for a thread, in its panel.
 pub(crate) fn open(state: Store<UiModel>, thread_id: &str) {
-    state.diff().write().open = false;
-    state.pr_panel().set(None);
-    state.file_panel().set(None);
-    state.thread_prs().set(Some(thread_id.to_owned()));
+    let Some(environment) = state.destination().peek().as_ref().map(ToString::to_string) else { return };
+    let owner = crate::right_panel::Owner { environment, thread: Some(thread_id.to_owned()) };
+    crate::right_panel::open_kind_in(state, &owner, t3_client::right_panel::Kind::PullRequests);
 }
 pub(crate) fn close(state: Store<UiModel>) {
-    state.thread_prs().set(None);
+    crate::right_panel::close_kind(state, t3_client::right_panel::Kind::PullRequests);
 }
 pub(crate) fn toggle(state: Store<UiModel>, thread_id: &str) {
-    if state.thread_prs().peek().as_deref() == Some(thread_id) {
+    if crate::right_panel::shown_now(state, t3_client::right_panel::Kind::PullRequests) && state.active_thread().peek().as_deref() == Some(thread_id) {
         close(state);
     } else {
         open(state, thread_id);
@@ -49,18 +48,6 @@ pub(crate) fn open_link_dialog(state: Store<UiModel>, thread_id: &str) {
     state.link_dialog().set(Some(thread_id.to_owned()));
 }
 
-#[component]
-pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
-    let shown = use_memo({
-        let thread_id = thread_id.clone();
-        move || state.thread_prs().read().as_deref() == Some(thread_id.as_str())
-    });
-    if !shown() {
-        return rsx! {};
-    }
-    rsx! { Panel { state, transport, thread_id } }
-}
-
 fn relative(at: &str) -> String {
     chrono::DateTime::parse_from_rfc3339(at).map(|at| t3_client::thread_status::ago_label(at.with_timezone(&chrono::Utc), chrono::Utc::now())).unwrap_or_default()
 }
@@ -76,7 +63,7 @@ fn source_label(source: &str) -> &'static str {
 }
 
 #[component]
-fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
+pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
     let supports = supported(state);
     let value = thread_value(state, &thread_id);
     let operable = connected_allows(state, AuthEnvironmentScope::OrchestrationOperate);
@@ -315,6 +302,6 @@ pub(crate) fn Toggle(state: Store<UiModel>, thread_id: String) -> Element {
     if !supported(state) {
         return rsx! {};
     }
-    let open = state.thread_prs().read().as_deref() == Some(thread_id.as_str());
+    let open = crate::right_panel::is_shown(state, t3_client::right_panel::Kind::PullRequests);
     rsx! { button { class: if open { "icon-button selected" } else { "icon-button" }, "aria-label": "Pull requests", "aria-pressed": "{open}", title: "Pull requests linked to this thread", onclick: move |_| toggle(state, &thread_id), "PRs" } }
 }

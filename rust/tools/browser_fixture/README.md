@@ -121,7 +121,7 @@ usage-limit stop, a pending question.
 
 A file in `<scratch>/toggles/` makes one fake write fail, so each git action shows both outcomes. Create it to fail, delete it to
 succeed; its text, if any, is the message. `push` makes the bare remote's `pre-receive` hook refuse every push; `createPullRequest`
-and `createRepository` make the fake GitHub API answer 422 to creating a pull request or a repository. Without them,
+and `createRepository` make the fake GitHub API answer 422 to creating a pull request or a repository; `stackMerge` makes it answer a stack merge (`PUT repos/*/*/pulls/N/merge-async`) with `failed` (without it the layers up to `N` are merged). Without them,
 `POST repos/*/*/pulls` opens the next pull request (#44 and on) and `POST user/repos` makes a bare repository under `remotes/` and
 answers with its `file://` URL, so "Publish repository" can finish. The fake `gh` answers for `github.com` too, which is where a
 repository with no remote is published. Pull requests #42 and #43 are layers 1 and 2 of one stack (`stack { number size }` on the

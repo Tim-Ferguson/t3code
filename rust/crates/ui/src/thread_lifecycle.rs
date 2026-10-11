@@ -400,7 +400,10 @@ async fn delete_thread(transport: &TransportHandle, state: Store<UiModel>, threa
     if owner.is_none() || owner != runtime::response_owner(transport, state) {
         return Ok(None);
     }
-    dispatch(transport, state, "thread.delete", json!({"threadId":thread.id.as_str()})).await.map(|_| removal)
+    dispatch(transport, state, "thread.delete", json!({"threadId":thread.id.as_str()})).await.map(|_| {
+        crate::right_panel::forget_thread(state, thread.id.as_str());
+        removal
+    })
 }
 
 fn project_of(state: Store<UiModel>, id: &str) -> Option<Project> {

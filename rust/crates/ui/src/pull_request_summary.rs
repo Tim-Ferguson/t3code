@@ -21,14 +21,18 @@ fn when(at: &str) -> String {
     crate::pull_request_review::when(at)
 }
 
+/// What a screen reader is told while the stack lookup is out.
+pub(crate) const CHECKING_STACK: &str = "Checking whether this pull request is in a stack";
+
 // ---- the merge row ---------------------------------------------------------------------------------------------------------
 
-/// What the host and the reader allow doing with the pull request, above the tabs so it stays in view on each.
+/// What the host and the reader allow doing with the pull request, above the tabs so it stays in view on each. While the host's
+/// stack lookup has not said whether the pull request may be merged on its own (`settled`), a line for a screen reader says so.
 #[component]
-pub(crate) fn Actions(value: Rc<Value>, show_writes: bool, why: Option<String>, writable: bool, busy: Option<String>, preferred: String, on_method: Callback<String>, on_action: Callback<(String, Option<String>)>) -> Element {
+pub(crate) fn Actions(value: Rc<Value>, show_writes: bool, why: Option<String>, writable: bool, busy: Option<String>, preferred: String, on_method: Callback<String>, on_action: Callback<(String, Option<String>)>, #[props(default = true)] single_merge: bool, #[props(default = true)] settled: bool) -> Element {
     let allowed = pr::allowed_merge_methods(&value);
     let method = pr::resolve_merge_method(&allowed, &preferred);
-    let control = pr::primary_for(&value);
+    let control = pr::primary_for_gated(&value, single_merge);
     let freshness = pr::base_freshness(&value);
     let pr_state = value["state"].as_str().unwrap_or("open").to_owned();
     let auto = value["autoMergeEnabled"] == true;
@@ -63,7 +67,7 @@ pub(crate) fn Actions(value: Rc<Value>, show_writes: bool, why: Option<String>, 
                 if control == Some("ready") {
                     button { class: "primary", "aria-label": "Ready for review", title: "{title}", disabled: !can("ready") || !idle, onclick: move |_| on_action.call(("ready".into(), None)), "Ready for review" }
                 }
-                if auto && pr::can_perform(&value, "disable-auto-merge") {
+                if auto && single_merge && pr::can_perform(&value, "disable-auto-merge") {
                     button { "aria-label": "Disable auto-merge", title: "{title}", disabled: !can("disable-auto-merge") || !idle, onclick: move |_| on_action.call(("disable-auto-merge".into(), None)), "Disable auto-merge" }
                 }
                 if value["isDraft"] != true && pr::can_perform(&value, "draft") {
@@ -89,6 +93,7 @@ pub(crate) fn Actions(value: Rc<Value>, show_writes: bool, why: Option<String>, 
                 button { "aria-label": "Revert", title: "{title}", disabled: !can("revert") || !idle, onclick: move |_| on_action.call(("revert".into(), None)), "Revert" }
             }
             if let Some(action) = busy.clone() { span { class: "branch-busy", role: "status", "Working on {action}\u{2026}" } }
+            if !settled { span { class: "sr-only", role: "status", "aria-label": "{CHECKING_STACK}", "{CHECKING_STACK}" } }
         }
     }
 }

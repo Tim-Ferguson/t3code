@@ -32,11 +32,10 @@ const FILES_PER_PAGE: usize = 200;
 /// Diff lines per file that are tokenized for colour; the rest of a huge file stays plain.
 const HIGHLIGHT_BUDGET: usize = 3000;
 
-/// Whether the panel is open, and the latest request to point it somewhere. A request carries
-/// the thread it was made for, so it can never steer another thread's panel.
+/// The latest request to point the panel somewhere. A request carries the thread it was made for, so it can never steer
+/// another thread's panel. Whether the panel is open is the tabbed panel's (`right_panel`).
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DiffModel {
-    pub open: bool,
     pub request: Option<DiffRequest>,
     /// What each thread's panel last showed, so closing and reopening it, or coming back to the
     /// thread, finds the same scope and base ref (the original persists the same pair).
@@ -52,33 +51,27 @@ pub struct DiffRequest {
 
 /// Opens the panel on a turn, optionally at one of its files.
 pub(crate) fn open(state: Store<UiModel>, environment_key: &str, thread_id: &str, scope: Scope, file: Option<String>) {
-    state.pr_panel().set(None);
-    state.file_panel().set(None);
-    state.thread_prs().set(None);
-    let mut diff = state.diff();
-    let mut model = diff.write();
-    let id = model.request.as_ref().map_or(0, |request| request.id) + 1;
-    model.open = true;
-    model.request = Some(DiffRequest { id, owner: (environment_key.to_owned(), thread_id.to_owned()), scope, file });
+    {
+        let mut diff = state.diff();
+        let mut model = diff.write();
+        let id = model.request.as_ref().map_or(0, |request| request.id) + 1;
+        model.request = Some(DiffRequest { id, owner: (environment_key.to_owned(), thread_id.to_owned()), scope, file });
+    }
+    let owner = crate::right_panel::Owner { environment: environment_key.to_owned(), thread: Some(thread_id.to_owned()) };
+    crate::right_panel::open_kind_in(state, &owner, t3_client::right_panel::Kind::Diff);
 }
 
+/// Closes the tab, as its own close button and Escape do.
 pub(crate) fn close(state: Store<UiModel>) {
-    state.diff().write().open = false;
+    crate::right_panel::close_kind(state, t3_client::right_panel::Kind::Diff);
 }
 
 /// The header button's action, and the `diff.toggle` command's.
 pub(crate) fn toggle(state: Store<UiModel>) {
-    if state.diff().peek().open {
-        close(state);
-    } else {
-        state.pr_panel().set(None);
-        state.file_panel().set(None);
-        state.thread_prs().set(None);
-        let mut diff = state.diff();
-        let mut model = diff.write();
-        model.open = true;
-        model.request = None;
+    if !crate::right_panel::shown_now(state, t3_client::right_panel::Kind::Diff) {
+        state.diff().write().request = None;
     }
+    crate::right_panel::toggle_kind(state, t3_client::right_panel::Kind::Diff);
 }
 
 /// The connection's grant to read orchestration data, which both diff RPCs need.
@@ -102,7 +95,7 @@ pub(crate) fn use_can_files(state: Store<UiModel>) -> Memo<bool> {
 /// The workspace header's diff button.
 #[component]
 pub(crate) fn Toggle(state: Store<UiModel>, environment_key: String, thread_id: String) -> Element {
-    let open_now = use_memo(move || state.diff().read().open);
+    let open_now = use_memo(move || crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Diff));
     let allowed = use_can_read(state);
     rsx! {
         button { class: if open_now() { "icon-button diff-toggle selected" } else { "icon-button diff-toggle" }, "aria-label": "Diff", "aria-pressed": "{open_now()}",
@@ -111,17 +104,6 @@ pub(crate) fn Toggle(state: Store<UiModel>, environment_key: String, thread_id: 
             "Diff"
         }
     }
-}
-
-/// Mounts the panel for the active thread while it is open. Keyed by the caller on thread and
-/// environment, so a different thread starts a fresh panel and drops the old one's request.
-#[component]
-pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle, environment_key: String, thread_id: String, cwd: String) -> Element {
-    let open_now = use_memo(move || state.diff().read().open);
-    if !open_now() {
-        return rsx! {};
-    }
-    rsx! { Panel { state, transport, environment_key, thread_id, cwd } }
 }
 
 /// Which files the reader has opened or closed, for one selection. Another turn starts again
@@ -206,7 +188,7 @@ pub(crate) struct Gate {
 }
 
 #[component]
-fn Panel(state: Store<UiModel>, transport: TransportHandle, environment_key: String, thread_id: String, cwd: String) -> Element {
+pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, environment_key: String, thread_id: String, cwd: String) -> Element {
     #[cfg(test)]
     if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
         probe.diff.set(probe.diff.get() + 1);

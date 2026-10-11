@@ -309,6 +309,11 @@ pub fn primary_control(input: &PrimaryInput<'_>) -> Option<&'static str> {
 
 /// The control for a loaded detail, from the detail's own fields.
 pub fn primary_for(detail: &Value) -> Option<&'static str> {
+    primary_for_gated(detail, true)
+}
+/// As `primary_for`, with merging a single pull request switched off (`canMergeSinglePullRequest`): where a host acts on
+/// stacks, a pull request is merged on its own only once the stack lookup has found it in none.
+pub fn primary_for_gated(detail: &Value, single_merge: bool) -> Option<&'static str> {
     let checks = detail["checks"].as_array().map(Vec::as_slice).unwrap_or(&[]);
     primary_control(&PrimaryInput {
         state: detail["state"].as_str().unwrap_or("open"),
@@ -317,9 +322,9 @@ pub fn primary_for(detail: &Value) -> Option<&'static str> {
         checks_state: if checks.is_empty() { None } else { Some(classify_checks(checks)) },
         auto_merge_enabled: detail["autoMergeEnabled"].as_bool(),
         has_merge_method: !allowed_merge_methods(detail).is_empty(),
-        can_merge: can_perform(detail, "merge"),
+        can_merge: single_merge && can_perform(detail, "merge"),
         can_mark_ready: can_perform(detail, "ready"),
-        can_enable_auto_merge: can_perform(detail, "enable-auto-merge"),
+        can_enable_auto_merge: single_merge && can_perform(detail, "enable-auto-merge"),
     })
 }
 
@@ -457,6 +462,11 @@ fn tool_noise(lower: &str) -> bool {
         }
     }
     lower == "unknown error" || lower == "unknown error."
+}
+
+/// The sentence of a failed operation, without the words that name it: `PullRequestOperationError.detail`.
+pub fn operation_detail(raw: &str) -> &str {
+    strip_operation_prefix(raw)
 }
 
 /// `^Pull request operation \w+ failed:\s*`, case-insensitively.

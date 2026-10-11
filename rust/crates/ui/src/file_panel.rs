@@ -29,75 +29,16 @@ pub struct Target {
     pub request: u64,
 }
 
-/// Opens the panel on a file, as a tab beside the files already open in the same place; the diff and pull request
-/// panels give way, since they share the margin. Files of another thread or folder start a new row of tabs.
+/// Opens a file as a tab of the panel beside the conversation, next to the files already open in the same place. Files of
+/// another folder start a new row of tabs.
 pub(crate) fn open(state: Store<UiModel>, owner: Option<String>, cwd: String, path: String, line: Option<u64>) {
-    state.diff().write().open = false;
-    state.pr_panel().set(None);
-    state.thread_prs().set(None);
     crate::file_tree::follow(state, &cwd);
-    let request = state.file_panel().peek().as_ref().map_or(0, |target| target.request) + 1;
-    {
-        let mut tabs = state.file_tabs();
-        let mut tabs = tabs.write();
-        if tabs.first().is_some_and(|first| first.owner != owner || first.cwd != cwd) {
-            tabs.clear();
-        }
-        if !tabs.iter().any(|tab| tab.path == path) {
-            tabs.push(Target { owner: owner.clone(), cwd: cwd.clone(), path: path.clone(), line: None, request: 0 });
-        }
-    }
-    state.file_panel().set(Some(Target { owner, cwd, path, line, request }));
+    crate::right_panel::open_file(state, owner.as_deref(), &cwd, &path, line);
 }
-/// Closes the panel and every tab.
+/// Closes the shown file's tab.
 pub(crate) fn close(state: Store<UiModel>) {
-    state.file_tabs().set(Vec::new());
-    state.file_panel().set(None);
-}
-/// Shows another open tab.
-fn select(state: Store<UiModel>, path: &str) {
-    let Some(current) = state.file_panel().peek().clone() else { return };
-    if current.path != path {
-        state.file_panel().set(Some(Target { path: path.to_owned(), line: None, request: current.request + 1, ..current }));
-    }
-}
-/// The menu of a tab: copy its path, and close it, the others, the ones to its right or all.
-async fn tab_menu(state: Store<UiModel>, path: String, at: (f64, f64)) {
-    let paths: Vec<String> = state.file_tabs().peek().iter().map(|tab| tab.path.clone()).collect();
-    let Some(index) = paths.iter().position(|open| *open == path) else { return };
-    let Some(choice) = crate::context_menu::show("Tab actions", t3_client::context_menu::tab(true, index, paths.len()), Some(at)).await else { return };
-    if choice == "copy-path" {
-        crate::sidebar_rows::copy_text(&path);
-        return;
-    }
-    // Tabs may have changed while the menu was open: the choice is applied to the tabs there are now.
-    let paths: Vec<String> = state.file_tabs().peek().iter().map(|tab| tab.path.clone()).collect();
-    let Some(index) = paths.iter().position(|open| *open == path) else { return };
-    let Some(kept) = t3_client::context_menu::after_close(&choice, &paths, index) else { return };
-    if kept.is_empty() {
-        close(state);
-        return;
-    }
-    let shown = state.file_panel().peek().as_ref().map(|target| target.path.clone());
-    state.file_tabs().write().retain(|tab| kept.contains(&tab.path));
-    if shown.as_ref().is_none_or(|shown| !kept.contains(shown)) {
-        // The tab shown went with the choice: the one the menu was opened on takes its place, else the nearest left.
-        select(state, if kept.contains(&path) { &path } else { kept.last().expect("not empty") });
-    }
-}
-/// Closes one tab; the one beside it is shown, and the panel closes with the last.
-fn close_tab(state: Store<UiModel>, path: &str) {
-    let tabs = state.file_tabs().peek().clone();
-    let Some(index) = tabs.iter().position(|tab| tab.path == path) else { return };
-    state.file_tabs().write().remove(index);
-    let remaining = state.file_tabs().peek().clone();
-    let current = state.file_panel().peek().clone();
-    if current.as_ref().is_none_or(|current| current.path != path) {
-        return;
-    }
-    match remaining.get(index.min(remaining.len().saturating_sub(1))) {
-        Some(next) => select(state, &next.path.clone()),
-        None => state.file_panel().set(None),
+    if matches!(crate::right_panel::shown_peek(state), Some(t3_client::right_panel::Surface::File { .. })) {
+        crate::right_panel::close_shown(state);
     }
 }
 
@@ -105,7 +46,7 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-fn key_of(cwd: &str, path: &str) -> String {
+pub(crate) fn key_of(cwd: &str, path: &str) -> String {
     format!("{cwd}\u{0}{path}")
 }
 
@@ -181,13 +122,24 @@ impl Saving {
     }
 }
 
+/// The project's files on their own, as the Files tab shows them.
 #[component]
-pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle, thread_id: Option<String>) -> Element {
-    let target = use_memo(move || state.file_panel().read().clone().filter(|target| target.owner == thread_id));
-    // A list of one: a new key then makes a new panel, which reads its own file (a lone keyed child would be reused).
+pub(crate) fn Explorer(state: Store<UiModel>, transport: TransportHandle, cwd: String, owner: Option<String>) -> Element {
+    use_hook({
+        let cwd = cwd.clone();
+        move || crate::file_tree::follow(state, &cwd)
+    });
     rsx! {
-        for target in target().into_iter() {
-            Panel { key: "{target.cwd}:{target.path}:{target.request}", state, transport: transport.clone(), target }
+        section { class: "diff-panel files-panel", role: "region", "aria-label": "Files",
+            header { class: "diff-header",
+                div { class: "diff-header-main",
+                    strong { "Files" }
+                    button { class: "icon-button diff-close", "aria-label": "Close files", title: "Close the file list", onclick: move |_| crate::right_panel::close_kind(state, t3_client::right_panel::Kind::Files), "\u{00d7}" }
+                }
+            }
+            aside { class: "file-explorer standalone", "aria-label": "Files",
+                crate::file_tree::Tree { key: "{cwd}", state, transport, cwd: cwd.clone(), owner, selected: String::new() }
+            }
         }
     }
 }
@@ -214,7 +166,7 @@ enum Read {
 }
 
 #[component]
-fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> Element {
+pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> Element {
     let mut read = use_signal(Read::default);
     let saving = use_hook({
         let (transport, cwd, path) = (transport.clone(), target.cwd.clone(), target.path.clone());
@@ -287,7 +239,6 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     let (from, to) = ((*start.read()).min(total), (*end.read()).min(total));
     let window = loaded.as_ref().map(|loaded| loaded.lines[from..to].join("\n")).unwrap_or_default();
     let coloured = syntax_highlighting::use_lines(&window, &language);
-    let tabs = state.file_tabs().read().clone();
     let is_image = t3_client::project_files::is_image_path(&target.path);
     let is_markdown = t3_client::project_files::is_markdown_path(&target.path);
     let media = crate::file_media::Kind::of(&target.path);
@@ -322,27 +273,6 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     rsx! {
         section { class: "diff-panel file-panel", role: "region", "aria-label": "File {name}",
             header { class: "diff-header",
-                if tabs.len() > 1 {
-                    div { class: "file-tabs", role: "tablist", "aria-label": "Open files",
-                        for tab in tabs.iter() {
-                            {
-                                let tab_name = tab.path.rsplit('/').next().unwrap_or(&tab.path).to_owned();
-                                let selected = tab.path == target.path;
-                                let dirty = state.file_pending().read().contains(&key_of(&tab.cwd, &tab.path));
-                                let (select_path, close_path) = (tab.path.clone(), tab.path.clone());
-                                rsx! {
-                                    span { key: "{tab.path}", class: if selected { "file-tab selected" } else { "file-tab" },
-                                        oncontextmenu: { let path = tab.path.clone(); move |event| { event.prevent_default(); event.stop_propagation(); let at = event.client_coordinates(); let path = path.clone(); spawn(async move { tab_menu(state, path, (at.x, at.y)).await }); } },
-                                        // The middle button closes a tab, as in the original.
-                                        onauxclick: { let path = tab.path.clone(); move |event| { if event.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { event.prevent_default(); event.stop_propagation(); close_tab(state, &path); } } },
-                                        button { class: "file-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", "aria-label": "{tab_name}", title: "{tab.path}", onclick: move |_| select(state, &select_path), "{tab_name}" if dirty { span { class: "file-tab-dirty", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes", " \u{2022}" } } }
-                                        button { class: "file-tab-close", r#type: "button", "aria-label": "Close {tab_name}", onclick: move |_| close_tab(state, &close_path), "\u{00d7}" }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
                 div { class: "diff-header-main",
                     span { class: "file-panel-path", title: "{target.path}", span { class: "muted", "{directory}" } strong { "{name}" } }
                     if editable {
@@ -378,7 +308,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                             rsx! { button { r#type: "button", "aria-label": "Open {name} in editor", title: "Open this file in an editor on the server's machine", disabled: editor_busy(), onclick: move |_| crate::open_in::open(&transport, state, editor_busy, last, full_path.clone(), editor.clone(), false), "Open in editor" } }
                         }
                     }
-                    button { class: "icon-button diff-close", "aria-label": "Close file", title: "Close file", onclick: move |_| match tabs.len() { 0 | 1 => close(state), _ => close_tab(state, &target.path) }, "\u{00d7}" }
+                    button { class: "icon-button diff-close", "aria-label": "Close file", title: "Close file", onclick: move |_| close(state), "\u{00d7}" }
                 }
             }
             div { class: "file-panel-body",

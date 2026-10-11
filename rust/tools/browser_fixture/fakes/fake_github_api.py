@@ -384,6 +384,17 @@ def rest_write(method, rest, body):
         subprocess.run(["git", "init", "-q", "--bare", "-b", "main", bare], check=True, env={"PATH": "/usr/bin:/bin", "HOME": REMOTES, "GIT_CONFIG_GLOBAL": "/dev/null"})
         owner = rest.split("/")[1] if rest.startswith("orgs/") else ME
         return 201, {"full_name": "%s/%s" % (owner, name), "html_url": "file://" + bare, "ssh_url": "file://" + bare, "default_branch": "main"}
+    m = re.match(r"^repos/[^/]+/[^/]+/pulls/(\d+)/merge-async$", rest)
+    if m and method == "PUT":
+        # The stack merge: one asynchronous request; the layers up to the one named are merged, or the host refuses (toggle `stackMerge`).
+        reason = refusal("stackMerge")
+        if reason:
+            return 200, {"status": "failed", "details": {}}
+        for member in STACK["members"]:
+            if member <= int(m.group(1)):
+                PULLS[member]["state"] = "MERGED"
+                PULLS[member]["merged"] = NOW()
+        return 200, {"status": "merged", "details": {"uuid": "stack-merge-%d" % next(SEQ)}}
     m = re.match(r"^repos/[^/]+/[^/]+/pulls/(\d+)/reviews$", rest)
     if m and method == "POST":
         event = body.get("event")
