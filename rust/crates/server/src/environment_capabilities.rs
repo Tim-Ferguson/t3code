@@ -6,6 +6,29 @@ use serde_json::{Value, json};
 use t3_contracts::PROVIDER_SEND_TURN_MAX_FILE_BYTES;
 
 pub fn advertised() -> Value {
+    advertised_with(None)
+}
+
+/// With the update entries (`serverSelfUpdate`, `serverSelfUpdateProgress`, `desktopAppUpdate`) a server that can be updated
+/// advertises (`self_update_rpc::capabilities`); an installation the npm package manager owns (`serverInstallation`) is not a
+/// thing a native binary has.
+pub fn advertised_with(update: Option<crate::self_update_rpc::UpdateCapabilities>) -> Value {
+    let mut capabilities = base();
+    if let Some(update) = update {
+        if let Some(self_update) = update.self_update {
+            capabilities["serverSelfUpdate"] = serde_json::to_value(self_update).unwrap();
+        }
+        if update.progress {
+            capabilities["serverSelfUpdateProgress"] = json!(true);
+        }
+        if update.desktop_app_update {
+            capabilities["desktopAppUpdate"] = json!(true);
+        }
+    }
+    capabilities
+}
+
+fn base() -> Value {
     json!({
         // Shell frames carry each project's repository identity once its root has resolved (`shell_enrichment`).
         "repositoryIdentity": true,
@@ -43,6 +66,10 @@ pub fn advertised() -> Value {
         // The usage page applies the custom rates and the model mappings the settings hold.
         "usagePriceOverrides": true,
         "usageModelAliases": true,
+        // `<state dir>/themes` is watched and streamed, and `t3 theme` publishes into it (`environment_theme`).
+        "environmentThemes": true,
+        // The descriptor carries the machine kind (`environment_host`); the icon itself is a client setting.
+        "environmentIcon": true,
     })
 }
 
@@ -50,9 +77,28 @@ pub fn advertised() -> Value {
 mod tests {
     use super::*;
 
+    /// The update entries follow who manages the server: a desktop-managed one advertises the update and, with the app's control
+    /// channel, its progress and the desktop update; a web server advertises none.
+    #[test]
+    fn the_update_entries_follow_who_manages_the_server() {
+        let describe = |desktop: bool, control: bool| {
+            let capabilities = advertised_with(Some(crate::self_update_rpc::capabilities(desktop, control)));
+            let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":capabilities});
+            serde_json::from_value::<t3_contracts::ExecutionEnvironmentDescriptor>(descriptor).expect("a valid descriptor");
+            capabilities
+        };
+        let web = describe(false, false);
+        assert!(["serverSelfUpdate", "serverSelfUpdateProgress", "desktopAppUpdate", "serverInstallation"].iter().all(|key| web.get(key).is_none()));
+        let bare = describe(true, false);
+        assert_eq!(bare["serverSelfUpdate"], "desktop-managed");
+        assert!(bare.get("serverSelfUpdateProgress").is_none() && bare.get("desktopAppUpdate").is_none());
+        let app = describe(true, true);
+        assert_eq!((&app["serverSelfUpdate"], &app["serverSelfUpdateProgress"], &app["desktopAppUpdate"]), (&json!("desktop-managed"), &json!(true), &json!(true)));
+    }
+
     /// Held back because their feature is not (fully) ported: no cleanup of stored worktrees or logs, the
-    /// quota streamed from usage-limit sources, themes, native stack actions on a pull request,
-    /// server-resolved command context, an environment icon, the browser, and the self-update entries.
+    /// quota streamed from usage-limit sources, native stack actions on a pull request,
+    /// server-resolved command context, the browser, and the self-update entries.
     #[test]
     fn the_advertised_capabilities_are_valid_and_leave_out_what_is_not_ported() {
         let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":advertised()});
@@ -61,7 +107,7 @@ mod tests {
         for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases", "repositoryIdentity"] {
             assert_eq!(advertised()[ported], true, "{ported}");
         }
-        for held_back in ["storageCleanup", "projectWorktreeCleanup", "usageLimitSources", "environmentThemes", "pullRequestStackActions", "serverResolvedCommandContext", "environmentIcon", "serverBrowser"] {
+        for held_back in ["storageCleanup", "projectWorktreeCleanup", "usageLimitSources", "pullRequestStackActions", "serverResolvedCommandContext", "serverBrowser"] {
             assert!(advertised().get(held_back).is_none(), "{held_back}");
         }
     }

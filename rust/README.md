@@ -164,11 +164,30 @@ do; `project add|remove|rename` runs against the running server when one answers
 `--no-browser` is accepted (nothing opens a browser). The hidden `__ssh-helper pick-port|wait-ready|runtime-port` and
 `__service-preflight` are what the remote SSH launch and a staged update run. The location flags are `--base-dir` (its `userdata`),
 `--state-dir` and `T3CODE_HOME`, else `.t3-rust` where `serve` keeps its state. Without `--assets` the server serves the web app bundled beside
-its executable (`client/index.html`) so the launch script's readiness probe of `/` gets a 2xx. Not done: `theme set|clear|show` (needs the
-backend environment theme store), `service install|restart|uninstall|status`, `update` and `uninstall` (they change the user's system; they
-would need the boot-service files `t3_remote::boot_service*` write, the pinned runtime and the self-update download wired to a real release
-feed), `app` (the desktop activation socket), `browser setup`, `trace summary`, `triage`, `connect` is as before, `serve` positional `cwd`,
-`--dev-url`, `--auto-bootstrap-project-from-cwd` and `--log-websocket-events`.
+its executable (`client/index.html`) so the launch script's readiness probe of `/` gets a 2xx. `theme set|clear|show` (`cli_theme.rs`)
+writes `defaultTheme` and `defaultThemeSetAt` into `settings.json` and publishes a theme file into `<state dir>/themes`, exactly as the
+original does (compared with the original's own runs in `tests/environment_theme_flow.rs`); a failure prints its message alone, where the
+original prints a log record with a timestamp and a source position, and a flag error prints one line where the original prints the
+command's help page. `serve` takes the positional `cwd` (made when missing), `--dev-url` (or `VITE_DEV_SERVER_URL`: loopback requests for
+the page are redirected to it, and the proxied API paths answer 404), `--auto-bootstrap-project-from-cwd` (a project for the directory
+and a first thread, named in the `welcome` event) and `--log-websocket-events` (the router logs each request). Not done: `service
+install|restart|uninstall|status`, `update` and `uninstall` (they change the user's system; they would need the boot-service files
+`t3_remote::boot_service*` write, the pinned runtime and the self-update download wired to a real release feed), `app` (the desktop
+activation socket), `browser setup`, `trace summary`, `triage`, the per-command help pages of the original's CLI, and `connect` is as
+before.
+
+The environment themes (`environment_theme.rs`) are the palettes a machine publishes as `<state dir>/themes/<id>.json`: the directory is
+watched, read through one guarded handle per file (no symlink, no special file, 32 KiB each, 32 files, 192 KiB in all), and streamed as
+`environmentThemesUpdated` to the subscribers of `subscribeServerConfig` that asked for them (`environmentThemes`). `server.updateServer`,
+`server.updateServerWithProgress` and `server.commitDesktopUpdate` answer as the original does: a server the desktop app started with its
+control channel drives the app's own update over that channel (`desktop_app_update.rs`), and every other server answers that remote
+updates need the background service. This server has no channel to a service launcher, so it never updates itself through one; the
+runner and release feed `self_update_rpc.rs` hands the update logic refuse everything, so nothing is ever downloaded, installed or
+relaunched. The web app route (`static_route.rs`) serves files with the original's validators (a weak `ETag`, `Last-Modified`, `304`),
+cache policy (assets named in `.vite/manifest.json` are immutable) and status answers; the response compression is not ported. The
+descriptor's label and machine kind come from the machine itself (`environment_host.rs`). `rust/tools/check_rpc_surface.mjs` lists what the
+original exposes (RPC methods, HTTP routes, MCP tools, settings keys, environment capabilities) that this server does not serve, from
+source on both sides; its allowlist (`check_rpc_surface_allowlist.json`) carries a reason for each gap that is known.
 
 A start that finds the original's database and no store of this server's own imports it first (see above). When that import
 fails the server does not open a store: it serves the environment descriptor, the web assets (`--assets`) and the failure at
@@ -314,7 +333,7 @@ interface inspection, with cleanup on close. Integrated browser checks cover the
 flows; the source color picker, movable/minimized editor and complete visual fidelity
 remain unfinished, including responsive color-field sizing. Unpaired UTF-16 string
 boundaries and JSONC nesting beyond the current safe parser bound remain gaps.
-Live environment theme publication depends on the unfinished backend theme store.
+The server's environment theme store publishes live (see above).
 Native/mobile interaction remains unverified.
 
 The intended UI targets are Dioxus WebAssembly web plus native desktop/mobile
@@ -374,6 +393,17 @@ the server again. The Connections page's T3 Connect section, relay client row an
 the share panel (QR code and the choice among advertised endpoints) offers the one endpoint this app has, the server's own loopback
 address, which gets no code because a device that scanned it would dial itself; LAN and Tailscale endpoints (the original's
 `getAdvertisedEndpoints`) need a server that listens beyond loopback, which this app does not start.
+
+Context menus (`contextMenu.show` in the original) are one model, `t3_client::context_menu` (the original's `ContextMenuItem`, and what its
+native menu keeps of an item: headers dropped, empty submenus dropped, dividers placed as `ElectronMenu.ts` places them), with two
+renderers behind `show(items, position)`: the page draws the menu itself (`context_menu.rs`; submenus, option rows, headers, keyboard
+and outside-click dismissal, one menu at a time), and the desktop app on macOS shows the system's own menu at the pointer
+(`desktop_shell::native_menu`, scaled by the page zoom). Elsewhere on the desktop, where no native menu is built yet (Windows, Linux), the page's
+menu is shown. Callers: the thread rows (one menu for the row, another for several chosen rows), a link in a message, a file named in a message, a
+changed file in the diff panel and the timeline, a pull request's number, a branch name, a tab of the file panel, an archived thread, and a
+picture or video in a message. The original's other callers have no counterpart here yet: the terminal drawer (the terminal surface has no
+paste entry in its ABI), the file browser tree, the right panel's other tabs, the run-context control, and draft rows. Not shown on the native
+menu: the destructive item's trash icon, and the icons the page draws.
 
 The server is started with the environment of your login shell (`$SHELL -ilc`, then `/bin/zsh` or `/bin/bash`; `launchctl getenv
 PATH` on macOS as a last resort), so provider tools on your `PATH` are found when the app is opened from the Finder. The shell is

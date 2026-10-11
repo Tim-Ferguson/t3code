@@ -93,6 +93,23 @@ fn scope_error(scope: AuthEnvironmentScope) -> ApiError {
     )
 }
 
+static LOG_REQUESTS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// `--log-websocket-events`: the router logs each request it answers (the original enables its HTTP router's request logger).
+pub fn set_request_logging(enabled: bool) {
+    LOG_REQUESTS.store(enabled, std::sync::atomic::Ordering::Relaxed);
+}
+
+async fn log_requests(request: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    if !LOG_REQUESTS.load(std::sync::atomic::Ordering::Relaxed) {
+        return next.run(request).await;
+    }
+    let (method, path) = (request.method().clone(), request.uri().path().to_owned());
+    let response = next.run(request).await;
+    tracing::info!(%method, path, status = response.status().as_u16(), "http request");
+    response
+}
+
 pub fn router(state: ApiState) -> Router {
     // Setup scripts of launched worktrees run in the server's terminals.
     if let (Some(execution), Some(terminals)) = (&state.execution, &state.terminals) {
@@ -138,13 +155,15 @@ pub fn router(state: ApiState) -> Router {
         .merge(crate::mcp_oauth_http::routes())
         .fallback(get(static_asset))
         .layer(axum::middleware::from_fn_with_state(state.clone(), dpop_layer))
+        .layer(axum::middleware::from_fn(log_requests))
         .layer(axum::middleware::map_response(no_cache))
         .layer(axum::middleware::from_fn_with_state(cors_origins, cors))
         .with_state(state)
 }
 
-async fn static_asset(State(state): State<ApiState>, uri: axum::http::Uri) -> Response {
-    serve_asset(state.assets, uri).await
+async fn static_asset(State(state): State<ApiState>, method: axum::http::Method, uri: axum::http::Uri, headers: HeaderMap) -> Response {
+    let config = crate::static_route::current(&state.store);
+    crate::static_route::serve(state.assets, config, &method, &uri, &headers).await
 }
 
 /// A file of the built web app, or its index for a path with no extension (a client-side route). Nothing outside the root is served.
@@ -975,9 +994,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient"|"server.updateServerWithProgress") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="server.updateServerWithProgress" {self_update_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -1272,6 +1291,9 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                 Ok(serde_json::to_value(typed).unwrap())
             }
         };
+    }
+    if crate::self_update_rpc::METHODS.contains(&request.tag.as_str()) {
+        return crate::self_update_rpc::command(&state.store, &request.tag, request.payload).await;
     }
     if crate::checkpoint_diff::METHODS.contains(&request.tag.as_str()) {
         return crate::checkpoint_diff::command(&state.store, &request.tag, request.payload).await;
@@ -1666,6 +1688,30 @@ async fn install_relay_client_stream(
                     }
                 }
                 Err(error) => return Err(crate::connect_rpc::install_failure(&error)),
+            }
+        }
+        Ok::<(), Value>(())
+    }.await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
+}
+
+async fn self_update_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result = async {
+        let mut items = crate::self_update_rpc::update_with_progress(&state.store, request.payload.clone());
+        while let Some(item) = items.recv().await {
+            state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
+            if !chunk(&output, &mut ack, &request.id, vec![item?]).await {
+                return Ok(());
             }
         }
         Ok::<(), Value>(())
@@ -2290,8 +2336,14 @@ async fn config_stream(
 ) {
     let result=async {
         let flags:t3_contracts::SubscribeServerConfigInput=serde_json::from_value(request.payload.clone()).map_err(|_|json!({"_tag":"SchemaDecodeError","message":"Invalid config subscription payload."}))?;
-        // Optional sources are merged once their native services are available.
-        let _=(flags.environment_themes,flags.usage_limit_sources,flags.usage_limits_command);
+        // Optional sources are merged once their native services are available (the usage-limit sources are not yet).
+        let _=(flags.usage_limit_sources,flags.usage_limits_command);
+        // The published themes: the stream's first event after the snapshot is the set now, then each change. A client that did not
+        // ask for them (its decoder would not know the event) is sent none.
+        let mut themes=match (flags.environment_themes.flatten(),crate::environment_theme::current(&state.store)) {
+            (Some(true),Some(service))=>Some(service.subscribe().await),
+            _=>None,
+        };
         let service=state.settings.as_ref().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"Settings service is not configured."}))?;
         let mut settings=service.subscribe().await.map_err(|error|error.wire())?;
         let (providers,provider_changes)=match &state.providers {
@@ -2333,6 +2385,10 @@ async fn config_stream(
                     _=service.closed()=>return Ok(()),
                     next=settings.recv()=>break match next {Some(settings)=>{current["settings"]=crate::provider_registry::redact_settings(&settings);json!({"version":1,"type":"settingsUpdated","payload":{"settings":crate::provider_registry::redact_settings(&settings)}})},None=>return Ok(())},
                     next=keybindings.recv()=>break match next {Some(state)=>{crate::keybindings_rpc::apply(&mut current,&state);crate::keybindings_rpc::updated_event(&state)},None=>return Ok(())},
+                    set=async {match themes.as_mut() {Some(themes)=>themes.next().await,None=>std::future::pending().await}}=>match set {
+                        Some(set)=>break crate::environment_theme::event(&set),
+                        None=>themes=None,
+                    },
                     next=provider_events.recv(),if provider_active=>match next {
                         Some(providers)=>{current["providers"]=json!(providers.as_ref());break json!({"version":1,"type":"providerStatuses","payload":{"providers":providers.as_ref()}})},
                         None=>provider_active=false,
@@ -3653,15 +3709,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.headers()[header::CONTENT_TYPE], "application/wasm");
-        for path in ["/api/unknown", "/missing.js", "/../secret", "/escape.txt"] {
-            assert_eq!(
-                app.clone()
-                    .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
-                    .await
-                    .unwrap()
-                    .status(),
-                StatusCode::NOT_FOUND
-            );
+        // As the original answers (`static_route.rs`): a path with no file is the app (also under `/api/`, where no route matches)
+        // and a path out of the bundle is refused. Unlike the original, a symlink in the bundle that points outside it is not
+        // followed: it is treated as no file, so the app is served in its place.
+        for (path, expected) in [("/api/unknown", StatusCode::OK), ("/missing.js", StatusCode::OK), ("/../secret", StatusCode::BAD_REQUEST), ("/escape.txt", StatusCode::OK)] {
+            let response = app.clone().oneshot(Request::builder().uri(path).body(Body::empty()).unwrap()).await.unwrap();
+            assert_eq!(response.status(), expected, "{path}");
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            assert!(!body.windows(7).any(|window| window == b"private"), "{path} served a file outside the bundle");
         }
     }
 

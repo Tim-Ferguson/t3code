@@ -32,23 +32,23 @@ const DEFAULT_SESSION_TTL_DAYS: i64 = 30;
 // ---------------------------------------------------------------------------------------------
 
 /// The flags a command takes: those with a value, those without, and those that may repeat.
-struct Spec {
-    values: &'static [&'static str],
-    booleans: &'static [&'static str],
-    repeated: &'static [&'static str],
+pub(crate) struct Spec {
+    pub(crate) values: &'static [&'static str],
+    pub(crate) booleans: &'static [&'static str],
+    pub(crate) repeated: &'static [&'static str],
     /// How many positional arguments it takes (`min`, `max`).
-    positionals: (usize, usize),
+    pub(crate) positionals: (usize, usize),
 }
 
 #[derive(Default, Debug)]
-struct Parsed {
+pub(crate) struct Parsed {
     values: HashMap<String, Vec<String>>,
     booleans: HashMap<String, bool>,
-    positionals: Vec<String>,
+    pub(crate) positionals: Vec<String>,
 }
 
 impl Parsed {
-    fn value(&self, name: &str) -> Option<&str> {
+    pub(crate) fn value(&self, name: &str) -> Option<&str> {
         self.values.get(name).and_then(|values| values.last()).map(String::as_str)
     }
     fn all(&self, name: &str) -> Vec<&str> {
@@ -59,7 +59,7 @@ impl Parsed {
     }
 }
 
-fn parse(args: &[String], spec: &Spec) -> Result<Parsed, String> {
+pub(crate) fn parse(args: &[String], spec: &Spec) -> Result<Parsed, String> {
     let mut parsed = Parsed::default();
     let mut index = 0;
     while index < args.len() {
@@ -117,10 +117,10 @@ pub struct Outcome {
 
 impl Outcome {
     /// `Console.log`: the text and a newline after it.
-    fn log(text: impl Into<String>) -> Self {
+    pub(crate) fn log(text: impl Into<String>) -> Self {
         Self { stdout: format!("{}\n", text.into()), stderr: String::new(), code: 0 }
     }
-    fn failure(message: impl Into<String>) -> Self {
+    pub(crate) fn failure(message: impl Into<String>) -> Self {
         Self { stdout: String::new(), stderr: format!("{}\n", message.into()), code: 1 }
     }
 }
@@ -130,7 +130,7 @@ impl Outcome {
 // ---------------------------------------------------------------------------------------------
 
 /// `expandHomePath` and `resolveBaseDir`'s reading of a path: `~` is the user's home.
-fn expand_home(input: &str, env: &dyn Fn(&str) -> Option<String>) -> PathBuf {
+pub fn expand_home(input: &str, env: &dyn Fn(&str) -> Option<String>) -> PathBuf {
     let home = || env("HOME").or_else(|| env("USERPROFILE")).map(PathBuf::from).unwrap_or_default();
     if input == "~" {
         return home();
@@ -143,7 +143,7 @@ fn expand_home(input: &str, env: &dyn Fn(&str) -> Option<String>) -> PathBuf {
 
 /// The state directory `serve` would use for the same flags: `--base-dir` (its `userdata`), else `--state-dir`, else
 /// `T3CODE_HOME`'s `userdata`, else `.t3-rust` under the current directory.
-fn state_dir(parsed: &Parsed, env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf, String> {
+pub(crate) fn state_dir(parsed: &Parsed, env: &dyn Fn(&str) -> Option<String>) -> Result<PathBuf, String> {
     let absolute = |path: PathBuf| -> Result<PathBuf, String> {
         if path.is_absolute() { Ok(path) } else { Ok(std::env::current_dir().map_err(|error| error.to_string())?.join(path)) }
     };
@@ -299,7 +299,7 @@ fn scope_names(scopes: &[AuthEnvironmentScope]) -> Vec<String> {
     scopes.iter().map(|scope| scope_name(*scope)).collect()
 }
 
-fn iso(time: DateTime<Utc>) -> String {
+pub(crate) fn iso(time: DateTime<Utc>) -> String {
     time.to_rfc3339_opts(SecondsFormat::Millis, true)
 }
 
@@ -318,6 +318,7 @@ pub fn dispatch(args: &[String], env: &dyn Fn(&str) -> Option<String>) -> Option
         "auth" => Some(auth_command(rest, env)),
         "project" => Some(project_command(rest, env)),
         "pair" => Some(pair_command(rest, env)),
+        "theme" => Some(crate::cli_theme::theme_command(rest, env)),
         _ => None,
     }
 }

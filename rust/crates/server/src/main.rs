@@ -42,6 +42,14 @@ struct Options {
     tailscale_serve_port: Option<u16>,
     /// `connect <subcommand>`: the T3 Connect commands, which run against the state directory and do not start a server.
     connect: Option<(t3_server::connect_cli::Subcommand, t3_server::connect_cli::Flags)>,
+    /// The `serve` positional: the working directory for provider sessions (the current directory when none is given).
+    cwd: Option<PathBuf>,
+    /// `--dev-url` / `VITE_DEV_SERVER_URL`: the web dev server loopback requests for the page are handed to.
+    dev_url: Option<url::Url>,
+    /// `--auto-bootstrap-project-from-cwd` / `T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD`.
+    auto_bootstrap: bool,
+    /// `--log-websocket-events` (`--log-ws-events`) / `T3CODE_LOG_WS_EVENTS`: log each request the router answers.
+    log_requests: bool,
 }
 /// What `Config.Boolean` reads.
 fn parse_boolean(value: &str) -> Option<bool> {
@@ -86,7 +94,20 @@ fn parse_options(
         tailscale_serve: None,
         tailscale_serve_port: None,
         connect: None,
+        cwd: None,
+        dev_url: None,
+        auto_bootstrap: false,
+        log_requests: false,
     };
+    if let Some(value) = env("VITE_DEV_SERVER_URL").filter(|value| !value.trim().is_empty()) {
+        options.dev_url = Some(value.trim().parse().map_err(|error| format!("VITE_DEV_SERVER_URL is not a URL: {error}"))?);
+    }
+    if let Some(value) = env("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD") {
+        options.auto_bootstrap = parse_boolean(&value).ok_or("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD requires a boolean")?;
+    }
+    if let Some(value) = env("T3CODE_LOG_WS_EVENTS") {
+        options.log_requests = parse_boolean(&value).ok_or("T3CODE_LOG_WS_EVENTS requires a boolean")?;
+    }
     for (key, name) in [
         ("T3CODE_HOST", "--host"),
         ("T3CODE_PORT", "--port"),
@@ -126,6 +147,8 @@ fn parse_options(
         options.tailscale_serve_port = Some(parse_port(&value).ok_or("T3CODE_TAILSCALE_SERVE_PORT must be between 1 and 65535")?);
     }
     let mut args = args.into_iter();
+    // The positional belongs to `serve` and `start` by name; a bare word is not a working directory.
+    let mut explicit_serve = false;
     while let Some(arg) = args.next() {
         if matches!(
             arg.as_str(),
@@ -139,9 +162,15 @@ fn parse_options(
             options.overrides.insert(arg.clone());
         }
         match arg.as_str() {
-            "serve" | "pair" | "import" => options.command = arg,
+            "serve" | "pair" | "import" => {
+                explicit_serve = arg == "serve";
+                options.command = arg
+            }
             // The original's `start` refuses to start over a running server; the runtime lock does that here.
-            "start" => options.command = "serve".into(),
+            "start" => {
+                explicit_serve = true;
+                options.command = "serve".into()
+            }
             // Nothing opens a browser, so there is nothing for the flag to switch off.
             "--no-browser" => {}
             _ if arg.starts_with("--no-browser=") => {
@@ -227,6 +256,19 @@ fn parse_options(
                 )
             }
             "--fixture" => options.fixture = true,
+            "--dev-url" => options.dev_url = Some(args.next().ok_or("--dev-url requires a URL")?.parse().map_err(|error| format!("--dev-url is not a URL: {error}"))?),
+            _ if arg.starts_with("--dev-url=") => options.dev_url = Some(arg["--dev-url=".len()..].parse().map_err(|error| format!("--dev-url is not a URL: {error}"))?),
+            "--auto-bootstrap-project-from-cwd" => options.auto_bootstrap = true,
+            _ if arg.starts_with("--auto-bootstrap-project-from-cwd=") => options.auto_bootstrap = parse_boolean(&arg["--auto-bootstrap-project-from-cwd=".len()..]).ok_or("--auto-bootstrap-project-from-cwd requires a boolean")?,
+            "--log-websocket-events" | "--log-ws-events" => options.log_requests = true,
+            _ if arg.starts_with("--log-websocket-events=") || arg.starts_with("--log-ws-events=") => options.log_requests = parse_boolean(arg.split_once('=').map_or("", |(_, value)| value)).ok_or("--log-websocket-events requires a boolean")?,
+            // `Argument.String("cwd")`: the one positional of `serve`.
+            _ if !arg.starts_with('-') && explicit_serve && options.connect.is_none() => {
+                if options.cwd.is_some() {
+                    return Err(format!("Unexpected argument: {arg}").into());
+                }
+                options.cwd = Some(PathBuf::from(arg));
+            }
             "--help" | "-h" => {
                 println!(
                     "t3-server [serve|pair|import|connect [login|link|publish|status|unlink|logout]] [--state-dir PATH] [--from T3_HOME] [--no-import] [--host ADDRESS] [--port PORT] [--settings JSON] [--config JSON] [--assets DIRECTORY] [--mode web|desktop] [--tailscale-serve] [--tailscale-serve-port PORT] [--bootstrap-fd FD] [--desktop-telemetry-fd FD] [--desktop-telemetry-control-fd FD] [--fixture]\nNative port in progress. State defaults to .t3-rust under the current directory.\npair prints a scoped, one-use browser pairing credential valid for five minutes.\nconnect sets up T3 Connect (--headless; link --publish-only; publish --disable; status --json; --base-dir PATH names the T3 home).\nimport --from T3_HOME --state-dir DIR imports the original server's database into DIR (see rust/README.md); serve does the same on first start when DIR holds the original's database and no store of this server, unless --no-import.\n--fixture is for testing only (rust/tools/browser_fixture): the server offers no editors, and T3CODE_FIXTURE_GITHUB_API_ORIGIN (a loopback origin such as http://127.0.0.1:PORT) sends GitHub requests to a fake GitHub API there. The variable is an error without this flag."
@@ -575,6 +617,10 @@ mod tests {
             tailscale_serve: None,
             tailscale_serve_port: None,
             connect: None,
+            cwd: None,
+            dev_url: None,
+            auto_bootstrap: false,
+            log_requests: false,
         };
         let descriptors = adopt_desktop_descriptors(&options, None).unwrap();
         assert_ne!(
@@ -868,6 +914,17 @@ async fn run(
     if options.fixture {
         t3_server::fixture::install(options.fixture_github_api_origin.as_deref())?;
     }
+    // `path.resolve(expandHomePath(cwd.trim()))`, made if it is not there (`fs.makeDirectory(cwd, { recursive: true })`).
+    let server_cwd = match &options.cwd {
+        Some(raw) => {
+            let expanded = t3_server::cli_commands::expand_home(raw.to_string_lossy().trim(), &|key| std::env::var(key).ok());
+            if expanded.is_absolute() { expanded } else { std::env::current_dir()?.join(expanded) }
+        }
+        None => std::env::current_dir()?,
+    };
+    if options.connect.is_none() && options.command == "serve" {
+        fs::create_dir_all(&server_cwd)?;
+    }
     fs::create_dir_all(&options.state_dir)?;
     let state_dir = fs::canonicalize(&options.state_dir)?;
     if let Some((subcommand, flags)) = options.connect {
@@ -977,10 +1034,24 @@ async fn run(
         "aarch64" => "arm64",
         arch => arch,
     };
-    let environment = json!({"environmentId":environment_id,"label":"T3 Code Rust","platform":{"os":os,"arch":arch},"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":t3_server::environment_capabilities::advertised()});
+    let update_capabilities = t3_server::self_update_rpc::capabilities(options.mode == "desktop", options.desktop_telemetry_control_fd.is_some());
+    // The machine's own name and kind, as the original's descriptor carries them (best effort: a probe that fails is no signal).
+    let (label, machine) = tokio::task::spawn_blocking({
+        let cwd_base_name = server_cwd.file_name().map(|name| name.to_string_lossy().trim().to_owned()).unwrap_or_default();
+        move || {
+            let probe = t3_server::environment_host::SystemProbe;
+            (t3_server::environment_host::resolve_label(&probe, &cwd_base_name), t3_server::environment_host::detect_machine_kind(&probe))
+        }
+    })
+    .await?;
+    let mut platform = json!({"os":os,"arch":arch});
+    if let Some(machine) = machine {
+        platform["machine"] = json!(machine);
+    }
+    let environment = json!({"environmentId":environment_id,"label":label,"platform":platform,"serverVersion":env!("CARGO_PKG_VERSION"),"orchestrationProtocolVersion":2,"capabilities":t3_server::environment_capabilities::advertised_with(Some(update_capabilities))});
     let native_config = NativeConfig::load(
         &state_dir,
-        &std::env::current_dir()?,
+        &server_cwd,
         options.settings.as_deref(),
         &environment,
         &auth.descriptor(),
@@ -1019,7 +1090,7 @@ async fn run(
     let scheduled_tasks = t3_server::scheduled_tasks::ScheduledTasks::start(&store, execution.clone())?;
     let telemetry = t3_server::native_telemetry::NativeTelemetryClient::new(
         t3_server::native_telemetry::NativeTelemetryOptions::host(
-            std::env::current_dir()?,
+            server_cwd.clone(),
             options
                 .bootstrap
                 .as_ref()
@@ -1043,6 +1114,18 @@ async fn run(
     let _ = descriptors;
     let desktop =
         t3_server::desktop_telemetry::DesktopTelemetryReceiver::new(desktop_options).await;
+    // Updating: the desktop app's own update over the control channel, else the answer of a build that cannot update itself. Nothing
+    // is downloaded, installed or relaunched by this server.
+    t3_server::self_update_rpc::install(
+        &store,
+        t3_server::self_update_rpc::build(
+            options.mode == "desktop",
+            std::sync::Arc::new(t3_server::desktop_app_update::DesktopUpdates::new(desktop.clone(), update_capabilities.desktop_app_update)),
+            state_dir.parent().map(PathBuf::from).unwrap_or_else(|| state_dir.clone()),
+            state_dir.join("rust-state.sqlite").to_string_lossy().into_owned(),
+            &std::env::vars().collect(),
+        )?,
+    );
     let resources = t3_server::resource_telemetry_service::ResourceTelemetry::new(
         telemetry.clone(),
         desktop.clone(),
@@ -1086,7 +1169,7 @@ async fn run(
             t3_server::server_settings_runtime::SettingsRuntime::start(
                 service,
                 native_config.providers.clone(),
-                std::env::current_dir()?,
+                server_cwd.clone(),
                 terminals.clone(),
                 desktop.clone(),
                 options.mode.clone(),
@@ -1112,7 +1195,7 @@ async fn run(
     let provider_auth = t3_server::provider_auth_service::ProviderAuthService::for_server(
         &execution,
         &native_config.providers,
-        std::env::current_dir()?,
+        server_cwd.clone(),
         &state_dir,
     );
     let devices = if let Some(settings) = &settings_service {
@@ -1135,6 +1218,8 @@ async fn run(
     };
     // Agents T3 Code did not launch sign in to `/mcp` through this authorization server (its signing key is a secret of the state
     // directory, so client ids survive a restart).
+    // The palettes this machine publishes under `<state dir>/themes`, streamed to the clients that follow them.
+    t3_server::environment_theme::install(&store, t3_server::environment_theme::EnvironmentThemes::start(state_dir.join("themes"), t3_server::environment_theme::WATCH_DEBOUNCE).await);
     let mcp_oauth = std::sync::Arc::new(t3_server::mcp_oauth::McpOAuth::new(auth.clone(), &t3_server::server_secret_store::ServerSecretStore::open(state_dir.join("secrets"))?)?);
     t3_server::mcp_oauth::install(&store, mcp_oauth.clone());
     let mcp = t3_server::mcp_http::McpHttpService::new(
@@ -1175,8 +1260,16 @@ async fn run(
         t3_server::pull_request_sync::PullRequestSync::new(execution.clone(), env, t3_server::pull_request_service::PullRequestService::shared().clone()).spawn_timer();
     }
     // The server accepts commands from here: a client following the lifecycle learns it.
-    let cwd = std::env::current_dir()?;
-    t3_server::server_lifecycle::publish(&store, "welcome", json!({"environment":environment,"cwd":cwd,"projectName":cwd.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned())}));
+    let cwd = server_cwd.clone();
+    let mut welcome = json!({"environment":environment,"cwd":cwd,"projectName":cwd.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned())});
+    // The project of the working directory and its first thread, when asked for, so a client opens straight into them.
+    if options.auto_bootstrap {
+        let settings = serde_json::to_value(&native_config.settings)?;
+        let (project_id, thread_id) = t3_server::auto_bootstrap::run(&store, &settings, &cwd).map_err(|error| format!("Server runtime startup failed before command readiness: {error}"))?;
+        welcome["bootstrapProjectId"] = json!(project_id);
+        welcome["bootstrapThreadId"] = json!(thread_id);
+    }
+    t3_server::server_lifecycle::publish(&store, "welcome", welcome);
     t3_server::server_lifecycle::publish(&store, "ready", json!({"at":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),"environment":environment}));
     // T3 Connect: built now that the listener has an address, started when the routes serve (below).
     let local_port = listener.local_addr()?.port();
@@ -1188,6 +1281,8 @@ async fn run(
         std::sync::Arc::new(move || Some(local_port)),
     ))?;
     t3_server::connect::install(&store, connect.clone());
+    t3_server::static_route::install(&store, t3_server::static_route::StaticConfig::with_dev_url(options.dev_url.clone()));
+    t3_server::transport::set_request_logging(options.log_requests);
     // The origin a CLI on this machine reaches the running server at (`t3 connect unlink`).
     let runtime_state = state_dir.join("server-runtime.json");
     t3_server::connect::persist_runtime_state(&runtime_state, &options.host, listener.local_addr()?.port());
