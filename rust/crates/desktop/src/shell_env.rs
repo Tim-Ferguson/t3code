@@ -395,7 +395,9 @@ mod tests {
         let good = shell(directory.path(), "good", "PATH='/after/hang:/usr/bin:/bin'; export PATH");
         for slow in [hung, stubborn] {
             let mut config = config(directory.path(), Platform::Linux, &[("SHELL", &slow), ("PATH", "/usr/bin")], Some(good.clone()));
-            config.login_shell_timeout = Duration::from_millis(300);
+            // The limit is also the shell that answers' (`good`): a limit short enough for a loaded machine to overrun with a plain `sh`
+            // made this test fail whenever builds ran beside it (the probe of `good` timed out as the hung one did).
+            config.login_shell_timeout = Duration::from_millis(2000);
             let started = std::time::Instant::now();
             let patch = resolve(&config);
             assert_eq!(patch["PATH"], "/after/hang:/usr/bin:/bin", "{slow}");

@@ -201,3 +201,71 @@ async fn a_server_reached_on_loopback_with_no_other_endpoint_offers_no_share() {
 fn error_of(state: Store<UiModel>) -> Option<String> {
     state.peek().error.clone()
 }
+
+/// A page whose saved interface state holds a default endpoint, and which records what is written back to it.
+struct SavedState {
+    owner: dioxus::signals::Owner,
+    writes: Rc<std::cell::RefCell<Vec<String>>>,
+}
+struct SavedEval(Option<String>);
+impl document::Evaluator for SavedEval {
+    fn send(&self, _: Value) -> Result<(), document::EvalError> {
+        Ok(())
+    }
+    fn poll_recv(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<Value, document::EvalError>> {
+        std::task::Poll::Pending
+    }
+    fn poll_join(&mut self, _: &mut std::task::Context<'_>) -> std::task::Poll<Result<Value, document::EvalError>> {
+        match &self.0 {
+            Some(stored) => std::task::Poll::Ready(Ok(json!(stored))),
+            None => std::task::Poll::Pending,
+        }
+    }
+}
+impl document::Document for SavedState {
+    fn eval(&self, script: String) -> document::Eval {
+        let reads = script.contains("getItem") && !script.contains("setItem");
+        if script.contains("setItem") && script.contains("defaultAdvertisedEndpointKey") {
+            self.writes.borrow_mut().push(script.clone());
+        }
+        let stored = reads.then(|| json!({"defaultAdvertisedEndpointKey":"tailscale:magicdns:https","projectOrder":["kept"]}).to_string());
+        document::Eval::new(self.owner.insert(Box::new(SavedEval(stored)) as Box<dyn document::Evaluator>))
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_endpoint_saved_as_the_default_is_the_one_a_link_is_shared_through_and_a_pick_is_saved() {
+    let fixture = Fixture::start(false).await;
+    let advertised = AdvertisedEndpoints {
+        endpoints: vec![
+            endpoint("desktop-loopback:3774", "This machine", "http://127.0.0.1:3774", "loopback", "mixed-content-blocked"),
+            endpoint("desktop-lan:http://192.168.1.20:3774", "Local network", "http://192.168.1.20:3774", "lan", "mixed-content-blocked"),
+            endpoint("tailscale-magicdns:box.ts.net", "Tailscale HTTPS", "https://box.ts.net/", "private-network", "compatible"),
+        ],
+        default_key: None,
+    };
+    let writes = Rc::new(std::cell::RefCell::new(vec![]));
+    let (mut dom, props) = fixture.client_with(Gate::default(), ADMIN, {
+        let writes = writes.clone();
+        move |dom| {
+            dom.provide_root_context(advertised.clone());
+            dom.provide_root_context(Rc::new(SavedState { owner: dioxus::signals::Owner::default(), writes }) as Rc<dyn document::Document>);
+        }
+    });
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    state.view().set(View::Connections);
+    wait_for_rendered_text(&mut dom, "1 client").await;
+    link_in(&mut dom, "Phone").await;
+    click_control(&mut dom, "Share pairing link Phone");
+    until(&mut dom, "the panel", |dom| control(dom, "Reach via Local network").is_some()).await;
+    // Without a saved default the panel would open on the local network; the saved one is the tailnet's.
+    until(&mut dom, "the saved default chosen", |dom| control_attribute(dom, "Reach via Tailscale HTTPS", "aria-checked").and_then(|(_, value)| value).as_deref() == Some("true")).await;
+    assert_eq!(control_attribute(&dom, "Reach via Local network", "aria-checked").unwrap().1.as_deref(), Some("false"));
+    // A pick is saved as the new default, in the record the original shares, with the rest of it kept.
+    assert!(writes.borrow().is_empty());
+    click_control(&mut dom, "Reach via Local network");
+    until(&mut dom, "saved", |_| !writes.borrow().is_empty()).await;
+    let script = writes.borrow()[0].clone();
+    assert!(script.contains("t3code:ui-state:v1") && script.contains("state.defaultAdvertisedEndpointKey=\"desktop-core:lan:http\""), "{script}");
+    fixture.finish(dom).await;
+}

@@ -26,6 +26,10 @@ pub fn offered(available: &[String]) -> Vec<&'static Editor> {
 pub fn preferred(available: &[String], last: Option<&str>) -> Option<String> {
     last.filter(|last| available.iter().any(|id| id == last)).map(str::to_owned).or_else(|| EDITORS.iter().find(|editor| available.contains(&editor.id)).map(|editor| editor.id.clone()))
 }
+/// The name of an editor by id.
+pub fn label(id: &str) -> Option<&'static str> {
+    EDITORS.iter().find(|editor| editor.id == id).map(|editor| editor.label.as_str())
+}
 /// `openInEditorMenuLabel`.
 pub fn menu_label(editor: Option<&str>) -> String {
     match editor {

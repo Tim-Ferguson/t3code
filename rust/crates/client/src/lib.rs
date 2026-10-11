@@ -7,6 +7,7 @@ pub mod command_label;
 pub mod composer_send;
 pub mod custom_snooze;
 pub mod composer_context;
+pub mod context_menu;
 pub mod composer_menu;
 pub mod connect;
 pub mod connection;

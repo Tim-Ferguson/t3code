@@ -104,7 +104,9 @@ async fn a_custom_snooze_for_the_chosen_threads_is_a_duration_or_a_date_and_refu
     until(&mut dom, "both chosen", |dom| chosen(dom, "thread-a") && chosen(dom, "thread-b")).await;
     mouse_control(&mut dom, "Thread thread-a", "contextmenu", false, false, false);
     until(&mut dom, "the bulk menu", |dom| control(dom, "Selected threads").is_some()).await;
-    click_when_enabled(&mut dom, "Snooze (2): Custom\u{2026}").await;
+    // Snooze opens the presets, and the last of them is the dialog.
+    click_when_enabled(&mut dom, "Snooze (2)").await;
+    click_when_enabled(&mut dom, "Custom\u{2026}").await;
     until(&mut dom, "the dialog", |dom| control(dom, "Date and time").is_some()).await;
     // A date in the past is refused where the person is looking, and nothing is sent.
     input_control(&mut dom, "Date", "2001-01-01");
@@ -136,7 +138,8 @@ async fn a_rows_own_custom_snooze_is_for_that_thread_alone() {
     until(&mut dom, "both rows", |dom| control(dom, "Thread thread-a").is_some() && control(dom, "Thread thread-b").is_some()).await;
     // Nothing is chosen: the right-click menu is the row's own, with the original's "Custom…" among the snoozes.
     mouse_control(&mut dom, "Thread thread-a", "contextmenu", false, false, false);
-    click_when_enabled(&mut dom, "Snooze: Custom\u{2026}").await;
+    click_when_enabled(&mut dom, "Snooze").await;
+    click_when_enabled(&mut dom, "Custom\u{2026}").await;
     until(&mut dom, "the dialog", |dom| control(dom, "Duration").is_some()).await;
     click_when_enabled(&mut dom, "Duration").await;
     input_control(&mut dom, "Snooze for", "3");

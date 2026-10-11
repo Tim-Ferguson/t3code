@@ -59,6 +59,30 @@ fn select(state: Store<UiModel>, path: &str) {
         state.file_panel().set(Some(Target { path: path.to_owned(), line: None, request: current.request + 1, ..current }));
     }
 }
+/// The menu of a tab: copy its path, and close it, the others, the ones to its right or all.
+async fn tab_menu(state: Store<UiModel>, path: String, at: (f64, f64)) {
+    let paths: Vec<String> = state.file_tabs().peek().iter().map(|tab| tab.path.clone()).collect();
+    let Some(index) = paths.iter().position(|open| *open == path) else { return };
+    let Some(choice) = crate::context_menu::show("Tab actions", t3_client::context_menu::tab(true, index, paths.len()), Some(at)).await else { return };
+    if choice == "copy-path" {
+        crate::sidebar_rows::copy_text(&path);
+        return;
+    }
+    // Tabs may have changed while the menu was open: the choice is applied to the tabs there are now.
+    let paths: Vec<String> = state.file_tabs().peek().iter().map(|tab| tab.path.clone()).collect();
+    let Some(index) = paths.iter().position(|open| *open == path) else { return };
+    let Some(kept) = t3_client::context_menu::after_close(&choice, &paths, index) else { return };
+    if kept.is_empty() {
+        close(state);
+        return;
+    }
+    let shown = state.file_panel().peek().as_ref().map(|target| target.path.clone());
+    state.file_tabs().write().retain(|tab| kept.contains(&tab.path));
+    if shown.as_ref().is_none_or(|shown| !kept.contains(shown)) {
+        // The tab shown went with the choice: the one the menu was opened on takes its place, else the nearest left.
+        select(state, if kept.contains(&path) { &path } else { kept.last().expect("not empty") });
+    }
+}
 /// Closes one tab; the one beside it is shown, and the panel closes with the last.
 fn close_tab(state: Store<UiModel>, path: &str) {
     let tabs = state.file_tabs().peek().clone();
@@ -290,7 +314,10 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                                 let (select_path, close_path) = (tab.path.clone(), tab.path.clone());
                                 rsx! {
                                     span { key: "{tab.path}", class: if selected { "file-tab selected" } else { "file-tab" },
-                                        button { class: "file-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", title: "{tab.path}", onclick: move |_| select(state, &select_path), "{tab_name}" if dirty { span { class: "file-tab-dirty", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes", " \u{2022}" } } }
+                                        oncontextmenu: { let path = tab.path.clone(); move |event| { event.prevent_default(); event.stop_propagation(); let at = event.client_coordinates(); let path = path.clone(); spawn(async move { tab_menu(state, path, (at.x, at.y)).await }); } },
+                                        // The middle button closes a tab, as in the original.
+                                        onauxclick: { let path = tab.path.clone(); move |event| { if event.trigger_button() == Some(dioxus::html::input_data::MouseButton::Auxiliary) { event.prevent_default(); event.stop_propagation(); close_tab(state, &path); } } },
+                                        button { class: "file-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", "aria-label": "{tab_name}", title: "{tab.path}", onclick: move |_| select(state, &select_path), "{tab_name}" if dirty { span { class: "file-tab-dirty", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes", " \u{2022}" } } }
                                         button { class: "file-tab-close", r#type: "button", "aria-label": "Close {tab_name}", onclick: move |_| close_tab(state, &close_path), "\u{00d7}" }
                                     }
                                 }

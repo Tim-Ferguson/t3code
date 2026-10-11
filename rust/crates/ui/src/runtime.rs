@@ -156,7 +156,6 @@ pub struct UiModel {
     pub settings_project: Option<String>,
     pub link_dialog: Option<String>,
     pub selection: t3_client::thread_selection::Selection,
-    pub selection_menu: Option<(f64, f64)>,
     pub dark: bool,
     pub sidebar_open: bool,
 }
@@ -2998,6 +2997,10 @@ mod import_clone_tests;
 #[cfg(all(test, unix))]
 #[path = "chips_tests.rs"]
 mod chips_tests;
+
+#[cfg(all(test, unix))]
+#[path = "context_menu_tests.rs"]
+mod context_menu_tests;
 
 #[cfg(all(test, unix))]
 #[path = "thread_relations_tests.rs"]

@@ -56,6 +56,8 @@ pub(crate) fn FileTree(
     action: String,
     label: String,
     on_select: Callback<String>,
+    /// A right-click on a file: its path and the pointer (`useFileContextMenuHandler`).
+    on_context: Option<Callback<(String, (f64, f64))>>,
 ) -> Element {
     let mut overrides = use_signal(BTreeMap::<String, bool>::new);
     let tree = use_memo(use_reactive((&files,), |(files,)| diff_tree::build(&files)));
@@ -79,6 +81,7 @@ pub(crate) fn FileTree(
                         button { key: "file:{path}", class: if selected.as_deref() == Some(path.as_str()) { "tree-row tree-file selected" } else { "tree-row tree-file" },
                             style: "padding-left: {8 + row.depth * 14}px", "aria-label": "{action} {path}", title: "{path}",
                             onclick: { let path = path.clone(); move |_| on_select.call(path.clone()) },
+                            oncontextmenu: { let path = path.clone(); move |event| { if let Some(on_context) = on_context { event.prevent_default(); event.stop_propagation(); let at = event.client_coordinates(); on_context.call((path.clone(), (at.x, at.y))); } } },
                             if indented { span { class: "tree-chevron", "aria-hidden": "true" } }
                             span { class: "tree-name", "{name}" }
                             if let Some(Stat { additions, deletions }) = stat { StatLabel { additions: *additions, deletions: *deletions } }
@@ -152,7 +155,7 @@ fn Card(
                     }
                 }
             }
-            FileTree { key: "{all_expanded()}", files: files.clone(), expanded: all_expanded(), selected: None, action, label: "Changed files", on_select: if actionable { select } else { ignore } }
+            FileTree { key: "{all_expanded()}", files: files.clone(), expanded: all_expanded(), selected: None, action, label: "Changed files", on_select: if actionable { select } else { ignore }, on_context: crate::link_menus::file_context() }
         }
     }
 }

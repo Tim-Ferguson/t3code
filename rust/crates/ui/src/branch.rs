@@ -299,9 +299,10 @@ pub(crate) fn Control(
                         if writable && !stale {
                             button { class: "branch-name branch-trigger", "aria-label": "Switch branch", "aria-haspopup": "listbox", "aria-expanded": "{picker()}", title: "{name}", disabled: busy_now.is_some(),
                                 onclick: move |_| open_picker.call(()),
+                                oncontextmenu: { let branch = matches!(label, Label::Branch(_)).then(|| name.clone()); move |event| copy_branch_menu(event, branch.clone()) },
                                 "\u{2442} {name}" }
                         } else {
-                            span { class: "branch-name", title: "{name}", "\u{2442} {name}" }
+                            span { class: "branch-name", title: "{name}", oncontextmenu: { let branch = matches!(label, Label::Branch(_)).then(|| name.clone()); move |event| copy_branch_menu(event, branch.clone()) }, "\u{2442} {name}" }
                         }
                     }
                 }
@@ -487,6 +488,7 @@ pub(crate) fn Picker(
                     match row {
                         Item::Ref(chosen) => rsx! {
                             button { key: "ref:{chosen.name}", class: if index == selected { "branch-row highlighted" } else { "branch-row" }, role: "option", "aria-selected": "{chosen.current}", "aria-label": "{chosen.name}",
+                                oncontextmenu: { let name = chosen.name.clone(); move |event| copy_branch_menu(event, Some(name.clone())) },
                                 onclick: { let chosen = chosen.clone(); move |_| on_pick.call(chosen.clone()) },
                                 span { class: "branch-row-name", "{chosen.name}" }
                                 if let Some(badge) = chosen.badge(Some(&project_cwd)) { span { class: "branch-row-badge", "{badge}" } }
@@ -533,4 +535,19 @@ pub(crate) fn BaseBranch(state: Store<UiModel>, transport: TransportHandle, cwd:
             }
         }
     }
+}
+
+/// The right-click on a branch name offers to copy it (`handleBranchContextMenu`); on anything that is not a branch (a detached head) the
+/// page's own menu stays.
+fn copy_branch_menu(event: MouseEvent, branch: Option<String>) {
+    let Some(branch) = branch else { return };
+    event.prevent_default();
+    event.stop_propagation();
+    let at = event.client_coordinates();
+    spawn(async move {
+        let items = t3_client::context_menu::copy_only("copy-branch-name", "Copy branch name");
+        if crate::context_menu::show("Branch actions", items, Some((at.x, at.y))).await.as_deref() == Some("copy-branch-name") {
+            crate::sidebar_rows::copy_text(&branch);
+        }
+    });
 }

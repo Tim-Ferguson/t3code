@@ -385,10 +385,11 @@ fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
     let url = value["url"].as_str().filter(|url| url.starts_with("https://") || url.starts_with("http://")).map(str::to_owned);
     let label = state_label(&value);
     let host_label = pr::open_on_host_label(value["provider"].as_str());
+    let (menu_url, menu_provider) = (url.clone(), value["provider"].as_str().map(str::to_owned));
     rsx! {
         header { class: "diff-header",
             div { class: "diff-header-main",
-                strong { class: "pr-number", "#{reference.number}" }
+                strong { class: "pr-number", oncontextmenu: { let (url, provider) = (menu_url.clone(), menu_provider.clone()); move |event| { event.prevent_default(); event.stop_propagation(); let at = event.client_coordinates(); if let Some(url) = url.clone() { let provider = provider.clone(); spawn(async move { crate::link_menus::pull_request_number(state, url, provider, (at.x, at.y)).await }); } } }, "#{reference.number}" }
                 span { class: "pr-state", "data-state": "{label}", "{label}" }
                 if let (Some(stack_number), Some(position), Some(size)) = (value["stack"]["number"].as_u64(), value["stack"]["position"].as_u64(), value["stack"]["size"].as_u64()) {
                     crate::pull_request_stack::Chip { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), number: stack_number, position, size }

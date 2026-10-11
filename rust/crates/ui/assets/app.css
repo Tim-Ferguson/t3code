@@ -4639,6 +4639,64 @@ button.subagent-row:hover,
 .context-menu .menu-item:disabled {
   color: var(--muted-foreground);
 }
+.context-menu.context-menu-list {
+  /* The menu of `show`: placed by its own position (the page fits it into the window), above the backdrop's. */
+  z-index: 10000;
+  left: auto;
+  top: auto;
+}
+.context-menu-backdrop {
+  z-index: 9999;
+}
+.context-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  cursor: default;
+}
+.context-menu .menu-item .menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-menu .menu-item.destructive {
+  color: var(--destructive-foreground, var(--destructive, #dc2626));
+}
+.context-menu .menu-item.destructive:hover:not(:disabled),
+.context-menu .menu-item.destructive:focus-visible {
+  background: color-mix(in srgb, var(--destructive, #dc2626) 10%, transparent);
+}
+.context-menu .menu-item.submenu-trigger .menu-icon.chevron {
+  margin-left: auto;
+}
+.context-menu .menu-icon {
+  flex: none;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+}
+.context-menu .menu-icon.neutral,
+.context-menu .menu-icon.chevron {
+  color: var(--muted-foreground);
+}
+.context-menu .menu-icon.chevron {
+  opacity: 0.8;
+}
+.context-menu .menu-header {
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted-foreground);
+}
+.context-menu .menu-separator {
+  flex: none;
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
 .activity-notice.notification,
 .activity-notice.warning {
   display: flex;

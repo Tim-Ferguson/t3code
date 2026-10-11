@@ -286,6 +286,24 @@ pub fn is_hosted_pairing_url(value: &str) -> bool {
     url::Url::parse(value).is_ok_and(|url| url.path() == "/pair" && url.query_pairs().any(|(name, _)| name == "host"))
 }
 
+/// The browser's key for the interface state the original saves (`PERSISTED_STATE_KEY` of `uiStateStore.ts`).
+pub const UI_STATE_KEY: &str = "t3code:ui-state:v1";
+
+/// The saved default endpoint (`defaultAdvertisedEndpointKey`) in the saved interface state; none for a missing, unreadable or empty one.
+pub fn stored_default_key(raw: Option<&str>) -> Option<String> {
+    let value: Value = serde_json::from_str(raw?).ok()?;
+    let key = value.get("defaultAdvertisedEndpointKey")?.as_str()?.trim();
+    (!key.is_empty()).then(|| key.to_owned())
+}
+
+/// The saved interface state with the default endpoint set, every other field kept as it was (the original's store shares the one
+/// record among its features). A record that cannot be read is replaced by one that holds only the key.
+pub fn with_default_key(raw: Option<&str>, key: &str) -> String {
+    let mut value = raw.and_then(|raw| serde_json::from_str::<Value>(raw).ok()).filter(Value::is_object).unwrap_or_else(|| serde_json::json!({}));
+    value["defaultAdvertisedEndpointKey"] = serde_json::json!(key);
+    value.to_string()
+}
+
 /// `selectPairingEndpoint`: the saved default among the endpoints that exist, else the one marked default, else the first
 /// that is not loopback, else the first the hosted app can dial.
 pub fn select_pairing_endpoint<'a>(endpoints: &'a [Endpoint], default_key: Option<&str>) -> Option<&'a Endpoint> {
@@ -431,5 +449,21 @@ mod tests {
         assert_eq!(select_share_option(&[], None, None), None);
         assert!(is_loopback_origin("http://127.0.0.1:3774") && is_loopback_origin("http://localhost:3774") && is_loopback_origin("http://[::1]:3774"));
         assert!(!is_loopback_origin("http://192.168.1.20:3774") && !is_loopback_origin("https://box.ts.net"));
+    }
+
+    #[test]
+    fn the_saved_default_endpoint_is_one_field_of_the_shared_interface_state() {
+        assert_eq!(stored_default_key(None), None);
+        assert_eq!(stored_default_key(Some("not json")), None);
+        assert_eq!(stored_default_key(Some(r#"{"defaultAdvertisedEndpointKey":"  "}"#)), None);
+        assert_eq!(stored_default_key(Some(r#"{"defaultAdvertisedEndpointKey":"manual:public:https:Office","projectOrder":["a"]}"#)).as_deref(), Some("manual:public:https:Office"));
+        // Setting it keeps what else the record holds.
+        let saved = with_default_key(Some(r#"{"projectOrder":["a"],"sidebarProjectScopeKey":"k"}"#), "tailscale:serve:https:Tailnet");
+        let value: Value = serde_json::from_str(&saved).unwrap();
+        assert_eq!(value["projectOrder"], serde_json::json!(["a"]));
+        assert_eq!(value["sidebarProjectScopeKey"], "k");
+        assert_eq!(stored_default_key(Some(&saved)).as_deref(), Some("tailscale:serve:https:Tailnet"));
+        // A record that cannot be read is replaced, not extended.
+        assert_eq!(with_default_key(Some("[1]"), "x"), r#"{"defaultAdvertisedEndpointKey":"x"}"#);
     }
 }

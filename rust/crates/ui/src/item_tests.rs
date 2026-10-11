@@ -856,6 +856,11 @@ fn thread_shell(state: Store<UiModel>, id: &str) -> t3_contracts::ThreadShell {
 async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     use crate::runtime::keys_tests::key_on;
     use dioxus::prelude::Key;
+    // The keyboard opens the menu under the row once the row's place is known; the menu is up when it is drawn.
+    async fn open_menu(dom: &mut VirtualDom, row: &str) {
+        key_on(dom, row, Key::ContextMenu);
+        until(dom, "the menu", |dom| control(dom, "Thread actions").is_some()).await;
+    }
     let fixture = Fixture::start(false).await;
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
@@ -863,14 +868,14 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     // Without the capabilities, the menu leaves the actions out.
     set_thread_actions(state, false);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
-    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
-    assert!(control(&dom, "Pin thread").is_none() && control(&dom, "Mark unread").is_some() && control(&dom, "Copy thread ID").is_some());
+    open_menu(&mut dom, "Thread thread-b").await;
+    assert!(control(&dom, "Pin thread").is_none() && control(&dom, "Mark unread").is_some() && control(&dom, "Copy").is_some());
     key_on(&mut dom, "Thread actions", Key::Escape);
     assert!(control(&dom, "Thread actions").is_none(), "Escape closes the menu");
     set_thread_actions(state, true);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
 
-    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
+    open_menu(&mut dom, "Thread thread-b").await;
     click_control(&mut dom, "Pin thread");
     until(&mut dom, "the pin", |_| t3_client::sidebar::is_pinned(&thread_shell(state, "thread-b"))).await;
     assert!(control(&dom, "Thread actions").is_none(), "the menu closes when an action is chosen");
@@ -879,15 +884,17 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     until(&mut dom, "the pin on the row", |dom| control(dom, "Pinned").is_some() || rendered_text(dom).contains('\u{25c6}')).await;
     let order = crate::keys::sidebar_order(state);
     assert_eq!(order.first().map(String::as_str), Some("thread-b"), "pinned threads list first: {order:?}");
-    key_on(&mut dom, "Thread thread-b", Key::ContextMenu);
+    open_menu(&mut dom, "Thread thread-b").await;
     assert!(control(&dom, "Pin thread").is_none());
     click_control(&mut dom, "Unpin thread");
     until(&mut dom, "the unpin", |_| !t3_client::sidebar::is_pinned(&thread_shell(state, "thread-b"))).await;
     until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-b", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
 
     // Snoozing hides the thread's urgency behind a wake time; waking brings it back.
-    key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
-    click_control(&mut dom, "Snooze: In 1 hour*");
+    open_menu(&mut dom, "Thread thread-a").await;
+    click_control(&mut dom, "Snooze");
+    until(&mut dom, "the presets", |dom| control(dom, "In 1 hour*").is_some()).await;
+    click_control(&mut dom, "In 1 hour*");
     until(&mut dom, "the snooze", |_| thread_shell(state, "thread-a").snoozed_until.flatten().is_some()).await;
     // A snoozed thread folds into the Snoozed shelf, which is closed until its header is pressed.
     until(&mut dom, "the shelf", |dom| control(dom, "Snoozed (1)").is_some()).await;
@@ -895,7 +902,7 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     click_control(&mut dom, "Snoozed (1)");
     until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-a", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
     until(&mut dom, "the wake time on the row", |dom| rendered_text(dom).contains("Snoozed \u{b7} ")).await;
-    key_on(&mut dom, "Thread thread-a", Key::ContextMenu);
+    open_menu(&mut dom, "Thread thread-a").await;
     click_control(&mut dom, "Wake thread");
     until(&mut dom, "the wake", |_| thread_shell(state, "thread-a").snoozed_until.flatten().is_none()).await;
     until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-a", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
@@ -907,7 +914,7 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     super::runtime::diff_tests::turn(&mut dom, &props, state, 1).await;
     let row = format!("Thread {}", thread_shell(state, "thread-b").title);
     open_thread(&mut dom, &props, state, "thread-a").await;
-    key_on(&mut dom, &row, Key::ContextMenu);
+    open_menu(&mut dom, &row).await;
     click_control(&mut dom, "Mark unread");
     until(&mut dom, "the unread state on the row", |dom| rendered_text(dom).contains("Done") && control_attribute(dom, &row, "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
     open_thread(&mut dom, &props, state, "thread-b").await;

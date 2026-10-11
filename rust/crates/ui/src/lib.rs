@@ -97,6 +97,8 @@ mod limits_view;
 mod clone_view;
 mod workspace_files;
 mod composer_chips;
+mod context_menu;
+mod link_menus;
 mod import_projects;
 mod usage_page;
 mod timeline_scroll;
@@ -523,6 +525,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 }
             }
             {desktop_overlays(state)}
+            context_menu::ContextMenuHost {}
             if add_project() {
                 div { class: "modal-backdrop", div { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "add-project-heading",
                     h2 { id: "add-project-heading", "Add project" }
@@ -549,7 +552,6 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             import_projects::Host { state, transport: transport.clone() }
             thread_lifecycle::Host { state, transport: transport.clone() }
             thread_relations::Host { state, transport: transport.clone() }
-            thread_selection::Host { state, transport: transport.clone() }
             thread_pull_requests_panel::LinkDialog { state, transport: transport.clone() }
         }
     }

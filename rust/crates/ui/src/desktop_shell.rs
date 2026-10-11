@@ -329,6 +329,7 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
                 }
                 Action::ZoomIn | Action::ZoomOut | Action::ZoomReset => {
                     zoom.set(menu::zoomed(zoom.get(), action));
+                    ZOOM.with(|shown| shown.set(zoom.get()));
                     dioxus::desktop::window().set_zoom_level(zoom.get());
                 }
                 Action::ToggleDevTools => dioxus::desktop::window().devtool(),
@@ -611,6 +612,75 @@ fn page_context_menu(link: Option<String>, image: Option<String>) {
     let _ = (link, image);
 }
 
+thread_local! {
+    /// The page's zoom (View > Zoom), which the system's menus are placed by: the page's pixels are not the window's points.
+    static ZOOM: Cell<f64> = const { Cell::new(1.0) };
+}
+
+/// The system's own menu for `items` (the original's `showContextMenu` over IPC), shown where the page's pixels say. It opens at once
+/// and holds the interface until it closes, as a system menu does; the answer is the id chosen, or none when it was dismissed.
+/// None here when this platform has no native menu to offer, and the page draws one itself.
+pub(crate) fn native_menu(items: &[t3_client::context_menu::Item], at: Option<(f64, f64)>) -> Option<impl std::future::Future<Output = Option<String>>> {
+    #[cfg(target_os = "macos")]
+    {
+        use dioxus::desktop::{muda::ContextMenu, tao::platform::macos::WindowExtMacOS};
+        use t3_client::context_menu::{self as model, Native};
+        let (entries, ids) = model::native(items);
+        if entries.is_empty() {
+            return Some(futures_util::future::Either::Left(std::future::ready(None)));
+        }
+        fn fill(menu: &dyn Fn(&dyn muda::IsMenuItem), entries: &[Native]) {
+            for entry in entries {
+                match entry {
+                    Native::Separator => menu(&muda::PredefinedMenuItem::separator()),
+                    Native::Leaf { index, label, enabled, checked: None } => menu(&muda::MenuItem::with_id(format!("{CONTEXT_ID}#{index}"), label, *enabled, None)),
+                    Native::Leaf { index, label, enabled, checked: Some(checked) } => menu(&muda::CheckMenuItem::with_id(format!("{CONTEXT_ID}#{index}"), label, *enabled, *checked, None)),
+                    Native::Submenu { label, enabled, entries } => {
+                        let submenu = muda::Submenu::new(label, *enabled);
+                        fill(&|item| {
+                            let _ = submenu.append(item);
+                        }, entries);
+                        menu(&submenu)
+                    }
+                }
+            }
+        }
+        let menu = muda::Menu::new();
+        fill(&|item| {
+            let _ = menu.append(item);
+        }, &entries);
+        let (reply, answer) = futures_channel::oneshot::channel::<Option<String>>();
+        let reply = Rc::new(RefCell::new(Some(reply)));
+        MENU_CHOICE.with(|choice| {
+            let reply = reply.clone();
+            *choice.borrow_mut() = Some(Box::new(move |id| {
+                let chosen = id.strip_prefix('#').and_then(|index| index.parse::<usize>().ok()).and_then(|index| ids.get(index).cloned());
+                if let Some(reply) = reply.borrow_mut().take() {
+                    let _ = reply.send(chosen);
+                }
+            }));
+        });
+        let position = model::native_position(at, ZOOM.with(Cell::get)).map(|(x, y)| muda::dpi::Position::Logical(muda::dpi::LogicalPosition::new(x, y)));
+        let view = dioxus::desktop::window().ns_view();
+        // Returns when the menu closes; a choice arrives through the menu event handler, after this returns.
+        unsafe { menu.show_context_menu_for_nsview(view, position) };
+        // The choice was posted while the menu was up, and is handled before this timer fires; no choice by then is a dismissal.
+        spawn(async move {
+            runtime::delay(60).await;
+            MENU_CHOICE.with(|choice| choice.borrow_mut().take());
+            if let Some(reply) = reply.borrow_mut().take() {
+                let _ = reply.send(None);
+            }
+        });
+        Some(futures_util::future::Either::Right(async move { answer.await.ok().flatten() }))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (items, at);
+        None::<std::future::Ready<Option<String>>>
+    }
+}
+
 /// A notification through the system. macOS shows it through the system's `osascript`, as the app that runs it;
 /// the original shows it as T3 Code, which needs a signed bundle this build does not have. Returns whether it was shown.
 pub(crate) fn notify(title: &str, body: &str) -> bool {
@@ -663,6 +733,15 @@ pub(crate) async fn pick_folder() -> Option<String> {
         dialog = dialog.set_directory(home);
     }
     dialog.pick_folder().await.map(|folder| folder.path().to_string_lossy().into_owned())
+}
+
+/// The native save dialog (`dialog.showSaveDialog`), starting at the person's downloads folder. None if cancelled.
+pub(crate) async fn pick_save_path(name: &str) -> Option<String> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_title("Save").set_file_name(name);
+    if let Some(home) = env("HOME") {
+        dialog = dialog.set_directory(PathBuf::from(home).join("Downloads"));
+    }
+    dialog.save_file().await.map(|file| file.path().to_string_lossy().into_owned())
 }
 
 /// The strip above the app while the server is not answering.

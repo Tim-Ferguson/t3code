@@ -31,6 +31,23 @@ pub(crate) fn HeaderLinks(state: Store<UiModel>, transport: TransportHandle, thr
     } }
 }
 
+/// Files a pull request under the thread, or takes it out (`thread.pull-request.link` and `.unlink`); a refusal is reported.
+pub(crate) fn update(state: Store<UiModel>, transport: &TransportHandle, thread_id: &str, reference: &Reference, url: &str, link: bool) {
+    let Some((kind, mut input)) = logic::command(thread_id, reference, url, link) else { return };
+    input["type"] = json!(kind);
+    input["commandId"] = json!(uuid::Uuid::new_v4().to_string());
+    let transport = transport.clone();
+    spawn(async move {
+        let owner = runtime::response_owner(&transport, state);
+        let answer = runtime::request_value_reported(transport.clone(), state, "orchestration.dispatchCommand", input).await;
+        if owner.is_some() && owner == runtime::response_owner(&transport, state) {
+            if let Err(message) = answer {
+                notice::push(state, Level::Error, if link { logic::LINK_FAILED } else { logic::UNLINK_FAILED }, message);
+            }
+        }
+    });
+}
+
 /// "Link to this thread" or "Unlink from this thread" for the pull request the panel shows.
 #[component]
 pub(crate) fn LinkControl(state: Store<UiModel>, transport: TransportHandle, thread_id: String, reference: Reference, url: String) -> Element {

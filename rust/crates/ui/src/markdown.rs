@@ -272,7 +272,22 @@ fn RenderNode(node: Node) -> Element {
             rsx! {crate::workspace_files::MarkdownImage {src:src.clone(),alt:node.plain_text(),title:title.clone()}}
         }
         Kind::Link(href, title) if crate::safe_url(href) => {
-            rsx! {a {href:href.clone(),title:title.clone(),{children}}}
+            // A web page offers its own menu on a right-click (`showExternalLinkContextMenu`); a link to anything else, the page's.
+            let href_for_menu = href.clone();
+            let host = crate::workspace_files::host();
+            rsx! {a {href:href.clone(),title:title.clone(),
+                oncontextmenu:move |event| {
+                    if crate::link_menus::web_link(&href_for_menu).is_none() {return;}
+                    event.prevent_default();
+                    event.stop_propagation();
+                    let at=event.client_coordinates();
+                    let href=href_for_menu.clone();
+                    match host.clone() {
+                        Some(host) => {spawn(async move {crate::link_menus::external_link(host.state,Some(host.transport),Some(host.thread_id),href,(at.x,at.y)).await});}
+                        None => {}
+                    }
+                },
+                {children}}}
         }
         Kind::Image(src, title) if crate::safe_url(src) => {
             rsx! {img {src:src.clone(),alt:node.plain_text(),title:title.clone()}}

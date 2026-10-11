@@ -508,7 +508,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, environment_key: Str
             }
             if tree_visible {
                 aside { class: "diff-tree",
-                    FileTree { files: entries.iter().map(Entry::changed).collect::<Vec<_>>(), expanded: true, selected: selected_path, action: "Go to", label: "Changed files tree", on_select: select_file }
+                    FileTree { files: entries.iter().map(Entry::changed).collect::<Vec<_>>(), expanded: true, selected: selected_path, action: "Go to", label: "Changed files tree", on_select: select_file, on_context: crate::link_menus::file_context() }
                 }
             }
         }
@@ -760,6 +760,7 @@ pub(crate) fn FileSection(file: Rc<FileDiff>, collapsed: bool, split: bool, on_t
             },
             button { class: "diff-file-header", "aria-label": "{label}", "aria-expanded": "{!collapsed}", title: "{path}",
                 onclick: { let path = path.clone(); move |_| on_toggle.call(path.clone()) },
+                oncontextmenu: { let (path, on_context) = (path.clone(), crate::link_menus::file_context()); move |event| { if let Some(on_context) = on_context { event.prevent_default(); event.stop_propagation(); let at = event.client_coordinates(); on_context.call((path.clone(), (at.x, at.y))); } } },
                 span { class: "diff-file-chevron", "aria-hidden": "true", if collapsed { "▸" } else { "▾" } }
                 span { class: "diff-file-status", "data-status": "{letter}", title: "{status_name}", "aria-hidden": "true", "{letter}" }
                 span { class: "diff-file-path",

@@ -10,6 +10,8 @@ use crate::{
 use chrono::Utc;
 use dioxus::prelude::*;
 use serde_json::{Value, json};
+use std::rc::Rc;
+use t3_client::context_menu as menu;
 use t3_client::sidebar::{self, Pill, Status};
 use t3_contracts::ThreadShell;
 
@@ -87,6 +89,8 @@ pub(crate) struct RowView {
     /// The thread's own worktree, which "New thread on <branch>" reuses.
     pub worktree: Option<String>,
     pub has_completed_run: bool,
+    /// Archiving is refused while the thread works (`archive_blocked`).
+    pub archive_blocked: bool,
     pub can_snooze: bool,
     pub can_operate: bool,
     pub caps: Caps,
@@ -190,6 +194,7 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         workspace,
         worktree: thread.worktree_path.as_ref().map(ToString::to_string),
         has_completed_run: thread.latest_run_id.is_some() && !thread.status.is_active(),
+        archive_blocked: thread_lifecycle::archive_blocked(thread),
         can_snooze: thread.pending_runtime_request.is_none(),
         can_operate,
         caps,
@@ -252,7 +257,6 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     if let Some(probe) = try_consume_context::<crate::RenderProbe>() {
         probe.sidebar_row.set(probe.sidebar_row.get() + 1);
     }
-    let mut menu = use_signal(|| None::<(f64, f64)>);
     let busy = use_signal(|| false);
     // The title while it is being edited in place, and whether the edit has already been settled
     // (Enter or Escape is followed by the blur the removed field raises).
@@ -270,141 +274,16 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         Status::Ready => view.unread.then_some(("Done", "emerald")),
     };
     let class = format!("thread-row{}{}{}{}", if view.selected { " selected" } else { "" }, if view.chosen { " chosen" } else { "" }, if view.snoozed.is_some() { " snoozed" } else { "" }, if view.unread { " unread" } else { "" });
-    let mut close = move || menu.set(None);
-    let item = |name: String, disabled: bool, action: Box<dyn Fn()>| {
-        let disabled = disabled || busy();
-        rsx! {button {class:"menu-item",role:"menuitem",r#type:"button",disabled,"aria-label":"{name}",onclick:move |_| {close(); action();},"{name}"}}
-    };
     let can = view.can_operate;
-    let title_now = view.title.clone();
-    let (transport_for_menu, view_for_menu) = (transport.clone(), view.clone());
-    let items = if menu.read().is_some() {
-        let (transport, view) = (transport_for_menu, view_for_menu);
-        let thread_command = {
-            let (transport, id) = (transport.clone(), view.id.clone());
-            move |kind: &'static str, extra: Value, failure: &'static str| {
-                let mut payload = extra;
-                payload["threadId"] = json!(id);
-                send(&transport, state, busy, kind, payload, failure);
-            }
-        };
-        let mut entries: Vec<Element> = vec![];
-        // Another thread's history, attached to the draft being written so the agent can read it.
-        {
-            let (thread_id, title) = (view.id.clone(), view.title.clone());
-            let target = crate::composer_chips::open_target(state);
-            let environment = state.destination().peek().as_ref().map(ToString::to_string).unwrap_or_default();
-            let own = target.as_ref().is_some_and(|target| target.local_id == thread_id);
-            entries.push(item("Reference in chat".to_owned(), target.is_none() || own, Box::new(move || {
-                if let Some(target) = target.clone() {
-                    crate::composer_chips::add(state, target, t3_client::composer_context::thread_record(&environment, &thread_id, &title));
-                }
-            })));
-        }
-        // Where a thread sits among its section: one key written to it, or the section's keys when a neighbour has none.
-        // The keyboard path of the drag; only the pinned and the active sections are arranged.
-        for (section, writable, up_name, down_name, kind) in [(sidebar::Section::Pinned, view.caps.pinning && view.caps.pin_reorder, "Move pin up", "Move pin down", "thread.pin.reorder"), (sidebar::Section::Active, view.caps.active_reorder, "Move thread up", "Move thread down", "thread.active.reorder")] {
-            if view.section != section || !writable {
-                continue;
-            }
-            let (order, keys) = section_order(state, &view.id, section);
-            for (up, name) in [(true, up_name), (false, down_name)] {
-                let next = t3_client::pin_order::moved(&order, &view.id, up);
-                let (transport, id) = (transport.clone(), view.id.clone());
-                let keys = keys.clone();
-                entries.push(item(name.to_owned(), !can || next.is_none(), Box::new(move || {
-                    let Some(order) = next.clone() else { return };
-                    for (target, key) in t3_client::pin_order::plan_reorder(&order, &keys, &id) {
-                        runtime::command(&transport, state, kind, json!({"threadId":target,"orderKey":key}));
-                    }
-                })));
-            }
-        }
-        if view.caps.pinning {
-            let command = thread_command.clone();
-            entries.push(if view.pinned { let (transport, id) = (transport.clone(), view.id.clone()); let _ = &command; item("Unpin thread".to_owned(), !can, Box::new(move || thread_lifecycle::request_unpin(state, &transport, &id))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Failed to pin thread"))) });
-        }
-        if view.caps.settlement {
-            let command = thread_command.clone();
-            entries.push(if view.section == sidebar::Section::Settled {
-                item("Un-settle thread".to_owned(), !can, Box::new(move || command("thread.unsettle", json!({"reason":"user"}), "Failed to un-settle thread")))
-            } else {
-                item("Settle thread".to_owned(), !can, Box::new(move || command("thread.settle", json!({}), "Failed to settle thread")))
-            });
-        }
-        if view.caps.auto_settle_opt_out {
-            // "Auto-settle behavior": a setting with the current choice marked, not a one-shot action.
-            for (enabled, name) in [(true, "Auto-settle behavior: Enabled"), (false, "Auto-settle behavior: Disabled")] {
-                let command = thread_command.clone();
-                let checked = view.auto_settle == enabled;
-                let disabled = !can || busy();
-                entries.push(rsx! {button {class:"menu-item",role:"menuitemradio","aria-checked":"{checked}",r#type:"button",disabled,"aria-label":"{name}",
-                    onclick:move |_| {close(); if !checked {command("thread.auto-settle.set", json!({"enabled":enabled}), "Failed to update auto-settle")}},"{name}"}});
-            }
-        }
-        if view.caps.snooze {
-            if view.snoozed.is_some() {
-                let command = thread_command.clone();
-                entries.push(item("Wake thread".to_owned(), !can, Box::new(move || command("thread.unsnooze", json!({"reason":"user"}), "Failed to wake thread"))));
-            } else {
-                let now = Utc::now();
-                let offset = crate::scheduled_tasks_page::zone(now.timestamp_millis());
-                for preset in sidebar::snooze_presets(now, offset) {
-                    let command = thread_command.clone();
-                    let local = preset.until.parse::<chrono::DateTime<Utc>>().map(|at| at + chrono::Duration::minutes(offset as i64)).ok();
-                    let when = local.map(|at| sidebar::clock_label(at, state.client_settings().peek().timestamp_format)).unwrap_or_default();
-                    let name = format!("Snooze: {} ({when})", preset.label);
-                    let until = preset.until.clone();
-                    entries.push(item(name, !can || !view.can_snooze, Box::new(move || command("thread.snooze", json!({"snoozedUntil":until}), "Failed to snooze thread"))));
-                }
-                // The dialog of the original's "Custom…": a date and time, or a length of time, for this thread alone.
-                let id = view.id.clone();
-                entries.push(item("Snooze: Custom\u{2026}".to_owned(), !can || !view.can_snooze, Box::new(move || { state.custom_snooze_thread().set(Some(id.clone())); state.custom_snooze().set(true); })));
-            }
-        }
-        if view.caps.title_regeneration {
-            let command = thread_command.clone();
-            entries.push(item((if view.regenerating { "Regenerating\u{2026}" } else { "Regenerate title" }).to_owned(), !can || view.regenerating, Box::new(move || command("thread.metadata.update", json!({"regenerateTitle":true}), "Failed to regenerate thread title"))));
-        }
-        entries.push(item("Rename thread".to_owned(), !can, Box::new(move || {let (mut settled, mut renaming) = (settled, renaming);settled.set(false);renaming.set(Some(title_now.clone()));})));
-        if let Some(branch) = view.branch.clone() {
-            // The branch carries over: the thread's worktree when it has one, else its branch on the checkout.
-            let (transport, project, worktree) = (transport.clone(), view.project_id.clone(), view.worktree.clone());
-            entries.push(item(format!("New thread on {branch}"), false, Box::new(move || {
-                runtime::new_thread(&transport, state, Some(project.clone()));
-                crate::new_thread::apply_prepared(state, &project, &branch, worktree.clone());
-            })));
-        }
-        {
-            let command = thread_command.clone();
-            entries.push(item("Mark unread".to_owned(), !can || !view.has_completed_run, Box::new(move || command("thread.mark-unread", json!({}), "Could not mark the thread unread"))));
-        }
-        if let Some(path) = view.workspace.clone() {
-            entries.push(item("Copy path".to_owned(), false, Box::new(move || copy_text(&path))));
-        }
-        if let Some(branch) = view.branch.clone() {
-            entries.push(item("Copy branch".to_owned(), false, Box::new(move || copy_text(&branch))));
-        }
-        {
-            let id = view.id.clone();
-            entries.push(item("Copy thread ID".to_owned(), false, Box::new(move || copy_text(&id))));
-        }
-        {
-            let project = view.project_id.clone();
-            entries.push(item("Project settings".to_owned(), false, Box::new(move || crate::projects_page::open(state, &project))));
-        }
-        {
-            let (transport, id) = (transport.clone(), view.id.clone());
-            entries.push(item("Archive thread".to_owned(), !can, Box::new(move || thread_lifecycle::request_archive(state, &transport, &id))));
-        }
-        {
-            let (transport, id) = (transport.clone(), view.id.clone());
-            entries.push(item("Delete thread".to_owned(), !can, Box::new(move || thread_lifecycle::request_delete(state, &transport, &id))));
-        }
-        entries
-    } else {
-        vec![]
+    // The menu is the shared model (`t3_client::context_menu::thread_actions`), drawn by the platform: the system's own on the desktop.
+    let open_menu: Rc<dyn Fn(Option<(f64, f64)>)> = {
+        let (transport, view) = (transport.clone(), view.clone());
+        Rc::new(move |at| {
+            let (transport, view) = (transport.clone(), view.clone());
+            spawn(async move { run_menu(state, transport, view, busy, renaming, settled, at).await });
+        })
     };
+    let mut row = use_signal(|| None::<Rc<MountedData>>);
     // Enter or leaving the field commits, Escape cancels; an empty title is refused and an unchanged one is not sent.
     let commit = {
         let (transport, original) = (transport.clone(), view.title.clone());
@@ -456,14 +335,26 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     if crate::thread_selection::click(state,&id,event.modifiers()) {return;}
                     runtime::select_thread(&transport,state,id.clone())
                 }},
-                oncontextmenu:{let id=id.clone();move |event| {
+                onmounted:move |event| row.set(Some(event.data())),
+                oncontextmenu:{let id=id.clone();let open_menu=open_menu.clone();let transport=transport.clone();move |event| {
                     event.prevent_default();
                     let at=event.client_coordinates();
                     // On a chosen row the menu is for all the chosen rows.
-                    if state.selection().peek().contains(&id) && crate::thread_selection::open_menu(state,(at.x,at.y)) {return;}
-                    menu.set(Some((at.x,at.y)));
+                    if state.selection().peek().contains(&id) && crate::thread_selection::open_menu(state,&transport,(at.x,at.y)) {return;}
+                    open_menu(Some((at.x,at.y)));
                 }},
-                onkeydown:move |event| {if event.key()==Key::ContextMenu {event.prevent_default();menu.set(Some((0.0,0.0)));}},
+                // From the keyboard the menu opens under the row.
+                onkeydown:{let open_menu=open_menu.clone();move |event| {
+                    if event.key()==Key::ContextMenu {
+                        event.prevent_default();
+                        let open_menu=open_menu.clone();
+                        let row=row.peek().clone();
+                        spawn(async move {
+                            let rect=match row {Some(row)=>row.get_client_rect().await.ok(),None=>None};
+                            open_menu(rect.map(|rect| (rect.min_x(),rect.max_y())));
+                        });
+                    }
+                }},
                 span {class:"status-dot {status}","aria-hidden":"true"}
                 span {class:"thread-title","{view.title}"}
                 if view.regenerating {span {class:"sr-only",role:"status","Regenerating title"}}
@@ -507,16 +398,143 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     onclick:{let (transport, id) = (transport.clone(), id.clone());move |_| send(&transport,state,busy,"thread.visit",json!({"threadId":id,"visitedAt":woke}),"Could not dismiss the notification")},"\u{d7}"}
             }
             }
-            if let Some((x,y))=menu() {
-                div {class:"menu-backdrop",onclick:move |_| menu.set(None),oncontextmenu:move |event| {event.prevent_default();menu.set(None);}}
-                div {class:"context-menu",role:"menu","aria-label":"Thread actions","data-fit-menu":"true",style:if x > 0.0 || y > 0.0 {format!("position:fixed;left:{x}px;top:{y}px")} else {String::new()},tabindex:"0",
-                    onmounted:move |event| {
-                        drop(event.set_focus(true));
-                        // Opened low in the list, the menu would run off the bottom of the window with its last items out of reach.
-                        let _ = document::eval("const m=document.querySelector('[data-fit-menu]');if(m){const r=m.getBoundingClientRect();m.style.top=Math.max(8,Math.min(r.top,innerHeight-r.height-8))+'px';m.style.left=Math.max(8,Math.min(r.left,innerWidth-r.width-8))+'px';}");
-                    },
-                    onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();menu.set(None);}},
-                    {items.into_iter()}
+        }
+    }
+}
+
+/// The menu of a thread row, shown where the pointer is and carried out when something is chosen. What the original's row menu
+/// offers (`buildThreadActionMenuItems`), with the three things this app adds before them: referencing the thread in the draft
+/// being written, and the keyboard path of the drag that moves it among its section.
+async fn run_menu(state: Store<UiModel>, transport: runtime::TransportHandle, view: RowView, busy: Signal<bool>, mut renaming: Signal<Option<String>>, mut settled: Signal<bool>, at: Option<(f64, f64)>) {
+    let can = view.can_operate;
+    let now = Utc::now();
+    let offset = crate::scheduled_tasks_page::zone(now.timestamp_millis());
+    let format = state.client_settings().peek().timestamp_format;
+    let presets = if view.caps.snooze && view.snoozed.is_none() { sidebar::snooze_presets(now, offset) } else { vec![] };
+    let mut items = menu::thread_actions(&menu::ThreadActions {
+        can_operate: can,
+        branch: view.branch.clone(),
+        project_filter: None,
+        pinned: view.pinned,
+        settled: view.section == sidebar::Section::Settled,
+        auto_settle_enabled: view.auto_settle,
+        snoozed: view.snoozed.is_some(),
+        can_snooze_now: view.can_snooze,
+        regenerating_title: view.regenerating,
+        running: view.archive_blocked,
+        settlement: view.caps.settlement,
+        auto_settle_opt_out: view.caps.auto_settle_opt_out,
+        snooze: view.caps.snooze,
+        pinning: view.caps.pinning,
+        title_regeneration: view.caps.title_regeneration,
+        snooze_presets: presets
+            .iter()
+            .map(|preset| {
+                let local = preset.until.parse::<chrono::DateTime<Utc>>().map(|at| at + chrono::Duration::minutes(offset as i64)).ok();
+                (preset.id.to_owned(), preset.label.to_owned(), local.map(|at| sidebar::clock_label(at, format)).unwrap_or_default())
+            })
+            .collect(),
+    });
+    // While a write of this row is in flight its choices are off: a second one would be dropped by `send`, silently.
+    if *busy.peek() {
+        fn off(items: &mut [menu::Item]) {
+            for item in items {
+                if menu::thread_action_requires_operate(&item.id) {
+                    item.disabled = true;
+                }
+                if let Some(children) = &mut item.children {
+                    off(children);
+                }
+            }
+        }
+        off(&mut items);
+    }
+    // Marking a thread that has not finished a run unread has nothing to mark.
+    if let Some(item) = items.iter_mut().find(|item| item.id == "mark-unread") {
+        item.disabled |= !view.has_completed_run;
+    }
+    // Another thread's history, attached to the draft being written so the agent can read it.
+    let target = crate::composer_chips::open_target(state);
+    let environment = state.destination().peek().as_ref().map(ToString::to_string).unwrap_or_default();
+    let own = target.as_ref().is_some_and(|target| target.local_id == view.id);
+    let mut extras = vec![menu::Item::new("reference-in-chat", "Reference in chat").disabled(target.is_none() || own)];
+    // Where a thread sits among its section: one key written to it, or the section's keys when a neighbour has none.
+    // The keyboard path of the drag; only the pinned and the active sections are arranged.
+    let mut moves: Vec<(&'static str, Option<Vec<String>>, std::collections::BTreeMap<String, Option<String>>)> = vec![];
+    for (section, writable, up_name, down_name, kind) in [(sidebar::Section::Pinned, view.caps.pinning && view.caps.pin_reorder, "Move pin up", "Move pin down", "thread.pin.reorder"), (sidebar::Section::Active, view.caps.active_reorder, "Move thread up", "Move thread down", "thread.active.reorder")] {
+        if view.section != section || !writable {
+            continue;
+        }
+        let (order, keys) = section_order(state, &view.id, section);
+        for (up, name) in [(true, up_name), (false, down_name)] {
+            let next = t3_client::pin_order::moved(&order, &view.id, up);
+            extras.push(menu::Item::new(format!("move:{}", moves.len()), name).disabled(!can || next.is_none()));
+            moves.push((kind, next, keys.clone()));
+        }
+    }
+    items.splice(0..0, extras);
+    let Some(choice) = crate::context_menu::show("Thread actions", items, at).await else { return };
+    let command = |kind: &'static str, extra: Value, failure: &'static str| {
+        let mut payload = extra;
+        payload["threadId"] = json!(view.id);
+        send(&transport, state, busy, kind, payload, failure);
+    };
+    match choice.as_str() {
+        "reference-in-chat" => {
+            if let Some(target) = target {
+                crate::composer_chips::add(state, target, t3_client::composer_context::thread_record(&environment, &view.id, &view.title));
+            }
+        }
+        "new-thread-on-branch" => {
+            // The branch carries over: the thread's worktree when it has one, else its branch on the checkout.
+            if let Some(branch) = view.branch.clone() {
+                runtime::new_thread(&transport, state, Some(view.project_id.clone()));
+                crate::new_thread::apply_prepared(state, &view.project_id, &branch, view.worktree.clone());
+            }
+        }
+        "pin" => command("thread.pin", json!({}), "Failed to pin thread"),
+        "unpin" => thread_lifecycle::request_unpin(state, &transport, &view.id),
+        "settle" => command("thread.settle", json!({}), "Failed to settle thread"),
+        "unsettle" => command("thread.unsettle", json!({"reason":"user"}), "Failed to un-settle thread"),
+        "unsnooze" => command("thread.unsnooze", json!({"reason":"user"}), "Failed to wake thread"),
+        "snooze:custom" => {
+            state.custom_snooze_thread().set(Some(view.id.clone()));
+            state.custom_snooze().set(true);
+        }
+        id if id.starts_with("snooze:") => {
+            if let Some(preset) = presets.iter().find(|preset| format!("snooze:{}", preset.id) == id) {
+                command("thread.snooze", json!({"snoozedUntil":preset.until}), "Failed to snooze thread");
+            }
+        }
+        id @ ("auto-settle:enabled" | "auto-settle:disabled") => {
+            let enabled = id == "auto-settle:enabled";
+            if enabled != view.auto_settle {
+                command("thread.auto-settle.set", json!({"enabled":enabled}), "Failed to update auto-settle");
+            }
+        }
+        "rename" => {
+            settled.set(false);
+            renaming.set(Some(view.title.clone()));
+        }
+        "regenerate-title" => command("thread.metadata.update", json!({"regenerateTitle":true}), "Failed to regenerate thread title"),
+        "mark-unread" => command("thread.mark-unread", json!({}), "Could not mark the thread unread"),
+        "copy-path" => match view.workspace.clone() {
+            Some(path) => copy_text(&path),
+            None => notice::push(state, Level::Error, "Path unavailable", "This thread does not have a workspace path to copy."),
+        },
+        "copy-branch" => {
+            if let Some(branch) = &view.branch {
+                copy_text(branch);
+            }
+        }
+        "copy-thread-id" => copy_text(&view.id),
+        "project-settings" => crate::projects_page::open(state, &view.project_id),
+        "archive" => thread_lifecycle::request_archive(state, &transport, &view.id),
+        "delete" => thread_lifecycle::request_delete(state, &transport, &view.id),
+        id => {
+            if let Some((kind, Some(order), keys)) = id.strip_prefix("move:").and_then(|index| index.parse::<usize>().ok()).and_then(|index| moves.get(index).cloned()) {
+                for (target, key) in t3_client::pin_order::plan_reorder(&order, &keys, &view.id) {
+                    runtime::command(&transport, state, kind, json!({"threadId":target,"orderKey":key}));
                 }
             }
         }

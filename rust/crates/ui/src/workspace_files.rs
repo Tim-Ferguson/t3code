@@ -28,12 +28,28 @@ pub(crate) fn host_available() -> bool {
     try_consume_context::<Host>().is_some()
 }
 
+/// The host of the Markdown being drawn, if it belongs to a thread.
+pub(crate) fn host() -> Option<Host> {
+    try_consume_context::<Host>()
+}
+
 fn cwd(host: &Host) -> Option<String> {
     open_in::thread_cwd(host.state)
 }
 
+/// Opens the file in the editor, at the line the link names, in the favorite one.
+fn open_in_editor(host: &Host, target: &logic::FileTarget, busy: Signal<bool>, last: Option<open_in::Last>) {
+    let Some(root) = cwd(host) else { return };
+    let editor = open_in::favorite(host.state, last.as_ref().and_then(|last| last.0.peek().clone()).as_deref());
+    if let (Some(editor), Some(last)) = (editor, last) {
+        open_in::open(&host.transport, host.state, busy, last.0, logic::editor_path(target, &root), editor, false);
+    } else {
+        crate::notice::push(host.state, crate::notice::Level::Info, "No editor to open the file in", target.path.clone());
+    }
+}
+
 /// A link that names a file. Pictures and PDFs inside the workspace open in the page; the rest
-/// go to the editor, at the line the link names.
+/// go to the editor, at the line the link names. A right-click offers the same and more (`ChatMarkdown.tsx`'s file chip).
 #[component]
 pub(crate) fn FileLink(target: logic::FileTarget, title: String, children: Element) -> Element {
     let host = use_context::<Host>();
@@ -52,15 +68,54 @@ pub(crate) fn FileLink(target: logic::FileTarget, title: String, children: Eleme
                     return;
                 }
             }
-            let editor = open_in::favorite(host.state, last.as_ref().and_then(|last| last.0.peek().clone()).as_deref());
-            if let (Some(editor), Some(last)) = (editor, last) {
-                open_in::open(&host.transport, host.state, busy, last.0, logic::editor_path(&target, &root), editor, false);
-            } else {
-                crate::notice::push(host.state, crate::notice::Level::Info, "No editor to open the file in", target.path.clone());
-            }
+            open_in_editor(&host, &target, busy, last);
         }
     };
-    rsx! { a { class: "file-link", href: "#", role: "button", title: "{title}", "aria-label": "{label}", onclick, {children} } }
+    let oncontextmenu = {
+        let (host, target) = (host.clone(), target.clone());
+        move |event: MouseEvent| {
+            event.prevent_default();
+            event.stop_propagation();
+            let at = event.client_coordinates();
+            let (host, target) = (host.clone(), target.clone());
+            spawn(async move { file_menu(host, target, busy, last, (at.x, at.y)).await });
+        }
+    };
+    rsx! { a { class: "file-link", href: "#", role: "button", title: "{title}", "aria-label": "{label}", onclick, oncontextmenu, {children} } }
+}
+
+/// The menu of a file named in a message: preview it when it is media, open it in the editor, reveal it, copy its path.
+async fn file_menu(host: Host, target: logic::FileTarget, busy: Signal<bool>, last: Option<open_in::Last>, at: (f64, f64)) {
+    use t3_client::context_menu::Item;
+    let Some(root) = cwd(&host) else { return };
+    let relative = logic::workspace_relative(&target.path, &root);
+    let absolute = logic::editor_path(&logic::FileTarget { path: target.path.clone(), line: None, column: None }, &root);
+    let editor = open_in::favorite(host.state, last.as_ref().and_then(|last| last.0.peek().clone()).as_deref());
+    let capabilities = crate::link_menus::file_capabilities(host.state);
+    let mut items = vec![];
+    if logic::previewable(&target.path).is_some() && relative.is_some() {
+        items.push(Item::new("preview-media", "Preview media"));
+    }
+    if editor.is_some() {
+        items.push(Item::new("open", t3_client::editors::menu_label(editor.as_deref())));
+    }
+    if let Some(reveal) = capabilities.reveal_label {
+        items.push(Item::new("reveal", reveal));
+    }
+    items.push(Item::new("copy-relative", "Copy relative path"));
+    items.push(Item::new("copy-full", "Copy full path"));
+    let Some(choice) = crate::context_menu::show("File actions", items, Some(at)).await else { return };
+    match choice.as_str() {
+        "preview-media" => {
+            let mut preview = host.preview;
+            preview.set(relative);
+        }
+        "open" => open_in_editor(&host, &target, busy, last),
+        "reveal" => crate::link_menus::open_path(host.state, &host.transport, absolute, t3_client::editors::FILE_MANAGER.to_owned(), true),
+        "copy-relative" => crate::sidebar_rows::copy_text(relative.as_deref().unwrap_or(&target.path)),
+        "copy-full" => crate::sidebar_rows::copy_text(&absolute),
+        _ => {}
+    }
 }
 
 /// An image in the Markdown that points into the workspace, loaded through the server.
@@ -98,8 +153,32 @@ pub(crate) fn MarkdownImage(src: String, alt: String, title: String) -> Element 
         Some(None) => rsx! {},
         Some(Some(Err(_))) if is_video => rsx! { span { class: "muted", "{alt} (video unavailable)" } },
         Some(Some(Err(_))) => rsx! { span { class: "muted", "{alt} (image unavailable)" } },
-        Some(Some(Ok(Signed { url, .. }))) if is_video => rsx! { video { class: "markdown-workspace-video", src: "{url}", controls: true, preload: "metadata", title: "{title}", "aria-label": "Video {alt}" } },
-        Some(Some(Ok(Signed { url, .. }))) => rsx! { img { class: "markdown-workspace-image", src: "{url}", alt: "{alt}", title: "{title}", "aria-label": "Image {alt}", loading: "lazy" } },
+        Some(Some(Ok(Signed { url, .. }))) if is_video => {
+            let (menu_host, menu_url, name, relative, absolute) = (host.clone(), url.clone(), alt.clone(), relative.clone(), target.as_ref().and_then(|target| cwd(&host).map(|root| logic::editor_path(&logic::FileTarget { path: target.path.clone(), line: None, column: None }, &root))));
+            rsx! { video { class: "markdown-workspace-video", src: "{url}", controls: true, preload: "metadata", title: "{title}", "aria-label": "Video {alt}",
+                oncontextmenu: move |event| {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    let at = event.client_coordinates();
+                    let (host, url, name) = (menu_host.clone(), menu_url.clone(), name.clone());
+                    let reference = absolute.clone().map(|path| t3_client::context_menu::MediaReference::File { path, relative_path: relative.clone() });
+                    let open_file = relative.clone().map(|relative| { let mut preview = host.preview; Callback::new(move |()| preview.set(Some(relative.clone()))) });
+                    spawn(async move { crate::link_menus::media(host.state, "video", name, Some(url), reference, open_file, (at.x, at.y)).await });
+                } } }
+        }
+        Some(Some(Ok(Signed { url, .. }))) => {
+            let (menu_host, menu_url, name, relative, absolute) = (host.clone(), url.clone(), alt.clone(), relative.clone(), target.as_ref().and_then(|target| cwd(&host).map(|root| logic::editor_path(&logic::FileTarget { path: target.path.clone(), line: None, column: None }, &root))));
+            rsx! { img { class: "markdown-workspace-image", src: "{url}", alt: "{alt}", title: "{title}", "aria-label": "Image {alt}", loading: "lazy",
+                oncontextmenu: move |event| {
+                    event.prevent_default();
+                    event.stop_propagation();
+                    let at = event.client_coordinates();
+                    let (host, url, name) = (menu_host.clone(), menu_url.clone(), name.clone());
+                    let reference = absolute.clone().map(|path| t3_client::context_menu::MediaReference::File { path, relative_path: relative.clone() });
+                    let open_file = relative.clone().map(|relative| { let mut preview = host.preview; Callback::new(move |()| preview.set(Some(relative.clone()))) });
+                    spawn(async move { crate::link_menus::media(host.state, "image", name, Some(url), reference, open_file, (at.x, at.y)).await });
+                } } }
+        }
     }
 }
 

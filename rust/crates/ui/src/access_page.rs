@@ -306,6 +306,11 @@ fn CreateDialog(state: Store<UiModel>, transport: TransportHandle, on_close: Eve
 fn Share(label: String, credential: String, origin: String, advertised: AdvertisedEndpoints) -> Element {
     let mut open = use_signal(|| false);
     let mut picked = use_signal(|| None::<String>);
+    // The endpoint saved as the default (the original's `defaultAdvertisedEndpointKey`), read once from the browser's saved state; a pick
+    // in this panel is the new default.
+    let mut stored = use_signal(|| None::<String>);
+    use_hook(move || spawn(async move { stored.set(read_default_key().await) }));
+    let advertised = AdvertisedEndpoints { default_key: stored.read().clone().or(advertised.default_key.clone()), ..advertised };
     let options = logic::share_options(&advertised.endpoints, &credential);
     // `shareablePairingUrl`: the endpoint a link would use, else this connection's own address unless that is loopback.
     let shareable = logic::select_pairing_endpoint(&advertised.endpoints, advertised.default_key.as_deref())
@@ -328,10 +333,11 @@ fn Share(label: String, credential: String, origin: String, advertised: Advertis
                         for option in options.iter() {
                             {
                                 let id = option.id.clone();
+                                let preference = option.preference_key.clone();
                                 let chosen = selected.as_ref().is_some_and(|selected| selected.id == option.id);
                                 rsx! {
                                     button { key: "{option.id}", r#type: "button", role: "radio", "aria-checked": "{chosen}", "aria-label": "Reach via {option.label}", class: if chosen { "access-endpoint chosen" } else { "access-endpoint" },
-                                        onclick: move |_| picked.set(Some(id.clone())),
+                                        onclick: move |_| { picked.set(Some(id.clone())); stored.set(Some(preference.clone())); write_default_key(&preference); },
                                         strong { "{option.label}" } span { class: "muted", " {option.detail}" } }
                                 }
                             }
@@ -354,4 +360,16 @@ fn Share(label: String, credential: String, origin: String, advertised: Advertis
             }
         }
     }
+}
+
+async fn read_default_key() -> Option<String> {
+    let key = serde_json::to_string(logic::UI_STATE_KEY).expect("key");
+    let raw = document::eval(&format!("try{{return window.localStorage.getItem({key});}}catch{{return null;}}")).join::<Option<String>>().await.ok().flatten();
+    logic::stored_default_key(raw.as_deref())
+}
+
+/// Saves the endpoint as the default, in the record the original's interface state shares.
+fn write_default_key(preference: &str) {
+    let (key, preference) = (serde_json::to_string(logic::UI_STATE_KEY).expect("key"), serde_json::to_string(preference).expect("preference"));
+    let _ = document::eval(&format!("try{{const raw=window.localStorage.getItem({key});let state={{}};try{{const parsed=JSON.parse(raw);if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))state=parsed;}}catch{{}}state.defaultAdvertisedEndpointKey={preference};window.localStorage.setItem({key},JSON.stringify(state));}}catch{{}}"));
 }

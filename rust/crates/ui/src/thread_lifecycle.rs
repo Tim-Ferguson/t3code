@@ -464,6 +464,7 @@ pub(crate) fn Archived(state: Store<UiModel>, transport: TransportHandle, projec
                     Some(Ok(threads)) => rsx! {
                         for (id, title) in threads {
                             div { key: "{id}", class: "thread-line",
+                                oncontextmenu: { let (transport, id) = (transport.clone(), id.clone()); move |event| { event.prevent_default(); let at = event.client_coordinates(); let (transport, id) = (transport.clone(), id.clone()); spawn(async move { archived_menu(state, transport, id, allowed, (at.x, at.y)).await }); } },
                                 button { class: "thread-row", onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| runtime::select_thread(&transport, state, id.clone()) }, span { class: "thread-title", "{title}" } }
                                 button { "aria-label": "Unarchive {title}", disabled: !allowed, onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| unarchive(state, &transport, &id) }, "Unarchive" }
                                 button { "aria-label": "Delete {title}", disabled: !allowed, onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| request_delete(state, &transport, &id) }, "Delete" }
@@ -473,5 +474,15 @@ pub(crate) fn Archived(state: Store<UiModel>, transport: TransportHandle, projec
                 }
             }
         }
+    }
+}
+
+/// The menu of an archived thread: bring it back, or delete it (which asks first).
+async fn archived_menu(state: Store<UiModel>, transport: TransportHandle, id: String, allowed: bool, at: (f64, f64)) {
+    let items: Vec<_> = t3_client::context_menu::archived_thread().into_iter().map(|item| { let disabled = !allowed; item.disabled(disabled) }).collect();
+    match crate::context_menu::show("Archived thread actions", items, Some(at)).await.as_deref() {
+        Some("unarchive") => unarchive(state, &transport, &id),
+        Some("delete") => request_delete(state, &transport, &id),
+        _ => {}
     }
 }
