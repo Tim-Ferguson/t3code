@@ -1,0 +1,34 @@
+[package]
+name = "t3-remote"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+t3-contracts.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+url.workspace = true
+base64.workspace = true
+sha2.workspace = true
+rand.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+regex.workspace = true
+# Orders SSH host names like `localeCompare` does.
+icu_collator.workspace = true
+# Ed25519 key handling and EdDSA signatures; already in the lock file through rustls.
+ring = "0.17"
+# Lets the injected services (secret store, control plane, connector spawner) be trait objects.
+async-trait = "0.1"
+# The loopback listener that receives the OAuth authorization-code callback.
+axum.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = "3"
