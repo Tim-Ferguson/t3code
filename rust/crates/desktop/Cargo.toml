@@ -10,6 +10,7 @@ license.workspace = true
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+url.workspace = true
 rand.workspace = true
 t3-remote = { path = "../remote" }
 t3-client.workspace = true

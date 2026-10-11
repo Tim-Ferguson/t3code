@@ -14,6 +14,8 @@ pub fn NewThreadControls(
     projects: Vec<ProjectShell>,
     can_operate: bool,
 ) -> Element {
+    // The form has its draft in the render that shows it: this does nothing when it has one already.
+    crate::draft_sessions::ensure_for_form(state);
     let selected = state.selected_project().read().clone();
     let project = projects
         .iter()
@@ -23,16 +25,20 @@ pub fn NewThreadControls(
     let Some(project) = project else {
         return rsx! {};
     };
+    let draft = state.active_draft().read().clone();
+    let Some(draft) = draft.filter(|draft| crate::draft_sessions::project_of(state, draft).as_deref() == Some(project.id.as_str())) else {
+        return rsx! {};
+    };
     let destination = state
         .destination()
         .read()
         .as_ref()
         .map(ToString::to_string)
         .unwrap_or_default();
-    let key = serde_json::to_string(&(&destination, &project.id)).expect("identity");
+    let key = serde_json::to_string(&(&destination, &draft)).expect("identity");
     rsx! {
         div { class:"new-thread-controls",
-            for project in [project.clone()] {NewThreadOptions { key:"{key}",state,transport:transport.clone(),projects:projects.clone(),project,can_operate }}
+            for project in [project.clone()] {NewThreadOptions { key:"{key}",state,transport:transport.clone(),projects:projects.clone(),project,draft:draft.clone(),can_operate }}
         }
     }
 }
@@ -62,6 +68,7 @@ fn previous_for(state: Store<UiModel>, project: &ProjectShell, current: Option<&
 }
 /// The project the new-thread form is for, when the form is on screen.
 fn form_project(state: Store<UiModel>) -> Option<(ProjectShell, DraftKey)> {
+    let draft = state.active_draft().read().clone()?;
     if *state.view().read() != crate::runtime::View::Chat || state.active_thread().read().is_some() {
         return None;
     }
@@ -71,7 +78,7 @@ fn form_project(state: Store<UiModel>) -> Option<(ProjectShell, DraftKey)> {
     let selected = state.selected_project().read().clone();
     let project = snapshot.projects.iter().find(|project| Some(project.id.as_str()) == selected.as_deref()).or_else(|| snapshot.projects.first())?.clone();
     let destination = state.destination().read().clone()?;
-    let key = (destination, project.id.to_string());
+    let key = (destination, draft);
     Some((project, key))
 }
 /// Whether `composer.workspace` has a form to act on.
@@ -95,9 +102,10 @@ pub(crate) fn use_previous_worktree(state: Store<UiModel>) {
 }
 /// A pull request was prepared for a thread: the form starts on its branch, in the worktree that
 /// holds it or in the project's own checkout.
-pub(crate) fn apply_prepared(state: Store<UiModel>, project_id: &str, branch: &str, worktree_path: Option<String>) {
+pub(crate) fn apply_prepared(state: Store<UiModel>, branch: &str, worktree_path: Option<String>) {
     let Some(destination) = state.destination().peek().clone() else { return };
-    let key = (destination, project_id.to_owned());
+    let Some(draft) = state.active_draft().peek().clone() else { return };
+    let key = (destination, draft);
     update_choices(state, Some(&key), |choices| match worktree_path {
         Some(path) => use_worktree(choices, path, Some(branch.to_owned())),
         None => {
@@ -168,6 +176,7 @@ fn NewThreadOptions(
     transport: runtime::TransportHandle,
     projects: Vec<ProjectShell>,
     project: ProjectShell,
+    draft: String,
     can_operate: bool,
 ) -> Element {
     // Component ownership includes both destination and project; asynchronous
@@ -183,7 +192,7 @@ fn NewThreadOptions(
     let destination = state.destination().read().clone();
     let draft_key = destination
         .as_ref()
-        .map(|destination| (destination.clone(), project.id.to_string()));
+        .map(|destination| (destination.clone(), draft.clone()));
     let prompt = draft_key
         .as_ref()
         .and_then(|key| state.new_thread_drafts().read().get(key).cloned())
@@ -195,7 +204,7 @@ fn NewThreadOptions(
     let base_ref = choices.base_ref.clone();
     let pending = destination.as_ref().is_some_and(|destination| {
         state.pending_launches().read().values().any(|pending| {
-            &pending.destination == destination && pending.project_id == project.id.as_str()
+            &pending.destination == destination && pending.draft_id == draft
         })
     });
     let sticky = destination
@@ -267,11 +276,11 @@ fn NewThreadOptions(
     let unsupported = draft_key.as_ref().is_some_and(|key| {
         crate::draft_storage::has_unrendered(
             state,
-            &t3_client::draft_storage::DraftTarget::project(key.0.to_string(), key.1.clone()),
+            &t3_client::draft_storage::DraftTarget::draft(key.0.to_string(), key.1.clone()),
         )
     });
     let attachment_target = destination.as_ref().map(|destination| {
-        t3_client::draft_storage::DraftTarget::project(destination.to_string(), project.id.to_string())
+        t3_client::draft_storage::DraftTarget::draft(destination.to_string(), draft.clone())
     });
     let (attachment_count, attachment_block) = attachment_target
         .as_ref()
@@ -304,7 +313,7 @@ fn NewThreadOptions(
     let prompt_is_empty = prompt.trim().is_empty();
     // Starting the thread from the button or `composer.sendBackground`; the background form leaves the person here.
     let launch = {
-        let (transport, project_id, prompt, launch_selection, worktree_path, base_ref) = (transport.clone(), project_id.clone(), prompt.clone(), launch_selection.clone(), worktree_path.clone(), base_ref.clone());
+        let (transport, project_id, draft, prompt, launch_selection, worktree_path, base_ref) = (transport.clone(), project_id.clone(), draft.clone(), prompt.clone(), launch_selection.clone(), worktree_path.clone(), base_ref.clone());
         move |background: bool| {
             if let Some(selection)=launch_selection.as_ref() {
                 let workspace=if let Some(path)=worktree_path.clone() {
@@ -314,7 +323,7 @@ fn NewThreadOptions(
                     let Ok(base_ref)=TrimmedNonEmptyString::new(&base_ref) else{return;};
                     ThreadLaunchWorkspaceStrategy::Worktree(WorkspaceWorktree {base_ref,branch:None,start_from_origin:None})
                 } else {ThreadLaunchWorkspaceStrategy::Root(WorkspaceRoot {branch:None})};
-                if let Some(id)=runtime::launch_thread(&transport,state,&project_id,selection,mode,workspace,Some(&prompt)) {
+                if let Some(id)=runtime::launch_thread(&transport,state,&project_id,&draft,selection,mode,workspace,Some(&prompt)) {
                     if background {
                         if let Some(pending)=state.pending_launches().write().get_mut(&id) {pending.background=true;}
                     }
@@ -344,7 +353,7 @@ fn NewThreadOptions(
             crate::prompt_stash::Dock {state,transport:transport.clone()}
             if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
             div {class:"new-thread-prompt",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:{let draft_key=draft_key.clone();move|e|{
-                if let Some(key)=draft_key.clone() {crate::draft_storage::edit_project_prompt(state,key,e.value());}
+                if let Some(key)=draft_key.clone() {crate::draft_storage::edit_draft_prompt(state,key,e.value());}
             }},
             oncompositionend:{let composition=composition.clone();move|_|composition.ended()},
             // Enter starts the thread, as the Start button does; Shift-Enter and IME confirmation add a line or confirm.
@@ -381,7 +390,7 @@ fn NewThreadOptions(
         }
         crate::model_controls::ModelOptions {selected:selected.clone(),prompt_effort:crate::model_controls::PromptEffort::of(&descriptors,&prompt),on_effort:{let draft_key=draft_key.clone();let prompt=prompt.clone();let injected:Vec<String>=crate::model_controls::PromptEffort::of(&descriptors,&prompt).map(|effort|effort.injected).unwrap_or_default();move|value:String|{
             let injected:Vec<&str>=injected.iter().map(String::as_str).collect();
-            if let (Some(key),Some(next))=(draft_key.clone(),t3_client::models::prompt_after_effort(&prompt,&value,&injected)) {if next!=prompt {crate::draft_storage::edit_project_prompt(state,key,next);}}
+            if let (Some(key),Some(next))=(draft_key.clone(),t3_client::models::prompt_after_effort(&prompt,&value,&injected)) {if next!=prompt {crate::draft_storage::edit_draft_prompt(state,key,next);}}
         }},descriptors,onchange:{let draft_key=draft_key.clone();move|selection|remember_selection(state,draft_key.as_ref(),&selection)}}
         label {"Permissions",select {"aria-label":"Permissions",value:runtime_value,onchange:{let draft_key=draft_key.clone();move|e|{if let Ok(mode)=serde_json::from_value(json!(e.value())) {update_choices(state,draft_key.as_ref(),|choices|choices.runtime_mode=Some(mode));}}},
             for choice in modes {option {value:serde_json::to_value(choice).unwrap().as_str().unwrap(),selected:choice==mode,"{models::runtime_mode_label(choice)}"}}

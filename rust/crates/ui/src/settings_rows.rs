@@ -75,8 +75,9 @@ pub(crate) const DIFFS: [Row; 3] = [
     Row::choice("diffFilesCollapsed", "Default diff file state", "Start with files expanded or collapsed when opening diffs or a pull request's Code tab.", "true", &[("true", "Collapsed"), ("false", "Expanded")]),
 ];
 /// The rows of the Appearance page that follow this device's preferences.
-pub(crate) const LAYOUT: [Row; 4] = [
+pub(crate) const LAYOUT: [Row; 5] = [
     Row::slider("appearanceContrast", "Contrast", "Adjust the contrast of colors and borders across the interface.", "100", 50, 200, 5, "%"),
+    Row::slider("glassOpacity", "Glass opacity", "Higher values make menus, dialogs, and the composer more solid.", "80", 40, 100, 5, "%"),
     Row::slider("panelAnimationDurationMs", "Panel animations", "Set how fast panels open and close.", "0", 0, 400, 50, " ms"),
     Row::choice("chatWidth", "Chat width", "Set how wide messages and the composer can grow on large screens.", "\"comfortable\"", &[("\"comfortable\"", "Comfortable"), ("\"wide\"", "Wide"), ("\"full\"", "Full width")]),
     Row::choice("diffColorScheme", "Diff colors", "Choose colors for additions and deletions, including change counts.", "\"red-green\"", &[("\"red-green\"", "Red and green"), ("\"blue-orange\"", "Blue and orange")]),

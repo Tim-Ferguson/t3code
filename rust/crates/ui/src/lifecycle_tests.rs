@@ -207,7 +207,7 @@ async fn a_thread_starts_in_an_existing_worktree_the_choice_is_remembered_and_th
         git(&fixture.workspace, &["branch", "-m", "main"]);
         let worktree = fixture.workspace.parent().unwrap().join("existing-wt");
         git(&fixture.workspace, &["worktree", "add", "-q", "-b", "wt-branch", worktree.to_str().unwrap()]);
-        let key = (state.peek().destination.clone().unwrap(), "project".to_owned());
+        let key = (state.peek().destination.clone().unwrap(), state.peek().active_draft.clone().expect("the form shows a draft"));
 
         // A new worktree is the other choice; browsing to a branch that lives in a worktree
         // points the form at that worktree.

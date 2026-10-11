@@ -366,6 +366,13 @@ pub(crate) fn Authentication(
             for field in interaction["fields"].as_array().cloned().unwrap_or_default(){{let field_id=field["name"].as_str().unwrap_or_default();rsx!{label {key:"{field_id}",{field["label"].as_str().unwrap_or_default()}input {"aria-label":field["label"].as_str().unwrap_or_default(),r#type:if field["secret"]==true{"password"}else{"text"},autocomplete:"off",maxlength:16384,disabled,value:values.get(field["name"].as_str().unwrap_or_default()).cloned().unwrap_or_default(),oninput:{let name=field["name"].as_str().unwrap_or_default().to_owned();move |event|change.call((name.clone(),event.value()))}}}}}}
             button {r#type:"submit",disabled,"Connect"}
         }}
+        if account.callback && crate::provider_auth_local::applies(&transport) {
+            if let Some(url)=account.url.clone().filter(|url|!url.is_empty()) {
+                crate::provider_auth_local::LocalSignIn {url,disabled,
+                    on_callback:{let instance=instance.clone();let flow=flow.clone();move |callback:String|dispatch.call(Action{method:"provider.auth.complete",payload:json!({"instanceId":instance,"flowId":flow,"callbackUrl":callback}),clear:true,popup:None})},
+                    on_error:move |cause:String|error.set(Some(cause))}
+            }
+        }
         if account.callback {form {"aria-label":"Provider callback",onsubmit:{let instance=instance.clone();let flow=flow.clone();let callback=values.get("callback").cloned().unwrap_or_default();move |event|{event.prevent_default();if !policy::trim(&callback).is_empty(){dispatch.call(Action{method:"provider.auth.complete",payload:json!({"instanceId":instance,"flowId":flow,"callbackUrl":callback}),clear:true,popup:None});}}},
             label {"If the final localhost page does not load, paste its full URL here.",input {r#type:"url","aria-label":"Sign-in callback URL",autocomplete:"off",maxlength:16384,disabled,value:values.get("callback").cloned().unwrap_or_default(),oninput:move |event|change.call(("callback".into(),event.value()))}}
             button {r#type:"submit",disabled:disabled||values.get("callback").is_none_or(|value|policy::trim(value).is_empty()),"Continue"}

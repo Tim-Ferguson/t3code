@@ -49,6 +49,8 @@ pub struct PendingMessage {
 pub struct PendingLaunch {
     pub destination: EnvironmentId,
     pub project_id: String,
+    /// The draft the thread starts from: it is the form's key and goes when the thread exists.
+    pub draft_id: String,
     pub text: String,
     pub active_thread: Option<String>,
     pub choices: NewThreadChoices,
@@ -66,6 +68,18 @@ pub struct UiModel {
     pub thread: ThreadState,
     pub active_thread: Option<String>,
     pub selected_project: Option<String>,
+    /// The first-run wizard: whether it is open, its step, and what the gate has decided.
+    pub welcome: crate::welcome::Model,
+    /// What the server said about the project and thread it made at startup.
+    pub server_welcome: Option<t3_client::onboarding::Welcome>,
+    /// The draft of a new thread the start form shows (`/draft/<id>`); its project is `selected_project`.
+    pub active_draft: Option<String>,
+    /// Moves when a draft is started, sent, discarded or restored, so the sidebar's list reads again.
+    pub draft_revision: u64,
+    /// What the last discard of a draft left, until it can no longer be taken back.
+    pub discarded_draft: Option<crate::draft_sessions::Discarded>,
+    /// Whether the saved drafts have been read (or failed to be): an address that names a draft waits for it.
+    pub drafts_hydrated: bool,
     /// The thread a first run's welcome opened, so a reconnect does not open it again.
     pub bootstrap_opened: Option<String>,
     /// The notice that threads of the previous version are being restored, while they are.
@@ -823,6 +837,7 @@ pub fn forget_environment(
         model.thread = ThreadState::default();
         model.active_thread = None;
         model.selected_project = None;
+        model.active_draft = None;
         model.config = Value::Null;
         model.typed_config = None;
         model.draft.clear();
@@ -852,6 +867,9 @@ pub fn forget_environment(
         .new_thread_choices()
         .write()
         .retain(|(owner, _), _| owner != destination);
+    if state.peek().destination.as_ref() == Some(destination) {
+        state.active_draft().set(None);
+    }
     state
         .draft_attachments()
         .write()
@@ -897,18 +915,51 @@ fn cancel_thread_subscription(handle: &TransportHandle) {
     }
 }
 
-pub fn new_thread(handle: &TransportHandle, mut state: Store<UiModel>, project: Option<String>) {
+/// Leaves the open thread for the start form.
+fn show_form(handle: &TransportHandle, mut state: Store<UiModel>, project: Option<String>, draft: Option<&str>) {
     cancel_thread_subscription(handle);
     let mut model = state.write();
     save_current_environment(&mut model);
     if let Some(project) = project {
         model.selected_project = Some(project);
     }
+    // A new thread keeps the draft the form shows while it holds nothing and is the project's; one with work in it stays where it
+    // is (in the sidebar) and the form takes another, as the original's new-thread request does.
+    let previous = model.active_draft.clone();
+    model.active_draft = match draft {
+        Some(draft) => Some(draft.to_owned()),
+        None => model.active_draft.clone().filter(|id| {
+            let Some(destination) = model.destination.as_ref() else { return false };
+            let target = t3_client::draft_storage::DraftTarget::draft(destination.to_string(), id.as_str());
+            let document = model.draft_storage.document.borrow();
+            document.draft(&target).is_some_and(|session| Some(&session.project_id) == model.selected_project.as_ref()) && !document.has_content(&target)
+        }),
+    };
     model.active_thread = None;
     model.thread = ThreadState::default();
     model.draft.clear();
     model.view = View::Chat;
     model.sidebar_open = false;
+    let project = model.selected_project.clone().or_else(|| model.shell.snapshot.as_ref().and_then(|snapshot| snapshot.projects.first()).map(|project| project.id.to_string()));
+    drop(model);
+    if let Some(project) = project {
+        crate::draft_sessions::ensure_active(state, &project);
+    }
+    // What the form left behind with nothing in it goes, unless the form took it again.
+    let now = state.active_draft().peek().clone();
+    if let Some(previous) = previous.filter(|previous| Some(previous) != now.as_ref()) {
+        crate::draft_sessions::retire_if_empty(state, &previous);
+    }
+}
+pub fn new_thread(handle: &TransportHandle, state: Store<UiModel>, project: Option<String>) {
+    show_form(handle, state, project, None);
+}
+/// Opens one of the drafts, from the sidebar or its address. A draft that is not there (sent, discarded, another environment's)
+/// opens nothing and says so by returning false.
+pub fn open_draft(handle: &TransportHandle, state: Store<UiModel>, draft_id: &str) -> bool {
+    let Some(project) = crate::draft_sessions::project_of(state, draft_id) else { return false };
+    show_form(handle, state, Some(project), Some(draft_id));
+    true
 }
 
 pub fn select_thread(handle: &TransportHandle, mut state: Store<UiModel>, thread_id: String) {
@@ -968,6 +1019,7 @@ pub fn launch_thread(
     handle: &TransportHandle,
     state: Store<UiModel>,
     project: &str,
+    draft_id: &str,
     selection: &t3_contracts::ModelSelection,
     mode: t3_contracts::RuntimeMode,
     workspace: t3_contracts::ThreadLaunchWorkspaceStrategy,
@@ -982,19 +1034,19 @@ pub fn launch_thread(
     let active_thread = owned.active_thread.clone();
     let choices = owned
         .new_thread_choices
-        .get(&(destination.clone(), project.into()))
+        .get(&(destination.clone(), draft_id.into()))
         .cloned()
         .unwrap_or_default();
     if owned
         .pending_launches
         .values()
-        .any(|pending| pending.destination == destination && pending.project_id == project)
+        .any(|pending| pending.destination == destination && pending.draft_id == draft_id)
     {
         return None;
     }
     if crate::draft_storage::has_unrendered(
         state,
-        &t3_client::draft_storage::DraftTarget::project(destination.to_string(), project),
+        &t3_client::draft_storage::DraftTarget::draft(destination.to_string(), draft_id),
     ) {
         drop(owned);
         fail(
@@ -1004,7 +1056,7 @@ pub fn launch_thread(
         return None;
     }
     let target =
-        t3_client::draft_storage::DraftTarget::project(destination.to_string(), project);
+        t3_client::draft_storage::DraftTarget::draft(destination.to_string(), draft_id);
     let (attachment_ids, attachments) = match crate::attachments::for_send(state, &target) {
         Ok(sendable) => sendable,
         Err(error) => {
@@ -1034,7 +1086,7 @@ pub fn launch_thread(
     let mut input = json!({"commandId":uuid::Uuid::new_v4().to_string(),"projectId":project,"title":title,"generateTitle":false,"modelSelection":selection,"runtimeMode":mode,"interactionMode":"default","creationSource":creation_source(),"workspaceStrategy":workspace});
     let text = initial_text.filter(|text| !text.trim().is_empty());
     // The chips of the form ride on the first message, named after its prose by a reference each.
-    let (composed, context, context_ids) = crate::composer_chips::for_send(state, &t3_client::draft_storage::DraftTarget::project(destination.to_string(), project), text.unwrap_or_default());
+    let (composed, context, context_ids) = crate::composer_chips::for_send(state, &t3_client::draft_storage::DraftTarget::draft(destination.to_string(), draft_id), text.unwrap_or_default());
     if text.is_some() || !attachments.is_empty() || context.is_some() {
         input["initialMessage"] = json!({"messageId":uuid::Uuid::new_v4().to_string(),"text":composed,"attachments":attachments});
         if let Some(context) = context {
@@ -1067,6 +1119,7 @@ pub fn launch_thread(
         PendingLaunch {
             destination,
             project_id: project.into(),
+            draft_id: draft_id.into(),
             text: text.unwrap_or_default().into(),
             active_thread,
             choices,
@@ -1812,6 +1865,7 @@ fn clear_visible(model: &mut UiModel) {
     model.thread = ThreadState::default();
     model.active_thread = None;
     model.selected_project = None;
+    model.active_draft = None;
     model.config = Value::Null;
     model.typed_config = None;
     model.draft.clear();
@@ -1957,6 +2011,7 @@ async fn connect_once(
         model.thread = cache.thread;
         model.active_thread = cache.active_thread;
         model.selected_project = cache.selected_project;
+        model.active_draft = None;
         model.draft = model
             .active_thread
             .as_ref()
@@ -2302,7 +2357,8 @@ fn finish_pending_launch(
         );
         return;
     };
-    let key = (pending.destination.clone(), pending.project_id.clone());
+    let key = (pending.destination.clone(), pending.draft_id.clone());
+    let draft_target = t3_client::draft_storage::DraftTarget::draft(pending.destination.to_string(), pending.draft_id.clone());
     let unchanged_text = state
         .new_thread_drafts()
         .peek()
@@ -2317,41 +2373,20 @@ fn finish_pending_launch(
         .cloned()
         .unwrap_or_default()
         == pending.choices;
-    if unchanged_text && unchanged_choices {
-        state.new_thread_drafts().write().remove(&key);
-        state.new_thread_choices().write().remove(&key);
-        crate::draft_storage::acknowledge(
-            state,
-            t3_client::draft_storage::DraftTarget::project(
-                pending.destination.to_string(),
-                pending.project_id.clone(),
-            ),
-        );
-    }
-    // The launch claimed these uploads, so they leave the draft whatever else changed.
-    // After the acknowledgement above, which resets the saved attachment list.
-    crate::attachments::sent(
-        state,
-        &t3_client::draft_storage::DraftTarget::project(
-            pending.destination.to_string(),
-            pending.project_id.clone(),
-        ),
-        &pending.attachments,
-    );
-    crate::composer_chips::sent(
-        state,
-        &t3_client::draft_storage::DraftTarget::project(pending.destination.to_string(), pending.project_id.clone()),
-        &pending.contexts,
-    );
+    // The draft's thread exists, so the draft is gone, unless more went into it while the server worked.
     let current = {
         let model = state.peek();
         model.destination.as_ref() == Some(&pending.destination)
             && model.active_thread == pending.active_thread
-            && model
-                .selected_project
-                .as_deref()
-                .is_none_or(|project| project == pending.project_id)
+            && model.active_draft.as_deref() == Some(pending.draft_id.as_str())
     };
+    if unchanged_text && unchanged_choices {
+        crate::draft_sessions::promote(state, &pending.destination, &pending.draft_id);
+    }
+    // The launch claimed these uploads, so they leave the draft whatever else changed.
+    // After the acknowledgement above, which resets the saved attachment list.
+    crate::attachments::sent(state, &draft_target, &pending.attachments);
+    crate::composer_chips::sent(state, &draft_target, &pending.contexts);
     if current && !pending.background {
         select_thread(handle, state, thread_id.to_owned());
     }
@@ -2653,6 +2688,7 @@ mod tests {
                 PendingLaunch {
                     destination: a.clone(),
                     project_id: "same-project".into(),
+                    draft_id: "same-project".into(),
                     attachments: vec![], contexts: vec![],
                     text: "original".into(),
                     active_thread: None,
@@ -2684,6 +2720,7 @@ mod tests {
             PendingLaunch {
                 destination: a,
                 project_id: "same-project".into(),
+                    draft_id: "same-project".into(),
                 attachments: vec![], contexts: vec![],
                 text: "edited while pending".into(),
                 active_thread: None,
@@ -2710,6 +2747,7 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
+                draft_id: key.1.clone(),
                 attachments: vec![], contexts: vec![],
                 text: String::new(),
                 active_thread: None,
@@ -2736,6 +2774,7 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
+                draft_id: key.1.clone(),
                 attachments: vec![], contexts: vec![],
                 text: "retain after malformed receipt".into(),
                 active_thread: None,
@@ -2797,6 +2836,7 @@ mod tests {
             PendingLaunch {
                 destination: key.0.clone(),
                 project_id: key.1.clone(),
+                draft_id: key.1.clone(),
                 attachments: vec![], contexts: vec![],
                 text: "same prompt".into(),
                 active_thread: None,
@@ -3091,6 +3131,13 @@ mod import_clone_tests;
 #[cfg(all(test, unix))]
 #[path = "chips_tests.rs"]
 mod chips_tests;
+#[cfg(all(test, unix))]
+#[path = "draft_sessions_tests.rs"]
+mod draft_sessions_tests;
+
+#[cfg(all(test, unix))]
+#[path = "welcome_tests.rs"]
+mod welcome_tests;
 
 #[cfg(all(test, unix))]
 #[path = "context_menu_tests.rs"]

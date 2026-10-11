@@ -19,13 +19,13 @@ pub(crate) fn contexts_of(state: Store<UiModel>, target: &DraftTarget) -> Vec<Va
     state.peek().draft_storage.document.borrow().contexts(target)
 }
 
-/// The draft the person is composing in: the open thread's, else the new-thread form's project.
+/// The draft the person is composing in: the open thread's, else the new-thread form's draft.
 pub(crate) fn open_target(state: Store<UiModel>) -> Option<DraftTarget> {
     let model = state.peek();
     let environment = model.destination.as_ref()?.to_string();
-    match (&model.active_thread, &model.selected_project) {
+    match (&model.active_thread, &model.active_draft) {
         (Some(thread), _) => Some(DraftTarget::thread(environment, thread.clone())),
-        (None, Some(project)) => Some(DraftTarget::project(environment, project.clone())),
+        (None, Some(draft)) => Some(DraftTarget::draft(environment, draft.clone())),
         _ => None,
     }
 }

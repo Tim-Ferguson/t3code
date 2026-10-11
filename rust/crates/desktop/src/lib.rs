@@ -6,6 +6,7 @@ pub mod menu;
 pub mod network;
 pub mod shell_env;
 pub mod ssh;
+pub mod provider_auth_callback;
 pub mod quit_hold;
 pub mod supervisor;
 pub mod updates;

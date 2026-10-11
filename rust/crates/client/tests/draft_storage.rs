@@ -71,12 +71,12 @@ fn acknowledgements_and_forget_survive_reload_without_cross_environment_leaks() 
     assert_eq!(storage.prompt(&b), Some("Original B"));
     assert!(
         storage
-            .recovered_session(&DraftTarget::project("b", "project"))
+            .recovered_session(&DraftTarget::draft("b", "local"))
             .is_none()
     );
     assert_eq!(
         storage
-            .recovered_session(&DraftTarget::project("a", "project"))
+            .recovered_session(&DraftTarget::draft("a", "local"))
             .unwrap()["runtimeMode"],
         "approval-required"
     );
@@ -115,7 +115,7 @@ fn unsupported_attachment_context_bytes_stay_identical_after_overlay_reload() {
 
 #[test]
 fn malformed_or_future_overlay_never_overwrites_saved_overlay() {
-    for bytes in ["{invalid".to_string(),json!({"version":2,"entries":[],"forgottenEnvironments":[]}).to_string(),json!({"version":1,"entries":[[{"environment":"a","kind":"thread","localId":"id"},{"acknowledged":false}],[{"environment":"a","kind":"thread","localId":"id"},{"acknowledged":false}]],"forgottenEnvironments":[]}).to_string()] {
+    for bytes in ["{invalid".to_string(),json!({"version":3,"entries":[],"forgottenEnvironments":[]}).to_string(),json!({"version":1,"entries":[[{"environment":"a","kind":"thread","localId":"id"},{"acknowledged":false}],[{"environment":"a","kind":"thread","localId":"id"},{"acknowledged":false}]],"forgottenEnvironments":[]}).to_string()] {
         let mut storage=DraftStorage::default();storage.hydrate(Some(source()),Some(bytes),NOW);
         storage.edit_prompt(DraftTarget::thread("a","thread"),"New text".into());
         assert!(storage.prepare_write().is_err());assert!(storage.dirty());

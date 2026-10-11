@@ -136,7 +136,7 @@ async fn a_thread_started_in_the_background_leaves_the_person_on_a_fresh_form() 
     until(&mut dom, "the new thread", |_| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.threads.len() == 3)).await;
     until(&mut dom, "the form to empty", |_| state.new_thread_drafts().peek().values().all(|text| text.is_empty())).await;
     assert!(state.active_thread().peek().is_none(), "the person stays on the form");
-    assert!(control(&dom, "First message").is_some());
+    until(&mut dom, "a fresh draft in the form", |dom| control(dom, "First message").is_some_and(|(_, value)| value.as_deref().unwrap_or_default().is_empty())).await;
     fixture.finish(dom).await;
 }
 

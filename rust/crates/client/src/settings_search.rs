@@ -86,7 +86,7 @@ pub fn placement(id: &str) -> Placement {
         "color-scheme" => Placement::Here("appearance"),
         "theme" => Placement::Here("appearance"),
         "setting-appearance-contrast" => Placement::Here("appearance"),
-        "setting-glass-opacity" => Placement::Missing("unported feature: translucent menus and dialogs"),
+        "setting-glass-opacity" => Placement::Here("appearance"),
         "diff-color-scheme" => Placement::Here("appearance"),
         "chat-width" => Placement::Here("appearance"),
         "panel-animations" => Placement::Here("appearance"),

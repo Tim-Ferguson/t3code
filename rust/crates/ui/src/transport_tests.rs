@@ -1204,6 +1204,7 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
     change_control(&mut dom, "Workspace", "worktree");
     input_control(&mut dom, "Base branch", "owned-base");
     input_control(&mut dom, "First message", "Explicit launch choices");
+    let draft_id = state.peek().active_draft.clone().expect("the form shows a draft");
     dom.in_scope(ScopeId::APP, || {
         select_thread(&props.transport, state, thread_id.clone())
     });
@@ -1211,8 +1212,9 @@ async fn native_provider_thread_messages_tools_approvals_input_and_interrupt() {
         state.peek().thread.synchronized
     })
     .await;
+    // The draft waits where it was left; opening it brings back its choices and its text.
     dom.in_scope(ScopeId::APP, || {
-        crate::runtime::new_thread(&props.transport, state, Some("provider-project".into()))
+        assert!(crate::runtime::open_draft(&props.transport, state, &draft_id));
     });
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     assert_eq!(
@@ -1869,10 +1871,12 @@ fn new_thread_controls_reset_for_identical_ids_in_another_destination_or_project
     );
     state.selected_project().set(Some("same-project".into()));
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    // The draft with words in it stays where it is (in the sidebar) and the form takes a new one.
     assert_eq!(
         control(&dom, "First message").unwrap().1.as_deref(),
-        Some("Environment B draft")
+        Some("")
     );
+    let b_draft = state.new_thread_drafts().peek().iter().find(|((owner, _), text)| owner.as_str() == "environment-b" && text.as_str() == "Environment B draft").map(|(key, _)| key.clone()).expect("environment B's draft is kept");
     // Sticky selections deliberately persist within their destination, and
     // Forget removes that destination's state even when another one is active.
     let a = t3_contracts::EnvironmentId::new("environment-a").unwrap();
@@ -1890,7 +1894,7 @@ fn new_thread_controls_reset_for_identical_ids_in_another_destination_or_project
         state
             .new_thread_choices()
             .peek()
-            .get(&(b.clone(), "same-project".into()))
+            .get(&b_draft)
             .unwrap()
             .runtime_mode,
         Some(t3_contracts::RuntimeMode::Auto)
@@ -1917,7 +1921,7 @@ fn new_thread_controls_reset_for_identical_ids_in_another_destination_or_project
         state
             .new_thread_drafts()
             .peek()
-            .get(&(b.clone(), "same-project".into()))
+            .get(&b_draft)
             .map(String::as_str),
         Some("Environment B draft")
     );

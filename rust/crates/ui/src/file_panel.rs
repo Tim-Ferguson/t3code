@@ -199,26 +199,34 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, target: T
                 if skip {
                     return;
                 }
-                let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, files::READ_FILE, json!({"cwd":cwd,"relativePath":path})).await;
-                // Another connection answered by now: not this panel's file.
-                if owner.is_none() || owner != runtime::response_owner(&transport, state) {
-                    return;
-                }
-                read.set(match answer {
-                    Ok(value) => match value["contents"].as_str() {
-                        Some(contents) => {
-                            // An edit handed to the server a moment ago may not be on disk yet: it is what the file is.
-                            let unsaved = state.file_unsaved().peek().get(&key_of(&cwd, &path)).cloned();
-                            match unsaved {
+                let key = key_of(&cwd, &path);
+                loop {
+                    let owner = runtime::response_owner(&transport, state);
+                    // A read sent while an edit of this file is being written may see the file half written (the server does not
+                    // write it in one step): if the write has finished by the time the answer is here, the answer is asked again.
+                    let racing = state.file_unsaved().peek().contains_key(&key);
+                    let answer = runtime::request_value_reported(transport.clone(), state, files::READ_FILE, json!({"cwd":cwd,"relativePath":path})).await;
+                    // Another connection answered by now: not this panel's file.
+                    if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+                        return;
+                    }
+                    // An edit handed to the server a moment ago may not be on disk yet: it is what the file is.
+                    let unsaved = state.file_unsaved().peek().get(&key).cloned();
+                    if racing && unsaved.is_none() && answer.is_ok() {
+                        continue;
+                    }
+                    read.set(match answer {
+                        Ok(value) => match value["contents"].as_str() {
+                            Some(contents) => match unsaved {
                                 Some(unsaved) => Read::Ready(Rc::new(Loaded::of(&unsaved, unsaved.len() as u64, false))),
                                 None => Read::Ready(Rc::new(Loaded::of(contents, value["byteLength"].as_u64().unwrap_or(contents.len() as u64), value["truncated"].as_bool().unwrap_or(false)))),
-                            }
-                        }
-                        None => Read::Failed("The server answered without file contents.".into()),
-                    },
-                    Err(message) => Read::Failed(files::read_failure_message(&message)),
-                });
+                            },
+                            None => Read::Failed("The server answered without file contents.".into()),
+                        },
+                        Err(message) => Read::Failed(files::read_failure_message(&message)),
+                    });
+                    return;
+                }
             }
         }
     });

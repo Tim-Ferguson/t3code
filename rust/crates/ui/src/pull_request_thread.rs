@@ -102,8 +102,8 @@ fn Dialog(state: Store<UiModel>, transport: TransportHandle, request: Open) -> E
                     match answer {
                         Ok(done) => {
                             let branch = done["branch"].as_str().unwrap_or_default().to_owned();
-                            crate::new_thread::apply_prepared(state, &request.project_id, &branch, done["worktreePath"].as_str().map(str::to_owned));
                             runtime::new_thread(&transport, state, Some(request.project_id.clone()));
+                            crate::new_thread::apply_prepared(state, &branch, done["worktreePath"].as_str().map(str::to_owned));
                             notice::push(state, Level::Success, format!("Pull request #{} is ready", done["pullRequest"]["number"].as_u64().unwrap_or(0)), if mode == "worktree" { "A worktree holds its branch." } else { "Its branch is checked out." });
                             close(state);
                         }

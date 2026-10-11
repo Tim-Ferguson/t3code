@@ -496,7 +496,7 @@ async fn run_menu(state: Store<UiModel>, transport: runtime::TransportHandle, vi
             // The branch carries over: the thread's worktree when it has one, else its branch on the checkout.
             if let Some(branch) = view.branch.clone() {
                 runtime::new_thread(&transport, state, Some(view.project_id.clone()));
-                crate::new_thread::apply_prepared(state, &view.project_id, &branch, view.worktree.clone());
+                crate::new_thread::apply_prepared(state, &branch, view.worktree.clone());
             }
         }
         "pin" => command("thread.pin", json!({}), "Failed to pin thread"),

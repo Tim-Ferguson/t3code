@@ -532,7 +532,7 @@ async fn new_thread_launch_carries_attachments_in_its_first_message() {
             && control(dom, "Attach files").is_some()
     })
     .await;
-    let draft = DraftTarget::project(state.peek().destination.as_ref().unwrap().to_string(), "project");
+    let draft = DraftTarget::draft(state.peek().destination.as_ref().unwrap().to_string(), state.peek().active_draft.clone().unwrap());
     pick(&mut dom, "Attach files", vec![("notes.pdf", "application/pdf", b"%PDF-1.4".to_vec())]);
     until(&mut dom, "upload", |_| all_ready(state, &draft, 1)).await;
     // Attachments alone are a first message.

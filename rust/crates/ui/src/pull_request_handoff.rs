@@ -58,8 +58,8 @@ pub(crate) fn deliver(state: Store<UiModel>, transport: &TransportHandle, projec
         (state.draft().peek().clone(), Box::new(move |prompt| crate::draft_storage::edit_thread_prompt(state, prompt)))
     } else {
         let Some(environment) = state.destination().peek().clone() else { return };
-        let key = (environment, project_id.to_owned());
-        (state.new_thread_drafts().peek().get(&key).cloned().unwrap_or_default(), Box::new(move |prompt| crate::draft_storage::edit_project_prompt(state, key.clone(), prompt)))
+        let key = (environment, target.local_id.clone());
+        (state.new_thread_drafts().peek().get(&key).cloned().unwrap_or_default(), Box::new(move |prompt| crate::draft_storage::edit_draft_prompt(state, key.clone(), prompt)))
     };
     set(logic::merged_prompt(&existing, Some(&last_prompt).filter(|last| !last.is_empty()).map(String::as_str), &handoff.prompt));
     // The chips of an earlier hand-off go; a chip the reader attached stays.
@@ -113,8 +113,8 @@ pub(crate) fn check_out(state: Store<UiModel>, transport: &TransportHandle, proj
                 return;
             }
         };
-        crate::new_thread::apply_prepared(state, &project_id, done["branch"].as_str().unwrap_or_default(), done["worktreePath"].as_str().map(str::to_owned));
         runtime::new_thread(&transport, state, Some(project_id.clone()));
+        crate::new_thread::apply_prepared(state, done["branch"].as_str().unwrap_or_default(), done["worktreePath"].as_str().map(str::to_owned));
         let on_head = done["isOnPullRequestHead"].as_bool().unwrap_or(true);
         match then {
             Some((kind, activity)) => {

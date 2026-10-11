@@ -73,8 +73,15 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
     rsx! { Dialog { state, transport } }
 }
 
+/// The projects step of the welcome wizard: the dialog's content in the wizard's own frame. `finish` is told where the person
+/// lands (the project to start in, if the import made one) or `None` when they chose not to import.
 #[component]
-fn Dialog(state: Store<UiModel>, transport: TransportHandle) -> Element {
+pub(crate) fn Step(state: Store<UiModel>, transport: TransportHandle, finish: EventHandler<Option<String>>) -> Element {
+    rsx! { Dialog { state, transport, finish } }
+}
+
+#[component]
+fn Dialog(state: Store<UiModel>, transport: TransportHandle, #[props(default)] finish: Option<EventHandler<Option<String>>>) -> Element {
     let environment = state.destination().read().as_ref().map(ToString::to_string).unwrap_or_default();
     let mut load = use_signal(|| Load::Looking);
     let mut selection = use_signal(|| None::<BTreeSet<String>>);
@@ -115,7 +122,10 @@ fn Dialog(state: Store<UiModel>, transport: TransportHandle) -> Element {
 
     let close = move || {
         if !*importing.peek() {
-            state.import().write().open = false;
+            match finish {
+                Some(finish) => finish.call(None),
+                None => state.import().write().open = false,
+            }
         }
     };
     let candidates: Vec<Candidate> = match &*load.read() {
@@ -148,7 +158,10 @@ fn Dialog(state: Store<UiModel>, transport: TransportHandle) -> Element {
                 return;
             }
             if selected.is_empty() {
-                state.import().write().open = false;
+                match finish {
+                    Some(finish) => finish.call(None),
+                    None => state.import().write().open = false,
+                }
                 return;
             }
             importing.set(true);
@@ -227,12 +240,17 @@ fn Dialog(state: Store<UiModel>, transport: TransportHandle) -> Element {
                 }
                 // Everything landed: a project with imported history, else any that finished, is where the person starts.
                 let landing = selected.iter().find_map(|candidate| run.peek().with_history.get(&candidate.key(&environment)).cloned()).or_else(|| selected.iter().find_map(|candidate| run.peek().finished.get(&candidate.key(&environment)).cloned()));
-                state.import().write().open = false;
                 if imported_threads > 0.0 {
                     crate::notice::push(state, crate::notice::Level::Success, logic::imported_title(imported_threads), String::new());
                 }
-                if let Some(project) = landing {
-                    runtime::new_thread(&transport, state, Some(project));
+                match finish {
+                    Some(finish) => finish.call(landing),
+                    None => {
+                        state.import().write().open = false;
+                        if let Some(project) = landing {
+                            runtime::new_thread(&transport, state, Some(project));
+                        }
+                    }
                 }
             });
         }
@@ -249,8 +267,9 @@ fn Dialog(state: Store<UiModel>, transport: TransportHandle) -> Element {
     let other_fold_text = format!("{} Other folders", if other_open_now { "\u{25be}" } else { "\u{25b8}" });
     let other_summary = format!("{} {}", other.len(), if other.len() == 1 { "folder" } else { "folders" });
     let all_keys: Vec<String> = candidates.iter().map(|candidate| key_of(candidate)).collect();
-    rsx! { div { class: "modal-backdrop", onclick: move |_| close(),
-        div { class: "dialog import-dialog", role: "dialog", "aria-modal": "true", "aria-label": "Choose projects to import", tabindex: "-1", onclick: move |event| event.stop_propagation(),
+    let embedded = finish.is_some();
+    rsx! { div { class: if embedded { "modal-backdrop embedded" } else { "modal-backdrop" }, onclick: move |_| if !embedded { close() },
+        div { class: if embedded { "dialog import-dialog embedded" } else { "dialog import-dialog" }, role: if embedded { "group" } else { "dialog" }, "aria-modal": if embedded { "false" } else { "true" }, "aria-label": "Choose projects to import", tabindex: "-1", onclick: move |event| event.stop_propagation(),
             onmounted: move |event| { let element = event.data(); spawn(async move { let _ = element.set_focus(true).await; }); },
             onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); close(); } },
             h2 { "Choose your projects" }

@@ -93,7 +93,7 @@ fn prompt_of(state: Store<UiModel>, target: &DraftTarget) -> String {
     let model = state.peek();
     match target.kind {
         DraftKind::Thread => model.draft.clone(),
-        DraftKind::Project => target.environment.parse().ok().and_then(|environment| model.new_thread_drafts.get(&(environment, target.local_id.clone())).cloned()).unwrap_or_default(),
+        DraftKind::Draft => target.environment.parse().ok().and_then(|environment| model.new_thread_drafts.get(&(environment, target.local_id.clone())).cloned()).unwrap_or_default(),
     }
 }
 fn set_prompt(state: Store<UiModel>, target: &DraftTarget, prompt: String) {
@@ -103,9 +103,9 @@ fn set_prompt(state: Store<UiModel>, target: &DraftTarget, prompt: String) {
                 draft_storage::edit_thread_prompt(state, prompt);
             }
         }
-        DraftKind::Project => {
+        DraftKind::Draft => {
             if let Ok(environment) = target.environment.parse() {
-                draft_storage::edit_project_prompt(state, (environment, target.local_id.clone()), prompt);
+                draft_storage::edit_draft_prompt(state, (environment, target.local_id.clone()), prompt);
             }
         }
     }

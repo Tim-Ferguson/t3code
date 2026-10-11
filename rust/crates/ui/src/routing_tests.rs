@@ -69,6 +69,10 @@ impl document::Document for BrowserDocument {
 pub(crate) fn last_push(browser: &Rc<RefCell<Browser>>) -> Option<String> {
     browser.borrow().sent.iter().rev().find(|message| message["type"] == "push").and_then(|message| message["path"].as_str()).map(str::to_owned)
 }
+/// The last address of a draft the app wrote, by push or by replace.
+fn draft_address(browser: &Rc<RefCell<Browser>>) -> Option<String> {
+    browser.borrow().sent.iter().rev().filter_map(|message| message["path"].as_str()).find(|path| path.starts_with("/draft/")).map(str::to_owned)
+}
 fn active(state: Store<UiModel>) -> Option<String> {
     state.peek().active_thread.clone()
 }
@@ -116,7 +120,21 @@ async fn the_address_follows_the_view_and_the_view_follows_the_address() {
     until(&mut dom, "thread-b again", |_| active(state).as_deref() == Some("thread-b") && *state.view().peek() == View::Chat).await;
     browser.borrow_mut().go("/");
     until(&mut dom, "the start screen", |_| active(state).is_none() && *state.view().peek() == View::Chat).await;
-    until(&mut dom, "the start address", |_| last_push(&browser).as_deref() == Some("/")).await;
+    // The start screen is a draft, at the address of its own; the first one of a visit replaces the start address.
+    until(&mut dom, "the draft's address", |_| draft_address(&browser).is_some()).await;
+    let draft_path = draft_address(&browser).unwrap();
+    assert!(browser.borrow().sent.iter().any(|message| message["type"] == "replace" && message["path"] == draft_path.as_str()), "{:?}", browser.borrow().sent);
+    let draft = state.peek().active_draft.clone().expect("the form shows a draft");
+    assert_eq!(draft_path, format!("/draft/{draft}"));
+    // The saved drafts are read at startup; this harness has none to read.
+    state.drafts_hydrated().set(true);
+    // Away and back by the address: the same draft opens, and one that is gone falls back to a new one.
+    browser.borrow_mut().go("/settings/providers");
+    until(&mut dom, "the providers page", |_| *state.view().peek() == View::Providers).await;
+    browser.borrow_mut().go(&draft_path);
+    until(&mut dom, "the draft again", |_| *state.view().peek() == View::Chat && active(state).is_none() && state.peek().active_draft.as_deref() == Some(draft.as_str())).await;
+    browser.borrow_mut().go("/draft/no-such-draft");
+    until(&mut dom, "a draft in place of the missing one", |_| state.peek().active_draft.as_deref().is_some_and(|id| id != "no-such-draft") && last_push(&browser).is_some_and(|path| path.starts_with("/draft/") || path == "/") ).await;
 
     // The same address as the one shown changes nothing, and the conversation is not rebuilt for it.
     open_thread(&mut dom, &props, state, "thread-a").await;

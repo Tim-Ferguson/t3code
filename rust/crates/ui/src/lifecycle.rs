@@ -28,6 +28,9 @@ pub(crate) fn start(handle: &TransportHandle, state: Store<UiModel>) {
 }
 
 pub(crate) fn apply(handle: &TransportHandle, state: Store<UiModel>, event: &serde_json::Value) {
+    if let Some(welcome) = t3_client::onboarding::Welcome::from_event(event) {
+        state.server_welcome().set(Some(welcome));
+    }
     let (handled, on_start_screen) = {
         let model = state.peek();
         (model.bootstrap_opened.clone(), model.view == View::Chat && model.active_thread.is_none())

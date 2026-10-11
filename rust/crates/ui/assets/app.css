@@ -8647,3 +8647,228 @@ body.sidebar-dragging {
 .usage-hub-address {
   overflow-wrap: anywhere;
 }
+
+/* Drafts of new threads that hold work, above the project groups. */
+.draft-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.draft-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--warning, #d9a441) 6%, transparent);
+}
+.draft-row:hover {
+  background: color-mix(in srgb, var(--warning, #d9a441) 12%, transparent);
+}
+.draft-row-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 6px 28px 6px 10px;
+}
+.draft-row-project {
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.draft-row-preview {
+  font-size: 0.8125rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.draft-row-discard {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  padding: 0 6px;
+  opacity: 0;
+  cursor: pointer;
+}
+.draft-row:hover .draft-row-discard,
+.draft-row-discard:focus-visible {
+  opacity: 1;
+}
+
+/* The first-run welcome wizard. */
+.welcome-dialog {
+  width: min(44rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+}
+.welcome-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+.welcome-header h2 {
+  margin: 0;
+  flex: 1;
+}
+.welcome-steps {
+  display: flex;
+  gap: 0.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.welcome-steps li[aria-current="step"] button {
+  font-weight: 600;
+}
+.welcome-computers {
+  border: 0;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.welcome-computer,
+.welcome-agent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+.welcome-computer-text,
+.welcome-agent-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.welcome-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.welcome-ready {
+  color: var(--success-foreground, var(--foreground));
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+.welcome-machine {
+  font-size: 0.875rem;
+  margin: 1rem 0 0;
+}
+.welcome-pairing {
+  margin-top: 1rem;
+}
+.welcome-pairing form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.welcome-disclosure {
+  border: 0;
+  background: transparent;
+  padding: 0.25rem 0;
+}
+.welcome-command {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  font-family: var(--font-mono, monospace);
+}
+.welcome-terminal {
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.welcome-terminal-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+.welcome-terminal-surface {
+  height: 16rem;
+}
+.modal-backdrop.embedded {
+  position: static;
+  background: none;
+  display: block;
+  padding: 0;
+}
+.dialog.embedded {
+  box-shadow: none;
+  border: 0;
+  max-width: none;
+  width: auto;
+  padding: 0;
+}
+
+/* Translucent menus, dialogs, notices and the message boxes (the setting "Glass opacity"). */
+:root {
+  --glass-blur: 12px;
+  --glass-opacity: 80%;
+  --glass-saturation: 1.14;
+}
+.menu,
+.context-menu,
+.notice,
+.dialog,
+.modal {
+  background: color-mix(
+    in srgb,
+    var(--popover, var(--card)) 18%,
+    color-mix(in srgb, var(--popover, var(--card)) var(--glass-opacity), transparent)
+  );
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+}
+.composer,
+.new-thread-card {
+  background: color-mix(in srgb, var(--card) var(--glass-opacity), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+}
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .menu,
+  .context-menu,
+  .notice,
+  .dialog,
+  .modal {
+    background: var(--popover, var(--card));
+  }
+  .composer,
+  .new-thread-card {
+    background: var(--card);
+  }
+}
+.welcome-backdrop {
+  z-index: 70;
+}
+.welcome-panel {
+  min-height: 0;
+}

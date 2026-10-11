@@ -5,7 +5,7 @@
 use super::diff_tests::{Fixture, Harness, open_thread, rendered_text, seed, until, wait_for_rendered_text};
 use super::*;
 use crate::diff_panel::Gate;
-use crate::runtime::transport_tests::{change_control, click_control, control, control_attribute, input_control};
+use crate::runtime::transport_tests::{change_control, click_control, control, control_attribute, input_control, until_enabled};
 
 const WRITER: [AuthEnvironmentScope; 3] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::SettingsWrite];
 const NO_SETTINGS: [AuthEnvironmentScope; 2] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate];
@@ -69,6 +69,8 @@ async fn an_environment_setting_is_one_patch_and_needs_the_settings_grant() {
         wait_for_rendered_text(dom, "Response streaming").await;
         change_control(dom, "Response streaming", "\"turn\"");
         until(dom, "the server's setting", |_| state.peek().config["settings"]["responseStreamingMode"] == json!("turn")).await;
+        // The rows take no change while the first one is being saved.
+        until_enabled(dom, "Provider update checks").await;
         change_control(dom, "Provider update checks", "false");
         until(dom, "updates off", |_| state.peek().config["settings"]["enableProviderUpdateChecks"] == json!(false)).await;
         assert_eq!(state.peek().config["settings"]["responseStreamingMode"], json!("turn"), "a patch leaves the other settings");
@@ -105,4 +107,15 @@ async fn a_busy_thread_folds_into_the_working_shelf_once_it_is_switched_on_and_c
         until(dom, "no shelf", |dom| !rendered_text(dom).contains("Working (1)") && control(dom, "Working").is_none()).await;
     })
     .await;
+}
+
+/// The slider is the contract's range and default, so no value it can send is refused and none the contract accepts is out of reach.
+#[test]
+fn the_glass_opacity_slider_is_the_contracts_range_and_default() {
+    let row = crate::settings_rows::LAYOUT.iter().find(|row| row.key == "glassOpacity").expect("the row is on the Appearance page");
+    assert_eq!((row.default, row.range), ("80", Some((40, 100, 5, "%"))));
+    let accepts = |value: i64| serde_json::from_value::<t3_contracts::GlassOpacity>(serde_json::json!(value)).is_ok();
+    assert!(accepts(40) && accepts(100) && accepts(80));
+    assert!(!accepts(35) && !accepts(105));
+    assert!(t3_contracts::ClientSettings::default().glass_opacity.0 == 80);
 }

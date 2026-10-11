@@ -564,6 +564,15 @@ fn close_terminal(
     });
 }
 
+/// The terminal of the welcome wizard's agent setup: one pane that belongs to no thread's drawer.
+#[component]
+pub(crate) fn SetupPane(state: Store<UiModel>, transport: TransportHandle, environment: String, thread_id: String, terminal_id: String, cwd: String) -> Element {
+    if try_consume_context::<Catalog>().is_none() {
+        return rsx! {};
+    }
+    rsx! { CanvasPane { environment, state, transport, thread_id, terminal_id, cwd, worktree: None, visible: true, can_operate: true, active: true } }
+}
+
 #[component]
 fn CanvasPane(
     environment: String,
@@ -962,7 +971,7 @@ fn owns_pane(state: Store<UiModel>, environment: &str, thread: &str) -> bool {
         .destination
         .as_ref()
         .is_some_and(|id| id.as_str() == environment)
-        && model.active_thread.as_deref() == Some(thread)
+        && (model.active_thread.as_deref() == Some(thread) || (thread == crate::welcome::THREAD_ID && model.welcome.terminal.is_some()))
 }
 
 fn operates(state: Store<UiModel>) -> bool {

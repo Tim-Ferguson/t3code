@@ -41,11 +41,15 @@ fn page_view(page: SettingsPage) -> View {
 }
 
 /// The route the app is showing.
-pub(crate) fn route_of(view: &View, thread: Option<&str>, environment: Option<&EnvironmentId>) -> Route {
+pub(crate) fn route_of(view: &View, thread: Option<&str>, environment: Option<&EnvironmentId>, draft: Option<&str>, welcome: bool) -> Route {
     let page = |page| Route::Settings(page);
+    if welcome {
+        return Route::Welcome;
+    }
     match view {
-        View::Chat => match (thread, environment) {
-            (Some(thread), Some(environment)) => Route::Thread { environment: environment.to_string(), thread: thread.to_owned() },
+        View::Chat => match (thread, environment, draft) {
+            (Some(thread), Some(environment), _) => Route::Thread { environment: environment.to_string(), thread: thread.to_owned() },
+            (None, _, Some(draft)) => Route::Draft(draft.to_owned()),
             _ => Route::Start,
         },
         View::General => page(SettingsPage::General),
@@ -78,7 +82,7 @@ fn open_project_settings(state: Store<UiModel>, key: &str) {
 }
 
 fn needs_data(route: &Route) -> bool {
-    matches!(route, Route::Thread { .. } | Route::Project(_))
+    matches!(route, Route::Thread { .. } | Route::Project(_) | Route::Draft(_))
 }
 
 /// Shows the view an address names. A thread that is not on this server (or not in this environment)
@@ -97,12 +101,33 @@ fn apply(transport: &runtime::TransportHandle, state: Store<UiModel>, page: Opti
         }
     };
     let Some(wanted) = route::parse(address) else {
+        crate::welcome::dismiss(state);
         start(transport);
         replace("/");
         return;
     };
+    if wanted != Route::Welcome {
+        crate::welcome::dismiss(state);
+    }
     match wanted {
         Route::Start => start(transport),
+        // The wizard overlays the workspace: the view underneath stays what it was.
+        Route::Welcome => {
+            if !state.welcome().peek().open {
+                crate::welcome::open(state);
+            }
+        }
+        // A draft that is gone (sent, discarded, another environment's) falls back to a new one, as the original's route does.
+        Route::Draft(id) => {
+            let open = {
+                let model = state.peek();
+                model.active_draft.as_deref() == Some(id.as_str()) && model.view == View::Chat && model.active_thread.is_none()
+            };
+            if !open && !runtime::open_draft(transport, state, &id) {
+                start(transport);
+                replace("/");
+            }
+        }
         // The original redirects `/projects/<key>` to the project's settings and rewrites the address; so does this. The key is a
         // project id, or an environment id and a project id joined by a colon.
         Route::Project(key) => {
@@ -160,10 +185,14 @@ pub(crate) fn Router(state: Store<UiModel>, transport: runtime::TransportHandle)
     // until it has, the address is the person's and the app does not write over it.
     let mut waiting = use_signal(|| None::<String>);
     let mut loaded = use_signal(|| false);
+    // The address the app last showed or wrote.
+    let mut shown = use_signal(|| None::<String>);
     let ready = use_memo(move || {
         let synchronized = state.shell().read().synchronized && state.shell().read().snapshot.is_some();
         synchronized && state.destination().read().is_some() && *state.status().read() == ConnectionStatus::Connected
     });
+    // A draft is read from the saved drafts, which are read once at startup.
+    let drafts_ready = use_memo(move || ready() && *state.drafts_hydrated().read());
     let reading = transport.clone();
     use_future(move || {
         let transport = reading.clone();
@@ -172,7 +201,14 @@ pub(crate) fn Router(state: Store<UiModel>, transport: runtime::TransportHandle)
             page.set(Some(eval));
             while let Ok(message) = eval.recv::<Value>().await {
                 let Some(address) = message["path"].as_str().filter(|_| message["type"] == "location") else { continue };
-                if route::parse(address).is_some_and(|wanted| needs_data(&wanted)) && !*ready.peek() {
+                shown.set(Some(address.to_owned()));
+                let wanted = route::parse(address);
+                let blocked = match &wanted {
+                    Some(Route::Draft(_)) => !*drafts_ready.peek(),
+                    Some(wanted) => needs_data(wanted) && !*ready.peek(),
+                    None => false,
+                };
+                if blocked {
                     waiting.set(Some(address.to_owned()));
                 } else {
                     waiting.set(None);
@@ -187,7 +223,11 @@ pub(crate) fn Router(state: Store<UiModel>, transport: runtime::TransportHandle)
         if !ready() {
             return;
         }
+        let drafts = drafts_ready();
         let Some(address) = waiting.peek().clone() else { return };
+        if matches!(route::parse(&address), Some(Route::Draft(_))) && !drafts {
+            return;
+        }
         waiting.set(None);
         apply(&waiting_transport, state, *page.peek(), &address);
         loaded.set(true);
@@ -196,12 +236,18 @@ pub(crate) fn Router(state: Store<UiModel>, transport: runtime::TransportHandle)
         let view = state.view().read().clone();
         let thread = state.active_thread().read().clone();
         let environment = state.destination().read().clone();
+        let draft = state.active_draft().read().clone();
+        let welcome = state.welcome().read().open;
         if !*loaded.read() {
             return;
         }
-        let path = route::path(&route_of(&view, thread.as_deref(), environment.as_ref()));
+        let route = route_of(&view, thread.as_deref(), environment.as_ref(), draft.as_deref(), welcome);
+        // The start address becomes the address of the draft it opens, in place: the first draft of a visit is not a step back.
+        let from_start = matches!(route, Route::Draft(_)) && shown.peek().as_deref().is_none_or(|shown| shown == "/");
+        let path = route::path(&route);
+        shown.set(Some(path.clone()));
         if let Some(eval) = *page.peek() {
-            let _ = eval.send(json!({"type":"push","path":path}));
+            let _ = eval.send(json!({"type": if from_start { "replace" } else { "push" },"path":path}));
         }
     });
     use_drop(move || {

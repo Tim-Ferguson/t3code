@@ -1,6 +1,6 @@
 //! The addresses a browser shows for where the person is, the same paths the original's file routes
 //! give (`apps/web/src/routes`): `/{environmentId}/{threadId}` for a thread, `/` for the start
-//! screen, `/settings/{page}` for a settings page, `/pull-requests` and `/usage`.
+//! screen, `/draft/{draftId}` for a draft of a new thread, `/settings/{page}` for a settings page, `/pull-requests` and `/usage`.
 
 /// A settings page, by the segment after `/settings/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,6 +53,10 @@ pub enum Route {
     Settings(SettingsPage),
     PullRequests,
     Usage,
+    /// `/draft/<id>`: a draft of a new thread, at its own address.
+    Draft(String),
+    /// `/welcome`: the first-run wizard, which overlays whatever else is shown.
+    Welcome,
     /// `/projects/<key>`: the original redirects to that project's settings (`/settings/projects?project=<key>`); so does this.
     Project(String),
 }
@@ -72,8 +76,10 @@ pub fn parse(address: &str) -> Option<Route> {
         ["settings", page] => SettingsPage::of(page).map(Route::Settings),
         ["pull-requests"] => Some(Route::PullRequests),
         ["usage"] => Some(Route::Usage),
+        ["welcome"] => Some(Route::Welcome),
+        ["draft", id] if !id.is_empty() => Some(Route::Draft(decode(id)?)),
         ["projects", key] if !key.is_empty() => Some(Route::Project(decode(key)?)),
-        [environment, thread] if !environment.is_empty() && !thread.is_empty() && !matches!(*environment, "settings" | "draft") => {
+        [environment, thread] if !environment.is_empty() && !thread.is_empty() && !matches!(*environment, "settings" | "draft" | "welcome") => {
             Some(Route::Thread { environment: decode(environment)?, thread: decode(thread)? })
         }
         _ => None,
@@ -88,7 +94,9 @@ pub fn path(route: &Route) -> String {
         Route::Settings(page) => format!("/settings/{}", page.segment()),
         Route::PullRequests => "/pull-requests".to_owned(),
         Route::Usage => "/usage".to_owned(),
+        Route::Welcome => "/welcome".to_owned(),
         Route::Project(key) => format!("/projects/{}", encode(key)),
+        Route::Draft(id) => format!("/draft/{}", encode(id)),
     }
 }
 
@@ -135,7 +143,7 @@ mod tests {
     fn every_route_round_trips_through_its_address() {
         let thread = Route::Thread { environment: "env-1".into(), thread: "0a1b-2c".into() };
         assert_eq!(path(&thread), "/env-1/0a1b-2c");
-        let mut routes = vec![Route::Start, thread, Route::PullRequests, Route::Usage, Route::Project("env:project-1".into())];
+        let mut routes = vec![Route::Start, thread, Route::PullRequests, Route::Usage, Route::Project("env:project-1".into()), Route::Draft("0f3a-9c".into()), Route::Welcome];
         routes.extend(SettingsPage::ALL.map(Route::Settings));
         for route in routes {
             assert_eq!(parse(&path(&route)), Some(route.clone()), "{route:?}");
@@ -176,7 +184,8 @@ mod tests {
         assert_eq!(parse("/settings/nope"), None);
         assert_eq!(parse("/a/b/c"), None);
         assert_eq!(parse("/usage/extra/more"), None);
-        // The original's draft route has no counterpart: a draft is the start screen here.
-        assert_eq!(parse("/draft/abc"), None);
+        assert_eq!(parse("/draft"), None);
+        assert_eq!(parse("/draft/abc/more"), None);
+        assert_eq!(parse("/draft/abc"), Some(Route::Draft("abc".into())));
     }
 }

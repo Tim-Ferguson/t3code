@@ -47,6 +47,9 @@ pub async fn hydrate(state: Store<UiModel>) {
         }
         Err(error) => state.draft_storage_error().set(Some(error)),
     }
+    state.drafts_hydrated().set(true);
+    let revision = *state.draft_revision().peek() + 1;
+    state.draft_revision().set(revision);
 }
 async fn read() -> Result<(Option<String>, Option<String>), String> {
     #[cfg(target_arch = "wasm32")]
@@ -104,7 +107,7 @@ pub fn restore_destination(mut state: Store<UiModel>) {
                     }
                 }
             }
-            DraftKind::Project => {
+            DraftKind::Draft => {
                 let key = (destination.clone(), target.local_id.clone());
                 if let Some(prompt) = document.prompt(&target) {
                     model
@@ -177,7 +180,7 @@ pub fn edit_thread_prompt(state: Store<UiModel>, prompt: String) {
         schedule(state);
     }
 }
-pub fn edit_project_prompt(
+pub fn edit_draft_prompt(
     state: Store<UiModel>,
     key: (t3_contracts::EnvironmentId, String),
     prompt: String,
@@ -191,7 +194,7 @@ pub fn edit_project_prompt(
         .draft_storage
         .document
         .borrow_mut()
-        .edit_prompt(DraftTarget::project(key.0.to_string(), key.1), prompt);
+        .edit_prompt(DraftTarget::draft(key.0.to_string(), key.1), prompt);
     schedule(state);
 }
 pub fn save_choices(
@@ -205,7 +208,7 @@ pub fn save_choices(
         .document
         .borrow_mut()
         .edit_choices(
-            DraftTarget::project(key.0.to_string(), key.1.clone()),
+            DraftTarget::draft(key.0.to_string(), key.1.clone()),
             serde_json::to_value(choices).expect("draft choices"),
         );
     schedule(state);
@@ -282,7 +285,7 @@ pub fn has_unrendered(state: Store<UiModel>, target: &DraftTarget) -> bool {
         .recovered(target)
         .is_some_and(drafts::has_unrendered_content)
 }
-fn schedule(state: Store<UiModel>) {
+pub(crate) fn schedule(state: Store<UiModel>) {
     if let Some(sender) = state.peek().draft_storage.sender.borrow().as_ref() {
         let _ = sender.unbounded_send(WriterRequest::Save);
     }
@@ -589,7 +592,7 @@ mod tests {
     fn child(state: Store<UiModel>) -> Element {
         use_effect(move || {
             let environment = t3_contracts::EnvironmentId::new("a").unwrap();
-            edit_project_prompt(
+            edit_draft_prompt(
                 state,
                 (environment.clone(), "project".into()),
                 "First edit".into(),
@@ -674,6 +677,7 @@ mod tests {
                     &transport,
                     state,
                     "project",
+                    "draft",
                     &selection,
                     t3_contracts::RuntimeMode::FullAccess,
                     t3_contracts::ThreadLaunchWorkspaceStrategy::Root(
@@ -696,7 +700,7 @@ mod tests {
         );
         assert!(
             document
-                .changes(&DraftTarget::project("a", "project"))
+                .changes(&DraftTarget::draft("a", "draft"))
                 .is_none()
         );
     }
@@ -724,7 +728,7 @@ mod tests {
         assert!(first.contains("First edit"));
         assert!(first.contains("approval-required"));
         dom.in_scope(ScopeId::APP, || {
-            edit_project_prompt(
+            edit_draft_prompt(
                 state,
                 (
                     t3_contracts::EnvironmentId::new("a").unwrap(),
@@ -747,12 +751,12 @@ mod tests {
         let mut reload = DraftStorage::default();
         reload.hydrate(None, Some(latest), "2026-10-08T12:00:00.000Z");
         assert_eq!(
-            reload.prompt(&DraftTarget::project("a", "project")),
+            reload.prompt(&DraftTarget::draft("a", "project")),
             Some("Latest unsent edit")
         );
         assert_eq!(
             reload
-                .changes(&DraftTarget::project("a", "project"))
+                .changes(&DraftTarget::draft("a", "project"))
                 .unwrap()
                 .choices
                 .as_ref()
@@ -790,7 +794,7 @@ mod tests {
         let first = milestone(&mut dom, &mut starts).await;
         let state = props.state.borrow().unwrap();
         let mut close = dom.in_scope(ScopeId::APP, || {
-            edit_project_prompt(
+            edit_draft_prompt(
                 state,
                 (
                     t3_contracts::EnvironmentId::new("a").unwrap(),
@@ -807,7 +811,7 @@ mod tests {
         assert!(latest.contains("Before close"));
         assert_eq!(close.try_recv().unwrap(), None);
         dom.in_scope(ScopeId::APP, || {
-            edit_project_prompt(
+            edit_draft_prompt(
                 state,
                 (
                     t3_contracts::EnvironmentId::new("a").unwrap(),
@@ -845,7 +849,7 @@ mod tests {
         let state = props.state.borrow().unwrap();
         // Queue a close before the normal deferred write so it bypasses debounce.
         dom.in_scope(ScopeId::APP, || {
-            edit_project_prompt(
+            edit_draft_prompt(
                 state,
                 (
                     t3_contracts::EnvironmentId::new("a").unwrap(),

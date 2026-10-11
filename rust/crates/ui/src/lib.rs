@@ -47,6 +47,8 @@ mod notifications;
 mod project_search;
 mod publish_dialog;
 mod review_diff;
+mod draft_sessions;
+mod welcome;
 mod draft_storage;
 mod empty_state;
 mod header_more;
@@ -67,6 +69,7 @@ mod open_in;
 mod plan_save;
 mod project_create;
 mod provider_auth;
+mod provider_auth_local;
 mod provider_manage;
 mod provider_settings;
 mod rollback;
@@ -420,7 +423,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         style { {include_str!("../assets/theme-tokens.css")} }
         import_notice::Notice { state, transport: transport.clone() }
         background_activity::Reporter { state, transport: transport.clone() }
-        div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
+        div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms;--glass-opacity:{}%{}",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0,state.client_settings().read().glass_opacity.0,if state.client_settings().read().glass_opacity.0 == 100 {";--glass-blur:0px"} else {""}),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
                 {desktop_update_pill()}
@@ -432,6 +435,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 }
                 search::SidebarSearch { state, transport: transport.clone() }
                 if !scope_items.is_empty() { sidebar_groups::ScopeFilter { state, items: scope_items.clone() } }
+                draft_sessions::Rows { state, transport: transport.clone() }
                 div { class: "project-list",
                     sidebar_sections::DragBridge { state, transport: transport.clone() }
                     for group in groups.iter().filter(|group| scoped.as_ref().is_none_or(|key| *key == group.key)) {
@@ -637,6 +641,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             clone_view::Notices { state, transport: transport.clone() }
             import_projects::Host { state, transport: transport.clone() }
             thread_lifecycle::Host { state, transport: transport.clone() }
+            draft_sessions::UndoNotice { state }
+            welcome::Gate { state }
+            welcome::Host { state, transport: transport.clone() }
             thread_relations::Host { state, transport: transport.clone() }
             thread_pull_requests_panel::LinkDialog { state, transport: transport.clone() }
         }
