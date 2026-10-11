@@ -91,6 +91,15 @@ pub fn core_endpoints(port: u16, exposure: &Exposure, custom_https_urls: &[Strin
     endpoints
 }
 
+/// The endpoints of the server this app starts, which listens on this machine only: "This machine", and the HTTPS addresses the person set
+/// in `T3CODE_DESKTOP_HTTPS_ENDPOINTS` (comma separated; a tunnel or reverse proxy of their own that reaches the loopback address).
+/// The local network and Tailscale addresses need a server that listens beyond loopback, or Tailscale Serve, which this app does not
+/// start, so they are not offered. Binds nothing and asks no program.
+pub fn app_endpoints(port: u16, custom_https_urls: &str) -> Vec<Endpoint> {
+    let custom: Vec<String> = custom_https_urls.split(',').map(str::trim).filter(|url| !url.is_empty()).map(str::to_owned).collect();
+    core_endpoints(port, &resolve_exposure(Mode::LocalOnly, port, &[], None), &custom)
+}
+
 /// `resolveTailscaleIpAdvertisedEndpoints`: each outward IPv4 address inside Tailscale's range, once.
 pub fn tailscale_ip_endpoints(port: u16, interfaces: &[Interface]) -> Vec<Endpoint> {
     let mut seen: Vec<&str> = Vec::new();
@@ -188,5 +197,13 @@ mod tests {
     fn tailscale_is_not_asked_unless_the_network_or_serve_is_open() {
         assert!(!should_ask_tailscale(Mode::LocalOnly, false));
         assert!(should_ask_tailscale(Mode::LocalOnly, true) && should_ask_tailscale(Mode::NetworkAccessible, false));
+    }
+    #[test]
+    fn the_app_offers_its_loopback_address_and_the_https_addresses_the_person_set_and_nothing_that_needs_a_wider_bind() {
+        let endpoints = app_endpoints(3774, " https://t3.example.test , ,http://plain.test:9, nope ");
+        let shown: Vec<_> = endpoints.iter().map(|endpoint| (endpoint.id.as_str(), endpoint.reachability)).collect();
+        assert_eq!(shown, vec![("desktop-loopback:3774", Reachability::Loopback), ("manual:https://t3.example.test", Reachability::Public), ("manual:http://plain.test:9", Reachability::Public)]);
+        assert_eq!(app_endpoints(3774, "").len(), 1, "this machine alone");
+        assert!(endpoints.iter().all(|endpoint| endpoint.reachability != Reachability::Lan), "no local network address without a wider bind");
     }
 }

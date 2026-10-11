@@ -60,6 +60,9 @@ pub(crate) const CONFIRMATIONS: [Row; 3] = [
     Row::switch("confirmThreadDelete", "Delete confirmation", "Ask before deleting a thread and its chat history.", true),
     Row::switch("confirmThreadUnpin", "Unpin confirmation", "Ask before unpinning a thread from the pinned section.", false),
 ];
+/// The desktop app's quit shortcut: held, pressed twice, or acted on at once (`quit_hold`). Only the desktop app has a window to quit, so
+/// only its General page lists it.
+pub(crate) const QUIT: [Row; 1] = [Row::choice("confirmQuit", "Quit shortcut", "Hold mode also quits on two quick presses.", "\"hold\"", &[("\"direct\"", "Direct"), ("\"hold\"", "Hold"), ("\"double-click\"", "Double press")])];
 /// Display preferences of the General page.
 pub(crate) const DISPLAY: [Row; 3] = [
     Row::choice("sidebarProjectSortOrder", "Project order", "Order of projects in the sidebar project picker and command palette.", "\"updated_at\"", &[("\"updated_at\"", "Last user message"), ("\"created_at\"", "Created at"), ("\"manual\"", "Manual")]),
@@ -147,7 +150,7 @@ pub(crate) fn ClientRows(state: Store<UiModel>, rows: &'static [Row]) -> Element
 }
 
 /// Every row that follows this device's preferences, for "Restore device defaults".
-const DEVICE: [&[Row]; 6] = [&[NOTIFICATION_MODE], &BEHAVIOR, &CONFIRMATIONS, &DIFFS, &LAYOUT, &DISPLAY];
+const DEVICE: [&[Row]; 7] = [&[NOTIFICATION_MODE], &BEHAVIOR, &CONFIRMATIONS, &QUIT, &DIFFS, &LAYOUT, &DISPLAY];
 
 /// The titles of the device preferences that are not at their defaults.
 pub(crate) fn changed_labels(state: Store<UiModel>) -> Vec<&'static str> {

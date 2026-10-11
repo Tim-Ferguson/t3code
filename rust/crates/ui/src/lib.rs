@@ -26,6 +26,8 @@ mod pull_request_files;
 mod diff_panel;
 #[cfg(feature = "desktop")]
 mod desktop_updates;
+#[cfg(feature = "desktop")]
+mod cli_command_row;
 mod file_media;
 mod file_panel;
 mod file_tree;
@@ -90,6 +92,7 @@ mod terminal_bridge;
 mod terminal_pane;
 mod terminal_stream;
 mod text_generation_page;
+mod diagnostics_page;
 mod theme_download;
 mod theme_inspector;
 mod theme_library;
@@ -171,7 +174,10 @@ fn Main() -> Element {
             #[cfg(feature = "desktop")]
             desktop_shell::connect(transport, state).await;
             #[cfg(not(feature = "desktop"))]
-            runtime::connect(transport, state, runtime::default_address(), String::new()).await;
+            match runtime::take_pairing_link() {
+                Some(credential) => runtime::pair_from_link(transport, state, runtime::default_address(), credential).await,
+                None => runtime::connect(transport, state, runtime::default_address(), String::new()).await,
+            }
         }
     });
     let failed_import = import_notice::use_failed_import(state);
@@ -190,6 +196,16 @@ pub(crate) fn desktop_update_rows() -> Element {
 }
 #[cfg(not(feature = "desktop"))]
 pub(crate) fn desktop_update_rows() -> Element {
+    rsx! {}
+}
+
+/// The `t3` command row of the settings, on the desktop app only.
+#[cfg(feature = "desktop")]
+pub(crate) fn desktop_cli_row() -> Element {
+    rsx! { cli_command_row::Row {} }
+}
+#[cfg(not(feature = "desktop"))]
+pub(crate) fn desktop_cli_row() -> Element {
     rsx! {}
 }
 
@@ -517,6 +533,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::General => rsx! {general_page::Page {state,transport:transport.clone()}},
                     View::Projects => rsx! {projects_page::Page {state,transport:transport.clone()}},
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
+                    View::Diagnostics => rsx! {diagnostics_page::Page {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {
                         pull_request_list::Page {state,transport:transport.clone()}
                         pull_request_panel::Host {key:"pr:list",state,transport:transport.clone(),thread_id:String::new()}

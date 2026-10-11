@@ -156,6 +156,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                 }
                 div { key: "scoped:{scope}", ScopedRows { state, transport: transport.clone(), project: project.clone() } }
                 {crate::desktop_update_rows()}
+                {crate::desktop_cli_row()}
                 section { class: "sc-section", "aria-label": "Behavior",
                     h2 { "Behavior" }
                     crate::notifications::ModeRow { state }
@@ -167,7 +168,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                         }
                     }
                 }
-                section { class: "sc-section", "aria-label": "Confirmations", h2 { "Confirmations" } ClientRows { state, rows: &settings_rows::CONFIRMATIONS } }
+                section { class: "sc-section", "aria-label": "Confirmations", h2 { "Confirmations" } ClientRows { state, rows: &settings_rows::CONFIRMATIONS } if crate::keys::desktop() { ClientRows { state, rows: &settings_rows::QUIT } } }
                 section { class: "sc-section", "aria-label": "Diffs", h2 { "Diffs" } ClientRows { state, rows: &settings_rows::DIFFS } }
                 section { class: "sc-section", "aria-label": "Display", h2 { "Display" } ClientRows { state, rows: &settings_rows::DISPLAY } }
                 if project.is_none() {

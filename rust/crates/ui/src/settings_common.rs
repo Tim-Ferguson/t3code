@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use t3_client::connection::ConnectionStatus;
 use t3_contracts::AuthEnvironmentScope;
 
-const TABS: [(View, &str); 9] = [
+const TABS: [(View, &str); 10] = [
     (View::General, "General"),
     (View::Projects, "Projects"),
     (View::Providers, "Providers"),
@@ -15,6 +15,7 @@ const TABS: [(View, &str); 9] = [
     (View::ScheduledTasks, "Scheduled tasks"),
     (View::SourceControl, "Source control"),
     (View::TextGeneration, "Text generation"),
+    (View::Diagnostics, "Diagnostics"),
 ];
 
 /// The settings page a catalog entry's page key names, where this app has one.
@@ -29,6 +30,7 @@ pub(crate) fn page_view(page: &str) -> Option<View> {
         "scheduled-tasks" => View::ScheduledTasks,
         "source-control" => View::SourceControl,
         "text-generation" => View::TextGeneration,
+        "diagnostics" => View::Diagnostics,
         _ => return None,
     })
 }

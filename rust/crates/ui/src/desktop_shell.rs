@@ -214,6 +214,21 @@ fn shell() -> Shell {
     consume_context::<Shell>()
 }
 
+/// Where the `t3` command goes and what it runs, for the settings row: the app's bundled server program, linked from the app's own
+/// folder into a folder on PATH. `T3_CLI_COMMAND_DIRS` (colon separated) names the folders a link may go in instead of the person's
+/// own, which is how it is tried without touching a real PATH folder. None where the app has no command to offer.
+pub(crate) fn cli_environment() -> Option<t3_desktop::cli_command::Environment> {
+    use t3_desktop::cli_command::Environment;
+    let shell = try_consume_context::<Shell>()?;
+    let executable = launch::find_server_binary(env, std::env::current_exe().ok().as_deref()).ok()?;
+    let home = PathBuf::from(env("HOME")?);
+    let named: Vec<PathBuf> = env("T3_CLI_COMMAND_DIRS").map(|dirs| dirs.split(':').filter(|dir| !dir.is_empty()).map(PathBuf::from).collect()).unwrap_or_default();
+    let mut path = named.clone();
+    path.extend(std::env::var_os("PATH").map(|value| std::env::split_paths(&value).collect::<Vec<_>>()).unwrap_or_default());
+    let candidates = if named.is_empty() { Environment::candidates(&home, cfg!(target_os = "macos")) } else { named };
+    Some(Environment { launcher_dir: shell.dirs.root.join("bin"), executable, state_dir: shell.dirs.server_state.clone(), candidates, path, packaged: true })
+}
+
 /// The file the app keeps its own settings in (the update track).
 pub(crate) fn settings_path() -> Option<PathBuf> {
     try_consume_context::<Shell>().map(|shell| shell.dirs.root.join(t3_desktop::updates::SETTINGS_FILE))
@@ -448,23 +463,14 @@ pub(crate) fn server_address() -> Option<String> {
     }
 }
 
-/// The addresses the advertised endpoints of the original's desktop (`DesktopServerExposure`) come to here: the server this app
-/// started listens on loopback only, so "This machine" is the one endpoint. A server the person named is not this app's to
-/// describe.
+/// The endpoints the original's desktop (`DesktopServerExposure`) offers for pairing a device, as this app has them: the server it
+/// started listens on loopback only, so "This machine" plus the HTTPS addresses the person set in `T3CODE_DESKTOP_HTTPS_ENDPOINTS`
+/// (`t3_desktop::network::app_endpoints`; the local network and Tailscale ones need a wider bind or Serve, which this app does not
+/// start). A server the person named is not this app's to describe.
 pub(crate) fn advertised_endpoints() -> crate::access_page::AdvertisedEndpoints {
     let Some(address) = server_address().filter(|_| matches!(shell().backend, Backend::Supervised(_))) else { return Default::default() };
-    let port = address.rsplit(':').next().unwrap_or_default().trim_end_matches('/').to_owned();
-    let endpoint = t3_client::access::Endpoint {
-        id: format!("desktop-loopback:{port}"),
-        label: "This machine".into(),
-        http_base_url: address,
-        provider_id: "desktop-core".into(),
-        reachability: t3_client::access::Reachability::Loopback,
-        hosted_app_compatible: false,
-        available: true,
-        is_default: false,
-    };
-    crate::access_page::AdvertisedEndpoints { endpoints: vec![endpoint], default_key: None }
+    let Some(port) = address.rsplit(':').next().unwrap_or_default().trim_end_matches('/').parse::<u16>().ok() else { return Default::default() };
+    crate::access_page::AdvertisedEndpoints { endpoints: t3_desktop::network::app_endpoints(port, &env("T3CODE_DESKTOP_HTTPS_ENDPOINTS").unwrap_or_default()), default_key: None }
 }
 
 /// How the window reaches the server this app started, now: its address with the credential of this start, or the one the person named.

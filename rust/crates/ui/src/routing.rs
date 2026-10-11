@@ -34,6 +34,7 @@ fn page_view(page: SettingsPage) -> View {
         SettingsPage::SourceControl => View::SourceControl,
         SettingsPage::TextGeneration => View::TextGeneration,
         SettingsPage::Projects => View::Projects,
+        SettingsPage::Diagnostics => View::Diagnostics,
     }
 }
 
@@ -54,6 +55,7 @@ pub(crate) fn route_of(view: &View, thread: Option<&str>, environment: Option<&E
         View::SourceControl => page(SettingsPage::SourceControl),
         View::TextGeneration => page(SettingsPage::TextGeneration),
         View::Projects => page(SettingsPage::Projects),
+        View::Diagnostics => page(SettingsPage::Diagnostics),
         View::PullRequests => Route::PullRequests,
         View::Usage => Route::Usage,
     }

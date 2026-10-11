@@ -48,6 +48,22 @@ async fn a_device_preference_changes_on_this_device_and_resets_to_the_default() 
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
+async fn the_desktop_quit_shortcut_is_chosen_on_the_general_page_and_resets() {
+    with_page(&NO_SETTINGS, async |dom, _props, state| {
+        wait_for_rendered_text(dom, "Quit shortcut").await;
+        assert_eq!(state.client_settings().peek().confirm_quit, t3_contracts::QuitConfirmationMode::Hold, "held is the default");
+        assert!(control(dom, "Reset Quit shortcut").is_none());
+        change_control(dom, "Quit shortcut", "\"double-click\"");
+        until(dom, "double press", |_| state.client_settings().peek().confirm_quit == t3_contracts::QuitConfirmationMode::DoubleClick).await;
+        until(dom, "the reset", |dom| control(dom, "Reset Quit shortcut").is_some()).await;
+        click_control(dom, "Reset Quit shortcut");
+        until(dom, "held again", |_| state.client_settings().peek().confirm_quit == t3_contracts::QuitConfirmationMode::Hold).await;
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
 async fn an_environment_setting_is_one_patch_and_needs_the_settings_grant() {
     with_page(&WRITER, async |dom, _props, state| {
         wait_for_rendered_text(dom, "Response streaming").await;

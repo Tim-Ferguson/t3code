@@ -58,6 +58,19 @@ pub const WIRED_COMMANDS: &[&str] = &[
     "modelPicker.toggle",
     "modelPicker.previousProvider",
     "modelPicker.nextProvider",
+    // The file picker and the project search open the command palette in their mode (`keys.rs`); the picker's own number keys
+    // choose the nth model while it is open.
+    "filePicker.toggle",
+    "projectSearch.toggle",
+    "modelPicker.jump.1",
+    "modelPicker.jump.2",
+    "modelPicker.jump.3",
+    "modelPicker.jump.4",
+    "modelPicker.jump.5",
+    "modelPicker.jump.6",
+    "modelPicker.jump.7",
+    "modelPicker.jump.8",
+    "modelPicker.jump.9",
     "thread.steerQueuedMessage",
     "thread.editQueuedMessage",
     "thread.copyReference",
@@ -310,6 +323,15 @@ mod tests {
         // The original's usage commands belong to no named group, so they are listed under Other, as there.
         assert_eq!(titles, ["Navigation", "Threads", "Composer", "Terminal", "Preview & diff", "Appearance", "Other"]);
         assert!(groups.last().unwrap().rows.iter().all(|row| row.command.starts_with("usage.")));
+    }
+
+    #[test]
+    fn every_shortcut_the_key_runner_carries_out_can_be_seen_and_rebound() {
+        let rows = build_rows(&merge_with_defaults(vec![]), "");
+        for command in ["filePicker.toggle", "projectSearch.toggle", "modelPicker.jump.1", "modelPicker.jump.9"] {
+            assert!(rows.iter().any(|row| row.command == command && row.source == Source::Default), "{command} has a default shortcut and a row");
+            assert!(command_options().iter().any(|(id, _)| *id == command), "{command} can be given to a new rule");
+        }
     }
 
     #[test]

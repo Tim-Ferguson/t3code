@@ -2,7 +2,8 @@
 //! beside the conversation: what the file picker and the content search open, at the line a
 //! content match names. Port of `FilePreviewPanel.tsx`: the file can be edited (a text field, for a file up to
 //! `EDIT_LIMIT_BYTES`, when the connection may write files) and is saved by `t3_client::file_save` a moment after the edits stop.
-//! Not ported: the line comments, the file tree and the table, audio, video and PDF previews.
+//! Line comments: the number of a line is a button that opens a comment on it (Shift-click another for a range), which
+//! joins the thread's message box as a chip. The file tree, tables, audio, video and PDF previews are in `file_tree`/`file_media`.
 //!
 //! The panel draws a window of the file, never all of it, so a file of tens of thousands of lines
 //! costs the same as a short one: the window starts above the revealed line and grows by request.
@@ -231,6 +232,9 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     let can_write = crate::settings_common::connected_allows(state, AuthEnvironmentScope::FilesystemWrite);
     let mut editing = use_signal(|| false);
     let mut edit_from = use_signal(String::new);
+    // The lines a comment is being written on, and the line a Shift-click extends from.
+    let mut commenting = use_signal(|| None::<(u64, u64)>);
+    let mut anchor = use_signal(|| None::<u64>);
     let reveal = target.line;
     let mut start = use_signal(|| files::view_start(reveal));
     let mut end = use_signal(|| files::view_start(reveal) + files::VIEW_WINDOW);
@@ -311,6 +315,8 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     let environment_key = state.destination().read().as_ref().map(ToString::to_string).unwrap_or_default();
     let editable = can_write && !is_image && loaded.as_ref().is_some_and(|loaded| !loaded.truncated && loaded.byte_length <= files::EDIT_LIMIT_BYTES);
     let pending = state.file_pending().read().contains(&key_of(&target.cwd, &target.path));
+    // A comment on lines goes to the open thread's message box as a chip (`buildFileReviewComment`).
+    let comment_thread = target.owner.clone().filter(|_| !editing());
     let show_rendered = is_markdown && rendered() && !editing();
     let markdown_text = loaded.as_ref().filter(|_| show_rendered).map(|loaded| loaded.lines.join("\n")).unwrap_or_default();
     rsx! {
@@ -428,7 +434,18 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                                 let colour = coloured.read().as_ref().and_then(|lines| lines.get(offset).cloned());
                                 rsx! {
                                     div { key: "{number}", id: "file-line-{number}", class: if revealed { "file-line revealed" } else { "file-line" }, role: "row", "aria-current": if revealed { "true" } else { "false" },
-                                        span { class: "file-line-number", role: "cell", "{number}" }
+                                        span { class: "file-line-number", role: "cell",
+                                            if comment_thread.is_some() {
+                                                button { class: "file-line-comment", r#type: "button", "aria-label": "Comment on line {number}", title: "Comment on this line. Shift-click another line to comment on a range.",
+                                                    onclick: move |event| {
+                                                        let line = number as u64;
+                                                        let first = if event.modifiers().shift() { anchor.peek().unwrap_or(line) } else { line };
+                                                        anchor.set(Some(line));
+                                                        commenting.set(Some((first.min(line), first.max(line))));
+                                                    },
+                                                    "{number}" }
+                                            } else { "{number}" }
+                                        }
                                         code { class: "file-line-text", role: "cell", if let Some(colour) = colour { highlighted_line { line: colour } } else { "{text}" } }
                                     }
                                 }
@@ -442,6 +459,9 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
             }
             }
             }
+            if let (Some((first, last)), Some(thread_id)) = (commenting(), comment_thread.clone()) {
+                FileCommentDialog { state, environment_key: environment_key.clone(), thread_id, path: target.path.clone(), first, last, contents: loaded.as_ref().map(|loaded| loaded.lines.join("\n")).unwrap_or_default(), onclose: move |()| commenting.set(None) }
+            }
             if explorer {
                 aside { class: "file-explorer", "aria-label": "Files",
                     crate::file_tree::Tree { key: "{target.cwd}", state, transport: transport.clone(), cwd: target.cwd.clone(), owner: target.owner.clone(), selected: target.path.clone() }
@@ -450,4 +470,37 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
             }
         }
     }
+}
+
+/// Writes a comment on lines of the open file and attaches it to the thread's message box as a chip (`FilePreviewPanel.tsx`
+/// annotations, `buildFileReviewComment`).
+#[component]
+fn FileCommentDialog(state: Store<UiModel>, environment_key: String, thread_id: String, path: String, first: u64, last: u64, contents: String, onclose: EventHandler<()>) -> Element {
+    let mut text = use_signal(String::new);
+    let title = if first == last { format!("Comment on {path} line {first}") } else { format!("Comment on {path} lines {first} to {last}") };
+    let add = {
+        let (path, contents, thread_id, environment_key) = (path.clone(), contents.clone(), thread_id.clone(), environment_key.clone());
+        move || {
+            let comment = t3_client::composer_context::file_comment(&format!("review-comment-{}", uuid::Uuid::new_v4().simple()), &path, first as u32, last as u32, &text.peek(), &contents);
+            if comment["text"].as_str().is_some_and(str::is_empty) {
+                return;
+            }
+            crate::composer_chips::add(state, t3_client::draft_storage::DraftTarget::thread(environment_key.clone(), thread_id.clone()), t3_client::composer_context::review_record(&comment));
+            onclose.call(());
+        }
+    };
+    let preview: String = contents.split('\n').skip(first.saturating_sub(1) as usize).take((last.max(first) - first + 1).min(12) as usize).collect::<Vec<_>>().join("\n");
+    rsx! { div { class: "modal-backdrop", onclick: move |_| onclose.call(()),
+        div { class: "dialog review-comment-dialog", role: "dialog", "aria-modal": "true", "aria-label": "{title}", tabindex: "-1", onclick: move |event| event.stop_propagation(),
+            onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); onclose.call(()); } },
+            h2 { "{title}" }
+            pre { class: "review-comment-line", "{preview}" }
+            textarea { "aria-label": "File comment", placeholder: "What should change here?", value: "{text}", oninput: move |event| text.set(event.value()),
+                onmounted: move |event| { let element = event.data(); spawn(async move { let _ = element.set_focus(true).await; }); } }
+            div { class: "dialog-actions",
+                button { r#type: "button", "aria-label": "Cancel file comment", onclick: move |_| onclose.call(()), "Cancel" }
+                button { class: "primary", r#type: "button", "aria-label": "Add comment to chat", disabled: text.read().trim().is_empty(), onclick: { let mut add = add.clone(); move |_| add() }, "Add to chat" }
+            }
+        }
+    } }
 }

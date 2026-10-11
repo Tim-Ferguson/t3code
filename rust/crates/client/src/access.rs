@@ -286,6 +286,34 @@ pub fn is_hosted_pairing_url(value: &str) -> bool {
     url::Url::parse(value).is_ok_and(|url| url.path() == "/pair" && url.query_pairs().any(|(name, _)| name == "host"))
 }
 
+/// `getPairingTokenFromUrl`: the credential a pairing link carries, from its fragment or else its query. A blank one is none.
+pub fn pairing_token_from_url(address: &str) -> Option<String> {
+    let url = url::Url::parse(address).ok()?;
+    let from = |pairs: url::form_urlencoded::Parse<'_>| pairs.filter(|(name, _)| name == "token").map(|(_, value)| value.trim().to_owned()).find(|value| !value.is_empty());
+    url.fragment().and_then(|fragment| from(url::form_urlencoded::parse(fragment.as_bytes()))).or_else(|| from(url.query_pairs()))
+}
+
+/// Where the page goes once the credential is taken from it (`stripPairingTokenFromUrl`, then the `/pair` route's redirect to `/`):
+/// the address as a path with the credential removed, so it is not kept in the history or copied from the address bar.
+pub fn address_without_pairing_token(address: &str) -> Option<String> {
+    let mut url = url::Url::parse(address).ok()?;
+    let kept: Vec<(String, String)> = url.query_pairs().filter(|(name, _)| name != "token").map(|(name, value)| (name.into_owned(), value.into_owned())).collect();
+    if kept.is_empty() {
+        url.set_query(None);
+    } else {
+        url.query_pairs_mut().clear().extend_pairs(kept);
+    }
+    let fragment: Vec<(String, String)> = url.fragment().map(|fragment| url::form_urlencoded::parse(fragment.as_bytes()).filter(|(name, _)| name != "token").map(|(name, value)| (name.into_owned(), value.into_owned())).collect()).unwrap_or_default();
+    let fragment = url::form_urlencoded::Serializer::new(String::new()).extend_pairs(fragment).finish();
+    url.set_fragment(if fragment.is_empty() { None } else { Some(&fragment) });
+    if url.path() == "/pair" {
+        url.set_path("/");
+    }
+    let query = url.query().map(|query| format!("?{query}")).unwrap_or_default();
+    let fragment = url.fragment().map(|fragment| format!("#{fragment}")).unwrap_or_default();
+    Some(format!("{}{query}{fragment}", url.path()))
+}
+
 /// The browser's key for the interface state the original saves (`PERSISTED_STATE_KEY` of `uiStateStore.ts`).
 pub const UI_STATE_KEY: &str = "t3code:ui-state:v1";
 
@@ -465,5 +493,21 @@ mod tests {
         assert_eq!(stored_default_key(Some(&saved)).as_deref(), Some("tailscale:serve:https:Tailnet"));
         // A record that cannot be read is replaced, not extended.
         assert_eq!(with_default_key(Some("[1]"), "x"), r#"{"defaultAdvertisedEndpointKey":"x"}"#);
+    }
+    #[test]
+    fn a_pairing_link_gives_up_its_credential_and_leaves_a_clean_address() {
+        // The link the Authorized clients list makes: the credential is in the fragment, which a server never sees.
+        let link = pairing_url("http://127.0.0.1:3774", "abc DEF/1");
+        assert_eq!(pairing_token_from_url(&link).as_deref(), Some("abc DEF/1"));
+        assert_eq!(address_without_pairing_token(&link).as_deref(), Some("/"));
+        // The query is read as well, when there is no fragment; the fragment wins; a blank credential is none.
+        assert_eq!(pairing_token_from_url("http://h/pair?token=q1").as_deref(), Some("q1"));
+        assert_eq!(pairing_token_from_url("http://h/pair?token=q1#token=f1").as_deref(), Some("f1"));
+        assert_eq!(pairing_token_from_url("http://h/pair#token=%20%20"), None);
+        assert_eq!(pairing_token_from_url("http://h/#other=1"), None);
+        // Whatever else the address holds is kept; only the credential goes, and `/pair` goes to the start screen.
+        assert_eq!(address_without_pairing_token("http://h/settings/general?token=q1&a=b#token=f1&c=d").as_deref(), Some("/settings/general?a=b#c=d"));
+        assert_eq!(address_without_pairing_token("http://h/pair?host=https%3A%2F%2Fx#token=f1").as_deref(), Some("/?host=https%3A%2F%2Fx"));
+        assert_eq!(address_without_pairing_token("not a url"), None);
     }
 }

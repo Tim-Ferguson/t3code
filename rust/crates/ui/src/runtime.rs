@@ -29,6 +29,7 @@ pub enum View {
     SourceControl,
     TextGeneration,
     Projects,
+    Diagnostics,
     PullRequests,
     Usage,
 }
@@ -1703,6 +1704,38 @@ pub async fn pair_and_connect(
     }
 }
 
+/// The credential a pairing link brought to this page (`/pair#token=…`, which the Authorized clients list makes), taken out of the
+/// address so it is not kept in the history or the address bar (`stripPairingTokenFromUrl`). Only the web build has an address.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn take_pairing_link() -> Option<String> {
+    let href = web_sys::window()?.location().href().ok()?;
+    let credential = t3_client::access::pairing_token_from_url(&href)?;
+    let clean = serde_json::to_string(&t3_client::access::address_without_pairing_token(&href)?).ok()?;
+    let _ = js_sys::eval(&format!("history.replaceState(null,'',{clean})"));
+    Some(credential)
+}
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn take_pairing_link() -> Option<String> {
+    None
+}
+
+/// Opens a pairing link on this server's own address. A browser that is signed in already leaves the link unused, as the original's
+/// `/pair` route does (the credential is good once, and a signed-in person has no need of it); any other pairs with it and connects.
+pub async fn pair_from_link(handle: TransportHandle, state: Store<UiModel>, address: String, credential: String) {
+    let signed_in = async {
+        let endpoint = EnvironmentEndpoint::new(&address).ok()?;
+        let session = authenticated_json(&reqwest::Client::new(), &endpoint, "api/auth/session", "", false).await.ok()?;
+        serde_json::from_value::<t3_contracts::AuthSessionState>(session).ok().map(|session| session.authenticated)
+    }
+    .await
+    .unwrap_or(false);
+    if signed_in {
+        connect(handle, state, address, String::new()).await;
+    } else {
+        pair_and_connect(handle, state, address, credential).await;
+    }
+}
+
 pub async fn connect(
     handle: TransportHandle,
     state: Store<UiModel>,
@@ -2927,6 +2960,14 @@ pub(crate) mod diff_tests;
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "review_tests.rs"]
 mod review_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "pair_link_tests.rs"]
+mod pair_link_tests;
+
+#[cfg(all(test, unix))]
+#[path = "diagnostics_tests.rs"]
+mod diagnostics_tests;
 
 #[cfg(all(test, unix))]
 #[path = "git_action_tests.rs"]

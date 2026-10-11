@@ -1,0 +1,640 @@
+{
+  "rpc": {
+    "handled": {},
+    "partial": {},
+    "pending": {
+      "preview.adjust": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.clearProfile": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.close": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.list": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.navigate": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.open": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.refresh": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.reportStatus": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.resize": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "subscribePreviewEvents": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "subscribeDiscoveredLocalServers": "Preview panel's list of local dev servers (usePreviewDiscovery): no preview panel.",
+      "provider.chatgpt.handoff.subscribe": "ChatGPT sign-in for managed Codex (CodexSetupSection): not built; the server side is not ported either.",
+      "provider.chatgpt.import-profile": "ChatGPT sign-in for managed Codex (CodexSetupSection): not built; the server side is not ported either.",
+      "provider.chatgpt.reconnect-profile": "ChatGPT sign-in for managed Codex (CodexSetupSection): not built; the server side is not ported either.",
+      "provider.codex.auth-callback.subscribe": "ChatGPT sign-in for managed Codex (CodexSetupSection): not built; the server side is not ported either.",
+      "device.action": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.close": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.configure": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.detail": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.list": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.open": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.shutdown": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "device.testHost": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "subscribeDeviceState": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
+      "mcpApps.callTool": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
+      "mcpApps.readResource": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
+      "mcpApps.toolInfo": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
+      "mcpApps.updateModelContext": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
+      "server.getProcessResourceHistory": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
+      "server.getResourceTelemetryHistory": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
+      "server.retryResourceTelemetry": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
+      "server.getHostResources": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
+      "subscribeResourceTelemetry": "Resource history charts and the resource telemetry panel of the Diagnostics page (ResourceTelemetryDiagnostics.tsx): the Rust Diagnostics page has live processes and traces only. The server handles it.",
+      "server.reportClientActivity": "Background policy reporter (backgroundActivityReporter.ts): the Rust UI never tells the server it is visible or idle, so the policy leases never open. The server handles it.",
+      "filesystem.browse": "Server-side folder browser of the Add project dialog (CommandPalette.tsx) for a browser client; the Rust web build asks for a typed path (the desktop build has a native picker). The server handles it.",
+      "provider.uploadFeedback": "'Send feedback' on a thread (ChatView uploadThreadFeedback): no entry point in the Rust UI. The server handles it.",
+      "pullRequests.preview": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
+      "pullRequests.routing": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
+      "pullRequests.routingIdentity": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
+      "server.acceptAcpRegistryUrlAuth": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
+      "server.prepareAcpRegistryAgent": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
+      "server.searchAcpRegistry": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
+      "server.uninstallAcpRegistryManagedBinary": "Adding an agent from the ACP registry (AcpRegistrySearchStep, ProviderSettingsPanel): search, prepare and managed-binary removal are not built. The server handles it.",
+      "server.commitDesktopUpdate": "Updating an outdated remote server from the client (outdatedHostUpdate.ts, ServerUpdateAction): the Rust UI shows no update action for a server. The server handles it.",
+      "server.updateServer": "Updating an outdated remote server from the client (outdatedHostUpdate.ts, ServerUpdateAction): the Rust UI shows no update action for a server. The server handles it.",
+      "server.updateServerWithProgress": "Updating an outdated remote server from the client (outdatedHostUpdate.ts, ServerUpdateAction): the Rust UI shows no update action for a server. The server handles it.",
+      "vcs.removeWorktree": "Deleting a thread offers to remove its worktree (useThreadActions.ts); the Rust delete never removes the worktree. The server handles it."
+    },
+    "omitted": {
+      "server.probe": "The original opens a probe request to learn the connection answers (rpc/session.ts); the Rust client checks the socket with its heartbeat and the first config read.",
+      "assets.persistChatAttachments": "Data-URL attachments are never produced by the Rust composer: each file is uploaded at once through attachments.createUploadUrl, so there is nothing to persist at send.",
+      "orchestration.getThreadProjection": "Only read to build command context for servers without serverResolvedCommandContext; the Rust client gets the projection from subscribeThread.",
+      "terminal.open": "terminal.attach opens or attaches the session in one request; the Rust drawer never opens separately.",
+      "terminal.clear": "No caller in the original web UI (defined in client-runtime state only).",
+      "terminal.restart": "No caller in the original web UI (defined in client-runtime state only).",
+      "subscribeTerminalEvents": "No caller in the original web UI; terminal.attach streams the session and subscribeTerminalMetadata its list."
+    }
+  },
+  "http": {
+    "handled": {},
+    "partial": {},
+    "pending": {
+      "GET /api/device-hub": "Device hub proxy of the device panel: no device UI.",
+      "GET /api/preview-stream": "Preview browser stream: no preview panel."
+    },
+    "omitted": {
+      "GET /api/orchestration/shell": "The original loads a shell snapshot over HTTP before the socket opens; the Rust client takes its snapshot from the orchestration.subscribeShell stream.",
+      "POST /api/connect/link-proof": "Linking an environment with the account sign-in of the hosted service (linkEnvironment.ts): this app has no account sign-in; use `t3 connect`.",
+      "POST /api/connect/relay-config": "As link-proof: the account-token half of linking is not offered."
+    }
+  },
+  "routes": {
+    "handled": {
+      "/connect-agent": {
+        "probe": "connect_agent.rs::PATH: &str = \"/connect-agent\"",
+        "reason": "connect_agent.rs mounts it as a document of its own in the web build"
+      },
+      "/pair": {
+        "probe": "runtime.rs::fn take_pairing_link",
+        "reason": "a /pair#token=... link pairs this browser (runtime::take_pairing_link, pair_from_link)"
+      }
+    },
+    "partial": {
+      "/settings/storage": "The storage controls live on the General page; there is no /settings/storage address, and two of them have no effect (the server never runs cleanup)."
+    },
+    "pending": {
+      "/draft/$draftId": "Several local drafts, each at its own address: the Rust start screen is one draft (route.rs). Reopened drafts and the draft list are not built.",
+      "/projects/$projectKey": "A redirect to /settings/projects?project=KEY in the original; the Rust router has no deep link to a project's settings.",
+      "/settings/archived": "Archived threads as a settings page: the Rust sidebar lists them in its Archived section only.",
+      "/settings/integrations": "Integrations page (browser preview, agent browser/device access): not built.",
+      "/settings/open-source-licenses": "Licenses page: the original fetches third-party-licenses.json from its web bundle; the Rust build generates no manifest, so the server has no data to serve.",
+      "/welcome": "The onboarding wizard (WelcomeWizard); only its project import step exists, as a dialog."
+    },
+    "omitted": {
+      "/connect": "Hosted-service CLI sign-in (ConnectCliAuthSurface): needs the account sign-in this app does not have; the original redirects to / unless that is configured.",
+      "/settings/snap-shot": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC); no Rust counterpart is planned."
+    }
+  },
+  "commands": {
+    "handled": {},
+    "partial": {},
+    "pending": {
+      "navigation.back": "Back/forward through the person's own navigation history (useNavigationHistory): not built; the browser's buttons work on the web build.",
+      "navigation.forward": "As navigation.back.",
+      "rightPanel.toggle": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
+      "rightPanel.new": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
+      "rightPanel.toggleMaximized": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
+      "rightPanel.close": "The tabbed right panel (RightPanelTabs) does not exist: the diff, file and pull request panels are separate and one opens at a time.",
+      "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel) as a toggle: the Rust header shows its parts inline.",
+      "view.reopenClosed": "Reopen the last closed panel tab (closedViewStore): no tabs, nothing to reopen.",
+      "preview.toggle": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.refresh": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.focusUrl": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.zoomIn": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.zoomOut": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "preview.resetZoom": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
+      "composer.host": "Pick the environment a new thread runs on (BranchToolbarEnvironmentSelector): the Rust new-thread form has one environment.",
+      "composer.cycleHost": "As composer.host.",
+      "script.<id>.run": "Project actions (scripts) with their own shortcut and Run button (ProjectScriptsControl): not built."
+    },
+    "omitted": {
+      "button without handler ui/desktop_updates.rs \"Check for Updates\"": "Deliberately disabled with its reason shown: this app has no update feed (desktop_updates.rs).",
+      "button without handler ui/git_control.rs \"{label}\"": "A disabled busy placeholder while a Git action runs."
+    }
+  },
+  "settings": {
+    "handled": {},
+    "partial": {
+      "archive": "Archived threads are in the sidebar's Archived section; there is no settings page for them.",
+      "storage-worktrees": "The control writes worktreeCleanup but the server never acts on it (check_rpc_surface: the hourly cleanup sweep is not ported).",
+      "storage-artifacts": "The control writes storageCleanup but the server never acts on it (cleanup sweep not ported).",
+      "response-streaming": "Written and read, but the server applies it to the OpenCode adapters only (check_rpc_surface: responseStreamingMode)."
+    },
+    "pending": {
+      "agent-browser-access": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-profiles": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-default-profile": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-default-viewport": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-default-zoom": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-default-appearance": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-recording-frame-rate": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-recording-key-presses": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-recording-mouse-presses": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-link-target": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "browser-auto-show-floating-preview": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
+      "device-hosts": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
+      "agent-device-access": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
+      "device-hub": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
+      "device-platform-support": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
+      "usage-providers": "Usage limit sources (AddUsageLimitSourceDialog): the server does not poll them either (check_rpc_surface: usageLimitSources).",
+      "provider-health-check-interval": "Per-provider health check interval field of the provider card: not built.",
+      "setting-glass-opacity": "Translucent menus and dialogs: not built (the CSS has no backdrop-filter layer).",
+      "environment-identification": "The environment stage pill and artwork (EnvironmentIdentification): not built.",
+      "composer-context": "The composer's persistent context strip: not built.",
+      "proactive-panels": "Panels that open on their own: there are no tabbed panels.",
+      "composer-collapse": "The composer's resting layout (collapse on scroll): not built.",
+      "cli-command": "Desktop only. The t3 command install row (CliCommandSettingsRow, DesktopCliCommand.ts): not built.",
+      "open-source-licenses": "Licenses page: no generated manifest (see routes).",
+      "project-actions": "Project actions (scripts) editor of the project settings: not built.",
+      "environment-icon": "Environment icon picker (EnvironmentIconPicker; capability environmentIcon): not built. The server handles the icon.",
+      "local-environment": "Desktop only. The local environment switch (LocalEnvironmentSetting; setLocalEnvironmentEnabled): the desktop app always runs and uses its own server.",
+      "network-access": "Desktop only. Exposing the app's server to the local network (setServerExposureMode): the server this app starts listens on loopback only.",
+      "tailscale-https": "Desktop only. Tailscale Serve toggle (setTailscaleServeEnabled): not wired.",
+      "load-balancing": "Load balancing between environments (LoadBalancingSettings): not built.",
+      "github-routing": "GitHub sharing between environments (GitHubRoutingSettings): not built; see rpc pullRequests.routing."
+    },
+    "omitted": {
+      "snap-shot-enabled": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
+      "snap-shot-accessibility": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
+      "snap-shot-shortcut": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
+      "snap-shot-sound": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
+      "snap-shot-flash": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
+      "snap-shot-animations": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
+      "cursor-keychain-usage": "Cursor is deliberately not ported.",
+      "composer-rich-text": "The Tiptap rich text composer: the Rust composer is a plain text box with chips; the setting would have nothing to switch.",
+      "privacy-policy": "A link to the hosted service's privacy policy page; this app has no hosted account.",
+      "legacy-sidebar": "The legacy sidebar (LegacySidebar.tsx) is the pre-redesign sidebar kept for a setting; not ported.",
+      "wsl-backend": "Windows only. WSL is not supported by this app (the server cannot be started on Windows yet)."
+    }
+  },
+  "caps": {
+    "handled": {},
+    "partial": {
+      "attachmentUploads": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "questionAttachments": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "inlineMessageContext": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "requiredWorktreeBootstrap": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "pullRequestChecks": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "threadVisitedTracking": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "threadRestartContinuation": "Not read: the Rust UI offers the feature unconditionally. Every capability here is advertised by the Rust server; against another server that lacks it the feature would fail instead of hiding.",
+      "fileAttachments": "Not read: the Rust composer uses the original's constants for the file size limit instead of the advertised maxUploadBytes."
+    },
+    "pending": {
+      "projectWorktreeCleanup": "Per-project worktree cleanup rows (StorageSettings): not built; the server never cleans up either.",
+      "usagePriceOverrides": "Price override editor of the Usage page (UsagePriceOverrides): not built.",
+      "usageModelAliases": "Model alias editor of the Usage page: not built.",
+      "pullRequestStackActions": "Stack merge/rebase actions (PullRequestDetailPanel): to be gated on this flag once the server advertises it.",
+      "serverSelfUpdate": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
+      "serverInstallation": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
+      "serverSelfUpdateProgress": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
+      "serverUpdateThreadContinuation": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
+      "desktopAppUpdate": "Server update flow (ServerUpdateAction, versionSkew, useAutoBalanceUpdateBanner): not built; see rpc server.updateServer.",
+      "environmentIcon": "Environment icon picker: not built.",
+      "serverBrowser": "Server-side browser (preview): not built."
+    },
+    "omitted": {
+      "connectionProbe": "See rpc server.probe: the Rust client does not probe."
+    }
+  },
+  "desktop": {
+    "handled": {
+      "getClientPlatform": {
+        "probe": "keys.rs::fn platform",
+        "reason": "keys::platform reads the platform from the page"
+      },
+      "setNotificationBadge": {
+        "probe": "desktop_shell.rs::fn set_badge",
+        "reason": "dock/taskbar count via desktop_shell::set_badge, called by notifications.rs"
+      },
+      "getClientSettings": {
+        "probe": "client_settings.rs::Writer",
+        "reason": "client settings are kept by client_settings::Writer (the webview's storage), not by a main-process file"
+      },
+      "setClientSettings": {
+        "probe": "client_settings.rs::Writer",
+        "reason": "as getClientSettings"
+      },
+      "getConnectionCatalog": {
+        "probe": "runtime.rs::pub fn forget_environment",
+        "reason": "saved connections are kept by the page and the ssh list by ssh_environments, not by a main-process catalog"
+      },
+      "setConnectionCatalog": {
+        "probe": "runtime.rs::pub fn forget_environment",
+        "reason": "as getConnectionCatalog"
+      },
+      "discoverSshHosts": {
+        "probe": "ssh_gateway.rs::fn discover_hosts",
+        "reason": "ssh_gateway::DesktopGateway"
+      },
+      "resolveSshHost": {
+        "probe": "ssh_gateway.rs::fn resolve_host",
+        "reason": "ssh_gateway::DesktopGateway"
+      },
+      "ensureSshEnvironment": {
+        "probe": "ssh_gateway.rs::fn ensure",
+        "reason": "ssh_gateway::DesktopGateway"
+      },
+      "disconnectSshEnvironment": {
+        "probe": "ssh_gateway.rs::fn disconnect",
+        "reason": "ssh_gateway::DesktopGateway"
+      },
+      "fetchSshEnvironmentDescriptor": {
+        "probe": "ssh_gateway.rs::fn ensure",
+        "reason": "folded into ensure: the gateway pairs after it prepares the tunnel"
+      },
+      "bootstrapSshBearerSession": {
+        "probe": "ssh_gateway.rs::pairing_token",
+        "reason": "folded into ensure: the gateway returns the pairing token"
+      },
+      "onSshPasswordPrompt": {
+        "probe": "ssh_gateway.rs::fn prompts",
+        "reason": "the ssh password prompt feed"
+      },
+      "resolveSshPasswordPrompt": {
+        "probe": "ssh_gateway.rs::fn answer_prompt",
+        "reason": "answer_prompt"
+      },
+      "pickFolder": {
+        "probe": "desktop_shell.rs::fn pick_folder",
+        "reason": "native folder dialog (rfd)"
+      },
+      "setTheme": {
+        "probe": "desktop_shell.rs::set_theme",
+        "reason": "the window chrome follows the appearance setting"
+      },
+      "showContextMenu": {
+        "probe": "desktop_shell.rs::fn native_menu",
+        "reason": "native context menu on macOS, the page's own menu elsewhere"
+      },
+      "openExternal": {
+        "probe": "desktop_shell.rs::fn open_external",
+        "reason": "safe_external_url then the system opener"
+      },
+      "pasteAsText": {
+        "probe": "desktop_shell.rs::Action::PasteAsText",
+        "reason": "menu item inserts the clipboard text (real-window check pending)"
+      },
+      "onMenuAction": {
+        "probe": "desktop_shell.rs::use_muda_event_handler",
+        "reason": "muda menu events: settings, updates, paste as text, zoom, devtools, quit"
+      },
+      "onQuitShortcut": {
+        "probe": "desktop_shell.rs::quit_hold",
+        "reason": "quit hold / double press with its overlay"
+      },
+      "pickThemeFiles": {
+        "probe": "theme_library.rs::Choose theme files",
+        "reason": "an <input type=file>, which the webview opens natively"
+      },
+      "getLocalEnvironmentBootstraps": {
+        "probe": "desktop_shell.rs::fn primary_server",
+        "reason": "the app starts and pairs with its own server (Primary::Pair)"
+      },
+      "getLocalEnvironmentBearerToken": {
+        "probe": "desktop_shell.rs::Primary::Pair",
+        "reason": "the app pairs with its own server directly"
+      },
+      "cliCommand.getState": {
+        "probe": "cli_command_row.rs::cli_command::state",
+        "reason": "the General page's t3 command row reads t3_desktop::cli_command::state"
+      },
+      "cliCommand.install": {
+        "probe": "cli_command_row.rs::cli_command::install",
+        "reason": "the row's Install links the bundled command into a PATH folder (t3_desktop::cli_command)"
+      },
+      "cliCommand.uninstall": {
+        "probe": "cli_command_row.rs::cli_command::uninstall",
+        "reason": "the row's Remove takes away only links to a launcher the app wrote"
+      }
+    },
+    "partial": {
+      "getUpdateState": "desktop_updates.rs: only the disabled state is reachable; the app has no update feed.",
+      "onUpdateState": "desktop_updates.rs: the state never changes (no feed).",
+      "checkForUpdate": "The About row and menu item exist and say updates are unavailable; nothing is checked.",
+      "downloadUpdate": "No update feed: the pill and button never reach the downloadable state.",
+      "installUpdate": "No update feed: never reaches the installable state.",
+      "setUpdateChannel": "The track choice is kept (updates::channel_in_force) for the day a feed exists; it changes nothing now.",
+      "getAdvertisedEndpoints": "desktop_shell::advertised_endpoints now uses t3_desktop::network::app_endpoints: This machine plus the HTTPS addresses in T3CODE_DESKTOP_HTTPS_ENDPOINTS; the local network and Tailscale endpoints need a wider bind or Tailscale Serve, which this app does not start."
+    },
+    "pending": {
+      "preview.setForwardedShortcuts": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.createTab": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.closeTab": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.registerWebview": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.navigate": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.goBack": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.goForward": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.refresh": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.zoomIn": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.zoomOut": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.resetZoom": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.setZoomFactor": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.hardReload": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.setColorScheme": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.setAudioMuted": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.openDevTools": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.listBrowserImportSources": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.importBrowserCookies": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.clearCookies": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.clearCache": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.getPreviewConfig": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.setAnnotationTheme": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.setAnnotationSendEnabled": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.pickElement": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.cancelPickElement": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.captureScreenshot": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.revealArtifact": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.copyArtifactToClipboard": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.pictureInPicture": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.open": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.close": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.recording": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.onInput": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.startScreencast": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.stopScreencast": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.save": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.*.onFrame": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.onStateChange": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.onPointerEvent": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "onNotificationBadgeClear": "The main process tells the page to clear the badge when the window is focused; the Rust badge follows the page's own unread count only.",
+      "getPathForFile": "Dropped files give no absolute path (WebView File objects have none): dropping a folder to add a project, and dropping a file to attach by path, are not built; file drops upload their bytes.",
+      "getAppBranding": "The stage label and app name of the build (dev/nightly pill): the Rust app has a fixed title.",
+      "getSystemLocale": "The 'System default' time format reads the page's locale; the OS locale is not asked.",
+      "onTrackpadScrollEnd": "Only the device viewport uses it; no device panel.",
+      "getLocalEnvironmentEnabled": "The Local environment switch (settings 'local-environment'): not built.",
+      "setLocalEnvironmentEnabled": "As getLocalEnvironmentEnabled.",
+      "getServerExposureState": "Network access: the server this app starts listens on loopback only (t3_desktop::network has the logic, not wired).",
+      "setServerExposureMode": "As getServerExposureState.",
+      "setTailscaleServeEnabled": "Tailscale Serve switch of the Connections page: not wired.",
+      "pickProjectFavicon": "Choosing an image for a project's icon (ProjectFaviconPickerDialog): not built.",
+      "receiveProviderAuthCallback": "ChatGPT sign-in callback (CodexSetupSection): not built.",
+      "cancelProviderAuthCallback": "As receiveProviderAuthCallback.",
+      "checkSystemPermission": "Reading macOS permission state for the Integrations rows: no Integrations page. Notification permission is asked in the webview (notifications.rs).",
+      "openSystemSettings": "As checkSystemPermission.",
+      "probeRemoteEditors": "Opening files in an editor on a remote SSH machine (remoteOpen.ts): not built.",
+      "getWindowFullscreenState": "The page's traffic-light inset when fullscreen: the Rust header does not adapt.",
+      "onWindowFullscreenStateChange": "As getWindowFullscreenState.",
+      "appActivation.setReady": "Desktop app activation socket (`t3 app`): the server's `app` command is not ported either (README).",
+      "appActivation.complete": "Desktop app activation socket (`t3 app`): the server's `app` command is not ported either (README).",
+      "appActivation.onRequest": "Desktop app activation socket (`t3 app`): the server's `app` command is not ported either (README)."
+    },
+    "omitted": {
+      "requestSnapShotPermissions": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "getSnapShotState": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "setupSnapShot": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "previewSnapShotConfig": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "applySnapShotConfig": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "checkSnapShotShortcut": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "setSnapShotShortcutSuppressed": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "listPendingSnapShots": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "readSnapShot": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "setSnapShotAnimationDestination": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "dismissSnapShotAnimation": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "acknowledgeSnapShot": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "onSnapShotEvent": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",
+      "setWslBackendEnabled": "WSL (Windows only): the server cannot be started on Windows by this app yet.",
+      "setWslDistro": "WSL (Windows only): the server cannot be started on Windows by this app yet.",
+      "setWslOnly": "WSL (Windows only): the server cannot be started on Windows by this app yet.",
+      "getWslState": "WSL (Windows only): the server cannot be started on Windows by this app yet.",
+      "fetchSshSessionState": "No caller in the original web app.",
+      "issueSshWebSocketTicket": "No caller in the original web app.",
+      "clearConnectionCatalog": "No caller in the original web app."
+    }
+  },
+  "surface": {
+    "handled": {
+      "timeline row worktree-setup": {
+        "probe": "worktree_setup.rs::subscribeWorktreeSetup",
+        "reason": "worktree_setup.rs card"
+      },
+      "timeline row work": {
+        "probe": "timeline_rows.rs::Single \\{ entry",
+        "reason": "Row::Single / Row::Entry"
+      },
+      "timeline row work-live": {
+        "probe": "timeline_rows.rs::Live \\{",
+        "reason": "Row::Live"
+      },
+      "timeline row working": {
+        "probe": "timeline_rows.rs::Working \\{",
+        "reason": "Row::Working"
+      },
+      "timeline row thinking": {
+        "probe": "timeline_rows.rs::Thinking \\{",
+        "reason": "Row::Thinking"
+      },
+      "timeline row work-toggle": {
+        "probe": "timeline_rows.rs::Toggle \\{",
+        "reason": "Row::Toggle"
+      },
+      "timeline row turn-fold": {
+        "probe": "timeline_rows.rs::TurnFold \\{",
+        "reason": "Row::TurnFold"
+      },
+      "timeline row attempt-fold": {
+        "probe": "timeline_rows.rs::AttemptFold \\{",
+        "reason": "Row::AttemptFold"
+      },
+      "timeline row context-compaction": {
+        "probe": "timeline_rows.rs::Compaction \\{",
+        "reason": "Row::Compaction"
+      },
+      "timeline row message": {
+        "probe": "timeline_rows.rs::Message \\{",
+        "reason": "Kind::Message"
+      },
+      "timeline row assistant-meta": {
+        "probe": "timeline_rows.rs::Footer \\{",
+        "reason": "Row::Footer"
+      },
+      "timeline row event": {
+        "probe": "timeline_rows.rs::Event \\{",
+        "reason": "Kind::Event"
+      },
+      "timeline row proposed-plan": {
+        "probe": "timeline.rs::proposed_plan",
+        "reason": "proposed_plan items"
+      },
+      "message context image": {
+        "probe": "attachments.rs::[Tt]humbnail",
+        "reason": "sent attachments render as thumbnails"
+      },
+      "message context file": {
+        "probe": "attachments.rs::pub fn file",
+        "reason": "sent files render as links"
+      },
+      "message context terminal": {
+        "probe": "composer_chips.rs::terminal",
+        "reason": "composer_chips.rs"
+      },
+      "message context review-comment": {
+        "probe": "composer_chips.rs::review-comment",
+        "reason": "composer_chips.rs"
+      },
+      "message context thread": {
+        "probe": "composer_chips.rs::Thread",
+        "reason": "composer_chips.rs"
+      },
+      "composer ComposerActivityStatus": {
+        "probe": "thread_status_line.rs::fn StatusLine",
+        "reason": "the running/working line"
+      },
+      "composer ComposerCommandMenu": {
+        "probe": "composer_menu.rs::fn slash_entries",
+        "reason": "the / $ @ menus"
+      },
+      "composer ComposerControl": {
+        "probe": "thread_controls.rs::Permissions",
+        "reason": "the model, effort and permission controls"
+      },
+      "composer ComposerImageThumbnail": {
+        "probe": "attachments.rs::[Tt]humbnail",
+        "reason": "attachment thumbnails"
+      },
+      "composer ComposerPendingApprovalActions": {
+        "probe": "composer_panels.rs::An approval answers once",
+        "reason": "approval buttons"
+      },
+      "composer ComposerPendingApprovalPanel": {
+        "probe": "composer_panels.rs::An approval answers once",
+        "reason": "the request panel"
+      },
+      "composer ComposerPendingTerminalContexts": {
+        "probe": "composer_chips.rs::terminal",
+        "reason": "the chip tray"
+      },
+      "composer ComposerPendingUserInputPanel": {
+        "probe": "composer_panels.rs::[Qq]uestion",
+        "reason": "the question panel"
+      },
+      "composer ComposerPlanFollowUpBanner": {
+        "probe": "composer_panels.rs::Plan ready",
+        "reason": "implement / refine a plan"
+      },
+      "composer ComposerPrimaryActions": {
+        "probe": "lib.rs::Stop generation",
+        "reason": "send and stop buttons"
+      },
+      "composer ComposerStashBadge": {
+        "probe": "prompt_stash.rs::fn shortcut",
+        "reason": "the stash"
+      },
+      "composer ComposerStashMenu": {
+        "probe": "prompt_stash.rs::fn shortcut",
+        "reason": "the stash"
+      },
+      "composer ComposerSurface": {
+        "probe": "lib.rs::class: \"composer\"",
+        "reason": "the composer container"
+      },
+      "composer ComposerUsageLimits": {
+        "probe": "limits_view.rs::UsageLimits.tsx",
+        "reason": "the /usage-limits panel"
+      },
+      "composer QueuedRunsControl": {
+        "probe": "composer_panels.rs::The queue above the composer",
+        "reason": "queued messages with edit, steer and remove"
+      },
+      "composer composer-logic": {
+        "probe": "composer_menu.rs::fn slash_entries",
+        "reason": "trigger detection for / $ @"
+      },
+      "composer composerAttachmentFiles": {
+        "probe": "attachments.rs::pub fn file",
+        "reason": "attachment limits and file kinds"
+      },
+      "composer composerDraftStore": {
+        "probe": "draft_storage.rs::pub async fn hydrate",
+        "reason": "draft persistence"
+      },
+      "composer composerMenuHighlight": {
+        "probe": "composer_menu.rs::ArrowDown",
+        "reason": "menu highlighting"
+      },
+      "composer composerPromptHistory": {
+        "probe": "composer_menu.rs::fn history_direction",
+        "reason": "Up/Down prompt history"
+      },
+      "composer composerProviderState": {
+        "probe": "thread_controls.rs::aria-label\":\"Permissions",
+        "reason": "provider options per model"
+      },
+      "composer composerSlashCommandSearch": {
+        "probe": "composer_menu.rs::fn slash_entries",
+        "reason": "slash command search"
+      },
+      "composer composerSubmission": {
+        "probe": "runtime.rs::pub fn send_with",
+        "reason": "send validation and dispatch"
+      },
+      "composer pendingUserInput": {
+        "probe": "composer_panels.rs::[Qq]uestion",
+        "reason": "question answers"
+      },
+      "composer promptStashStore": {
+        "probe": "prompt_stash.rs::fn shortcut",
+        "reason": "stash storage"
+      },
+      "composer useComposerMenuState": {
+        "probe": "composer_menu.rs::fn slash_entries",
+        "reason": "menu state"
+      },
+      "composer useComposerTriggerState": {
+        "probe": "composer_menu.rs::fn slash_entries",
+        "reason": "trigger state"
+      }
+    },
+    "partial": {
+      "message context mention": "The @file reference is sent as text and shown as text; the original's inline file chip with its icon (FileTagChip, SkillInlineText) is not drawn.",
+      "message context skill": "As mention: a $skill token shows as plain text, not the original's inline chip.",
+      "right panel surface terminal": "The terminal is a drawer under the conversation, not a tab of the right panel; splits and multiple terminals work.",
+      "right panel surface diff": "A separate panel, not a tab: opening another panel closes it.",
+      "right panel surface files": "The file tree lives inside the file panel; there is no 'Files' tab.",
+      "right panel surface file": "One file at a time in a panel; the original keeps several file tabs and reopens closed ones.",
+      "right panel surface pull-request": "One pull request panel at a time, not peer tabs.",
+      "right panel surface pull-requests": "The thread's linked pull requests are a panel (thread_pull_requests_panel.rs), not a singleton tab.",
+      "composer ComposerBanner": "Provider status, usage-limit and server-update banners are separate notices; there is no banner stack above the box.",
+      "composer ComposerBannerStack": "As ComposerBanner.",
+      "composer ComposerPromptLengthValidation": "The server rejects an over-long prompt; the box shows no length warning before send.",
+      "composer ComposerTasksBadge": "Background work is listed in composer_panels; the scheduled-tasks badge/popover (ThreadAutomationsPanel) is not built.",
+      "composer composer-code-block": "Rich text composer: not built.",
+      "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo)."
+    },
+    "pending": {
+      "timeline row html-render": "HtmlRenderTimelineRow (the t3 html_render tool result in a sandboxed frame): the Rust timeline shows the tool call only.",
+      "timeline row mcp-app": "McpAppTimelineRow (MCP app frames): not built; see rpc mcpApps.*.",
+      "message context element": "A picked page element from the preview browser: no preview panel.",
+      "message context preview-annotation": "A preview annotation: no preview panel.",
+      "right panel surface preview": "Preview browser tab: not built.",
+      "right panel surface device": "Device (simulator) tab: not built.",
+      "composer ComposerCodeBlockLanguagePicker": "Rich text composer code blocks: not built.",
+      "composer ComposerCodeBlockNodeView": "Rich text composer code blocks: not built.",
+      "composer ComposerFeedback": "Thumbs up/down feedback on a reply (uploadFeedback): not built.",
+      "composer ComposerServerUpdateStatus": "Server update status under the box: see rpc server.updateServer.",
+      "composer composer-rich-text": "The rich text composer (Tiptap, block Markdown): the Rust composer is a plain text box.",
+      "composer composerMentionDrag": "Dragging a file or a tree row into the composer (composerMentionDrag, workspaceFileDrop): not built."
+    },
+    "omitted": {
+      "composer composerEventScope": "DOM event scoping of the rich editor; the plain text box has no equivalent.",
+      "composer composerScrollGesture": "Scroll-to-collapse gesture of the composer (setting composer-collapse): not built.",
+      "composer useComposerFocusState": "React focus bookkeeping; the Rust box uses the DOM focus.",
+      "composer useComposerMultilinePrompt": "Multiline editor measurement of the rich editor."
+    }
+  }
+}

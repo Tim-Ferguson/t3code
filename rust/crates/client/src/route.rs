@@ -15,9 +15,11 @@ pub enum SettingsPage {
     /// Not a page of its own in the original; the port keeps it where it lists it.
     TextGeneration,
     Projects,
+    /// The server's live processes and trace summary (`/settings/diagnostics`).
+    Diagnostics,
 }
 impl SettingsPage {
-    pub const ALL: [SettingsPage; 9] = [Self::General, Self::Projects, Self::Providers, Self::Appearance, Self::Connections, Self::Keybindings, Self::ScheduledTasks, Self::SourceControl, Self::TextGeneration];
+    pub const ALL: [SettingsPage; 10] = [Self::General, Self::Projects, Self::Providers, Self::Appearance, Self::Connections, Self::Keybindings, Self::ScheduledTasks, Self::SourceControl, Self::TextGeneration, Self::Diagnostics];
     pub fn segment(self) -> &'static str {
         match self {
             Self::General => "general",
@@ -29,6 +31,7 @@ impl SettingsPage {
             Self::SourceControl => "source-control",
             Self::TextGeneration => "text-generation",
             Self::Projects => "projects",
+            Self::Diagnostics => "diagnostics",
         }
     }
     fn of(segment: &str) -> Option<Self> {

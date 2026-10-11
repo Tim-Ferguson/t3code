@@ -4,7 +4,7 @@
 use super::diff_tests::{Fixture, open_thread, rendered_text, seed, until, wait_for_rendered_text};
 use super::*;
 use crate::diff_panel::Gate;
-use crate::runtime::transport_tests::{click_when_enabled, control, input_control};
+use crate::runtime::transport_tests::{click_when_enabled, control, control_attribute, input_control};
 
 const READ: [AuthEnvironmentScope; 3] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::FilesystemRead];
 const WRITE: [AuthEnvironmentScope; 4] = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::FilesystemRead, AuthEnvironmentScope::FilesystemWrite];
@@ -94,5 +94,27 @@ async fn without_the_write_grant_or_for_a_big_file_there_is_no_editor() {
     open(state, &fixture, "src/big.txt");
     until(&mut dom, "the file drawn", |dom| control(dom, "Contents of big.txt").is_some()).await;
     assert!(control(&dom, "Edit big.txt").is_none());
+    fixture.finish(dom).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_comment_on_a_line_of_the_file_becomes_a_chip_on_the_threads_message_and_needs_words_first() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, state) = connected(&fixture, &READ).await;
+    open(state, &fixture, "src/notes.txt");
+    wait_for_rendered_text(&mut dom, "second line").await;
+    click_when_enabled(&mut dom, "Comment on line 2").await;
+    until(&mut dom, "the comment box", |dom| control(dom, "File comment").is_some()).await;
+    // Nothing is added until something is written.
+    assert_eq!(control_attribute(&dom, "Add comment to chat", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+    input_control(&mut dom, "File comment", "  why second?  ");
+    click_when_enabled(&mut dom, "Add comment to chat").await;
+    until(&mut dom, "the box closed", |dom| control(dom, "File comment").is_none()).await;
+    wait_for_rendered_text(&mut dom, "notes.txt L2").await;
+    let environment = state.peek().destination.as_ref().unwrap().to_string();
+    let chips = state.peek().draft_contexts.get(&t3_client::draft_storage::DraftTarget::thread(environment, "thread-a")).cloned().unwrap_or_default();
+    assert_eq!(chips.len(), 1);
+    let chip = &chips[0];
+    assert_eq!((chip["kind"].as_str(), chip["filePath"].as_str(), chip["rangeLabel"].as_str(), chip["diff"].as_str(), chip["text"].as_str()), (Some("review-comment"), Some("src/notes.txt"), Some("L2"), Some("second line"), Some("why second?")));
     fixture.finish(dom).await;
 }

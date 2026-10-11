@@ -271,9 +271,39 @@ pub fn line_comment(id: &str, section_id: &str, section_title: &str, file_path: 
     })
 }
 
+/// `buildFileReviewComment`: a comment on lines of a file as the file panel shows it (not a diff). The lines run from the first to the
+/// last of the two numbers, counted from 1; `contents` is the whole file and is split on `\n` as the original does.
+pub fn file_comment(id: &str, file_path: &str, first_line: u32, last_line: u32, text: &str, contents: &str) -> Value {
+    let start = first_line.min(last_line).max(1);
+    let end = start.max(first_line.max(last_line));
+    let selected: Vec<&str> = contents.split('\n').skip(start as usize - 1).take((end - start + 1) as usize).collect();
+    json!({
+        "id":id,"sectionId":format!("file:{file_path}"),"sectionTitle":"File comment","filePath":file_path,
+        "startIndex":start - 1,"endIndex":end - 1,
+        "rangeLabel":if start == end { format!("L{start}") } else { format!("L{start} to L{end}") },
+        "text":text.trim(),"diff":selected.join("\n"),
+        "fenceLanguage":fence_language(file_path),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_comment_on_lines_of_a_file_names_them_and_carries_their_text() {
+        let contents = "one\ntwo\nthree\nfour";
+        let single = file_comment("c1", "src/a.rs", 2, 2, "  why?  ", contents);
+        assert_eq!((single["rangeLabel"].as_str(), single["diff"].as_str(), single["text"].as_str()), (Some("L2"), Some("two"), Some("why?")));
+        assert_eq!((single["startIndex"].as_u64(), single["endIndex"].as_u64(), single["sectionId"].as_str(), single["fenceLanguage"].as_str()), (Some(1), Some(1), Some("file:src/a.rs"), Some("rs")));
+        // The two numbers may come either way round, and a range reads in the original's words.
+        let range = file_comment("c2", "src/a.rs", 4, 2, "tidy", contents);
+        assert_eq!((range["rangeLabel"].as_str(), range["diff"].as_str()), (Some("L2 to L4"), Some("two\nthree\nfour")));
+        let record = review_record(&range);
+        assert_eq!((record["label"].as_str(), record["kind"].as_str()), (Some("a.rs L2 to L4"), Some("review-comment")));
+        // Past the end of the file the comment keeps its numbers and has no text to carry.
+        assert_eq!(file_comment("c3", "x", 9, 9, "t", contents)["diff"].as_str(), Some(""));
+    }
+
     #[test]
     fn a_comment_on_a_line_reads_as_a_review_comment_of_the_original() {
         assert_eq!(fence_language("src/lib/a.ts"), "ts");
