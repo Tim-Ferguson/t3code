@@ -3,6 +3,7 @@
 //! Turn checkpoints end to end: a real turn over the WebSocket transport in a temporary git
 //! repository, the persisted events and projection, the hidden refs in the repository, and the
 //! two diff RPCs with their error envelopes and permissions.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -245,7 +246,7 @@ async fn settled(
     runs: usize,
 ) -> Value {
     let mut last = Value::Null;
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+    let outcome = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", thread).unwrap().unwrap();
             last = view["runs"].clone();
@@ -280,7 +281,7 @@ async fn approved_turn(harness: &Harness, socket: &mut Socket, id: u64, runs: us
     let mut events = harness.store.subscribe();
     let exit = rpc(socket, id, "orchestration.dispatchCommand", dispatch(&harness.thread_id, &format!("send-{id}"))).await;
     assert!(success(&exit)["sequence"].is_number(), "{exit}");
-    let request = tokio::time::timeout(std::time::Duration::from_secs(30), async {
+    let request = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = harness.store.projection("thread", &harness.thread_id).unwrap().unwrap();
             if let Some(request) = view["runtimeRequests"].as_array().unwrap().iter().find(|request| request["status"] == "pending") {
@@ -483,7 +484,7 @@ fn view(harness: &Harness) -> Value {
 async fn rolled_back(harness: &Harness, events: &mut tokio::sync::broadcast::Receiver<Vec<StoredEvent>>, command: &str) -> Value {
     let provider_thread = view(harness)["thread"]["activeProviderThreadId"].as_str().unwrap().to_owned();
     let effect_id = |checkpoint: &str| format!("effect:{command}:provider-thread.rollback:{provider_thread}:{checkpoint}");
-    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+    tokio::time::timeout(HANG_BOUND, async {
         loop {
             let projection = view(harness);
             let applied = projection["checkpoints"].as_array().unwrap().iter().any(|checkpoint| {

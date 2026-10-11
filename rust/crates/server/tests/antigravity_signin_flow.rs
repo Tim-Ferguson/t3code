@@ -3,10 +3,11 @@
 //! whose "Google" is a loopback server of its own: the agent prints the authorization URL, listens for the redirect
 //! and answers once it has had the code. Nothing contacts Google and nothing opens a browser; the URL the user would
 //! open is only read from the sign-in state. Tests wait on the service's own state changes, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod antigravity_support;
 use antigravity_support::{install_fake_agent, registry, settings};
 use serde_json::{Value, json};
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{path::Path, sync::Arc};
 use t3_contracts::{ProviderAuthPhase, ProviderAuthState};
 use t3_server::provider_auth_service::{ProviderAuthChanges, ProviderAuthService};
 
@@ -40,7 +41,7 @@ fn start_input() -> t3_contracts::ProviderAuthStartInput {
     serde_json::from_value(json!({"instanceId":"antigravity"})).unwrap()
 }
 async fn phase(states: &mut ProviderAuthChanges, wanted: ProviderAuthPhase) -> ProviderAuthState {
-    tokio::time::timeout(Duration::from_secs(20), async {
+    tokio::time::timeout(HANG_BOUND, async {
         loop {
             let state = states.recv().await.expect("the state stream ended").expect("a state");
             if state.phase == wanted {

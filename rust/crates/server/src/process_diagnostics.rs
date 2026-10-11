@@ -209,6 +209,7 @@ fn signal_process(_pid: u64, _signal: ServerProcessSignal) -> std::io::Result<()
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use std::sync::Mutex;
     #[tokio::test]
@@ -299,7 +300,7 @@ mod tests {
                 .unwrap();
         assert!(service.signal(&input).await.signaled);
         assert!(
-            tokio::time::timeout(std::time::Duration::from_secs(5), child.wait())
+            tokio::time::timeout(HANG_BOUND, child.wait())
                 .await
                 .unwrap()
                 .unwrap()

@@ -2212,6 +2212,7 @@ pub(crate) fn recover(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[tokio::test]
     async fn failed_mcp_reservation_and_shutdown_before_first_poll_finish_without_waiting_for_work()
@@ -2261,7 +2262,7 @@ mod tests {
                 );
                 lifetime.stop.send_replace(true);
             }
-            tokio::time::timeout(Duration::from_secs(2), future)
+            tokio::time::timeout(HANG_BOUND, future)
                 .await
                 .unwrap();
             assert!(

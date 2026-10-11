@@ -457,6 +457,7 @@ fn decode(line: &str) -> Result<DesktopHostTelemetryMessage, DesktopTelemetryErr
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use futures_util::poll;
     use tokio::io::{AsyncBufReadExt, AsyncReadExt};
@@ -468,7 +469,7 @@ mod tests {
         json!({"version":1,"type":"desktopUpdateStatus","requestId":"update-request","outcome":"ready-to-install","state":{"enabled":true,"status":"downloaded","channel":"latest","currentVersion":"1.0","hostArch":"arm64","appArch":"arm64","runningUnderArm64Translation":false,"availableVersion":"1.1","downloadedVersion":"1.1","releaseNotes":[],"omittedReleaseCount":0,"downloadPercent":100,"checkedAt":null,"message":null,"errorContext":null,"canRetry":false}})
     }
     async fn receive<T>(future: impl std::future::Future<Output = T>) -> T {
-        tokio::time::timeout(Duration::from_secs(3), future)
+        tokio::time::timeout(HANG_BOUND, future)
             .await
             .unwrap()
     }

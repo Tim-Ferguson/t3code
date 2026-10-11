@@ -5,6 +5,7 @@
 //! `queued-run.cancel` and `queued-run.edit`. The ACP side replays the recorded `grok` session the
 //! original's integration test uses; the Codex side keeps a turn active with the fixture's hold.
 //! Every wait is on a persisted event; nothing here sleeps or polls.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -111,7 +112,7 @@ impl Harness {
     /// Waits on committed events until `check` finds something in the thread projection.
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;
@@ -241,9 +242,15 @@ async fn a_queued_message_is_edited_in_place() {
     // A queued message has no transcript item yet; the run writes it from the edited message.
     assert!(view["turnItems"].as_array().unwrap().iter().all(|item| item["messageId"] != queued["userMessageId"]));
     assert_eq!(view["runs"][1]["status"], "queued");
-    let sequence = view["updatedAt"].clone();
+    // The thread's own `updatedAt` also moves with the running provider's events, so the repeat is judged by what it could
+    // have touched: the events its command id wrote, and the run and message it edits.
+    let written = |harness: &Harness| harness.store.events(0, None, Some("thread"), Some(&harness.thread), 10_000).unwrap().into_iter().filter(|stored| stored.event.command_id.as_deref() == Some("edit")).count();
+    let (events, run, text) = (written(&harness), view["runs"][1].clone(), message.clone());
+    assert!(events > 0);
     accepted(&command(&mut socket, 6, edit).await);
-    assert_eq!(harness.view()["updatedAt"], sequence, "a repeated command id changes nothing");
+    let after = harness.view();
+    let message_after = after["messages"].as_array().unwrap().iter().find(|message| message["id"] == queued["userMessageId"]).unwrap();
+    assert_eq!((written(&harness), &after["runs"][1], message_after), (events, &run, &text), "a repeated command id changes nothing");
 
     // The edited message is what the provider receives once the active run ends.
     let active = harness.view()["runs"][0]["id"].clone();

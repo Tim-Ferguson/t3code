@@ -6,11 +6,12 @@
 //! `fixtures/antigravity-fake-cli.py`, which plays the same transcript through `fixtures/acp-replay-agent.py`:
 //! it compares every frame the Rust client sends with the scripted one and fails the scenario on the first
 //! difference. No real Antigravity runs. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod antigravity_support;
 use antigravity_support::{CLI, install_fake_agent, registry, settings};
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
 
 /// The scenarios the generator plays, in its order.
@@ -71,7 +72,7 @@ impl Harness {
     }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        let outcome = tokio::time::timeout(Duration::from_secs(20), async {
+        let outcome = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

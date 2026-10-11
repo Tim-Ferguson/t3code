@@ -4,6 +4,7 @@
 //! usage limits and banked resets, the usage summary, skills, and importing Claude history. Every
 //! provider is a fake at an absolute temp path or disabled, every directory a temp directory, and
 //! the only network is loopback. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -11,7 +12,6 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
-    time::Duration,
 };
 use t3_contracts::AuthEnvironmentScope;
 use t3_server::{
@@ -255,7 +255,7 @@ impl Fixture {
     }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;
@@ -530,7 +530,9 @@ async fn the_usage_summary_prices_claude_and_codex_transcripts_with_rates_fetche
     let fixture = Fixture::start(options).await;
     let mut operator = fixture.connect(&fixture.operator.clone()).await;
     let today = now.format("%Y-%m-%d").to_string();
-    let window = json!({"sinceDay":today,"untilDay":today,"timeZone":"UTC"});
+    // The records are minutes old, so just after midnight UTC they belong to yesterday: the window holds both days.
+    let yesterday = (now - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+    let window = json!({"sinceDay":yesterday,"untilDay":today,"timeZone":"UTC"});
     let summary = rpc(&mut operator, 1, "server.getUsageSummary", window.clone()).await;
     let summary = success(&summary);
     assert_eq!((summary["contractVersion"].clone(), summary["timeZone"].as_str()), (json!(6), Some("UTC")));

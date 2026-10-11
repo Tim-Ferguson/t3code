@@ -121,7 +121,10 @@ async fn installation(fixture: &Fixture) -> AntigravityInstallation {
 }
 /// The states an installation goes through until `wanted`.
 async fn states_until(installation: &AntigravityInstallation, wanted: impl Fn(&Value) -> bool) -> Vec<Value> {
-    let (current, mut changes) = installation.subscribe();
+    states_from(installation.subscribe(), wanted).await
+}
+/// [`states_until`] from a subscription made earlier, so that states before the caller looks are not missed.
+async fn states_from((current, mut changes): (Value, tokio::sync::broadcast::Receiver<std::sync::Arc<Value>>), wanted: impl Fn(&Value) -> bool) -> Vec<Value> {
     let mut seen = vec![current.clone()];
     if wanted(&current) {
         return seen;
@@ -158,10 +161,12 @@ async fn the_pinned_runtime_is_downloaded_checked_unpacked_identified_and_only_t
     let before = agent_snapshot(&fixture);
     assert_eq!((before["installed"].clone(), before["status"].clone()), (json!(false), json!("error")));
     assert_eq!(before["setup"], json!({"canAuthenticate":true,"canInstall":true}));
+    // Subscribed before the install starts: on a loaded machine it can finish before a later subscription looks.
+    let installation = installation(&fixture).await;
+    let subscription = installation.subscribe();
     let started = install(&fixture, &mut manager).await;
     assert_eq!((started["phase"].clone(), started["driver"].clone()), (json!("downloading"), json!("antigravity")));
-    let installation = installation(&fixture).await;
-    let seen = states_until(&installation, |state| state["phase"] == "succeeded" || state["phase"] == "failed").await;
+    let seen = states_from(subscription, |state| state["phase"] == "succeeded" || state["phase"] == "failed").await;
     let last = seen.last().unwrap();
     assert_eq!((last["phase"].clone(), last["installedVersion"].clone(), last["message"].clone()), (json!("succeeded"), json!(VERSION), Value::Null), "{seen:?}");
     let phases: Vec<&str> = seen.iter().filter_map(|state| state["phase"].as_str()).collect();
@@ -178,13 +183,14 @@ async fn the_pinned_runtime_is_downloaded_checked_unpacked_identified_and_only_t
     assert_eq!(serde_json::from_str::<Value>(&std::fs::read_to_string(fixture.managed.join("active.json")).unwrap()).unwrap(), json!({"releaseId":ids[0]}));
     assert!(std::fs::read_to_string(&fixture.marker).unwrap().contains("ran"), "the unpacked agent was asked to identify itself");
     // The provider list reads it as installed, at the release's version.
+    // Subscribed before the first look: a change between a look and a later subscription would never be heard.
+    let mut changes = fixture.harness.registry.subscribe_changes();
     let after = within("the provider list to read the install", async {
         loop {
             let snapshot = agent_snapshot(&fixture);
             if snapshot["installed"] == true {
                 return snapshot;
             }
-            let mut changes = fixture.harness.registry.subscribe_changes();
             let _ = changes.recv().await;
         }
     })
@@ -222,9 +228,9 @@ async fn an_archive_that_fails_any_check_installs_nothing_and_its_agent_never_ru
         })
         .await;
         let mut manager = fixture.harness.connect(&fixture.harness.manager).await;
+        let subscription = installation(&fixture).await.subscribe();
         install(&fixture, &mut manager).await;
-        let installation = installation(&fixture).await;
-        let seen = states_until(&installation, |state| matches!(state["phase"].as_str(), Some("succeeded" | "failed"))).await;
+        let seen = states_from(subscription, |state| matches!(state["phase"].as_str(), Some("succeeded" | "failed"))).await;
         let last = seen.last().unwrap();
         assert_eq!((last["phase"].clone(), last["message"].clone()), (json!("failed"), json!(message)), "{what}");
         assert!(!fixture.managed.join("active.json").exists(), "{what}");
@@ -266,9 +272,9 @@ async fn a_download_that_is_the_wrong_size_or_hash_is_refused_before_anything_is
         })
         .await;
         let mut manager = fixture.harness.connect(&fixture.harness.manager).await;
+        let subscription = installation(&fixture).await.subscribe();
         install(&fixture, &mut manager).await;
-        let installation = installation(&fixture).await;
-        let seen = states_until(&installation, |state| matches!(state["phase"].as_str(), Some("succeeded" | "failed"))).await;
+        let seen = states_from(subscription, |state| matches!(state["phase"].as_str(), Some("succeeded" | "failed"))).await;
         let last = seen.last().unwrap();
         assert_eq!((last["phase"].clone(), last["message"].clone()), (json!("failed"), json!(message)), "{what}");
         assert!(!seen.iter().any(|state| state["phase"] == "extracting"), "{what}: nothing was unpacked");

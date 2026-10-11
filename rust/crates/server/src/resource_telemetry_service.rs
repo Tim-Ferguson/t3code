@@ -458,8 +458,9 @@ async fn live_loop(shared: Arc<Shared>) {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
-    use std::{os::unix::fs::PermissionsExt, time::Duration};
+    use std::{os::unix::fs::PermissionsExt};
     use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
     fn native() -> (tempfile::TempDir, NativeTelemetryClient) {
         let root = tempfile::tempdir().unwrap();
@@ -481,7 +482,7 @@ mod tests {
     async fn healthy(native: &NativeTelemetryClient) {
         let mut health = native.subscribe_health();
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             health.wait_for(|v| v.status == ResourceTelemetrySourceStatus::Healthy),
         )
         .await
@@ -565,7 +566,7 @@ mod tests {
             .write_all(format!("{payload}\n").as_bytes())
             .await
             .unwrap();
-        let updated = tokio::time::timeout(Duration::from_secs(5), async {
+        let updated = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let next = subscription.recv().await.unwrap();
                 if next["power"]["onBattery"] == "false" {
@@ -685,7 +686,7 @@ mod tests {
         drop(first);
         assert_eq!(
             serde_json::from_str::<Value>(
-                &tokio::time::timeout(Duration::from_secs(5), frames.next_line())
+                &tokio::time::timeout(HANG_BOUND, frames.next_line())
                     .await
                     .unwrap()
                     .unwrap()
@@ -755,7 +756,7 @@ mod tests {
         tokio::pin!(finished);
         finished.as_mut().enable();
         drop(telemetry);
-        tokio::time::timeout(Duration::from_secs(5), finished)
+        tokio::time::timeout(HANG_BOUND, finished)
             .await
             .unwrap();
         desktop.shutdown().await;
@@ -787,7 +788,7 @@ mod tests {
         assert_eq!(telemetry.0.shared.demand.load(Ordering::SeqCst), 0);
         // A parent must close the receiver alongside aggregation; it owns the pipe
         // and unblocks the final demand-disable frame even when the host won't read.
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             tokio::join!(telemetry.shutdown(), desktop.shutdown());
             native.shutdown().await;
         })

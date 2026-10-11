@@ -234,6 +234,8 @@ mod mcp_tool_functions;
 pub mod rpc_admission;
 #[cfg(any(test, feature = "outbound-check"))]
 pub mod rpc_response;
+#[cfg(any(test, feature = "outbound-check"))]
+pub mod test_support;
 pub mod pull_request_watch;
 pub mod pull_request_watcher;
 #[cfg(test)] mod rpc_decode_tests;

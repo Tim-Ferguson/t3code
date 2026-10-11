@@ -1,5 +1,7 @@
 //! Original agent.test.ts scenarios plus v2 replay and handler isolation cases.
 //! Wire milestones use channels; timeouts only bound a deadlocked test.
+mod support;
+use support::HANG_BOUND;
 use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use std::{
@@ -108,7 +110,7 @@ impl Harness {
             calls,
             replies,
         });
-        let agent = Agent::new(peer.clone(), Duration::from_secs(10));
+        let agent = Agent::new(peer.clone(), HANG_BOUND);
         Self {
             agent,
             peer,
@@ -143,7 +145,7 @@ impl Harness {
     }
 }
 async fn bounded<F: std::future::Future>(future: F) -> F::Output {
-    tokio::time::timeout(Duration::from_secs(3), future)
+    tokio::time::timeout(HANG_BOUND, future)
         .await
         .expect("wire milestone")
 }

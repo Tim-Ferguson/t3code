@@ -1,8 +1,9 @@
 #![cfg(unix)]
 //! Real provider processes consume issued credentials against the HTTP service.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc};
 use t3_server::{
     execution::ExecutionService, launch::ThreadLaunchService, mcp_http::McpHttpService,
     mcp_sessions::McpSessionRegistry, persistence::Store, project::ProjectService,
@@ -624,7 +625,7 @@ async fn exercise_with_device(driver: &str, scenario: &str, device: Option<bool>
 }
 #[tokio::test]
 async fn real_acp_and_codex_sessions_reuse_authenticated_mcp_across_turns_and_revoke_after_reap() {
-    tokio::time::timeout(Duration::from_secs(20), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for driver in ["acp", "codex"] {
             exercise(driver, "normal").await;
         }
@@ -634,7 +635,7 @@ async fn real_acp_and_codex_sessions_reuse_authenticated_mcp_across_turns_and_re
 }
 #[tokio::test]
 async fn failed_and_interrupted_provider_startup_revoke_mcp_after_owned_child_cleanup() {
-    tokio::time::timeout(Duration::from_secs(20), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for driver in ["acp", "codex"] {
             for scenario in ["fail-startup", "hold-startup"] {
                 exercise(driver, scenario).await;
@@ -647,7 +648,7 @@ async fn failed_and_interrupted_provider_startup_revoke_mcp_after_owned_child_cl
 
 #[tokio::test]
 async fn negotiated_acp_callbacks_call_authenticated_mcp_and_cleanup_failed_setup() {
-    tokio::time::timeout(Duration::from_secs(20), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for scenario in ["normal", "fail-startup", "hold-startup", "hold-http"] {
             exercise("acp-negotiated", scenario).await;
         }
@@ -659,7 +660,7 @@ async fn negotiated_acp_callbacks_call_authenticated_mcp_and_cleanup_failed_setu
 #[tokio::test]
 async fn optional_device_environment_and_capability_gated_context_reach_actual_provider_processes()
 {
-    tokio::time::timeout(Duration::from_secs(20), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for driver in ["acp", "codex"] {
             for granted in [false, true] {
                 exercise_with_device(driver, "normal", Some(granted)).await;
@@ -673,7 +674,7 @@ async fn optional_device_environment_and_capability_gated_context_reach_actual_p
 #[tokio::test]
 async fn acp_failed_prompt_retries_instructions_then_success_reuses_instruction_state() {
     tokio::time::timeout(
-        Duration::from_secs(20),
+        HANG_BOUND,
         exercise("acp-negotiated", "prompt-retry"),
     )
     .await
@@ -683,7 +684,7 @@ async fn acp_failed_prompt_retries_instructions_then_success_reuses_instruction_
 #[tokio::test]
 async fn actual_workspace_detach_reattach_preserves_shared_credentials_and_rotates_only_on_reattach()
  {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for driver in ["codex", "acp"] {
             for scenario in ["workspace-same", "workspace-rotate"] {
                 exercise(driver, scenario).await;
@@ -696,7 +697,7 @@ async fn actual_workspace_detach_reattach_preserves_shared_credentials_and_rotat
 
 #[tokio::test]
 async fn busy_workspace_detach_interrupts_and_reaps_or_unloads_before_reattach() {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for driver in ["codex", "acp"] {
             exercise(driver, "workspace-busy").await;
         }
@@ -708,7 +709,7 @@ async fn busy_workspace_detach_interrupts_and_reaps_or_unloads_before_reattach()
 
 #[tokio::test]
 async fn actual_provider_queue_waits_for_approval_promotes_once_and_holds_root_failure() {
-    tokio::time::timeout(Duration::from_secs(30), async {
+    tokio::time::timeout(HANG_BOUND, async {
         for driver in ["codex", "acp"] {
             for scenario in ["queue", "queue-failed", "queue-recovery"] {
                 exercise(driver, scenario).await;

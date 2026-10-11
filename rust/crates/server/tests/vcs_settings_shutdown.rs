@@ -2,8 +2,8 @@
 //! process-wide singleton. That memory must not keep the settings worker, which waits on its
 //! command channel on the blocking pool, alive: a tokio runtime waits for the blocking pool when it
 //! is dropped, so a worker that never exits keeps the process from shutting down.
+use t3_server::test_support::HANG_BOUND;
 use serde_json::json;
-use std::time::Duration;
 use t3_server::{
     auth::AuthService,
     persistence::Store,
@@ -81,7 +81,7 @@ fn runtime_shuts_down(explicit_shutdown: bool) {
         drop(runtime);
         let _ = done.send(());
     });
-    finished.recv_timeout(Duration::from_secs(30)).expect("the runtime did not shut down: the settings worker is still parked on its command channel");
+    finished.recv_timeout(HANG_BOUND).expect("the runtime did not shut down: the settings worker is still parked on its command channel");
     dropper.join().unwrap();
 }
 

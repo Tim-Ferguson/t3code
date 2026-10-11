@@ -1,6 +1,7 @@
 #![cfg(unix)]
 //! Real sockets and a real Codex-protocol process: upload URL, HTTP upload, claim by a
 //! message, provider input, signed asset serving, and deletion, plus the refusal paths.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -231,7 +232,7 @@ async fn settled(
     runs: usize,
 ) -> Value {
     let mut last = Value::Null;
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+    let outcome = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", thread).unwrap().unwrap();
             last = view["runs"].clone();
@@ -258,7 +259,7 @@ async fn awaiting(
     events: &mut tokio::sync::broadcast::Receiver<Vec<StoredEvent>>,
     thread: &str,
 ) -> Value {
-    tokio::time::timeout(std::time::Duration::from_secs(20), async {
+    tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", thread).unwrap().unwrap();
             if view["runtimeRequests"]

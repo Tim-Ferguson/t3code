@@ -247,6 +247,7 @@ async fn terminate(child: &mut Child, pid: u32) {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     fn python(script: &str) -> CommandOptions {
         CommandOptions {
@@ -286,7 +287,7 @@ mod tests {
     }
     #[tokio::test]
     async fn capped_commands_drain_both_pipes_and_preserve_error_precedence() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let script = "import os,sys\nos.write(1,b'x'*(1024*1024+1))\nos.write(2,b'y'*(1024*1024+1))\nsys.exit(int(sys.argv[1]))";
             for code in [0, 7] {
                 let mut options = python(script);
@@ -304,7 +305,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn caller_cancellation_retains_install_owner_until_actual_child_is_reaped() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             struct Installation { released: watch::Sender<bool> }
             impl Drop for Installation { fn drop(&mut self) { let _ = self.released.send(true); } }
             let directory = tempfile::tempdir().unwrap();
@@ -334,7 +335,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn expired_command_deadline_reaps_spawned_child_before_returning_error() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let mut options = python("import signal\nwhile True: signal.pause()");
             options.timeout = Some(Duration::ZERO);
             let mut job = RunningCommand::start(options, Arc::new(())).unwrap();

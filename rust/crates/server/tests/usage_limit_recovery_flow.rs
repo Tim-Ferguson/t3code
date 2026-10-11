@@ -3,6 +3,7 @@
 //! app-server: a run stopped by a limit blocks its queue, a recovery armed for it resumes the thread once
 //! the reset passes (the manual clock is moved by the test), and a recovery that went stale does nothing.
 //! Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -103,7 +104,7 @@ impl Harness {
         Box::pin(async move {
             self.socket.send(Message::Text(json!({"_tag":"Request","id":id,"tag":"orchestration.dispatchCommand","payload":command,"headers":[]}).to_string().into())).await.unwrap();
             loop {
-                let message = tokio::time::timeout(std::time::Duration::from_secs(30), self.socket.next()).await.expect("no reply to the command within 30s").unwrap().unwrap();
+                let message = tokio::time::timeout(HANG_BOUND, self.socket.next()).await.expect("no reply to the command within 30s").unwrap().unwrap();
                 let value: Value = serde_json::from_str(message.to_text().unwrap()).unwrap();
                 if value["_tag"] == "Exit" && value["requestId"] == id {
                     return value["exit"].clone();
@@ -125,7 +126,7 @@ impl Harness {
     }
     async fn until<T>(&self, what: &str, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

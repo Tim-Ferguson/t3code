@@ -6,18 +6,15 @@
 //! `tools/generate_opencode_replay_fixtures.mjs`). The test starts `fixtures/opencode-fake-cli.py serve`, which plays
 //! a recording over loopback HTTP: it compares every request the Rust client sends with the recorded one and fails the
 //! replay on the first difference. No real `opencode` runs. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod opencode_support;
 use chrono::Utc;
 use opencode_support::FakeServer;
 use serde_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc};
 use t3_server::{
     execution::ExecutionService, launch::ThreadLaunchService, thread::ThreadService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, scheduled_tasks::ManualClock,
 };
-
-/// How long a wait for a persisted state may take before the test calls it a hang: far beyond any loaded machine, and no
-/// part of what a passing run depends on.
-const HANG_BOUND: Duration = Duration::from_secs(120);
 
 struct Harness {
     server: FakeServer,

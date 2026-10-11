@@ -2,6 +2,7 @@
 //! Idle release of a provider process (`provider_idle.rs`) over the real WebSocket transport, against the
 //! scripted fake Codex app-server. Time is a manual clock that only the test moves; the test waits on
 //! persisted events and on the number of idle windows decided, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -107,7 +108,7 @@ impl Harness {
         Box::pin(async move {
             self.socket.send(Message::Text(json!({"_tag":"Request","id":id,"tag":"orchestration.dispatchCommand","payload":command,"headers":[]}).to_string().into())).await.unwrap();
             loop {
-                let message = tokio::time::timeout(std::time::Duration::from_secs(30), self.socket.next()).await.expect("no reply to the command within 30s").unwrap().unwrap();
+                let message = tokio::time::timeout(HANG_BOUND, self.socket.next()).await.expect("no reply to the command within 30s").unwrap().unwrap();
                 let value: Value = serde_json::from_str(message.to_text().unwrap()).unwrap();
                 if value["_tag"] == "Exit" && value["requestId"] == id {
                     assert_eq!(value["exit"]["_tag"], "Success", "{value}");
@@ -124,7 +125,7 @@ impl Harness {
     }
     async fn until<T>(&self, what: &str, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;
@@ -157,7 +158,7 @@ impl Harness {
         let mut decisions = self.providers.idle_release().decisions();
         let before = *decisions.borrow_and_update();
         self.advance(minutes).await;
-        tokio::time::timeout(std::time::Duration::from_secs(30), decisions.wait_for(|count| *count > before)).await.unwrap_or_else(|_| panic!("no idle decision within 30s after moving the clock {minutes} minutes (decisions so far {before}, tracked deadline unknown)")).unwrap();
+        tokio::time::timeout(HANG_BOUND, decisions.wait_for(|count| *count > before)).await.unwrap_or_else(|_| panic!("no idle decision within 30s after moving the clock {minutes} minutes (decisions so far {before}, tracked deadline unknown)")).unwrap();
     }
     fn methods(&self) -> Vec<String> {
         std::fs::read_to_string(&self.requests).unwrap_or_default().lines().map(|line| serde_json::from_str::<Value>(line).unwrap()["method"].as_str().unwrap().to_owned()).collect()

@@ -135,6 +135,7 @@ impl TerminalProcess {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[tokio::test]
     async fn closing_backpressured_write_terminates_child_and_joins_owned_io_worker() {
@@ -156,7 +157,7 @@ mod tests {
         .unwrap();
         let mut output = String::new();
         while !output.contains("READY") {
-            match tokio::time::timeout(Duration::from_secs(3), process.events.recv())
+            match tokio::time::timeout(HANG_BOUND, process.events.recv())
                 .await
                 .unwrap()
                 .unwrap()
@@ -168,7 +169,7 @@ mod tests {
         let io = process.io.clone();
         let registration = io.0.write_started.clone();
         let pending = tokio::spawn(async move { io.write("x".repeat(65536)).await });
-        tokio::time::timeout(Duration::from_secs(3), registration.notified())
+        tokio::time::timeout(HANG_BOUND, registration.notified())
             .await
             .unwrap();
         assert!(
@@ -176,7 +177,7 @@ mod tests {
             "the registered child does not read its terminal input"
         );
         let pid = process.pid;
-        tokio::time::timeout(Duration::from_secs(3), process.close())
+        tokio::time::timeout(HANG_BOUND, process.close())
             .await
             .unwrap()
             .unwrap();

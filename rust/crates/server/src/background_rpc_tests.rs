@@ -1,4 +1,5 @@
 //! Real socket admission, activity identity, and scoped cleanup for background policy.
+use crate::test_support::HANG_BOUND;
 use crate::{
     auth::AuthService,
     background_policy::BackgroundPolicy,
@@ -62,7 +63,7 @@ fn report() -> Value {
 #[tokio::test]
 async fn background_socket_trusts_session_and_connection_enforces_power_scope_and_cleans_up_own_leases()
  {
-    tokio::time::timeout(std::time::Duration::from_secs(15),async {
+    tokio::time::timeout(HANG_BOUND,async {
         let directory=tempfile::tempdir().unwrap();let secrets=ServerSecretStore::open(directory.path().join("secrets")).unwrap();
         let mut options=SettingsOptions::file(directory.path().join("settings.json"),secrets);options.watch=false;
         let settings=SettingsService::start(options).await.unwrap();

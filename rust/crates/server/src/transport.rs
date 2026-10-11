@@ -1070,7 +1070,10 @@ fn failure(id: RpcRequestId, error: Value) -> RpcServerMessage {
     RpcServerMessage::Exit {
         request_id: id,
         exit: RpcExit::Failure {
-            cause: vec![if error["_tag"] == "SchemaDecodeError" {
+            // A defect carries only its text. A stream that lost events (a terminal's, behind a held consumer) ends this way: the
+            // original has no error for it in any method's union and its stream would suspend the emitter instead, so a typed
+            // failure here would be a reply the original cannot encode.
+            cause: vec![if matches!(error["_tag"].as_str(), Some("SchemaDecodeError" | "TerminalStreamContinuity")) {
                 RpcCause::Die {
                     defect: error["message"].clone(),
                 }
@@ -1618,7 +1621,7 @@ async fn terminal_stream(
             _=>return Err(json!({"_tag":"NativeMethodUnsupportedError","method":request.tag})),
         };
         loop {
-            let Some(item)=subscription.recv().await.map_err(|message|json!({"_tag":"RpcServerError","reason":"TerminalStreamContinuity","message":message}))? else {return Ok(());};
+            let Some(item)=subscription.recv().await.map_err(|message|json!({"_tag":"TerminalStreamContinuity","message":message}))? else {return Ok(());};
             let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
             authorize_rpc(&active,&request.tag)?;
             if !chunk(&output,&mut ack,&request.id,vec![item]).await{return Ok(());}
@@ -2089,6 +2092,7 @@ fn stream_item(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use axum::{
         body::{Body, to_bytes},
@@ -2186,7 +2190,7 @@ mod tests {
                 .unwrap();
         }
         async fn next(socket: &mut Socket) -> Value {
-            let frame = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+            let frame = tokio::time::timeout(HANG_BOUND, socket.next())
                 .await
                 .unwrap()
                 .unwrap()
@@ -2330,7 +2334,7 @@ mod tests {
             .await;
         }
         async fn next(socket: &mut Socket) -> Value {
-            let frame = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+            let frame = tokio::time::timeout(HANG_BOUND, socket.next())
                 .await
                 .unwrap()
                 .unwrap()
@@ -2545,7 +2549,7 @@ mod tests {
         }
         async fn next(socket: &mut Socket) -> Value {
             serde_json::from_str(
-                tokio::time::timeout(std::time::Duration::from_secs(3), socket.next())
+                tokio::time::timeout(HANG_BOUND, socket.next())
                     .await
                     .unwrap()
                     .unwrap()
@@ -2701,7 +2705,7 @@ mod tests {
             resource_attribution::ResourceAttribution,
             resource_telemetry_service::ResourceTelemetry,
         };
-        use std::{os::unix::fs::PermissionsExt, sync::Arc, time::Duration};
+        use std::{os::unix::fs::PermissionsExt, sync::Arc};
         use tokio_tungstenite::tungstenite::{Message, client::IntoClientRequest};
         let directory = tempfile::tempdir().unwrap();
         let script = directory.path().join("monitor.py");
@@ -2719,7 +2723,7 @@ mod tests {
         let native = NativeTelemetryClient::new(options);
         let mut health = native.subscribe_health();
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             health.wait_for(|health| {
                 health.status == t3_contracts::ResourceTelemetrySourceStatus::Healthy
             }),
@@ -2775,7 +2779,7 @@ mod tests {
                 tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
             >,
         ) -> Value {
-            let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+            let message = tokio::time::timeout(HANG_BOUND, socket.next())
                 .await
                 .unwrap()
                 .unwrap()
@@ -2941,7 +2945,7 @@ mod tests {
                 tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
             >,
         ) -> Value {
-            let item = tokio::time::timeout(std::time::Duration::from_secs(5), socket.next())
+            let item = tokio::time::timeout(HANG_BOUND, socket.next())
                 .await
                 .unwrap()
                 .unwrap()
@@ -2971,7 +2975,7 @@ mod tests {
             )
             .unwrap();
         rows.lock().unwrap()[0].process_name = Some("changed-before-ack".into());
-        tokio::time::timeout(std::time::Duration::from_secs(5), published.notified())
+        tokio::time::timeout(HANG_BOUND, published.notified())
             .await
             .unwrap();
         clock.store(2000, std::sync::atomic::Ordering::SeqCst);
@@ -3493,7 +3497,7 @@ mod tests {
                 ))
                 .await
                 .unwrap();
-            let response = tokio::time::timeout(std::time::Duration::from_secs(20), socket.next())
+            let response = tokio::time::timeout(HANG_BOUND, socket.next())
                 .await
                 .unwrap()
                 .unwrap()
@@ -3567,7 +3571,7 @@ mod tests {
         // Ping, another RPC, Interrupt and ID reuse while the index job is blocked.
         let (entered, release) = workspace.block_next_index();
         reader.send(Message::Text(json!({"_tag":"Request","id":9,"tag":"projects.searchEntries","payload":{"cwd":cwd,"query":"new","limit":10},"headers":[]}).to_string().into())).await.unwrap();
-        tokio::time::timeout(std::time::Duration::from_secs(3), entered)
+        tokio::time::timeout(HANG_BOUND, entered)
             .await
             .unwrap()
             .unwrap();
@@ -3575,7 +3579,7 @@ mod tests {
             .send(Message::Text(json!({"_tag":"Ping"}).to_string().into()))
             .await
             .unwrap();
-        let pong = tokio::time::timeout(std::time::Duration::from_secs(3), reader.next())
+        let pong = tokio::time::timeout(HANG_BOUND, reader.next())
             .await
             .unwrap()
             .unwrap()
@@ -3598,7 +3602,7 @@ mod tests {
             ))
             .await
             .unwrap();
-        let interrupted = tokio::time::timeout(std::time::Duration::from_secs(3), reader.next())
+        let interrupted = tokio::time::timeout(HANG_BOUND, reader.next())
             .await
             .unwrap()
             .unwrap()

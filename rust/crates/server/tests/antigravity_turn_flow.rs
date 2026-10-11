@@ -5,6 +5,7 @@
 //! launch that wants a browser sign-in, and a Stop with the next turn reattaching to the saved session. Commands go
 //! over one socket and each stream has a socket of its own. No real Antigravity runs; HOME is in the temp directory.
 //! Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod antigravity_support;
 mod grok_support;
 mod provider_manage_support;
@@ -248,7 +249,7 @@ async fn a_stop_cancels_the_prompt_in_the_same_session_and_a_restarted_server_re
     let auth = grok_support::attach_auth(&execution, &providers, &flow.state);
     execution.dispatch(&json!({"type":"message.dispatch","commandId":"message-after-restart","threadId":base_thread,"messageId":"message-after-restart","text":"After the restart","attachments":[],"createdBy":"user","creationSource":"web","dispatchMode":{"type":"start_immediately"}}), Utc::now()).unwrap();
     let mut events = store.subscribe();
-    let reached = tokio::time::timeout(std::time::Duration::from_secs(20), async {
+    let reached = tokio::time::timeout(HANG_BOUND, async {
         loop {
             if store.projection("thread", &base_thread).unwrap().unwrap()["runs"].get(2).is_some_and(|run| run["status"] == "completed") {
                 return;

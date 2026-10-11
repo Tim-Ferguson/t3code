@@ -5,9 +5,10 @@
 //! (`fixtures/codex-provider.py`) serves the same recording to the Rust adapter, which must persist
 //! the same user-visible items, requests, plans and token usage. A scenario that differs is a bug in
 //! the adapter, not an expectation to relax. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, thread::ThreadService};
 
 struct Harness {
@@ -94,7 +95,7 @@ impl Harness {
     /// adapter sent is reported instead of waiting out the timeout.
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        let found = tokio::time::timeout(Duration::from_secs(20), async {
+        let found = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;
@@ -523,7 +524,7 @@ impl Forks {
     }
     async fn until(&self, id: &str, mut check: impl FnMut(&Value) -> bool) {
         let mut events = self.store.subscribe();
-        let waited = tokio::time::timeout(Duration::from_secs(30), async {
+        let waited = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if check(&self.view_of(id)) {
                     return;

@@ -5,6 +5,7 @@
 //! `PiAdapterV2` persisted for each (see `tools/generate_pi_replay_fixtures.mjs`). The driver runs `fixtures/pi-fake-cli.py`,
 //! which hands every record the Rust adapter writes to the replay controller of `pi_support`: it compares each frame with the
 //! recorded one and fails the scenario at the first difference. No real `pi` runs. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod pi_support;
 use chrono::Utc;
 use pi_support::Replay;
@@ -100,7 +101,7 @@ impl Harness {
     /// Wait on persisted events until `check` yields a value; a replay that failed says why instead of timing out.
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        let waited = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        let waited = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

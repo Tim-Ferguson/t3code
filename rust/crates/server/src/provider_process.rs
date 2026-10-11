@@ -27,6 +27,9 @@ const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
 /// How long a process group has to wind down after SIGTERM before SIGKILL (`processGroupTerminationGrace`).
 #[cfg(unix)]
 const GROUP_GRACE: Duration = Duration::from_secs(1);
+/// How long a process whose output ended is given to exit before its close is reported without an exit code. Exiting takes
+/// moments, but a loaded machine stretches them, and a code reported as unknown is a worse answer than a wait.
+const EXIT_STATUS_WAIT: Duration = Duration::from_secs(5);
 const MAX_PENDING: usize = 128;
 
 /// Ends the process group a grouped process led: SIGTERM, then SIGKILL once the grace has passed. The leader is
@@ -386,7 +389,12 @@ impl ProviderProcess {
                                 }
                             }
                             Ok(None) => {
-                                let status = tokio::time::timeout(Duration::from_millis(100), child.wait()).await;
+                                // A process whose output ended is almost always exiting: its status is waited for so the close
+                                // names the exit code, and the wait ends at once when the client is released.
+                                let status = tokio::select! {
+                                    status = tokio::time::timeout(EXIT_STATUS_WAIT, child.wait()) => status,
+                                    _ = stopping.changed() => break (ProcessError::Closed("client was released".into()), false),
+                                };
                                 // An exited process's stderr reaches end of file once what it wrote is read, and the
                                 // message below quotes that tail; bounded for a grandchild holding the pipe open.
                                 if matches!(status, Ok(Ok(_))) {
@@ -1047,6 +1055,7 @@ fn dispatch_message(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     #[test]
     fn batch_association_and_collision_behavior_matches_actual_source_serializer() {
         for line in include_str!("../../acp/tests/fixtures/batch.jsonl").lines() {
@@ -1093,8 +1102,8 @@ mod tests {
         let process = ProviderProcess::spawn(options).unwrap();
         let mut events = process.subscribe();
         let (first, second) = tokio::join!(
-            process.request("echo", json!({"text":"first"}), Duration::from_secs(2)),
-            process.request("echo", json!({"text":"second"}), Duration::from_secs(2))
+            process.request("echo", json!({"text":"first"}), HANG_BOUND),
+            process.request("echo", json!({"text":"second"}), HANG_BOUND)
         );
         assert_eq!(first.unwrap()["text"], "first");
         assert_eq!(second.unwrap()["text"], "second");
@@ -1122,7 +1131,7 @@ mod tests {
         let mut events = process.subscribe();
         assert_eq!(
             process
-                .request("initialize", json!({}), Duration::from_secs(2))
+                .request("initialize", json!({}), HANG_BOUND)
                 .await
                 .unwrap()["ready"],
             true
@@ -1131,7 +1140,7 @@ mod tests {
             .notify("initialized", Some(json!({})))
             .await
             .unwrap();
-        let request = tokio::time::timeout(Duration::from_secs(2), events.recv())
+        let request = tokio::time::timeout(HANG_BOUND, events.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1144,11 +1153,11 @@ mod tests {
             .await
             .unwrap();
         assert!(
-            matches!(tokio::time::timeout(Duration::from_secs(2),events.recv()).await.unwrap().unwrap(),ProcessEvent::Notification{method,params} if method=="answered" && params["approved"]==true)
+            matches!(tokio::time::timeout(HANG_BOUND,events.recv()).await.unwrap().unwrap(),ProcessEvent::Notification{method,params} if method=="answered" && params["approved"]==true)
         );
         drop(process);
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(2), events.recv())
+            tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -1163,7 +1172,7 @@ mod tests {
             ));
             let process = ProviderProcess::spawn_json_rpc(options).unwrap();
             assert!(
-                matches!(process.request("initialize",json!({}),Duration::from_secs(2)).await,Err(ProcessError::Protocol(message)) if message.contains("version 2.0"))
+                matches!(process.request("initialize",json!({}),HANG_BOUND).await,Err(ProcessError::Protocol(message)) if message.contains("version 2.0"))
             );
         }
     }
@@ -1177,7 +1186,7 @@ mod tests {
         let clone = process.clone();
         let request = tokio::spawn(async move {
             clone
-                .request("probe", Value::Null, Duration::from_secs(2))
+                .request("probe", Value::Null, HANG_BOUND)
                 .await
         });
         assert!(
@@ -1204,7 +1213,7 @@ mod tests {
             assert!(
                 matches!(
                     process
-                        .request("probe", Value::Null, Duration::from_secs(2))
+                        .request("probe", Value::Null, HANG_BOUND)
                         .await,
                     Err(ProcessError::Protocol(_))
                 ),
@@ -1216,7 +1225,7 @@ mod tests {
         );
         let process = ProviderProcess::spawn_json_rpc(options).unwrap();
         assert!(
-            matches!(process.request("probe",Value::Null,Duration::from_secs(2)).await,Err(ProcessError::JsonRpcRemote{code:-32000,message,data:Some(data),..}) if message=="detail"&&data["why"]=="retained")
+            matches!(process.request("probe",Value::Null,HANG_BOUND).await,Err(ProcessError::JsonRpcRemote{code:-32000,message,data:Some(data),..}) if message=="detail"&&data["why"]=="retained")
         );
     }
     #[tokio::test]
@@ -1238,7 +1247,7 @@ mod tests {
         let mut events = process.subscribe();
         assert!(matches!(
             process
-                .request("exit", Value::Null, Duration::from_secs(2))
+                .request("exit", Value::Null, HANG_BOUND)
                 .await,
             Err(ProcessError::Exited {
                 code: Some(9),
@@ -1262,7 +1271,7 @@ mod tests {
             "import subprocess\nsys.stdin.readline()\nsubprocess.Popen(['sh','-c','sleep 0.3; echo fixture-last-words >&2'],stdout=subprocess.DEVNULL)\nsys.exit(9)",
         );
         let process = ProviderProcess::spawn_json_rpc(options).unwrap();
-        let Err(ProcessError::Exited { code: Some(9), message, .. }) = process.request("exit", Value::Null, Duration::from_secs(5)).await else {
+        let Err(ProcessError::Exited { code: Some(9), message, .. }) = process.request("exit", Value::Null, HANG_BOUND).await else {
             panic!("the process exits with its status");
         };
         assert!(message.contains("fixture-last-words"), "{message}");
@@ -1275,7 +1284,7 @@ mod tests {
         let process = ProviderProcess::spawn_json_rpc(options).unwrap();
         assert_eq!(
             process
-                .request("probe", Value::Null, Duration::from_secs(2))
+                .request("probe", Value::Null, HANG_BOUND)
                 .await
                 .unwrap(),
             "integral-float-id"
@@ -1294,7 +1303,7 @@ mod tests {
             ));
             let process = ProviderProcess::spawn_json_rpc(options).unwrap();
             let result = process
-                .request("probe", Value::Null, Duration::from_secs(2))
+                .request("probe", Value::Null, HANG_BOUND)
                 .await;
             if accepted {
                 assert!(
@@ -1326,11 +1335,11 @@ mod tests {
         let clone = process.clone();
         let request = tokio::spawn(async move {
             clone
-                .request("silent", Value::Null, Duration::from_secs(30))
+                .request("silent", Value::Null, HANG_BOUND)
                 .await
         });
         loop {
-            let event = tokio::time::timeout(Duration::from_secs(2), events.recv())
+            let event = tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap();
@@ -1353,14 +1362,14 @@ mod tests {
         let process = ProviderProcess::spawn(options).unwrap();
         let mut events = process.subscribe();
         let pid = process
-            .request("pid", Value::Null, Duration::from_secs(2))
+            .request("pid", Value::Null, HANG_BOUND)
             .await
             .unwrap()
             .as_u64()
             .unwrap();
         drop(process);
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(2), events.recv())
+            tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -1383,7 +1392,7 @@ mod tests {
             let (_directory, options) = fixture(body);
             let process = ProviderProcess::spawn(options).unwrap();
             let result = process
-                .request("probe", Value::Null, Duration::from_secs(2))
+                .request("probe", Value::Null, HANG_BOUND)
                 .await;
             assert!(matches!(
                 result,

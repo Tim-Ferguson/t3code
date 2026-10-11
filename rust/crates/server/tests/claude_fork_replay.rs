@@ -7,9 +7,10 @@
 //! the original forked a session file in a call of its own, the port asks the CLI to fork in the launch
 //! of the fork's first turn (`--fork-session`), so the fake passes over the recorded fork call and
 //! answers the launch with the fork's session. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, thread::ThreadService};
 
 fn shim(cwd: &std::path::Path) -> PathBuf {
@@ -158,7 +159,7 @@ impl Forks {
     }
     async fn until_view(&self, id: &str, mut check: impl FnMut(&Value) -> bool) -> Value {
         let mut events = self.store.subscribe();
-        let waited = tokio::time::timeout(Duration::from_secs(30), async {
+        let waited = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let view = self.view_of(id);
                 if check(&view) {

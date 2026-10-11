@@ -260,6 +260,7 @@ pub(crate) fn now_text() -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
 
     /// Titles, child threads, conversation rows, results and progress agree with the original.
@@ -330,7 +331,7 @@ mod tests {
             let thread_id = thread_id.clone();
             async move {
                 let mut events = store.subscribe();
-                tokio::time::timeout(std::time::Duration::from_secs(30), async {
+                tokio::time::timeout(HANG_BOUND, async {
                     loop {
                         let view = store.projection("thread", &thread_id).unwrap().unwrap();
                         if check(&view) {

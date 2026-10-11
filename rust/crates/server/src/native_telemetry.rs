@@ -928,6 +928,7 @@ impl<R: AsyncBufRead + Unpin> NdjsonLines<R> {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use std::os::unix::fs::PermissionsExt;
     fn fixture(mode: &str) -> (tempfile::TempDir, NativeTelemetryClient) {
@@ -958,7 +959,7 @@ mod tests {
     async fn healthy(client: &NativeTelemetryClient) {
         let mut health = client.subscribe_health();
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             health.wait_for(|health| health.status == ResourceTelemetrySourceStatus::Healthy),
         )
         .await
@@ -1021,7 +1022,7 @@ mod tests {
         let history = client.read_history(60_000).await.unwrap();
         assert_eq!(history.len(), 2);
         let mut stream = client.subscribe().await.unwrap();
-        let snapshot = tokio::time::timeout(Duration::from_secs(5), stream.recv())
+        let snapshot = tokio::time::timeout(HANG_BOUND, stream.recv())
             .await
             .unwrap()
             .unwrap()
@@ -1055,7 +1056,7 @@ mod tests {
         assert!(matches!(task.await,Err(error) if error.is_cancelled()));
         let mut health = client.subscribe_health();
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             health.wait_for(|health| health.sample_interval_ms == 5000),
         )
         .await
@@ -1120,7 +1121,7 @@ mod tests {
         let _ = client.sample_now().await;
         let mut health = client.subscribe_health();
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             health.wait_for(|health| {
                 health.restart_count == 1 && health.status == ResourceTelemetrySourceStatus::Healthy
             }),
@@ -1159,7 +1160,7 @@ mod tests {
         let mut health = client.subscribe_health();
         drop(client);
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             health.wait_for(|health| health.status == ResourceTelemetrySourceStatus::Stopped),
         )
         .await
@@ -1221,7 +1222,7 @@ mod tests {
             let (_directory, client) = fixture(mode);
             let mut health = client.subscribe_health();
             tokio::time::timeout(
-                Duration::from_secs(5),
+                HANG_BOUND,
                 health.wait_for(|health| health.status == ResourceTelemetrySourceStatus::Degraded),
             )
             .await

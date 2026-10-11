@@ -1,5 +1,7 @@
 //! Behavioral cases ported from original client/protocol tests. The fake Peer
 //! controls wire arrival and write acknowledgement independently of requests.
+mod support;
+use support::HANG_BOUND;
 use futures_util::future::BoxFuture;
 use serde_json::{Value, json};
 use std::{
@@ -184,7 +186,7 @@ impl Harness {
             response_gate: Mutex::new(None),
             external_failure: tokio::sync::watch::channel(None).0,
         });
-        let client = Client::with_options(peer.clone(), Duration::from_secs(10), options);
+        let client = Client::with_options(peer.clone(), HANG_BOUND, options);
         Self {
             peer,
             client,
@@ -207,13 +209,13 @@ impl Harness {
         assert_eq!(self.client.generation(), Some(generation));
     }
     async fn call(&mut self) -> Call {
-        tokio::time::timeout(Duration::from_secs(2), self.calls.recv())
+        tokio::time::timeout(HANG_BOUND, self.calls.recv())
             .await
             .unwrap()
             .unwrap()
     }
     async fn response(&mut self) -> Response {
-        tokio::time::timeout(Duration::from_secs(2), self.responses.recv())
+        tokio::time::timeout(HANG_BOUND, self.responses.recv())
             .await
             .unwrap()
             .unwrap()
@@ -326,7 +328,7 @@ fn permission() -> Value {
     json!({"sessionId":"s","title":"Allow?","options":[{"optionId":"allow","name":"Allow","kind":"allow_once"}],"subject":{"type":"command","toolCallId":"tool","command":"echo","cwd":"/workspace"}})
 }
 async fn notification(events: &mut broadcast::Receiver<ClientEvent>) -> t3_acp::Notification {
-    tokio::time::timeout(Duration::from_secs(2), async {
+    tokio::time::timeout(HANG_BOUND, async {
         loop {
             if let ClientEvent::Notification(value) = events.recv().await.unwrap() {
                 return value;
@@ -846,7 +848,7 @@ async fn protocol_failure_and_shutdown_cancel_active_raw_waiters_without_waiting
         } else {
             h.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"text"}}));
         }
-        let result = tokio::time::timeout(Duration::from_secs(2), pending)
+        let result = tokio::time::timeout(HANG_BOUND, pending)
             .await
             .unwrap()
             .unwrap();
@@ -867,7 +869,7 @@ async fn protocol_failure_and_shutdown_cancel_active_raw_waiters_without_waiting
             params: json!({}),
         });
     }
-    let result = tokio::time::timeout(Duration::from_secs(2), pending)
+    let result = tokio::time::timeout(HANG_BOUND, pending)
         .await
         .unwrap()
         .unwrap();
@@ -895,7 +897,7 @@ async fn raw_stream_slides_at_32_and_consumers_share_one_queue() {
     }
     for index in 0..64 {
         assert_eq!(
-            tokio::time::timeout(Duration::from_secs(2), milestones.recv())
+            tokio::time::timeout(HANG_BOUND, milestones.recv())
                 .await
                 .unwrap(),
             Some(index)
@@ -926,7 +928,7 @@ async fn raw_stream_slides_at_32_and_consumers_share_one_queue() {
         params: json!({"index":64}),
     });
     assert_eq!(
-        tokio::time::timeout(Duration::from_secs(2), milestones.recv())
+        tokio::time::timeout(HANG_BOUND, milestones.recv())
             .await
             .unwrap(),
         Some(64)
@@ -968,7 +970,7 @@ async fn raw_notification_is_offered_before_handler_finishes_and_retains_alias_m
         params: params.clone(),
     });
     assert_eq!(
-        tokio::time::timeout(Duration::from_secs(2), started.recv())
+        tokio::time::timeout(HANG_BOUND, started.recv())
             .await
             .unwrap(),
         Some(params.clone())
@@ -1016,7 +1018,7 @@ async fn normalized_update_transform_replaces_large_payload_in_raw_stream_and_ha
         .await;
     h.update(json!({"sessionUpdate":"agent_message_chunk","content":{"type":"image","data":"A".repeat(1_048_576),"mimeType":"image/png"}}));
     assert_eq!(
-        tokio::time::timeout(Duration::from_secs(2), received.recv())
+        tokio::time::timeout(HANG_BOUND, received.recv())
             .await
             .unwrap(),
         Some(replacement.clone())
@@ -1041,7 +1043,7 @@ async fn transform_defect_terminates_pending_and_future_calls_with_private_trans
     let pending = tokio::spawn(async move { client.raw_request("x/pending", json!({})).await });
     let _call = h.call().await;
     h.update(json!({"sessionUpdate":"plan","entries":[]}));
-    let error = tokio::time::timeout(Duration::from_secs(2), pending)
+    let error = tokio::time::timeout(HANG_BOUND, pending)
         .await
         .unwrap()
         .unwrap()
@@ -1130,7 +1132,7 @@ async fn gated_notification_holds_mixed_ingress_like_actual_original_protocol() 
                 assert!(!pending.as_ref().unwrap().is_finished());
                 release.send(()).unwrap();
                 assert!(matches!(
-                    tokio::time::timeout(Duration::from_secs(2), pending.unwrap())
+                    tokio::time::timeout(HANG_BOUND, pending.unwrap())
                         .await
                         .unwrap()
                         .unwrap(),
@@ -1140,7 +1142,7 @@ async fn gated_notification_holds_mixed_ingress_like_actual_original_protocol() 
             }
             _ => unreachable!(),
         }
-        tokio::time::timeout(Duration::from_secs(2), started.recv())
+        tokio::time::timeout(HANG_BOUND, started.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1151,7 +1153,7 @@ async fn gated_notification_holds_mixed_ingress_like_actual_original_protocol() 
         release.send(()).unwrap();
         if let Some(pending) = pending {
             assert_eq!(
-                tokio::time::timeout(Duration::from_secs(2), pending)
+                tokio::time::timeout(HANG_BOUND, pending)
                     .await
                     .unwrap()
                     .unwrap()
@@ -1199,7 +1201,7 @@ async fn core_request_admitted_before_notification_can_finish_while_reader_is_ga
         method: "fs/read_text_file".into(),
         params: json!({"sessionId":"s","path":"/test"}),
     });
-    tokio::time::timeout(Duration::from_secs(2), callbacks.recv())
+    tokio::time::timeout(HANG_BOUND, callbacks.recv())
         .await
         .unwrap()
         .unwrap();
@@ -1207,7 +1209,7 @@ async fn core_request_admitted_before_notification_can_finish_while_reader_is_ga
         method: "x/gate".into(),
         params: json!({}),
     });
-    tokio::time::timeout(Duration::from_secs(2), notifications.recv())
+    tokio::time::timeout(HANG_BOUND, notifications.recv())
         .await
         .unwrap()
         .unwrap();
@@ -1259,7 +1261,7 @@ async fn incoming_observer_precedes_decode_and_response_observer_follows_writer_
         method: "fs/read_text_file".into(),
         params: params.clone(),
     });
-    let (context, raw) = tokio::time::timeout(Duration::from_secs(2), observations.recv())
+    let (context, raw) = tokio::time::timeout(HANG_BOUND, observations.recv())
         .await
         .unwrap()
         .unwrap();
@@ -1274,7 +1276,7 @@ async fn incoming_observer_precedes_decode_and_response_observer_follows_writer_
     assert!(acknowledgements.try_recv().is_err());
     release_write.send(Ok(())).unwrap();
     assert_eq!(
-        tokio::time::timeout(Duration::from_secs(2), acknowledgements.recv())
+        tokio::time::timeout(HANG_BOUND, acknowledgements.recv())
             .await
             .unwrap()
             .unwrap(),
@@ -1325,13 +1327,13 @@ async fn writer_failure_observer_is_core_only_and_termination_observer_runs_once
         release
             .send(Err(AcpError::Transport("writer failed".into())))
             .unwrap();
-        let termination = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+        let termination = tokio::time::timeout(HANG_BOUND, terminations.recv())
             .await
             .unwrap()
             .unwrap();
         assert!(matches!(termination,AcpError::Transport(ref detail) if detail=="writer failed"));
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(2), pending)
+            tokio::time::timeout(HANG_BOUND, pending)
                 .await
                 .unwrap()
                 .unwrap(),
@@ -1372,7 +1374,7 @@ async fn incoming_observer_defect_fails_pending_calls_before_dispatching_handler
         method: "x/callback".into(),
         params: json!({}),
     });
-    let error = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+    let error = tokio::time::timeout(HANG_BOUND, terminations.recv())
         .await
         .unwrap()
         .unwrap();
@@ -1421,7 +1423,7 @@ async fn held_incoming_observer_preserves_eof_writer_failure_and_scope_shutdown_
             method: "x/held".into(),
             params: json!({}),
         });
-        tokio::time::timeout(Duration::from_secs(2), entries.recv())
+        tokio::time::timeout(HANG_BOUND, entries.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1431,7 +1433,7 @@ async fn held_incoming_observer_preserves_eof_writer_failure_and_scope_shutdown_
                 assert!(terminations.try_recv().is_err());
                 assert!(!pending.is_finished());
                 release.send(()).unwrap();
-                tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+                tokio::time::timeout(HANG_BOUND, terminations.recv())
                     .await
                     .unwrap()
                     .unwrap();
@@ -1440,7 +1442,7 @@ async fn held_incoming_observer_preserves_eof_writer_failure_and_scope_shutdown_
                 h.peer
                     .external_failure
                     .send_replace(Some(AcpError::Transport("writer failed".into())));
-                let error = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+                let error = tokio::time::timeout(HANG_BOUND, terminations.recv())
                     .await
                     .unwrap()
                     .unwrap();
@@ -1459,7 +1461,7 @@ async fn held_incoming_observer_preserves_eof_writer_failure_and_scope_shutdown_
             _ => unreachable!(),
         }
         assert!(
-            tokio::time::timeout(Duration::from_secs(2), pending)
+            tokio::time::timeout(HANG_BOUND, pending)
                 .await
                 .unwrap()
                 .unwrap()
@@ -1505,7 +1507,7 @@ async fn response_observer_defect_terminates_extensions_but_not_independent_core
             params: json!({"sessionId":"s","path":"/test"}),
         });
         h.response().await;
-        tokio::time::timeout(Duration::from_secs(2), observations.recv())
+        tokio::time::timeout(HANG_BOUND, observations.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1526,7 +1528,7 @@ async fn response_observer_defect_terminates_extensions_but_not_independent_core
             assert!(events.try_recv().is_err());
             h.event(PeerEvent::Closed(AcpError::Closed));
         }
-        let error = tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+        let error = tokio::time::timeout(HANG_BOUND, terminations.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1592,7 +1594,7 @@ async fn generic_extension_handler_holds_later_requests_replies_and_eof_in_origi
             method: "x/gate".into(),
             params: json!({}),
         });
-        tokio::time::timeout(Duration::from_secs(2), entries.recv())
+        tokio::time::timeout(HANG_BOUND, entries.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1618,14 +1620,14 @@ async fn generic_extension_handler_holds_later_requests_replies_and_eof_in_origi
         assert_eq!(h.response().await.result.unwrap(), json!({"released":true}));
         match next {
             "request" => {
-                tokio::time::timeout(Duration::from_secs(2), later_requests.recv())
+                tokio::time::timeout(HANG_BOUND, later_requests.recv())
                     .await
                     .unwrap()
                     .unwrap();
                 assert_eq!(h.response().await.result.unwrap(), json!({"later":true}));
             }
             "response" => assert_eq!(
-                tokio::time::timeout(Duration::from_secs(2), pending.unwrap())
+                tokio::time::timeout(HANG_BOUND, pending.unwrap())
                     .await
                     .unwrap()
                     .unwrap()
@@ -1633,7 +1635,7 @@ async fn generic_extension_handler_holds_later_requests_replies_and_eof_in_origi
                 json!({"reply":true})
             ),
             "eof" => {
-                tokio::time::timeout(Duration::from_secs(2), terminations.recv())
+                tokio::time::timeout(HANG_BOUND, terminations.recv())
                     .await
                     .unwrap()
                     .unwrap();

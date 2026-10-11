@@ -2,9 +2,10 @@
 //! The ACP turn path against a scripted agent (`fixtures/acp-turn-agent.py`): what a session update,
 //! an agent question or a mode change becomes in the persisted thread, and what the agent is told
 //! back. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_auth_service::ProviderAuthService, provider_registry::ProviderRegistry, thread::ThreadService};
 
 const AGENT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/acp-turn-agent.py");
@@ -55,7 +56,7 @@ impl Turn {
     }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

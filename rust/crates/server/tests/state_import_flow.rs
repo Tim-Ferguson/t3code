@@ -3,6 +3,7 @@
 //!
 //! Every case imports into a temporary directory, starts the real server on the imported store and asks it over its WebSocket.
 //! Replies are validated against the original's schemas as in every other flow (the `outbound-check` feature).
+use t3_server::test_support::HANG_BOUND;
 mod rpc_support;
 use chrono::Utc;
 use flate2::read::GzDecoder;
@@ -288,7 +289,7 @@ thread_local! { static LEGACY: std::cell::Cell<bool> = const { std::cell::Cell::
 async fn compare_with_reference(served: &Served, name: &str) {
     LEGACY.with(|legacy| legacy.set(name == "v1" || name == "oldest"));
     // A server task that died would leave this waiting forever; a timeout turns that into a failure.
-    tokio::time::timeout(std::time::Duration::from_secs(120), compare_inner(served, name)).await.unwrap_or_else(|_| panic!("{name}: the server did not answer within 120s"));
+    tokio::time::timeout(HANG_BOUND, compare_inner(served, name)).await.unwrap_or_else(|_| panic!("{name}: the server did not answer within 120s"));
 }
 async fn compare_inner(served: &Served, name: &str) {
     let expected = reference(name);
@@ -618,7 +619,7 @@ async fn work_in_flight_comes_across_for_ordinary_recovery_and_nothing_is_run_ag
     let served = serve(&state).await;
     {
         let mut socket = served.connect().await;
-        let shell = tokio::time::timeout(std::time::Duration::from_secs(60), shell_snapshot(&mut socket)).await.unwrap();
+        let shell = tokio::time::timeout(HANG_BOUND, shell_snapshot(&mut socket)).await.unwrap();
         assert!(shell["threads"].as_array().unwrap().len() >= 3);
     }
     // Startup recovery, as `main` runs it, over the imported store.

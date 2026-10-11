@@ -19,6 +19,7 @@ pub struct HostCommandOutput {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use crate::test_support::{HANG_BOUND, KILL_AFTER};
     #[tokio::test]
     async fn complete_environment_and_nonzero_command_output_are_preserved() {
         let commands = DeviceCommands::new();
@@ -32,7 +33,7 @@ mod tests {
                 [("FIXTURE_VALUE".into(), "isolated value".into())]
                     .into_iter()
                     .collect(),
-                Duration::from_secs(5),
+                HANG_BOUND,
             )
             .await;
         assert_eq!(output.code, 7);
@@ -44,7 +45,7 @@ mod tests {
                 "/bin/cat".into(),
                 Vec::new(),
                 Default::default(),
-                Duration::from_secs(5),
+                HANG_BOUND,
                 Some(input.as_bytes().to_vec()),
             )
             .await;
@@ -57,7 +58,7 @@ mod tests {
                     "/bin/sh".into(),
                     Vec::new(),
                     Default::default(),
-                    Duration::from_secs(1)
+                    HANG_BOUND
                 )
                 .await
                 .code,
@@ -74,11 +75,11 @@ mod tests {
             let commands = commands.clone();
             let path = path.to_string_lossy().into_owned();
             async move {
-                commands.run("/usr/bin/python3".into(),vec!["-c".into(),"import os,signal,socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);signal.pause()".into(),path],Default::default(),Duration::from_secs(30)).await
+                commands.run("/usr/bin/python3".into(),vec!["-c".into(),"import os,signal,socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);signal.pause()".into(),path],Default::default(),HANG_BOUND).await
             }
         });
         let mut bytes = [0; 100];
-        let length = tokio::time::timeout(Duration::from_secs(5), socket.recv(&mut bytes))
+        let length = tokio::time::timeout(HANG_BOUND, socket.recv(&mut bytes))
             .await
             .unwrap()
             .unwrap();
@@ -88,7 +89,7 @@ mod tests {
             .unwrap();
         request.abort();
         assert!(request.await.unwrap_err().is_cancelled());
-        tokio::time::timeout(Duration::from_secs(5), commands.shutdown())
+        tokio::time::timeout(HANG_BOUND, commands.shutdown())
             .await
             .unwrap();
         assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
@@ -107,11 +108,11 @@ mod tests {
             let commands = commands.clone();
             let path = path.to_string_lossy().into_owned();
             async move {
-                commands.run("/usr/bin/python3".into(),vec!["-c".into(),"import os,signal,socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);print('discard on timeout',flush=True);signal.pause()".into(),path],Default::default(),Duration::from_secs(2)).await
+                commands.run("/usr/bin/python3".into(),vec!["-c".into(),"import os,signal,socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);print('discard on timeout',flush=True);signal.pause()".into(),path],Default::default(),KILL_AFTER).await
             }
         });
         let mut bytes = [0; 100];
-        let length = tokio::time::timeout(Duration::from_secs(5), socket.recv(&mut bytes))
+        let length = tokio::time::timeout(HANG_BOUND, socket.recv(&mut bytes))
             .await
             .unwrap()
             .unwrap();
@@ -119,7 +120,7 @@ mod tests {
             .unwrap()
             .parse::<i32>()
             .unwrap();
-        let output = tokio::time::timeout(Duration::from_secs(5), request)
+        let output = tokio::time::timeout(HANG_BOUND, request)
             .await
             .unwrap()
             .unwrap();
@@ -141,7 +142,7 @@ mod tests {
                 "/bin/sh".into(),
                 vec!["-c".into(), "printf discarded; kill -TERM $$".into()],
                 Default::default(),
-                Duration::from_secs(5),
+                HANG_BOUND,
             )
             .await;
         assert_eq!(output.code, 127);
@@ -162,11 +163,11 @@ mod tests {
             let commands = commands.clone();
             let path = path.to_string_lossy().into_owned();
             async move {
-                commands.run_with_stdin("/usr/bin/python3".into(),vec!["-c".into(),"import os,signal,socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);signal.pause()".into(),path],Default::default(),Duration::from_secs(30),Some(vec![b'x';16*1024*1024])).await
+                commands.run_with_stdin("/usr/bin/python3".into(),vec!["-c".into(),"import os,signal,socket,sys;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);signal.pause()".into(),path],Default::default(),HANG_BOUND,Some(vec![b'x';16*1024*1024])).await
             }
         });
         let mut bytes = [0; 100];
-        let length = tokio::time::timeout(Duration::from_secs(5), socket.recv(&mut bytes))
+        let length = tokio::time::timeout(HANG_BOUND, socket.recv(&mut bytes))
             .await
             .unwrap()
             .unwrap();
@@ -176,7 +177,7 @@ mod tests {
             .unwrap();
         request.abort();
         assert!(request.await.unwrap_err().is_cancelled());
-        tokio::time::timeout(Duration::from_secs(5), commands.shutdown())
+        tokio::time::timeout(HANG_BOUND, commands.shutdown())
             .await
             .unwrap();
         assert_eq!(unsafe { libc::kill(pid, 0) }, -1);

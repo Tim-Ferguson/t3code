@@ -1,3 +1,4 @@
+use crate::test_support::HANG_BOUND;
 use super::*;
 use crate::{execution, persistence::write_projection, provider_registry::ProviderRegistry};
 use t3_contracts::{
@@ -6,7 +7,7 @@ use t3_contracts::{
 };
 #[tokio::test]
 async fn authenticated_cooperative_tools_use_persisted_threads_and_cancel_owned_waits() {
-    tokio::time::timeout(std::time::Duration::from_secs(20), cooperative_fixture())
+    tokio::time::timeout(HANG_BOUND, cooperative_fixture())
         .await
         .expect("cooperative HTTP fixture timed out");
 }

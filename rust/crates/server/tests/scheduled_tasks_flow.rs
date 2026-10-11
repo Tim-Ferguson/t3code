@@ -5,6 +5,7 @@
 //! provider fixture. Time is a manual clock the test moves; the test then waits on a committed event, a
 //! stream message or a task state, never on a sleep. The restart tests drop the first service and store
 //! (a crash: nothing is shut down) and open a second over the same database file.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -31,7 +32,6 @@ type Socket = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 const T0: i64 = 1_788_955_200_000;
 const MINUTE: i64 = 60_000;
 const HOUR: i64 = 60 * MINUTE;
-const GUARD: std::time::Duration = std::time::Duration::from_secs(60);
 
 fn iso(ms: i64) -> String {
     chrono::DateTime::from_timestamp_millis(ms).unwrap().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
@@ -175,7 +175,7 @@ impl Flow {
     /// Waits on committed events until `ready` holds for the stored threads.
     async fn threads_where(&self, ready: impl Fn(&[Value]) -> bool) -> Vec<Value> {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(GUARD, async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let threads = self.threads();
                 if ready(&threads) {
@@ -198,7 +198,7 @@ async fn send(socket: &mut Socket, value: Value) {
     socket.send(Message::Text(value.to_string().into())).await.unwrap();
 }
 async fn next(socket: &mut Socket) -> Value {
-    let message = tokio::time::timeout(GUARD, socket.next()).await.expect("the server went quiet").unwrap().unwrap();
+    let message = tokio::time::timeout(HANG_BOUND, socket.next()).await.expect("the server went quiet").unwrap().unwrap();
     serde_json::from_str(message.to_text().unwrap()).unwrap()
 }
 async fn rpc(socket: &mut Socket, id: u64, tag: &str, payload: Value) -> Value {

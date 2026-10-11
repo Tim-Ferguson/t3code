@@ -3,6 +3,7 @@
 //! ended by detaching its session, the runs still queued are cancelled, the thread moves to the
 //! archived shell and a later message after unarchiving starts a fresh turn. A real recording
 //! Codex fixture; nothing outside the temporary directory is touched.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
 use t3_server::{
@@ -66,7 +67,7 @@ impl Fixture {
 
 async fn until(store: &Store, events: &mut tokio::sync::broadcast::Receiver<Vec<StoredEvent>>, done: impl Fn(&Value) -> bool) -> Value {
     let mut last = Value::Null;
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+    let outcome = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", "thread").unwrap().unwrap();
             last = json!({"thread":view["thread"],"runs":view["runs"],"sessions":view["providerSessions"]});

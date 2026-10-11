@@ -3,6 +3,7 @@
 //! `continueThreadsAfterServerUpdate` on, the restarted server resumes the turn that was running, once;
 //! with it off, or after the user stopped the turn, it does not. A restart is the execution service shut
 //! down and started again over the same store. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
@@ -45,7 +46,7 @@ impl Harness {
     }
     async fn until<T>(&self, what: &str, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

@@ -6,6 +6,7 @@
 //! (`fixtures/text-generation-provider.py`; for the thread's own turn it hands over to the Codex
 //! fixture), so no provider CLI is run. Nothing waits on a timer: the test follows committed events.
 #![recursion_limit = "256"]
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -70,7 +71,7 @@ async fn connect(address: std::net::SocketAddr, token: &str) -> Socket {
 /// against a test that can never finish.
 async fn until(store: &Store, events: &mut tokio::sync::broadcast::Receiver<Vec<t3_server::persistence::StoredEvent>>, thread: &str, done: impl Fn(&Value) -> bool) -> Value {
     let mut last = Value::Null;
-    let waited = tokio::time::timeout(Duration::from_secs(20), async {
+    let waited = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", thread).unwrap().unwrap();
             if done(&view) {
@@ -107,7 +108,7 @@ async fn scenario() {
     let store = Store::open(base.join("rust-state.sqlite")).unwrap();
     ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":workspace}), Utc::now()).unwrap();
     let providers = ProviderRegistry::discover(&settings(true, &calls), &base).await.unwrap();
-    providers.set_text_generation_options(Options { timeout: Duration::from_secs(60), retry_delay: Duration::ZERO });
+    providers.set_text_generation_options(Options { timeout: HANG_BOUND, retry_delay: Duration::ZERO });
     let execution = ExecutionService::start(store.clone(), providers.clone());
     let launch_on = |id: &str, instance: &str| {
         ThreadLaunchService::new(store.clone())
@@ -264,7 +265,7 @@ fn a_launch_that_asks_for_a_generated_title_names_the_thread_after_its_first_mes
         let store = Store::open(base.join("rust-state.sqlite")).unwrap();
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":workspace}), Utc::now()).unwrap();
         let providers = ProviderRegistry::discover(&settings(true, &calls), &base).await.unwrap();
-        providers.set_text_generation_options(Options { timeout: Duration::from_secs(60), retry_delay: Duration::ZERO });
+        providers.set_text_generation_options(Options { timeout: HANG_BOUND, retry_delay: Duration::ZERO });
         let execution = ExecutionService::start(store.clone(), providers.clone());
         plan(&calls, 1, json!({"answer":{"title":"\"Login Redirect Fix\"","needsRefinement":false}}));
         let mut events = store.subscribe();

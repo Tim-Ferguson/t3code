@@ -130,6 +130,11 @@ pub struct NumstatEntry {
 }
 
 /// Parses plain (non `-z`) numstat lines. A rename shown as `old => new` keeps the new name.
+///
+/// TODO: git abbreviates a rename as `src/{util.ts => helpers.ts}`, which this reports as
+/// `helpers.ts}`. The original has the same bug (`GitVcsDriverCore.ts`) and this copies it on
+/// purpose; `tests/git_rename_parity.rs` pins it. Fix both by reading `--numstat -z`, as
+/// `review::parse_review_numstat` does.
 pub fn parse_numstat_entries(stdout: &str) -> Vec<NumstatEntry> {
     let mut entries = Vec::new();
     for line in stdout

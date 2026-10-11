@@ -3,6 +3,7 @@
 //! composer context reaches the provider as the original projects it, a queued notification is
 //! kept on its message and refused from anyone else, and attachments ride along on a steering
 //! message and on the answer to a question. Nothing outside the temporary directory is touched.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
 use t3_server::{
@@ -76,7 +77,7 @@ impl Fixture {
 
 async fn until(store: &Store, events: &mut tokio::sync::broadcast::Receiver<Vec<StoredEvent>>, done: impl Fn(&Value) -> bool) -> Value {
     let mut last = Value::Null;
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+    let outcome = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", "thread").unwrap().unwrap();
             last = json!({"runs":view["runs"],"requests":view["runtimeRequests"]});

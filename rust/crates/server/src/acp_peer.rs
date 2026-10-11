@@ -260,6 +260,7 @@ impl Peer for ProcessPeer {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use futures_util::StreamExt;
     use serde_json::json;
@@ -288,7 +289,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),f
         let (observed, mut acknowledgements) = mpsc::unbounded_channel();
         let client = t3_acp::Client::with_options(
             Arc::new(peer),
-            Duration::from_secs(3),
+            HANG_BOUND,
             t3_acp::ClientOptions {
                 on_outgoing_response: Some(Arc::new(move |id| {
                     let observed = observed.clone();
@@ -388,7 +389,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),f
         let (buffered, mut milestones) = mpsc::unbounded_channel();
         let client = t3_acp::Client::with_options(
             Arc::new(BatchMilestonePeer { peer, buffered }),
-            Duration::from_secs(3),
+            HANG_BOUND,
             t3_acp::ClientOptions {
                 on_outgoing_response: Some(Arc::new(move |id| {
                     let observed = observed.clone();
@@ -421,7 +422,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),f
         );
         let caller = client.clone();
         let request = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
-        tokio::time::timeout(Duration::from_secs(3), milestones.recv())
+        tokio::time::timeout(HANG_BOUND, milestones.recv())
             .await
             .unwrap()
             .unwrap();
@@ -429,7 +430,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),f
         // callback; this proves concurrent core handlers and completion order.
         release.send(()).unwrap();
         assert_eq!(
-            tokio::time::timeout(Duration::from_secs(3), request)
+            tokio::time::timeout(HANG_BOUND, request)
                 .await
                 .unwrap()
                 .unwrap()
@@ -437,7 +438,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'batch':True}}),f
             json!({"batch":true})
         );
         assert_eq!(
-            tokio::time::timeout(Duration::from_secs(3), acknowledgements.recv())
+            tokio::time::timeout(HANG_BOUND, acknowledgements.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -475,7 +476,7 @@ frames=[{'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'s','up
 print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
 "#,
         );
-        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(3));
+        let client = t3_acp::Client::new(Arc::new(peer), HANG_BOUND);
         let initialized = client
             .initialize_typed(InitializeRequest::default())
             .await
@@ -536,7 +537,7 @@ print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
                 })
                 .await
         });
-        tokio::time::timeout(Duration::from_secs(3), requests.recv())
+        tokio::time::timeout(HANG_BOUND, requests.recv())
             .await
             .unwrap()
             .unwrap();
@@ -548,13 +549,13 @@ print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
         );
         assert!(!prompt.is_finished());
         release.send(()).unwrap();
-        let result = tokio::time::timeout(Duration::from_secs(3), prompt)
+        let result = tokio::time::timeout(HANG_BOUND, prompt)
             .await
             .unwrap()
             .unwrap()
             .unwrap();
         assert_eq!(result.stop_reason, "end_turn");
-        let chunk = tokio::time::timeout(Duration::from_secs(3), updates.recv())
+        let chunk = tokio::time::timeout(HANG_BOUND, updates.recv())
             .await
             .unwrap()
             .unwrap();
@@ -583,7 +584,7 @@ print('\n'.join(json.dumps(frame) for frame in frames),flush=True)
                 request_id,
                 error,
             } = peer
-                .request("probe", Value::Null, Duration::from_secs(3))
+                .request("probe", Value::Null, HANG_BOUND)
                 .await
                 .unwrap_err()
             else {
@@ -633,11 +634,11 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
         let caller = peer.clone();
         let pending = tokio::spawn(async move {
             caller
-                .request("initialize", serde_json::json!({}), Duration::from_secs(3))
+                .request("initialize", serde_json::json!({}), HANG_BOUND)
                 .await
         });
         let PeerEvent::Request { id, .. } =
-            tokio::time::timeout(Duration::from_secs(3), events.recv())
+            tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap()
@@ -652,7 +653,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
         assert!(peer.respond_cause(id.clone(), invalid).await.is_err());
         peer.respond_cause(id, cause.clone()).await.unwrap();
         let PeerEvent::Request { id, .. } =
-            tokio::time::timeout(Duration::from_secs(3), events.recv())
+            tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap()
@@ -688,7 +689,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
             serde_json::to_value(cause).unwrap()
         );
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(3), events.recv())
+            tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -708,12 +709,12 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
         })
         .unwrap();
         let mut events = peer.subscribe();
-        peer.request("initialize", json!({}), Duration::from_secs(2))
+        peer.request("initialize", json!({}), HANG_BOUND)
             .await
             .unwrap();
         for expected in [json!(0), json!("0"), json!("$t3:jsonrpc:number:0")] {
             let PeerEvent::Request { id, .. } =
-                tokio::time::timeout(Duration::from_secs(2), events.recv())
+                tokio::time::timeout(HANG_BOUND, events.recv())
                     .await
                     .unwrap()
                     .unwrap()
@@ -726,7 +727,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
                 .unwrap();
         }
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(2), events.recv())
+            tokio::time::timeout(HANG_BOUND, events.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -752,7 +753,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
         // Wait for the actual forwarder terminal milestone without consuming
         // its first public event receiver. This forces both startup windows.
         let mut terminal = peer.0.terminal.subscribe();
-        tokio::time::timeout(Duration::from_secs(2), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if terminal.borrow().is_some() {
                     break;
@@ -772,7 +773,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
         ));
         let mut late = peer.subscribe();
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(2), late.recv())
+            tokio::time::timeout(HANG_BOUND, late.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -798,13 +799,13 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'error':error}),flush=True)
     }
     fn ordered_fixture(body: &str) -> (tempfile::TempDir, ProcessPeer, t3_acp::Client) {
         let (directory, peer) = peer_fixture(body);
-        let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(10));
+        let client = t3_acp::Client::new(Arc::new(peer.clone()), HANG_BOUND);
         (directory, peer, client)
     }
     async fn held_notification_barrier(
         events: &mut broadcast::Receiver<ProcessEvent>,
     ) -> t3_acp::IngressAcknowledgement {
-        tokio::time::timeout(Duration::from_secs(3),async {
+        tokio::time::timeout(HANG_BOUND,async {
             loop {
                 if matches!(events.recv().await.unwrap(),ProcessEvent::Notification{method,..} if method=="x/gate") {
                     let ProcessEvent::IngressBarrier{acknowledgement}=events.recv().await.unwrap() else { panic!("missing ordered notification acknowledgement"); };
@@ -860,7 +861,7 @@ if next=='request':
             let caller = client.clone();
             let pending =
                 tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
-            tokio::time::timeout(Duration::from_secs(3), handled.recv())
+            tokio::time::timeout(HANG_BOUND, handled.recv())
                 .await
                 .unwrap()
                 .unwrap();
@@ -873,7 +874,7 @@ if next=='request':
             assert!(!pending.is_finished());
             assert_eq!(called.load(Ordering::SeqCst), 0);
             release.send(()).unwrap();
-            let result = tokio::time::timeout(Duration::from_secs(3), pending)
+            let result = tokio::time::timeout(HANG_BOUND, pending)
                 .await
                 .unwrap()
                 .unwrap();
@@ -920,7 +921,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'count':2048}}),f
         let caller = client.clone();
         let pending = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
         assert_eq!(
-            tokio::time::timeout(Duration::from_secs(3), values.recv())
+            tokio::time::timeout(HANG_BOUND, values.recv())
                 .await
                 .unwrap(),
             Some(0)
@@ -932,7 +933,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'count':2048}}),f
             assert!(futures_util::poll!(acknowledged.as_mut()).is_pending());
         }
         release.send(()).unwrap();
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for index in 1..=2048 {
                 assert_eq!(values.recv().await, Some(index));
             }
@@ -993,16 +994,16 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'done':True}}),fl
         let mut events = client.subscribe();
         let caller = client.clone();
         let pending = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
-        tokio::time::timeout(Duration::from_secs(3), callbacks.recv())
+        tokio::time::timeout(HANG_BOUND, callbacks.recv())
             .await
             .unwrap()
             .unwrap();
-        tokio::time::timeout(Duration::from_secs(3), notifications.recv())
+        tokio::time::timeout(HANG_BOUND, notifications.recv())
             .await
             .unwrap()
             .unwrap();
         finish_callback.send(()).unwrap();
-        tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let t3_acp::ClientEvent::ResponseAcknowledged { request_id } =
                     events.recv().await.unwrap()
@@ -1017,7 +1018,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'done':True}}),fl
         assert!(!pending.is_finished());
         finish_notification.send(()).unwrap();
         assert_eq!(
-            tokio::time::timeout(Duration::from_secs(3), pending)
+            tokio::time::timeout(HANG_BOUND, pending)
                 .await
                 .unwrap()
                 .unwrap()
@@ -1050,14 +1051,14 @@ threading.Event().wait()
         }));
         let caller = client.clone();
         let pending = tokio::spawn(async move { caller.raw_request("x/start", json!({})).await });
-        tokio::time::timeout(Duration::from_secs(3), handled.recv())
+        tokio::time::timeout(HANG_BOUND, handled.recv())
             .await
             .unwrap()
             .unwrap();
         let _unreleased_barrier = held_notification_barrier(&mut process_events).await;
         client.shutdown();
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(3), pending)
+            tokio::time::timeout(HANG_BOUND, pending)
                 .await
                 .unwrap()
                 .unwrap(),
@@ -1067,7 +1068,7 @@ threading.Event().wait()
         drop(peer);
         // Closed is published only after the owner kills and waits for its child.
         assert!(matches!(
-            tokio::time::timeout(Duration::from_secs(3), process_events.recv())
+            tokio::time::timeout(HANG_BOUND, process_events.recv())
                 .await
                 .unwrap()
                 .unwrap(),
@@ -1124,7 +1125,7 @@ threading.Event().wait()
         let gate = Arc::new(Mutex::new(Some(gate)));
         let client = t3_acp::Client::with_options(
             Arc::new(peer.clone()),
-            Duration::from_secs(10),
+            HANG_BOUND,
             t3_acp::ClientOptions {
                 on_incoming_request: Some(Arc::new(move |_, _| {
                     let entered = entered.clone();
@@ -1145,7 +1146,7 @@ threading.Event().wait()
         );
         let caller = client.clone();
         let pending = tokio::spawn(async move { caller.raw_request("x/pending", json!({})).await });
-        tokio::time::timeout(Duration::from_secs(3), entries.recv())
+        tokio::time::timeout(HANG_BOUND, entries.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1153,7 +1154,7 @@ threading.Event().wait()
         let _ = client
             .raw_notify("x/trigger-broken-writer", json!({}))
             .await;
-        let failure = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
+        let failure = tokio::time::timeout(HANG_BOUND, terminations.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1161,7 +1162,7 @@ threading.Event().wait()
             matches!(failure, AcpError::Failure(failure) if matches!(failure.as_ref(),t3_acp::errors::Failure::Transport(_)))
         );
         assert!(
-            tokio::time::timeout(Duration::from_secs(3), pending)
+            tokio::time::timeout(HANG_BOUND, pending)
                 .await
                 .unwrap()
                 .unwrap()
@@ -1173,7 +1174,7 @@ threading.Event().wait()
         );
         assert!(terminations.try_recv().is_err());
         let mut closed = peer.0.terminal.subscribe();
-        tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if closed.borrow().is_some() {
                     break;
@@ -1260,7 +1261,7 @@ for method in ['initialize','x/echo']:
                 ..Default::default()
             },
         );
-        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        let client = t3_acp::Client::new(Arc::new(peer), HANG_BOUND);
         client
             .initialize(json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}))
             .await
@@ -1329,7 +1330,7 @@ for method in ['initialize','x/echo']:
                 ..Default::default()
             },
         );
-        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        let client = t3_acp::Client::new(Arc::new(peer), HANG_BOUND);
         let failure = client
             .raw_request("x/pending", json!({}))
             .await
@@ -1384,7 +1385,7 @@ for method in ['initialize','x/echo']:
         );
         let client = t3_acp::Client::with_options(
             Arc::new(peer),
-            Duration::from_secs(10),
+            HANG_BOUND,
             t3_acp::ClientOptions {
                 on_termination: Some(Arc::new(move |error| {
                     let terminated = terminated.clone();
@@ -1399,7 +1400,7 @@ for method in ['initialize','x/echo']:
             .raw_request("x/pending", json!({}))
             .await
             .unwrap_err();
-        let termination = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
+        let termination = tokio::time::timeout(HANG_BOUND, terminations.recv())
             .await
             .unwrap()
             .unwrap();
@@ -1447,7 +1448,7 @@ for method in ['initialize','x/echo']:
             );
             let client = t3_acp::Client::with_options(
                 Arc::new(peer.clone()),
-                Duration::from_secs(10),
+                HANG_BOUND,
                 t3_acp::ClientOptions {
                     on_termination: Some(Arc::new(move |error| {
                         let terminated = terminated.clone();
@@ -1466,14 +1467,14 @@ for method in ['initialize','x/echo']:
                     caller.raw_notify("x/held", json!({})).await
                 }
             });
-            tokio::time::timeout(Duration::from_secs(3), entries.recv())
+            tokio::time::timeout(HANG_BOUND, entries.recv())
                 .await
                 .unwrap()
                 .unwrap();
             // This independently admitted message is the only line the child
             // accepts. Any held send that leaked onto stdin would fail its check.
             peer.notify("x/finish", json!({})).await.unwrap();
-            let error = tokio::time::timeout(Duration::from_secs(3), terminations.recv())
+            let error = tokio::time::timeout(HANG_BOUND, terminations.recv())
                 .await
                 .unwrap()
                 .unwrap();
@@ -1483,7 +1484,7 @@ for method in ['initialize','x/echo']:
             ));
             let _ = release.send(());
             assert!(
-                tokio::time::timeout(Duration::from_secs(3), sending)
+                tokio::time::timeout(HANG_BOUND, sending)
                     .await
                     .unwrap()
                     .unwrap()
@@ -1507,7 +1508,7 @@ threading.Event().wait()
         let mut ingress = peer.subscribe();
         peer.notify("x/start", json!({})).await.unwrap();
         assert!(
-            matches!(tokio::time::timeout(Duration::from_secs(3),ingress.recv()).await.unwrap().unwrap(),PeerEvent::Notification{method,..} if method=="x/ready")
+            matches!(tokio::time::timeout(HANG_BOUND,ingress.recv()).await.unwrap().unwrap(),PeerEvent::Notification{method,..} if method=="x/ready")
         );
         // Current-thread join admits all three responses before the writer runs.
         let (a, b, c) = tokio::join!(
@@ -1549,14 +1550,14 @@ threading.Event().wait()
         );
         let mut ingress = peer.subscribe();
         tokio::time::timeout(
-            Duration::from_secs(3),
+            HANG_BOUND,
             peer.notify("x/fill", json!({"data":"x".repeat(4*1024*1024)})),
         )
         .await
         .unwrap()
         .unwrap();
         assert!(
-            matches!(tokio::time::timeout(Duration::from_secs(3),ingress.recv()).await.unwrap().unwrap(),PeerEvent::Notification{method,..}if method=="x/pipe-readable")
+            matches!(tokio::time::timeout(HANG_BOUND,ingress.recv()).await.unwrap().unwrap(),PeerEvent::Notification{method,..}if method=="x/pipe-readable")
         );
         {
             let response = peer.respond(RequestId::Number(7.into()), Ok(json!({})));
@@ -1568,7 +1569,7 @@ threading.Event().wait()
         }
         let mut process = peer.0.process.subscribe();
         drop(peer);
-        tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if matches!(process.recv().await.unwrap(), ProcessEvent::Closed(_)) {
                     break;
@@ -1594,9 +1595,9 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'length':len(data
         );
         // Both bounds only end a hang. Moving 16 MB each way through an unoptimized serde_json costs about a CPU-second,
         // and a loaded machine stretches that to however long it likes, so the response is what the test waits for.
-        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(600));
+        let client = t3_acp::Client::new(Arc::new(peer), HANG_BOUND * 5);
         let value = tokio::time::timeout(
-            Duration::from_secs(600),
+            HANG_BOUND * 5,
             client.raw_request("x/large", json!({"data":"x".repeat(length)})),
         )
         .await
@@ -1615,7 +1616,7 @@ print(json.dumps({'jsonrpc':'2.0','id':request['id'],'result':{'length':len(data
                 ..Default::default()
             },
         );
-        let client = t3_acp::Client::new(Arc::new(peer), Duration::from_secs(10));
+        let client = t3_acp::Client::new(Arc::new(peer), HANG_BOUND);
         let error = client
             .raw_request("x/limited", json!({}))
             .await

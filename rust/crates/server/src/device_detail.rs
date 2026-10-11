@@ -235,6 +235,7 @@ pub async fn read_detail(
 }
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[tokio::test]
     async fn original_parallel_device_settings_commands_and_unknown_fallbacks_match() {
@@ -298,7 +299,7 @@ mod tests {
             }) as BoxFuture<'static, HostCommandOutput>
         };
         tokio::time::timeout(
-            std::time::Duration::from_secs(5),
+            HANG_BOUND,
             read_detail(
                 DevicePlatform::Android,
                 "fixture-id",

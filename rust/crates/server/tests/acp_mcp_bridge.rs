@@ -1,4 +1,5 @@
 //! Real native fast-path processes against an isolated HTTP peer.
+use t3_server::test_support::HANG_BOUND;
 use axum::{
     body::{Body, Bytes, to_bytes},
     http::{HeaderMap, StatusCode},
@@ -76,7 +77,7 @@ fn command(address: std::net::SocketAddr, temp: &std::path::Path, kind: &str) ->
 }
 #[tokio::test]
 async fn native_stdio_preserves_opaque_requests_orders_handshake_and_bypasses_it_for_responses() {
-    tokio::time::timeout(std::time::Duration::from_secs(15),async{
+    tokio::time::timeout(HANG_BOUND,async{
     let temp=tempfile::tempdir().unwrap();let peer=Peer::default();let listener=tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();let address=listener.local_addr().unwrap();let router=axum::Router::new().route("/mcp",axum::routing::post(handle)).with_state(peer.clone());let mut server=tokio::task::JoinSet::new();server.spawn(async move{axum::serve(listener,router).await.unwrap();});
     let mut child=command(address,temp.path(),"acp-mcp-bridge").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();let mut input=child.stdin.take().unwrap();let mut output=BufReader::new(child.stdout.take().unwrap()).lines();
     let raw="{ \"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"initialize\", \"foreign\": [1,{\"foo\":true}] }";
@@ -98,7 +99,7 @@ async fn native_stdio_preserves_opaque_requests_orders_handshake_and_bypasses_it
 }
 #[tokio::test]
 async fn native_call_and_fast_path_validation_keep_credentials_out_of_argv_and_diagnostics() {
-    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+    tokio::time::timeout(HANG_BOUND, async {
         let temp = tempfile::tempdir().unwrap();
         let peer = Peer::default();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -184,7 +185,7 @@ async fn native_call_and_fast_path_validation_keep_credentials_out_of_argv_and_d
 
 #[tokio::test]
 async fn native_bridge_keeps_normal_calls_concurrent_and_cancels_held_response_on_owned_exit() {
-    tokio::time::timeout(std::time::Duration::from_secs(15), async {
+    tokio::time::timeout(HANG_BOUND, async {
         let temp = tempfile::tempdir().unwrap();
         let peer = Peer::default();
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

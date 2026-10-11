@@ -657,6 +657,7 @@ impl AuthBackend for AcpAuth {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use std::collections::HashMap;
     async fn fixture(
@@ -742,7 +743,7 @@ mod tests {
     }
     #[tokio::test]
     async fn real_v1_and_v2_agent_login_requires_owner_consent_verifies_persists_and_logs_out() {
-        tokio::time::timeout(Duration::from_secs(15),async{
+        tokio::time::timeout(HANG_BOUND,async{
         for version in [1,2]{
             let(root,backend)=fixture(version,HashMap::new()).await;let flow=backend.controller();initial_methods(&flow).await;
             assert!(!backend.confirmation.get());assert!(logs(root.path()).iter().all(|row|row["method"]=="initialize"),"method discovery creates no session or login");reaped(root.path());
@@ -757,7 +758,7 @@ mod tests {
     }
     #[tokio::test]
     async fn real_configured_environment_verifies_without_sending_env_var_id_to_authenticate() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (root, backend) = fixture(
                 2,
                 HashMap::from([("FIXTURE_TOKEN".into(), "configured-only".into())]),
@@ -790,7 +791,7 @@ mod tests {
     }
     #[tokio::test]
     async fn real_terminal_login_receives_input_then_reconnects_before_verifying() {
-        tokio::time::timeout(Duration::from_secs(15),async{
+        tokio::time::timeout(HANG_BOUND,async{
         let(root,backend)=fixture(2,HashMap::new()).await;let flow=backend.controller();initial_methods(&flow).await;let mut states=flow.subscribe("owner".into());
         let start=flow.start("owner".into(),Some("terminal".into()),None,None,noop()).await.unwrap();
         loop{let state=states.recv().await.unwrap();if matches!(&state.interaction,Some(Some(Some(ProviderAuthInteraction::Terminal{output,..}))) if output.0.contains("Enter fixture code:")){break;}assert_ne!(state.phase,ProviderAuthPhase::Failed,"{:?}",state.message);}
@@ -800,7 +801,7 @@ mod tests {
     }
     #[tokio::test]
     async fn real_held_initialization_and_login_are_reaped_before_controller_shutdown_or_cancel() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let socket_root = tempfile::tempdir().unwrap();
             let path = socket_root.path().join("milestones.sock");
             let socket = tokio::net::UnixDatagram::bind(&path).unwrap();
@@ -853,7 +854,7 @@ mod tests {
     }
     #[tokio::test]
     async fn real_pending_url_consent_cancels_and_declined_consent_never_confirms_sign_in() {
-        tokio::time::timeout(Duration::from_secs(15),async{
+        tokio::time::timeout(HANG_BOUND,async{
         for decline in [false,true]{
             let(root,backend)=fixture(2,HashMap::new()).await;let flow=backend.controller();initial_methods(&flow).await;let mut states=flow.subscribe("owner".into());
             let start=flow.start("owner".into(),Some("agent".into()),None,None,noop()).await.unwrap();next_phase(&mut states,ProviderAuthPhase::Waiting).await;

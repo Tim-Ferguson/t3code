@@ -22,13 +22,15 @@ pub fn install_az(dir: &FakeCliDir, routes: &[Value]) {
 }
 
 /// A fake host CLI named `executable`; `failures` is what it prints on stderr in the `auth`, `rate`
-/// and `notfound` modes.
+/// and `notfound` modes. A call claims the first free number after the claims already made (counted with a glob, which
+/// the shell does without starting a process): searching from 1 would start a `mkdir` process per earlier call, which
+/// is quadratic for a scenario of hundreds of calls.
 pub fn install_routed(dir: &FakeCliDir, executable: &str, routes: &[Value], failures: [&str; 3]) {
     if routes.iter().all(|route| route["spawn"] == true) {
         return;
     }
     let mut body = format!(
-        "d=\"${{0%/*}}\"\nn=1\nwhile ! mkdir \"$d/claim.$n\" 2>/dev/null; do n=$((n+1)); done\ntrap 'trap - EXIT; exit 143' TERM\ntrap 'printf \"%s\\037\" \"$@\" > \"$d/call.$n.args\"' EXIT\ncat > \"$d/call.$n.stdin\"\njoined=\"$*\"\nin=$(cat \"$d/call.$n.stdin\")\nmode=ok\nif [ -f \"$d/mode\" ]; then read -r mode < \"$d/mode\"; fi\ncase \"$mode\" in\nauth) echo {} >&2; exit 1;;\nrate) echo {} >&2; exit 1;;\nnotfound) echo {} >&2; exit 1;;\nesac\n",
+        "d=\"${{0%/*}}\"\nn=1\nfor claimed in \"$d\"/claim.*; do [ -e \"$claimed\" ] && n=$((n+1)); done\nwhile ! mkdir \"$d/claim.$n\" 2>/dev/null; do n=$((n+1)); done\ntrap 'trap - EXIT; exit 143' TERM\ntrap 'printf \"%s\\037\" \"$@\" > \"$d/call.$n.args\"' EXIT\ncat > \"$d/call.$n.stdin\"\njoined=\"$*\"\nin=$(cat \"$d/call.$n.stdin\")\nmode=ok\nif [ -f \"$d/mode\" ]; then read -r mode < \"$d/mode\"; fi\ncase \"$mode\" in\nauth) echo {} >&2; exit 1;;\nrate) echo {} >&2; exit 1;;\nnotfound) echo {} >&2; exit 1;;\nesac\n",
         shell_quote(failures[0]),
         shell_quote(failures[1]),
         shell_quote(failures[2]),

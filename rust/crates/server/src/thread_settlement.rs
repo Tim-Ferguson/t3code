@@ -190,10 +190,13 @@ pub(crate) fn start(execution: &ExecutionService) {
     let execution = execution.clone();
     tokio::spawn(async move {
         let clock = execution.providers.idle_release().clock();
+        let mut due = clock.now_ms() + SWEEP_INTERVAL_MS;
         loop {
-            let due = clock.now_ms() + SWEEP_INTERVAL_MS;
             clock.sleep_until(due).await;
             let (handler, now) = (execution.clone(), clock.now_ms());
+            // The next pass is an interval after the reading this one acted on, not after it finished: a clock that moved
+            // during the pass is then already past the next one, which runs at once instead of an interval later.
+            due = now + SWEEP_INTERVAL_MS;
             let _ = tokio::task::spawn_blocking(move || sweep(&handler, now)).await;
         }
     });

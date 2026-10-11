@@ -1286,6 +1286,7 @@ pub(crate) fn plan_release_in(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
 
     #[test]
@@ -1693,7 +1694,7 @@ mod tests {
             .unwrap();
         let mut buffer = [0u8; 128];
         let received =
-            tokio::time::timeout(std::time::Duration::from_secs(5), signal.recv(&mut buffer))
+            tokio::time::timeout(HANG_BOUND, signal.recv(&mut buffer))
                 .await
                 .unwrap()
                 .unwrap();
@@ -1733,7 +1734,7 @@ mod tests {
             )
             .unwrap();
         let received =
-            tokio::time::timeout(std::time::Duration::from_secs(5), signal.recv(&mut buffer))
+            tokio::time::timeout(HANG_BOUND, signal.recv(&mut buffer))
                 .await
                 .unwrap()
                 .unwrap();
@@ -1761,7 +1762,7 @@ mod tests {
             store.projection("thread", &stalled).unwrap().unwrap()["runs"][1]["status"],
             "starting"
         );
-        tokio::time::timeout(std::time::Duration::from_secs(5),execution.shutdown()).await.expect("Shutdown must cancel the registered native request rather than wait for its 30-second timeout");
+        tokio::time::timeout(HANG_BOUND,execution.shutdown()).await.expect("Shutdown must cancel the registered native request rather than wait for its 30-second timeout");
         assert!(store.acquire_runtime_lease().is_ok());
         for pid in [first_pid, last_pid] {
             assert!(
@@ -1797,7 +1798,7 @@ mod tests {
         thread_id: &str,
         predicate: impl Fn(&Value) -> bool,
     ) -> Value {
-        tokio::time::timeout(std::time::Duration::from_secs(8), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let projection = store.projection("thread", thread_id).unwrap().unwrap();
                 if predicate(&projection) {

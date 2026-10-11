@@ -89,6 +89,7 @@ impl Drop for SettingsRuntime {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use crate::{
         server_secret_store::ServerSecretStore,
@@ -112,7 +113,7 @@ mod tests {
         SettingsService::start(options).await.unwrap()
     }
     async fn data(stream: &mut TerminalSubscription, needle: &str) {
-        tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let event = stream.recv().await.unwrap().unwrap();
                 if event["data"]
@@ -240,14 +241,14 @@ mod tests {
             }
         });
         let mut seed_frame = String::new();
-        tokio::time::timeout(Duration::from_secs(3), peer.read_line(&mut seed_frame))
+        tokio::time::timeout(HANG_BOUND, peer.read_line(&mut seed_frame))
             .await
             .unwrap()
             .unwrap();
         let seed: Value = serde_json::from_str(&seed_frame).unwrap();
         assert_eq!(seed["type"], "setHostPowerIntervals");
         assert_eq!(seed["idleIntervalMs"], 300000);
-        let runtime = tokio::time::timeout(Duration::from_secs(3), starting)
+        let runtime = tokio::time::timeout(HANG_BOUND, starting)
             .await
             .unwrap()
             .unwrap()
@@ -260,12 +261,12 @@ mod tests {
             .await
             .unwrap();
         let mut first = [0];
-        tokio::time::timeout(Duration::from_secs(3), peer.read_exact(&mut first))
+        tokio::time::timeout(HANG_BOUND, peer.read_exact(&mut first))
             .await
             .unwrap()
             .unwrap();
         assert_eq!(first, *b"{"); // The changed control write entered, then fills the one-byte pipe.
-        tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::time::timeout(HANG_BOUND, async {
             tokio::join!(runtime.shutdown(), desktop.shutdown());
         })
         .await

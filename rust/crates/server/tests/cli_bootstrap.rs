@@ -1,4 +1,5 @@
 //! Exercise the CLI's real inherited supervisor channel before runtime startup.
+use t3_server::test_support::HANG_BOUND;
 #[cfg(unix)]
 #[tokio::test]
 async fn inherited_bootstrap_drives_desktop_auth_telemetry_and_home_without_secret_output() {
@@ -85,7 +86,7 @@ async fn inherited_bootstrap_drives_desktop_auth_telemetry_and_home_without_secr
     let mut control = BufReader::new(host);
     let mut frame = String::new();
     tokio::time::timeout(
-        std::time::Duration::from_secs(20),
+        HANG_BOUND,
         control.read_line(&mut frame),
     )
     .await
@@ -95,7 +96,7 @@ async fn inherited_bootstrap_drives_desktop_auth_telemetry_and_home_without_secr
         serde_json::from_str::<Value>(&frame).unwrap()["type"],
         "setHostPowerIntervals"
     );
-    let address = tokio::time::timeout(std::time::Duration::from_secs(20), receive)
+    let address = tokio::time::timeout(HANG_BOUND, receive)
         .await
         .unwrap()
         .unwrap();

@@ -549,6 +549,7 @@ async fn call_device(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[cfg(unix)]
     #[tokio::test]
@@ -725,11 +726,11 @@ mod tests {
                 .authorized(Method::POST, headers, Body::from_stream(stream))
                 .await
         });
-        tokio::time::timeout(std::time::Duration::from_secs(3), ready)
+        tokio::time::timeout(HANG_BOUND, ready)
             .await
             .unwrap()
             .unwrap();
-        tokio::time::timeout(std::time::Duration::from_secs(3), service.shutdown())
+        tokio::time::timeout(HANG_BOUND, service.shutdown())
             .await
             .unwrap();
         assert_eq!(
@@ -757,7 +758,7 @@ mod tests {
     async fn authenticated_http_uses_fresh_grants_scoped_sessions_live_parent_and_image_results() {
         use crate::{mcp_sessions::CredentialRequest, persistence::write_projection};
         use t3_contracts::{DeviceToolListResult, DeviceToolOpenResult};
-        tokio::time::timeout(std::time::Duration::from_secs(30),async {
+        tokio::time::timeout(HANG_BOUND,async {
             let root=tempfile::tempdir().unwrap();let fixture=crate::device_service::tests::fixture(root.path()).await;
             let(store,scope)=crate::mcp_invocation::tests::fixture();let thread=scope.thread.unwrap().thread_id;
             let mutate=|apply: &dyn Fn(&mut Value)|{let mut value=store.projection("thread",thread.as_str()).unwrap().unwrap();apply(&mut value);store.transaction(|tx|write_projection(tx,"thread",thread.as_str(),&value)).unwrap();};

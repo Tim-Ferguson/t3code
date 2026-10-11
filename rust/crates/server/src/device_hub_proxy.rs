@@ -307,11 +307,12 @@ mod tests {
 
 #[cfg(all(test, unix))]
 mod integration_tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use crate::{auth::AuthService, persistence::Store, transport::router};
     use serde_json::{Value, json};
     async fn milestone(socket: &tokio::net::UnixDatagram, path: &str) {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let mut bytes = [0; 8192];
                 let length = socket.recv(&mut bytes).await.unwrap();
@@ -326,7 +327,7 @@ mod integration_tests {
     }
     #[tokio::test]
     async fn owned_http_and_binary_websocket_proxy_strip_credentials_stream_and_close_upstream() {
-        tokio::time::timeout(Duration::from_secs(20),async {
+        tokio::time::timeout(HANG_BOUND,async {
             let root=tempfile::tempdir().unwrap();let fixture=crate::device_service::tests::fixture(root.path()).await;
             let store=Store::memory().unwrap();let auth=AuthService::new(store.clone(),[75;32],"proxy_fixture".into(),"loopback-browser".into()).unwrap();
             let (reader,token)=auth.issue_session("fixture","bearer-access-token",vec![AuthEnvironmentScope::OrchestrationRead],json!({"deviceType":"unknown"}),chrono::Utc::now(),chrono::Duration::hours(1)).unwrap();

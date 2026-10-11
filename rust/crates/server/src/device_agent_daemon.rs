@@ -317,6 +317,7 @@ async fn stop_daemon(options: &AgentDaemonOptions, node: &PathBuf, entry: &PathB
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use serde_json::json;
     struct Fixture {
@@ -356,7 +357,7 @@ mod tests {
             }
         }
         async fn milestone(&self, event: &str) -> i32 {
-            tokio::time::timeout(Duration::from_secs(5), async {
+            tokio::time::timeout(HANG_BOUND, async {
                 loop {
                     let mut bytes = [0; 1024];
                     let size = self.socket.recv(&mut bytes).await.unwrap();
@@ -489,7 +490,7 @@ mod tests {
         });
         started.await.unwrap();
         fixture.release_stop().await;
-        let endpoint = tokio::time::timeout(Duration::from_secs(5), second)
+        let endpoint = tokio::time::timeout(HANG_BOUND, second)
             .await
             .unwrap()
             .unwrap()
@@ -504,7 +505,7 @@ mod tests {
         });
         fixture.milestone("stop").await;
         fixture.release_stop().await;
-        tokio::time::timeout(Duration::from_secs(5), shutdown)
+        tokio::time::timeout(HANG_BOUND, shutdown)
             .await
             .unwrap()
             .unwrap();
@@ -532,7 +533,7 @@ mod tests {
         assert_eq!(endpoint.pid, Some(pid as i64));
         assert_eq!(endpoint.version.as_deref(), Some("0.21.12"));
         fixture.daemon.shutdown().await;
-        tokio::time::timeout(Duration::from_secs(5), child.wait())
+        tokio::time::timeout(HANG_BOUND, child.wait())
             .await
             .unwrap()
             .unwrap();
@@ -561,7 +562,7 @@ mod tests {
         fixture.release_stop().await;
         // Await the owner barrier, not a sleep or an optimistic current() observation.
         let complete =
-            tokio::time::timeout(Duration::from_secs(5), fixture.daemon.0.stop_owner.lock())
+            tokio::time::timeout(HANG_BOUND, fixture.daemon.0.stop_owner.lock())
                 .await
                 .unwrap();
         assert!(!fixture.daemon.0.stopped.load(Ordering::Acquire));
@@ -576,7 +577,7 @@ mod tests {
         });
         fixture.milestone("stop").await;
         fixture.release_stop().await;
-        tokio::time::timeout(Duration::from_secs(5), shutdown)
+        tokio::time::timeout(HANG_BOUND, shutdown)
             .await
             .unwrap()
             .unwrap();

@@ -432,6 +432,7 @@ fn read_portable(
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     async fn spawn_script(directory: &std::path::Path, script: &str) -> OwnedPty {
         let path = directory.join("terminal.py");
@@ -452,7 +453,7 @@ mod tests {
             .unwrap()
     }
     async fn next(pty: &mut OwnedPty) -> PtyEvent {
-        tokio::time::timeout(Duration::from_secs(3), pty.next_event())
+        tokio::time::timeout(HANG_BOUND, pty.next_event())
             .await
             .unwrap()
             .unwrap()
@@ -546,7 +547,7 @@ print(f'{line}:{cols}x{rows}',flush=True)
         output_until(&mut pty, "READY").await;
         let pid = pty.pid;
         let weak = Arc::downgrade(&pty.control);
-        tokio::time::timeout(Duration::from_secs(3), pty.close(Duration::ZERO))
+        tokio::time::timeout(HANG_BOUND, pty.close(Duration::ZERO))
             .await
             .unwrap()
             .unwrap();
@@ -567,7 +568,7 @@ print(f'{line}:{cols}x{rows}',flush=True)
         let mut exited = pty.exited.clone();
         drop(pty);
         if !*exited.borrow() {
-            tokio::time::timeout(Duration::from_secs(3), exited.changed())
+            tokio::time::timeout(HANG_BOUND, exited.changed())
                 .await
                 .unwrap()
                 .unwrap();

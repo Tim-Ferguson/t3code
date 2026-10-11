@@ -738,6 +738,7 @@ fn decode_settings_document(bytes: &[u8]) -> Result<Value, serde_json::Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use crate::server_settings_secrets::{REDACTED, provider_secret_name};
     use std::sync::{Condvar, Mutex as StdMutex};
@@ -822,7 +823,7 @@ mod tests {
             assert!(subscription.pending.is_some());
             drop(release);
             let output =
-                tokio::time::timeout(std::time::Duration::from_secs(3), subscription.recv())
+                tokio::time::timeout(HANG_BOUND, subscription.recv())
                     .await
                     .unwrap()
                     .unwrap();
@@ -1161,7 +1162,7 @@ mod tests {
             .unwrap();
         let mut subscription = service.subscribe().await.unwrap();
         async fn observed(subscription: &mut SettingsSubscription, expected: &str) {
-            tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            tokio::time::timeout(HANG_BOUND, async {
                 loop {
                     let snapshot = subscription.recv().await.unwrap();
                     if serde_json::to_value(snapshot).unwrap()["providers"]["codex"]["binaryPath"]

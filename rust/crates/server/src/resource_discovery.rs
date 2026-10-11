@@ -660,6 +660,7 @@ async fn fallback() -> Vec<LocalServer> {
 }
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
     fn server(port: u16, pid: f64) -> LocalServer {
@@ -746,7 +747,7 @@ mod tests {
             .unwrap();
         let mut ready = String::new();
         while !ready.contains("READY") {
-            let event = tokio::time::timeout(Duration::from_secs(5), output.recv())
+            let event = tokio::time::timeout(HANG_BOUND, output.recv())
                 .await
                 .unwrap()
                 .unwrap()
@@ -759,7 +760,7 @@ mod tests {
             );
         }
 
-        tokio::time::timeout(Duration::from_secs(5), registered.notified())
+        tokio::time::timeout(HANG_BOUND, registered.notified())
             .await
             .unwrap();
         assert_eq!(
@@ -1006,7 +1007,7 @@ mod tests {
             let discovery = discovery.clone();
             async move { discovery.scan(&urls).await }
         });
-        tokio::time::timeout(Duration::from_secs(3), enough.notified())
+        tokio::time::timeout(HANG_BOUND, enough.notified())
             .await
             .unwrap();
         gate.notify_one();

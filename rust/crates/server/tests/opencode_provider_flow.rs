@@ -3,6 +3,7 @@
 //! a wrapper script at an absolute path in the test's temp directory that runs `fixtures/opencode-fake-cli.py`
 //! (`--version` and `serve` on loopback); HOME and the data home stay in the temp directory, and no real `opencode`
 //! runs. A server a test started is ended on every exit path through the pid the server wrote for itself.
+use t3_server::test_support::HANG_BOUND;
 mod opencode_support;
 use serde_json::{Value, json};
 use std::path::PathBuf;
@@ -119,7 +120,7 @@ async fn a_two_x_install_lists_its_models_with_their_reasoning_options() {
     // The server it started is gone with the registry that owned it: its pipe reads to the end once it has died.
     assert!(install.pids.alive(), "the spawned server serves while the registry lives");
     drop(providers);
-    tokio::time::timeout(std::time::Duration::from_secs(30), dead).await.expect("the server outlived the registry").unwrap().unwrap();
+    tokio::time::timeout(HANG_BOUND, dead).await.expect("the server outlived the registry").unwrap().unwrap();
 }
 
 #[tokio::test]

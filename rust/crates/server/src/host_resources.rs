@@ -271,6 +271,7 @@ pub(crate) async fn vm_stat(command: NativeProcessTable) -> Option<f64> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::{HANG_BOUND, KILL_AFTER};
     use super::*;
     use serde_json::{Value, json};
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -437,7 +438,7 @@ mod tests {
                 row["input"].as_str().unwrap().to_owned(),
             ],
             "vm_stat",
-            Duration::from_secs(1),
+            HANG_BOUND,
             1_048_576,
         );
         let value = vm_stat(command.clone()).await;
@@ -453,7 +454,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let socket_path = dir.path().join("started.sock");
         let socket = tokio::net::UnixDatagram::bind(&socket_path).unwrap();
-        let command=NativeProcessTable::command("python3".into(),vec!["-c".into(),"import os,socket,sys,signal;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);signal.pause()".into(),socket_path.display().to_string()],"vm_stat",if timeout{Duration::from_secs(1)}else{Duration::from_secs(60)},1024);
+        let command=NativeProcessTable::command("python3".into(),vec!["-c".into(),"import os,socket,sys,signal;s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM);s.sendto(str(os.getpid()).encode(),sys.argv[1]);signal.pause()".into(),socket_path.display().to_string()],"vm_stat",if timeout{KILL_AFTER}else{HANG_BOUND},1024);
         let mut options = options(
             Arc::new(AtomicUsize::new(0)),
             Arc::new(tokio::sync::Notify::new()),
@@ -473,7 +474,7 @@ mod tests {
         let owned = host.clone();
         let read = tokio::spawn(async move { owned.read().await });
         let mut buf = [0; 64];
-        let len = tokio::time::timeout(Duration::from_secs(5), socket.recv(&mut buf))
+        let len = tokio::time::timeout(HANG_BOUND, socket.recv(&mut buf))
             .await
             .unwrap()
             .unwrap();

@@ -1381,6 +1381,7 @@ pub(crate) fn fixture_catalog(directory: &Path, scenario: &str) -> (Catalog, Acp
 }
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[cfg(unix)]
     fn package_fixture(
@@ -1431,7 +1432,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn catalog_prepares_npm_and_uv_then_launches_managed_providers_with_recipe_and_path() {
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for uv in [false, true] {
                 let directory = tempfile::tempdir().unwrap();
                 let (catalog, settings, environment) = package_fixture(directory.path(), uv);
@@ -1465,7 +1466,7 @@ mod tests {
                     process.binary.parent().unwrap().to_str().unwrap()
                 );
                 let peer = crate::acp_peer::ProcessPeer::spawn(process).unwrap();
-                let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(3));
+                let client = t3_acp::Client::new(Arc::new(peer.clone()), HANG_BOUND);
                 let initialized = client
                     .initialize(
                         json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}),
@@ -1491,7 +1492,7 @@ mod tests {
     #[tokio::test]
     async fn canceled_catalog_package_manager_retains_real_admission_until_reap_then_retry_installs()
      {
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for uv in [false, true] {
                 let directory = tempfile::tempdir().unwrap();
                 let (catalog, settings, mut environment) = package_fixture(directory.path(), uv);
@@ -1597,7 +1598,7 @@ mod tests {
     }
     #[tokio::test]
     async fn catalog_prepares_archives_then_resolves_and_initializes_the_managed_provider() {
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for kind in ["gz", "bz2", "zip"] {
                 let directory = tempfile::tempdir().unwrap();
                 let (catalog, settings) = archive_fixture(directory.path(), kind).await;
@@ -1619,7 +1620,7 @@ mod tests {
                     .await
                     .unwrap();
                 let peer = crate::acp_peer::ProcessPeer::spawn(process).unwrap();
-                let client = t3_acp::Client::new(Arc::new(peer.clone()), Duration::from_secs(3));
+                let client = t3_acp::Client::new(Arc::new(peer.clone()), HANG_BOUND);
                 let response = client
                     .initialize(
                         json!({"protocolVersion":2,"clientInfo":{"name":"test","version":"1"}}),
@@ -1637,7 +1638,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn canceled_catalog_extractor_holds_real_admission_until_reap_and_allows_clean_retry() {
-        tokio::time::timeout(Duration::from_secs(15),async {
+        tokio::time::timeout(HANG_BOUND,async {
             use std::os::unix::fs::PermissionsExt;
             let directory=tempfile::tempdir().unwrap();
             let (catalog,settings)=archive_fixture(directory.path(),"gz").await;
@@ -1673,7 +1674,7 @@ mod tests {
     }
     #[tokio::test]
     async fn cancelled_lock_admission_drops_unclaimed_owned_guard_after_os_create_finishes() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let directory = tempfile::tempdir().unwrap();
             let path = directory.path().join("install.lock");
             let task_path = path.clone();
@@ -1711,7 +1712,7 @@ mod tests {
     #[tokio::test]
     async fn cancelled_directory_mutation_retains_temp_cleanup_and_lock_until_last_operation_finishes()
      {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let directory = tempfile::tempdir().unwrap();
             let lock_path = directory.path().join("install.lock");
             let path = directory.path().join("temporary");
@@ -2014,7 +2015,7 @@ mod tests {
     #[tokio::test]
     async fn canceled_native_uninstall_retains_settings_and_install_admission_through_real_deletion()
      {
-        tokio::time::timeout(Duration::from_secs(10),async {
+        tokio::time::timeout(HANG_BOUND,async {
             let directory = tempfile::tempdir().unwrap();
             let (catalog,_) = fixture_catalog(directory.path(),"normal");
             let root = directory.path().join("tools/devin/1/linux-x86_64");

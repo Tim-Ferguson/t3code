@@ -520,9 +520,9 @@ impl ProviderAuthService {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use serde_json::{Value, json};
-    use std::time::Duration;
 
     async fn methods(states: &mut ProviderAuthChanges) -> ProviderAuthState {
         loop {
@@ -585,7 +585,7 @@ mod tests {
     }
     #[tokio::test]
     async fn shutdown_rejects_controller_lookup_queued_before_factory_admission_without_spawning() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
@@ -610,7 +610,7 @@ mod tests {
     }
     #[tokio::test]
     async fn reconfiguration_waits_admitted_logout_cleanup_without_holding_controller_map() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
@@ -653,7 +653,7 @@ mod tests {
     #[tokio::test]
     async fn unready_provider_real_login_is_owner_private_and_rebuild_cancels_owned_callback_scope()
     {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings: ServerSettings = serde_json::from_value(json!({"providerInstances":{
@@ -727,7 +727,7 @@ mod tests {
     #[tokio::test]
     async fn actual_login_and_logout_publish_readiness_then_enriched_authentication_without_rebuilding_controller()
      {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings = health_settings(&log, json!([]));
@@ -806,7 +806,7 @@ mod tests {
     #[tokio::test]
     async fn superseded_unauthenticated_probe_finishes_pending_confirmation_write_before_successful_login_commits()
      {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let log = root.path().join("agent.log");
             let settings = health_settings(&log, json!([]));
@@ -887,7 +887,7 @@ mod tests {
     #[tokio::test]
     async fn controller_shutdown_awaits_owned_background_probe_reap_after_readiness_was_published()
     {
-        tokio::time::timeout(Duration::from_secs(15),async{
+        tokio::time::timeout(HANG_BOUND,async{
             let root=tempfile::tempdir().unwrap();let path=std::fs::canonicalize(root.path()).unwrap();let log=path.join("agent.log");let socket_path=path.join("health.sock");let socket=tokio::net::UnixDatagram::bind(&socket_path).unwrap();
             let settings=health_settings(&log,json!([{"name":"AUTH_SCENARIO","value":"held-health"},{"name":"HEALTH_SOCKET","value":socket_path}]));let registry=ProviderRegistry::discover(&settings,&path).await.unwrap();
             let mut bytes=[0u8;1024];socket.recv(&mut bytes).await.unwrap(); // initial unauthenticated discovery, already reaped
@@ -899,7 +899,7 @@ mod tests {
     }
     #[tokio::test]
     async fn interrupted_and_deferred_enrichment_never_overwrite_foreground_live_configuration() {
-        tokio::time::timeout(Duration::from_secs(15),async{
+        tokio::time::timeout(HANG_BOUND,async{
             for deferred in [false,true] {
                 let root=tempfile::tempdir().unwrap();let path=std::fs::canonicalize(root.path()).unwrap();let log=path.join("agent.log");let socket_path=path.join("health.sock");let socket=tokio::net::UnixDatagram::bind(&socket_path).unwrap();
                 let settings=health_settings(&log,json!([{"name":"AUTH_SCENARIO","value":"held-health"},{"name":"HEALTH_SOCKET","value":socket_path}]));let registry=ProviderRegistry::discover(&settings,&path).await.unwrap();

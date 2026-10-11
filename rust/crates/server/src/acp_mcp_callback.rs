@@ -20,6 +20,7 @@ struct Metadata {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use axum::{
         Router,
@@ -189,7 +190,7 @@ mod tests {
     #[tokio::test]
     async fn interrupted_http_request_is_dropped_before_owned_disposal_returns() {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let bridge = Bridge::new(
                 format!("http://{}/mcp", listener.local_addr().unwrap()),

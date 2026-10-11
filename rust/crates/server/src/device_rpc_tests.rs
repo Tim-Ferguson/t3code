@@ -1,4 +1,5 @@
 //! Real device service, owned helper process and authenticated Effect transport.
+use crate::test_support::HANG_BOUND;
 use crate::{
     auth::AuthService,
     persistence::Store,
@@ -41,7 +42,7 @@ async fn next(socket: &mut Socket) -> Value {
 #[tokio::test]
 async fn local_device_rpc_preserves_consent_dynamic_scopes_typed_sessions_and_stop_while_ack_held()
 {
-    tokio::time::timeout(std::time::Duration::from_secs(30),async {
+    tokio::time::timeout(HANG_BOUND,async {
         let root=tempfile::tempdir().unwrap();let fixture=crate::device_service::tests::fixture(root.path()).await;
         let store=Store::memory().unwrap();let auth=AuthService::new(store.clone(),[44;32],"device_service_fixture".into(),"loopback-browser".into()).unwrap();
         let grant=|scopes|auth.issue_session("fixture","bearer-access-token",scopes,json!({"deviceType":"unknown"}),Utc::now(),chrono::Duration::hours(1)).unwrap().1;
@@ -120,7 +121,7 @@ async fn local_device_rpc_preserves_consent_dynamic_scopes_typed_sessions_and_st
 async fn device_test_host_summarizes_the_local_host_and_refuses_what_it_cannot_probe() {
     use crate::device_host_resolver::{DeviceHostResolver, DeviceHostResolverOptions};
     use std::os::unix::fs::PermissionsExt;
-    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+    tokio::time::timeout(HANG_BOUND, async {
         let root = tempfile::tempdir().unwrap();
         let fixture = crate::device_service::tests::fixture(root.path()).await;
         // `ssh -G` answers for the alias: `self` is this machine, anything else is elsewhere.

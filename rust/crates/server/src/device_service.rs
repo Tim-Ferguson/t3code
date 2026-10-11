@@ -1147,6 +1147,7 @@ fn error_message(error: &DeviceError) -> String {
 
 #[cfg(all(test, unix))]
 pub(crate) mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use crate::{
         device_toolchain::{DEVICE_HUB_VERSION, DeviceToolchain, ToolchainOptions},
@@ -1260,7 +1261,7 @@ pub(crate) mod tests {
         }
     }
     async fn path(socket: &tokio::net::UnixDatagram, expected: &str) -> u32 {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let mut bytes = [0; 4096];
                 let count = socket.recv(&mut bytes).await.unwrap();
@@ -1281,7 +1282,7 @@ pub(crate) mod tests {
         );
     }
     async fn agent_event(socket: &tokio::net::UnixDatagram, event: &str) {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let mut bytes = [0; 4096];
                 let size = socket.recv(&mut bytes).await.unwrap();
@@ -1296,7 +1297,7 @@ pub(crate) mod tests {
     }
     #[tokio::test]
     async fn canceled_agent_stop_preserves_cleanup_admission_before_restarting_agent() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let fixture = fixture_with_agent_stop_gate(root.path(), true).await;
             fixture
@@ -1357,7 +1358,7 @@ pub(crate) mod tests {
     }
     #[tokio::test]
     async fn canceled_host_stop_completes_owned_cleanup_before_reusable_startup() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let fixture = fixture_with_agent_stop_gate(root.path(), true).await;
             fixture
@@ -1398,7 +1399,7 @@ pub(crate) mod tests {
     }
     #[tokio::test]
     async fn agent_consent_starts_owned_daemon_and_disabling_agent_preserves_viewing_hub() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let fixture = fixture(root.path()).await;
             assert!(
@@ -1493,7 +1494,7 @@ pub(crate) mod tests {
     }
     #[tokio::test]
     async fn canceled_target_write_retains_lifecycle_and_shutdown_awaits_atomic_publication() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let fixture = fixture(root.path()).await;
             fixture
@@ -1563,7 +1564,7 @@ pub(crate) mod tests {
     }
     #[tokio::test]
     async fn screenshot_posts_both_vendor_routes_encodes_device_id_and_cancels_held_body() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let fixture = fixture(root.path()).await;
             assert!(fixture.service.current_readiness(None).is_none());
@@ -1611,7 +1612,7 @@ pub(crate) mod tests {
         tokio::time::pause();
         tokio::time::advance(Duration::from_secs(20)).await;
         tokio::time::resume();
-        let result = tokio::time::timeout(Duration::from_secs(5), request).await;
+        let result = tokio::time::timeout(HANG_BOUND, request).await;
         fixture.service.shutdown().await;
         let error = result
             .expect("screenshot deadline must finish after clock advance")
@@ -1776,7 +1777,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn revoked_agent_consent_between_readiness_and_target_admission_cannot_publish_endpoint()
     {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let fixture = fixture(root.path()).await;
             fixture

@@ -365,6 +365,7 @@ async fn run(
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+    use crate::test_support::HANG_BOUND;
     use std::os::unix::fs::PermissionsExt;
     fn fixture(directory: &std::path::Path, body: &str, max_bytes: usize) -> NativeProcessTable {
         let script = directory.join("process-table.py");
@@ -377,7 +378,7 @@ mod tests {
             args: vec![],
             label: "ps",
             windows: false,
-            timeout: Duration::from_secs(3),
+            timeout: HANG_BOUND,
             max_bytes,
             started: None,
             #[cfg(test)]

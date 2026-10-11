@@ -6,9 +6,10 @@
 //! `fixtures/acp-replay-agent.py` plays a recording: it compares every frame the Rust client sends
 //! with the recorded one and fails the scenario on the first difference. Tests wait on persisted
 //! events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
 
 const AGENT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/acp-replay-agent.py");
@@ -69,7 +70,7 @@ impl Harness {
     }
     async fn until_raw<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = self.store.projection("thread", &self.thread).unwrap().and_then(|view| check(&view)) {
                     return found;
@@ -82,7 +83,7 @@ impl Harness {
     }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        let outcome = tokio::time::timeout(Duration::from_secs(20), async {
+        let outcome = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

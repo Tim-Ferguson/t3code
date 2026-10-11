@@ -921,6 +921,7 @@ async fn run_authentication(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use tokio::sync::oneshot;
@@ -1035,7 +1036,7 @@ mod tests {
     }
     #[tokio::test]
     async fn owner_privacy_repeated_start_and_exact_response_drive_verification_and_success() {
-        tokio::time::timeout(Duration::from_secs(5),async{
+        tokio::time::timeout(HANG_BOUND,async{
         let(flow,_,mut events)=fixture(false,false,false,false);let mut visible=flow.subscribe("owner".into());let mut foreign=flow.subscribe("other".into());
         let started=flow.start("owner".into(),None,None,None,noop()).await.unwrap();let id=started.flow_id.as_ref().unwrap().0.to_string();
         assert_eq!(flow.start("owner".into(),None,None,None,noop()).await.unwrap().flow_id,started.flow_id);
@@ -1054,7 +1055,7 @@ mod tests {
     }
     #[tokio::test]
     async fn cancellation_waits_owned_auth_cleanup_before_idle_and_returns_unredacted_flow() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (flow, _, mut events) = fixture(false, true, false, false);
             let started = flow
                 .start("owner".into(), None, None, None, noop())
@@ -1084,7 +1085,7 @@ mod tests {
     }
     #[tokio::test]
     async fn controller_shutdown_cancels_initial_discovery_and_waits_its_cleanup() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (flow, _, mut events) = fixture(true, false, true, false);
             let Event::Methods(_held) = events.recv().await.unwrap() else {
                 panic!("methods")
@@ -1104,7 +1105,7 @@ mod tests {
     }
     #[tokio::test]
     async fn successful_access_is_retained_by_session_parent_and_survives_controller_rebuild() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (flow, _, _) = fixture(false, false, false, false);
             let stops = Arc::new(AtomicUsize::new(0));
             let stop_count = stops.clone();
@@ -1129,7 +1130,7 @@ mod tests {
     }
     #[tokio::test]
     async fn routed_stop_failure_still_closes_owned_scopes_and_never_authenticates() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (flow, _, mut events) = fixture(false, false, false, false);
             let mut states = flow.subscribe("owner".into());
             while states.recv().await.unwrap().methods.is_none() {}
@@ -1184,7 +1185,7 @@ mod tests {
     }
     #[tokio::test]
     async fn shared_invalidation_retains_admission_until_owned_scope_cleanup_after_caller_drop() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (flow, _, _) = fixture(false, false, false, false);
             let mut states = flow.subscribe("owner".into());
             while states.recv().await.unwrap().methods.is_none() {}
@@ -1227,7 +1228,7 @@ mod tests {
     }
     #[tokio::test]
     async fn shutdown_interrupts_held_postauth_refresh_and_waits_methods_cleanup() {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (flow, held, mut events) = fixture(false, false, true, true);
             // Initial refresh has a scoped cleanup barrier too.
             let Event::Cleanup("methods", release) = events.recv().await.unwrap() else {

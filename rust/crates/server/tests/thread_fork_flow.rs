@@ -5,6 +5,7 @@
 //! what no recording does: independent continuation of two forks, a fork into a new worktree,
 //! refusals, a portable fork of an interrupted run, a source that was archived or deleted, and
 //! checkpoints on a fork. Tests wait on committed events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -186,7 +187,7 @@ impl Fixture {
     async fn until(&self, thread: &str, mut check: impl FnMut(&Value) -> bool) -> Value {
         let mut events = self.store.subscribe();
         let mut last = Value::Null;
-        let waited = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        let waited = tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(view) = self.store.projection("thread", thread).unwrap() {
                     last = json!({"thread":view["thread"],"runs":view["runs"]});

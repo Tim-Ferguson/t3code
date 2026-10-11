@@ -29,6 +29,7 @@ enum Activity {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use crate::{
         execution::ExecutionService, launch::ThreadLaunchService, project::ProjectService,
@@ -79,7 +80,7 @@ mod tests {
         thread: &str,
         predicate: impl Fn(&Value) -> bool,
     ) -> Value {
-        tokio::time::timeout(std::time::Duration::from_secs(8), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let view = projection(store, thread).unwrap();
                 if predicate(&view) {
@@ -139,7 +140,7 @@ mod tests {
     }
     #[tokio::test]
     async fn credential_stop_captures_admitted_actor_before_its_first_poll_and_prevents_spawn() {
-        tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (root, store, providers) = setup("normal").await;
             let log = root.path().join("requests");
             let mut settings = serde_json::to_value(providers.settings()).unwrap();
@@ -199,7 +200,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn registry_auth_logout_reaps_captured_active_actor_after_controller_rebuild() {
-        tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let (root, store, providers) = setup("normal").await;
             let signal_path = root.path().join("requests.sock");
             let signal = tokio::net::UnixDatagram::bind(&signal_path).unwrap();
@@ -505,7 +506,7 @@ mod tests {
             .unwrap();
         let mut bytes = [0; 128];
         let length =
-            tokio::time::timeout(std::time::Duration::from_secs(5), signal.recv(&mut bytes))
+            tokio::time::timeout(HANG_BOUND, signal.recv(&mut bytes))
                 .await
                 .unwrap()
                 .unwrap();
@@ -516,7 +517,7 @@ mod tests {
             projection(&store, &thread).unwrap()["runs"][0]["status"],
             "starting"
         );
-        tokio::time::timeout(std::time::Duration::from_secs(5), execution.shutdown())
+        tokio::time::timeout(HANG_BOUND, execution.shutdown())
             .await
             .expect("Shutdown must interrupt initialization and await child reap");
         assert!(store.acquire_runtime_lease().is_ok());

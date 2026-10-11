@@ -383,6 +383,7 @@ impl McpDeviceTools {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[test]
     fn source_device_selection_guidance_and_png_oracle() {
@@ -432,7 +433,7 @@ mod tests {
     #[tokio::test]
     async fn actual_device_handlers_guard_before_start_pin_target_and_keep_thread_sessions_scoped()
     {
-        tokio::time::timeout(std::time::Duration::from_secs(20),async {
+        tokio::time::timeout(HANG_BOUND,async {
             let root=tempfile::tempdir().unwrap();let fixture=crate::device_service::tests::fixture(root.path()).await;
             let(store,scope)=crate::mcp_invocation::tests::fixture();
             let tools=McpDeviceTools{devices:fixture.service.clone(),store:store.clone(),state_dir:root.path().join("launcher-state"),executable:std::env::current_exe().unwrap()};

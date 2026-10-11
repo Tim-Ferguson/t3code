@@ -9,6 +9,8 @@ use std::{
     time::Duration,
 };
 
+mod common;
+use common::HANG_BOUND;
 use futures_util::future::BoxFuture;
 use t3_vcs::{
     VcsError, VcsProcess, VcsProcessInput,
@@ -238,13 +240,13 @@ async fn abandoning_a_run_ends_the_children_the_process_started() {
         }
     });
     let process = VcsProcess::new();
-    let run = process.run(sh(&format!("sleep 30 > {} & wait", fifo.display())));
+    let run = process.run(sh(&format!("sleep 3600 > {} & wait", fifo.display())));
     tokio::select! {
         _ = run => panic!("the script should still be running"),
         _ = writer_exists => {}
     }
     // The run was dropped; SIGTERM went to its whole process group.
-    tokio::time::timeout(Duration::from_secs(20), reader)
+    tokio::time::timeout(HANG_BOUND, reader)
         .await
         .expect("the grandchild outlived its process group")
         .unwrap();

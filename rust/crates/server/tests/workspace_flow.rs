@@ -5,6 +5,7 @@
 //! reaching `subscribeWorktreeSetup`, and failures and cancellation clean up as the original does.
 //! A real server on a loopback socket, a temporary git repository, the recording Codex fixture and
 //! real PTY shells; nothing outside the temporary directory is read or written.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -168,7 +169,7 @@ fn success(exit: &Value) -> &Value {
 
 /// Reads a stream until a chunk value satisfies `wanted`, acknowledging every chunk.
 async fn stream_until(socket: &mut Socket, id: u64, wanted: impl Fn(&Value) -> bool) -> Value {
-    tokio::time::timeout(std::time::Duration::from_secs(30), async {
+    tokio::time::timeout(HANG_BOUND, async {
         loop {
             let message: Value = serde_json::from_str(socket.next().await.unwrap().unwrap().to_text().unwrap()).unwrap();
             assert_ne!(message["_tag"], "Exit", "stream ended: {message}");
@@ -201,7 +202,7 @@ async fn subscribe(fixture: &Fixture, thread: &str) -> Socket {
 /// Waits on committed events until the thread satisfies `done`.
 async fn until(store: &Store, events: &mut tokio::sync::broadcast::Receiver<Vec<StoredEvent>>, thread: &str, done: impl Fn(&Value) -> bool) -> Value {
     let mut last = Value::Null;
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+    let outcome = tokio::time::timeout(HANG_BOUND, async {
         loop {
             if let Some(view) = store.projection("thread", thread).unwrap() {
                 last = json!({"thread":view["thread"],"runs":view["runs"],"items":view["turnItems"]});

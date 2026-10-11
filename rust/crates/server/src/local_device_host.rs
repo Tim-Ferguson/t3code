@@ -693,6 +693,7 @@ async fn supervise(
 }
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     fn noop() -> DevicePhase {
         Arc::new(|_, _| Box::pin(async {}))
@@ -759,7 +760,7 @@ server.serve_forever()
     }
     async fn milestone(socket: &tokio::net::UnixDatagram) -> serde_json::Value {
         let mut bytes = [0; 32768];
-        let length = tokio::time::timeout(Duration::from_secs(5), socket.recv(&mut bytes))
+        let length = tokio::time::timeout(HANG_BOUND, socket.recv(&mut bytes))
             .await
             .unwrap()
             .unwrap();
@@ -818,7 +819,7 @@ server.serve_forever()
         published.borrow_and_update();
         let _ = reqwest::get(format!("{}/crash", first.origin)).await;
         tokio::time::timeout(
-            Duration::from_secs(5),
+            HANG_BOUND,
             published.wait_for(|ready| ready.as_ref().is_some_and(|ready| ready.pid != first.pid)),
         )
         .await
@@ -851,7 +852,7 @@ server.serve_forever()
         let pid = witness["pid"].as_u64().unwrap() as u32;
         request.abort();
         assert!(request.await.unwrap_err().is_cancelled());
-        tokio::time::timeout(Duration::from_secs(5), host.shutdown())
+        tokio::time::timeout(HANG_BOUND, host.shutdown())
             .await
             .unwrap();
         reaped(pid);
@@ -886,7 +887,7 @@ server.serve_forever()
         entered.notified().await;
         request.abort();
         assert!(request.await.unwrap_err().is_cancelled());
-        tokio::time::timeout(Duration::from_secs(5), host.shutdown())
+        tokio::time::timeout(HANG_BOUND, host.shutdown())
             .await
             .unwrap();
         assert!(host.current().is_none());

@@ -192,6 +192,7 @@ pub(crate) async fn extract_with_environment(
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[test]
     fn original_archive_policy_fixtures() {
@@ -249,7 +250,7 @@ mod tests {
     }
     #[tokio::test]
     async fn actual_tar_and_zip_extract_only_after_complete_safe_listing() {
-        tokio::time::timeout(std::time::Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for (kind, compression) in [
                 (ArchiveKind::TarGz, "gz"),
                 (ArchiveKind::TarBz2, "bz2"),

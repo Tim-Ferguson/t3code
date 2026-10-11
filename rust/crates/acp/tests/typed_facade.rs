@@ -1,5 +1,7 @@
 //! The public typed facade must represent already validated source outputs
 //! without narrowing legacy/null/future shapes during compatibility conversion.
+mod support;
+use support::HANG_BOUND;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use t3_acp::types::*;
@@ -217,10 +219,10 @@ async fn all_eighteen_typed_operations_match_original_negotiated_v1_and_v2_calls
             ),
             events,
         });
-        let client = t3_acp::Client::new(peer.clone(), std::time::Duration::from_secs(3));
+        let client = t3_acp::Client::new(peer.clone(), HANG_BOUND);
         for fixture in cases {
             let result = tokio::time::timeout(
-                std::time::Duration::from_secs(3),
+                HANG_BOUND,
                 invoke_typed(
                     &client,
                     fixture["method"].as_str().unwrap(),

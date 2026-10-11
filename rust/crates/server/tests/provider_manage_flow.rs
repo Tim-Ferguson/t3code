@@ -2,6 +2,7 @@
 //! are fake Codex CLIs inside the temp T3 home, update tools are fake `npm` scripts found only through a
 //! temporary search path, and the npm registry is a loopback server.
 #![cfg(unix)]
+use t3_server::test_support::HANG_BOUND;
 mod provider_manage_support;
 use provider_manage_support::*;
 use serde_json::{Value, json};
@@ -226,7 +227,7 @@ async fn update_outcomes_failed_unchanged_and_refused_are_states_of_the_instance
     let timed_out = rpc(&mut manager, 4, "server.updateProvider", json!({"provider":"codex"})).await;
     let state = &provider(&success(&timed_out)["providers"], "codex")["updateState"];
     assert_eq!((state["status"].as_str(), state["message"].as_str()), (Some("failed"), Some("Update timed out.")));
-    fixture.harness.registry.management().configure(|options| options.update_timeout = std::time::Duration::from_secs(300));
+    fixture.harness.registry.management().configure(|options| options.update_timeout = HANG_BOUND);
 
     // A latest version this release cannot run is not installed.
     *fixture.registry.version.lock().unwrap() = Some("0.100.0".into());

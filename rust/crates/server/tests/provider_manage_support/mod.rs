@@ -2,6 +2,7 @@
 //! provider is either disabled or a fake executable at an absolute path inside that home, update tools are
 //! fakes found only through a temporary search path, and nothing reads or writes outside the temp tree.
 #![allow(dead_code)]
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{Value, json};
@@ -122,15 +123,12 @@ impl Harness {
 pub async fn send(socket: &mut Socket, value: Value) {
     socket.send(Message::Text(value.to_string().into())).await.unwrap();
 }
-/// How long any one step of a flow may wait for the server or a fake tool before the test fails naming it.
-/// Every wait here is on a real milestone; this bound exists only so a regression that never delivers the
-/// milestone fails with a message instead of hanging the whole suite.
-pub const STEP_DEADLINE: std::time::Duration = std::time::Duration::from_secs(120);
-/// Runs `step` under [`STEP_DEADLINE`]; on expiry the test fails with `what`.
+/// Runs `step` under [`HANG_BOUND`], which exists only so a regression that never delivers the milestone it waits on fails
+/// with a message naming it instead of hanging the whole suite; on expiry the test fails with `what`.
 pub async fn within<T>(what: impl std::fmt::Display, step: impl std::future::Future<Output = T>) -> T {
-    match tokio::time::timeout(STEP_DEADLINE, step).await {
+    match tokio::time::timeout(HANG_BOUND, step).await {
         Ok(value) => value,
-        Err(_) => panic!("no progress within {STEP_DEADLINE:?} while {what}"),
+        Err(_) => panic!("no progress within {HANG_BOUND:?} while {what}"),
     }
 }
 pub async fn next(socket: &mut Socket) -> Value {
@@ -142,7 +140,7 @@ pub async fn next_while(socket: &mut Socket, what: impl std::fmt::Display) -> Va
     serde_json::from_str(message.to_text().unwrap()).unwrap()
 }
 /// Runs a blocking closure (a FIFO open or read, which has no timeout of its own) on a thread the runtime
-/// does not join, so a step that never completes fails the test at [`STEP_DEADLINE`] instead of keeping the
+/// does not join, so a step that never completes fails the test at [`HANG_BOUND`] instead of keeping the
 /// runtime from shutting down.
 pub async fn blocking_step<T: Send + 'static>(what: impl std::fmt::Display, work: impl FnOnce() -> T + Send + 'static) -> T {
     let (done, finished) = tokio::sync::oneshot::channel();

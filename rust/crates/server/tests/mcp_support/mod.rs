@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 //! The harness the MCP tool tests share: a store, the scripted fake Codex, an execution service and the
 //! MCP HTTP service.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc};
 use t3_server::{
     execution::ExecutionService, launch::ThreadLaunchService, mcp_control::McpControlTools, mcp_http::McpHttpService, mcp_sessions::{CredentialRequest, McpSessionRegistry},
     persistence::Store, project::ProjectService, provider_registry::ProviderRegistry, secret_requests::SecretRequests,
@@ -95,7 +96,7 @@ impl Harness {
 
     pub async fn until<T>(&self, thread: &str, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(view) = self.store.projection("thread", thread).unwrap() {
                     if let Some(found) = check(&view) {

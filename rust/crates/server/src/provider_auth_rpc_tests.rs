@@ -1,4 +1,5 @@
 //! Actual scoped Effect socket with two independent authenticated owners.
+use crate::test_support::HANG_BOUND;
 use crate::{
     acp_registry_rpc_tests::{Socket, connect, rpc},
     auth::AuthService,
@@ -46,7 +47,7 @@ async fn phase(socket: &mut Socket, id: u32, wanted: ProviderAuthPhase) -> Provi
 }
 #[tokio::test]
 async fn provider_auth_effect_socket_enforces_scope_owner_privacy_cancel_reconnect_and_logout() {
-    tokio::time::timeout(std::time::Duration::from_secs(20),async{
+    tokio::time::timeout(HANG_BOUND,async{
         let root=tempfile::tempdir().unwrap();let log=root.path().join("agent.log");
         let settings:ServerSettings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"agent":{"driver":"acpRegistry","enabled":true,"config":{"source":"local","commandPath":"python3","commandArgs":[format!("{}/tests/fixtures/acp-auth-provider.py",env!("CARGO_MANIFEST_DIR")),log,"2"]}}}})).unwrap();
         let registry=ProviderRegistry::discover(&settings,root.path()).await.unwrap();

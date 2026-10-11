@@ -58,6 +58,7 @@ pub struct TerminalManagerOptions {
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use std::os::unix::fs::PermissionsExt;
     async fn fixture() -> (tempfile::TempDir, TerminalManager) {
@@ -94,7 +95,7 @@ mod tests {
         .unwrap()
     }
     async fn next(subscription: &mut TerminalSubscription) -> Value {
-        tokio::time::timeout(Duration::from_secs(3), subscription.recv())
+        tokio::time::timeout(HANG_BOUND, subscription.recv())
             .await
             .unwrap()
             .unwrap()
@@ -287,10 +288,10 @@ mod tests {
         let opening = manager.clone();
         let input = open_input(directory.path());
         let request = tokio::spawn(async move { opening.open(input).await });
-        tokio::time::timeout(Duration::from_secs(3), entered.notified())
+        tokio::time::timeout(HANG_BOUND, entered.notified())
             .await
             .unwrap();
-        tokio::time::timeout(Duration::from_secs(3), manager.shutdown())
+        tokio::time::timeout(HANG_BOUND, manager.shutdown())
             .await
             .unwrap();
         dropped.notified().await;
@@ -334,7 +335,7 @@ mod tests {
         let gate = manager.0.history.block_next_persist(Some(""));
         let clearing = manager.clone();
         let clear = tokio::spawn(async move { clearing.clear(observe_input()).await });
-        tokio::time::timeout(Duration::from_secs(3), gate.entered.notified())
+        tokio::time::timeout(HANG_BOUND, gate.entered.notified())
             .await
             .unwrap();
         let (arrived, arrival) = tokio::sync::oneshot::channel();
@@ -343,7 +344,7 @@ mod tests {
             .write(write_input("ordered-after-clear\n"))
             .await
             .unwrap();
-        tokio::time::timeout(Duration::from_secs(3), arrival)
+        tokio::time::timeout(HANG_BOUND, arrival)
             .await
             .unwrap()
             .unwrap();
@@ -429,7 +430,7 @@ mod tests {
         let opening = manager.clone();
         let input = open_input(directory.path());
         let started = tokio::spawn(async move { opening.open(input).await });
-        tokio::time::timeout(Duration::from_secs(3), gate.entered.notified())
+        tokio::time::timeout(HANG_BOUND, gate.entered.notified())
             .await
             .unwrap();
         let pid = gate.pid.load(Ordering::SeqCst);
@@ -438,20 +439,20 @@ mod tests {
         let closing = manager.clone();
         let shutdown = tokio::spawn(async move { closing.shutdown().await });
         tokio::time::timeout(
-            Duration::from_secs(3),
+            HANG_BOUND,
             manager.0.shutdown_started.notified(),
         )
         .await
         .unwrap();
         assert!(!shutdown.is_finished());
         gate.release.notify_one();
-        let snapshot = tokio::time::timeout(Duration::from_secs(3), started)
+        let snapshot = tokio::time::timeout(HANG_BOUND, started)
             .await
             .unwrap()
             .unwrap()
             .unwrap();
         assert_eq!(snapshot.status, TerminalSessionStatus::Error);
-        tokio::time::timeout(Duration::from_secs(3), shutdown)
+        tokio::time::timeout(HANG_BOUND, shutdown)
             .await
             .unwrap()
             .unwrap();

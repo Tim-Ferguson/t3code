@@ -691,6 +691,10 @@ async fn owner(
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
+    /// How long the child has, after the release signals it, to run its SIGTERM handler before it is killed. The child has
+    /// already reported in, so this covers only the signal being delivered, not a start; the test takes this long to finish.
+    const SIGNAL_LATENCY: Duration = Duration::from_secs(5);
     use super::*;
     use futures_util::{future::join_all, poll};
     use std::task::Poll;
@@ -725,7 +729,7 @@ mod tests {
         );
     }
     async fn bounded<T>(future: impl std::future::Future<Output = T>) -> T {
-        tokio::time::timeout(Duration::from_secs(15), future)
+        tokio::time::timeout(HANG_BOUND, future)
             .await
             .expect("owned terminal milestone")
     }
@@ -964,7 +968,7 @@ mod tests {
             let socket_path=directory.path().join("milestone.sock");
             let milestones=tokio::net::UnixDatagram::bind(&socket_path).unwrap();
             let script="import os,signal,socket,sys\ns=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM)\ndef term(_s,_f): s.sendto(b'term',sys.argv[1])\nsignal.signal(signal.SIGTERM,term)\ns.sendto(str(os.getpid()).encode(),sys.argv[1])\nwhile True: signal.pause()";
-            let mut options=Options::new(directory.path().to_owned());options.force_kill_after=Duration::from_millis(30);
+            let mut options=Options::new(directory.path().to_owned());options.force_kill_after=SIGNAL_LATENCY;
             let terminals=Terminals::new(options);
             let created=terminals.create(&json!({"sessionId":"s","command":"/usr/bin/python3","args":["-c",script,socket_path]}),&IndexMap::new()).await.unwrap();
             let mut bytes=[0;128];let size=milestones.recv(&mut bytes).await.unwrap();

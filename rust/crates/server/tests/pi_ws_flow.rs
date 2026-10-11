@@ -4,11 +4,12 @@
 //! question, a stop followed by another turn, a session that survives the server restarting, the T3 MCP credential reaching
 //! Pi, and the process ending with the server. The wrapper is at an absolute path in the temp home; HOME stays there; no real
 //! `pi` runs and nothing leaves loopback. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod provider_manage_support;
 use chrono::Utc;
 use provider_manage_support::{Socket, provider, rpc, success};
 use serde_json::{Value, json};
-use std::{path::{Path, PathBuf}, time::Duration};
+use std::{path::{Path, PathBuf}};
 use t3_contracts::AuthEnvironmentScope;
 use t3_server::{
     auth::AuthService,
@@ -316,7 +317,7 @@ async fn the_t3_mcp_credential_reaches_pi_and_works_against_the_server() {
     let execution = ExecutionService::start(store.clone(), providers.clone());
     let mut events = store.subscribe();
     execution.dispatch(&json!({"type":"message.dispatch","commandId":"m1","threadId":thread,"messageId":"m1","text":"mcp tools","attachments":[],"dispatchMode":{"type":"start_immediately"}}), Utc::now()).unwrap();
-    let run = tokio::time::timeout(Duration::from_secs(120), async {
+    let run = tokio::time::timeout(HANG_BOUND, async {
         loop {
             let view = store.projection("thread", &thread).unwrap().unwrap();
             if let Some(run) = view["runs"][0].as_object().filter(|run| matches!(run["status"].as_str(), Some("completed" | "failed"))) {

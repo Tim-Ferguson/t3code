@@ -1242,6 +1242,7 @@ fn authentication_required(error: &AcpError) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     fn instance(generation: u8) -> AcpInstance {
         let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-provider.py");
@@ -1249,7 +1250,7 @@ mod tests {
     }
     #[tokio::test]
     async fn normal_session_authenticates_only_after_required_and_retries_exactly_once() {
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for generation in [1, 2] {
                 for (scenario, configured, expected_auth, expected_setups, successful) in [
                     ("auth-ready", "agent", 0, 1, true),
@@ -1316,7 +1317,7 @@ mod tests {
     }
     #[tokio::test]
     async fn discovery_surfaces_auth_required_without_attempting_headless_authentication() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for generation in [1, 2] {
                 for configured in ["", "agent"] {
                     let root = tempfile::tempdir().unwrap();
@@ -1369,7 +1370,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn foreground_connect_interrupts_matching_real_discovery_and_waits_owned_probe_reap() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let root = tempfile::tempdir().unwrap();
             let signal_path = root.path().join("signal.sock");
             let signal = tokio::net::UnixDatagram::bind(&signal_path).unwrap();
@@ -1420,7 +1421,7 @@ mod tests {
     #[tokio::test]
     async fn real_url_consent_and_live_configuration_survive_registry_replacement_and_interleaved_mutations()
      {
-        tokio::time::timeout(Duration::from_secs(20),async {
+        tokio::time::timeout(HANG_BOUND,async {
             let root=tempfile::tempdir().unwrap();
             let configured=coordinator_instance(root.path(),"state");
             let settings:t3_contracts::ServerSettings=serde_json::from_value(json!({
@@ -1492,7 +1493,7 @@ mod tests {
     }
     #[tokio::test]
     async fn config_only_initial_mode_catalog_seeds_latest_mode_state_before_legacy_notification() {
-        tokio::time::timeout(Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let directory = tempfile::tempdir().unwrap();
             let provider = coordinator_instance(directory.path(), "config-only");
             let mut session = provider
@@ -1568,7 +1569,7 @@ mod tests {
                 }
                 _ => panic!("expected permission"),
             }
-            let response = tokio::time::timeout(Duration::from_secs(5), task)
+            let response = tokio::time::timeout(HANG_BOUND, task)
                 .await
                 .unwrap()
                 .unwrap()
@@ -1618,7 +1619,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            tokio::time::timeout(Duration::from_secs(5), task)
+            tokio::time::timeout(HANG_BOUND, task)
                 .await
                 .unwrap()
                 .unwrap()
@@ -1644,7 +1645,7 @@ mod tests {
     async fn reaped(
         events: &mut tokio::sync::broadcast::Receiver<crate::provider_process::ProcessEvent>,
     ) {
-        tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if matches!(
                     events.recv().await.unwrap(),
@@ -1671,7 +1672,7 @@ mod tests {
                     tokio::spawn(
                         async move { instance.start_peer(peer, &root, None, false).await },
                     );
-                tokio::time::timeout(Duration::from_secs(5), async {
+                tokio::time::timeout(HANG_BOUND, async {
                     loop {
                         if let crate::provider_process::ProcessEvent::Notification {
                             method, ..
@@ -1707,7 +1708,7 @@ mod tests {
     }
     #[tokio::test]
     async fn resolved_devin_process_callbacks_require_grant_and_render_owned_terminal_output() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let cwd = tempfile::tempdir().unwrap();
             let mut instance = instance(2);
             instance
@@ -1788,7 +1789,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn setup_failure_and_cancellation_await_client_terminal_cleanup_before_owner_release() {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(HANG_BOUND, async {
             for scenario in ["fail-initialize", "hold-initialize"] {
                 let cwd = tempfile::tempdir().unwrap();
                 let instance = instance(2);

@@ -487,6 +487,7 @@ impl PackageInstaller<'_> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[test]
     fn original_package_policy_fixtures() {
@@ -541,7 +542,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn actual_npm_and_uv_managers_use_owned_prefixes_and_validate_cached_identity() {
-        tokio::time::timeout(Duration::from_secs(20), async {
+        tokio::time::timeout(HANG_BOUND, async {
             use std::os::unix::fs::PermissionsExt;
             for distribution in [Distribution::Npm,Distribution::Uv] {
                 let directory=tempfile::tempdir().unwrap();

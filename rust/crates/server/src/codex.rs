@@ -575,6 +575,7 @@ pub fn tokenize_cli_args(value: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[tokio::test]
     async fn reusable_fixture_emits_tool_execution_only_after_approval_acceptance() {
@@ -596,13 +597,13 @@ mod tests {
                 .request(
                     "thread/start",
                     json!({"cwd":directory.path(),"model":"fixture-model"}),
-                    Duration::from_secs(2),
+                    HANG_BOUND,
                 )
                 .await
                 .unwrap();
-            connection.process.request("turn/start",json!({"threadId":thread["thread"]["id"],"input":[{"type":"text","text":"[approval]"}]}),Duration::from_secs(2)).await.unwrap();
+            connection.process.request("turn/start",json!({"threadId":thread["thread"]["id"],"input":[{"type":"text","text":"[approval]"}]}),HANG_BOUND).await.unwrap();
             let id = loop {
-                match tokio::time::timeout(Duration::from_secs(2), connection.events.recv())
+                match tokio::time::timeout(HANG_BOUND, connection.events.recv())
                     .await
                     .unwrap()
                     .unwrap()
@@ -625,7 +626,7 @@ mod tests {
             let mut saw_output = false;
             let mut successful_execution = false;
             loop {
-                match tokio::time::timeout(Duration::from_secs(2), connection.events.recv())
+                match tokio::time::timeout(HANG_BOUND, connection.events.recv())
                     .await
                     .unwrap()
                     .unwrap()
@@ -724,7 +725,7 @@ mod tests {
             environment: HashMap::new(),
         };
         let mut connection = instance.connect(directory.path()).await.unwrap();
-        let event = tokio::time::timeout(Duration::from_secs(2), connection.events.recv())
+        let event = tokio::time::timeout(HANG_BOUND, connection.events.recv())
             .await
             .unwrap()
             .unwrap();
@@ -738,7 +739,7 @@ mod tests {
             .await
             .unwrap();
         assert!(
-            matches!(tokio::time::timeout(Duration::from_secs(2),connection.events.recv()).await.unwrap().unwrap(),ProcessEvent::Notification{method,params} if method=="boot-answered"&&params["decision"]=="accept")
+            matches!(tokio::time::timeout(HANG_BOUND,connection.events.recv()).await.unwrap().unwrap(),ProcessEvent::Notification{method,params} if method=="boot-answered"&&params["decision"]=="accept")
         );
     }
     #[tokio::test]

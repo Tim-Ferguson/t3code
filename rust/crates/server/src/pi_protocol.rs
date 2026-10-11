@@ -368,6 +368,7 @@ impl Drop for PiProcess {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     fn frames(chunks: &[&[u8]]) -> Vec<String> {
         let mut framer = Framer::new();
@@ -469,7 +470,7 @@ mod tests {
                 std::fs::File::open(witness).unwrap().read_to_end(&mut sink).unwrap();
             }
         });
-        let script = format!("trap '' TERM; (trap '' TERM; exec sleep 60) > '{}' & echo '{{\"type\":\"ready\"}}'; wait", witness.display());
+        let script = format!("trap '' TERM; (trap '' TERM; exec sleep 3600) > '{}' & echo '{{\"type\":\"ready\"}}'; wait", witness.display());
         let (process, mut events) = PiProcess::spawn(&launch(&script)).unwrap();
         loop {
             if let Event::Record(record) = events.recv().await.unwrap() {
@@ -477,7 +478,6 @@ mod tests {
                 break;
             }
         }
-        let started = std::time::Instant::now();
         process.terminate().await;
         let closed = loop {
             if let Event::Closed(exit) = events.recv().await.unwrap() {
@@ -485,7 +485,7 @@ mod tests {
             }
         };
         assert!(closed.closed_by_host);
-        reader.await.unwrap();
-        assert!(started.elapsed() < Duration::from_secs(30), "the stop must end the process the session started, not wait for it");
+        // The grandchild sleeps for an hour: the pipe closes now only if the stop ended it rather than waited for it.
+        tokio::time::timeout(HANG_BOUND, reader).await.expect("the stop must end the process the session started, not wait for it").unwrap();
     }
 }

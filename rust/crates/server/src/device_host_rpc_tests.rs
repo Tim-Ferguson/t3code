@@ -1,4 +1,5 @@
 //! Settings mutation exercises the real resolver and durable owner over Effect RPC.
+use crate::test_support::HANG_BOUND;
 use crate::{
     auth::AuthService,
     device_host_resolver::{DeviceHostResolver, DeviceHostResolverOptions},
@@ -49,7 +50,7 @@ fn host(target: &str) -> Value {
 #[tokio::test]
 async fn settings_socket_filters_only_self_aliases_and_cancelled_resolution_cannot_mutate_owner() {
     use std::os::unix::fs::PermissionsExt;
-    tokio::time::timeout(std::time::Duration::from_secs(15),async {
+    tokio::time::timeout(HANG_BOUND,async {
         let directory=tempfile::tempdir().unwrap();
         let binary=directory.path().join("ssh.py");
         std::fs::write(&binary,"#!/usr/bin/env python3\nimport sys\nt=sys.argv[-1]\nassert '-G' in sys.argv\nprint('hostname '+{'self':'100.65.180.100','loopback':'127.0.1.1','held':'held.test','unresolved':'unresolved.test'}.get(t,'192.0.2.1'))\nprint('port '+('2222' if t=='forwarded' else '22'))\nif t=='proxy':print('proxyjump bastion')\nif t=='failed':sys.exit(3)\n").unwrap();

@@ -2,6 +2,7 @@
 //! against a scripted status source. Time is tokio's paused clock, so intervals are crossed by
 //! advancing it; every wait is for an event or a milestone, never a sleep.
 use super::*;
+use crate::test_support::HANG_BOUND;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering::SeqCst};
 use t3_vcs::status::{BranchChanges, WorkingTree};
 use tokio::sync::Notify;
@@ -198,7 +199,7 @@ fn snapshot(local: VcsStatusLocalResult, remote: Option<VcsStatusRemoteResult>) 
 
 #[tokio::test]
 async fn reuses_the_cached_status_across_repeated_reads() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     let expected = merge_status(&base_local(), Some(&base_remote()));
     assert_eq!(f.broadcaster.get_status("/repo").await.unwrap(), expected);
     assert_eq!(f.broadcaster.get_status("/repo").await.unwrap(), expected);
@@ -207,7 +208,7 @@ async fn reuses_the_cached_status_across_repeated_reads() {
 
 #[tokio::test]
 async fn refreshes_the_cached_snapshot_after_explicit_invalidation() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     f.broadcaster.get_status("/repo").await.unwrap();
     *f.state.local.lock().unwrap() = Some(local("feature/updated-status"));
     *f.state.remote.lock().unwrap() = Some(remote(2, 0, None));
@@ -224,7 +225,7 @@ async fn refreshes_the_cached_snapshot_after_explicit_invalidation() {
 
 #[tokio::test]
 async fn keeps_the_cached_snapshot_unchanged_when_a_refresh_branch_fails() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     f.broadcaster.get_status("/repo").await.unwrap();
     *f.state.local.lock().unwrap() = Some(local("feature/partial-refresh"));
     *f.state.remote.lock().unwrap() = Some(remote(3, 0, None));
@@ -243,7 +244,7 @@ async fn keeps_the_cached_snapshot_unchanged_when_a_refresh_branch_fails() {
 
 #[tokio::test]
 async fn refreshes_only_the_cached_local_snapshot_when_requested() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     f.broadcaster.get_status("/repo").await.unwrap();
     let mut changed = local("feature/local-only-refresh");
     changed.has_working_tree_changes = true;
@@ -262,7 +263,7 @@ async fn refreshes_only_the_cached_local_snapshot_when_requested() {
 #[cfg(unix)]
 #[tokio::test]
 async fn normalizes_symlinked_cwds_before_cache_lookup_and_source_calls() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     let (real, links) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let link = links.path().join("repo-link");
     std::os::unix::fs::symlink(real.path(), &link).unwrap();
@@ -287,7 +288,7 @@ async fn normalizes_symlinked_cwds_before_cache_lookup_and_source_calls() {
 
 #[tokio::test]
 async fn refreshing_a_loaded_cwd_rereads_remote_status_without_fetching() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     // Nobody loaded this cwd yet: no host request is spent.
     assert_eq!(
         f.broadcaster
@@ -315,7 +316,7 @@ async fn refreshing_a_loaded_cwd_rereads_remote_status_without_fetching() {
 
 #[tokio::test]
 async fn refreshing_a_loaded_cwd_is_skipped_when_background_policy_pauses_it() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     f.allowed.store(false, SeqCst);
     f.broadcaster.get_status("/repo").await.unwrap();
     assert_eq!(
@@ -331,7 +332,7 @@ async fn refreshing_a_loaded_cwd_is_skipped_when_background_policy_pauses_it() {
 
 #[tokio::test]
 async fn an_initial_status_read_cannot_overwrite_an_explicit_refresh() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     let gate = Arc::new(Gate::default());
     *f.state.gate.lock().unwrap() = Some(gate.clone());
     f.state
@@ -365,7 +366,7 @@ async fn an_initial_status_read_cannot_overwrite_an_explicit_refresh() {
 
 #[tokio::test]
 async fn an_explicit_refresh_reads_local_totals_after_the_fetch() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     let gate = Arc::new(Gate::default());
     *f.state.gate.lock().unwrap() = Some(gate.clone());
     let refresh = tokio::spawn({
@@ -390,7 +391,7 @@ async fn an_explicit_refresh_reads_local_totals_after_the_fetch() {
 
 #[tokio::test]
 async fn automatically_pulls_a_clean_default_branch_that_is_behind() {
-    let f = fixture(Duration::from_secs(30));
+    let f = fixture(HANG_BOUND);
     let mut main = local("main");
     main.is_default_ref = true;
     *f.state.local.lock().unwrap() = Some(main);
@@ -408,7 +409,7 @@ async fn automatically_pulls_a_clean_default_branch_that_is_behind() {
 #[tokio::test]
 async fn auto_pull_leaves_dirty_ahead_or_disabled_checkouts_alone() {
     for (dirty, ahead, enabled) in [(true, 0, true), (false, 1, true), (false, 0, false)] {
-        let f = fixture(Duration::from_secs(30));
+        let f = fixture(HANG_BOUND);
         let mut main = local("main");
         main.is_default_ref = true;
         main.has_working_tree_changes = dirty;

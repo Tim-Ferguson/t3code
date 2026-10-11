@@ -4,6 +4,7 @@
 //! outbox effect it had claimed, and the worktree it had created. A second `ExecutionService`
 //! on the same store is the restart. Nothing outside the temporary directory is touched and the
 //! provider is the recording Codex fixture.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
 use t3_server::{
@@ -117,7 +118,7 @@ impl Fixture {
 
 async fn until(store: &Store, events: &mut tokio::sync::broadcast::Receiver<Vec<StoredEvent>>, done: impl Fn(&Value) -> bool) -> Value {
     let mut last = Value::Null;
-    let outcome = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+    let outcome = tokio::time::timeout(HANG_BOUND, async {
         loop {
             if let Some(view) = store.projection("thread", "thread").unwrap() {
                 last = json!({"thread":view["thread"],"runs":view["runs"]});

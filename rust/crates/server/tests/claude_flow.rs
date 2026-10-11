@@ -1,9 +1,10 @@
 #![cfg(unix)]
 //! The Claude adapter against a deterministic fake `claude` executable that speaks the stream-json
 //! protocol (`fixtures/claude-provider.py`). Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf};
 use t3_server::{execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_registry::ProviderRegistry};
 
 pub struct Harness {
@@ -88,7 +89,7 @@ impl Harness {
     /// Wait on persisted events until `check` yields a value.
     pub async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

@@ -4,6 +4,7 @@
 //! what the runtime mode lets Codex do without asking, and reasoning, plan, todo and usage reaching
 //! the projection. The replay of the original's recordings is in `codex_replay.rs`. Tests wait on
 //! persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 use chrono::Utc;
 use futures_util::{FutureExt, SinkExt, StreamExt, future::BoxFuture};
 use serde_json::{Value, json};
@@ -133,7 +134,7 @@ impl Harness {
     }
     async fn until<T>(&self, mut check: impl FnMut(&Value) -> Option<T>) -> T {
         let mut events = self.store.subscribe();
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 if let Some(found) = check(&self.view()) {
                     return found;

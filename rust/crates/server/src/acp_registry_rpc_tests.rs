@@ -1,4 +1,5 @@
 //! Actual Effect socket proof for native registry preparation and its scope gate.
+use crate::test_support::HANG_BOUND;
 use crate::{
     acp_registry_support::fixture_catalog,
     auth::AuthService,
@@ -45,7 +46,7 @@ async fn prepare(socket: &mut Socket, id: u32, payload: Value) -> Value {
 #[tokio::test]
 async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payload_before_install()
 {
-    tokio::time::timeout(std::time::Duration::from_secs(20),async {
+    tokio::time::timeout(HANG_BOUND,async {
         let directory=tempfile::tempdir().unwrap();
         let (catalog,config)=fixture_catalog(directory.path(),"normal");
         let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
@@ -98,7 +99,7 @@ async fn registry_prepare_effect_socket_enforces_manage_scope_and_validates_payl
 #[tokio::test]
 async fn registry_search_and_uninstall_effect_socket_preserve_scope_decode_reference_and_reservation_rules()
  {
-    tokio::time::timeout(std::time::Duration::from_secs(20),async {
+    tokio::time::timeout(HANG_BOUND,async {
         let directory=tempfile::tempdir().unwrap();
         let (catalog,config)=fixture_catalog(directory.path(),"normal");
         let settings=serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},"registry-agent":{"driver":"acpRegistry","enabled":true,"config":config}}})).unwrap();
@@ -151,7 +152,7 @@ async fn registry_search_and_uninstall_effect_socket_preserve_scope_decode_refer
 
 #[tokio::test]
 async fn registry_url_consent_socket_gates_and_validates_before_settling_real_provider_callback() {
-    tokio::time::timeout(std::time::Duration::from_secs(20),async{
+    tokio::time::timeout(HANG_BOUND,async{
         let directory=tempfile::tempdir().unwrap();
         let fixture=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/acp-coordinator-provider.py");
         let settings=serde_json::from_value(json!({"providerInstances":{

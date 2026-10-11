@@ -393,6 +393,7 @@ async fn run(
 }
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[cfg(unix)]
     fn executable(path: &Path, source: &str) {
@@ -552,7 +553,7 @@ file.write_text('fixture')
             tokio::spawn(async move { toolchain.ensure(DeviceToolKind::Hub).await })
         };
         let mut bytes = [0; 128];
-        let size = tokio::time::timeout(Duration::from_secs(5), socket.recv(&mut bytes))
+        let size = tokio::time::timeout(HANG_BOUND, socket.recv(&mut bytes))
             .await
             .unwrap()
             .unwrap();
@@ -562,7 +563,7 @@ file.write_text('fixture')
             .unwrap();
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
-        tokio::time::timeout(Duration::from_secs(5), toolchain.shutdown())
+        tokio::time::timeout(HANG_BOUND, toolchain.shutdown())
             .await
             .unwrap();
         assert_eq!(unsafe { libc::kill(pid, 0) }, -1);

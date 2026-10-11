@@ -469,7 +469,8 @@ async fn reading_a_delegated_childs_result_acknowledges_its_delivery_but_a_trunc
     let child = spawned["childThreadId"].as_str().unwrap().to_owned();
     h.until(&child, |view| view["runs"].as_array().is_some_and(|runs| runs.iter().any(|run| run["status"] == "running")).then_some(())).await;
     h.ok(&caller, "t3_thread_send", json!({"threadId":child,"message":"finish"})).await;
-    h.until(&parent, |view| (subagent(view)["completionDelivery"]["state"] == "claimed" && subagent(view)["status"] == "completed").then_some(())).await;
+    // The wake message is committed after the delivery is claimed, so both are awaited.
+    h.until(&parent, |view| (subagent(view)["completionDelivery"]["state"] == "claimed" && subagent(view)["status"] == "completed" && wake_messages(view).len() == 1).then_some(())).await;
     // A read too short to hold the result does not acknowledge it.
     h.ok(&caller, "t3_thread_read", json!({"threadId":child,"maxCharsPerItem":5})).await;
     assert_eq!(subagent(&h.view(&parent))["completionDelivery"]["state"], "claimed");
@@ -540,7 +541,9 @@ async fn a_run_stop_reached_spawns_nothing_and_stopping_a_thread_holds_its_queue
     assert!(h.provider_requests().iter().any(|request| request["method"] == "turn/interrupt"));
     assert_eq!((stopped["runs"][1]["status"].as_str(), stopped["runs"][1]["queueHeld"].as_bool()), (Some("queued"), Some(true)));
 
-    // Stop on a thread with nothing running still holds the turns it would start next.
+    // Stop on a thread with nothing running still holds the turns it would start next. The effects the first Stop left are
+    // done first, or the queue released below could be started by the loop settling the thread.
+    h.execution.drained(&busy).await;
     let mut released = h.view(&busy);
     released["runs"][1]["queueHeld"] = json!(false);
     h.store.transaction(|tx| t3_server::persistence::write_projection(tx, "thread", &busy, &released)).unwrap();

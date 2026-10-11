@@ -7,6 +7,7 @@
 //! leaves everything before it done. This binary installs one process-wide host, so everything runs in
 //! one test.
 #![recursion_limit = "256"]
+use t3_server::test_support::HANG_BOUND;
 mod source_control_support;
 
 use axum::{Router, body::Bytes, extract::State, http::{Method, StatusCode, Uri}, response::Response};
@@ -148,7 +149,7 @@ async fn scenario() {
     std::fs::create_dir_all(&codex_dir).unwrap();
     std::fs::create_dir_all(&claude_dir).unwrap();
     let providers = ProviderRegistry::discover(&settings(true, true, &codex_dir, &claude_dir), &base).await.unwrap();
-    providers.set_text_generation_options(Options { timeout: Duration::from_secs(60), retry_delay: Duration::ZERO });
+    providers.set_text_generation_options(Options { timeout: HANG_BOUND, retry_delay: Duration::ZERO });
 
     let store = Store::open(base.join("rust-state.sqlite")).unwrap();
     let auth = AuthService::new(store.clone(), [9; 32], "t3_session_tgs".into(), "loopback-browser".into()).unwrap();
@@ -245,7 +246,7 @@ async fn scenario() {
     plan(&codex_dir, 7, json!({"hang":true}));
     let (_, exit) = stream(&mut socket, 22, action("a5", json!({"action":"commit"}))).await;
     assert_eq!(error_of(&exit)["detail"], "Codex CLI request timed out.");
-    providers.set_text_generation_options(Options { timeout: Duration::from_secs(60), retry_delay: Duration::ZERO });
+    providers.set_text_generation_options(Options { timeout: HANG_BOUND, retry_delay: Duration::ZERO });
 
     // With Codex disabled the first enabled provider writes, with its own default model.
     providers.reconfigure(&settings(false, true, &codex_dir, &claude_dir), &base).await.unwrap();

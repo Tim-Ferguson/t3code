@@ -206,6 +206,7 @@ impl ThreadLaunchService {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use crate::project::ProjectService;
     fn setup(store: &Store, path: &std::path::Path) {
@@ -479,7 +480,7 @@ mod tests {
         id: &str,
         count: usize,
     ) -> Value {
-        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        tokio::time::timeout(HANG_BOUND, async {
             loop {
                 let projection = store.projection("thread", id).unwrap().unwrap();
                 if projection["runs"].as_array().unwrap().len() == count

@@ -7,6 +7,7 @@
 //! a stand-in executable writes the text. No network, no credentials. This binary installs one
 //! process-wide host before the first request, so everything runs in one test.
 #![recursion_limit = "512"]
+use t3_server::test_support::HANG_BOUND;
 mod pull_request_support;
 mod source_control_support;
 
@@ -81,7 +82,7 @@ async fn scenario() {
     let text_dir = base.join("text-calls");
     std::fs::create_dir_all(&text_dir).unwrap();
     let providers = ProviderRegistry::discover(&text_settings(&text_dir), &base).await.unwrap();
-    providers.set_text_generation_options(Options { timeout: Duration::from_secs(60), retry_delay: Duration::ZERO });
+    providers.set_text_generation_options(Options { timeout: HANG_BOUND, retry_delay: Duration::ZERO });
     let harness = Harness::start(&base, "wfb", Some(providers)).await;
     ProjectService::new(harness.store.clone())
         .mutate(json!({"type":"project.create","commandId":"create-web","projectId":"web","title":"Project web","workspaceRoot":path(&checkout)}), Utc::now())

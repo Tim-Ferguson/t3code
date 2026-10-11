@@ -213,6 +213,7 @@ fn read_outcome(
 
 #[cfg(all(test, unix))]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     use serde::{Deserialize, Deserializer};
     use serde_json::{Value, json};
@@ -254,7 +255,7 @@ mod tests {
                 let descriptor: OwnedFd = std::fs::File::open(path).unwrap().into();
                 let outcome = BootstrapInput::open(descriptor)
                     .unwrap()
-                    .read::<Envelope>(Duration::from_secs(1));
+                    .read::<Envelope>(HANG_BOUND);
                 if row.get("error").is_some() {
                     assert!(
                         matches!(outcome, Err(BootstrapError::Decode { .. })),
@@ -299,7 +300,7 @@ mod tests {
         });
         let mut input = BootstrapInput::open(input.into()).unwrap();
         let value = input
-            .read_retaining::<Envelope>(Duration::from_secs(1))
+            .read_retaining::<Envelope>(HANG_BOUND)
             .unwrap()
             .unwrap();
         assert_eq!(value.mode, "desktop");

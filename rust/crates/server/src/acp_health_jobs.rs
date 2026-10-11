@@ -169,10 +169,11 @@ impl Lease {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_support::HANG_BOUND;
     use super::*;
     #[tokio::test]
     async fn cancelled_drain_retains_admission_and_scope_until_actual_job_cleanup() {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        tokio::time::timeout(HANG_BOUND, async {
             let manager = Refreshes::default();
             let lease = manager.admit("agent").await.unwrap();
             let (cleanup, entered) = tokio::sync::oneshot::channel();

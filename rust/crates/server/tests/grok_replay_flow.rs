@@ -6,20 +6,17 @@
 //! The driver runs `fixtures/grok-fake-cli.py`, which plays a recording through `fixtures/acp-replay-agent.py`:
 //! it compares every frame the Rust client sends with the recorded one and fails the scenario on the first
 //! difference. No real `grok` runs. Tests wait on persisted events, never on sleeps.
+use t3_server::test_support::HANG_BOUND;
 mod grok_support;
 mod provider_manage_support;
 use chrono::Utc;
 use grok_support::{Served, Socket, Stream, serve};
 use serde_json::{Value, json};
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc};
 use t3_server::{
     deferred_finalize::DEBOUNCE_MS, execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService, provider_idle::{IDLE_TIMEOUT_MS, MAX_PIN_MS},
     provider_registry::ProviderRegistry, scheduled_tasks::ManualClock,
 };
-
-/// How long a wait for a persisted state may take before the test calls it a hang: far beyond any loaded machine, and no
-/// part of what a passing run depends on.
-const HANG_BOUND: Duration = Duration::from_secs(120);
 
 const CLI: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/grok-fake-cli.py");
 
@@ -258,6 +255,29 @@ impl Harness {
     async fn pending_request(&self) -> Value {
         self.until(|view| view["runtimeRequests"].as_array().unwrap().iter().find(|request| request["status"] == "pending").cloned()).await
     }
+    /// Returns once the replay agent's status satisfies `reached`, or has failed. The agent rewrites its status file by
+    /// renaming one over it, which the watcher on its directory reports, so this waits for the agent and never polls.
+    async fn replay_reaches(&self, reached: impl Fn(&Value) -> bool) {
+        use notify::Watcher;
+        let (changed, mut changes) = tokio::sync::mpsc::unbounded_channel();
+        let mut watcher = notify::recommended_watcher(move |_: notify::Result<notify::Event>| {
+            let _ = changed.send(());
+        })
+        .unwrap();
+        watcher.watch(self.status.parent().unwrap(), notify::RecursiveMode::NonRecursive).unwrap();
+        tokio::time::timeout(HANG_BOUND, async {
+            loop {
+                if let Some(status) = std::fs::read_to_string(&self.status).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok()) {
+                    if !status["failure"].is_null() || reached(&status) {
+                        return;
+                    }
+                }
+                let _ = changes.recv().await;
+            }
+        })
+        .await
+        .expect("the replay agent never reached the state the step waits for");
+    }
     fn replay_status(&self) -> Value {
         serde_json::from_str(&std::fs::read_to_string(&self.status).unwrap()).unwrap()
     }
@@ -360,6 +380,13 @@ async fn replay(row: Value, over_socket: bool) -> Result<(), String> {
             "interrupt" => {
                 let target = step["targetRunIndex"].as_u64().unwrap() as usize;
                 let run = harness.until(|view| view["runs"].get(target - 1).filter(|run| run["status"] == "running").cloned()).await;
+                // The recording plays what follows the prompt without the client, and a Stop that lands first ends the agent
+                // short of the end of the recording it is checked against: the Stop waits for the agent to be done with it.
+                let entries: Vec<&Value> = transcript.as_array().unwrap().iter().filter(|entry| entry["type"] != "transcript_start").collect();
+                let prompt = entries.iter().enumerate().filter(|(_, entry)| entry["type"] == "expect_outbound" && entry["frame"]["method"] == "session/prompt").nth(target - 1).map(|(index, _)| index);
+                if let Some(prompt) = prompt {
+                    harness.replay_reaches(|status| status["cursor"].as_u64().is_some_and(|cursor| cursor as usize > prompt && (cursor as usize >= entries.len() || entries[cursor as usize]["type"] == "expect_outbound"))).await;
+                }
                 harness.dispatch(json!({"type":"run.interrupt","commandId":"stop","threadId":harness.thread,"runId":run["id"]})).await;
             }
             "stop_background_work" => {
