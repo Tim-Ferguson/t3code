@@ -1,19 +1,23 @@
-//! Parsed thread projections kept between writes, so that a streamed delta does not parse the whole thread.
+//! Parsed thread projections kept between writes, so that a streamed delta does not read the thread.
 //!
-//! A thread is stored as one JSON document (`rust_projections`). Every write used to parse that document (the adapter's planning
-//! read, then the reducer's), change a row of it, serialise it again and hand it to SQLite, and every shell subscriber then
-//! parsed it once more to build the thread's shell. This keeps the parsed document of the last write, so the next write and the
-//! subscribers read it from memory. The database stays the truth; the cache is an accelerator that is dropped whenever there is
-//! doubt:
+//! A thread is stored as a skeleton and a row for each element of its lists (`projection_rows`). Every write used to parse the
+//! document (the adapter's planning read, then the reducer's), change a row of it and store it again, and every shell subscriber
+//! then parsed it once more to build the thread's shell. This keeps the parsed document of the last write, with how it is stored,
+//! so the next write and the subscribers read it from memory and a write stores the rows it changed. The database stays the truth;
+//! the cache is an accelerator that is dropped whenever there is doubt:
 //! - A write inside `Store::dispatch` takes the document out ([`take`]) and puts the changed one back with the same transaction
-//!   ([`stage`]). Staged documents join the cache only when the command committed ([`Stage::finish`]); a failed command drops
-//!   the staged ones and the cache with them.
+//!   ([`stage_changed`], with what the reducer touched). Staged documents join the cache only when the command committed
+//!   ([`Stage::finish`]); a failed command drops the staged ones and the cache with them.
 //! - Anything else that changes `rust_projections` through this connection (a plain `write_projection`, a statement of a test)
-//!   fires the update hook and the cache is cleared before its next use. A commit made through another connection to the same
-//!   file changes `PRAGMA data_version` and has the same effect.
+//!   fires the update hook and the cache is cleared before its next use. The rows of a thread (`rust_projection_rows`) are never
+//!   written but together with its skeleton, so the hook, which SQLite does not call for that table, need not watch them. A commit made through another
+//!   connection to the same file changes `PRAGMA data_version` and has the same effect.
 //! - The cache holds at most [`BUDGET`] bytes of stored JSON, least recently used first, and no document above [`ENTRY_MAX`].
+//!   What it measures is the document as stored, the size of what a cold read would parse (a parsed document takes several times
+//!   that). The most recently used document is kept whatever its size up to [`ENTRY_MAX`]: a long thread is the one being
+//!   streamed, and parsing it again for each delta is the cost this exists to avoid. Past that a document is read for every write.
+use crate::projection_rows::{Held, Plan, Touched};
 use rusqlite::Connection;
-use serde_json::Value;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -23,16 +27,15 @@ use std::{
     },
 };
 
-/// Stored JSON the cache may hold in all. A parsed document takes several times its JSON in memory.
-const BUDGET: usize = 32 << 20;
-/// A document larger than this is parsed on every write rather than kept.
-const ENTRY_MAX: usize = 16 << 20;
+/// Stored JSON the cache may hold in all, besides the most recently used document.
+const BUDGET: usize = 64 << 20;
+/// A document larger than this is read on every write rather than kept.
+const ENTRY_MAX: usize = 256 << 20;
 
 type Key = (String, String);
 
 struct Entry {
-    value: Value,
-    len: usize,
+    held: Held,
     used: u64,
 }
 
@@ -55,10 +58,11 @@ thread_local! {
 
 struct Staged {
     cache: Arc<Mutex<ProjectionCache>>,
-    documents: HashMap<Key, (Value, usize)>,
-    /// The documents the command changed and has not yet written to the database: a command that writes the same thread for
-    /// several events (a node and its item) serialises it once, when the events are all reduced (`write_pending`).
+    documents: HashMap<Key, Held>,
+    /// The documents the command changed and has not yet written to the database, with what was touched: a command that writes
+    /// the same thread for several events (a node and its item) stores it once, when the events are all reduced (`pending_writes`).
     pending: Vec<Key>,
+    touched: HashMap<Key, Touched>,
 }
 
 fn data_version(connection: &Connection) -> Option<u32> {
@@ -92,28 +96,29 @@ impl ProjectionCache {
         self.bytes = 0;
     }
 
-    fn insert(&mut self, key: Key, value: Value, len: usize) {
+    fn insert(&mut self, key: Key, held: Held) {
         if let Some(old) = self.entries.remove(&key) {
-            self.bytes -= old.len;
+            self.bytes -= old.held.layout.bytes();
         }
+        let len = held.layout.bytes();
         if len > ENTRY_MAX {
             return;
         }
         self.tick += 1;
         self.bytes += len;
-        self.entries.insert(key, Entry { value, len, used: self.tick });
-        while self.bytes > BUDGET {
+        self.entries.insert(key, Entry { held, used: self.tick });
+        while self.bytes > BUDGET && self.entries.len() > 1 {
             let Some(oldest) = self.entries.iter().min_by_key(|(_, entry)| entry.used).map(|(key, _)| key.clone()) else { break };
             if let Some(old) = self.entries.remove(&oldest) {
-                self.bytes -= old.len;
+                self.bytes -= old.held.layout.bytes();
             }
         }
     }
 
-    fn take(&mut self, key: &Key) -> Option<(Value, usize)> {
+    fn take(&mut self, key: &Key) -> Option<Held> {
         let entry = self.entries.remove(key)?;
-        self.bytes -= entry.len;
-        Some((entry.value, entry.len))
+        self.bytes -= entry.held.layout.bytes();
+        Some(entry.held)
     }
 
     /// `read` on the document of `key`: the cached one, else the one `load` reads from the database (which is as committed, the
@@ -122,27 +127,27 @@ impl ProjectionCache {
         &mut self,
         connection: &Connection,
         key: &Key,
-        load: impl FnOnce() -> Result<Option<(Value, usize)>, crate::persistence::StoreError>,
-        read: impl FnOnce(&Value) -> R,
+        load: impl FnOnce() -> Result<Option<Held>, crate::persistence::StoreError>,
+        read: impl FnOnce(&serde_json::Value) -> R,
     ) -> Result<Option<R>, crate::persistence::StoreError> {
         #[cfg(test)]
         if crate::persistence::legacy::on() {
-            return Ok(load()?.map(|(value, _)| read(&value)));
+            return Ok(load()?.map(|held| read(&held.value)));
         }
         self.validate(connection);
         self.tick += 1;
         let tick = self.tick;
         if let Some(entry) = self.entries.get_mut(key) {
             entry.used = tick;
-            return Ok(Some(read(&entry.value)));
+            return Ok(Some(read(&entry.held.value)));
         }
-        let Some((value, len)) = load()? else { return Ok(None) };
-        if len > ENTRY_MAX {
-            return Ok(Some(read(&value)));
+        let Some(held) = load()? else { return Ok(None) };
+        if held.layout.bytes() > ENTRY_MAX {
+            return Ok(Some(read(&held.value)));
         }
-        self.insert(key.clone(), value, len);
+        self.insert(key.clone(), held);
         let entry = self.entries.get(key).expect("just inserted");
-        Ok(Some(read(&entry.value)))
+        Ok(Some(read(&entry.held.value)))
     }
 }
 
@@ -157,7 +162,7 @@ impl Stage {
         if let Ok(mut guard) = cache.lock() {
             guard.validate(connection);
         }
-        STAGE.with(|stage| *stage.borrow_mut() = Some(Staged { cache: cache.clone(), documents: HashMap::new(), pending: Vec::new() }));
+        STAGE.with(|stage| *stage.borrow_mut() = Some(Staged { cache: cache.clone(), documents: HashMap::new(), pending: Vec::new(), touched: HashMap::new() }));
         Stage { cache: cache.clone() }
     }
 
@@ -171,8 +176,8 @@ impl Stage {
                 if cache.external.swap(false, Ordering::AcqRel) {
                     cache.clear();
                 } else {
-                    for (key, (value, len)) in staged.documents {
-                        cache.insert(key, value, len);
+                    for (key, held) in staged.documents {
+                        cache.insert(key, held);
                     }
                 }
             }
@@ -182,7 +187,7 @@ impl Stage {
 }
 
 /// Takes the document of `kind`/`id` from what the current command staged or the cache holds.
-pub(crate) fn take(kind: &str, id: &str) -> Option<(Value, usize)> {
+pub(crate) fn take(kind: &str, id: &str) -> Option<Held> {
     #[cfg(test)]
     if crate::persistence::legacy::on() {
         return None;
@@ -206,16 +211,16 @@ pub(crate) fn take(kind: &str, id: &str) -> Option<(Value, usize)> {
     })
 }
 
-/// Stages `value`, the new content of `kind`/`id` as stored (or unchanged), for the cache when the command commits.
-pub(crate) fn stage(kind: &str, id: &str, value: Value, len: usize) {
+/// Stages `held`, the new content of `kind`/`id` as stored (or unchanged), for the cache when the command commits.
+pub(crate) fn stage(kind: &str, id: &str, held: Held) {
     STAGE.with(|stage| {
         if let Some(stage) = stage.borrow_mut().as_mut() {
-            stage.documents.insert((kind.to_owned(), id.to_owned()), (value, len));
+            stage.documents.insert((kind.to_owned(), id.to_owned()), held);
         }
     });
 }
 
-/// Runs a write of `rust_projections` that is the cache's own.
+/// Runs a write of the projection tables that is the cache's own.
 pub(crate) fn own_write<R>(write: impl FnOnce() -> R) -> R {
     OWN_WRITE.with(|flag| flag.set(true));
     let result = write();
@@ -232,43 +237,68 @@ pub(crate) fn in_command() -> bool {
     STAGE.with(|stage| stage.borrow().is_some())
 }
 
-/// Keeps `value` as the new content of `kind`/`id` and notes that the database does not have it yet. A document too large to be
-/// kept cannot wait, since it would be lost with the command: the caller writes it then.
-pub(crate) fn stage_changed(kind: &str, id: &str, value: Value, len: usize) -> Result<(), Value> {
-    if len > ENTRY_MAX {
-        return Err(value);
+/// Keeps `held` as the new content of `kind`/`id`, of which `touched` is what differs from what the database has, and notes that
+/// the database does not have it yet. A document too large to be kept cannot wait, since it would be lost with the command: the
+/// caller writes it then.
+pub(crate) fn stage_changed(kind: &str, id: &str, held: Held, touched: Touched) -> Result<(), (Held, Touched)> {
+    if held.layout.bytes() > ENTRY_MAX {
+        return Err((held, touched));
     }
     STAGE.with(|stage| {
         let mut stage = stage.borrow_mut();
         let stage = stage.as_mut().expect("in a command");
         let key = (kind.to_owned(), id.to_owned());
-        if !stage.pending.contains(&key) {
-            stage.pending.push(key.clone());
+        match stage.touched.get_mut(&key) {
+            Some(earlier) => earlier.merge(touched),
+            None => {
+                stage.pending.push(key.clone());
+                stage.touched.insert(key.clone(), touched);
+            }
         }
-        stage.documents.insert(key, (value, len));
+        stage.documents.insert(key, held);
     });
     Ok(())
 }
 
-/// The documents the command changed and has not written, taken out of the staged ones with their keys, for the caller to
-/// write: they stay staged, and are the cache's if the command commits.
-pub(crate) fn pending_writes() -> Vec<(Key, String)> {
+/// A document the command changed, with what to store of it.
+pub(crate) struct Pending {
+    pub key: Key,
+    pub plan: Plan,
+    /// What the database must hold once the plan is stored (debug builds check it).
+    #[cfg(debug_assertions)]
+    pub value: serde_json::Value,
+}
+
+/// What to store for the documents the command changed and has not written, with their keys: they stay staged (and are the cache's
+/// if the command commits), with the layout of what the plans store. A document that is not staged at the moment (the reducer has
+/// it out) keeps what was touched of it for when it is back.
+pub(crate) fn pending_writes() -> Result<Vec<Pending>, crate::persistence::StoreError> {
     STAGE.with(|stage| {
         let mut stage = stage.borrow_mut();
-        let Some(stage) = stage.as_mut() else { return Vec::new() };
+        let Some(stage) = stage.as_mut() else { return Ok(Vec::new()) };
         let keys = std::mem::take(&mut stage.pending);
         let mut writes = Vec::new();
         for key in keys {
-            let Some(json) = stage.documents.get(&key).and_then(|(value, _)| serde_json::to_string(value).ok()) else { continue };
+            let Some(held) = stage.documents.get_mut(&key) else {
+                stage.pending.push(key);
+                continue;
+            };
+            let touched = stage.touched.remove(&key).unwrap_or_else(Touched::all);
+            let plan = crate::projection_rows::plan(&key.0, &key.1, &held.value, &mut held.layout, &touched)?;
+            #[cfg(debug_assertions)]
+            let value = held.value.clone();
             // Now its size is known: one that has outgrown the cache is written and not kept.
-            if json.len() > ENTRY_MAX {
+            if held.layout.bytes() > ENTRY_MAX {
                 stage.documents.remove(&key);
-            } else if let Some(document) = stage.documents.get_mut(&key) {
-                document.1 = json.len();
             }
-            writes.push((key, json));
+            writes.push(Pending {
+                key,
+                plan,
+                #[cfg(debug_assertions)]
+                value,
+            });
         }
-        writes
+        Ok(writes)
     })
 }
 

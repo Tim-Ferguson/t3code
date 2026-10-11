@@ -338,6 +338,12 @@ pub(crate) fn authenticate(state: &ApiState, headers: &HeaderMap) -> Result<Sess
             .map_err(|_| unauthorized())
             .and_then(|session| bound_to_key(session, dpop_token, headers));
     }
+    // The reusable dev credential's own cookie, unless the request carries an `Authorization` header of its own.
+    if let (Some(dev), false) = (state.auth.reusable_dev(), headers.contains_key(header::AUTHORIZATION)) {
+        if let Some(token) = cookie_token(&dev.cookie_name) {
+            return state.auth.verify_session(token, Utc::now()).map_err(|_| unauthorized()).and_then(|session| bound_to_key(session, dpop_token, headers));
+        }
+    }
     if let Some(authorization) = headers.get(header::AUTHORIZATION) {
         let value = authorization.to_str().map_err(|_| unauthorized())?;
         if let Some(token) = value
@@ -523,6 +529,10 @@ impl<S: Send + Sync> axum::extract::FromRequestParts<S> for Peer {
 pub(crate) fn user_agent(headers: &HeaderMap) -> Option<&str> {
     headers.get(header::USER_AGENT).and_then(|value| value.to_str().ok())
 }
+/// The cookie a browser session answers to: the server's own, else the reusable dev credential's (`authenticateBrowserSession`).
+pub(crate) fn browser_session_cookie<'a>(state: &ApiState, headers: &'a HeaderMap) -> Option<&'a str> {
+    named_cookie(headers, &state.auth.cookie_name).or_else(|| state.auth.reusable_dev().and_then(|dev| named_cookie(headers, &dev.cookie_name)))
+}
 pub(crate) fn named_cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
     headers.get(header::COOKIE).and_then(|value| value.to_str().ok()).and_then(|cookies| {
         cookies.split(';').find_map(|part| {
@@ -539,6 +549,18 @@ async fn browser_session(
 ) -> Result<Response, ApiError> {
     let credential = input["credential"].as_str().ok_or_else(unauthorized)?;
     let client = crate::auth::derive_client_metadata(user_agent(&headers), peer, &Default::default());
+    // The reusable dev credential is the session's own bearer: it goes back as a cookie named for it, valid for 30 days, and the
+    // ordinary session cookie is expired so the two never disagree.
+    if let Some(dev) = state.auth.reusable_dev().filter(|dev| dev.matches(credential)) {
+        let session = state.auth.verify_session(credential, Utc::now()).map_err(|_| unauthorized())?;
+        let grants = t3_contracts::auth_scope_response(&session.scopes);
+        let expires_at = Utc::now() + chrono::Duration::days(30);
+        let mut response = Json(json!({"authenticated":true,"scopes":grants.scopes,"permissions":grants.permissions,"sessionMethod":session.method,"expiresAt":expires_at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true)})).into_response();
+        for cookie in [format!("{}={}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000", dev.cookie_name, credential), format!("{}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0", state.auth.cookie_name)] {
+            response.headers_mut().append(header::SET_COOKIE, cookie.parse().map_err(internal)?);
+        }
+        return Ok(response);
+    }
     // A browser that pairs again with its old cookie replaces that session rather than adding one.
     let (session, token) = state
         .auth
@@ -996,9 +1018,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient"|"server.updateServerWithProgress") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"provider.codex.auth-callback.subscribe"|"provider.chatgpt.handoff.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess"|"cloud.installRelayClient"|"server.updateServerWithProgress") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="server.updateServerWithProgress" {self_update_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="cloud.installRelayClient" {install_relay_client_stream(request,state,session,output,acknowledged).await;}else if request.tag=="server.updateServerWithProgress" {self_update_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.codex.auth-callback.subscribe" {codex_auth_callback_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.chatgpt.handoff.subscribe" {chatgpt_handoff_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -1045,6 +1067,9 @@ async fn execute_session_unary(
 ) -> Result<Value, Value> {
     if request.tag == crate::connect_rpc::STATUS {
         return crate::connect_rpc::relay_client_status(&state.store).await;
+    }
+    if matches!(request.tag.as_str(), "provider.chatgpt.reconnect-profile" | "provider.chatgpt.import-profile") {
+        return chatgpt_profile(&state, &request).await;
     }
     if request.tag.starts_with("provider.auth.") {
         return crate::provider_auth_rpc::command(
@@ -1643,6 +1668,72 @@ fn discovery_value(
         .map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))
 }
 
+/// `provider.chatgpt.reconnect-profile` and `provider.chatgpt.import-profile`.
+async fn chatgpt_profile(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
+    let environment = crate::codex_chatgpt_rpc::current(&state.store)?;
+    let instance = request.payload["instanceId"].as_str().unwrap_or_default();
+    let settings = state.settings.as_ref().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Settings are not configured."}))?.snapshot().await.map_err(|error| json!({"_tag":"NativeServiceError","message":error.to_string()}))?;
+    let operation = if request.tag.ends_with("import-profile") { "import" } else { "export" };
+    crate::codex_chatgpt_rpc::require_managed_codex(&serde_json::to_value(&settings).unwrap_or_default(), instance, operation)?;
+    if operation == "export" {
+        return crate::codex_chatgpt_rpc::reconnect_profile(&environment, &state.store, request.payload.clone());
+    }
+    // The sessions that run on the old tokens end first. This server's managed Codex does not yet run on these tokens (it uses a local
+    // `codex`), so there are none to end.
+    crate::codex_chatgpt_rpc::import_profile(&environment, &state.store, request.payload.clone(), Box::pin(async { Ok(()) })).await
+}
+
+/// `provider.chatgpt.handoff.subscribe`: the sign-in states, then the finished profile.
+async fn chatgpt_handoff_stream(request: RpcRequest, state: ApiState, session: Session, output: SocketSender, mut ack: mpsc::Receiver<()>) {
+    let result = async {
+        let environment = crate::codex_chatgpt_rpc::current(&state.store)?;
+        let mut events = crate::codex_chatgpt_rpc::handoff(&environment, request.payload.clone(), session.session_id.clone())?;
+        while let Some(event) = events.recv().await {
+            state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
+            if !chunk(&output, &mut ack, &request.id, vec![event?]).await {
+                return Ok(());
+            }
+        }
+        Ok::<_, Value>(())
+    }
+    .await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
+}
+
+/// `provider.codex.auth-callback.subscribe`: `ready` once the loopback listener is up, then `finished` with the callback it received.
+/// A failure ends the stream as the sign-in's own error.
+async fn codex_auth_callback_stream(request: RpcRequest, state: ApiState, session: Session, output: SocketSender, mut ack: mpsc::Receiver<()>) {
+    let result = async {
+        let input: t3_contracts::CodexAuthCallbackInput = serde_json::from_value(request.payload.clone()).map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))?;
+        let mut events = crate::codex_auth_callback::subscribe(&input.authorization_url.0, &input.return_url.0, crate::codex_auth_callback::EXPIRY);
+        while let Some(event) = events.recv().await {
+            state.auth.active_session(&session.session_id, Utc::now()).map_err(|_| session_ended(&request.tag))?;
+            let event = event.map_err(|detail| json!({"_tag":"ProviderSetupError","instanceId":input.instance_id,"operation":"callback","detail":detail}))?;
+            let (value, last) = match event {
+                crate::codex_auth_callback::Event::Ready => (json!({"phase":"ready"}), false),
+                crate::codex_auth_callback::Event::Finished { callback_url } => (json!({"phase":"finished","callbackUrl":callback_url}), true),
+            };
+            if !chunk(&output, &mut ack, &request.id, vec![value]).await {
+                return Ok(());
+            }
+            if last {
+                break;
+            }
+        }
+        Ok::<_, Value>(())
+    }
+    .await;
+    let message = match result {
+        Ok(()) => RpcServerMessage::Exit { request_id: request.id, exit: RpcExit::Success { value: Value::Null } },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(message).await;
+}
+
 async fn provider_auth_stream(
     request: RpcRequest,
     state: ApiState,
@@ -1823,16 +1914,21 @@ fn device_decode<T: serde::de::DeserializeOwned>(request: &RpcRequest) -> Result
     serde_json::from_value(request.payload.clone())
         .map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))
 }
-/// `device.testHost`. The host to probe is named by the client. One that resolves to this machine
-/// is the local host, summarized without opening a connection. Probing a remote host runs a script
-/// over SSH, which this server does not port, so a remote host answers with the probe's own
-/// failure envelope.
+/// `device.testHost`. The host to probe is named by the client. One that resolves to this machine is the local host, summarized
+/// without opening a connection; any other is probed over SSH (`ssh_device_host.rs`), which runs the remote script in its probe mode and
+/// reads what the host can run and which device tools it has. A probe that fails answers with the failing step.
 async fn device_test_host(state: &ApiState, request: &RpcRequest, service: &crate::device_service::DeviceService) -> Result<Value, Value> {
     let host: t3_contracts::SshDeviceHostConfig = device_decode(request)?;
     let resolver = state.device_hosts.as_ref().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"Device-host resolver is not configured."}))?;
     let operation_error = |name: &str, message: &str| json!({"_tag":"DeviceOperationError","operation":"probe host","reason":"request_failed","cause":{"name":name,"message":message}});
     if !resolver.is_local(&host).await {
-        return Err(operation_error("DeviceHostError", "SSH device hosts are not supported by this server."));
+        let state_dir = state.store.state_dir().map(std::path::Path::to_path_buf).ok_or_else(|| operation_error("Error", "Device hosts need a state directory."))?;
+        let ssh = t3_remote::ssh::Ssh::with_executable(resolver.ssh_binary().to_string_lossy().into_owned());
+        let owner = crate::ssh_device_host::owner_for(&state_dir, host.id.as_str());
+        return match crate::ssh_device_host::probe(&ssh, &host, &owner).await {
+            Ok(summary) => Ok(serde_json::to_value(summary).unwrap()),
+            Err(error) => Err(operation_error("DeviceHostError", &error.to_string())),
+        };
     }
     match service.inspect().await.hosts.into_iter().next() {
         Some(summary) => Ok(serde_json::to_value(summary).unwrap()),

@@ -91,16 +91,30 @@ the hub. Their tests serve a scripted hub from a loopback socket, with the answe
 (`codex_usage_limits.rs`; the Codex adapter does not call them yet). A thread stream sends the newest running update of each tool call within a 50 ms window
 (`thread_live_coalescer.rs`), and the server writes the spans browsers export to `<logs>/server.trace.ndjson` (`trace_sink.rs`; none of its own, and nothing is
 exported over OTLP). `t3-server serve --fixture --fixture-acp-registry FILE` reads the ACP registry catalog from a file instead of
-`cdn.agentclientprotocol.com`, for tests of a client (an error without `--fixture`). Still open on the server: the usage scan cache (usage for
-transcripts since deleted is not kept; a scan re-reads what is on disk), SSH device hosts, the reusable dev credential, the provider event NDJSON logs,
-the preview/browser host registry, and the ChatGPT-signed-in Codex flows, Cursor and analytics.
+`cdn.agentclientprotocol.com`, for tests of a client (an error without `--fixture`). Usage keeps what it parsed of each transcript in
+`usage-scan-cache-v5.json` (`usage_scan_cache.rs`, the original's file and document, so a state directory both servers read has one cache): a transcript that
+has not changed is not read again, one that grew is read from where the last parse stopped (guarded by a hash of the bytes before that offset),
+usage of transcripts since deleted stays for 90 days, and a source keeps its volume id when its directory is recreated; Grok and Cursor are still not read.
+Provider event logs (`provider_event_log.rs`, `<logs>/provider/events.<thread>.log`, the original's filters, bounds, batching, rotation and retention)
+are written by the Claude adapter (every frame to and from the CLI) and the OpenCode adapter (a structural summary of each event); the Codex and ACP
+adapters do not write to it yet (`codex_protocol_tap` and `write_protocol_summary` are what they call). `T3CODE_DEV_AUTH_TOKEN` (32 or more characters)
+on a web server with `--dev-url` is the reusable dev credential (`auth.rs`, `ReusableDevAuth`): it signs a browser in with a cookie named for its hash and
+is itself the bearer of an administrative session; desktop and normal servers ignore it. A server a service launcher started (`NODE_CHANNEL_FD` and
+`T3_SERVICE_LAUNCHER_CONTEXT`) updates itself through the launcher (`launcher_ipc.rs`: the release archive and its `SHA256SUMS` are fetched from
+`T3CODE_RELEASE_BASE_URL` or GitHub, the staged runtime proves itself with `__service-preflight`, and the launcher is asked to switch). ChatGPT sign-in of managed
+Codex is `codex_chatgpt_auth.rs` (PKCE through a loopback callback or one the client brings, identity token checked against the issuer's keys, tokens and registrations in
+the secret store under the original's names, refresh, sign-out, profile export and import), with `provider.chatgpt.*` and `provider.codex.auth-callback.subscribe`
+served; managed Codex does not yet run on these tokens (this server starts a local `codex`), so signing in changes nothing a session uses. `device.testHost` probes a
+remote host over SSH (`ssh_device_host.rs`); the device service itself has the one local host. Still open on the server: the preview/browser host registry,
+OTLP export and the server's own trace spans, remote device hosts beyond the probe, Cursor and analytics.
 Responses are compressed as the original's router does (`response_compression.rs`: brotli, gzip or deflate by `Accept-Encoding`, text-like types of
 1024 bytes or more); a body of unknown length is sent as it is.
-Writing a streamed delta costs what the delta is, not what the thread is, except for the stored document itself: a thread is one JSON document
-(`rust_projections`), and the parsed document of the last write is kept in memory (`projection_cache.rs`) so a write and the shell stream parse and
-copy nothing of it, the history a thread shows (`visibleTurnItems`) replaces the row an event wrote instead of being rebuilt, and the shell
-stream reads each thread once for the events that are waiting and sends a shell only when it changed (`skipUnchangedThreadShells`). The document is still
-serialised and handed to SQLite whole on every write; `src/stream_bench.rs` prints what that costs by thread length, and its guard counts the work.
+Writing a streamed delta costs what the delta is, not what the thread is: a thread is a small skeleton (`rust_projections`) and one row per element of
+each of its lists (`rust_projection_rows`, `projection_rows.rs`), a write stores the skeleton and the rows the reducer touched, and the parsed
+document of the last write is kept in memory (`projection_cache.rs`) so a write and the shell stream parse and copy nothing of it. The history a thread
+shows (`visibleTurnItems`) replaces the row an event wrote instead of being rebuilt, and the shell stream reads each thread once for the events that are
+waiting and sends a shell only when it changed (`skipUnchangedThreadShells`). Provider events keep no command receipt, as in the original.
+`src/stream_bench.rs` prints what a delta and a cold start cost by thread length, and its guard counts the work.
 Device-host settings resolve SSH aliases without connecting, exclude only self
 targets, and preserve proxies, forwarded ports and unresolved entries. Local device
 state and session lifecycle, consent configuration and agent-daemon bootstrap,
@@ -132,7 +146,7 @@ again. The environment keeps the original's identity (`environment-id` is writte
 `rust-environment-id`), so saved connections, client state and the check a client makes that it
 reached the server it meant still name it; an identity this server already has with a store
 behind it is kept, and the import says so. Usage that the original kept for transcripts since
-deleted (its scan cache) is not carried. What the import serves is held to what the original
+deleted (its scan cache) is used in place when the state directory is the original's, and not copied otherwise. What the import serves is held to what the original
 served for the same state (`tests/state_import_flow.rs`): every field of the shell and of each
 thread's projection, with a short list of differences that are intended and why.
 
@@ -217,10 +231,8 @@ The environment themes (`environment_theme.rs`) are the palettes a machine publi
 watched, read through one guarded handle per file (no symlink, no special file, 32 KiB each, 32 files, 192 KiB in all), and streamed as
 `environmentThemesUpdated` to the subscribers of `subscribeServerConfig` that asked for them (`environmentThemes`). `server.updateServer`,
 `server.updateServerWithProgress` and `server.commitDesktopUpdate` answer as the original does: a server the desktop app started with its
-control channel drives the app's own update over that channel (`desktop_app_update.rs`), and every other server answers that remote
-updates need the background service. This server has no channel to a service launcher, so it never updates itself through one; the
-runner and release feed `self_update_rpc.rs` hands the update logic refuse everything, so nothing is ever downloaded, installed or
-relaunched. The web app route (`static_route.rs`) serves files with the original's validators (a weak `ETag`, `Last-Modified`, `304`),
+control channel drives the app's own update over that channel (`desktop_app_update.rs`), a server a service launcher started updates through
+the launcher (`launcher_ipc.rs`), and every other server answers that remote updates need the background service. The web app route (`static_route.rs`) serves files with the original's validators (a weak `ETag`, `Last-Modified`, `304`),
 cache policy (assets named in `.vite/manifest.json` are immutable) and status answers. The
 descriptor's label and machine kind come from the machine itself (`environment_host.rs`). `rust/tools/check_rpc_surface.mjs` lists what the
 original exposes (RPC methods, HTTP routes, MCP tools, settings keys, environment capabilities) that this server does not serve, from
@@ -263,7 +275,23 @@ The pull request panel has the original's tabs (Summary, Timeline, Code) and its
 comment, or a review that carries the line comments collected on the Code tab. It also reacts,
 rewrites the title, description and your own remarks, files a pull request under a thread (shown
 in the thread header and as the badge of its sidebar row), starts a thread from one in a dialog,
-and lists the environment's pull requests.
+and lists the environment's pull requests. Where the host keeps stacks (GitHub's), the panel reads the stack with the
+pull request and shows it as `Stack N, layer p of s` with the layers under it (`pull_request_stack.rs`, `t3_client::pull_request_stack`,
+`PullRequestStackMenu.tsx`): "Merge stack" merges the layers from the bottom up to the one in view, "Rebase stack" rebases every
+open layer, each after a question that names the layers, and each naming the heads that were read, so the server refuses a stack
+that moved ("The stack changed. Refresh it before trying again."). The stack is read again after every answer, because the layers
+of a rebase that stopped stay pushed; a pull request in a stack is not merged on its own, and until the lookup has settled it is not
+merged at all (`allowsSinglePullRequestMerge`). The actions need `pullRequestStackActions` on the environment, `stackActions` on
+the host, `stackRebase` on the account for a rebase, and a stack read just now. Not ported: the stack that the thread's saved
+links remember (`savedPullRequestStack`), which the original shows while a refresh fails.
+The tabbed panel beside the conversation (`right_panel.rs`, `t3_client::right_panel`, `RightPanelTabs.tsx`/`rightPanelStore.ts`) holds
+the Diff, Files, file, pull request and linked pull requests tabs of each thread (and of the new-thread form, which opens
+files), with the tab bar, the "+" menu and the launcher an empty panel shows (letters F, D, P, L), the menu of a tab, hide and
+maximize. The tabs are kept per thread in the browser's storage (`t3code:rust-right-panel:v1`) and a thread's delete takes its
+panel with it; closed tabs are remembered (`t3code:rust-closed-views:v1`, twenty) for `view.reopenClosed`, which opens the tab in its own
+thread. `rightPanel.toggle`, `rightPanel.new`, `rightPanel.toggleMaximized`, `rightPanel.close`, `view.reopenClosed` and, on the web build,
+`navigation.back`/`forward` are on the Keybindings page. The terminal stays a drawer, and the browser and device tabs are not built; the
+pull request list page keeps its one panel beside the list.
 The Connections page has a T3 Connect section (`connect_page.rs`, `t3_client::connect`): the environment's link read from
 `GET /api/connect/link-state` when the page opens, when the window is focused again (a read newer than five seconds is kept) and
 after each change; switches for the managed tunnel (desktop only), for publishing agent activity and for holding webhooks while
@@ -342,7 +370,7 @@ Provider refresh and one-click updates, managed Codex installation (checksummed
 official release, local `codex` preferred) and ACP registry session, provider and
 logout management are served over the socket. Importing a native ACP session still needs
 orchestration support for threads that own a native-session reference; ChatGPT-signed-in
-managed Codex sessions, ChatGPT profile transfer, other provider authentication,
+managed Codex sessions (the sign-in and the profile transfer exist; a session does not run on the tokens), other provider authentication,
 coordinator policy, handoff and checkpoint parity remain incomplete. Provider
 sessions receive thread-scoped MCP credentials before startup, with native
 stdio/HTTP transport and authenticated device tools. External MCP authentication
@@ -437,9 +465,9 @@ renderers behind `show(items, position)`: the page draws the menu itself (`conte
 and outside-click dismissal, one menu at a time), and the desktop app on macOS shows the system's own menu at the pointer
 (`desktop_shell::native_menu`, scaled by the page zoom). Elsewhere on the desktop, where no native menu is built yet (Windows, Linux), the page's
 menu is shown. Callers: the thread rows (one menu for the row, another for several chosen rows), a link in a message, a file named in a message, a
-changed file in the diff panel and the timeline, a pull request's number, a branch name, a tab of the file panel, an archived thread, and a
+changed file in the diff panel and the timeline, a pull request's number, a branch name, a tab of the panel beside the conversation, an archived thread, and a
 picture or video in a message. The original's other callers have no counterpart here yet: the terminal drawer (the terminal surface has no
-paste entry in its ABI), the file browser tree, the right panel's other tabs, the run-context control, and draft rows. Not shown on the native
+paste entry in its ABI), the file browser tree, the run-context control, and draft rows. Not shown on the native
 menu: the destructive item's trash icon, and the icons the page draws.
 
 The server is started with the environment of your login shell (`$SHELL -ilc`, then `/bin/zsh` or `/bin/bash`; `launchctl getenv

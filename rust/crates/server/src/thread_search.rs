@@ -1,10 +1,10 @@
 //! `orchestration.searchThreads` (port of `orchestration-v2/ThreadSearch.ts`): the finished user and
 //! assistant messages of active threads in active projects, one best match per thread.
 //!
-//! The Rust store keeps one JSON document per thread, so the search reads `rust_projections`
-//! directly with SQLite's JSON functions instead of the original's message table. No schema or
-//! index changes: `LIKE '%query%'` could not use an index in the original either, and existing
-//! databases are searched as they are.
+//! The Rust store keeps a thread as a skeleton (`rust_projections`) and a row for each message
+//! (`rust_projection_rows`, list `messages`), so the search reads those directly with SQLite's JSON
+//! functions instead of the original's message table. No index: `LIKE '%query%'` could not use one
+//! in the original either.
 use crate::persistence::{Store, StoreError};
 use rusqlite::{params, types::Value as SqlValue};
 
@@ -83,24 +83,27 @@ WITH candidate AS (
   SELECT
     t.aggregate_id AS thread_id,
     json_extract(t.state_json, '$.thread.projectId') AS project_id,
-    json_extract(m.value, '$.role') AS role,
-    json_extract(m.value, '$.text') AS match_text,
-    json_extract(m.value, '$.createdAt') AS message_created_at,
-    json_extract(m.value, '$.id') AS message_id,
+    json_extract(m.row_json, '$.role') AS role,
+    json_extract(m.row_json, '$.text') AS match_text,
+    json_extract(m.row_json, '$.createdAt') AS message_created_at,
+    json_extract(m.row_json, '$.id') AS message_id,
     json_extract(t.state_json, '$.updatedAt') AS thread_updated_at
   FROM rust_projections AS t
   INNER JOIN rust_projections AS p
     ON p.aggregate_kind = 'project'
    AND p.aggregate_id = json_extract(t.state_json, '$.thread.projectId')
-  , json_each(t.state_json, '$.messages') AS m
+  INNER JOIN rust_projection_rows AS m
+    ON m.aggregate_kind = 'thread'
+   AND m.aggregate_id = t.aggregate_id
+   AND m.list = 'messages'
   WHERE t.aggregate_kind = 'thread'
-    AND (?3 = 0 OR t.state_json LIKE ?1 ESCAPE '!')
+    AND (?3 = 0 OR m.row_json LIKE ?1 ESCAPE '!')
     AND json_extract(t.state_json, '$.thread.deletedAt') IS NULL
     AND json_extract(t.state_json, '$.thread.archivedAt') IS NULL
     AND json_extract(p.state_json, '$.deletedAt') IS NULL
-    AND json_extract(m.value, '$.streaming') = 0
-    AND json_extract(m.value, '$.role') IN ('user', 'assistant')
-    AND json_extract(m.value, '$.text') LIKE ?1 ESCAPE '!'
+    AND json_extract(m.row_json, '$.streaming') = 0
+    AND json_extract(m.row_json, '$.role') IN ('user', 'assistant')
+    AND json_extract(m.row_json, '$.text') LIKE ?1 ESCAPE '!'
 ),
 ranked AS (
   SELECT
@@ -119,9 +122,9 @@ WHERE thread_match_rank = 1
 ORDER BY match_rank ASC, thread_updated_at DESC, thread_id ASC
 LIMIT ?2";
 
-/// Whether the query text appears verbatim in a thread's stored JSON whenever it appears in a
-/// message: true for ASCII without quotes, backslashes or control characters, which JSON would
-/// escape. Then threads that cannot match are skipped before their messages are parsed.
+/// Whether the query text appears verbatim in a message's stored JSON whenever it appears in its
+/// text: true for ASCII without quotes, backslashes or control characters, which JSON would
+/// escape. Then messages that cannot match are skipped before their JSON is parsed.
 fn can_prefilter_raw_json(query: &str) -> bool {
     query.chars().all(|c| c.is_ascii() && !c.is_ascii_control() && c != '"' && c != '\\')
 }

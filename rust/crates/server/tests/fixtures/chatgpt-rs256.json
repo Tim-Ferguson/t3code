@@ -1,0 +1,31 @@
+{
+  "note": "RS256 identity token signed by a key generated for this fixture; the claims expire in 2100. Made with node:crypto.",
+  "issuer": "https://issuer.example",
+  "audience": "client-1",
+  "nonce": "n-1",
+  "token": "eyJhbGciOiJSUzI1NiIsImtpZCI6InJzYS0xIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2lzc3Vlci5leGFtcGxlIiwiYXVkIjoiY2xpZW50LTEiLCJzdWIiOiJzdWJqZWN0LTEiLCJlbWFpbCI6ImFAZXhhbXBsZS5jb20iLCJub25jZSI6Im4tMSIsImlhdCI6NDEwMjQ0NDAwMCwiZXhwIjo0MTAyNDQ0ODAwfQ.YKwkYnQtQaBLnkEf-wMH2Kv22EetA4YSuAy6eeYYoMm--bhZiYpfrVegkCrmHLlkszCC6Pb4ZtL9uX9048CNn0E_h1BGhch5T2ofQSyf4ixdddDTNO9zTaVeeNJRV7qeXXxXdfbRgdZqMnCGpbqbKZ6HPPNCVNzGS3gh2UtdAoAqJi9zHvnQnpQJw5xvzUrLRCV-9NqO8Mz_cts_tKT2FRKvRWwVBSI-oZsWSXcxK1I_g4CGrjg2TXd6XcVRtwuNCPUqqe_zNEmqy-L3b20dXIjQHb1mLUrswDO170OYrxhlwn5kJXFpgjbCDuAcSYurdJn1K5Rvbiv-JWMREnz9UA",
+  "jwks": {
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "uJuhImyF98kWFF96nD3ayRETBeMpOqIf_dOJSDGkKQRWy8vFIIMCpVCPdUdIIlIZ0VcO0uanBA-V1HWuKiXG9sIsLdAsJwQAoFoTOBJU5-TBvNCA21oTgMCWtyG4cIRBAirifV0jxPuBWlbildjbjM1jOqK7irV3xEJIFcrzwNHefKYziazLEd1aTRFNpanwCwMT9QD6xJfAnGlwjGpkDRcscIw9PttLkCewcvcLuy2nWEE_YfBTBLz9cec9ouHE7CiuuTOSPdAhcWtVmJpu0-xqYFN5abrSSnVkcttTrY93ntqkqz6Oe3L5O8sz5x-9hZPGYZAAkFQMJtm_PVtBzw",
+        "e": "AQAB",
+        "kid": "rsa-1",
+        "use": "sig",
+        "alg": "RS256"
+      }
+    ]
+  },
+  "otherJwks": {
+    "keys": [
+      {
+        "kty": "RSA",
+        "n": "7gbDrl5M3i1cPOP3Vz7kDykCKvGaPJmgiSQiuqskwIndGBOeIwZ9ZAZErEspdGrbhS44qhvQezdgHYbxwyGA7KB3gUUSUFqf8JAjMttaTAa7czyv85LNgKZ0SbFQ2dnbZqVF7B4VuRBkJprLBarvshnObsRX5aFPv-c7wcQmeY8S5Gc2RbxfcTY9R8HUuSWxzr8BxHPNbSH07lcWmPZqOBQnh7nBHNvdEACGb0uInGV6iEyVXdWeNEF312trHg0cIG3vL5Khof63im-jWRbA6Rvtpf78tjs39fpmOzaxSq_qd963GDItIfSPdFd4k72JalrR13tnc9fSjObXzjINjQ",
+        "e": "AQAB",
+        "kid": "rsa-1",
+        "use": "sig",
+        "alg": "RS256"
+      }
+    ]
+  }
+}

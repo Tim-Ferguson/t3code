@@ -188,7 +188,7 @@ impl Harness {
         self.store
             .read(|connection| {
                 let mut text = String::new();
-                for table in ["rust_application_events", "rust_projections"] {
+                for table in ["rust_application_events", "rust_projections", "rust_projection_rows"] {
                     let mut statement = connection.prepare(&format!("SELECT * FROM {table}"))?;
                     let columns = statement.column_count();
                     let mut rows = statement.query([])?;

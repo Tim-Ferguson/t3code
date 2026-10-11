@@ -11,19 +11,11 @@
       "preview.list": "Preview browser: not ported.",
       "preview.clearProfile": "Preview browser: not ported.",
       "preview.reportStatus": "Preview browser: not ported.",
-      "subscribePreviewEvents": "Preview browser: not ported.",
-      "provider.chatgpt.reconnect-profile": "ChatGPT-signed-in managed Codex (CodexChatGptAuth/Handoff): not ported.",
-      "provider.chatgpt.import-profile": "ChatGPT-signed-in managed Codex: not ported.",
-      "provider.chatgpt.handoff.subscribe": "ChatGPT-signed-in managed Codex: not ported.",
-      "provider.codex.auth-callback.subscribe": "Codex ChatGPT sign-in callback listener (CodexAuthCallback.ts): not ported."
+      "subscribePreviewEvents": "Preview browser: not ported."
     },
     "partial": {
-      "device.testHost": "A host that is not this machine answers the probe's failure envelope: SSH device hosts are not ported.",
-      "device.configure": "Remote SSH device hosts are stored but never connected to.",
-      "server.getConfig": "OTLP export is not ported (the otlp*Enabled flags are false), and the local trace file holds the spans browsers exported but none of the server's own (trace_sink.rs). directEndpoints and remoteOpenTargets are served (environment_endpoints.rs).",
-      "server.updateServer": "Answers as an unconfigured build (no launcher IPC channel, so never boot-service managed); the desktop-app path runs over the control channel. Nothing is downloaded or installed.",
-      "server.updateServerWithProgress": "As server.updateServer.",
-      "server.commitDesktopUpdate": "As server.updateServer: commits through the desktop app's control channel only."
+      "device.configure": "Remote SSH device hosts are stored, and device.testHost probes them over SSH (ssh_device_host.rs), but the device service has the one local host: a remote host is never connected to, listed or opened.",
+      "server.getConfig": "OTLP export is not ported (the otlp*Enabled flags are false), and the local trace file holds the spans browsers exported but none of the server's own (trace_sink.rs). directEndpoints and remoteOpenTargets are served (environment_endpoints.rs)."
     }
   },
   "http": {

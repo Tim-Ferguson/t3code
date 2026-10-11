@@ -1004,6 +1004,13 @@ async fn run(
     if options.mode == "desktop" {
         auth = auth.with_desktop_mode();
     }
+    // Web dev servers on one hostname can share a browser sign-in through one fixed credential (`T3CODE_DEV_AUTH_TOKEN`).
+    if options.mode == "web" && options.dev_url.is_some() {
+        let token = t3_server::auth::resolve_dev_auth_token(std::env::var("T3CODE_DEV_AUTH_TOKEN").ok().as_deref())?;
+        if let Some(dev) = t3_server::auth::ReusableDevAuth::resolve(&options.mode, true, token.as_deref()) {
+            auth = auth.with_reusable_dev_auth(dev, chrono::Utc::now())?;
+        }
+    }
     if let Some(bootstrap) = &options.bootstrap {
         auth = auth.with_desktop_bootstrap(
             bootstrap.desktop_bootstrap_token.clone(),
@@ -1052,7 +1059,12 @@ async fn run(
         "aarch64" => "arm64",
         arch => arch,
     };
-    let update_capabilities = t3_server::self_update_rpc::capabilities(options.mode == "desktop", options.desktop_telemetry_control_fd.is_some());
+    // A launcher that started this server keeps a channel open to it (`NODE_CHANNEL_FD`); with its context in the environment the server
+    // is managed by it and can update itself through it.
+    let process_environment: std::collections::BTreeMap<String, String> = std::env::vars().collect();
+    let update_effects = t3_server::self_update_rpc::UpdateEffects::host(&process_environment);
+    let launcher_managed = update_effects.launcher.as_ref().is_some_and(|host| t3_remote::service_launcher_client::resolve_service_launcher_mode(&process_environment, host.connected(), env!("CARGO_PKG_VERSION")).unwrap_or(false));
+    let update_capabilities = t3_server::self_update_rpc::capabilities(options.mode == "desktop", options.desktop_telemetry_control_fd.is_some(), launcher_managed);
     // The machine's own name and kind, as the original's descriptor carries them (best effort: a probe that fails is no signal).
     let (label, machine) = tokio::task::spawn_blocking({
         let cwd_base_name = server_cwd.file_name().map(|name| name.to_string_lossy().trim().to_owned()).unwrap_or_default();
@@ -1132,22 +1144,24 @@ async fn run(
     let _ = descriptors;
     let desktop =
         t3_server::desktop_telemetry::DesktopTelemetryReceiver::new(desktop_options).await;
-    // Updating: the desktop app's own update over the control channel, else the answer of a build that cannot update itself. Nothing
-    // is downloaded, installed or relaunched by this server.
+    // Updating: the desktop app's own update over the control channel, a launcher's through its channel, else the answer of a build
+    // that cannot update itself.
     t3_server::self_update_rpc::install(
         &store,
-        t3_server::self_update_rpc::build(
+        t3_server::self_update_rpc::build_with(
             options.mode == "desktop",
             std::sync::Arc::new(t3_server::desktop_app_update::DesktopUpdates::new(desktop.clone(), update_capabilities.desktop_app_update)),
             state_dir.parent().map(PathBuf::from).unwrap_or_else(|| state_dir.clone()),
             state_dir.join("rust-state.sqlite").to_string_lossy().into_owned(),
-            &std::env::vars().collect(),
+            &process_environment,
+            update_effects,
         )?,
     );
+    let attribution = t3_server::resource_attribution::ResourceAttribution::default();
     let resources = t3_server::resource_telemetry_service::ResourceTelemetry::new(
         telemetry.clone(),
         desktop.clone(),
-        t3_server::resource_attribution::ResourceAttribution::default(),
+        attribution.clone(),
         std::process::id() as u64,
         std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
     )
@@ -1247,6 +1261,20 @@ async fn run(
         Err(error) => tracing::warn!(%error, "The local trace file could not be opened; no trace is written"),
     }
     let trace_sink = t3_server::trace_sink::current(&store);
+    // What providers say natively is logged per thread under `<logs>/provider`; a log that cannot be opened is logged and left out.
+    let event_log_attribution: t3_server::provider_event_log::Attribution = {
+        let attribution = attribution.clone();
+        std::sync::Arc::new(move |stream, count, bytes, duration_ms| {
+            attribution.record(t3_server::resource_attribution::AttributionRecord { component: "provider-event-log".into(), operation: format!("{}.append", stream.name()), logical_write_bytes: Some(bytes as f64), count: Some(count as f64), duration_ms: Some(duration_ms as f64), ..Default::default() });
+        })
+    };
+    match t3_server::provider_event_log::EventLogStore::open(&state_dir.join("logs").join("provider").join("events.log"), Default::default(), std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()), Some(event_log_attribution)) {
+        Ok(log) => t3_server::provider_event_log::install(&store, log),
+        Err(error) => tracing::warn!(%error, "The provider event log could not be opened; no provider event is logged"),
+    }
+    let event_log = t3_server::provider_event_log::current(&store);
+    // How this server reaches OpenAI to sign managed Codex in with ChatGPT (and to move that sign-in between environments).
+    t3_server::codex_chatgpt_rpc::install(&store, t3_server::codex_chatgpt_rpc::Environment { environment_id: environment_id.clone(), default_return_url: None, discovery_url: None, resource: None, http: reqwest::Client::new() });
     // The quota of the configured usage-limit sources, read on the provider health interval and when the entries change.
     t3_server::usage_limit_sources::install(&store, t3_server::usage_limit_sources::start_production(settings_service.clone(), background.clone()).await);
     let mcp_oauth = std::sync::Arc::new(t3_server::mcp_oauth::McpOAuth::new(auth.clone(), &t3_server::server_secret_store::ServerSecretStore::open(state_dir.join("secrets"))?)?);
@@ -1358,6 +1386,9 @@ async fn run(
     // Records still in the batch window are written before the server ends.
     if let Some(sink) = trace_sink {
         sink.flush();
+    }
+    if let Some(log) = event_log {
+        log.close();
     }
     // The server's finalizers: the link (releasing a CLI-managed tunnel unless an update is replacing this server), the
     // connector, and Tailscale Serve if this server configured it.

@@ -5,16 +5,14 @@
 //!
 //! The service is `t3_remote::self_update::ServerSelfUpdate`, with every effect behind a trait the server supplies here:
 //! * the desktop app's update runs over the telemetry control channel (`desktop_app_update.rs`);
-//! * a server a launcher started is updated through a pinned runtime the launcher then activates. This server has no IPC channel
-//!   to a launcher, so it is never launcher-managed (a launcher context in the environment is refused, as the original refuses
-//!   one it cannot honour), and the runner and release feed it is given here refuse everything: it never downloads, installs or
-//!   relaunches anything. A build that gains a launcher channel supplies the real ones at [`install`].
+//! * a server a launcher started (`NODE_CHANNEL_FD`, `T3_SERVICE_LAUNCHER_CONTEXT`) is updated through a pinned runtime the
+//!   launcher then activates: the runtime is downloaded from the release feed, proven by its own `__service-preflight`, and the
+//!   launcher is asked over its channel to switch (`launcher_ipc.rs`). A server nothing launched answers as an unconfigured build.
 use crate::persistence::Store;
-use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
 use t3_remote::{
-    pinned_runtime::{ProcessRunOutput, ProcessRunner, ReleaseAssetStream, ReleaseFetcher},
+    pinned_runtime::{ProcessRunner, ReleaseFetcher},
     self_update::{DesktopAppUpdate, SelfUpdateService, ServerSelfUpdate, ServerSelfUpdateConfig, ServerSelfUpdateError, ServerSelfUpdateInput, ServerSelfUpdateProgressStage, no_handoff_callback, silent_progress},
     service_launcher_client::{LauncherEvent, ServiceLauncherClient, ServiceLauncherHost},
 };
@@ -24,7 +22,7 @@ use tokio::sync::{broadcast, mpsc};
 pub const METHODS: [&str; 2] = ["server.updateServer", "server.commitDesktopUpdate"];
 pub const WITH_PROGRESS: &str = "server.updateServerWithProgress";
 
-/// This server has no channel to a service launcher.
+/// The channel of a server nothing launched.
 struct NoLauncherChannel(broadcast::Sender<LauncherEvent>);
 impl ServiceLauncherHost for NoLauncherChannel {
     fn connected(&self) -> bool {
@@ -38,21 +36,6 @@ impl ServiceLauncherHost for NoLauncherChannel {
     }
 }
 
-struct RefusingRunner;
-#[async_trait]
-impl ProcessRunner for RefusingRunner {
-    async fn run(&self, _command: &str, _args: &[String], _timeout: Option<std::time::Duration>) -> Result<ProcessRunOutput, String> {
-        Err("This build does not run staged runtimes.".into())
-    }
-}
-struct RefusingFeed;
-#[async_trait]
-impl ReleaseFetcher for RefusingFeed {
-    async fn open(&self, _url: &str) -> Result<Box<dyn ReleaseAssetStream>, String> {
-        Err("This build does not download releases.".into())
-    }
-}
-
 /// What the descriptor advertises about updating (`serverSelfUpdate`, `serverSelfUpdateProgress`, `desktopAppUpdate`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UpdateCapabilities {
@@ -61,18 +44,41 @@ pub struct UpdateCapabilities {
     pub desktop_app_update: bool,
 }
 
-/// The capabilities of a server in `mode` with or without the desktop control channel. Static, as the original's: the control
-/// descriptor is known at bootstrap, and a present one means the app speaks the update protocol.
-pub fn capabilities(desktop_mode: bool, control_channel: bool) -> UpdateCapabilities {
-    let self_update = t3_remote::self_update::resolve_server_self_update_capability(desktop_mode, false);
+/// The capabilities of a server in `mode` with or without the desktop control channel, and with or without a launcher that manages
+/// it. Static, as the original's: the control descriptor is known at bootstrap, and a present one means the app speaks the update
+/// protocol.
+pub fn capabilities(desktop_mode: bool, control_channel: bool, launcher_managed: bool) -> UpdateCapabilities {
+    let self_update = t3_remote::self_update::resolve_server_self_update_capability(desktop_mode, launcher_managed);
     let desktop_app_update = self_update == Some(ServerSelfUpdateCapability::DesktopManaged) && control_channel;
     UpdateCapabilities { self_update, progress: self_update == Some(ServerSelfUpdateCapability::BootService) || desktop_app_update, desktop_app_update }
 }
 
-/// The service for a server in `desktop_mode`, with the app it may drive. `env` is the process environment.
+/// Everything a launcher-managed update does outside this process.
+pub struct UpdateEffects {
+    /// The channel to the launcher that started this server; `None` when nothing did.
+    pub launcher: Option<Arc<dyn ServiceLauncherHost>>,
+    pub runner: Arc<dyn ProcessRunner>,
+    pub feed: Arc<dyn ReleaseFetcher>,
+}
+
+impl UpdateEffects {
+    /// The real ones: the channel this process was started with, the host's processes and the release feed.
+    pub fn host(env: &BTreeMap<String, String>) -> Self {
+        let launcher = crate::launcher_ipc::IpcLauncherHost::from_environment(env).map(|host| host as Arc<dyn ServiceLauncherHost>);
+        Self { launcher, runner: Arc::new(crate::launcher_ipc::HostProcessRunner), feed: Arc::new(crate::launcher_ipc::HttpReleaseFeed::new()) }
+    }
+}
+
+/// The service for a server in `desktop_mode`, with the app it may drive and the real effects of a launcher-managed update. `env` is the
+/// process environment.
 pub fn build(desktop_mode: bool, desktop: Arc<dyn DesktopAppUpdate>, base_dir: PathBuf, db_path: String, env: &BTreeMap<String, String>) -> Result<Arc<dyn SelfUpdateService>, String> {
-    let (events, _) = broadcast::channel(1);
-    let launcher = ServiceLauncherClient::new(Arc::new(NoLauncherChannel(events)), env, env!("CARGO_PKG_VERSION")).map_err(|error| error.to_string())?;
+    build_with(desktop_mode, desktop, base_dir, db_path, env, UpdateEffects::host(env))
+}
+
+/// [`build`] with the effects chosen by the caller (a server that has already taken its launcher channel, or a test).
+pub fn build_with(desktop_mode: bool, desktop: Arc<dyn DesktopAppUpdate>, base_dir: PathBuf, db_path: String, env: &BTreeMap<String, String>, effects: UpdateEffects) -> Result<Arc<dyn SelfUpdateService>, String> {
+    let host = effects.launcher.unwrap_or_else(|| Arc::new(NoLauncherChannel(broadcast::channel(1).0)));
+    let launcher = ServiceLauncherClient::new(host, env, env!("CARGO_PKG_VERSION")).map_err(|error| error.to_string())?;
     let config = ServerSelfUpdateConfig {
         desktop_mode,
         base_dir,
@@ -92,7 +98,7 @@ pub fn build(desktop_mode: bool, desktop: Arc<dyn DesktopAppUpdate>, base_dir: P
         release_base_url: env.get(t3_remote::cli_release::CLI_RELEASE_BASE_URL_ENV).cloned(),
         env: env.clone(),
     };
-    Ok(Arc::new(ServerSelfUpdate::new(config, desktop, Arc::new(launcher), Arc::new(RefusingRunner), Arc::new(RefusingFeed))))
+    Ok(Arc::new(ServerSelfUpdate::new(config, desktop, Arc::new(launcher), effects.runner, effects.feed)))
 }
 
 #[derive(Default)]

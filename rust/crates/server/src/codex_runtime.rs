@@ -667,7 +667,7 @@ pub(crate) fn commit(
 ) -> Result<(), StoreError> {
     let command_id = format!("provider-event:{}", uuid::Uuid::new_v4());
     let now = Utc::now();
-    store.dispatch(
+    store.dispatch_unreceipted(
         &command_id,
         "thread",
         thread_id,
@@ -675,8 +675,9 @@ pub(crate) fn commit(
         now,
         |transaction| {
             // The parsed document of the last write is reused (`projection_cache`), so planning costs no parse of the thread.
-            let (mut projection, len) = crate::persistence::take_projection(transaction, "thread", thread_id)?
+            let mut held = crate::persistence::take_projection(transaction, "thread", thread_id)?
                 .ok_or_else(|| StoreError::InvalidCommand("Thread not found.".into()))?;
+            let projection = &mut held.value;
             let planned = (|| -> Result<Vec<crate::persistence::Event>, StoreError> {
                 // `responseStreamingMode`: what the adapter streamed, held to the mode before it is stored. The rows the filter
                 // holds are laid over the projection for the plan and taken off again, so a delta never copies the thread.
@@ -694,15 +695,15 @@ pub(crate) fn commit(
                     crate::assistant_streaming::overlay_held(store, thread_id, copy.as_mut().unwrap());
                 }
                 #[cfg(test)]
-                let overlay = if legacy { crate::assistant_streaming::Overlay::none() } else { crate::assistant_streaming::overlay_held(store, thread_id, &mut projection) };
+                let overlay = if legacy { crate::assistant_streaming::Overlay::none() } else { crate::assistant_streaming::overlay_held(store, thread_id, projection) };
                 #[cfg(not(test))]
-                let overlay = crate::assistant_streaming::overlay_held(store, thread_id, &mut projection);
+                let overlay = crate::assistant_streaming::overlay_held(store, thread_id, projection);
                 #[cfg(test)]
-                let planned = plan(copy.as_ref().unwrap_or(&projection));
+                let planned = plan(copy.as_ref().unwrap_or(projection));
                 #[cfg(not(test))]
-                let planned = plan(&projection);
-                overlay.undo(&mut projection);
-                let events = crate::assistant_streaming::filter(store, thread_id, &projection, planned?, now.timestamp_millis())
+                let planned = plan(projection);
+                overlay.undo(projection);
+                let events = crate::assistant_streaming::filter(store, thread_id, projection, planned?, now.timestamp_millis())
                     .into_iter()
                     .map(|(kind, payload)| {
                         let payload = t3_contracts::normalize_event_payload(kind, payload)
@@ -712,7 +713,7 @@ pub(crate) fn commit(
                     .collect::<Result<Vec<_>, StoreError>>()?;
                 Ok(events)
             })();
-            crate::persistence::restore_projection("thread", thread_id, projection, len);
+            crate::persistence::restore_projection("thread", thread_id, held);
             let events = planned?;
             Ok(Decision::Accepted {
                 events,

@@ -3,6 +3,7 @@ use crate::persistence::{
     write_projection,
 };
 use chrono::{DateTime, SecondsFormat, Utc};
+use crate::projection_rows::{Held, Touched};
 use rusqlite::Transaction;
 use serde_json::{Value, json};
 
@@ -915,8 +916,10 @@ fn decoded_instance(thread: &Value) -> String {
 pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
     let event = &stored.event;
     // Taken from the parsed document of the last write when there is one (`projection_cache`), and put back below.
-    let (current, len) = crate::persistence::take_projection(transaction, "thread", &event.aggregate_id)?.map_or((None, 0), |(projection, len)| (Some(projection), len));
-    let mut projection = projection_after(current, event)?;
+    let (current, layout) = crate::persistence::take_projection(transaction, "thread", &event.aggregate_id)?.map_or((None, Default::default()), |held| (Some(held.value), held.layout));
+    // What the event changed in the document is stored and nothing else (`projection_rows`); what is not tracked is `Touched::all`.
+    let mut touched = Touched::default();
+    let mut projection = projection_after_touching(current, event, &mut touched)?;
     // A fork shows its source's history through the fork point before its own items.
     if matches!(event.event_type.as_str(), "thread.created" | "turn-item.updated" | "run.updated" | "run-attempt.updated") && projection["thread"]["forkedFrom"]["type"] == "run" {
         let source = read_projection(transaction, "thread", projection["thread"]["forkedFrom"]["threadId"].as_str().unwrap_or(""))?;
@@ -924,6 +927,7 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
         if let Some(source) = source {
             let local = projection["visibleTurnItems"].as_array().cloned().unwrap_or_default();
             projection["visibleTurnItems"] = Value::Array(crate::thread_fork::visible_with_inherited(&projection, &source, local));
+            touched.list("visibleTurnItems");
             crate::shell_state::inherit(&mut projection, &source);
         }
     }
@@ -935,7 +939,12 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
     {
         transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
     }
-    crate::persistence::stage_projection(transaction, "thread", &event.aggregate_id, projection, len)?;
+    // The benchmark's "before" stores the whole thread for each write.
+    #[cfg(test)]
+    if crate::persistence::legacy::on() {
+        touched = Touched::all();
+    }
+    crate::persistence::stage_projection(transaction, "thread", &event.aggregate_id, Held { value: projection, layout }, touched)?;
     crate::shared_rows::apply(transaction, event)?;
     // A fork or merge-back is listed by both threads it joins, as the original's projection reads them.
     if matches!(event.event_type.as_str(), "context-transfer.created" | "context-transfer.updated") && matches!(event.payload["type"].as_str(), Some("fork" | "merge_back")) {
@@ -974,7 +983,18 @@ pub(crate) fn projection_after(
     projection: Option<Value>,
     event: &Event,
 ) -> Result<Value, StoreError> {
+    projection_after_touching(projection, event, &mut Touched::default())
+}
+
+/// [`projection_after`], also noting in `touched` the elements of the document's lists that the event wrote. The stored form of a
+/// thread keeps a row for each element and writes the ones noted; a change to a list that is not noted here would not be stored.
+pub(crate) fn projection_after_touching(
+    projection: Option<Value>,
+    event: &Event,
+    touched: &mut Touched,
+) -> Result<Value, StoreError> {
     let mut projection = if event.event_type == "thread.created" {
+        *touched = Touched::all();
         let mut projection = json!({"thread":event.payload,"updatedAt":event.occurred_at});
         for field in [
             "runs",
@@ -1034,10 +1054,12 @@ pub(crate) fn projection_after(
                 StoreError::InvalidCommand("Provider sessions are not an array.".into())
             })?
             .retain(|session| session["id"] != event.payload["providerSessionId"]);
+        touched.list("providerSessions");
     } else if event.event_type == "run.background-work-cancelled" {
         // Only this field of the run changes, so a lifecycle write that raced it is not undone.
-        for run in projection["runs"].as_array_mut().into_iter().flatten().filter(|run| run["id"] == event.payload["runId"]) {
+        for (index, run) in projection["runs"].as_array_mut().into_iter().flatten().enumerate().filter(|(_, run)| run["id"] == event.payload["runId"]) {
             run["restartCancelledBackgroundWork"] = event.payload["restartCancelledBackgroundWork"].clone();
+            touched.row("runs", index);
         }
     } else if let Some(field) = field {
         // What the row was before this event, for the history it belongs to (`refresh_visible`).
@@ -1050,7 +1072,9 @@ pub(crate) fn projection_after(
                     id: event.aggregate_id.clone(),
                     detail: format!("{field} is not an array"),
                 })?;
-        let replaced = if let Some(existing) = rows.iter_mut().find(|row| row["id"] == event.payload["id"]) {
+        let at = rows.iter().position(|row| row["id"] == event.payload["id"]);
+        let replaced = if let Some((at, existing)) = at.map(|at| (at, &mut rows[at])) {
+            touched.row(field, at);
             let before = crate::shell_state::before(field, existing);
             previous = Some((existing["status"].clone(), existing["type"].clone(), existing["runId"].clone(), existing["inputIntent"].clone()));
             let mut next = event.payload.clone();
@@ -1065,6 +1089,7 @@ pub(crate) fn projection_after(
             *existing = next;
             Some(before)
         } else {
+            touched.row(field, rows.len());
             rows.push(event.payload.clone());
             None
         };
@@ -1080,7 +1105,7 @@ pub(crate) fn projection_after(
         if matches!(field, "turnItems" | "runs" | "attempts") {
             // Local histories keep first-write order, less the runs a rollback undid and the queued
             // messages of cancelled runs; a fork's inherited rows are put in front by `reduce`.
-            refresh_visible(&mut projection, field, &event.payload, existed, previous);
+            refresh_visible(&mut projection, field, &event.payload, existed, previous, touched);
         }
     } else if event.event_type == "checkpoint.rollback-requested" {
         // A request only: the rollback effect's own events change the projection.
@@ -1103,27 +1128,30 @@ pub(crate) fn projection_after(
 /// `visibleTurnItems` after `payload` was written to `field`. The history is rebuilt in full (`local_visible_rows`) only when the
 /// write can change which items belong to it, or the thread shows a fork's inherited items; a streamed update of one item, the
 /// common write, replaces that item's row alone and costs nothing in the length of the thread.
-fn refresh_visible(projection: &mut Value, field: &str, payload: &Value, existed: bool, previous: Option<(Value, Value, Value, Value)>) {
-    let rebuild = |projection: &mut Value| projection["visibleTurnItems"] = Value::Array(crate::thread_fork::local_visible_rows(projection));
+fn refresh_visible(projection: &mut Value, field: &str, payload: &Value, existed: bool, previous: Option<(Value, Value, Value, Value)>, touched: &mut Touched) {
+    let rebuild = |projection: &mut Value, touched: &mut Touched| {
+        projection["visibleTurnItems"] = Value::Array(crate::thread_fork::local_visible_rows(projection));
+        touched.list("visibleTurnItems");
+    };
     let hides = |status: &Value| matches!(status.as_str(), Some("rolled_back" | "cancelled"));
     #[cfg(test)]
     let legacy = crate::persistence::legacy::on();
     #[cfg(not(test))]
     let legacy = false;
     if legacy || projection["thread"]["forkedFrom"]["type"] == "run" || !projection["visibleTurnItems"].is_array() {
-        return rebuild(projection);
+        return rebuild(projection, touched);
     }
     match field {
         // Only these two statuses hide items; a run that neither was nor becomes one changes nothing in the history.
         "runs" => {
             if hides(&payload["status"]) || previous.as_ref().is_some_and(|(status, ..)| hides(status)) {
-                rebuild(projection);
+                rebuild(projection, touched);
             }
         }
         // Only a superseded attempt hides an interrupt result.
         "attempts" => {
             if payload["status"] == "superseded" || previous.as_ref().is_some_and(|(status, ..)| *status == "superseded") {
-                rebuild(projection);
+                rebuild(projection, touched);
             }
         }
         _ => {
@@ -1131,7 +1159,7 @@ fn refresh_visible(projection: &mut Value, field: &str, payload: &Value, existed
             let interrupt = |kind: &Value| kind == "run_interrupt_result" || kind == "run_interrupt_request";
             let unchanged_identity = previous.as_ref().is_none_or(|(_, kind, run, intent)| *kind == payload["type"] && *run == payload["runId"] && *intent == payload["inputIntent"]);
             if interrupt(&payload["type"]) || !unchanged_identity {
-                return rebuild(projection);
+                return rebuild(projection, touched);
             }
             let status = payload["runId"].as_str().and_then(|run| projection["runs"].as_array()?.iter().find(|row| row["id"] == run)).and_then(|run| run["status"].as_str());
             let visible = !(status == Some("rolled_back") || (status == Some("cancelled") && payload["type"] == "user_message" && payload["inputIntent"] == "queued_turn"));
@@ -1141,13 +1169,15 @@ fn refresh_visible(projection: &mut Value, field: &str, payload: &Value, existed
                 (Some(at), true, true) => {
                     rows[at]["item"] = payload.clone();
                     rows[at]["sourceThreadId"] = payload["threadId"].clone();
+                    touched.row("visibleTurnItems", at);
                 }
                 (None, false, _) => {}
                 (None, true, false) => {
                     let position = rows.len();
                     rows.push(json!({"position":position,"visibility":"local","sourceThreadId":payload["threadId"],"sourceItemId":payload["id"],"item":payload}));
+                    touched.row("visibleTurnItems", position);
                 }
-                _ => rebuild(projection),
+                _ => rebuild(projection, touched),
             }
         }
     }

@@ -157,9 +157,52 @@ struct DesktopBootstrapGrant {
     secret: Option<String>,
     expires_at: DateTime<Utc>,
 }
+/// The prefix of the session a reusable dev credential stands for (`REUSABLE_DEV_SESSION_PREFIX`).
+pub const REUSABLE_DEV_SESSION_PREFIX: &str = "dev-auth-";
+/// The database needs an expiry for a configured token with no normal session lifetime (`REUSABLE_DEV_SESSION_EXPIRES_AT`).
+fn reusable_dev_session_expires_at() -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339("9999-12-31T23:59:59.999Z").expect("a fixed instant").with_timezone(&Utc)
+}
+
+/// One fixed credential, `T3CODE_DEV_AUTH_TOKEN`, that web dev servers on one hostname share (`auth/ReusableDevAuth.ts`). It is both the
+/// bootstrap credential and the bearer of the session it stands for, kept in a cookie named for its hash so every dev server on the
+/// hostname reads the same one. Only a web-mode server with a dev URL has it; the desktop app and a normal server ignore the value.
+#[derive(Clone)]
+pub struct ReusableDevAuth {
+    pub credential: String,
+    pub session_id: String,
+    pub cookie_name: String,
+    hash: [u8; 32],
+}
+
+impl ReusableDevAuth {
+    /// `resolveReusableDevAuth`: `None` unless the server is in web mode with a dev URL and the token is not empty.
+    pub fn resolve(mode: &str, has_dev_url: bool, token: Option<&str>) -> Option<Self> {
+        let token = token.filter(|token| mode == "web" && has_dev_url && !token.is_empty())?;
+        let hash: [u8; 32] = Sha256::digest(token.as_bytes()).into();
+        let id: String = hash.iter().map(|byte| format!("{byte:02x}")).collect();
+        Some(Self { credential: token.to_owned(), session_id: format!("{REUSABLE_DEV_SESSION_PREFIX}{id}"), cookie_name: format!("t3_dev_session_{id}"), hash })
+    }
+    /// Whether `credential` is the token, compared as hashes in constant time.
+    pub fn matches(&self, credential: &str) -> bool {
+        let presented: [u8; 32] = Sha256::digest(credential.as_bytes()).into();
+        presented.iter().zip(&self.hash).fold(0u8, |difference, (a, b)| difference | (a ^ b)) == 0
+    }
+}
+
+/// `DevAuthTokenConfig`: the value trimmed; nothing when it is empty; an error when it is too short to be a secret.
+pub fn resolve_dev_auth_token(raw: Option<&str>) -> Result<Option<String>, &'static str> {
+    match raw.map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(token) if token.chars().count() >= 32 => Ok(Some(token.to_owned())),
+        Some(_) => Err("T3CODE_DEV_AUTH_TOKEN must contain at least 32 characters."),
+    }
+}
+
 #[derive(Clone)]
 pub struct AuthService {
     store: Store,
+    dev: Option<Arc<ReusableDevAuth>>,
     secret: [u8; 32],
     pub cookie_name: String,
     pub policy: String,
@@ -207,6 +250,7 @@ impl AuthService {
             secret,
             cookie_name,
             policy,
+            dev: None,
             desktop_bootstrap: None,
             desktop_mode: false,
             live: Arc::new(Live {
@@ -231,6 +275,33 @@ impl AuthService {
             expires_at: now + chrono::Duration::hours(24),
         });
         self
+    }
+    /// Seeds the session the reusable credential stands for, if this database has none yet (`createIfAbsent`): every server keeps its own
+    /// database, signing key and revocation state, and only the credential is shared.
+    pub fn with_reusable_dev_auth(mut self, dev: ReusableDevAuth, now: DateTime<Utc>) -> Result<Self, AuthError> {
+        let session = Session {
+            session_id: dev.session_id.clone(),
+            subject: "reusable-dev-token".into(),
+            method: "browser-session-cookie".into(),
+            scopes: t3_contracts::AUTH_ADMINISTRATIVE_SCOPES.to_vec(),
+            client: json!({"label":"Reusable dev token","deviceType":"unknown"}),
+            issued_at: Some(now),
+            last_connected_at: None,
+            expires_at: reusable_dev_session_expires_at(),
+            revoked_at: None,
+            proof_key_thumbprint: None,
+            runtime_mode_ceiling: None,
+        };
+        self.store.transaction(|transaction| {
+            transaction.execute("INSERT OR IGNORE INTO rust_auth_sessions(session_id,session_json) VALUES(?1,?2)", params![session.session_id, serde_json::to_string(&session)?])?;
+            Ok(())
+        })?;
+        self.dev = Some(Arc::new(dev));
+        Ok(self)
+    }
+    /// The reusable dev credential, when this server has one.
+    pub fn reusable_dev(&self) -> Option<&ReusableDevAuth> {
+        self.dev.as_deref()
     }
     pub fn with_desktop_mode(mut self) -> Self {
         self.desktop_mode = true;
@@ -367,6 +438,10 @@ impl AuthService {
     }
 
     fn verify_session_for(&self, token: &str, now: DateTime<Utc>, mcp_client: bool) -> Result<Session, AuthError> {
+        // The reusable dev credential is its own session's bearer; it is not a signed token.
+        if let Some(dev) = self.dev.as_ref().filter(|dev| dev.matches(token)) {
+            return self.stored_active_session(&dev.session_id, now, mcp_client);
+        }
         let claims = self.decode(token)?;
         if claims.kind != "session"
             || !matches!(claims.v, 1 | 2)
@@ -540,6 +615,10 @@ impl AuthService {
         }
         if claims.exp <= now.timestamp_millis() {
             return Err(AuthError::Invalid("Websocket token expired."));
+        }
+        // A ticket for a reusable dev session is honoured only by the server whose credential that session stands for.
+        if claims.sid.starts_with(REUSABLE_DEV_SESSION_PREFIX) && Some(claims.sid.as_str()) != self.dev.as_ref().map(|dev| dev.session_id.as_str()) {
+            return Err(AuthError::Invalid("Unknown websocket session."));
         }
         self.active_session(&claims.sid, now)
     }
@@ -893,6 +972,23 @@ impl AuthService {
     ) -> Result<(Session, String), AuthError> {
         // A DPoP session is short: the client proves its key again with every request and exchanges again when it ends.
         let session_ttl = if proof_key_thumbprint.is_some() { chrono::Duration::hours(1) } else { chrono::Duration::days(30) };
+        // The reusable dev credential grants what its own session holds (`resolveBootstrapGrant`), to a child session of its own.
+        if let Some(dev) = self.dev.as_ref().filter(|dev| dev.matches(credential)) {
+            let holder = self.stored_active_session(&dev.session_id, now, false)?;
+            let scopes: Vec<AuthEnvironmentScope> = match requested {
+                Some(requested) => requested.iter().copied().filter(|scope| scope.is_grantable() && holder.scopes.contains(scope)).fold(Vec::new(), |mut scopes, scope| {
+                    if !scopes.contains(&scope) {
+                        scopes.push(scope);
+                    }
+                    scopes
+                }),
+                None => holder.scopes.clone(),
+            };
+            if scopes.is_empty() {
+                return Err(AuthError::ScopeNotGranted);
+            }
+            return self.issue_session_bound("reusable-dev-token-child", method, scopes, client, now, session_ttl, proof_key_thumbprint.map(str::to_owned));
+        }
         if let Some(grant) = &self.desktop_bootstrap {
             let valid = if let Some(secret) = &grant.secret {
                 valid_desktop_bootstrap_token(secret, credential, now.timestamp_millis())

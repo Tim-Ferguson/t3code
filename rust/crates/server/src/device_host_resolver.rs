@@ -91,6 +91,10 @@ impl DeviceHostResolver {
             shutdown: tokio::sync::Mutex::new(Vec::new()),
         }))
     }
+    /// The `ssh` this resolver runs, for the probe of a host that is not this machine.
+    pub fn ssh_binary(&self) -> &std::path::Path {
+        &self.0.options.ssh_binary
+    }
     pub async fn is_local(&self, host: &SshDeviceHostConfig) -> bool {
         let (reply, receive) = oneshot::channel();
         let (cancel, mut cancelled) = watch::channel(false);

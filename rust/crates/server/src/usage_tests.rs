@@ -46,7 +46,7 @@ fn record_json(record: &UsageRecord) -> Value {
 }
 fn record_from(value: &Value) -> UsageRecord {
     UsageRecord {
-        provider: if value["provider"] == "codex" { "codex" } else { "claude" },
+        provider: match value["provider"].as_str() { Some("codex") => "codex", Some("grok") => "grok", _ => "claude" },
         timestamp_ms: value["timestampMs"].as_i64().unwrap(),
         model: value["model"].as_str().unwrap().to_owned(),
         session_id: value["sessionId"].as_str().unwrap().to_owned(),
@@ -135,4 +135,103 @@ fn parsers_rates_pricing_and_aggregation_match_the_unchanged_source() {
         }
     }
     assert_eq!(seen.len(), 7, "{seen:?}");
+}
+
+// ---- the persisted scan cache against the unchanged source (`tools/generate_usage_scan_cache_fixtures.mjs`) ------------------
+
+mod scan_cache {
+    use super::{canon, record_from, record_json};
+    use crate::{
+        usage_scan_cache::{CachedFile, ScanCache, ScanCacheWriter, codex_state_json, decode_codex_state, decode_scan_cache, prune_scan_cache},
+        usage_transcript_reader::{ParsePosition, read_transcript_records},
+    };
+    use serde_json::{Map, Value, json};
+    use std::sync::Arc;
+
+    fn position_json(position: &ParsePosition) -> Value {
+        json!({"resumeOffset":position.resume_offset,"guardLength":position.guard_length,"guardHash":position.guard_hash,"codexState":codex_state_json(&position.codex_state)})
+    }
+    fn position_from(value: &Value) -> ParsePosition {
+        ParsePosition { resume_offset: value["resumeOffset"].as_u64().unwrap(), guard_length: value["guardLength"].as_u64().unwrap(), guard_hash: value["guardHash"].as_u64().unwrap() as u32, codex_state: decode_codex_state(&value["codexState"]).unwrap() }
+    }
+    fn provider(value: &Value) -> &'static str {
+        match value.as_str().unwrap() {
+            "codex" => "codex",
+            "grok" => "grok",
+            _ => "claude",
+        }
+    }
+    fn entry_from(value: &Value) -> (String, Arc<CachedFile>) {
+        let records = |name: &str| value[name].as_array().unwrap().iter().map(record_from).collect();
+        (value["path"].as_str().unwrap().to_owned(), Arc::new(CachedFile::new(value["size"].as_i64().unwrap(), value["mtimeMs"].as_f64().unwrap(), provider(&value["provider"]), records("records"), records("tailRecords"), position_from(&value["position"]))))
+    }
+    fn entry_json(path: &str, entry: &CachedFile) -> Value {
+        json!({"path":path,"size":entry.size,"mtimeMs":entry.mtime_ms,"provider":entry.provider,"records":entry.records.iter().map(record_json).collect::<Vec<_>>(),"tailRecords":entry.tail_records.iter().map(record_json).collect::<Vec<_>>(),"position":position_json(&entry.position)})
+    }
+    fn cache_from(entries: &[Value]) -> ScanCache {
+        entries.iter().map(entry_from).collect()
+    }
+    fn view(parsed: Option<crate::usage_transcript_reader::ParseResult>) -> Value {
+        match parsed {
+            None => Value::Null,
+            Some(parsed) => json!({"records":parsed.records.iter().map(record_json).collect::<Vec<_>>(),"tailRecords":parsed.tail_records.iter().map(record_json).collect::<Vec<_>>(),"position":position_json(&parsed.position),"resumed":parsed.resumed}),
+        }
+    }
+
+    #[test]
+    fn the_reader_the_document_and_the_pruning_match_the_unchanged_source() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut seen = std::collections::HashMap::<String, usize>::new();
+        for line in include_str!("../tests/fixtures/usage-scan-cache.jsonl").lines() {
+            let row: Value = serde_json::from_str(line).unwrap();
+            let kind = row["kind"].as_str().unwrap().to_owned();
+            *seen.entry(kind.clone()).or_default() += 1;
+            let name = row["name"].as_str().unwrap();
+            match kind.as_str() {
+                "parse" => {
+                    let provider = row["provider"].as_str().unwrap();
+                    let path = directory.path().join("transcript.jsonl");
+                    for (index, version) in row["versions"].as_array().unwrap().iter().enumerate() {
+                        std::fs::write(&path, version["text"].as_str().unwrap()).unwrap();
+                        assert_eq!(canon(&view(read_transcript_records(&path, provider, None))), canon(&version["full"]), "{name}: version {index}, whole");
+                        if !version["resumeFrom"].is_null() {
+                            let from = position_from(&version["resumeFrom"]);
+                            assert_eq!(canon(&view(read_transcript_records(&path, provider, Some(&from)))), canon(&version["resumedParse"]), "{name}: version {index}, resumed");
+                        }
+                    }
+                }
+                "write" => {
+                    let extra: Map<String, Value> = row["extra"].as_object().unwrap().clone();
+                    let mut writer = ScanCacheWriter::default();
+                    assert_eq!(writer.write(&cache_from(row["entries"].as_array().unwrap()), &extra), row["first"].as_str().unwrap(), "{name}: first");
+                    // The entries written once keep their text; the replaced and added ones are encoded on top of the same tables.
+                    let mut cache = cache_from(row["entries"].as_array().unwrap());
+                    let mut writer = ScanCacheWriter::default();
+                    writer.write(&cache, &extra);
+                    let replaced = row["replaced"].as_array().unwrap();
+                    for entry in replaced {
+                        let (path, entry) = entry_from(entry);
+                        if cache.get(&path).is_none_or(|current| current.records.len() != entry.records.len() || current.size != entry.size) {
+                            cache.insert(path, entry);
+                        }
+                    }
+                    assert_eq!(writer.write(&cache, &extra), row["second"].as_str().unwrap(), "{name}: second");
+                    // And what was written reads back as what was written.
+                    let reread = decode_scan_cache(&serde_json::from_str(row["second"].as_str().unwrap()).unwrap());
+                    assert_eq!(canon(&json!(reread.iter().map(|(path, entry)| entry_json(path, entry)).collect::<Vec<_>>())), canon(&row["replaced"]), "{name}: round trip");
+                }
+                "decode" => {
+                    let got: Vec<Value> = decode_scan_cache(&row["document"]).iter().map(|(path, entry)| entry_json(path, entry)).collect();
+                    assert_eq!(canon(&json!(got)), canon(&row["decoded"]), "{name}");
+                }
+                "prune" => {
+                    let mut cache = cache_from(row["entries"].as_array().unwrap());
+                    assert_eq!(prune_scan_cache(&mut cache, row["cutoff"].as_f64().unwrap()) as u64, row["removed"].as_u64().unwrap(), "{name}");
+                    assert_eq!(json!(cache.keys().collect::<Vec<_>>()), row["kept"], "{name}");
+                }
+                other => panic!("{other}"),
+            }
+        }
+        assert_eq!(seen.len(), 4, "{seen:?}");
+    }
 }

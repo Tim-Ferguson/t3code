@@ -447,8 +447,10 @@ fn the_applied_events_equal_the_events_run_through_the_servers_own_reducer() {
     assert!(matches!(import(options, &mut |_| {}).unwrap(), Outcome::Imported(_)));
     let rows = |state: &Path| -> Vec<(String, String, String)> {
         let connection = rusqlite::Connection::open_with_flags(state.join("rust-state.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-        let mut statement = connection.prepare("SELECT aggregate_kind, aggregate_id, state_json FROM rust_projections ORDER BY 1, 2").unwrap();
-        statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))).unwrap().map(Result::unwrap).collect()
+        let mut statement = connection.prepare("SELECT aggregate_kind, aggregate_id FROM rust_projections ORDER BY 1, 2").unwrap();
+        let keys: Vec<(String, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().map(Result::unwrap).collect();
+        // The document as the server reads it: the skeleton put together with its rows.
+        keys.into_iter().map(|(kind, id)| { let document = t3_server::persistence::read_projection(&connection, &kind, &id).unwrap().unwrap().to_string(); (kind, id, document) }).collect()
     };
     let (fast_rows, slow_rows) = (rows(&fast), rows(&slow));
     assert!(fast_rows.len() > 20);
@@ -538,8 +540,13 @@ fn an_import_interrupted_between_phases_or_mid_log_continues_or_starts_clean() {
     imported(&from, &whole);
     let rows = |state: &Path| -> Vec<(String, String)> {
         let connection = rusqlite::Connection::open_with_flags(state.join("rust-state.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-        let mut statement = connection.prepare("SELECT aggregate_id, state_json FROM rust_projections UNION ALL SELECT command_id, receipt_json FROM rust_command_receipts UNION ALL SELECT task_id, title FROM rust_scheduled_tasks ORDER BY 1, 2").unwrap();
-        statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().map(Result::unwrap).collect()
+        let mut statement = connection.prepare("SELECT command_id, receipt_json FROM rust_command_receipts UNION ALL SELECT task_id, title FROM rust_scheduled_tasks").unwrap();
+        let mut rows: Vec<(String, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().map(Result::unwrap).collect();
+        let mut statement = connection.prepare("SELECT aggregate_kind, aggregate_id FROM rust_projections").unwrap();
+        let keys: Vec<(String, String)> = statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?))).unwrap().map(Result::unwrap).collect();
+        rows.extend(keys.into_iter().map(|(kind, id)| { let document = t3_server::persistence::read_projection(&connection, &kind, &id).unwrap().unwrap().to_string(); (id, document) }));
+        rows.sort();
+        rows
     };
     let expected = rows(&whole);
     // Stopped after batch 2 of the log, after the log, and after each later phase: each resumes to the same store.
@@ -606,7 +613,7 @@ async fn work_in_flight_comes_across_for_ordinary_recovery_and_nothing_is_run_ag
     let report = imported(&from, &state);
     assert!(report.warnings.iter().any(|line| line.contains("pending") && line.contains("provider-turn.start")), "{:?}", report.warnings);
     assert_eq!(sqlite_count(&state, "SELECT COUNT(*) FROM rust_effect_outbox"), 0, "no effect is carried, so none can run");
-    let running = sqlite_count(&state, "SELECT COUNT(*) FROM rust_projections, json_each(state_json, '$.runs') WHERE aggregate_kind = 'thread' AND json_extract(value, '$.status') = 'running'");
+    let running = sqlite_count(&state, "SELECT COUNT(*) FROM rust_projection_rows WHERE aggregate_kind = 'thread' AND list = 'runs' AND json_extract(row_json, '$.status') = 'running'");
     assert!(running >= 2, "the open runs came across as they were: {running}");
     let events_before = sqlite_count(&state, "SELECT COUNT(*) FROM rust_application_events WHERE event_type = 'run.created'");
     // The shell is valid as imported.
@@ -623,7 +630,7 @@ async fn work_in_flight_comes_across_for_ordinary_recovery_and_nothing_is_run_ag
     let execution = t3_server::execution::ExecutionService::try_start_with_lease(served.store.clone(), providers, lease).unwrap();
     let open: i64 = served
         .store
-        .read(|connection| Ok(connection.query_row("SELECT COUNT(*) FROM rust_projections, json_each(state_json, '$.runs') WHERE aggregate_kind = 'thread' AND json_extract(value, '$.status') IN ('running','waiting','starting','preparing')", [], |row| row.get(0))?))
+        .read(|connection| Ok(connection.query_row("SELECT COUNT(*) FROM rust_projection_rows WHERE aggregate_kind = 'thread' AND list = 'runs' AND json_extract(row_json, '$.status') IN ('running','waiting','starting','preparing')", [], |row| row.get(0))?))
         .unwrap();
     let left: Vec<Value> = served.store.projections("thread").unwrap().iter().flat_map(|thread| thread["runs"].as_array().unwrap().iter().filter(|run| matches!(run["status"].as_str(), Some("running" | "waiting" | "starting" | "preparing"))).map(|run| json!([thread["thread"]["title"], run["status"], run["id"]])).collect::<Vec<_>>()).collect();
     assert_eq!(open, 0, "recovery settled every open run, left: {left:?}");
@@ -666,10 +673,11 @@ fn imported_projections_equal_the_originals_rows() {
     let original = rusqlite::Connection::open_with_flags(from.join("userdata/statev2.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
     let ours = rusqlite::Connection::open_with_flags(state.join("rust-state.sqlite"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
     let mut projections = std::collections::BTreeMap::new();
-    let mut statement = ours.prepare("SELECT aggregate_id, state_json FROM rust_projections WHERE aggregate_kind = 'thread'").unwrap();
-    for row in statement.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))).unwrap() {
-        let (id, json) = row.unwrap();
-        projections.insert(id, serde_json::from_str::<Value>(&json).unwrap());
+    let mut statement = ours.prepare("SELECT aggregate_id FROM rust_projections WHERE aggregate_kind = 'thread'").unwrap();
+    for row in statement.query_map([], |row| row.get::<_, String>(0)).unwrap() {
+        let id = row.unwrap();
+        let document = t3_server::persistence::read_projection(&ours, "thread", &id).unwrap().unwrap();
+        projections.insert(id, document);
     }
     let mut problems = Vec::new();
     let mut compared = 0;

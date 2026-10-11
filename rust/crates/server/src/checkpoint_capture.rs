@@ -236,7 +236,7 @@ pub(crate) fn commit_with_effects(
 ) -> Result<(), StoreError> {
     let command_id = format!("provider-event:{}", uuid::Uuid::new_v4());
     let now = Utc::now();
-    store.dispatch(
+    store.dispatch_unreceipted(
         &command_id,
         "thread",
         thread_id,

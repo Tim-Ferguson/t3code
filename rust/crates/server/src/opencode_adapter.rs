@@ -1417,6 +1417,10 @@ impl Actor {
     }
     async fn handle_event(&mut self, event: &Value) -> Result<(), StoreError> {
         let kind = event["type"].as_str().unwrap_or("");
+        // The native log keeps the shape of each server-sent event, not what it said.
+        if let Some(logger) = crate::provider_event_log::native(&self.store) {
+            crate::provider_event_log::write_protocol_summary(&logger, DRIVER, Some("opencode-sdk.sse"), &self.instance.instance_id, &self.session_id, &self.thread_id, "incoming", "notification", kind, event);
+        }
         let session_id = session_of(event);
         // `revert.clear` wakes the session into an empty execution of its own. It is no run of T3's.
         if let Some(sid) = session_id.as_deref().filter(|sid| self.clearing.contains(*sid)) {

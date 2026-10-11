@@ -24,14 +24,15 @@ pub(crate) fn ensure(connection: &Connection) -> Result<(), rusqlite::Error> {
     let exists: bool = connection.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='rust_provider_threads')", [], |row| row.get(0))?;
     connection.execute_batch(TABLES)?;
     if !exists {
+        // The rows are in `rust_projection_rows`, one for each element of each list of a thread (`projection_rows`).
         connection.execute_batch(
             "INSERT OR REPLACE INTO rust_provider_threads(id,app_thread_id,owner_node_id,json)
-               SELECT json_extract(row.value,'$.id'), json_extract(row.value,'$.appThreadId'), json_extract(row.value,'$.ownerNodeId'), row.value
-               FROM rust_projections p, json_each(p.state_json,'$.providerThreads') row WHERE p.aggregate_kind='thread';
+               SELECT json_extract(row_json,'$.id'), json_extract(row_json,'$.appThreadId'), json_extract(row_json,'$.ownerNodeId'), row_json
+               FROM rust_projection_rows WHERE aggregate_kind='thread' AND list='providerThreads' ORDER BY aggregate_id, pos;
              INSERT OR REPLACE INTO rust_provider_sessions(id,json)
-               SELECT json_extract(row.value,'$.id'), row.value FROM rust_projections p, json_each(p.state_json,'$.providerSessions') row WHERE p.aggregate_kind='thread';
+               SELECT json_extract(row_json,'$.id'), row_json FROM rust_projection_rows WHERE aggregate_kind='thread' AND list='providerSessions' ORDER BY aggregate_id, pos;
              INSERT OR IGNORE INTO rust_provider_session_bindings(session_id,thread_id)
-               SELECT json_extract(row.value,'$.id'), p.aggregate_id FROM rust_projections p, json_each(p.state_json,'$.providerSessions') row WHERE p.aggregate_kind='thread';",
+               SELECT json_extract(row_json,'$.id'), aggregate_id FROM rust_projection_rows WHERE aggregate_kind='thread' AND list='providerSessions';",
         )?;
     }
     Ok(())

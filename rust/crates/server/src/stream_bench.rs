@@ -9,7 +9,7 @@ use crate::{
     assistant_streaming::{Mode, install_source},
     auth::AuthService,
     codex_runtime::commit,
-    persistence::{Event, Store, StoredEvent, legacy, work, write_projection},
+    persistence::{Decision, Event, Store, StoredEvent, legacy, work, write_projection},
     shell_enrichment::Dedupe,
     transport::{ApiState, live_items},
 };
@@ -175,6 +175,11 @@ impl Rig {
     fn new() -> Self {
         let directory = tempfile::tempdir().unwrap();
         let store = Store::open(directory.path().join("bench.sqlite")).unwrap();
+        Self::on(store, directory)
+    }
+
+    /// A rig on a store that exists already; `directory` is kept for as long as the rig is.
+    fn on(store: Store, directory: tempfile::TempDir) -> Self {
         let state = state(&store);
         let (thread_events, shell_events) = (store.subscribe(), store.subscribe());
         Rig { store, state, thread_events, shell_events, dedupe: Dedupe::default(), _directory: directory }
@@ -324,10 +329,10 @@ fn streaming_costs_by_thread_length_and_message_size() {
 
 /// The work of a delta, in units that do not depend on the machine's load. The bound is the size of the message being streamed
 /// (the original sends and stores a whole item per update too) plus a constant: it must not grow with the length of the thread.
-/// What does grow with it, by the design of one stored document per thread, is the document itself: serialised and handed to
-/// SQLite on every write (`stored_bytes`), which the guard reports but cannot bound.
-#[test]
-fn a_delta_does_work_in_proportion_to_its_message_alone() {
+/// That includes what is stored (`stored_bytes`): the event, the rows the delta touched (`projection_rows`) and the skeleton.
+/// The clock is paused, so the five-second resend of an unchanged shell (`Dedupe`) cannot fire however slowly the machine runs.
+#[tokio::test(start_paused = true)]
+async fn a_delta_does_work_in_proportion_to_its_message_alone() {
     let measure = |items: usize, mode: Option<Mode>, before: bool| {
         legacy::set(before);
         let mut rig = Rig::new();
@@ -356,10 +361,138 @@ fn a_delta_does_work_in_proportion_to_its_message_alone() {
                 assert!(cost.writes <= 1.0, "{mode:?}: {cost:?}");
             }
             assert_eq!(short.thread_bytes, long.thread_bytes, "{mode:?}: bytes sent to a thread subscriber grow with the thread");
+            // What is stored is the event, the item's row, its row of the visible history and the node's row, each a few times the
+            // message, and the skeleton, which holds none of the lists: not a byte of the 1000 items. The messages here are 2 to 3 KB.
+            let message = 4_000.0;
+            for cost in [short, long] {
+                assert!(cost.stored_bytes <= 4.0 * message + 8_192.0, "{mode:?}: stored {} bytes for a delta of a message under {message}", cost.stored_bytes);
+            }
+            assert!((long.stored_bytes - short.stored_bytes).abs() < 256.0, "{mode:?}: a delta stores {} bytes on 20 items and {} on 1000", short.stored_bytes, long.stored_bytes);
         }
         // The same measurement before the changes does grow with the thread, so the guard would have caught them.
         let (short, long) = (measure(20, mode, true), measure(1_000, mode, true));
         let (short, long) = (short.last().unwrap(), long.last().unwrap());
         assert!(long.parsed_bytes > short.parsed_bytes && long.rows_cloned > short.rows_cloned, "{mode:?}: {short:?} {long:?}");
+        if mode.is_none() {
+            assert!(long.stored_bytes > 5.0 * short.stored_bytes, "{mode:?}: before, the whole thread was stored for a delta: {short:?} {long:?}");
+        }
+    }
+}
+
+/// Whatever a write stores, the database holds the document the cache does, order and content: after each write of a streamed turn
+/// (an assistant message and a tool call growing, runs and attempts changing, a provider session coming and going, an item that
+/// changes its run), the thread read back from the rows equals the parsed one the next write starts from, and so does a reopened
+/// store at the end. Debug builds also check each write as it is made (`projection_rows::verify`); this does not depend on them.
+#[test]
+fn every_write_of_a_streamed_turn_leaves_the_database_equal_to_the_cached_document() {
+    legacy::set(false);
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("equal.sqlite");
+    let store = Store::open(&path).unwrap();
+    seed(&store, "thread:eq", 40);
+    let check = |label: &str| {
+        let stored = serde_json::to_string(&store.projection("thread", "thread:eq").unwrap().unwrap()).unwrap();
+        let cached = store.with_projection("thread", "thread:eq", |view| serde_json::to_string(view).unwrap()).unwrap().unwrap();
+        assert_eq!(stored, cached, "{label}");
+    };
+    check("seeded");
+    let mut rig = Rig::on(store.clone(), tempfile::tempdir().unwrap());
+    let mut text = text_of(500);
+    for round in 0..6 {
+        text.push_str(&text_of(DELTA));
+        rig.step("thread:eq", |view| assistant_delta(view, "thread:eq", &text));
+        check(&format!("assistant delta {round}"));
+        rig.step("thread:eq", |view| tool_delta(view, "thread:eq", &text[..300 + round * 20]));
+        check(&format!("tool delta {round}"));
+    }
+    // A run settling, a new run, a session that attaches and detaches, an item that changes its run, a run rolled back: lists other
+    // than the three a delta touches, and the history rebuilt.
+    let run = |id: &str, ordinal: u64, status: &str| json!({"id":id,"threadId":"thread:eq","ordinal":ordinal,"status":status,"requestedAt":AT,"startedAt":AT,"completedAt":null,"activeAttemptId":"attempt:1"});
+    let mut moved = turn_item("thread:eq", 3, "assistant_message", "moved to the second run");
+    moved["runId"] = json!("run:2");
+    let steps: Vec<Vec<(&'static str, Value)>> = vec![
+        vec![("run.updated", run("run:1", 1, "completed"))],
+        vec![("run.created", run("run:2", 2, "running"))],
+        vec![("provider-session.attached", json!({"id":"session:1","status":"ready"})), ("provider-session.attached", json!({"id":"session:2","status":"ready"}))],
+        vec![("provider-session.detached", json!({"providerSessionId":"session:1"}))],
+        vec![("turn-item.updated", moved)],
+        vec![("run.updated", run("run:2", 2, "rolled_back"))],
+        vec![("run.background-work-cancelled", json!({"runId":"run:1","restartCancelledBackgroundWork":[{"id":"w"}]}))],
+    ];
+    // Written as they are, without the contracts' check of a payload that `commit` makes: only the reducer is under test.
+    for (index, events) in steps.into_iter().enumerate() {
+        let events = events
+            .into_iter()
+            .map(|(kind, payload)| Event { event_id: uuid::Uuid::new_v4().to_string(), aggregate_kind: "thread".into(), aggregate_id: "thread:eq".into(), occurred_at: AT.into(), command_id: None, causation_event_id: None, correlation_id: None, event_type: kind.into(), payload, metadata: json!({}) })
+            .collect();
+        store.dispatch_unreceipted(&format!("command:{index}"), "thread", "thread:eq", "provider.event", chrono::Utc::now(), |_| Ok(Decision::Accepted { events, effects: vec![] }), crate::thread::reduce).unwrap();
+        check(&format!("event step {index}"));
+    }
+    drop(rig);
+    drop(store);
+    let reopened = Store::open(&path).unwrap();
+    let after = serde_json::to_string(&reopened.projection("thread", "thread:eq").unwrap().unwrap()).unwrap();
+    let parsed = reopened.with_projection("thread", "thread:eq", |view| serde_json::to_string(view).unwrap()).unwrap().unwrap();
+    assert_eq!(after, parsed);
+}
+
+/// What opening a database that an earlier build stored whole costs: the one-time conversion of its threads to rows, then the
+/// first read. Run on demand like the benchmark above:
+///   cargo test --release -p t3-server --lib migrating -- --ignored --nocapture --test-threads 1
+#[test]
+#[ignore]
+fn migrating_a_database_stored_whole_by_thread_length() {
+    eprintln!("{:<22} {:>12} {:>10} {:>12}", "thread", "first open us", "read us", "reopen us");
+    for items in [10, 300, 3000, 10000] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("whole.sqlite");
+        {
+            let store = Store::open(&path).unwrap();
+            seed(&store, "thread:big", items);
+            let whole = serde_json::to_string(&store.projection("thread", "thread:big").unwrap().unwrap()).unwrap();
+            drop(store);
+            // What the earlier build left: the document whole in `state_json`, no rows, no mark.
+            let connection = rusqlite::Connection::open(&path).unwrap();
+            connection.execute("UPDATE rust_projections SET state_json=?1", [whole]).unwrap();
+            connection.execute_batch("DELETE FROM rust_projection_rows; PRAGMA user_version=0;").unwrap();
+        }
+        let opening = std::time::Instant::now();
+        let store = Store::open(&path).unwrap();
+        let open_us = opening.elapsed().as_secs_f64() * 1e6;
+        let reading = std::time::Instant::now();
+        let projection = store.projection("thread", "thread:big").unwrap().unwrap();
+        let read_us = reading.elapsed().as_secs_f64() * 1e6;
+        assert_eq!(projection["turnItems"].as_array().unwrap().len(), items);
+        drop(store);
+        let reopening = std::time::Instant::now();
+        drop(Store::open(&path).unwrap());
+        eprintln!("{:<22} {open_us:>12.0} {read_us:>10.0} {:>12.0}", format!("{items} items"), reopening.elapsed().as_secs_f64() * 1e6);
+    }
+}
+
+/// What starting the server costs for a thread of `items` items: opening its database file and reading the thread once, the first
+/// read a client makes. Run on demand like the benchmark above:
+///   cargo test --release -p t3-server --lib cold_start -- --ignored --nocapture --test-threads 1
+#[test]
+#[ignore]
+fn cold_start_cost_by_thread_length() {
+    eprintln!("{:<22} {:>10} {:>10} {:>10} {:>10} {:>10}", "thread", "open us", "read us", "read cpu", "parsed B", "file KB");
+    for items in [10, 300, 3000, 10000] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("cold.sqlite");
+        {
+            let store = Store::open(&path).unwrap();
+            seed(&store, "thread:big", items);
+        }
+        let _ = work::take();
+        let opening = std::time::Instant::now();
+        let store = Store::open(&path).unwrap();
+        let open_us = opening.elapsed().as_secs_f64() * 1e6;
+        let (reading, cpu) = (std::time::Instant::now(), thread_cpu_nanos());
+        let projection = store.projection("thread", "thread:big").unwrap().unwrap();
+        let (read_us, cpu_us) = (reading.elapsed().as_secs_f64() * 1e6, (thread_cpu_nanos() - cpu) as f64 / 1e3);
+        assert_eq!(projection["turnItems"].as_array().unwrap().len(), items);
+        let file = std::fs::metadata(&path).unwrap().len() as f64 / 1024.0;
+        eprintln!("{:<22} {open_us:>10.0} {read_us:>10.0} {cpu_us:>10.0} {:>10} {file:>10.0}", format!("{items} items"), work::take().projection_read_bytes);
     }
 }

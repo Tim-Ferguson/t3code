@@ -7,20 +7,21 @@
 //! refresh ignores the day but not a table fetched in the last minute. `T3CODE_USAGE_RATES_URL`
 //! replaces the origin so tests can serve a loopback table.
 //!
-//! Divergence: the original keeps every parsed file in a persisted scan cache for 90 days so usage
-//! survives its transcripts being deleted and a warm scan resumes appended files from a byte
-//! position. This port re-reads transcripts newer than the window on every scan and remembers only
-//! the last parse of each file in memory. OpenCode and Antigravity are read from their databases (`usage_readers`) on every scan.
-//! Grok and Cursor are not read.
+//! Parsed transcripts are kept in a persisted scan cache (`usage_scan_cache.rs`, `usage-scan-cache-v5.json`) for 90 days: a file that
+//! has not changed is not read again, a file that grew is read from where the last parse stopped (`usage_transcript_reader.rs`), and
+//! usage of transcripts since deleted stays in the totals. OpenCode and Antigravity are read from their databases
+//! (`usage_readers`) on every scan, as the original does. Grok and Cursor are not read.
 use crate::{
     usage_aggregation::{Aggregator, Options, resolve_model_aliases},
     usage_pricing::{RateTable, override_table, parse_rate_table},
-    usage_transcripts::{CodexScanState, UsageRecord, dedupe_within_file, might_carry_usage, parse_claude_line, parse_codex_line},
+    usage_scan_cache::{CachedFile, LEGACY_SCAN_CACHE_FILE_NAME, SCAN_CACHE_FILE_NAME, ScanCache, ScanCacheWriter, decode_scan_cache, prune_scan_cache},
+    usage_transcript_reader::{directory_volume_id, list_transcript_files, read_transcript_records},
+    usage_transcripts::{UsageRecord, dedupe_within_file},
 };
-use serde_json::{Value, json};
+use indexmap::IndexMap;
+use serde_json::{Map, Value, json};
 use std::{
     collections::{HashMap, HashSet},
-    io::BufRead,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
     time::Duration,
@@ -36,6 +37,8 @@ const RATES_REFRESH_FLOOR_MS: i64 = 60 * 1000;
 /// just before local midnight on the window's first day.
 const MTIME_SLACK_MS: i64 = 36 * 60 * 60 * 1000;
 const MAX_HOURLY_WINDOW_MS: i64 = 24 * 60 * 60 * 1000;
+/// Longest window the UI offers, plus slack. Older cache entries are pruned.
+const CACHE_RETENTION_DAYS: i64 = 90;
 
 /// `UsageReadError`
 pub struct ReadError {
@@ -59,24 +62,38 @@ struct RatesState {
     status: Option<&'static str>,
 }
 
-struct CachedFile {
-    size: u64,
-    mtime_ms: i64,
-    provider: &'static str,
-    records: Vec<UsageRecord>,
+/// The persisted cache and what it needs to be written back.
+#[derive(Default)]
+struct CacheState {
+    loaded: bool,
+    files: ScanCache,
+    /// `provider NUL directory` to the canonical directory and volume id it was last seen with, so a source keeps its fingerprint
+    /// after its root is cleaned up or recreated.
+    sources: IndexMap<String, (String, String)>,
+    dirty: bool,
+    writer: ScanCacheWriter,
 }
 
 pub struct UsageService {
     state_dir: PathBuf,
     rates: tokio::sync::Mutex<RatesState>,
-    files: Mutex<HashMap<PathBuf, Arc<CachedFile>>>,
+    cache: Mutex<CacheState>,
+    /// Scans with different windows can finish together; serialising the writes keeps an older snapshot from landing after a newer one.
+    persist: Mutex<()>,
     http: reqwest::Client,
 }
 
-/// One service per state directory, so the rate table and parse cache outlive a request.
+/// One service per state directory, so the rate table and scan cache outlive a request.
 pub fn of(state_dir: &Path) -> Arc<UsageService> {
     static SERVICES: OnceLock<Mutex<HashMap<PathBuf, Arc<UsageService>>>> = OnceLock::new();
-    SERVICES.get_or_init(Default::default).lock().unwrap().entry(state_dir.to_path_buf()).or_insert_with(|| Arc::new(UsageService { state_dir: state_dir.to_path_buf(), rates: Default::default(), files: Default::default(), http: reqwest::Client::new() })).clone()
+    SERVICES.get_or_init(Default::default).lock().unwrap().entry(state_dir.to_path_buf()).or_insert_with(|| UsageService::new(state_dir)).clone()
+}
+
+impl UsageService {
+    /// A service of its own, which loads the scan cache from `state_dir` as a restarted server would.
+    pub fn new(state_dir: &Path) -> Arc<Self> {
+        Arc::new(Self { state_dir: state_dir.to_path_buf(), rates: Default::default(), cache: Default::default(), persist: Default::default(), http: reqwest::Client::new() })
+    }
 }
 
 fn now_ms() -> i64 {
@@ -173,10 +190,11 @@ impl UsageService {
             self.load_rates(&mut state, false).await;
             (state.table.clone(), self.pricing(&state))
         };
+        let retention_cutoff_ms = started - CACHE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
         let scan = {
             let this = self.clone();
             let settings = settings.clone();
-            tokio::task::spawn_blocking(move || this.scan(&settings, window_start_ms))
+            tokio::task::spawn_blocking(move || this.scan(&settings, window_start_ms, retention_cutoff_ms))
         };
         let ((table, pricing), scanned) = tokio::join!(rates, scan);
         let scanned = scanned.map_err(|error| ReadError { reason: "scanFailed", detail: format!("The transcript scan failed: {error}") })?;
@@ -192,13 +210,13 @@ impl UsageService {
             model_aliases: resolve_model_aliases(&aliases),
             hourly,
         });
-        let shared = shared_codex_sessions(scanned.iter().flat_map(|dir| dir.files.iter().flatten()));
+        let shared = shared_codex_sessions(scanned.iter().flat_map(|dir| dir.files.iter().flatten().chain(dir.saved.iter())));
         let host_id = hostname();
         let mut sources = vec![];
         for dir in &scanned {
             let (mut scanned_files, mut skipped_files) = (0u64, 0u64);
             let mut sessions = HashSet::new();
-            for file in dir.files.iter().flatten() {
+            for file in dir.files.iter().flatten().chain(dir.saved.iter()) {
                 if file.1.is_empty() {
                     skipped_files += 1;
                     continue;
@@ -234,25 +252,141 @@ impl UsageService {
         }))
     }
 
-    /// Walks each provider's transcript directory and parses the files newer than the window.
-    fn scan(&self, settings: &Value, window_start_ms: i64) -> Vec<ScannedDir> {
+    /// Walks each provider's transcript directory and parses the files newer than the window, then adds the saved usage of transcripts
+    /// since deleted and writes the cache back.
+    fn scan(&self, settings: &Value, window_start_ms: i64, retention_cutoff_ms: i64) -> Vec<ScannedDir> {
+        self.ensure_cache_loaded();
         let mut scanned = vec![];
-        for (provider, dir) in transcript_dirs(settings) {
-            let volume_id = volume_id(&dir);
-            if !dir.is_dir() {
-                scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: None, status: "ok", message: None });
+        let mut seen = HashSet::new();
+        for (provider, directory) in transcript_dirs(settings) {
+            let (dir, volume_id) = self.resolve_source(provider, &directory, retention_cutoff_ms as f64);
+            if !seen.insert((provider, dir.clone())) {
                 continue;
             }
-            let mut files = vec![];
-            for (path, size, mtime_ms) in list_transcripts(&dir, window_start_ms) {
-                let records = self.file_records(&path, size, mtime_ms, provider);
-                files.push((path.to_string_lossy().into_owned(), records));
+            if !dir.is_dir() {
+                scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: None, saved: vec![], status: "ok", message: None });
+                continue;
             }
-            scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: Some(files), status: "ok", message: None });
+            let mut parsed = vec![];
+            let mut updates = vec![];
+            for file in list_transcript_files(&dir, window_start_ms as f64, None) {
+                let path = file.path.to_string_lossy().into_owned();
+                let (records, update) = self.file_records(&path, file.size, file.mtime_ms, provider);
+                updates.extend(update.map(|update| (path.clone(), update)));
+                parsed.push((path, records));
+            }
+            // Stored in walk order: saved records of deleted transcripts aggregate in cache order, where the first copy of a duplicate wins.
+            self.store(updates);
+            scanned.push(ScannedDir { provider, dir: dir.to_string_lossy().into_owned(), volume_id, files: Some(parsed), saved: vec![], status: "ok", message: None });
         }
         scanned.extend(self.scan_opencode(window_start_ms));
         scanned.extend(self.scan_antigravity(settings, window_start_ms));
+        // Cleanup may remove transcripts, but the usage already saved still contributes to its source. Like the walk, files last written
+        // before the window are skipped: they cannot hold records inside it.
+        let retained_since = (window_start_ms.max(retention_cutoff_ms)) as f64;
+        {
+            let cache = self.cache.lock().unwrap();
+            for dir in &mut scanned {
+                let root = Path::new(&dir.dir);
+                let live: HashSet<&str> = dir.files.iter().flatten().map(|(path, _)| path.as_str()).collect();
+                let saved = cache.files.iter().filter(|(path, entry)| entry.provider == dir.provider && entry.mtime_ms >= retained_since && !live.contains(path.as_str()) && Path::new(path.as_str()).starts_with(root)).map(|(path, entry)| (path.clone(), Arc::new(entry.all_records()))).collect();
+                dir.saved = saved;
+            }
+        }
+        {
+            let mut cache = self.cache.lock().unwrap();
+            if prune_scan_cache(&mut cache.files, retention_cutoff_ms as f64) > 0 {
+                cache.dirty = true;
+            }
+        }
+        self.persist_cache();
         scanned
+    }
+
+    /// Loads the persisted cache once per process, from its own file or else the legacy one (rewritten to its own on the next write).
+    fn ensure_cache_loaded(&self) {
+        let mut cache = self.cache.lock().unwrap();
+        if cache.loaded {
+            return;
+        }
+        cache.loaded = true;
+        let read = |name: &str| std::fs::read_to_string(self.state_dir.join(name)).ok().and_then(|raw| serde_json::from_str::<Value>(&raw).ok());
+        let document = match read(SCAN_CACHE_FILE_NAME) {
+            Some(document) => Some(document),
+            None => {
+                let legacy = read(LEGACY_SCAN_CACHE_FILE_NAME);
+                cache.dirty = legacy.is_some();
+                legacy
+            }
+        };
+        let Some(document) = document else { return };
+        cache.files = decode_scan_cache(&document);
+        // All or nothing, as the original's decoder of the sources.
+        let sources: Option<Vec<(String, (String, String))>> = document["sources"].as_object().and_then(|sources| sources.iter().map(|(key, source)| Some((key.clone(), (source["dir"].as_str()?.to_owned(), source["volumeId"].as_str()?.to_owned())))).collect());
+        cache.sources.extend(sources.into_iter().flatten());
+    }
+
+    /// The canonical directory and volume id of a transcript source. Both stay as they were last seen after the root is cleaned up
+    /// (its aliases and the summaries a client merged from before the cleanup keep matching), and a recreated directory still reports
+    /// the retained history under its old identity.
+    fn resolve_source(&self, provider: &'static str, directory: &Path, retention_cutoff_ms: f64) -> (PathBuf, String) {
+        let key = format!("{provider}\0{}", directory.to_string_lossy());
+        let mut cache = self.cache.lock().unwrap();
+        let previous = cache.sources.get(&key).cloned();
+        let dir = std::fs::canonicalize(directory).unwrap_or_else(|_| previous.as_ref().map_or_else(|| directory.to_path_buf(), |(dir, _)| PathBuf::from(dir)));
+        let current_volume = directory_volume_id(&dir);
+        let has_retained_history = cache.files.iter().any(|(path, entry)| entry.provider == provider && entry.mtime_ms >= retention_cutoff_ms && !(entry.records.is_empty() && entry.tail_records.is_empty()) && Path::new(path.as_str()).starts_with(&dir));
+        let dir_text = dir.to_string_lossy().into_owned();
+        let volume_id = match &previous {
+            Some((previous_dir, previous_volume)) if *previous_dir == dir_text && (has_retained_history || current_volume.is_empty()) => if previous_volume.is_empty() { current_volume } else { previous_volume.clone() },
+            _ => current_volume,
+        };
+        if previous.as_ref().is_none_or(|(previous_dir, previous_volume)| *previous_dir != dir_text || *previous_volume != volume_id) {
+            cache.sources.insert(key, (dir_text, volume_id.clone()));
+            cache.dirty = true;
+        }
+        (dir, volume_id)
+    }
+
+    /// Applies fresh parses. A scan of another window may have cached its own read of a file meanwhile; then whichever read saw the
+    /// later file stays, so a slower scan never replaces newer usage with older.
+    fn store(&self, updates: Vec<(String, (Arc<CachedFile>, Option<Arc<CachedFile>>))>) {
+        let mut cache = self.cache.lock().unwrap();
+        for (path, (entry, replaces)) in updates {
+            let keep_current = match cache.files.get(&path) {
+                None => false,
+                Some(current) => !replaces.as_ref().is_some_and(|replaces| Arc::ptr_eq(current, replaces)) && current.is_later_read_than(&entry),
+            };
+            if !keep_current {
+                cache.files.insert(path, entry);
+                cache.dirty = true;
+            }
+        }
+    }
+
+    /// Writes the cache when it changed. The flag is cleared before encoding, so a scan that changes the cache meanwhile marks it dirty
+    /// again; a failed write restores it, and the next scan retries. A cache that cannot be written is a slower next start, not a failed read.
+    fn persist_cache(&self) {
+        let _persisting = self.persist.lock().unwrap();
+        let contents = {
+            let mut cache = self.cache.lock().unwrap();
+            if !cache.dirty {
+                return;
+            }
+            cache.dirty = false;
+            let sources: Map<String, Value> = cache.sources.iter().map(|(key, (dir, volume_id))| (key.clone(), json!({"dir":dir,"volumeId":volume_id}))).collect();
+            let mut extra = Map::new();
+            extra.insert("sources".into(), Value::Object(sources));
+            let CacheState { files, writer, .. } = &mut *cache;
+            writer.write(files, &extra)
+        };
+        let path = self.state_dir.join(SCAN_CACHE_FILE_NAME);
+        let temporary = path.with_extension(format!("json.{}.tmp", std::process::id()));
+        let written = std::fs::create_dir_all(&self.state_dir).and_then(|()| std::fs::write(&temporary, contents)).and_then(|()| std::fs::rename(&temporary, &path));
+        if written.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+            self.cache.lock().unwrap().dirty = true;
+        }
     }
 
     /// OpenCode's data directories: `OPENCODE_DATA_DIR` (a comma list), else `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode`.
@@ -267,6 +401,7 @@ impl UsageService {
                 ScannedDir {
                     provider: "opencode",
                     volume_id: volume_id(&dir),
+                    saved: vec![],
                     files: if read.missing && !read.error { None } else { Some(read.files.into_iter().map(|(path, records)| (path.to_string_lossy().into_owned(), Arc::new(records))).collect()) },
                     dir: dir.to_string_lossy().into_owned(),
                     status: if read.error { "partial" } else { "ok" },
@@ -306,6 +441,7 @@ impl UsageService {
                 ScannedDir {
                     provider: "antigravity",
                     volume_id: volume_id(&dir),
+                    saved: vec![],
                     files: if !dir.exists() && !failed { None } else { Some(files) },
                     dir: dir.to_string_lossy().into_owned(),
                     status: if failed { "partial" } else { "ok" },
@@ -315,17 +451,37 @@ impl UsageService {
             .collect()
     }
 
-    /// One transcript's records, reusing the last parse when the file is unchanged.
-    fn file_records(&self, path: &Path, size: u64, mtime_ms: i64, provider: &'static str) -> Arc<Vec<UsageRecord>> {
-        if let Some(cached) = self.files.lock().unwrap().get(path).filter(|cached| cached.size == size && cached.mtime_ms == mtime_ms && cached.provider == provider) {
-            return Arc::new(cached.records.clone());
+    /// One transcript's records, reusing the cached parse when the file is unchanged. A file that only grew re-parses from the cached
+    /// position, so an actively written rollout costs its appended bytes per scan; the reader verifies the position's guard bytes and
+    /// restarts from byte 0 when they no longer match. A fresh parse comes back as an update for the caller to store, with the entry it
+    /// was built from.
+    #[allow(clippy::type_complexity)]
+    fn file_records(&self, path: &str, size: u64, mtime_ms: f64, provider: &'static str) -> (Arc<Vec<UsageRecord>>, Option<(Arc<CachedFile>, Option<Arc<CachedFile>>)>) {
+        let cached = self.cache.lock().unwrap().files.get(path).cloned();
+        // Provider is part of the identity: if both providers were ever pointed at one directory, a hit parsed by the other parser
+        // must not be reused.
+        if let Some(cached) = cached.as_ref().filter(|cached| cached.size == size as i64 && cached.mtime_ms == mtime_ms && cached.provider == provider) {
+            return (Arc::new(cached.all_records()), None);
         }
-        let Some(parsed) = read_transcript(path, provider) else {
-            // A read failure is not an empty transcript: do not cache it.
-            return Arc::new(vec![]);
+        // Only a strictly grown file may resume. The same size with a new mtime, or a shrunken file, is rewritten content.
+        let resume_from = cached.as_ref().filter(|cached| cached.provider == provider && size as i64 > cached.size).map(|cached| &cached.position);
+        let Some(parsed) = read_transcript_records(Path::new(path), provider, resume_from) else {
+            // A read failure is not an empty transcript: keeping it under this (size, mtime) would drop the file's usage until it changes.
+            return (Arc::new(cached.filter(|cached| cached.provider == provider).map_or_else(Vec::new, |cached| cached.all_records())), None);
         };
-        self.files.lock().unwrap().insert(path.to_path_buf(), Arc::new(CachedFile { size, mtime_ms, provider, records: parsed.clone() }));
-        Arc::new(parsed)
+        // Stored already de-duplicated within the file, which is 99% of all duplicates; the aggregator still runs the cross-file pass.
+        // One seen set spans the cached base, the new lines and the tail, so a resumed parse dedupes exactly like a full one.
+        let base = match (&cached, parsed.resumed) {
+            (Some(cached), true) => cached.records.clone(),
+            _ => vec![],
+        };
+        let mut seen = HashSet::new();
+        let mut all = base;
+        all.extend(parsed.records);
+        let records = dedupe_within_file(all, &mut seen);
+        let tail_records = dedupe_within_file(parsed.tail_records, &mut seen);
+        let entry = Arc::new(CachedFile::new(size as i64, mtime_ms, provider, records, tail_records, parsed.position));
+        (Arc::new(entry.all_records()), Some((entry, cached)))
     }
 }
 
@@ -335,6 +491,8 @@ struct ScannedDir {
     volume_id: String,
     /// Parsed records per file, `None` when the directory does not exist.
     files: Option<Vec<(String, Arc<Vec<UsageRecord>>)>>,
+    /// Records saved from transcripts since deleted (or outside this scan's walk), in cache order.
+    saved: Vec<(String, Arc<Vec<UsageRecord>>)>,
     /// `partial` when some of the history could not be read; the source then says so.
     status: &'static str,
     message: Option<&'static str>,
@@ -404,7 +562,7 @@ fn volume_id(_path: &Path) -> String {
     String::new()
 }
 
-/// The transcript directory of every Claude Code and Codex instance. Disabled accounts still have
+/// The transcript directory of every Claude Code and Codex instance, as configured. Disabled accounts still have
 /// history; the default slots apply when settings do not name that driver's own instance.
 fn transcript_dirs(settings: &Value) -> Vec<(&'static str, PathBuf)> {
     let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
@@ -435,76 +593,9 @@ fn transcript_dirs(settings: &Value) -> Vec<(&'static str, PathBuf)> {
                 let base = if configured.is_empty() { environment_value("CLAUDE_CONFIG_DIR").map(PathBuf::from).unwrap_or_else(|| home.join(".claude")) } else { expand(&configured) };
                 ("claude", base.join("projects"))
             };
-            let resolved = std::path::absolute(&resolved).unwrap_or(resolved);
-            // Canonical, so aliases of one directory read once.
-            let dir = std::fs::canonicalize(&resolved).unwrap_or(resolved);
-            if !dirs.iter().any(|(existing, known)| *existing == provider && *known == dir) {
-                dirs.push((provider, dir));
-            }
+            // Aliases of one directory are read once, once the service has made it canonical (`resolve_source`).
+            dirs.push((provider, std::path::absolute(&resolved).unwrap_or(resolved)));
         }
     }
     dirs
-}
-
-/// Every `.jsonl` under `root` whose mtime is at or after `since_ms`, in directory order.
-fn list_transcripts(root: &Path, since_ms: i64) -> Vec<(PathBuf, u64, i64)> {
-    let mut found = vec![];
-    let mut pending = vec![root.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        let Ok(entries) = std::fs::read_dir(&directory) else { continue };
-        let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
-        entries.sort_by_key(|entry| entry.file_name());
-        // Depth-first in name order: subdirectories are visited where they sort.
-        let mut batch = vec![];
-        for entry in entries {
-            let path = entry.path();
-            let Ok(kind) = entry.file_type() else { continue };
-            if kind.is_dir() {
-                batch.push((true, path));
-            } else if path.extension().is_some_and(|extension| extension == "jsonl") {
-                batch.push((false, path));
-            }
-        }
-        for (is_dir, path) in batch.into_iter().rev() {
-            if is_dir {
-                pending.push(path);
-            } else if let Ok(metadata) = std::fs::metadata(&path) {
-                let mtime_ms = metadata.modified().ok().and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |elapsed| elapsed.as_millis() as i64);
-                if mtime_ms >= since_ms {
-                    found.push((path, metadata.len(), mtime_ms));
-                }
-            }
-        }
-    }
-    found
-}
-
-/// Parses one transcript, de-duplicated within the file (99% of all duplicates).
-fn read_transcript(path: &Path, provider: &'static str) -> Option<Vec<UsageRecord>> {
-    let file = std::fs::File::open(path).ok()?;
-    let mut reader = std::io::BufReader::with_capacity(256 * 1024, file);
-    let mut state = CodexScanState::default();
-    let mut records = vec![];
-    let mut line = Vec::new();
-    loop {
-        line.clear();
-        if reader.read_until(b'\n', &mut line).ok()? == 0 {
-            break;
-        }
-        let text = String::from_utf8_lossy(&line);
-        let text = text.trim_end_matches(['\n', '\r']);
-        // Cheap substring gates before `JSON.parse`; the Codex reducer also needs the lines that
-        // carry its session, model and service tier.
-        let relevant = if provider == "claude" {
-            might_carry_usage(text, provider)
-        } else {
-            might_carry_usage(text, provider) || text.contains("\"turn_context\"") || text.contains("\"thread_settings_applied\"") || text.contains("\"session_meta\"")
-        };
-        if text.is_empty() || !relevant {
-            continue;
-        }
-        let record = if provider == "claude" { parse_claude_line(text) } else { parse_codex_line(text, &mut state) };
-        records.extend(record);
-    }
-    Some(dedupe_within_file(records, &mut HashSet::new()))
 }

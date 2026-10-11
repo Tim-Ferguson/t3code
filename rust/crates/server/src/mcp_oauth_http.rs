@@ -180,7 +180,7 @@ async fn approval(State(state): State<ApiState>, headers: HeaderMap, uri: Uri, b
             Forwarded::Redirect(to) => return Ok(axum::Json(json!({"redirectTo": to})).into_response()),
             Forwarded::Valid(resolved) => resolved,
         };
-        let cookie = named_cookie(&headers, &state.auth.cookie_name);
+        let cookie = crate::transport::browser_session_cookie(&state, &headers);
         let session = oauth.approving_browser_session(cookie, &resolved);
         let mut details = json!({"clientName": resolved.client.name, "redirectHost": host_of(&resolved.redirect_uri), "environmentHost": host_of(&urls.issuer)});
         if let Some(session) = session {
@@ -210,7 +210,7 @@ async fn decision(State(state): State<ApiState>, headers: HeaderMap, uri: Uri, b
             return Ok(axum::Json(json!({"redirectTo": oauth.deny(&resolved)})).into_response());
         }
         let approval: Approval<'_> = mcp_oauth::approval_of(&request.decision).expect("a decision other than deny approves");
-        let cookie = named_cookie(&headers, &state.auth.cookie_name);
+        let cookie = crate::transport::browser_session_cookie(&state, &headers);
         match oauth.approve(cookie, &resolved, approval) {
             Ok(to) => Ok(axum::Json(json!({"redirectTo": to})).into_response()),
             Err(message) => Err(approval_error(&message)),

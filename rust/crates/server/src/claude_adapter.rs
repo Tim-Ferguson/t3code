@@ -245,7 +245,7 @@ impl Actor {
                 // What the old process ran, and what it left to report, is not the new one's.
                 self.process_ended().map_err(|e| e.to_string())?;
             }
-            let (process, events) = ClaudeProcess::spawn(&options.launch())?;
+            let (process, events) = ClaudeProcess::spawn_tapped(&options.launch(), crate::provider_event_log::protocol_tap(&self.store, "claudeAgent", "claude-agent-sdk.query", &self.thread_id, &self.session_id))?;
             process.write(&json!({"request_id":format!("t3-init-{}", uuid::Uuid::new_v4().simple()),"type":"control_request","request":options.initialize_request()}))?;
             if fork_request.is_none() {
                 self.opened.insert(native_id.clone());

@@ -762,7 +762,7 @@ fn compare_projections(source: &Source, store: &Store, report: &mut Report) -> R
             Ok(if field == "thread" {
                 connection.query_row("SELECT COUNT(*) FROM rust_projections WHERE aggregate_kind = 'thread'", [], |row| row.get(0))?
             } else {
-                connection.query_row(&format!("SELECT COALESCE(SUM(json_array_length(state_json, '$.{field}')),0) FROM rust_projections WHERE aggregate_kind = 'thread'"), [], |row| row.get(0))?
+                connection.query_row("SELECT COUNT(*) FROM rust_projection_rows WHERE aggregate_kind = 'thread' AND list = ?1", [field], |row| row.get(0))?
             })
         })?;
         report.projection_checks.insert(field.to_owned(), [read, have]);

@@ -37,14 +37,14 @@ const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 
 // ---- the rotating file (`RotatingFileSink`) -----------------------------------------------------
 
-struct RotatingFile {
+pub(crate) struct RotatingFile {
     path: PathBuf,
     max_bytes: u64,
     max_files: usize,
     size: u64,
 }
 impl RotatingFile {
-    fn open(path: PathBuf, max_bytes: u64, max_files: usize) -> std::io::Result<Self> {
+    pub(crate) fn open(path: PathBuf, max_bytes: u64, max_files: usize) -> std::io::Result<Self> {
         if let Some(directory) = path.parent() {
             std::fs::create_dir_all(directory)?;
         }
@@ -92,7 +92,7 @@ impl RotatingFile {
         Ok(())
     }
     /// `write`: a chunk that would pass the limit rotates first, unless the file is empty.
-    fn write(&mut self, chunk: &[u8]) -> std::io::Result<()> {
+    pub(crate) fn write(&mut self, chunk: &[u8]) -> std::io::Result<()> {
         if chunk.is_empty() {
             return Ok(());
         }

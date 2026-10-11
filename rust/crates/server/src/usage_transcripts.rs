@@ -109,16 +109,16 @@ pub fn parse_claude_line(line: &str) -> Option<UsageRecord> {
 
 /// Rolling state for a single Codex rollout file. `token_count` events carry no model or service
 /// tier, so both are carried forward from `turn_context` and `thread_settings_applied`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CodexScanState {
     pub model: String,
     pub speed: Speed,
     pub session_id: String,
-    last_usage_signature: Option<String>,
-    saw_session_meta: bool,
+    pub(crate) last_usage_signature: Option<String>,
+    pub(crate) saw_session_meta: bool,
     /// While true, leading usage events are re-stamped copies of parent history.
-    suppressing_fork_copies: bool,
-    fork_copy_anchor_ms: i64,
+    pub(crate) suppressing_fork_copies: bool,
+    pub(crate) fork_copy_anchor_ms: i64,
 }
 impl Default for CodexScanState {
     fn default() -> Self {

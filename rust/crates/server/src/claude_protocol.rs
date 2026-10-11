@@ -295,16 +295,22 @@ impl Exit {
 /// How long a finished process's stderr may take to be read to its end before the exit is reported without it.
 const STDERR_DRAIN: Duration = Duration::from_secs(2);
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<Result<Value, String>>>>>;
+/// Sees every JSON line the CLI wrote (`"incoming"`) and every one written to it (`"outgoing"`), decoded: the provider event log.
+pub type Tap = Arc<dyn Fn(&'static str, &Value) + Send + Sync>;
 /// A running `claude` subprocess. Dropping it kills the child.
 pub struct ClaudeProcess {
     writer: mpsc::UnboundedSender<String>,
     pending: Pending,
     shutdown: watch::Sender<bool>,
     done: watch::Receiver<bool>,
+    tap: Option<Tap>,
 }
 
 impl ClaudeProcess {
     pub fn spawn(launch: &Launch) -> Result<(Self, mpsc::UnboundedReceiver<Event>), String> {
+        Self::spawn_tapped(launch, None)
+    }
+    pub fn spawn_tapped(launch: &Launch, tap: Option<Tap>) -> Result<(Self, mpsc::UnboundedReceiver<Event>), String> {
         // The packaged `cli.js` of older npm versions runs under a JavaScript runtime.
         let script = launch.binary.extension().is_some_and(|extension| matches!(extension.to_str(), Some("js" | "mjs" | "cjs")));
         let mut command = if script { Command::new("node") } else { Command::new(&launch.binary) };
@@ -349,6 +355,7 @@ impl ClaudeProcess {
         let reader_pending = pending.clone();
         let host_closed = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let reader_host_closed = host_closed.clone();
+        let reader_tap = tap.clone();
         tokio::spawn(async move {
             let writer_task = tokio::spawn(async move {
                 while let Some(line) = lines.recv().await {
@@ -368,7 +375,7 @@ impl ClaudeProcess {
                         match result {
                             Ok(0) | Err(_) => break,
                             Ok(_) if line.len() > MAX_LINE_BYTES => break,
-                            Ok(_) => route(&line, &events, &reader_pending),
+                            Ok(_) => route(&line, &events, &reader_pending, reader_tap.as_ref()),
                         }
                     }
                     _ = stopping.changed() => {
@@ -376,7 +383,7 @@ impl ClaudeProcess {
                         reader_host_closed.store(true, std::sync::atomic::Ordering::SeqCst);
                         writer_task.abort();
                         let wait = tokio::time::timeout(Duration::from_millis(1500), async {
-                            loop { line.clear(); if !matches!(reader.read_until(b'\n', &mut line).await, Ok(n) if n > 0) { break; } route(&line, &events, &reader_pending); }
+                            loop { line.clear(); if !matches!(reader.read_until(b'\n', &mut line).await, Ok(n) if n > 0) { break; } route(&line, &events, &reader_pending, reader_tap.as_ref()); }
                         }).await;
                         let _ = wait;
                         break;
@@ -408,10 +415,13 @@ impl ClaudeProcess {
             let _ = events.send(Event::Closed(exit));
             let _ = done_sender.send(true);
         });
-        Ok((Self { writer, pending, shutdown, done }, receiver))
+        Ok((Self { writer, pending, shutdown, done, tap }, receiver))
     }
     /// Write one JSON line to stdin.
     pub fn write(&self, value: &Value) -> Result<(), String> {
+        if let Some(tap) = &self.tap {
+            tap("outgoing", value);
+        }
         self.writer.send(value.to_string()).map_err(|_| "Cannot write to terminated Claude Code process.".to_owned())
     }
     /// Send a `control_request` and wait for its `control_response`. A timeout
@@ -455,7 +465,7 @@ impl Drop for ClaudeProcess {
     }
 }
 
-fn route(line: &[u8], events: &mpsc::UnboundedSender<Event>, pending: &Pending) {
+fn route(line: &[u8], events: &mpsc::UnboundedSender<Event>, pending: &Pending, tap: Option<&Tap>) {
     let text = String::from_utf8_lossy(line);
     let text = text.trim();
     if text.is_empty() {
@@ -465,6 +475,9 @@ fn route(line: &[u8], events: &mpsc::UnboundedSender<Event>, pending: &Pending) 
         tracing::debug!("Ignoring non-JSON Claude Code stdout line");
         return;
     };
+    if let Some(tap) = tap {
+        tap("incoming", &value);
+    }
     match value["type"].as_str() {
         Some("control_response") => {
             let response = &value["response"];

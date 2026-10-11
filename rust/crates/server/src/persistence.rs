@@ -1,3 +1,12 @@
+//! The store: one SQLite file with the application events, the projections, the command receipts and the effect outbox.
+//!
+//! A command (`Store::dispatch`) decides events, stores them, reduces each into its projection and commits all of it, with its
+//! receipt and effects, in one transaction. A projection is a JSON document in memory (`read_projection`, `take_projection`) and
+//! is stored by `projection_rows`: a thread as a small skeleton in `rust_projections` and one row per element of each of its lists
+//! in `rust_projection_rows`, so that a write costs the elements it changed and not the length of the thread; every other kind is
+//! stored whole. `projection_cache` keeps the parsed document of the last write, and what the reducer touched in it
+//! (`stage_projection`), so the next write starts from memory. Raw SQL over projections reads the skeleton for a thread's own
+//! fields and the rows table for its lists.
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
@@ -7,6 +16,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 use crate::projection_cache as cache;
+use crate::projection_rows::{self as stored, Held, Touched};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -246,7 +256,7 @@ impl Store {
     }
 
     fn from_connection(
-        connection: Connection,
+        mut connection: Connection,
         database_path: Option<PathBuf>,
     ) -> Result<Self, StoreError> {
         connection.busy_timeout(std::time::Duration::from_secs(5))?;
@@ -267,6 +277,8 @@ impl Store {
               available_at TEXT NOT NULL, lease_owner TEXT, lease_expires_at TEXT,
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_error TEXT);
             CREATE INDEX IF NOT EXISTS rust_effect_claim ON rust_effect_outbox(status,available_at);")?;
+        connection.execute_batch(stored::SCHEMA)?;
+        stored::migrate(&mut connection)?;
         crate::shared_rows::ensure(&connection)?;
         let cache = cache::ProjectionCache::watching(&connection);
         let (committed, _) = tokio::sync::broadcast::channel(256);
@@ -348,22 +360,7 @@ impl Store {
         cache.get(
             &connection,
             &key,
-            || {
-                let json = connection
-                    .query_row("SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 AND aggregate_id=?2", params![kind, id], |row| row.get::<_, String>(0))
-                    .optional()?;
-                match json {
-                    None => Ok(None),
-                    Some(json) => {
-                        #[cfg(test)]
-                        work::add(|work| {
-                            work.projection_reads += 1;
-                            work.projection_read_bytes += json.len() as u64;
-                        });
-                        Ok(Some((serde_json::from_str(&json)?, json.len())))
-                    }
-                }
-            },
+            || counted_read(&connection, kind, id),
             read,
         )
     }
@@ -405,6 +402,22 @@ impl Store {
         .map(|(receipt, _)| receipt)
     }
 
+    /// [`Store::dispatch`] for the events a provider reports as they happen (`codex_runtime::commit`): each has an id of its own that
+    /// nothing replays, so no receipt is kept. The original keeps none either (`EventSink.write` and `writeWithEffects` append provider
+    /// events without one); a receipt row for each delta of a streamed turn would be a row nothing reads, for the life of the database.
+    pub fn dispatch_unreceipted(
+        &self,
+        command_id: &str,
+        kind: &str,
+        aggregate_id: &str,
+        command_type: &str,
+        now: DateTime<Utc>,
+        decide: impl FnOnce(&Transaction<'_>) -> Result<Decision, StoreError>,
+        reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
+    ) -> Result<Receipt, StoreError> {
+        self.dispatch_receipted(false, command_id, kind, command_type, now, |_, _| Ok(aggregate_id.to_owned()), |transaction, _| decide(transaction), reduce).map(|(receipt, _)| receipt)
+    }
+
     /// Resolve server-allocated aggregate identity under the same transaction as
     /// receipt replay, command planning and commit. Concurrent first launches
     /// cannot allocate divergent threads or enqueue duplicate provider work.
@@ -418,9 +431,23 @@ impl Store {
         decide: impl FnOnce(&Transaction<'_>, &str) -> Result<Decision, StoreError>,
         reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
     ) -> Result<(Receipt, bool), StoreError> {
+        self.dispatch_receipted(true, command_id, kind, command_type, now, resolve, decide, reduce)
+    }
+
+    fn dispatch_receipted(
+        &self,
+        receipted: bool,
+        command_id: &str,
+        kind: &str,
+        command_type: &str,
+        now: DateTime<Utc>,
+        resolve: impl FnOnce(&Transaction<'_>, Option<&Receipt>) -> Result<String, StoreError>,
+        decide: impl FnOnce(&Transaction<'_>, &str) -> Result<Decision, StoreError>,
+        reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
+    ) -> Result<(Receipt, bool), StoreError> {
         let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         let stage = cache::Stage::begin(&self.projections, &connection);
-        let result = Self::dispatch_locked(&self.committed, &mut connection, command_id, kind, command_type, now, resolve, decide, reduce);
+        let result = Self::dispatch_locked(&self.committed, &mut connection, receipted, command_id, kind, command_type, now, resolve, decide, reduce);
         // Still under the command lock: a reader of the cache cannot see the thread before this write is in it.
         stage.finish(result.is_ok());
         result
@@ -429,6 +456,7 @@ impl Store {
     fn dispatch_locked(
         committed: &tokio::sync::broadcast::Sender<Vec<StoredEvent>>,
         connection: &mut Connection,
+        receipted: bool,
         command_id: &str,
         kind: &str,
         command_type: &str,
@@ -439,7 +467,7 @@ impl Store {
     ) -> Result<(Receipt, bool), StoreError> {
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let existing = read_receipt(&transaction, command_id)?;
+        let existing = if receipted { read_receipt(&transaction, command_id)? } else { None };
         let aggregate_id = resolve(&transaction, existing.as_ref())?;
         if let Some(receipt) = existing {
             if receipt.aggregate_kind != kind
@@ -546,10 +574,12 @@ impl Store {
             status: status.into(),
             error,
         };
-        transaction.execute(
-            "INSERT INTO rust_command_receipts(command_id,receipt_json) VALUES(?1,?2)",
-            params![command_id, serde_json::to_string(&receipt)?],
-        )?;
+        if receipted {
+            transaction.execute(
+                "INSERT INTO rust_command_receipts(command_id,receipt_json) VALUES(?1,?2)",
+                params![command_id, serde_json::to_string(&receipt)?],
+            )?;
+        }
         transaction.commit()?;
         // Publication must remain inside the command lock to preserve commit ordering.
         if !stored.is_empty() {
@@ -725,81 +755,61 @@ pub fn read_projection(
     id: &str,
 ) -> Result<Option<Value>, StoreError> {
     write_pending_projections(connection)?;
-    connection
-        .query_row(
-            "SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 AND aggregate_id=?2",
-            params![kind, id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?
-        .map(|json| {
-            #[cfg(test)]
-            work::add(|work| {
-                work.projection_reads += 1;
-                work.projection_read_bytes += json.len() as u64;
-            });
-            serde_json::from_str(&json)
-        })
-        .transpose()
-        .map_err(Into::into)
+    Ok(counted_read(connection, kind, id)?.map(|held| held.value))
+}
+
+/// The document of `kind`/`id` as the database holds it, put together from its skeleton and rows; the bytes read are counted.
+fn counted_read(connection: &Connection, kind: &str, id: &str) -> Result<Option<Held>, StoreError> {
+    let Some((held, _bytes)) = stored::read(connection, kind, id)? else { return Ok(None) };
+    #[cfg(test)]
+    work::add(|work| {
+        work.projection_reads += 1;
+        work.projection_read_bytes += _bytes as u64;
+    });
+    Ok(Some(held))
 }
 
 pub fn read_projections(connection: &Connection, kind: &str) -> Result<Vec<Value>, StoreError> {
     write_pending_projections(connection)?;
-    let mut statement = connection.prepare("SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 ORDER BY json_extract(state_json,'$.createdAt'),aggregate_id")?;
-    statement
-        .query_map([kind], |row| row.get::<_, String>(0))?
-        .map(|row| Ok(serde_json::from_str(&row?)?))
-        .collect()
+    let mut statement = connection.prepare("SELECT aggregate_id,state_json FROM rust_projections WHERE aggregate_kind=?1 ORDER BY json_extract(state_json,'$.createdAt'),aggregate_id")?;
+    let skeletons = statement.query_map([kind], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?.collect::<Result<Vec<_>, _>>()?;
+    skeletons.into_iter().map(|(id, skeleton)| Ok(stored::assemble(connection, kind, &id, &skeleton)?.0.value)).collect()
 }
 
-/// The projection of a thread for a write that is about to replace it: parsed, with the size of its stored JSON. Inside a
-/// command (`Store::dispatch`) the parsed document of the last write is reused, so a write costs no parse of the thread; the
-/// caller gives it back with [`stage_projection`] (changed) or [`restore_projection`] (not). Anywhere else it is read from the
+/// The projection of a thread for a write that is about to replace it: parsed, with how it is stored. Inside a command
+/// (`Store::dispatch`) the parsed document of the last write is reused, so a write costs no read of the thread; the caller
+/// gives it back with [`stage_projection`] (changed) or [`restore_projection`] (not). Anywhere else it is read from the
 /// database.
-pub(crate) fn take_projection(connection: &Connection, kind: &str, id: &str) -> Result<Option<(Value, usize)>, StoreError> {
-    if let Some(taken) = cache::take(kind, id) {
-        return Ok(Some(taken));
+pub(crate) fn take_projection(connection: &Connection, kind: &str, id: &str) -> Result<Option<Held>, StoreError> {
+    if let Some(held) = cache::take(kind, id) {
+        return Ok(Some(held));
     }
-    let Some(json) = connection
-        .query_row(
-            "SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 AND aggregate_id=?2",
-            params![kind, id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?
-    else {
-        return Ok(None);
-    };
-    #[cfg(test)]
-    work::add(|work| {
-        work.projection_reads += 1;
-        work.projection_read_bytes += json.len() as u64;
-    });
-    Ok(Some((serde_json::from_str(&json)?, json.len())))
+    counted_read(connection, kind, id)
 }
 
-/// Stores `state` as the projection, and keeps the parsed document for the next write when the command commits. Inside a command
-/// the database write waits until the command's events are all reduced (`write_pending_projections`), so a thread that several
-/// events change is serialised and written once.
-pub(crate) fn stage_projection(transaction: &Transaction<'_>, kind: &str, id: &str, state: Value, previous_len: usize) -> Result<(), StoreError> {
-    let state = if cache::in_command() {
-        // The size is not known before it is serialised, which waits; the document's last size says whether it is kept.
-        match cache::stage_changed(kind, id, state, previous_len) {
+/// Stores `held`, the projection after a change of which `touched` says what, and keeps it for the next write when the command
+/// commits. Inside a command the database write waits until the command's events are all reduced (`write_pending_projections`),
+/// so a thread that several events change is stored once, and only the rows that changed in any of them.
+pub(crate) fn stage_projection(transaction: &Transaction<'_>, kind: &str, id: &str, held: Held, touched: Touched) -> Result<(), StoreError> {
+    let (mut held, touched) = if cache::in_command() {
+        // The size is not known before it is stored, which waits; the document's last size says whether it is kept.
+        match cache::stage_changed(kind, id, held, touched) {
             Ok(()) => return Ok(()),
-            Err(state) => state,
+            Err(back) => back,
         }
     } else {
-        state
+        (held, touched)
     };
-    let json = serde_json::to_string(&state)?;
+    let plan = stored::plan(kind, id, &held.value, &mut held.layout, &touched)?;
     #[cfg(test)]
     work::add(|work| {
         work.projection_writes += 1;
-        work.projection_write_bytes += json.len() as u64;
+        work.projection_write_bytes += plan.bytes() as u64;
     });
-    cache::own_write(|| transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json", params![kind, id, json]))?;
-    cache::stage(kind, id, state, json.len());
+    cache::own_write(|| stored::execute(transaction, kind, id, &plan))?;
+    #[cfg(debug_assertions)]
+    stored::verify(transaction, kind, id, &held.value);
+    cache::stage(kind, id, held);
     Ok(())
 }
 
@@ -808,20 +818,23 @@ fn write_pending_projections(transaction: &Connection) -> Result<(), StoreError>
     if !cache::has_pending() {
         return Ok(());
     }
-    for ((kind, id), json) in cache::pending_writes() {
+    for pending in cache::pending_writes()? {
         #[cfg(test)]
         work::add(|work| {
             work.projection_writes += 1;
-            work.projection_write_bytes += json.len() as u64;
+            work.projection_write_bytes += pending.plan.bytes() as u64;
         });
-        cache::own_write(|| transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json", params![kind, id, json]))?;
+        let (kind, id) = &pending.key;
+        cache::own_write(|| stored::execute(transaction, kind, id, &pending.plan))?;
+        #[cfg(debug_assertions)]
+        stored::verify(transaction, kind, id, &pending.value);
     }
     Ok(())
 }
 
 /// Gives back a projection taken with [`take_projection`] that was not changed.
-pub(crate) fn restore_projection(kind: &str, id: &str, state: Value, len: usize) {
-    cache::stage(kind, id, state, len);
+pub(crate) fn restore_projection(kind: &str, id: &str, held: Held) {
+    cache::stage(kind, id, held);
 }
 
 pub fn write_projection(
@@ -832,13 +845,14 @@ pub fn write_projection(
 ) -> Result<(), StoreError> {
     // What the command has changed and not yet written goes first, so this write is the newest.
     write_pending_projections(transaction)?;
-    let json = serde_json::to_string(state)?;
+    let _plan = stored::write_whole(transaction, kind, id, state)?;
     #[cfg(test)]
     work::add(|work| {
         work.projection_writes += 1;
-        work.projection_write_bytes += json.len() as u64;
+        work.projection_write_bytes += _plan.bytes() as u64;
     });
-    transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json",params![kind,id,json])?;
+    #[cfg(debug_assertions)]
+    stored::verify(transaction, kind, id, state);
     Ok(())
 }
 

@@ -126,12 +126,16 @@ async fn device_test_host_summarizes_the_local_host_and_refuses_what_it_cannot_p
         let fixture = crate::device_service::tests::fixture(root.path()).await;
         // `ssh -G` answers for the alias: `self` is this machine, anything else is elsewhere.
         let ssh = root.path().join("ssh-fake");
-        std::fs::write(&ssh, "#!/bin/sh\nfor last; do :; done\ncase \"$last\" in self) echo 'hostname 100.65.180.100';; *) echo 'hostname 192.0.2.1';; esac\necho 'port 22'\n").unwrap();
+        // A probe (anything but `-G`) is recorded and answered from `reply`.
+        let capture = root.path().join("capture");
+        std::fs::write(&ssh, format!("#!/bin/sh\nfor last; do :; done\ncase \" $* \" in *\" -G \"*) case \"$last\" in self) echo 'hostname 100.65.180.100';; *) echo 'hostname 192.0.2.1';; esac; echo 'port 22';; *) printf '%s\\n' \"$@\" > '{0}.args'; cat > '{0}.stdin'; cat '{0}.reply';; esac\n", capture.display())).unwrap();
         std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
         let resolver = DeviceHostResolver::new(DeviceHostResolverOptions { ssh_binary: ssh, local_addresses: std::sync::Arc::new(|| std::collections::HashSet::from(["100.65.180.100".into()])), lookup: std::sync::Arc::new(|_| Box::pin(async { vec![] })), ..Default::default() });
-        let store = Store::memory().unwrap();
+        let store = Store::open(root.path().join("rust-state.sqlite")).unwrap();
         let auth = AuthService::new(store.clone(), [45; 32], "device_test_host".into(), "loopback-browser".into()).unwrap();
         let grant = |scopes| auth.issue_session("fixture", "bearer-access-token", scopes, json!({"deviceType":"unknown"}), Utc::now(), chrono::Duration::hours(1)).unwrap().1;
+        let store_state_dir = store.state_dir().unwrap().to_path_buf();
+        let store_state_dir = store_state_dir.as_path();
         let reader = grant(vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate]);
         let writer = grant(vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::SettingsWrite]);
         let state = ApiState { store, auth, environment: json!({"environmentId":"device-test-host","label":"Fixture","platform":{"os":"darwin","arch":"arm64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":{"repositoryIdentity":false,"connectionProbe":true}}), config: None, settings: Some(fixture.settings.clone()), device_hosts: Some(resolver.clone()), devices: Some(fixture.service.clone()), provider_auth: None, background: None, cors_origins: None, assets: None, providers: None, execution: None, workspace: None, terminals: None, discovery: None, resource_telemetry: None, host_resources: None };
@@ -153,6 +157,31 @@ async fn device_test_host_summarizes_the_local_host_and_refuses_what_it_cannot_p
         let remote = next(&mut socket).await;
         assert_eq!(remote["exit"]["cause"][0]["error"]["_tag"], "DeviceOperationError");
         assert_eq!((remote["exit"]["cause"][0]["error"]["operation"].as_str(), remote["exit"]["cause"][0]["error"]["reason"].as_str()), (Some("probe host"), Some("request_failed")));
+        assert_eq!(remote["exit"]["cause"][0]["error"]["cause"]["message"], "Device host host-remote failed while probe.", "the host's command failed");
+        std::fs::write(capture.with_extension("reply"), "not json").unwrap();
+        send(&mut socket, 5, "device.testHost", host("remote")).await;
+        assert_eq!(next(&mut socket).await["exit"]["cause"][0]["error"]["cause"]["message"], "Device host host-remote failed while reading probe result.");
+        // A host that answers the probe: its platforms and tools become the summary, and the script it was sent names the owner and mode.
+        let probe = json!({"nodePath":"/usr/bin/node","platforms":[{"platform":"ios","available":false,"reason":"iOS needs macOS with Xcode and working xcrun simctl."},{"platform":"android","available":true}],"tools":{"hub":{"requiredVersion":crate::device_toolchain::DEVICE_HUB_VERSION,"installedVersions":[crate::device_toolchain::DEVICE_HUB_VERSION],"runningVersion":null},"agent":{"requiredVersion":crate::device_toolchain::AGENT_DEVICE_VERSION,"installedVersions":[],"runningVersion":null}}});
+        std::fs::write(capture.with_extension("reply"), probe.to_string()).unwrap();
+        send(&mut socket, 4, "device.testHost", json!({"id":"host-remote","label":"Remote","target":"remote","port":2222,"identityFile":"/keys/id"})).await;
+        let answered = next(&mut socket).await;
+        assert_eq!(answered["exit"]["_tag"], "Success", "{answered}");
+        let summary: t3_contracts::DeviceHostSummary = serde_json::from_value(answered["exit"]["value"].clone()).unwrap();
+        assert_eq!((summary.hub_installed, summary.agent_device_installed), (true, false));
+        assert_eq!(answered["exit"]["value"]["kind"], "ssh");
+        assert_eq!(answered["exit"]["value"]["platforms"].as_array().unwrap().len(), 2);
+        let args = std::fs::read_to_string(capture.with_extension("args")).unwrap();
+        let args: Vec<&str> = args.lines().collect();
+        assert_eq!(&args[..6], ["-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "-p", "2222"]);
+        assert_eq!(&args[6..9], ["-i", "/keys/id", "remote"]);
+        assert_eq!(&args[9..11], ["sh", "-c"]);
+        // The remote command is one argument holding the environment and a few lines, so it spans lines of the capture.
+        let command = args[11..].join("\n");
+        assert!(command.starts_with("'export PATH=") && command.ends_with("exec node'"), "{command}");
+        let owner = crate::ssh_device_host::owner_for(store_state_dir, "host-remote");
+        let script = std::fs::read_to_string(capture.with_extension("stdin")).unwrap();
+        assert!(script.starts_with(&format!("\nconst owner = \"{owner}\";\nconst mode = \"probe\";\nconst hubVersion = \"{}\";", crate::device_toolchain::DEVICE_HUB_VERSION)), "{}", &script[..200]);
         send(&mut socket, 3, "device.testHost", json!({"id":"x"})).await;
         assert_eq!(next(&mut socket).await["exit"]["cause"][0]["_tag"], "Die");
         socket.close(None).await.unwrap();

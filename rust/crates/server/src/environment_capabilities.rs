@@ -93,7 +93,7 @@ mod tests {
     #[test]
     fn the_update_entries_follow_who_manages_the_server() {
         let describe = |desktop: bool, control: bool| {
-            let capabilities = advertised_with(Some(crate::self_update_rpc::capabilities(desktop, control)));
+            let capabilities = advertised_with(Some(crate::self_update_rpc::capabilities(desktop, control, false)));
             let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":capabilities});
             serde_json::from_value::<t3_contracts::ExecutionEnvironmentDescriptor>(descriptor).expect("a valid descriptor");
             capabilities
