@@ -65,6 +65,8 @@ struct State {
     scroll_pointer: Option<i32>,
     scroll_offset: f64,
     last_origin: f64,
+    /// The link under the pointer and its text, underlined until the pointer leaves it.
+    hovered_link: Option<(crate::renderer::Range, String)>,
     callback: Function,
     outbox: Rc<RefCell<Vec<Value>>>,
     theme: Theme,
@@ -119,6 +121,29 @@ struct State {
     mouse_tracking: bool,
 }
 impl State {
+    /// Underlines the link under the pointer (not while a program has the mouse, unless Shift takes it back), and
+    /// shows a pointer over it when a click would open it.
+    fn update_hover(&mut self, event: &PointerEvent) {
+        let tracking = self.core.is_mouse_tracking().unwrap_or(false) && !event.shift_key();
+        let next = if tracking {
+            None
+        } else {
+            let point = self.point(event);
+            crate::links::under(self.core.rows(), point.x as usize, point.y as usize).map(|hit| (hit.range, hit.text))
+        };
+        let activates = next.is_some() && t3_client::terminal_links::is_activation(event.meta_key(), event.ctrl_key(), self.mac);
+        let _ = self.canvas.style().set_property("cursor", if activates { "pointer" } else { "text" });
+        if next != self.hovered_link {
+            self.hovered_link = next;
+            self.full = true;
+        }
+    }
+    fn clear_hover(&mut self) {
+        if self.hovered_link.take().is_some() {
+            self.full = true;
+        }
+        let _ = self.canvas.style().set_property("cursor", "text");
+    }
     fn queue(&self, value: Value) {
         self.outbox.borrow_mut().push(value)
     }
@@ -238,7 +263,7 @@ impl State {
                 previous_cursor_y: self.previous_cursor,
                 focused: self.focused,
                 selection_background: self.theme.selection_background.as_deref(),
-                hovered_link: None,
+                hovered_link: self.hovered_link.as_ref().map(|(range, _)| *range),
                 origin_y: Some(origin),
             },
         );
@@ -651,6 +676,7 @@ pub async fn mount_terminal(
         scroll_pointer: None,
         scroll_offset: 0.0,
         last_origin: 4.0,
+        hovered_link: None,
         callback,
         outbox: outbox.clone(),
         theme,
@@ -1088,6 +1114,14 @@ pub async fn mount_terminal(
             if event.button() != 0 {
                 return Ok(());
             }
+            // Cmd (Ctrl elsewhere) and a click on a link opens it instead of starting a selection.
+            if let Some((_, text)) = s.hovered_link.clone() {
+                if t3_client::terminal_links::is_activation(event.meta_key(), event.ctrl_key(), s.mac) {
+                    event.prevent_default();
+                    s.queue(json!({"type":"link","text":text}));
+                    return Ok(());
+                }
+            }
             event.prevent_default();
             let point = s.point(&event);
             s.selection_pointer = Some((event.client_x() as f64, event.client_y() as f64));
@@ -1157,6 +1191,9 @@ pub async fn mount_terminal(
                 return Ok(());
             }
             s.last_mouse.clear();
+            if s.pointer.is_none() {
+                s.update_hover(&event);
+            }
             if s.pointer != Some(event.pointer_id()) {
                 return Ok(());
             }
@@ -1179,6 +1216,10 @@ pub async fn mount_terminal(
             Ok(())
         },
     )?);
+    listeners.push(listen(&state, canvas_target.clone(), "pointerleave", |s, _| {
+        s.clear_hover();
+        Ok(())
+    })?);
     for name in ["pointerup", "pointercancel"] {
         listeners.push(listen(&state, canvas_target.clone(), name, |s, event| {
             let event: PointerEvent = event.dyn_into()?;

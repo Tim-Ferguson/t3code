@@ -126,3 +126,31 @@ pub(crate) fn use_lines(code:&str,language:&str)->Memo<Option<Vec<Rc<RenderedLin
         }
     }))
 }
+
+/// One run of a highlighted line, cut where a mark starts or ends.
+pub(crate) struct Piece {
+    pub text: String,
+    pub style: String,
+    pub marked: bool,
+}
+/// A line cut into runs at the boundaries of `ranges` (character positions, sorted, not overlapping),
+/// each keeping its colours. Without a highlighted line the text is one plain run per cut.
+pub(crate) fn split_marked(line: Option<&Rc<RenderedLine>>, text: &str, ranges: &[(usize, usize)]) -> Vec<Piece> {
+    let spans: Vec<(String, String)> = match line {
+        Some(line) if line.spans.iter().map(|span| span.text.chars().count()).sum::<usize>() >= text.chars().count() => line.spans.iter().map(|span| (span.text.clone(), span.style.clone())).collect(),
+        _ => vec![(text.to_owned(), String::new())],
+    };
+    let mut pieces: Vec<Piece> = vec![];
+    let mut position = 0usize;
+    for (span_text, style) in spans {
+        for character in span_text.chars() {
+            let marked = ranges.iter().any(|(start, end)| (*start..*end).contains(&position));
+            position += 1;
+            match pieces.last_mut() {
+                Some(last) if last.marked == marked && last.style == style => last.text.push(character),
+                _ => pieces.push(Piece { text: character.to_string(), style: style.clone(), marked }),
+            }
+        }
+    }
+    pieces
+}

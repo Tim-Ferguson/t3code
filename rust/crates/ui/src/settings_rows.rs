@@ -26,13 +26,18 @@ pub(crate) struct Row {
     pub default: &'static str,
     /// Empty for a switch.
     pub options: Options,
+    /// A slider's smallest, largest and step, and the unit written after its value.
+    pub range: Option<(i64, i64, i64, &'static str)>,
 }
 impl Row {
     pub const fn switch(key: &'static str, title: &'static str, description: &'static str, default: bool) -> Self {
-        Self { key, title, description, default: if default { "true" } else { "false" }, options: &[] }
+        Self { key, title, description, default: if default { "true" } else { "false" }, options: &[], range: None }
     }
     pub const fn choice(key: &'static str, title: &'static str, description: &'static str, default: &'static str, options: Options) -> Self {
-        Self { key, title, description, default, options }
+        Self { key, title, description, default, options, range: None }
+    }
+    pub const fn slider(key: &'static str, title: &'static str, description: &'static str, default: &'static str, min: i64, max: i64, step: i64, unit: &'static str) -> Self {
+        Self { key, title, description, default, options: &[], range: Some((min, max, step, unit)) }
     }
     fn is_default(self, value: &Value) -> bool {
         serde_json::from_str::<Value>(self.default).is_ok_and(|default| default == *value)
@@ -47,9 +52,16 @@ pub(crate) const BEHAVIOR: [Row; 5] = [
     Row::switch("planModeEnabled", "Plan mode (legacy)", "Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode.", false),
     Row::switch("sidebarWorkingShelfEnabled", "Working section (beta)", "Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you.", false),
 ];
-pub(crate) const CONFIRMATIONS: [Row; 2] = [
+pub(crate) const CONFIRMATIONS: [Row; 3] = [
     Row::switch("confirmThreadArchive", "Archive confirmation", "Require a second click on the inline archive action before a thread is archived.", false),
     Row::switch("confirmThreadDelete", "Delete confirmation", "Ask before deleting a thread and its chat history.", true),
+    Row::switch("confirmThreadUnpin", "Unpin confirmation", "Ask before unpinning a thread from the pinned section.", false),
+];
+/// Display preferences of the General page.
+pub(crate) const DISPLAY: [Row; 3] = [
+    Row::choice("sidebarProjectSortOrder", "Project order", "Order of projects in the sidebar project picker and command palette.", "\"updated_at\"", &[("\"updated_at\"", "Last user message"), ("\"created_at\"", "Created at"), ("\"manual\"", "Manual")]),
+    Row::choice("timestampFormat", "Time format", "System default follows your browser or OS clock preference.", "\"locale\"", &[("\"locale\"", "System default"), ("\"12-hour\"", "12-hour"), ("\"24-hour\"", "24-hour")]),
+    Row::switch("contextWindowMeterEnabled", "Context window indicator (legacy)", "Shows context window usage as a circular indicator in the composer.", false),
 ];
 pub(crate) const DIFFS: [Row; 3] = [
     Row::choice("diffLayout", "Diff layout", "Show diffs stacked or side by side. The toggle in the diff toolbar changes this too.", "\"stacked\"", &[("\"stacked\"", "Stacked"), ("\"split\"", "Split")]),
@@ -57,7 +69,9 @@ pub(crate) const DIFFS: [Row; 3] = [
     Row::choice("diffFilesCollapsed", "Default diff file state", "Start with files expanded or collapsed when opening diffs or a pull request's Code tab.", "true", &[("true", "Collapsed"), ("false", "Expanded")]),
 ];
 /// The rows of the Appearance page that follow this device's preferences.
-pub(crate) const LAYOUT: [Row; 2] = [
+pub(crate) const LAYOUT: [Row; 4] = [
+    Row::slider("appearanceContrast", "Contrast", "Adjust the contrast of colors and borders across the interface.", "100", 50, 200, 5, "%"),
+    Row::slider("panelAnimationDurationMs", "Panel animations", "Set how fast panels open and close.", "0", 0, 400, 50, " ms"),
     Row::choice("chatWidth", "Chat width", "Set how wide messages and the composer can grow on large screens.", "\"comfortable\"", &[("\"comfortable\"", "Comfortable"), ("\"wide\"", "Wide"), ("\"full\"", "Full width")]),
     Row::choice("diffColorScheme", "Diff colors", "Choose colors for additions and deletions, including change counts.", "\"red-green\"", &[("\"red-green\"", "Red and green"), ("\"blue-orange\"", "Blue and orange")]),
 ];
@@ -82,7 +96,11 @@ pub(crate) fn control(row: Row, current: &Value, disabled: bool, change: EventHa
                         if let Ok(default) = serde_json::from_str::<Value>(row.default) { change.call(default); }
                     }, "Reset" }
                 }
-                if row.options.is_empty() {
+                if let Some((min, max, step, unit)) = row.range {
+                    output { class: "setting-value", "{current}{unit}" }
+                    input { r#type: "range", "aria-label": "{row.title}", min: "{min}", max: "{max}", step: "{step}", value: "{current}", disabled,
+                        onchange: move |event| { if let Ok(number) = event.value().parse::<i64>() { change.call(Value::from(number)); } } }
+                } else if row.options.is_empty() {
                     input { r#type: "checkbox", role: "switch", "aria-label": "{row.title}", checked: *current == Value::Bool(true), disabled, onchange: move |event| change.call(Value::Bool(event.checked())) }
                 } else {
                     select { "aria-label": "{row.title}", disabled, value: "{current}", onchange: move |event| {
@@ -123,4 +141,23 @@ pub(crate) fn ClientRows(state: Store<UiModel>, rows: &'static [Row]) -> Element
             }) }
         }
     }
+}
+
+/// Every row that follows this device's preferences, for "Restore device defaults".
+const DEVICE: [&[Row]; 5] = [&BEHAVIOR, &CONFIRMATIONS, &DIFFS, &LAYOUT, &DISPLAY];
+
+/// The titles of the device preferences that are not at their defaults.
+pub(crate) fn changed_labels(state: Store<UiModel>) -> Vec<&'static str> {
+    let document = serde_json::to_value(&*state.client_settings().read()).unwrap_or(Value::Null);
+    DEVICE.iter().flat_map(|rows| rows.iter()).filter(|row| !row.is_default(&document[row.key])).map(|row| row.title).collect()
+}
+/// Puts every device preference back to its default in one write.
+pub(crate) fn restore_defaults(state: Store<UiModel>) {
+    let mut change = serde_json::Map::new();
+    for row in DEVICE.iter().flat_map(|rows| rows.iter()) {
+        if let Ok(default) = serde_json::from_str::<Value>(row.default) {
+            change.insert(row.key.to_owned(), default);
+        }
+    }
+    patch(state, Value::Object(change));
 }

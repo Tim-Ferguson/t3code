@@ -42,6 +42,22 @@ pub fn fallback_after_delete<'a>(threads: impl IntoIterator<Item = &'a ThreadShe
     sort_threads(threads.into_iter().filter(|thread| thread.project_id == project && thread.id.as_str() != deleted && thread.archived_at.is_none() && thread.deleted_at.is_none()), order).into_iter().next()
 }
 
+/// Projects in the order the picker and the palette list them (`sidebarProjectSortOrder`): by the newest message a person
+/// wrote in any of their threads, by when the project was added, or as the server keeps them.
+pub fn sort_projects<'a>(projects: &'a [t3_contracts::ProjectShell], threads: &[ThreadShell], order: t3_contracts::SidebarProjectSortOrder) -> Vec<&'a t3_contracts::ProjectShell> {
+    let mut sorted: Vec<&t3_contracts::ProjectShell> = projects.iter().collect();
+    match order {
+        t3_contracts::SidebarProjectSortOrder::Manual => {}
+        t3_contracts::SidebarProjectSortOrder::CreatedAt => sorted.sort_by(|left, right| right.created_at.cmp(&left.created_at)),
+        t3_contracts::SidebarProjectSortOrder::UpdatedAt => {
+            let newest = |project: &t3_contracts::ProjectShell| -> Option<chrono::DateTime<chrono::Utc>> { threads.iter().filter(|thread| thread.project_id == project.id && thread.deleted_at.is_none()).filter_map(|thread| thread.latest_user_message_at.as_ref().map(|at| at.0)).max() };
+            // A project nobody has written in sorts by when it was added, after the ones somebody has.
+            sorted.sort_by(|left, right| newest(right).cmp(&newest(left)).then_with(|| right.created_at.cmp(&left.created_at)));
+        }
+    }
+    sorted
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -67,6 +83,20 @@ mod tests {
         assert_eq!(ids(SidebarThreadSortOrder::UpdatedAt), ["a", "c", "b"]);
         // Creation order is the same for all three here, so the greater id goes first.
         assert_eq!(ids(SidebarThreadSortOrder::CreatedAt), ["c", "b", "a"]);
+    }
+
+    #[test]
+    fn projects_are_ordered_by_the_newest_message_written_in_them_or_by_when_they_were_added() {
+        let project = |id: &str, created: &str| -> t3_contracts::ProjectShell {
+            serde_json::from_value(json!({"id":id,"title":id,"workspaceRoot":format!("/{id}"),"defaultModelSelection":null,"scripts":[],"createdAt":created,"updatedAt":created})).unwrap()
+        };
+        let projects = [project("old", "2026-01-01T00:00:00Z"), project("quiet", "2026-02-01T00:00:00Z"), project("busy", "2026-01-15T00:00:00Z")];
+        let threads = [thread("t1", "old", json!({"latestUserMessageAt":"2026-03-01T00:00:00Z"})), thread("t2", "busy", json!({"latestUserMessageAt":"2026-02-15T00:00:00Z"}))];
+        let ids = |order| sort_projects(&projects, &threads, order).into_iter().map(|project| project.id.to_string()).collect::<Vec<_>>();
+        // Written in last first; a project nobody has written in follows, newest added first.
+        assert_eq!(ids(t3_contracts::SidebarProjectSortOrder::UpdatedAt), ["old", "busy", "quiet"]);
+        assert_eq!(ids(t3_contracts::SidebarProjectSortOrder::CreatedAt), ["quiet", "busy", "old"]);
+        assert_eq!(ids(t3_contracts::SidebarProjectSortOrder::Manual), ["old", "quiet", "busy"]);
     }
 
     #[test]

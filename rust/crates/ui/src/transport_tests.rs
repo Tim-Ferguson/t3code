@@ -1649,6 +1649,18 @@ fn click_element(dom: &mut VirtualDom, element: dioxus::dioxus_core::ElementId) 
     );
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
 }
+/// Sends a mouse event (`click`, `contextmenu`) with modifier keys to the control with this label, as the page would.
+pub(crate) fn mouse_control(dom: &mut VirtualDom, label: &str, event: &str, ctrl: bool, meta: bool, shift: bool) {
+    let element = actionable(dom, label, event);
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+    let mut data = serde_json::to_value(dioxus_html::point_interaction::SerializedPointInteraction::default()).unwrap();
+    data["ctrl_key"] = ctrl.into();
+    data["meta_key"] = meta.into();
+    data["shift_key"] = shift.into();
+    let mouse: dioxus_html::SerializedMouseData = serde_json::from_value(data).unwrap();
+    dom.runtime().handle_event(event, dioxus::dioxus_core::Event::new(Rc::new(dioxus_html::PlatformEventData::new(Box::new(mouse))) as Rc<dyn std::any::Any>, true), element);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+}
 pub(crate) fn rendered_text(dom: &VirtualDom) -> String {
     use dioxus::dioxus_core::{DynamicNode, TemplateNode, VNode};
     fn static_text(node: &TemplateNode, text: &mut String) {

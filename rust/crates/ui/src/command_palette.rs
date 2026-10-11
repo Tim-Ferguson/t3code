@@ -26,6 +26,10 @@ pub enum Intent {
     Root,
     Theme,
     NewProject,
+    /// "Go to file" (`filePicker.toggle`) and "Search project contents" (`projectSearch.toggle`):
+    /// the same overlay with another body.
+    Files,
+    Content,
 }
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Model {
@@ -45,6 +49,20 @@ pub(crate) fn open(state: Store<UiModel>, intent: Intent) {
 pub(crate) fn close(state: Store<UiModel>) {
     if state.palette().peek().open {
         state.palette().write().open = false;
+    }
+}
+/// `filePicker.toggle` and `projectSearch.toggle`: closes the overlay when it already shows that
+/// body, shows it otherwise (`ToggleMode`).
+pub(crate) fn toggle_mode(state: Store<UiModel>, intent: Intent) {
+    let (open_now, current) = {
+        let palette = state.palette();
+        let model = palette.peek();
+        (model.open, model.intent)
+    };
+    if open_now && current == intent {
+        close(state);
+    } else {
+        open(state, intent);
     }
 }
 /// `commandPalette.toggle`: closes it when it is open, opens it on its first page otherwise.
@@ -79,7 +97,11 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
         let model = field.read();
         (model.intent, model.opened)
     };
-    rsx! { Palette { key: "{opened}", state, transport, intent } }
+    match intent {
+        Intent::Files => rsx! { crate::project_search::FilePicker { key: "files:{opened}", state, transport } },
+        Intent::Content => rsx! { crate::project_search::ContentSearch { key: "content:{opened}", state, transport } },
+        _ => rsx! { Palette { key: "{opened}", state, transport, intent } },
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +127,8 @@ fn relative(updated: &t3_contracts::UtcDateTime) -> String {
 }
 
 const RECENT_THREADS: usize = 12;
-const SETTINGS: [(View, &str, &str, &[&str]); 8] = [
+const SETTINGS: [(View, &str, &str, &[&str]); 9] = [
+    (View::Projects, "Projects", "settings:projects", &["project", "name", "remove", "defaults", "overrides", "folder"]),
     (View::General, "General", "settings:general", &["auto-resume", "snooze", "usage limit", "limited threads", "settle", "auto-settle", "inactive", "merged"]),
     (View::Providers, "Providers", "settings:providers", &["provider", "model", "codex", "claude", "agents"]),
     (View::Appearance, "Appearance", "settings:appearance", &["theme", "font", "typography", "colors", "dark", "light"]),
@@ -127,6 +150,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         Intent::Root => vec![],
         Intent::Theme => vec![Screen::Theme],
         Intent::NewProject => vec![Screen::NewProject],
+        Intent::Files | Intent::Content => vec![],
     });
     let mut highlighted = use_signal(|| 0usize);
     let mut failure = use_signal(|| None::<String>);
@@ -167,7 +191,9 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         }
         Some(item)
     };
-    let project_items: Vec<Item> = projects
+    let project_order = state.client_settings().peek().sidebar_project_sort_order;
+    let ordered_projects: Vec<_> = t3_client::thread_sort::sort_projects(&projects, &threads, project_order).into_iter().cloned().collect();
+    let project_items: Vec<Item> = ordered_projects
         .iter()
         .map(|project| Item::action(&format!("project:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string()))
         .collect();
@@ -199,10 +225,12 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         }
     }
     if !projects.is_empty() {
-        let pick: Vec<Item> = projects.iter().map(|project| Item::action(&format!("new-thread-in:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string())).collect();
+        let pick: Vec<Item> = ordered_projects.iter().map(|project| Item::action(&format!("new-thread-in:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string())).collect();
         actions.push(Item::submenu("action:new-thread-in", "New thread in...", &["new thread", "project", "pick", "choose", "select"], vec![Group::new("projects", "Projects", pick)]));
     }
-    let entries: [(&str, &str, &[&str], &str); 18] = [
+    let entries: [(&str, &str, &[&str], &str); 20] = [
+        ("action:open-file-picker", "Go to file", &["go to file", "open file", "file picker", "find file", "quick open"], "filePicker.toggle"),
+        ("action:search-project-contents", "Search project contents", &["search project", "find in files", "grep", "content search", "text search"], "projectSearch.toggle"),
         ("action:new-thread-without-project", "New thread without a project", &["new thread", "no project", "without project", "none", "chat"], "chat.newWithoutProject"),
         ("action:toggle-diff", "Toggle diff panel", &["diff", "changes", "files changed", "review"], "diff.toggle"),
         ("action:open-in-editor", "Open in editor", &["editor", "open", "vscode", "cursor", "zed", "ide", "folder"], "editor.openFavorite"),
@@ -268,6 +296,24 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         actions.push(Item::action("action:checkout-pull-request", "Checkout pull request", &["pull request", "pr", "merge request", "mr", "checkout", "review", "worktree"]));
     }
     actions.push(Item::action("action:pull-requests", "Pull requests", &["pull request", "pr", "merge request", "mr", "review", "list"]));
+    // The open thread's linked pull requests, and restarting its agent session.
+    if let Some(thread) = active_id.as_deref().and_then(|id| threads.iter().find(|thread| thread.id.as_str() == id)).filter(|_| *state.view().read() == View::Chat) {
+        let (linking, listing) = state.typed_config().read().as_ref().map(|config| (config.environment.capabilities.thread_pull_request_linking == Some(true), config.environment.capabilities.thread_pull_requests == Some(true))).unwrap_or_default();
+        if linking || listing {
+            actions.push(Item::action("action:link-pull-request", "Link pull request to thread", &["link", "pull request", "pr", "attach", "stack"]));
+            if listing {
+                let mut item = Item::action("action:open-thread-pull-requests", "Show linked pull requests", &["pull requests", "linked", "stack", "prs"]);
+                item.disabled = serde_json::to_value(thread).map(|value| t3_client::thread_pull_requests::links(&value).is_empty()).unwrap_or(true);
+                actions.push(item);
+            }
+        }
+        if allows_operate(state) {
+            actions.push(Item::action("action:restart-agent-session", "Restart agent session", &["restart", "reset", "reload", "agent", "session", "skills", "plugins", "mcp"]));
+        }
+    }
+    if let Some(title) = selected_project.as_deref().map(project_title).filter(|title| !title.is_empty()) {
+        actions.push(Item::action("action:project-settings", "Project settings", &["project", "settings", "name", "icon", "scripts", "model", "workspace", "grouping", "checkout", "remove", "t3.json"]).described(title));
+    }
     if let Some(usage) = item("action:usage", "Open usage", &["usage", "use", "tokens", "cost", "spend", "limits", "stats", "analytics"], Some("usage.open")) {
         actions.push(usage);
     }
@@ -362,7 +408,20 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
             _ => vec![],
         },
     };
-    let extra = Extra { projects: project_items, settings: vec![], threads: search_threads };
+    // Each setting the catalog knows, by what it is called or does (only while searching).
+    let setting_items: Vec<Item> = if screens.read().is_empty() && !actions_only && !typed.trim().is_empty() {
+        crate::settings_common::find_settings(state, &typed).into_iter().map(|setting| {
+            let section = t3_client::settings_search::section_label(&setting.to);
+            let mut terms: Vec<&str> = vec![setting.title.as_str(), section];
+            terms.extend(setting.search_terms.iter().map(String::as_str));
+            let mut item = Item::action(&format!("setting:{}", setting.id), &setting.title, &terms).described(format!("Settings \u{b7} {section}"));
+            item.secondary = setting.secondary;
+            item
+        }).collect()
+    } else {
+        vec![]
+    };
+    let extra = Extra { projects: project_items, settings: setting_items, threads: search_threads };
     let groups = palette::filter_groups(&page_groups, &typed, screen.is_some(), &extra);
     let (rows, values) = palette::build_rows(&groups);
     let count = values.len();
@@ -386,6 +445,10 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                 screens.write().push(next);
                 query.set(String::new());
                 highlighted.set(0);
+                return;
+            }
+            if matches!(value.as_str(), "action:open-file-picker" | "action:search-project-contents") {
+                open(state, if value == "action:open-file-picker" { Intent::Files } else { Intent::Content });
                 return;
             }
             if value == "action:new-project" {
@@ -438,6 +501,24 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                     }
                 }
                 "action:regenerate-title" => regenerate_title(&transport, state),
+                "action:link-pull-request" => {
+                    let open = state.active_thread().peek().clone();
+                    if let Some(id) = open {
+                        crate::thread_pull_requests_panel::open_link_dialog(state, &id);
+                    }
+                }
+                "action:open-thread-pull-requests" => {
+                    let open = state.active_thread().peek().clone();
+                    if let Some(id) = open {
+                        crate::thread_pull_requests_panel::open(state, &id);
+                    }
+                }
+                "action:restart-agent-session" => crate::thread_lifecycle::restart_session(state, &transport),
+                "action:project-settings" => {
+                    if let Some(id) = selected_project.clone() {
+                        crate::projects_page::open(state, &id);
+                    }
+                }
                 "action:archive-thread" => {
                     let open = state.active_thread().peek().clone();
                     if let Some(id) = open {
@@ -474,6 +555,8 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                 other => {
                     if let Some(view) = SETTINGS.iter().find(|(_, _, value, _)| *value == other).map(|(view, ..)| view.clone()) {
                         open_settings(state, view);
+                    } else if let Some(setting) = other.strip_prefix("setting:").and_then(|id| t3_client::settings_search::items().iter().find(|item| item.id == id)) {
+                        crate::settings_common::go_to_setting(state, setting);
                     } else if let Some(id) = other.strip_prefix("thread:") {
                         runtime::select_thread(&transport, state, id.to_owned());
                     } else if let Some(id) = other.strip_prefix("project:") {

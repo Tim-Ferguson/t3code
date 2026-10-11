@@ -45,7 +45,7 @@ pub(crate) fn push(state: Store<UiModel>, level: Level, title: impl Into<String>
     push_with(state, level, title, detail, None);
 }
 
-pub(crate) fn push_with(state: Store<UiModel>, level: Level, title: impl Into<String>, detail: impl Into<String>, follow: Option<Follow>) {
+pub(crate) fn push_with(state: Store<UiModel>, level: Level, title: impl Into<String>, detail: impl Into<String>, follow: Option<Follow>) -> u64 {
     let mut notices = state.notices();
     let mut list = notices.write();
     let id = list.last().map_or(1, |last| last.id + 1);
@@ -54,6 +54,29 @@ pub(crate) fn push_with(state: Store<UiModel>, level: Level, title: impl Into<St
         list.remove(0);
     }
     list.push(Notice { id, level, title: title.into(), detail: detail.into(), follow });
+    id
+}
+
+/// Puts a notice's outcome in its own place (a "Preparing..." line becomes its result), or as a new notice when it has been dismissed.
+pub(crate) fn replace(state: Store<UiModel>, id: u64, level: Level, title: impl Into<String>, detail: impl Into<String>) {
+    let (title, detail) = (title.into(), detail.into());
+    let found = {
+        let mut notices = state.notices();
+        let mut list = notices.write();
+        match list.iter_mut().find(|notice| notice.id == id) {
+            Some(notice) => {
+                (notice.level, notice.title, notice.detail, notice.follow) = (level, title.clone(), detail.clone(), None);
+                true
+            }
+            None => false,
+        }
+    };
+    if !found {
+        push(state, level, title, detail);
+    }
+}
+pub(crate) fn dismiss(state: Store<UiModel>, id: u64) {
+    state.notices().write().retain(|notice| notice.id != id);
 }
 
 #[component]

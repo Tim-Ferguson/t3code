@@ -170,6 +170,8 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             let order = sidebar_order(state);
             set.insert("sidebar.toggle".into());
             set.insert("usage.open".into());
+            // Both open on any page; with no project they say so, as in the original.
+            set.extend(["filePicker.toggle", "projectSearch.toggle"].map(String::from));
             if *state.view().read() == View::Usage {
                 set.extend(["usage.cost", "usage.tokens", "usage.limits", "usage.period.day", "usage.period.week", "usage.period.month", "usage.period.quarter"].map(String::from));
             }
@@ -277,7 +279,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
     let available = use_memo(move || {
         // The palette owns the keyboard while it is open; only what it offers itself still works.
         if state.palette().read().open {
-            runnable.read().iter().filter(|command| matches!(command.as_str(), "commandPalette.toggle" | "theme.select" | "appearance.cycle")).cloned().collect()
+            runnable.read().iter().filter(|command| matches!(command.as_str(), "commandPalette.toggle" | "theme.select" | "appearance.cycle" | "filePicker.toggle" | "projectSearch.toggle")).cloned().collect()
         } else {
             runnable.read().clone()
         }
@@ -415,6 +417,8 @@ impl Runner {
                 state.sidebar_open().set(!open);
             }
             "commandPalette.toggle" => command_palette::toggle(state),
+            "filePicker.toggle" => command_palette::toggle_mode(state, command_palette::Intent::Files),
+            "projectSearch.toggle" => command_palette::toggle_mode(state, command_palette::Intent::Content),
             "theme.select" => command_palette::open(state, command_palette::Intent::Theme),
             "appearance.cycle" => {
                 if let Some(themes) = &self.themes {

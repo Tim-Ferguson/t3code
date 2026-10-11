@@ -260,6 +260,18 @@ pub struct SnoozePreset {
     /// ISO wake time.
     pub until: String,
 }
+/// The clock time a preset wakes at, in the reader's format (`timestampFormat`): "3:05 PM" or "15:05". The system default
+/// is the 12-hour clock here, which is what this list always showed.
+pub fn clock_label(local: DateTime<Utc>, format: t3_contracts::TimestampFormat) -> String {
+    use chrono::Timelike;
+    match format {
+        t3_contracts::TimestampFormat::Hour24Hour => format!("{:02}:{:02}", local.hour(), local.minute()),
+        _ => {
+            let hour = if local.hour() % 12 == 0 { 12 } else { local.hour() % 12 };
+            format!("{hour}:{:02} {}", local.minute(), if local.hour() < 12 { "AM" } else { "PM" })
+        }
+    }
+}
 /// `resolveSnoozePresets`, for a viewer `offset_minutes` east of UTC. "This evening" appears only
 /// while it is more than an hour away; "Next week" is dropped when it falls on "Tomorrow".
 pub fn snooze_presets(now: DateTime<Utc>, offset_minutes: i32) -> Vec<SnoozePreset> {
@@ -662,6 +674,16 @@ pub fn plan_drop(input: &DropInput) -> DropPlan {
 
 #[cfg(test)]
 mod woke_tests {
+    #[test]
+    fn the_wake_time_follows_the_readers_clock_format() {
+        let at = Utc.with_ymd_and_hms(2026, 5, 1, 15, 5, 0).unwrap();
+        assert_eq!(clock_label(at, t3_contracts::TimestampFormat::Hour24Hour), "15:05");
+        assert_eq!(clock_label(at, t3_contracts::TimestampFormat::Hour12Hour), "3:05 PM");
+        assert_eq!(clock_label(at, t3_contracts::TimestampFormat::Locale), "3:05 PM");
+        let midnight = Utc.with_ymd_and_hms(2026, 5, 1, 0, 0, 0).unwrap();
+        assert_eq!(clock_label(midnight, t3_contracts::TimestampFormat::Hour12Hour), "12:00 AM");
+    }
+
     use super::*;
     use serde_json::json;
 

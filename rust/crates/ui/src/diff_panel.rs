@@ -53,6 +53,8 @@ pub struct DiffRequest {
 /// Opens the panel on a turn, optionally at one of its files.
 pub(crate) fn open(state: Store<UiModel>, environment_key: &str, thread_id: &str, scope: Scope, file: Option<String>) {
     state.pr_panel().set(None);
+    state.file_panel().set(None);
+    state.thread_prs().set(None);
     let mut diff = state.diff();
     let mut model = diff.write();
     let id = model.request.as_ref().map_or(0, |request| request.id) + 1;
@@ -70,6 +72,8 @@ pub(crate) fn toggle(state: Store<UiModel>) {
         close(state);
     } else {
         state.pr_panel().set(None);
+        state.file_panel().set(None);
+        state.thread_prs().set(None);
         let mut diff = state.diff();
         let mut model = diff.write();
         model.open = true;

@@ -60,6 +60,8 @@ pub(crate) struct RowView {
     pub project_id: String,
     pub title: String,
     pub selected: bool,
+    /// Chosen with Ctrl/Cmd+click or Shift+click, for a bulk action.
+    pub chosen: bool,
     pub status: Status,
     pub pill: Option<Pill>,
     pub unread: bool,
@@ -170,6 +172,7 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         project_id: thread.project_id.to_string(),
         title: thread.title.clone(),
         selected,
+        chosen: false,
         status: sidebar::status(thread),
         pill: sidebar::pill(thread),
         unread: sidebar::has_unseen_completion(thread),
@@ -208,6 +211,11 @@ fn WorkingFor(since: String, label: &'static str) -> Element {
     });
     let started = chrono::DateTime::parse_from_rfc3339(&since).map(|at| at.timestamp_millis()).unwrap_or_else(|_| now());
     rsx! {span {class:"thread-duration","{label} {sidebar::working_label(now() - started)}"}}
+}
+
+/// Whether the thread has a live runtime (its provider instance is the one shown), as `runtime_status` says.
+pub(crate) fn runtime_instance(thread: &ThreadShell) -> bool {
+    sidebar::runtime_status(thread).is_some()
 }
 
 /// Puts text on the clipboard from the click that asked for it.
@@ -261,7 +269,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         Status::Failed | Status::Limited => None,
         Status::Ready => view.unread.then_some(("Done", "emerald")),
     };
-    let class = format!("thread-row{}{}{}", if view.selected { " selected" } else { "" }, if view.snoozed.is_some() { " snoozed" } else { "" }, if view.unread { " unread" } else { "" });
+    let class = format!("thread-row{}{}{}{}", if view.selected { " selected" } else { "" }, if view.chosen { " chosen" } else { "" }, if view.snoozed.is_some() { " snoozed" } else { "" }, if view.unread { " unread" } else { "" });
     let mut close = move || menu.set(None);
     let item = |name: String, disabled: bool, action: Box<dyn Fn()>| {
         let disabled = disabled || busy();
@@ -314,7 +322,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         }
         if view.caps.pinning {
             let command = thread_command.clone();
-            entries.push(if view.pinned { item("Unpin thread".to_owned(), !can, Box::new(move || command("thread.unpin", json!({}), "Failed to unpin thread"))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Failed to pin thread"))) });
+            entries.push(if view.pinned { let (transport, id) = (transport.clone(), view.id.clone()); let _ = &command; item("Unpin thread".to_owned(), !can, Box::new(move || thread_lifecycle::request_unpin(state, &transport, &id))) } else { item("Pin thread".to_owned(), !can, Box::new(move || command("thread.pin", json!({}), "Failed to pin thread"))) });
         }
         if view.caps.settlement {
             let command = thread_command.clone();
@@ -344,7 +352,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                 for preset in sidebar::snooze_presets(now, offset) {
                     let command = thread_command.clone();
                     let local = preset.until.parse::<chrono::DateTime<Utc>>().map(|at| at + chrono::Duration::minutes(offset as i64)).ok();
-                    let when = local.map(|at| { use chrono::Timelike; let hour = if at.hour() % 12 == 0 { 12 } else { at.hour() % 12 }; format!("{hour}:{:02} {}", at.minute(), if at.hour() < 12 { "AM" } else { "PM" }) }).unwrap_or_default();
+                    let when = local.map(|at| sidebar::clock_label(at, state.client_settings().peek().timestamp_format)).unwrap_or_default();
                     let name = format!("Snooze: {} ({when})", preset.label);
                     let until = preset.until.clone();
                     entries.push(item(name, !can || !view.can_snooze, Box::new(move || command("thread.snooze", json!({"snoozedUntil":until}), "Failed to snooze thread"))));
@@ -377,6 +385,10 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         {
             let id = view.id.clone();
             entries.push(item("Copy thread ID".to_owned(), false, Box::new(move || copy_text(&id))));
+        }
+        {
+            let project = view.project_id.clone();
+            entries.push(item("Project settings".to_owned(), false, Box::new(move || crate::projects_page::open(state, &project))));
         }
         {
             let (transport, id) = (transport.clone(), view.id.clone());
@@ -436,8 +448,18 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                 }
             } else {
             button {key:"{view.id}",class:"{class}","aria-label":"Thread {view.title}","data-thread-status":"{status}","aria-busy":"{busy()}","aria-current":if view.selected {"true"} else {"false"},
-                onclick:{let transport=transport.clone();let id=id.clone();move |_| runtime::select_thread(&transport,state,id.clone())},
-                oncontextmenu:move |event| {event.prevent_default();let at=event.client_coordinates();menu.set(Some((at.x,at.y)));},
+                "aria-pressed":if view.chosen {"true"} else {"false"},
+                onclick:{let transport=transport.clone();let id=id.clone();move |event| {
+                    if crate::thread_selection::click(state,&id,event.modifiers()) {return;}
+                    runtime::select_thread(&transport,state,id.clone())
+                }},
+                oncontextmenu:{let id=id.clone();move |event| {
+                    event.prevent_default();
+                    let at=event.client_coordinates();
+                    // On a chosen row the menu is for all the chosen rows.
+                    if state.selection().peek().contains(&id) && crate::thread_selection::open_menu(state,(at.x,at.y)) {return;}
+                    menu.set(Some((at.x,at.y)));
+                }},
                 onkeydown:move |event| {if event.key()==Key::ContextMenu {event.prevent_default();menu.set(Some((0.0,0.0)));}},
                 span {class:"status-dot {status}","aria-hidden":"true"}
                 span {class:"thread-title","{view.title}"}
@@ -460,7 +482,12 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                                 move |_| {
                                     if let Some(target)=badge.target.clone() {
                                         runtime::select_thread(&transport,state,target.thread_id.clone());
-                                        crate::pull_request_panel::open(state,target);
+                                        // A stack or several links open the thread's Pull requests tab; one request opens itself.
+                                        if badge.opens_list && crate::thread_pull_requests_panel::supported(state) {
+                                            crate::thread_pull_requests_panel::open(state,&target.thread_id);
+                                        } else {
+                                            crate::pull_request_panel::open(state,target);
+                                        }
                                     }
                                 }
                             },
@@ -539,6 +566,7 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHa
                     onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();open.set(false);}},
                     button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Rename project {title}",disabled:!can_operate,onclick:{let title=title.clone();move |_| {open.set(false);renaming.set(Some(title.clone()));}},"Rename"}
                     button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Copy project path",onclick:move |_| {open.set(false);copy_text(&path);},"Copy path"}
+                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Project settings for {title}",onclick:{let id=id.clone();move |_| {open.set(false);crate::projects_page::open(state,&id);}},"Project settings"}
                     button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"{remove_label}",disabled:!can_operate,onclick:move |_| {open.set(false);thread_lifecycle::request_remove_project(state,&id);},"Remove project"}
                 }
             }
@@ -598,7 +626,11 @@ fn section_order(state: Store<UiModel>, thread_id: &str, section: sidebar::Secti
 pub(crate) fn toggle_pin(transport: &runtime::TransportHandle, state: Store<UiModel>) {
     let Some(id) = state.active_thread().peek().clone() else { return };
     let pinned = state.shell().peek().snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().find(|thread| thread.id.as_str() == id)).is_some_and(sidebar::is_pinned);
-    runtime::command(transport, state, if pinned { "thread.unpin" } else { "thread.pin" }, json!({"threadId":id}));
+    if pinned {
+        thread_lifecycle::request_unpin(state, transport, &id);
+    } else {
+        runtime::command(transport, state, "thread.pin", json!({"threadId":id}));
+    }
 }
 /// Whether the open thread is pinned, for the palette's wording.
 pub(crate) fn open_thread_pinned(state: Store<UiModel>) -> Option<bool> {

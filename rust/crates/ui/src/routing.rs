@@ -33,6 +33,7 @@ fn page_view(page: SettingsPage) -> View {
         SettingsPage::ScheduledTasks => View::ScheduledTasks,
         SettingsPage::SourceControl => View::SourceControl,
         SettingsPage::TextGeneration => View::TextGeneration,
+        SettingsPage::Projects => View::Projects,
     }
 }
 
@@ -52,6 +53,7 @@ pub(crate) fn route_of(view: &View, thread: Option<&str>, environment: Option<&E
         View::ScheduledTasks => page(SettingsPage::ScheduledTasks),
         View::SourceControl => page(SettingsPage::SourceControl),
         View::TextGeneration => page(SettingsPage::TextGeneration),
+        View::Projects => page(SettingsPage::Projects),
         View::PullRequests => Route::PullRequests,
         View::Usage => Route::Usage,
     }

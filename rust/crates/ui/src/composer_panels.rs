@@ -331,6 +331,10 @@ pub(crate) fn PlanReady(plan: words::ProposedPlan) -> Element {
 /// The context meter: a ring that fills as the window does, and the numbers behind it.
 #[component]
 pub(crate) fn ContextMeter(state: Store<UiModel>) -> Element {
+    // Hidden unless the reader turned the legacy indicator on (`contextWindowMeterEnabled`).
+    if !state.client_settings().read().context_window_meter_enabled {
+        return rsx! {};
+    }
     let window = use_memo(move || state.thread().read().projection.as_ref().and_then(words::projection_context_window));
     let mut open = use_signal(|| false);
     let Some(window) = window.read().clone() else {

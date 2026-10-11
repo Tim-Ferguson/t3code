@@ -28,6 +28,7 @@ pub enum View {
     ScheduledTasks,
     SourceControl,
     TextGeneration,
+    Projects,
     PullRequests,
     Usage,
 }
@@ -96,6 +97,8 @@ pub struct UiModel {
     pub pending_launches: std::collections::BTreeMap<String, PendingLaunch>,
     pub view: View,
     pub diff: crate::diff_panel::DiffModel,
+    /// The file the panel beside the conversation shows (opened from the file picker or the content search).
+    pub file_panel: Option<crate::file_panel::Target>,
     pub rewind: crate::rollback::Model,
     pub palette: crate::command_palette::Model,
     /// Whether the open thread's branch control offers its picker, and how often something has
@@ -135,6 +138,14 @@ pub struct UiModel {
     pub import: crate::import_projects::Model,
     /// The `/usage-limits` result shown over the open thread's composer.
     pub usage_panel: Option<crate::limits_view::Panel>,
+    /// The threads chosen in the sidebar with Ctrl/Cmd+click and Shift+click, and where their menu is open.
+    /// The thread whose Pull requests tab is open beside the conversation, and the thread whose link dialog is open.
+    pub thread_prs: Option<String>,
+    /// The project the Projects settings page is showing.
+    pub settings_project: Option<String>,
+    pub link_dialog: Option<String>,
+    pub selection: t3_client::thread_selection::Selection,
+    pub selection_menu: Option<(f64, f64)>,
     pub dark: bool,
     pub sidebar_open: bool,
 }
@@ -2947,3 +2958,19 @@ mod thread_row_tests;
 #[cfg(all(test, unix))]
 #[path = "open_in_tests.rs"]
 mod open_in_tests;
+
+#[cfg(all(test, unix))]
+#[path = "project_search_tests.rs"]
+mod project_search_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_selection_tests.rs"]
+mod thread_selection_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_pull_requests_panel_tests.rs"]
+mod thread_pull_requests_panel_tests;
+
+#[cfg(all(test, unix))]
+#[path = "settings_search_tests.rs"]
+mod settings_search_tests;

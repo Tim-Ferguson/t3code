@@ -220,6 +220,10 @@ fn Row(state: Store<UiModel>, transport: TransportHandle, entry: Value, addition
             button { class: "pr-list-title", r#type: "button", "aria-label": "Open pull request #{number}", "aria-pressed": "{selected}", onclick: move |_| on_open.call(()), strong { { entry["title"].as_str().unwrap_or_default().to_owned() } } }
             span { class: "muted", " #{number} \u{b7} {pr::host_name(entry[\"provider\"].as_str())} {entry[\"repository\"].as_str().unwrap_or_default()} \u{b7} {entry[\"projectTitle\"].as_str().unwrap_or_default()}" }
             span { class: "pr-state", "data-state": "{pr::list_state_label(&entry)}", "{pr::list_state_label(&entry)}" }
+            // Where it sits in its stack; the popover lists the layers when it is opened.
+            if let (Some(stack_number), Some(position), Some(size), Some(reference)) = (entry["stack"]["number"].as_u64(), entry["stack"]["position"].as_u64(), entry["stack"]["size"].as_u64(), pr::Reference::from_link(entry["projectId"].as_str().unwrap_or_default(), &entry)) {
+                crate::pull_request_stack::Chip { state, transport: transport.clone(), thread_id: String::new(), reference, number: stack_number, position, size }
+            }
             if !author.is_empty() { span { class: "muted", "{author}" } }
             if pr::has_size(additions, deletions) { span { class: "muted", "+{additions} \u{2212}{deletions}" } }
             // What the host summarises, and nothing it does not: GitHub alone reports a review decision, and a

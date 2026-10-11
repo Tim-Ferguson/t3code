@@ -27,6 +27,9 @@ pub struct Project {
 pub enum Dialog {
     Archive { id: String, title: String },
     Delete { id: String, title: String },
+    /// The chosen threads of the sidebar.
+    DeleteMany { ids: Vec<String> },
+    Unpin { id: String, title: String },
     /// The first answer to removing a project that has threads.
     NotEmpty(Project),
     Remove(Project),
@@ -185,6 +188,95 @@ pub(crate) fn request_delete(state: Store<UiModel>, transport: &TransportHandle,
         delete(state, transport, id);
     }
 }
+/// Unpinning asks first only when the reader's settings say so (`confirmThreadUnpin`).
+pub(crate) fn request_unpin(state: Store<UiModel>, transport: &TransportHandle, id: &str) {
+    let Some(thread) = thread_of(state, id) else { return };
+    if state.client_settings().peek().confirm_thread_unpin {
+        state.lifecycle().write().dialog = Some(Dialog::Unpin { id: id.into(), title: thread.title.to_string() });
+    } else {
+        runtime::command(transport, state, "thread.unpin", json!({"threadId":id}));
+    }
+}
+
+/// "Restart agent session": stops the provider session of the open thread, which keeps the conversation. The next message
+/// starts a fresh process that resumes it and reloads skills, plugins and MCP servers; the provider's catalog is read again
+/// for the thread's workspace so the composer's slash menu follows.
+pub(crate) fn restart_session(state: Store<UiModel>, transport: &TransportHandle) {
+    let Some(id) = state.active_thread().peek().clone() else { return };
+    let Some(thread) = thread_of(state, &id) else { return };
+    let sessions: Vec<String> = state.thread().peek().projection.as_ref().and_then(|projection| projection["providerSessions"].as_array()).map(|sessions| sessions.iter().filter_map(|session| session["id"].as_str().map(str::to_owned)).collect()).unwrap_or_default();
+    let cwd = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| state.shell().peek().snapshot.as_ref().and_then(|snapshot| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string())));
+    let instance = if crate::sidebar_rows::runtime_instance(&thread) { thread.provider_instance_id.to_string() } else { thread.model_selection.instance_id.to_string() };
+    let transport = transport.clone();
+    dioxus::dioxus_core::spawn_forever(async move {
+        let owner = runtime::response_owner(&transport, state);
+        for session in sessions {
+            if let Err(reason) = dispatch(&transport, state, "provider-session.detach", json!({"threadId":id,"providerSessionId":session,"reason":"client-requested"})).await {
+                notice::push(state, Level::Error, "Could not restart the agent session", reason);
+                return;
+            }
+        }
+        notice::push(state, Level::Success, "Agent session will restart", "Your next message starts a fresh session.");
+        let Some(cwd) = cwd else { return };
+        if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+            return;
+        }
+        if let Err(reason) = runtime::request_value_reported(transport.clone(), state, "server.refreshProviders", json!({"instanceId":instance,"cwd":cwd,"fresh":true})).await {
+            notice::push(state, Level::Error, "Could not refresh the provider", reason);
+        }
+    });
+}
+
+/// Deleting the chosen threads asks first (once, for all of them) unless the reader turned the question off.
+pub(crate) fn request_delete_many(state: Store<UiModel>, transport: &TransportHandle, ids: Vec<String>) {
+    if ids.is_empty() {
+        return;
+    }
+    if state.client_settings().peek().confirm_thread_delete {
+        state.lifecycle().write().dialog = Some(Dialog::DeleteMany { ids });
+    } else {
+        delete_many(state, transport, ids);
+    }
+}
+/// One delete at a time, in the order chosen; those that went leave the choice, a failure is said once and
+/// leaves the rest of the choice as it was (`deleteSelectedThreadEntries`).
+fn delete_many(state: Store<UiModel>, transport: &TransportHandle, ids: Vec<String>) {
+    let selected = ids.clone();
+    let looking_at = state.active_thread().peek().clone().and_then(|open| thread_of(state, &open));
+    run(state, transport, move |transport| async move {
+        let owner = runtime::response_owner(&transport, state);
+        let mut deleted = std::collections::BTreeSet::new();
+        let mut failure = None;
+        for id in &ids {
+            let answer = dispatch(&transport, state, "thread.delete", json!({"threadId":id})).await;
+            if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+                return;
+            }
+            match answer {
+                Ok(_) => {
+                    deleted.insert(id.clone());
+                }
+                Err(reason) => {
+                    failure = Some(reason);
+                    break;
+                }
+            }
+        }
+        if let Some(reason) = failure {
+            notice::push(state, Level::Error, "Failed to delete threads", reason);
+        }
+        if !deleted.is_empty() {
+            state.lifecycle().write().archive_revision += 1;
+        }
+        let leave = looking_at.filter(|thread| deleted.contains(thread.id.as_str()));
+        let remove = t3_client::thread_selection::deselect_after_delete(&selected, &deleted, |id| thread_of(state, id).is_some_and(|thread| thread.deleted_at.is_none()));
+        state.selection().write().remove(&remove);
+        // The thread being looked at is gone: the view goes to a new thread of its project.
+        if let Some(thread) = leave {
+            leave_if_open(state, &transport, &thread);
+        }
+    });
+}
 fn delete(state: Store<UiModel>, transport: &TransportHandle, id: &str) {
     let Some(thread) = thread_of(state, id) else { return };
     // The view goes to the project's next thread, chosen before the delete as the original does (`getFallbackThreadIdAfterDelete`).
@@ -285,11 +377,13 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
                 let (message, ask_again) = match &dialog {
                     Dialog::Archive { title, .. } => (words::archive_thread_message(title), false),
                     Dialog::Delete { title, .. } => (words::delete_thread_message(title), false),
+                    Dialog::DeleteMany { ids } => (t3_client::thread_selection::delete_message(ids.len()), false),
+                    Dialog::Unpin { title, .. } => (format!("Unpin thread \"{title}\"?\nThis will move the thread out of your pinned section."), false),
                     Dialog::NotEmpty(_) => (String::new(), true),
                     Dialog::Remove(project) => (words::remove_project_message(&project.title, &project.path, environment_label.as_deref(), project.threads), false),
                 };
                 let (title, description) = if ask_again { (words::NOT_EMPTY_TITLE.to_owned(), Some(words::NOT_EMPTY_BODY.to_owned())) } else { words::confirm_copy(&message) };
-                let destructive = !matches!(dialog, Dialog::Archive { .. });
+                let destructive = !matches!(dialog, Dialog::Archive { .. } | Dialog::Unpin { .. });
                 let confirm_label = if ask_again { words::NOT_EMPTY_ACTION } else { words::CONFIRM_BUTTON };
                 let busy = model.busy;
                 let transport = transport.clone();
@@ -308,6 +402,8 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
                                     match dialog.clone() {
                                         Dialog::Archive { id, .. } => archive(state, &transport, &id),
                                         Dialog::Delete { id, .. } => delete(state, &transport, &id),
+                                        Dialog::DeleteMany { ids } => delete_many(state, &transport, ids),
+                                        Dialog::Unpin { id, .. } => { runtime::command(&transport, state, "thread.unpin", json!({"threadId":id})); }
                                         Dialog::NotEmpty(project) => {
                                             // Going on asks the long question, with the count as it is now.
                                             let latest = project_of(state, &project.id).unwrap_or(project);

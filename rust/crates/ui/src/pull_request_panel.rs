@@ -31,6 +31,8 @@ pub struct Target {
 /// Opens the panel on a pull request; the diff panel gives way, since they share the margin.
 pub(crate) fn open(state: Store<UiModel>, target: Target) {
     state.diff().write().open = false;
+    state.file_panel().set(None);
+    state.thread_prs().set(None);
     state.pr_panel().set(Some(target));
 }
 pub(crate) fn close(state: Store<UiModel>) {
@@ -388,10 +390,14 @@ fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
             div { class: "diff-header-main",
                 strong { class: "pr-number", "#{reference.number}" }
                 span { class: "pr-state", "data-state": "{label}", "{label}" }
+                if let (Some(stack_number), Some(position), Some(size)) = (value["stack"]["number"].as_u64(), value["stack"]["position"].as_u64(), value["stack"]["size"].as_u64()) {
+                    crate::pull_request_stack::Chip { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), number: stack_number, position, size }
+                }
                 if let Some(url) = url { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request #{reference.number} on host", title: "{host_label}", "{host_label}" } }
                 if let Some(url) = value["url"].as_str().map(str::to_owned) { crate::pull_request_links::LinkControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), url } }
                 crate::pull_request_links::WatchControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), open: matches!(label, "Open" | "Draft") }
                 button { class: "icon-button", r#type: "button", "aria-label": if refreshing { "Refreshing pull request" } else { "Refresh pull request" }, title: "Ask the host again", "aria-busy": "{refreshing}", disabled: refreshing, onclick: move |_| on_refresh.call(()), "\u{21bb}" }
+                if thread_id.is_empty() { crate::pull_request_handoff::CheckoutMenu { state, transport: transport.clone(), project_id: reference.project_id.clone(), value: value.clone() } }
                 crate::pull_request_handoff::Menu { state, transport: transport.clone(), project_id: reference.project_id.clone(), thread_id: thread_id.clone(), value: value.clone(), activity }
                 button { class: "icon-button diff-close", "aria-label": "Close pull request panel", title: "Close the pull request panel", onclick: move |_| on_close.call(()), "\u{2715}" }
             }

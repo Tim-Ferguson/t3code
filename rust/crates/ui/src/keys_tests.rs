@@ -82,7 +82,7 @@ async fn a_default_shortcut_runs_its_command_and_a_key_nothing_names_is_left_alo
     assert_eq!(press(&mut dom, chord("d", false, false), Dom::default()).await.as_deref(), Some("diff.toggle"));
     until(&mut dom, "diff closed", |dom| !diff_open(dom)).await;
     // Chords no rule names, and chords of commands this app does not have, do nothing.
-    for (event, why) in [(chord("q", true, true), "no rule"), (chord("p", false, false), "file picker is not here"), (chord("k", true, false), "copying a pull request number is not here"), (typed("q"), "plain letter")] {
+    for (event, why) in [(chord("q", true, true), "no rule"), (chord("k", true, false), "copying a pull request number is not here"), (typed("q"), "plain letter")] {
         assert_eq!(press(&mut dom, event, Dom::default()).await, None, "{why}");
     }
     assert!(!diff_open(&dom));

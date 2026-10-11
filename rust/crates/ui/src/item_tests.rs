@@ -35,6 +35,10 @@ async fn reasoning_todo_and_usage_show_while_the_turn_runs_and_nothing_keeps_wor
     let (mut dom, props) = fixture.operator(Gate::default());
     let state = seed(&mut dom, &props, &fixture.workspace).await;
     open_thread(&mut dom, &props, state, "thread-a").await;
+    // The meter is the legacy indicator: a reader turns it on in Settings.
+    let mut settings = (*state.client_settings().peek()).clone();
+    settings.context_window_meter_enabled = true;
+    state.client_settings().set(settings);
     send(&mut dom, &props, state, "Work [think][todo][usage][hold]");
     // The second thought's heading can only come from the second reasoning item.
     until(&mut dom, "both thoughts", |dom| rendered_text(dom).contains("Planning the change")).await;
@@ -580,6 +584,11 @@ async fn the_context_meter_reads_the_projection_and_is_absent_without_a_report()
         let projection = model.projection.as_mut().unwrap();
         projection["providerTurns"] = json!([{"id":"turn","status":"running","tokenUsage":{"usedTokens":150000,"maxTokens":200000,"updatedAt":"2026-01-01T00:00:00Z"}}]);
     }
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(control(&dom, "Context window 75% used").is_none(), "hidden until the legacy indicator is switched on");
+    let mut settings = (*state.client_settings().peek()).clone();
+    settings.context_window_meter_enabled = true;
+    state.client_settings().set(settings);
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     assert!(control(&dom, "Context window 75% used").is_some());
     click_control(&mut dom, "Context window 75% used");

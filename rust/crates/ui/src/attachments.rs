@@ -774,6 +774,10 @@ for (let tries = 0; tries < 60 && !(box = document.querySelector(selector)); tri
   await new Promise((resolve) => requestAnimationFrame(resolve));
 }}
 if (!box) return;
+// A thread opened just now (a fork, a click in the sidebar) can still show the old prompt box for a frame while this runs; the
+// one the new composer draws is bound instead, so a long paste there becomes a file as it does anywhere else.
+await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+box = document.querySelector(selector) ?? box;
 if (box.__t3Paste) box.removeEventListener("paste", box.__t3Paste);
 const read = (file) => new Promise((resolve) => {{
   const reader = new FileReader();

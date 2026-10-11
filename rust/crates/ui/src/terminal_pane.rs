@@ -671,7 +671,12 @@ fn CanvasPane(
         }
     });
     let ack = receipt.clone();
+    // Where a path in the output is relative to: the thread's worktree, else the project.
+    let link_cwd = worktree.clone().unwrap_or_else(|| cwd.clone());
+    let link_editor = try_consume_context::<crate::open_in::Last>();
     use_future(move || {
+        let link_cwd = link_cwd.clone();
+        let link_editor = link_editor.clone();
         let id = launch_id.clone();
         let base = base.clone();
         let transport = events_transport.clone();
@@ -704,6 +709,8 @@ fn CanvasPane(
                 match event["type"].as_str() {
                     Some("focus") => catalog.focus(state, &focus_owner),
                     Some("ready") => ready.set(true),
+                    // Cmd/Ctrl+click on a URL or a path in the output (`handleLinkActivate`).
+                    Some("link") => open_terminal_link(state, &transport, link_editor.clone(), event["text"].as_str().unwrap_or(""), &link_cwd),
                     // The selection asked for by "Add selection to chat": a chip on this thread's draft.
                     Some("selection") => {
                         let text = event["text"].as_str().unwrap_or("");
@@ -971,4 +978,22 @@ fn TerminalIcon(kind: &'static str) -> Element {
         ],
     };
     rsx! {svg{width:"13",height:"13",view_box:"0 0 24 24",fill:"none",stroke:"currentColor",stroke_width:"2",stroke_linecap:"round",stroke_linejoin:"round","aria-hidden":"true",for d in paths{path{d:*d}}}}
+}
+
+/// Opens what a click on a link in the terminal output names: a URL in the browser, a path in the editor at its line.
+fn open_terminal_link(state: Store<UiModel>, transport: &runtime::TransportHandle, last: Option<crate::open_in::Last>, text: &str, cwd: &str) {
+    if text.is_empty() {
+        return;
+    }
+    if t3_client::terminal_links::is_url(text) {
+        let url = serde_json::to_string(text).unwrap_or_default();
+        let _ = document::eval(&format!("window.open({url},'_blank','noopener');"));
+        return;
+    }
+    let target = t3_client::terminal_links::resolve_path_target(text, cwd);
+    let editor = crate::open_in::favorite(state, last.as_ref().and_then(|last| last.0.peek().clone()).as_deref());
+    match (editor, last) {
+        (Some(editor), Some(last)) => crate::open_in::open(transport, state, Signal::new(false), last.0, target, editor, false),
+        _ => crate::notice::push(state, crate::notice::Level::Info, "No editor to open the file in", target),
+    }
 }

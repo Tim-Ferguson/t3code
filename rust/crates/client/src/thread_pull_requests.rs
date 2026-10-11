@@ -199,6 +199,90 @@ fn chains<'a>(visible: &[&'a Value]) -> Vec<Vec<&'a Value>> {
     chains
 }
 
+/// One line of a thread's list of pull requests (`PullRequestListLine`): a link and how deep it sits in its stack.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Line {
+    pub link: Value,
+    /// 0 for a request on the base branch; each layer above steps in by one.
+    pub depth: usize,
+    pub chain_key: String,
+    /// On the bottom layer of a multi-layer stack: whether it is a host-native stack, and how many layers.
+    pub stack: Option<(bool, usize)>,
+}
+fn activity_at(link: &Value) -> i64 {
+    link["snapshot"]["updatedAt"].as_str().or_else(|| link["linkedAt"].as_str()).and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()).map_or(0, |at| at.timestamp_millis())
+}
+/// `pullRequestListLines`: chains flattened into indented lines, newest first. A stack sorts by its most recent layer and then
+/// reads bottom to top beneath that slot.
+pub fn lines(thread: &Value) -> Vec<Line> {
+    let visible = visible(thread);
+    let mut chains = chains(&visible);
+    chains.sort_by_key(|chain| std::cmp::Reverse(chain.iter().map(|link| activity_at(link)).max().unwrap_or(0)));
+    chains
+        .into_iter()
+        .flat_map(|chain| {
+            let key = format!("{}/{}#{}", chain[0]["host"].as_str().unwrap_or_default(), chain[0]["repository"].as_str().unwrap_or_default(), chain[0]["number"]);
+            let native = chain.iter().all(|link| link["stack"].is_object());
+            let size = chain.len();
+            chain.into_iter().enumerate().map(move |(depth, link)| Line { link: link.clone(), depth, chain_key: key.clone(), stack: (depth == 0 && size > 1).then_some((native, size)) }).collect::<Vec<_>>()
+        })
+        .collect()
+}
+/// How many of the visible links are open (or not yet synced), and when the newest sync happened.
+pub fn footer(thread: &Value) -> (usize, usize, Option<String>) {
+    let visible = visible(thread);
+    let open = visible.iter().filter(|link| is_open(link)).count();
+    let synced = visible.iter().filter_map(|link| link["snapshot"]["syncedAt"].as_str()).max().map(str::to_owned);
+    (open, visible.len(), synced)
+}
+
+/// What the link dialog resolved: the request named, or why it cannot be.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Named {
+    pub host: String,
+    pub repository: String,
+    pub number: u64,
+    pub url: String,
+}
+/// `parseChangeRequestUrl`: the host, repository and number a pull or merge request URL names.
+pub fn parse_change_request_url(url: &str) -> Option<Named> {
+    let rest = url.trim().strip_prefix("https://").or_else(|| url.trim().strip_prefix("http://"))?;
+    let (host, path) = rest.split_once('/')?;
+    let path = path.split(['?', '#']).next().unwrap_or_default().trim_end_matches('/');
+    let parts: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
+    let number = |text: &str| text.parse::<u64>().ok().filter(|number| *number > 0);
+    let (repository, number) = if let Some(at) = parts.iter().position(|part| *part == "-") {
+        // GitLab: group/subgroup/project/-/merge_requests/N
+        if parts.get(at + 1) != Some(&"merge_requests") {
+            return None;
+        }
+        (parts[..at].join("/"), number(parts.get(at + 2)?)?)
+    } else if parts.len() >= 4 && matches!(parts[parts.len() - 2], "pull" | "pulls") {
+        (parts[..parts.len() - 2].join("/"), number(parts[parts.len() - 1])?)
+    } else {
+        return None;
+    };
+    if repository.is_empty() || !repository.contains('/') {
+        return None;
+    }
+    Some(Named { host: host.to_lowercase(), repository, number, url: url.trim().to_owned() })
+}
+/// `resolveLinkPullRequestInput`: a URL names its own request; a bare `#42` can only mean the thread's own repository, whose
+/// web address for a number is `own_url`.
+pub fn resolve_link_input(input: &str, own_url: impl Fn(u64) -> Option<String>) -> Option<Result<Named, String>> {
+    // A URL of any host names its own request; the other forms (a number, a CLI checkout command) go through the reference parser.
+    if let Some(named) = parse_change_request_url(input.trim()) {
+        return Some(Ok(named));
+    }
+    let parsed = crate::pull_request_reference::parse(input)?;
+    if let Some(named) = parse_change_request_url(&parsed) {
+        return Some(Ok(named));
+    }
+    let number = parsed.trim_start_matches('#').parse::<u64>().ok().filter(|number| *number > 0)?;
+    let Some(url) = own_url(number) else { return Some(Err("Paste a full URL; this project's host has no known pull request URL.".into())) };
+    Some(parse_change_request_url(&url).ok_or_else(|| "Paste a full URL; this project's host has no known pull request URL.".to_owned()))
+}
+
 /// `resolveThreadCurrentPullRequestLink`: the request a one-slot surface shows: open work first, the highest open layer of a
 /// chain, a finished chain's top, and among unrelated finished links the most recently updated.
 pub fn current(thread: &Value) -> Option<Link> {
@@ -367,5 +451,35 @@ mod tests {
         let (kind, input) = command("thread-a", &reference, "", false).unwrap();
         assert_eq!((kind, input.get("url"), input.get("source")), ("thread.pull-request.unlink", None, None));
         assert!(command("thread-a", &Reference { host: None, ..reference }, "", true).is_none(), "a pull request with no host cannot be filed");
+    }
+
+    #[test]
+    fn lines_flatten_chains_newest_first_with_the_bottom_layer_naming_the_stack() {
+        let stack = json!({"pullRequests":[stacked(1, "a", "main", "open"), stacked(2, "b", "a", "open"), stacked(9, "z", "main", "open")]});
+        let lines = lines(&stack);
+        assert_eq!(lines.iter().map(|line| (line.link["number"].as_u64().unwrap(), line.depth)).collect::<Vec<_>>().len(), 3);
+        let bottom = lines.iter().find(|line| line.link["number"] == 1).unwrap();
+        assert_eq!((bottom.depth, bottom.stack), (0, Some((false, 2))));
+        let top = lines.iter().find(|line| line.link["number"] == 2).unwrap();
+        assert_eq!((top.depth, top.stack), (1, None));
+        let single = lines.iter().find(|line| line.link["number"] == 9).unwrap();
+        assert_eq!((single.depth, single.stack), (0, None));
+    }
+
+    #[test]
+    fn the_link_dialog_resolves_urls_and_bare_numbers() {
+        let github = parse_change_request_url("https://github.com/acme/web/pull/7?x=1").unwrap();
+        assert_eq!((github.host.as_str(), github.repository.as_str(), github.number), ("github.com", "acme/web", 7));
+        let gitlab = parse_change_request_url("https://gitlab.example.com/group/sub/proj/-/merge_requests/12").unwrap();
+        assert_eq!((gitlab.repository.as_str(), gitlab.number), ("group/sub/proj", 12));
+        assert!(parse_change_request_url("https://github.com/acme/web/issues/7").is_none());
+        let own = |number: u64| Some(format!("https://github.com/acme/web/pull/{number}"));
+        assert_eq!(resolve_link_input("#42", own).unwrap().unwrap().number, 42);
+        assert_eq!(resolve_link_input("gh pr checkout 8", own).unwrap().unwrap().number, 8);
+        assert!(resolve_link_input("hello", own).is_none());
+        assert!(resolve_link_input("5", |_| None).unwrap().is_err());
+        assert_eq!(resolve_link_input("https://github.com/o/r/pull/3", |_| None).unwrap().unwrap().repository, "o/r");
+        // Any host with a pull request path names a request, not only github.com.
+        assert_eq!(resolve_link_input("https://git.example.test/o/r/pull/3", |_| None).unwrap().unwrap().host, "git.example.test");
     }
 }

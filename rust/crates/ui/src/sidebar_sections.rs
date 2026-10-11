@@ -130,9 +130,12 @@ pub(crate) fn ProjectThreads(project_id: String, workspace_root: String, state: 
     let Some(snapshot) = shell.snapshot.as_ref() else { return rsx! {} };
     let sections = sections_of(&snapshot.threads, &project_id, now, caps, held.as_ref());
     let providers = sidebar_rows::provider_names(state);
+    let chosen = state.selection().read().keys.clone();
     let row = |thread: &ThreadShell| {
         let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| Some(workspace_root.clone()));
-        rsx! { sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(thread, open.as_deref() == Some(thread.id.as_str()), workspace, caps, can_operate, now, &providers), state, transport: transport.clone() } }
+        let mut view = sidebar_rows::view(thread, open.as_deref() == Some(thread.id.as_str()), workspace, caps, can_operate, now, &providers);
+        view.chosen = chosen.contains(thread.id.as_str());
+        rsx! { sidebar_rows::ThreadRow { key: "{thread.id}", view, state, transport: transport.clone() } }
     };
     let (working_open, snoozed_open, settled_open) = (!sections.working.is_empty() && state.shelves().read().working, !sections.snoozed.is_empty() && state.shelves().read().snoozed, caps.settlement && state.shelves().read().settled);
     let working_rows = sidebar::shelf_rows(&sections.working, working_open, usize::MAX, open.as_deref());

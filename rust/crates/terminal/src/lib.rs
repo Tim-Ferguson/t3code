@@ -6,6 +6,7 @@ mod callbacks;
 #[cfg(target_arch = "wasm32")]
 pub mod core;
 pub mod fonts;
+pub mod links;
 pub mod model;
 pub mod renderer;
 #[cfg(target_arch = "wasm32")]

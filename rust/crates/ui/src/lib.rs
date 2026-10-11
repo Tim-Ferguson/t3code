@@ -24,6 +24,13 @@ mod pull_request_summary;
 mod pull_request_thread;
 mod pull_request_files;
 mod diff_panel;
+mod file_panel;
+mod project_defaults;
+mod projects_page;
+mod pull_request_stack;
+mod thread_pull_requests_panel;
+mod thread_selection;
+mod project_search;
 mod review_diff;
 mod draft_storage;
 mod empty_state;
@@ -147,6 +154,11 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let mut add_project = use_signal(|| false);
     use_context_provider(|| AddProject(add_project));
     sidebar_sections::use_shelves(state);
+    // A chosen row that left the sidebar leaves the choice, so a bulk menu never counts rows nobody can see.
+    use_effect(move || {
+        let _ = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.snapshot_sequence);
+        thread_selection::prune(state);
+    });
     let runner = keys::use_keys(state, transport.clone());
     clone_view::use_stream(state, transport.clone());
     let new_thread_hint = runner.keys.label("chat.new");
@@ -273,7 +285,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     rsx! {
         style { "{STYLES}" }
         style { {include_str!("../assets/theme-tokens.css")} }
-        div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
+        div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
                 nav { class: "sidebar-actions",
@@ -320,6 +332,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             rsx! { if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
                         }
                         diff_panel::Toggle { state, environment_key: environment_key.clone(), thread_id: active_thread.id.to_string() }
+                        thread_pull_requests_panel::Toggle { state, thread_id: active_thread.id.to_string() }
                         thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
                         header_more::Group {
                         {
@@ -383,6 +396,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::ScheduledTasks => rsx! {scheduled_tasks_page::Page {state,transport:transport.clone()}},
                     View::SourceControl => rsx! {source_control_page::Page {state,transport:transport.clone()}},
                     View::General => rsx! {general_page::Page {state,transport:transport.clone()}},
+                    View::Projects => rsx! {projects_page::Page {state,transport:transport.clone()}},
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {
                         pull_request_list::Page {state,transport:transport.clone()}
@@ -398,6 +412,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         }
                     },
                     View::Chat => rsx! {
+                        file_panel::Host { key: "file:{timeline_key}", state, transport: transport.clone(), thread_id: active_id.clone() }
                         if active.is_none() {
                             section { class: "empty-state",
                                 h1 { "What should we work on?" }
@@ -435,6 +450,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 pull_request_panel::Host {key:"pr:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
                             }
                             for current in [active.as_ref().unwrap().clone()] {
+                                thread_pull_requests_panel::Host {key:"prs:{timeline_key}",state,transport:transport.clone(),thread_id:current.id.to_string()}
+                            }
+                            for current in [active.as_ref().unwrap().clone()] {
                                 terminal_pane::Drawer {key:"terminal:{timeline_key}",state,transport:transport.clone(),environment:environment_key.clone(),thread_id:current.id.to_string(),cwd:projects.iter().find(|project|project.id==current.project_id).map(|p|p.workspace_root.to_string()).unwrap_or_default(),worktree:current.worktree_path.as_ref().map(ToString::to_string)}
                             }
                             }
@@ -466,6 +484,8 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             import_projects::Host { state, transport: transport.clone() }
             thread_lifecycle::Host { state, transport: transport.clone() }
             thread_relations::Host { state, transport: transport.clone() }
+            thread_selection::Host { state, transport: transport.clone() }
+            thread_pull_requests_panel::LinkDialog { state, transport: transport.clone() }
         }
     }
 }
@@ -1335,7 +1355,7 @@ mod reactive_tests {
         // Keys nothing names, keys typed in the message box, keys while composing, and keys the
         // app has no feature for are all left alone, and repaint nothing.
         let composing = KeyEvent { composing: true, ..chord("k", false, false) };
-        for (event, focus) in [(chord("q", true, true), Dom::default()), (typed("h"), Dom::default()), (typed("h"), Dom { editable_focus: true, composer_focus: true, ..Default::default() }), (composing, Dom::default()), (chord("p", false, false), Dom::default()), (chord("d", false, false), Dom::default())] {
+        for (event, focus) in [(chord("q", true, true), Dom::default()), (typed("h"), Dom::default()), (typed("h"), Dom { editable_focus: true, composer_focus: true, ..Default::default() }), (composing, Dom::default()), (chord("d", false, false), Dom::default())] {
             assert_eq!(press(&mut dom, event, focus).await, None);
         }
         assert_eq!((props.probe.application.get(), props.probe.timeline.get(), props.probe.composer.get()), (root, timeline, composer));
