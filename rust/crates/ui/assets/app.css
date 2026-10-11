@@ -59,6 +59,10 @@ select:focus-visible {
   outline-offset: 2px;
 }
 .app {
+  /* Chat width and diff colors are settings (`chatWidth`, `diffColorScheme`). */
+  --chat-content-max-width: 780px;
+  --diff-addition: #16a34a;
+  --diff-deletion: #dc2626;
   --background: oklch(99.2% 0 0);
   --foreground: oklch(37% 0.013 285.8);
   --terminal-background: var(--background);
@@ -368,7 +372,7 @@ select:focus-visible {
   flex: 1;
   overflow: auto;
   min-height: 0;
-  padding: 24px max(24px, calc((100% - 780px)/2));
+  padding: 24px max(24px, calc((100% - var(--chat-content-max-width))/2));
 }
 .message {
   padding: 8px 0;
@@ -415,7 +419,7 @@ select:focus-visible {
   white-space: pre-wrap;
 }
 .composer {
-  margin: 8px max(16px, calc((100% - 780px)/2)) 20px;
+  margin: 8px max(16px, calc((100% - var(--chat-content-max-width))/2)) 20px;
   padding: 12px;
   border: 1px solid var(--border);
   background: var(--card);
@@ -777,9 +781,11 @@ select:focus-visible {
   font-size: 0.6875rem;
 }
 .additions {
-  color: #16a34a;
+  color: var(--diff-addition);
 }
-.deletions,
+.deletions {
+  color: var(--diff-deletion);
+}
 .failure {
   color: #dc2626;
 }
@@ -1145,6 +1151,29 @@ select:focus-visible {
   gap: 12px;
   padding: 16px 0;
   border-top: 1px solid var(--border);
+}
+.app[data-chat-width="wide"] {
+  --chat-content-max-width: 72rem;
+}
+.app[data-chat-width="full"] {
+  --chat-content-max-width: 100%;
+}
+.app[data-diff-color-scheme="blue-orange"] {
+  --diff-addition: #2563eb;
+  --diff-deletion: #ea580c;
+}
+.setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.setting-row .font-controls select {
+  width: auto;
+  max-width: 100%;
 }
 .font-description {
   flex: 1;
@@ -2176,11 +2205,11 @@ html[data-theme-token-probe] *::after {
 .diff-add,
 .diff-row.add,
 .diff-cell.add {
-  background: color-mix(in srgb, #16a34a 14%, var(--background));
+  background: color-mix(in srgb, var(--diff-addition) 14%, var(--background));
 }
 .diff-row.del,
 .diff-cell.del {
-  background: color-mix(in srgb, #dc2626 13%, var(--background));
+  background: color-mix(in srgb, var(--diff-deletion) 13%, var(--background));
 }
 .diff-num {
   text-align: right;
@@ -2685,10 +2714,14 @@ html[data-theme-token-probe] *::after {
   margin: 6px 0 0;
   padding: 0;
   display: grid;
+  /* A long title ellipsises inside the sidebar instead of widening the column. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1px;
 }
 .search-result {
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -3730,7 +3763,7 @@ html[data-theme-token-probe] *::after {
 
 /* Timeline rows and the panels above the composer. */
 .composer-panel {
-  margin: 8px max(16px, calc((100% - 780px) / 2)) 0;
+  margin: 8px max(16px, calc((100% - var(--chat-content-max-width)) / 2)) 0;
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -4392,6 +4425,8 @@ button.subagent-row:hover,
   z-index: 50;
   min-width: 200px;
   max-width: 320px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   padding: 4px;
@@ -4415,6 +4450,12 @@ button.subagent-row:hover,
 .context-menu .menu-item:hover:not(:disabled),
 .context-menu .menu-item:focus-visible {
   background: var(--accent);
+}
+.context-menu .menu-item .menu-hint {
+  display: block;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: normal;
 }
 .context-menu .menu-item:disabled {
   color: var(--muted-foreground);
@@ -5316,11 +5357,20 @@ button.subagent-row:hover,
   padding: 0 6px;
   line-height: 1;
 }
+/* Out of the grid flow: as a fifth item of a four-column row it wrapped to a second grid row, which
+   doubled every diff line's height with a blank band under it. */
+.diff-row,
+.diff-cell {
+  position: relative;
+}
 .diff-comment {
-  margin-left: auto;
+  position: absolute;
+  top: 0;
+  right: 4px;
   border: 0;
   background: transparent;
-  padding: 0 6px;
+  padding: 0 4px;
+  line-height: inherit;
   opacity: 0;
   cursor: pointer;
 }
@@ -5952,10 +6002,10 @@ body.sidebar-dragging {
   resize: vertical;
 }
 .stat-add {
-  color: #16a34a;
+  color: var(--diff-addition);
 }
 .stat-del {
-  color: #dc2626;
+  color: var(--diff-deletion);
 }
 .default-branch-dialog p {
   margin: 0;
@@ -6099,7 +6149,7 @@ body.sidebar-dragging {
   text-align: center;
 }
 .scroll-error {
-  margin: 4px max(16px, calc((100% - 780px) / 2));
+  margin: 4px max(16px, calc((100% - var(--chat-content-max-width)) / 2));
   font-size: 0.75rem;
   color: var(--destructive, #dc2626);
 }
@@ -6208,6 +6258,22 @@ body.sidebar-dragging {
 .pr-reviewer {
   display: inline-block;
   margin-right: 6px;
+}
+/* The ring is the reviewer's last verdict; one the commits have overtaken is dimmed. */
+.pr-reviewer[data-outcome] {
+  padding: 0 6px;
+  border-radius: 999px;
+  --ring: var(--muted-foreground);
+  box-shadow: 0 0 0 2px var(--ring);
+}
+.pr-reviewer[data-outcome="approved"] {
+  --ring: #10b981;
+}
+.pr-reviewer[data-outcome="changes-requested"] {
+  --ring: var(--destructive, #dc2626);
+}
+.pr-reviewer[data-stale="true"] {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 35%, var(--background));
 }
 .pr-label {
   display: inline-block;
@@ -6660,6 +6726,25 @@ body.sidebar-dragging {
 }
 .thread-providers {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.provider-glyph {
+  width: 12px;
+  height: 12px;
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+.provider-glyph.monogram {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  color: var(--muted-foreground);
 }
 .thread-pr {
   flex: none;

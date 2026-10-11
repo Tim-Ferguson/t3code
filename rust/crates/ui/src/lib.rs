@@ -13,6 +13,8 @@ mod base_ref_picker;
 mod git_control;
 mod pull_request_edit;
 mod pull_request_glyph;
+mod provider_glyph;
+mod pull_request_handoff;
 mod pull_request_links;
 mod pull_request_list;
 mod pull_request_menus;
@@ -56,6 +58,12 @@ mod sidebar_rows;
 mod sidebar_sections;
 mod search;
 mod settings_common;
+mod settings_rows;
+
+/// A setting's wire spelling, for an attribute the stylesheet selects on.
+fn wire_text(value: &impl serde::Serialize) -> String {
+    serde_json::to_value(value).ok().and_then(|value| value.as_str().map(str::to_owned)).unwrap_or_default()
+}
 mod source_control_page;
 mod subagent_rows;
 mod thread_status_line;
@@ -265,7 +273,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     rsx! {
         style { "{STYLES}" }
         style { {include_str!("../assets/theme-tokens.css")} }
-        div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-word-wrap":state.client_settings().read().word_wrap,
+        div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
                 nav { class: "sidebar-actions",
@@ -283,7 +291,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
                                     file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string(), title: project.title.to_string() } "{project.title}"
                                 }
-                                sidebar_rows::ProjectMenu { key: "menu:{project.id}", state, project_id: project.id.to_string(), title: project.title.to_string(), workspace_root: project.workspace_root.to_string(), can_operate }
+                                sidebar_rows::ProjectMenu { key: "menu:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string(), title: project.title.to_string(), workspace_root: project.workspace_root.to_string(), can_operate }
                             }
                             clone_view::ProjectState { key: "clone:{project.id}", state, project_id: project.id.to_string() }
                             sidebar_sections::ProjectThreads { key: "threads:{project.id}", project_id: project.id.to_string(), workspace_root: project.workspace_root.to_string(), state, transport: transport.clone(), caps: row_caps, can_operate, tick: wake_tick() }
@@ -385,6 +393,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         section { class: "settings-page", settings_common::Tabs { state, current: View::Appearance }
                             h1 { "Appearance" }
                             themes::ThemeControls {}
+                            section { class: "sc-section", "aria-label": "Layout", h2 { "Layout" } settings_rows::ClientRows { state, rows: &settings_rows::LAYOUT } }
                             appearance::Typography {state}
                         }
                     },

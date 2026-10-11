@@ -254,15 +254,20 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, r
                 Read::Failed(message) => rsx! { header { class: "diff-header", div { class: "diff-header-main", strong { "#{reference.number}" } button { class: "icon-button diff-close", "aria-label": "Close pull request panel", onclick: move |_| close(state), "\u{2715}" } } }
                     if message == pr::NOT_AVAILABLE_FOR_HOST { p { class: "diff-message", role: "status", "{message}" } }
                     else { div { class: "diff-failed", role: "alert",
-                        p { class: "pr-unavailable-title", "Could not load pull request" }
-                        p { class: "diff-error", "{message}" }
+                        if message == pr::NOT_FOUND {
+                            p { class: "pr-unavailable-title", "Pull request #{reference.number} not found" }
+                            p { class: "diff-error", "It may be an issue rather than a pull request, or this account can't see it." }
+                        } else {
+                            p { class: "pr-unavailable-title", "Could not load pull request" }
+                            p { class: "diff-error", "{message}" }
+                        }
                         div { class: "pr-failed-actions",
                             button { "aria-label": "Retry loading pull request", onclick: move |_| { detail.set(Read::Loading); let next = *refresh_count.peek() + 1; refresh_count.set(next); }, "Retry" }
                             // The one link out that can be made without the host's answer: GitHub's address is a function of the request.
                             if let Some(url) = github_url.clone() { a { class: "pr-link", href: "{url}", target: "_blank", rel: "noopener noreferrer", "aria-label": "Open pull request #{reference.number} on GitHub", "Open on GitHub" } }
                         } } } },
                 Read::Ready(value) => rsx! {
-                    Header { state, transport: transport.clone(), thread_id: thread_id.clone(), value: value.clone(), reference: reference.clone(), writable, refreshing: refreshing(), on_refresh: refresh_from_host, on_close: move |_| close(state) }
+                    Header { state, transport: transport.clone(), thread_id: thread_id.clone(), value: value.clone(), activity: activity.read().clone(), reference: reference.clone(), writable, refreshing: refreshing(), on_refresh: refresh_from_host, on_close: move |_| close(state) }
                     if stale { p { class: "diff-banner", role: "status", if connected() { "Could not refresh. This is the last pull request read." } else { "Offline. This is the last pull request read." } } }
                     crate::pull_request_summary::Actions { value: value.clone(), show_writes: true, why: write_reason.clone(), writable, busy: busy.clone(), preferred: preferred(), on_method: move |method: String| preferred.set(method),
                         on_action: move |(action, method): (String, Option<String>)| {
@@ -373,7 +378,7 @@ fn state_label(value: &Value) -> &'static str {
 }
 
 #[component]
-fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, value: Rc<Value>, reference: Reference, writable: bool, refreshing: bool, on_refresh: Callback<()>, on_close: Callback<()>) -> Element {
+fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, value: Rc<Value>, activity: Read<Rc<Value>>, reference: Reference, writable: bool, refreshing: bool, on_refresh: Callback<()>, on_close: Callback<()>) -> Element {
     let title = value["title"].as_str().unwrap_or_default().to_owned();
     let url = value["url"].as_str().filter(|url| url.starts_with("https://") || url.starts_with("http://")).map(str::to_owned);
     let label = state_label(&value);
@@ -387,6 +392,7 @@ fn Header(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
                 if let Some(url) = value["url"].as_str().map(str::to_owned) { crate::pull_request_links::LinkControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), url } }
                 crate::pull_request_links::WatchControl { state, transport: transport.clone(), thread_id: thread_id.clone(), reference: reference.clone(), open: matches!(label, "Open" | "Draft") }
                 button { class: "icon-button", r#type: "button", "aria-label": if refreshing { "Refreshing pull request" } else { "Refresh pull request" }, title: "Ask the host again", "aria-busy": "{refreshing}", disabled: refreshing, onclick: move |_| on_refresh.call(()), "\u{21bb}" }
+                crate::pull_request_handoff::Menu { state, transport: transport.clone(), project_id: reference.project_id.clone(), thread_id: thread_id.clone(), value: value.clone(), activity }
                 button { class: "icon-button diff-close", "aria-label": "Close pull request panel", title: "Close the pull request panel", onclick: move |_| on_close.call(()), "\u{2715}" }
             }
             crate::pull_request_edit::TitleLine { title, can_edit: t3_client::pull_request_edit::can_edit_change_request(&value), writable }

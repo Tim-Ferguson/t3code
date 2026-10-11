@@ -104,14 +104,15 @@ pub(crate) fn sidebar_order(state: Store<UiModel>) -> Vec<String> {
     let now = chrono::Utc::now();
     let caps = crate::sidebar_rows::caps(state);
     let shelves = *state.shelves().peek();
-    let (snoozed_open, settled_open) = (shelves.snoozed, shelves.settled);
+    let (working_open, snoozed_open, settled_open) = (shelves.working, shelves.snoozed, shelves.settled);
     // What the sidebar shows: the shelves that are folded away do not take part.
     snapshot.projects.iter().flat_map(|project| {
         let sections = t3_client::sidebar::Sections::of(crate::sidebar_rows::listed(&snapshot.threads, project.id.as_str()), now, caps.support());
         let open = state.active_thread().peek().clone();
+        let working = t3_client::sidebar::shelf_rows(&sections.working, working_open, usize::MAX, open.as_deref());
         let snoozed = t3_client::sidebar::shelf_rows(&sections.snoozed, snoozed_open, usize::MAX, open.as_deref());
         let settled = t3_client::sidebar::shelf_rows(&sections.settled, settled_open, t3_client::sidebar::SETTLED_INITIAL, open.as_deref());
-        [sections.pinned, sections.active, snoozed, settled].concat().into_iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>()
+        [sections.pinned, sections.active, working, snoozed, settled].concat().into_iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>()
     }).collect()
 }
 fn allows(state: Store<UiModel>, scope: AuthEnvironmentScope) -> bool {

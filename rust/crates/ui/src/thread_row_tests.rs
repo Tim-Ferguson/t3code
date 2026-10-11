@@ -40,7 +40,7 @@ impl PartialEq for Props {
 }
 fn harness(props: Props) -> Element {
     let state = use_store(UiModel::default);
-    let providers: std::collections::BTreeMap<String, String> = [("claude".to_owned(), "Claude".to_owned()), ("codex".to_owned(), "Codex".to_owned())].into();
+    let providers: std::collections::BTreeMap<String, (String, String)> = [("claude".to_owned(), ("Claude".to_owned(), "claudeAgent".to_owned())), ("codex".to_owned(), ("Codex".to_owned(), "codex".to_owned()))].into();
     let _ = props.working;
     rsx! {
         for thread in props.threads.iter() {
@@ -72,12 +72,14 @@ fn a_working_thread_says_goal_when_a_native_goal_keeps_it_going_and_when_a_perso
 #[test]
 fn the_providers_that_had_the_thread_before_are_named_and_the_current_one_is_not() {
     let handed_off = mount(vec![thread(json!({}))]);
-    assert!(rendered_text(&handed_off).contains("after Claude"), "{}", rendered_text(&handed_off));
+    // The earlier providers are drawn as their marks, named for a screen reader and the tooltip.
+    assert!(control(&handed_off, "Claude").is_some() && control(&handed_off, "Codex").is_none(), "{}", rendered_text(&handed_off));
+    assert!(!rendered_text(&handed_off).contains("after "), "icons, not words");
     let never = mount(vec![thread(json!({"providerInstanceHistory":["codex"]}))]);
-    assert!(!rendered_text(&never).contains("after "));
+    assert!(control(&never, "Codex").is_none() && control(&never, "Claude").is_none());
     // Before the thread has run, the model it will use is the current one.
     let idle = mount(vec![thread(json!({"latestRunId":null,"activeRunId":null,"activeProviderThreadId":null,"status":"idle","activityRunStatus":null,"modelSelection":{"instanceId":"claude","model":"m"},"providerInstanceHistory":["claude","codex"]}))]);
-    assert!(rendered_text(&idle).contains("after Codex") && !rendered_text(&idle).contains("after Claude"));
+    assert!(control(&idle, "Codex").is_some() && control(&idle, "Claude").is_none());
 }
 
 #[test]

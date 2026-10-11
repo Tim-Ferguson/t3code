@@ -22,6 +22,7 @@ use t3_contracts::{AuthEnvironmentScope, ThreadShell};
 
 const SETTLED_KEY: &str = "t3code:sidebar:settled-expanded";
 const SNOOZED_KEY: &str = "t3code:sidebar:snoozed-expanded";
+const WORKING_KEY: &str = "t3code:sidebar:working-expanded";
 
 async fn read_flag(key: &str) -> Option<bool> {
     let key = serde_json::to_string(key).expect("key");
@@ -33,29 +34,41 @@ fn write_flag(key: &str, value: bool) {
     document::eval(&format!("try{{window.localStorage.setItem({key},'{value}');}}catch{{}}"));
 }
 
-/// Whether the Snoozed and Settled shelves are open. Both start closed and are remembered by the
-/// browser, as the original's are.
+/// Whether the Working (beta), Snoozed and Settled shelves are open. They start closed and are
+/// remembered by the browser, as the original's are.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Shelves {
+    pub working: bool,
     pub snoozed: bool,
     pub settled: bool,
+}
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Shelf {
+    Working,
+    Snoozed,
+    Settled,
 }
 /// Reads what the browser remembered, once.
 pub(crate) fn use_shelves(state: Store<UiModel>) {
     use_hook(move || {
         spawn(async move {
-            let (snoozed, settled) = (read_flag(SNOOZED_KEY).await, read_flag(SETTLED_KEY).await);
+            let (working, snoozed, settled) = (read_flag(WORKING_KEY).await, read_flag(SNOOZED_KEY).await, read_flag(SETTLED_KEY).await);
             let mut shelves = state.shelves();
             let mut shelves = shelves.write();
+            shelves.working = working.unwrap_or(shelves.working);
             shelves.snoozed = snoozed.unwrap_or(shelves.snoozed);
             shelves.settled = settled.unwrap_or(shelves.settled);
         })
     });
 }
-fn toggle_shelf(state: Store<UiModel>, section: Section) {
+fn toggle_shelf(state: Store<UiModel>, shelf: Shelf) {
     let mut shelves = state.shelves();
     let mut shelves = shelves.write();
-    let (flag, key) = if section == Section::Snoozed { (&mut shelves.snoozed, SNOOZED_KEY) } else { (&mut shelves.settled, SETTLED_KEY) };
+    let (flag, key) = match shelf {
+        Shelf::Working => (&mut shelves.working, WORKING_KEY),
+        Shelf::Snoozed => (&mut shelves.snoozed, SNOOZED_KEY),
+        Shelf::Settled => (&mut shelves.settled, SETTLED_KEY),
+    };
     *flag = !*flag;
     write_flag(key, *flag);
 }
@@ -87,6 +100,7 @@ pub(crate) fn sections_of<'a>(threads: &'a [ThreadShell], project_id: &'a str, n
     for section in [Section::Pinned, Section::Active, Section::Snoozed, Section::Settled] {
         sections.section_mut(section).retain(|thread| thread.id.as_str() != held.id);
     }
+    sections.working.retain(|thread| thread.id.as_str() != held.id);
     let list = sections.section_mut(held.section);
     if held.section == Section::Settled {
         list.insert(0, moved);
@@ -120,7 +134,9 @@ pub(crate) fn ProjectThreads(project_id: String, workspace_root: String, state: 
         let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| Some(workspace_root.clone()));
         rsx! { sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(thread, open.as_deref() == Some(thread.id.as_str()), workspace, caps, can_operate, now, &providers), state, transport: transport.clone() } }
     };
-    let (snoozed_open, settled_open) = (!sections.snoozed.is_empty() && state.shelves().read().snoozed, caps.settlement && state.shelves().read().settled);
+    let (working_open, snoozed_open, settled_open) = (!sections.working.is_empty() && state.shelves().read().working, !sections.snoozed.is_empty() && state.shelves().read().snoozed, caps.settlement && state.shelves().read().settled);
+    let working_rows = sidebar::shelf_rows(&sections.working, working_open, usize::MAX, open.as_deref());
+    let working_total = sections.working.len();
     let snoozed_rows = sidebar::shelf_rows(&sections.snoozed, snoozed_open, usize::MAX, open.as_deref());
     let settled_rows = sidebar::shelf_rows(&sections.settled, settled_open, shown(), open.as_deref());
     let hidden = if settled_open { sections.settled.len().saturating_sub(settled_rows.len()) } else { 0 };
@@ -128,9 +144,17 @@ pub(crate) fn ProjectThreads(project_id: String, workspace_root: String, state: 
     rsx! {
         div { class: "thread-section", "data-section": "pinned", "data-label": "Pinned", { sections.pinned.iter().map(|thread| row(thread)) } }
         div { class: "thread-section", "data-section": "active", "data-label": "Active", { sections.active.iter().map(|thread| row(thread)) } }
+        if working_total > 0 {
+            // The beta shelf for threads busy with work that does not need the person. Not a place to drop on.
+            div { class: "thread-shelf", "data-section": "working",
+                button { class: "shelf-header", r#type: "button", "aria-expanded": "{working_open}", "aria-label": if working_open { "Working".to_owned() } else { format!("Working ({working_total})") }, onclick: move |_| toggle_shelf(state, Shelf::Working),
+                    if working_open { "Working" } else { "Working ({working_total})" } }
+                { working_rows.iter().map(|thread| row(thread)) }
+            }
+        }
         if snoozed_total > 0 {
             div { class: "thread-shelf", "data-section": "snoozed",
-                button { class: "shelf-header", r#type: "button", "aria-expanded": "{snoozed_open}", "aria-label": if snoozed_open { "Snoozed".to_owned() } else { format!("Snoozed ({snoozed_total})") }, onclick: move |_| toggle_shelf(state, Section::Snoozed),
+                button { class: "shelf-header", r#type: "button", "aria-expanded": "{snoozed_open}", "aria-label": if snoozed_open { "Snoozed".to_owned() } else { format!("Snoozed ({snoozed_total})") }, onclick: move |_| toggle_shelf(state, Shelf::Snoozed),
                     if snoozed_open { "Snoozed" } else { "Snoozed ({snoozed_total})" } }
                 { snoozed_rows.iter().map(|thread| row(thread)) }
             }
@@ -138,7 +162,7 @@ pub(crate) fn ProjectThreads(project_id: String, workspace_root: String, state: 
         if caps.settlement {
             // Empty, it is only there for a drag to drop on.
             div { class: "thread-shelf", "data-section": "settled", "data-label": "Settled", "data-empty": "{settled_total == 0}",
-                button { class: "shelf-header", r#type: "button", "aria-expanded": "{settled_open}", "aria-label": if settled_open { "Settled".to_owned() } else { format!("Settled ({settled_total})") }, onclick: move |_| toggle_shelf(state, Section::Settled),
+                button { class: "shelf-header", r#type: "button", "aria-expanded": "{settled_open}", "aria-label": if settled_open { "Settled".to_owned() } else { format!("Settled ({settled_total})") }, onclick: move |_| toggle_shelf(state, Shelf::Settled),
                     if settled_open { "Settled" } else { "Settled ({settled_total})" } }
                 { settled_rows.iter().map(|thread| row(thread)) }
                 if hidden > 0 {

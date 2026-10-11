@@ -27,10 +27,12 @@ pub(crate) struct Caps {
     /// `thread.auto-settle.set` is understood: a thread can opt out of automatic settling.
     pub auto_settle_opt_out: bool,
     pub title_regeneration: bool,
+    /// The beta Working shelf (a client setting): busy threads fold out of Active.
+    pub working_shelf: bool,
 }
 impl Caps {
     pub fn support(self) -> sidebar::Support {
-        sidebar::Support { settlement: self.settlement, snooze: self.snooze }
+        sidebar::Support { settlement: self.settlement, snooze: self.snooze, working_shelf: self.working_shelf }
     }
 }
 pub(crate) fn caps(state: Store<UiModel>) -> Caps {
@@ -48,6 +50,7 @@ fn caps_of(state: Store<UiModel>) -> Caps {
         auto_settle_opt_out: capabilities.is_some_and(|c| c.thread_auto_settle_opt_out == Some(true)),
         snooze: capabilities.is_some_and(|c| c.thread_snooze == Some(true)),
         title_regeneration: capabilities.is_some_and(|c| c.thread_title_regeneration == Some(true)),
+        working_shelf: state.client_settings().read().sidebar_working_shelf_enabled,
     }
 }
 
@@ -74,7 +77,8 @@ pub(crate) struct RowView {
     /// How long ago the thread was written to, or for a settled one how long since it wrapped up.
     pub time: String,
     /// The provider instances that owned the thread before the one it has now, oldest first, by name.
-    pub previous_providers: Vec<String>,
+    /// The providers the thread ran on before this one: the name and the driver of each.
+    pub previous_providers: Vec<(String, String)>,
     pub pull_request: Option<PullRequestBadge>,
     pub branch: Option<String>,
     pub workspace: Option<String>,
@@ -137,20 +141,20 @@ pub(crate) fn listed<'a>(threads: &'a [ThreadShell], project_id: &'a str) -> imp
     threads.iter().filter(move |thread| thread.project_id.as_str() == project_id && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
 }
 /// A project's threads in the order the sidebar lists them, whatever is collapsed: pinned, active,
-/// snoozed, settled.
+/// working (the beta shelf), snoozed, settled.
 pub(crate) fn rows<'a>(threads: &'a [ThreadShell], project_id: &'a str, now: chrono::DateTime<Utc>, support: sidebar::Support) -> Vec<&'a ThreadShell> {
     let sections = sidebar::Sections::of(listed(threads, project_id), now, support);
-    [sections.pinned, sections.active, sections.snoozed, sections.settled].concat()
+    [sections.pinned, sections.active, sections.working, sections.snoozed, sections.settled].concat()
 }
 
-/// The names the provider stack of a row is drawn with, by instance id.
-pub(crate) fn provider_names(state: Store<UiModel>) -> std::collections::BTreeMap<String, String> {
+/// The name and driver the provider stack of a row is drawn with, by instance id.
+pub(crate) fn provider_names(state: Store<UiModel>) -> std::collections::BTreeMap<String, (String, String)> {
     let field = state.typed_config();
     let config = field.read();
-    config.as_ref().map(|config| config.providers.0.iter().map(|provider| (provider.instance_id.to_string(), provider.display_name.clone().flatten().map_or_else(|| provider.instance_id.to_string(), |name| name.to_string()))).collect()).unwrap_or_default()
+    config.as_ref().map(|config| config.providers.0.iter().map(|provider| (provider.instance_id.to_string(), (provider.display_name.clone().flatten().map_or_else(|| provider.instance_id.to_string(), |name| name.to_string()), provider.driver.to_string()))).collect()).unwrap_or_default()
 }
 
-pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>, providers: &std::collections::BTreeMap<String, String>) -> RowView {
+pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>, providers: &std::collections::BTreeMap<String, (String, String)>) -> RowView {
     let snoozed = sidebar::snoozed_until(thread, now);
     let section = sidebar::section_of(thread, now, caps.support());
     // A drag needs the server to store an order (as the original's rows do); each landing place
@@ -176,7 +180,7 @@ pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<Strin
         auto_settle: !matches!(thread.auto_settle_disabled_at, Some(Some(_))),
         working_label: if thread.goal.clone().flatten().is_some_and(|goal| goal.status == t3_contracts::ProviderGoalStatus::Active) { "Goal" } else { "Working" },
         time: if section == sidebar::Section::Settled { sidebar::settled_time_label(thread, now) } else { sidebar::time_label(thread, now) },
-        previous_providers: thread.provider_instance_history.iter().filter(|instance| **instance != if sidebar::runtime_status(thread).is_some() { thread.provider_instance_id.clone() } else { thread.model_selection.instance_id.clone() }).map(|instance| providers.get(instance.as_str()).cloned().unwrap_or_else(|| instance.to_string())).collect(),
+        previous_providers: thread.provider_instance_history.iter().filter(|instance| **instance != if sidebar::runtime_status(thread).is_some() { thread.provider_instance_id.clone() } else { thread.model_selection.instance_id.clone() }).map(|instance| providers.get(instance.as_str()).cloned().unwrap_or_else(|| (instance.to_string(), String::new()))).collect(),
         pull_request: pull_request_badge(thread),
         working_since: working.then(|| thread.activity_run_started_at.flatten().map(|at| at.to_rfc3339_opts(chrono::SecondsFormat::Millis, true))).flatten(),
         branch: thread.branch.as_ref().map(ToString::to_string),
@@ -409,7 +413,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         renaming.set(None);
     }
     let renamed = renaming.read().clone();
-    let earlier = view.previous_providers.join(", ");
+    let earlier = view.previous_providers.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>().join(", ");
     rsx! {
         div {class:"thread-row-wrap","data-thread-id":"{view.id}","data-section":view.section.as_str(),"data-drops":"{view.drops}",
             if let Some(draft) = renamed {
@@ -464,7 +468,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                             span {class:"thread-pr-text","{badge.text}"}
                         }
                     }
-                    if !view.previous_providers.is_empty() {span {class:"thread-providers",title:"Earlier: {earlier}","after {earlier}"}}
+                    if !view.previous_providers.is_empty() {span {class:"thread-providers",title:"Earlier: {earlier}",for (name,driver) in view.previous_providers.iter().cloned() {crate::provider_glyph::Glyph {key:"{name}",driver,name}}}}
                 }
             }
             if let Some(woke) = view.woke_at.clone().filter(|_| can) {
@@ -475,8 +479,12 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
             }
             if let Some((x,y))=menu() {
                 div {class:"menu-backdrop",onclick:move |_| menu.set(None),oncontextmenu:move |event| {event.prevent_default();menu.set(None);}}
-                div {class:"context-menu",role:"menu","aria-label":"Thread actions",style:if x > 0.0 || y > 0.0 {format!("position:fixed;left:{x}px;top:{y}px")} else {String::new()},tabindex:"0",
-                    onmounted:move |event| {drop(event.set_focus(true));},
+                div {class:"context-menu",role:"menu","aria-label":"Thread actions","data-fit-menu":"true",style:if x > 0.0 || y > 0.0 {format!("position:fixed;left:{x}px;top:{y}px")} else {String::new()},tabindex:"0",
+                    onmounted:move |event| {
+                        drop(event.set_focus(true));
+                        // Opened low in the list, the menu would run off the bottom of the window with its last items out of reach.
+                        let _ = document::eval("const m=document.querySelector('[data-fit-menu]');if(m){const r=m.getBoundingClientRect();m.style.top=Math.max(8,Math.min(r.top,innerHeight-r.height-8))+'px';m.style.left=Math.max(8,Math.min(r.left,innerWidth-r.width-8))+'px';}");
+                    },
                     onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();menu.set(None);}},
                     {items.into_iter()}
                 }
@@ -486,11 +494,40 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
 }
 
 /// The menu of a project's header: what the original's project context menu holds that this UI has
-/// a handler for (the path to copy, and removing it with its own confirmation).
+/// a handler for (renaming, the path to copy, and removing it with its own confirmation). Project
+/// settings and grouping have no page here yet.
 #[component]
-pub(crate) fn ProjectMenu(state: Store<UiModel>, project_id: String, title: String, workspace_root: String, can_operate: bool) -> Element {
+pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHandle, project_id: String, title: String, workspace_root: String, can_operate: bool) -> Element {
     let mut open = use_signal(|| false);
+    let mut renaming = use_signal(|| None::<String>);
     let (id, path, remove_label) = (project_id.clone(), workspace_root.clone(), format!("Remove project {title}"));
+    // The name is saved once, by Enter or the button; an empty name is refused and an unchanged one is not sent.
+    let save = {
+        let (id, original, transport) = (project_id.clone(), title.clone(), transport.clone());
+        use_callback(move |typed: String| {
+            let typed = typed.trim().to_owned();
+            if typed.is_empty() {
+                notice::push(state, Level::Warning, "Project name cannot be empty", "");
+                return;
+            }
+            renaming.set(None);
+            if typed == original {
+                return;
+            }
+            let (id, transport) = (id.clone(), transport.clone());
+            spawn(async move {
+                let payload = json!({"type":"project.update","commandId":uuid::Uuid::new_v4().to_string(),"projectId":id,"title":typed});
+                if let Err(reason) = runtime::request_value_reported(transport, state, "projects.mutate", payload).await {
+                    notice::push(state, Level::Error, "Could not rename the project", reason);
+                }
+            });
+        })
+    };
+    // A rename in progress when the connection stops allowing it is dropped.
+    if renaming.peek().is_some() && !can_operate {
+        renaming.set(None);
+    }
+    let draft = renaming.read().clone();
     rsx! {
         div {class:"project-menu",
             button {class:"icon-button project-menu-button",r#type:"button","aria-label":"Project actions for {title}","aria-haspopup":"menu","aria-expanded":"{open()}",title:"Project actions",
@@ -500,8 +537,24 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, project_id: String, title: Stri
                 div {class:"context-menu project-menu-popup",role:"menu","aria-label":"Project actions",tabindex:"0",
                     onmounted:move |event| {drop(event.set_focus(true));},
                     onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();open.set(false);}},
+                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Rename project {title}",disabled:!can_operate,onclick:{let title=title.clone();move |_| {open.set(false);renaming.set(Some(title.clone()));}},"Rename"}
                     button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Copy project path",onclick:move |_| {open.set(false);copy_text(&path);},"Copy path"}
                     button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"{remove_label}",disabled:!can_operate,onclick:move |_| {open.set(false);thread_lifecycle::request_remove_project(state,&id);},"Remove project"}
+                }
+            }
+            if let Some(draft) = draft {
+                div {class:"modal-backdrop",onclick:move |_| renaming.set(None),
+                    div {class:"dialog",role:"dialog","aria-modal":"true","aria-label":"Rename project",onclick:move |event| event.stop_propagation(),
+                        onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();renaming.set(None);}},
+                        h2 {"Rename project"}
+                        input {"aria-label":"Project name",value:"{draft}",onmounted:move |event| {drop(event.set_focus(true));},
+                            oninput:move |event| renaming.set(Some(event.value())),
+                            onkeydown:move |event| {if event.key()==Key::Enter {event.prevent_default();let typed=renaming.peek().clone().unwrap_or_default();save.call(typed);}}}
+                        div {class:"dialog-actions",
+                            button {r#type:"button","aria-label":"Cancel rename",onclick:move |_| renaming.set(None),"Cancel"}
+                            button {class:"primary",r#type:"button","aria-label":"Save project name",onclick:move |_| {let typed=renaming.peek().clone().unwrap_or_default();save.call(typed);},"Save"}
+                        }
+                    }
                 }
             }
         }

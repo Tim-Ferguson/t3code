@@ -290,8 +290,10 @@ pub fn snooze_presets(now: DateTime<Utc>, offset_minutes: i32) -> Vec<SnoozePres
 // ---- sections and ordering ----------------------------------------------------------------------
 // Port of `resolveSidebarThreadSection` (`Sidebar.logic.ts`) and the sorts of `threadSort.ts`. The
 // original's beta "Working" shelf (`sidebarWorkingShelfEnabled`, off unless the user turns it on)
-// is not ported: threads that would fold into it stay in Active, which is what the original shows
-// with the setting off.
+// folds threads busy with work that does not need the person out of Active (`Support::working_shelf`);
+// its ordering is `threadInbox.ts`. The original also keeps a client-side tracker of when each thread
+// left the shelf during this session (an approval asked mid-turn, background work ending); that is not
+// ported, so a thread that returns without the server stamping a new run sorts by the stamps alone.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Section {
@@ -326,6 +328,8 @@ impl Section {
 pub struct Support {
     pub settlement: bool,
     pub snooze: bool,
+    /// The beta Working shelf is on: busy threads fold out of Active.
+    pub working_shelf: bool,
 }
 
 /// The shelf a thread belongs to. Snooze is temporary and wins until its wake time; settlement
@@ -410,6 +414,8 @@ pub fn sort_active(threads: &mut [&ThreadShell]) {
 pub struct Sections<'a> {
     pub pinned: Vec<&'a ThreadShell>,
     pub active: Vec<&'a ThreadShell>,
+    /// The beta Working shelf: newest message sent first. Empty while the shelf is off.
+    pub working: Vec<&'a ThreadShell>,
     /// Soonest wake first: what comes back next.
     pub snoozed: Vec<&'a ThreadShell>,
     pub settled: Vec<&'a ThreadShell>,
@@ -426,7 +432,17 @@ impl<'a> Sections<'a> {
             }
         }
         sort_pinned(&mut sections.pinned);
-        sort_active(&mut sections.active);
+        if support.working_shelf {
+            // Only inbox threads fold away: pins stay where they were put, and snoozed or settled
+            // threads keep their shelves.
+            let (working, active) = std::mem::take(&mut sections.active).into_iter().partition(|thread| is_working(thread));
+            sections.working = working;
+            sections.active = active;
+            sort_inbox_by_return(&mut sections.active);
+            sort_working_by_send(&mut sections.working);
+        } else {
+            sort_active(&mut sections.active);
+        }
         sections.snoozed.sort_by_key(|thread| thread.snoozed_until.flatten().map_or(0, |at| at.timestamp_millis()));
         sort_settled(&mut sections.settled);
         sections
@@ -447,6 +463,45 @@ impl<'a> Sections<'a> {
             Section::Settled => &mut self.settled,
         }
     }
+}
+
+/// `isThreadWorking` (`threadInbox.ts`): busy with work that does not need the person, that is a run
+/// in progress, or one stopped with background work that will wake it. Approvals, questions, a plan
+/// waiting for a decision and failures stay in the inbox.
+pub fn is_working(thread: &ThreadShell) -> bool {
+    if has_pending_approval(thread) || has_pending_input(thread) {
+        return false;
+    }
+    let status = runtime_status(thread);
+    if !matches!(status, Some("preparing" | "queued" | "starting" | "running" | "waiting" | "idle")) {
+        return false;
+    }
+    let plan = serde_json::to_value(thread.interaction_mode).ok().as_ref().and_then(|mode| mode.as_str().map(str::to_owned)).as_deref() == Some("plan");
+    !(plan && thread.has_actionable_proposed_plan && latest_run_settled(thread))
+}
+fn newest_first(threads: &mut [&ThreadShell], stamp: impl Fn(&ThreadShell) -> i64) {
+    threads.sort_by(|left, right| stamp(right).cmp(&stamp(left)).then_with(|| left.id.as_str().cmp(right.id.as_str())));
+}
+/// `sortInboxThreadsByReturn`: newest first by when each last came back to the person.
+pub fn sort_inbox_by_return(threads: &mut [&ThreadShell]) {
+    newest_first(threads, |thread| {
+        let run = thread.latest_run_id.is_some();
+        let stamp = |field: Option<Option<t3_contracts::UtcDateTime>>| millis(field.flatten().map(|at| at.0)).filter(|_| run).unwrap_or(0);
+        let completed = if run { millis(completed_at(thread)).unwrap_or(0) } else { 0 };
+        [thread.created_at.timestamp_millis(), millis(thread.unsettled_at.flatten().map(|at| at.0)).unwrap_or(0), stamp(thread.latest_run_requested_at), completed].into_iter().max().unwrap_or(0)
+    });
+}
+/// `sortWorkingThreadsBySend`: newest first by the last message the person sent. Runs ending and
+/// wakes do not move a row. A server that sends no authored stamp falls back to the latest run's
+/// request time.
+pub fn sort_working_by_send(threads: &mut [&ThreadShell]) {
+    newest_first(threads, |thread| {
+        let sent = match thread.latest_user_authored_message_at {
+            Some(authored) => millis(authored.map(|at| at.0)),
+            None => millis(thread.latest_run_id.as_ref().and(thread.latest_run_requested_at.flatten()).map(|at| at.0)),
+        };
+        thread.created_at.timestamp_millis().max(sent.unwrap_or(0))
+    });
 }
 
 /// The settled shelf lists this many rows, then this many more per "Show more".
@@ -653,5 +708,62 @@ mod woke_tests {
         // Settled when stamped wins over everything.
         let stamped = thread(json!({"settledAt":"2026-01-02T11:00:00Z","latestUserMessageAt":"2026-01-01T10:00:00Z"}));
         assert_eq!(settled_time_label(&stamped, now), "1h");
+    }
+
+    fn ids(threads: &[&ThreadShell]) -> Vec<String> {
+        threads.iter().map(|thread| thread.id.to_string()).collect()
+    }
+    fn running(id: &str, extra: serde_json::Value) -> ThreadShell {
+        let mut base = json!({"id":id,"latestRunId":"r","activeRunId":"r","status":"running","activityRunStatus":"running"});
+        for (key, value) in extra.as_object().unwrap() {
+            base[key] = value.clone();
+        }
+        thread(base)
+    }
+
+    #[test]
+    fn the_working_shelf_takes_busy_threads_that_do_not_need_the_person_and_nothing_else() {
+        let now = at("2026-01-02T12:00:00Z");
+        let support = Support { settlement: true, snooze: true, working_shelf: true };
+        let waiting_on_background = thread(json!({"id":"background","latestRunId":"r","status":"completed","pendingBackgroundTasks":[{"kind":"subagent","taskId":"s"}]}));
+        let idle = thread(json!({"id":"idle"}));
+        let approval = running("approval", json!({"pendingRuntimeRequest":{"id":"q","kind":"command","createdAt":"2026-01-02T11:00:00Z"}}));
+        let question = running("question", json!({"pendingRuntimeRequest":{"id":"q","kind":"user_input","createdAt":"2026-01-02T11:00:00Z"}}));
+        let failed = thread(json!({"id":"failed","latestRunId":"r","status":"failed"}));
+        let plan_ready = thread(json!({"id":"plan","interactionMode":"plan","hasActionableProposedPlan":true,"latestRunId":"r","status":"completed"}));
+        let pinned = running("pinned", json!({"pinnedAt":"2026-01-02T10:00:00Z"}));
+        let all = [running("run", json!({})), waiting_on_background, idle, approval, question, failed, plan_ready, pinned];
+        let sections = Sections::of(&all, now, support);
+        assert_eq!(ids(&sections.pinned), ["pinned"], "a pin stays where it was put");
+        let mut shelved = ids(&sections.working);
+        shelved.sort();
+        assert_eq!(shelved, ["background", "run"]);
+        let mut inbox = ids(&sections.active);
+        inbox.sort();
+        assert_eq!(inbox, ["approval", "failed", "idle", "plan", "question"], "what needs the person, or is at rest, stays in the inbox");
+        // With the shelf off every one of them is in Active, as the original shows.
+        let off = Sections::of(&all, now, Support { working_shelf: false, ..support });
+        assert!(off.working.is_empty());
+        assert_eq!(off.active.len(), 7);
+    }
+
+    #[test]
+    fn the_working_shelf_lists_the_last_message_sent_first_and_the_inbox_the_latest_return() {
+        let now = at("2026-01-02T12:00:00Z");
+        let support = Support { settlement: true, snooze: true, working_shelf: true };
+        // Newest send first, whatever the runs did since; a server without the authored stamp falls back to the run's request.
+        let all = [
+            running("old-send-new-run", json!({"createdAt":"2026-01-01T00:00:00Z","latestUserAuthoredMessageAt":"2026-01-01T09:00:00Z","latestRunRequestedAt":"2026-01-02T11:00:00Z"})),
+            running("new-send", json!({"createdAt":"2026-01-01T00:00:00Z","latestUserAuthoredMessageAt":"2026-01-02T08:00:00Z","latestRunRequestedAt":"2026-01-02T08:00:01Z"})),
+            running("no-stamp", json!({"createdAt":"2026-01-01T00:00:00Z","latestRunRequestedAt":"2026-01-02T10:00:00Z"})),
+        ];
+        assert_eq!(ids(&Sections::of(&all, now, support).working), ["no-stamp", "new-send", "old-send-new-run"]);
+        // The inbox: newest of creation, un-settling and the run's request and completion.
+        let inbox = [
+            thread(json!({"id":"made","createdAt":"2026-01-02T01:00:00Z"})),
+            thread(json!({"id":"reopened","createdAt":"2026-01-01T00:00:00Z","unsettledAt":"2026-01-02T09:00:00Z"})),
+            thread(json!({"id":"finished","createdAt":"2026-01-01T00:00:00Z","latestRunId":"r","status":"completed","latestRunRequestedAt":"2026-01-02T02:00:00Z","latestRunCompletedAt":"2026-01-02T11:00:00Z"})),
+        ];
+        assert_eq!(ids(&Sections::of(&inbox, now, support).active), ["finished", "reopened", "made"]);
     }
 }

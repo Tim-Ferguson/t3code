@@ -112,6 +112,34 @@ async fn archiving_can_be_taken_back_from_the_notice_or_the_archived_list() {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
+async fn a_project_is_renamed_from_its_menu_and_an_empty_or_unchanged_name_sends_nothing() {
+    with_app(false, &OPERATOR, async |_fixture, dom, _props, state| {
+        let title = |state: Store<UiModel>| state.peek().shell.snapshot.as_ref().unwrap().projects[0].title.to_string();
+        assert_eq!(title(state), "Project");
+        click_control(dom, "Project actions for Project");
+        click_control(dom, "Rename project Project");
+        assert!(control(dom, "Project name").is_some());
+        // Escape leaves the name as it was.
+        key_on(dom, "Rename project", Key::Escape);
+        assert!(control(dom, "Project name").is_none());
+        click_control(dom, "Project actions for Project");
+        click_control(dom, "Rename project Project");
+        input_control(dom, "Project name", "   ");
+        click_control(dom, "Save project name");
+        assert!(control(dom, "Project name").is_some(), "an empty name keeps the dialog open");
+        assert_eq!(title(state), "Project");
+        input_control(dom, "Project name", "  Renamed project ");
+        click_control(dom, "Save project name");
+        until(dom, "the new name", |_| title(state) == "Renamed project").await;
+        assert!(control(dom, "Project name").is_none());
+        wait_for_rendered_text(dom, "Renamed project").await;
+        assert_eq!(error(state), None);
+    })
+    .await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
 async fn removing_a_project_with_threads_is_refused_first_then_asked_in_full_and_removes_it_with_its_threads() {
     with_app(true, &OPERATOR, async |fixture, dom, _props, state| {
         // The project's menu holds the removal, and Escape closes it.

@@ -4,6 +4,7 @@
 //! search the server already has. Arrow keys move, Enter or Tab picks, Escape closes.
 use crate::{draft_storage, runtime, runtime::{UiModel, UiModelStoreExt}};
 use dioxus::prelude::*;
+use t3_client::prompt_history;
 use serde_json::json;
 use crate::limits_view;
 use t3_client::{composer_context, composer_menu::{self as menu, SlashItem, Skill, TriggerKind}, pull_request_mention as mention, usage_limits as logic};
@@ -143,6 +144,8 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
     // typing pauses; a number the list does not hold is asked for by itself. An answer for an
     // older question is dropped.
     let mut pulls = use_signal(Pulls::default);
+    // Where prompt recall is (ArrowUp on an empty box walks back through what was sent); a different thread starts again.
+    let mut history = use_signal(|| None::<prompt_history::Position>);
     let project_id = thread.project_id.to_string();
     let pull_requests_supported = state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.pull_requests == Some(true)) && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, t3_contracts::AuthEnvironmentScope::OrchestrationRead));
     let pull_trigger = trigger.as_ref().filter(|trigger| trigger.kind == TriggerKind::PullRequest).map(|trigger| trigger.query.clone());
@@ -298,6 +301,7 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
     };
     let menu_label = "Suggestions";
     let keyed = entries.clone();
+    let thread_id_key = thread.id.to_string();
     let pick_key = pick.clone();
     let draft_key = draft.clone();
     rsx! {
@@ -313,6 +317,16 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
                             Key::Enter | Key::Tab if !keyed.is_empty() && !event.modifiers().shift() => {event.prevent_default();let mut pick=pick_key.clone();pick(keyed[current].clone());return;}
                             Key::Escape => {event.stop_propagation();dismissed.set(Some(draft_key.clone()));return;}
                             _ => {}
+                        }
+                    }
+                    // ArrowUp on an empty box recalls the last prompt sent, as a terminal does.
+                    if let Some(direction) = history_direction(&event, &composition) {
+                        let position = history.peek().clone();
+                        if let Some(step) = recall(state, &thread_id_key, direction, position.as_ref(), &draft_key) {
+                            event.prevent_default();
+                            history.set(step.position);
+                            draft_storage::edit_thread_prompt(state, step.prompt);
+                            return;
                         }
                     }
                     // A menu with nothing to pick leaves Enter to the box, which sends or adds a line.
@@ -375,6 +389,35 @@ fn mobile_viewport() -> bool {
 /// Whether this key press in a message box sends the message (see `t3_client::composer_send`).
 /// The key is read from `keydown` by its `key` text, and a send cancels the default so the line
 /// break the browser would insert is not inserted as well.
+/// Which way ArrowUp or ArrowDown would walk through the prompts sent, when it may (no modifier, not composing).
+fn history_direction(event: &KeyboardEvent, composition: &Composition) -> Option<prompt_history::Direction> {
+    let modifiers = event.modifiers();
+    if modifiers.shift() || modifiers.alt() || modifiers.meta() || modifiers.ctrl() || event.is_composing() || composition.just_ended() {
+        return None;
+    }
+    match event.key() {
+        Key::ArrowUp => Some(prompt_history::Direction::Backward),
+        Key::ArrowDown => Some(prompt_history::Direction::Forward),
+        _ => None,
+    }
+}
+/// One step of recall for the open thread, or none when the key belongs to the caret: the box holds a draft
+/// no recall made, an attachment or a chip, or the recalled text runs over several lines.
+fn recall(state: Store<UiModel>, thread_id: &str, direction: prompt_history::Direction, position: Option<&prompt_history::Position>, current: &str) -> Option<prompt_history::Step> {
+    if current.contains('\n') {
+        return None;
+    }
+    let target = crate::composer_chips::open_target(state)?;
+    if !crate::composer_chips::contexts_of(state, &target).is_empty() || state.draft_attachments().peek().get(&target).is_some_and(|held| !held.is_empty()) {
+        return None;
+    }
+    let field = state.thread();
+    let model = field.peek();
+    let projection = model.projection.as_ref().filter(|projection| projection["thread"]["id"] == thread_id)?;
+    let messages = projection["messages"].as_array()?;
+    prompt_history::step(direction, &prompt_history::entries(messages), position, current)
+}
+
 pub(crate) fn enter_sends(state: Store<UiModel>, event: &KeyboardEvent, prompt: &str, composition: &Composition) -> bool {
     let key = crate::keybinding_page::key_event(event);
     key.key == "Enter"

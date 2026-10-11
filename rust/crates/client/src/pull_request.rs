@@ -30,6 +30,9 @@ pub const DIFF_PATH: &str = "/api/pull-requests/diff";
 /// not a failure: nothing is wrong, this host has no pull request support here.
 pub const NOT_AVAILABLE_FOR_HOST: &str = "Pull requests are not available for this host.";
 
+/// What the panel says of a pull request the host does not know (`PullRequestDetailPanel.tsx`).
+pub const NOT_FOUND: &str = "Pull request not found. It may be an issue rather than a pull request, or this account can't see it.";
+
 /// The words for a failed pull request call whose error carries a tag the generic reader would
 /// not word: an unreadable host. `None` leaves the failure to the generic reader.
 pub fn failure_message(cause: &Value) -> Option<String> {
@@ -38,6 +41,10 @@ pub fn failure_message(cause: &Value) -> Option<String> {
         None => vec![cause],
     };
     for error in errors {
+        // The host answered that there is no such pull request: an issue number, or one this account cannot see.
+        if error["_tag"] == "PullRequestOperationError" && error["reason"] == "not-found" {
+            return Some(NOT_FOUND.to_owned());
+        }
         if error["_tag"] != "PullRequestUnavailableError" {
             continue;
         }
@@ -591,6 +598,8 @@ mod tests {
         let missing = json!([{"_tag":"Fail","error":{"_tag":"PullRequestUnavailableError","reason":"cli-unauthenticated","provider":"github"}}]);
         assert!(failure_message(&missing).unwrap().contains("gh auth login"));
         assert_eq!(failure_message(&json!([{"_tag":"Fail","error":{"_tag":"PullRequestOperationError","detail":"x"}}])), None);
+        // Not found is the one operation failure with words of its own; the wire carries it as a reason.
+        assert_eq!(failure_message(&json!([{"_tag":"Fail","error":{"_tag":"PullRequestOperationError","detail":"x","reason":"not-found"}}])).as_deref(), Some(NOT_FOUND));
     }
 
     #[test]

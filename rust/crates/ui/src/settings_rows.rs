@@ -1,0 +1,126 @@
+//! The rows of the General page that are a single value: a switch, or a choice among a few. A client
+//! setting is read from and written to this device's preferences (`client_settings::Writer`); an
+//! environment setting is one `server.updateSettings` patch, sent by the page (`general_page`), which
+//! also decides whether the person may send it. Titles, descriptions and defaults are the original's
+//! (`SettingsPanels.tsx`, `packages/contracts/src/settings.ts`).
+//!
+//! Only settings something in this UI or on the server acts on are listed: a switch that changes
+//! nothing would be a lie.
+use crate::{
+    client_settings::Writer,
+    runtime::{UiModel, UiModelStoreExt},
+};
+use dioxus::prelude::*;
+use serde_json::{Value, json};
+
+/// A choice's options: the JSON value it stores and the label the person reads.
+pub(crate) type Options = &'static [(&'static str, &'static str)];
+
+/// One row's meaning, whichever store holds the value.
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) struct Row {
+    pub key: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
+    /// The JSON the original's default decodes to.
+    pub default: &'static str,
+    /// Empty for a switch.
+    pub options: Options,
+}
+impl Row {
+    pub const fn switch(key: &'static str, title: &'static str, description: &'static str, default: bool) -> Self {
+        Self { key, title, description, default: if default { "true" } else { "false" }, options: &[] }
+    }
+    pub const fn choice(key: &'static str, title: &'static str, description: &'static str, default: &'static str, options: Options) -> Self {
+        Self { key, title, description, default, options }
+    }
+    fn is_default(self, value: &Value) -> bool {
+        serde_json::from_str::<Value>(self.default).is_ok_and(|default| default == *value)
+    }
+}
+
+/// The rows that follow this device's preferences.
+pub(crate) const BEHAVIOR: [Row; 5] = [
+    Row::choice("sendShortcut", "Send shortcut", "Choose when Enter sends a prompt or inserts a new line", "\"enter\"", &[("\"enter\"", "Enter sends"), ("\"mod-enter-multiline\"", "Mod+Enter sends, Enter adds a line"), ("\"mod-enter\"", "Mod+Enter sends")]),
+    Row::choice("followUpBehavior", "Follow-up behavior", "What a message sent while a run is going does. Queue waits for the run to end; steer redirects it now.", "\"queue\"", &[("\"queue\"", "Queue"), ("\"steer\"", "Steer")]),
+    Row::switch("showSkillsInSlashMenu", "Show skills in slash menu", "Also include skills in the / command menu. Skills always appear when you type $.", true),
+    Row::switch("planModeEnabled", "Plan mode (legacy)", "Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode.", false),
+    Row::switch("sidebarWorkingShelfEnabled", "Working section (beta)", "Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you.", false),
+];
+pub(crate) const CONFIRMATIONS: [Row; 2] = [
+    Row::switch("confirmThreadArchive", "Archive confirmation", "Require a second click on the inline archive action before a thread is archived.", false),
+    Row::switch("confirmThreadDelete", "Delete confirmation", "Ask before deleting a thread and its chat history.", true),
+];
+pub(crate) const DIFFS: [Row; 3] = [
+    Row::choice("diffLayout", "Diff layout", "Show diffs stacked or side by side. The toggle in the diff toolbar changes this too.", "\"stacked\"", &[("\"stacked\"", "Stacked"), ("\"split\"", "Split")]),
+    Row::switch("diffIgnoreWhitespace", "Hide whitespace changes", "Set whether the diff panel ignores whitespace-only edits by default.", true),
+    Row::choice("diffFilesCollapsed", "Default diff file state", "Start with files expanded or collapsed when opening diffs or a pull request's Code tab.", "true", &[("true", "Collapsed"), ("false", "Expanded")]),
+];
+/// The rows of the Appearance page that follow this device's preferences.
+pub(crate) const LAYOUT: [Row; 2] = [
+    Row::choice("chatWidth", "Chat width", "Set how wide messages and the composer can grow on large screens.", "\"comfortable\"", &[("\"comfortable\"", "Comfortable"), ("\"wide\"", "Wide"), ("\"full\"", "Full width")]),
+    Row::choice("diffColorScheme", "Diff colors", "Choose colors for additions and deletions, including change counts.", "\"red-green\"", &[("\"red-green\"", "Red and green"), ("\"blue-orange\"", "Blue and orange")]),
+];
+/// The rows that follow the environment's settings, by the key of the server's settings document.
+pub(crate) const ENVIRONMENT: [Row; 4] = [
+    Row::choice("responseStreamingMode", "Response streaming", "Show a reply as it is written, paragraph by paragraph, or once the turn ends.", "\"paragraph\"", &[("\"paragraph\"", "By paragraph"), ("\"turn\"", "When the turn ends")]),
+    Row::switch("enableProviderUpdateChecks", "Provider update checks", "Check installed provider CLIs for newer available versions.", true),
+    Row::switch("continueThreadsAfterServerUpdate", "Continue threads after restarts", "Automatically resume interrupted threads after an update, crash, or machine restart on the selected environments.", false),
+    Row::switch("newWorktreesStartFromOrigin", "Start from origin", "Creates the worktree from the latest matching branch on origin instead of your local branch.", true),
+];
+
+/// The control and its reset, for a value `current`; `change` receives the JSON the person chose.
+/// A row's label names the control (`aria-label` is the title) so a test and a screen reader find it.
+pub(crate) fn control(row: Row, current: &Value, disabled: bool, change: EventHandler<Value>) -> Element {
+    let at_default = row.is_default(current);
+    rsx! {
+        div { class: "setting-row", key: "{row.key}", "data-setting": "{row.key}",
+            div { class: "font-description", strong { "{row.title}" } p { class: "muted", "{row.description}" } }
+            div { class: "font-controls",
+                if !at_default {
+                    button { r#type: "button", "aria-label": "Reset {row.title}", disabled, onclick: move |_| {
+                        if let Ok(default) = serde_json::from_str::<Value>(row.default) { change.call(default); }
+                    }, "Reset" }
+                }
+                if row.options.is_empty() {
+                    input { r#type: "checkbox", role: "switch", "aria-label": "{row.title}", checked: *current == Value::Bool(true), disabled, onchange: move |event| change.call(Value::Bool(event.checked())) }
+                } else {
+                    select { "aria-label": "{row.title}", disabled, value: "{current}", onchange: move |event| {
+                        if let Ok(value) = serde_json::from_str::<Value>(&event.value()) { change.call(value); }
+                    },
+                        for (value, label) in row.options.iter() { option { key: "{value}", value: "{value}", selected: current.to_string() == *value, "{label}" } }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One change to this device's preferences. Without a writer (a document nothing persists, as in a
+/// test) the change applies to what the app holds.
+fn patch(state: Store<UiModel>, change: Value) {
+    if let Some(writer) = try_consume_context::<Writer>() {
+        writer.patch(state, change);
+        return;
+    }
+    let mut merged = serde_json::to_value(&*state.client_settings().peek()).unwrap_or(Value::Null);
+    if let (Some(merged), Some(change)) = (merged.as_object_mut(), change.as_object()) {
+        merged.extend(change.clone());
+    }
+    if let Ok(next) = serde_json::from_value(merged) {
+        state.client_settings().set(next);
+    }
+}
+
+/// A group of this device's preferences.
+#[component]
+pub(crate) fn ClientRows(state: Store<UiModel>, rows: &'static [Row]) -> Element {
+    let document = serde_json::to_value(&*state.client_settings().read()).unwrap_or(Value::Null);
+    rsx! {
+        for row in rows.iter().copied() {
+            { control(row, &document[row.key], false, {
+                EventHandler::new(move |value: Value| patch(state, json!({ row.key: value })))
+            }) }
+        }
+    }
+}

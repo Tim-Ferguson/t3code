@@ -117,12 +117,12 @@ fn js_space(c: char) -> bool {
     (c.is_whitespace() && c != '\u{85}') || c == '\u{feff}'
 }
 /// `bounded`: trimmed, and at most 1000 characters.
-fn bounded(value: &str) -> String {
+pub(crate) fn bounded(value: &str) -> String {
     let trimmed = value.trim_matches(js_space);
     if trimmed.chars().count() <= 1000 { trimmed.to_owned() } else { format!("{}...", trimmed.chars().take(997).collect::<String>()) }
 }
 /// `boundedField`: one line.
-fn bounded_field(value: &str) -> String {
+pub(crate) fn bounded_field(value: &str) -> String {
     let mut line = String::new();
     let mut in_space = false;
     for c in value.chars() {

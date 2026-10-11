@@ -80,6 +80,24 @@ pub fn verdict_stale(at: &str, newest_commit: Option<&str>) -> bool {
     matches!((instant(at), newest_commit.and_then(instant)), (Some(verdict), Some(commit)) if verdict < commit)
 }
 
+/// `latestPullRequestReviewOutcomes`: each reviewer's last verdict (reviewers by lowercased login, so `Octocat` and
+/// `octocat` are one person), and whether commits have overtaken it. The newest verdict wins; a comment with no verdict
+/// is not one.
+pub fn latest_outcomes(comments: &[Value], commits: &[Value]) -> std::collections::BTreeMap<String, (Outcome, bool)> {
+    let newest = newest_commit_at(commits);
+    let mut latest: std::collections::BTreeMap<String, (String, Outcome)> = Default::default();
+    for comment in comments {
+        let Some(outcome) = review_outcome(comment["reviewState"].as_str()) else { continue };
+        let who = comment["author"]["login"].as_str().map_or_else(|| format!("ghost:{}", comment["id"]), str::to_lowercase);
+        let at = comment["createdAt"].as_str().unwrap_or_default().to_owned();
+        if latest.get(&who).is_some_and(|(seen, _)| *seen > at) {
+            continue;
+        }
+        latest.insert(who, (at, outcome));
+    }
+    latest.into_iter().map(|(who, (at, outcome))| (who, (outcome, verdict_stale(&at, newest.as_deref())))).collect()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Opened,
@@ -392,5 +410,22 @@ mod tests {
         let (window, hidden) = recent(&comments, 3);
         assert_eq!((window.len(), hidden), (3, 1));
         assert_eq!(ordered(&comments, true)[0]["id"], "d");
+    }
+
+    #[test]
+    fn a_reviewers_ring_is_their_last_verdict_and_dims_once_commits_overtake_it() {
+        let comments = [
+            json!({"id":"1","author":{"login":"Ann"},"reviewState":"CHANGES_REQUESTED","createdAt":"2026-01-01T10:00:00Z"}),
+            json!({"id":"2","author":{"login":"ann"},"reviewState":"approved","createdAt":"2026-01-01T12:00:00Z"}),
+            json!({"id":"3","author":{"login":"bob"},"reviewState":"COMMENTED","createdAt":"2026-01-01T12:00:00Z"}),
+            json!({"id":"4","author":{"login":"cy"},"reviewState":"dismissed","createdAt":"2026-01-01T09:00:00Z"}),
+        ];
+        let commits = [json!({"committedDate":"2026-01-01T11:00:00Z"}), json!({"committedDate":"2026-01-01T10:30:00Z"})];
+        let outcomes = latest_outcomes(&comments, &commits);
+        // `Ann` and `ann` are one reviewer, and the later verdict is theirs; it came after the newest commit.
+        assert_eq!(outcomes.get("ann"), Some(&(Outcome::Approved, false)));
+        // A comment is not a verdict; a dismissal given before the newest commit is stale.
+        assert_eq!(outcomes.get("bob"), None);
+        assert_eq!(outcomes.get("cy"), Some(&(Outcome::Dismissed, true)));
     }
 }

@@ -4,8 +4,8 @@
 use crate::keybindings::{CONTEXT_NAMES, Rule, parse_when, shortcut_to_input};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The commands of the original's set whose features this app has. Every other command stays in
-/// the file untouched, has no palette entry, and its shortcut does nothing.
+/// The commands of the original's set whose features this app has (the ones `keys.rs` carries out). Every other
+/// command stays in the file untouched, has no palette entry, and its shortcut does nothing.
 pub const WIRED_COMMANDS: &[&str] = &[
     "sidebar.toggle",
     "commandPalette.toggle",
@@ -28,6 +28,42 @@ pub const WIRED_COMMANDS: &[&str] = &[
     "thread.jump.7",
     "thread.jump.8",
     "thread.jump.9",
+    // What `keys.rs` carries out beyond the first set: the terminal, the composer, the queue, usage, the theme editor
+    // and the commands a thread row's menu has. The original's right panel, preview browser, file and project search
+    // and host commands have no feature here, so they stay out.
+    "terminal.split",
+    "terminal.splitVertical",
+    "terminal.new",
+    "terminal.close",
+    "pullRequest.copyNumber",
+    "usage.open",
+    "usage.cost",
+    "usage.tokens",
+    "usage.limits",
+    "usage.period.day",
+    "usage.period.week",
+    "usage.period.month",
+    "usage.period.quarter",
+    "themeEditor.toggle",
+    "composer.stash",
+    "composer.sendAlternate",
+    "composer.sendBackground",
+    "composer.sendAndNewThread",
+    "composer.effort",
+    "composer.mode",
+    "composer.workspace",
+    "composer.previousWorktree",
+    "chat.newLocal",
+    "editor.openFavorite",
+    "modelPicker.toggle",
+    "modelPicker.previousProvider",
+    "modelPicker.nextProvider",
+    "thread.steerQueuedMessage",
+    "thread.editQueuedMessage",
+    "thread.copyReference",
+    "thread.settle",
+    "thread.pin",
+    "thread.undo",
 ];
 pub fn is_wired(command: &str) -> bool {
     WIRED_COMMANDS.contains(&command)
@@ -271,7 +307,9 @@ mod tests {
         assert_eq!(rows.len() + hidden_count(&rules), rules.len());
         let groups = group_rows(rows);
         let titles: Vec<_> = groups.iter().map(|group| group.title).collect();
-        assert_eq!(titles, ["Navigation", "Threads", "Composer", "Terminal", "Preview & diff", "Appearance"]);
+        // The original's usage commands belong to no named group, so they are listed under Other, as there.
+        assert_eq!(titles, ["Navigation", "Threads", "Composer", "Terminal", "Preview & diff", "Appearance", "Other"]);
+        assert!(groups.last().unwrap().rows.iter().all(|row| row.command.starts_with("usage.")));
     }
 
     #[test]

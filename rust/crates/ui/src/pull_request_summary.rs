@@ -173,19 +173,8 @@ pub(crate) fn TimelineAside(activity: Read<Rc<Value>>, newest_first: bool, on_or
     let (commit_label, commit_text) = count(commits, "commit", "commits");
     let approvals = match &activity {
         Read::Ready(value) if value["commentsTruncated"] != true => {
-            let commits = value["commits"].as_array().cloned().unwrap_or_default();
-            let newest = logic::newest_commit_at(&commits);
-            let mut latest: std::collections::BTreeMap<String, (String, logic::Outcome)> = Default::default();
-            for comment in value["comments"].as_array().into_iter().flatten() {
-                let Some(outcome) = logic::review_outcome(comment["reviewState"].as_str()) else { continue };
-                let who = comment["author"]["login"].as_str().map_or_else(|| format!("ghost:{}", comment["id"]), str::to_lowercase);
-                let at = comment["createdAt"].as_str().unwrap_or_default().to_owned();
-                if latest.get(&who).is_some_and(|(seen, _)| *seen > at) {
-                    continue;
-                }
-                latest.insert(who, (at, outcome));
-            }
-            latest.values().filter(|(at, outcome)| *outcome == logic::Outcome::Approved && !logic::verdict_stale(at, newest.as_deref())).count()
+            let outcomes = logic::latest_outcomes(&value["comments"].as_array().cloned().unwrap_or_default(), &value["commits"].as_array().cloned().unwrap_or_default());
+            outcomes.values().filter(|(outcome, stale)| *outcome == logic::Outcome::Approved && !stale).count()
         }
         _ => 0,
     };
@@ -200,6 +189,21 @@ pub(crate) fn TimelineAside(activity: Read<Rc<Value>>, newest_first: bool, on_or
     }
 }
 
+fn outcome_name(outcome: logic::Outcome) -> &'static str {
+    match outcome {
+        logic::Outcome::Approved => "approved",
+        logic::Outcome::ChangesRequested => "changes-requested",
+        logic::Outcome::Dismissed => "dismissed",
+    }
+}
+fn outcome_label(outcome: logic::Outcome) -> &'static str {
+    match outcome {
+        logic::Outcome::Approved => "Approved",
+        logic::Outcome::ChangesRequested => "Changes requested",
+        logic::Outcome::Dismissed => "Review dismissed",
+    }
+}
+
 // ---- Summary ---------------------------------------------------------------------------------------------------------------
 
 /// Who is asked to review and what labels it wears, the description, the checks as listed, and the comments.
@@ -209,6 +213,11 @@ pub(crate) fn Summary(state: Store<UiModel>, transport: TransportHandle, referen
     let (additions, deletions, files) = (value["additions"].as_u64().unwrap_or(0), value["deletions"].as_u64().unwrap_or(0), value["changedFiles"].as_u64().unwrap_or(0));
     let body = value["body"].as_str().unwrap_or_default().trim().to_owned();
     let checks: Vec<Value> = value["checks"].as_array().cloned().unwrap_or_default();
+    // A reviewer's ring is their last verdict, when the whole conversation was read.
+    let verdicts = match &activity {
+        Read::Ready(activity) if activity["commentsTruncated"] != true => logic::latest_outcomes(&activity["comments"].as_array().cloned().unwrap_or_default(), &activity["commits"].as_array().cloned().unwrap_or_default()),
+        _ => Default::default(),
+    };
     rsx! {
         section { class: "pr-overview", "aria-label": "Summary",
             p { class: "pr-meta muted",
@@ -221,7 +230,7 @@ pub(crate) fn Summary(state: Store<UiModel>, transport: TransportHandle, referen
                 // The row is always there; the menu only where the host can say who could be asked (Azure DevOps takes
                 // a reviewer but lists nobody, so there is nothing to open).
                 p { class: "pr-meta", "Reviewers: " if value["reviewers"].as_array().is_none_or(Vec::is_empty) { span { class: "muted", "None" } } else { for reviewer in value["reviewers"].as_array().cloned().unwrap_or_default() {
-                    span { key: "{reviewer[\"login\"].as_str().unwrap_or_default()}", class: "pr-reviewer", "{reviewer[\"login\"].as_str().unwrap_or_default()}" } } } }
+                    { let login = reviewer["login"].as_str().unwrap_or_default().to_owned(); let verdict = verdicts.get(&login.to_lowercase()).copied(); let said = verdict.map(|(outcome, stale)| if stale { logic::stale_label(outcome) } else { outcome_label(outcome) }); rsx! { span { key: "{login}", class: "pr-reviewer", "data-outcome": verdict.map(|(outcome, _)| outcome_name(outcome)), "data-stale": verdict.map(|(_, stale)| stale.to_string()), title: said, "{login}" if let Some(said) = said { span { class: "sr-only", " ({said})" } } } } } } } }
                 if value["capabilities"]["reviewers"]["request"] == true && value["capabilities"]["reviewers"]["listCandidates"] == true {
                     crate::pull_request_menus::Picker { state, transport: transport.clone(), reference: reference.clone(), kind: crate::pull_request_menus::Kind::Reviewers, allowed: value["viewerPermissions"]["requestReviewers"] == true, writable, on_changed }
                 }

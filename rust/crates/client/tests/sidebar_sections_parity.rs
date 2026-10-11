@@ -18,7 +18,7 @@ fn shells(row: &Value) -> Vec<ThreadShell> {
     row["shells"].as_array().unwrap().iter().map(|shell| serde_json::from_value(shell.clone()).unwrap_or_else(|error| panic!("{error}: {shell}"))).collect()
 }
 fn support(row: &Value) -> Support {
-    Support { settlement: row["support"]["settlement"] == true, snooze: row["support"]["snooze"] == true }
+    Support { settlement: row["support"]["settlement"] == true, snooze: row["support"]["snooze"] == true, working_shelf: false }
 }
 fn ids(list: &[&ThreadShell]) -> Value {
     json!(list.iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>())
@@ -119,7 +119,7 @@ fn a_drop_resolves_its_target_and_asks_the_server_for_what_the_original_asks() {
 #[test]
 fn a_folded_shelf_still_shows_the_open_thread_and_the_settled_shelf_pages() {
     let shells: Vec<ThreadShell> = (0..40).map(|n| serde_json::from_value(json!({"createdBy":"user","creationSource":"web","id":format!("t{n}"),"projectId":"p","title":"T","providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"m"},"runtimeMode":"full-access","interactionMode":"default","branch":null,"worktreePath":null,"lineage":{"parentThreadId":null,"relationshipToParent":null,"rootThreadId":format!("t{n}")},"forkedFrom":null,"activeProviderThreadId":null,"latestRunId":null,"activeRunId":null,"status":"idle","pendingRuntimeRequest":null,"latestVisibleMessage":null,"latestUserMessageAt":null,"hasActionableProposedPlan":false,"itemCount":1,"visibleItemCount":1,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z","archivedAt":null,"settledOverride":"settled","settledAt":format!("2026-02-01T00:{:02}:00Z", n),"deletedAt":null})).unwrap()).collect();
-    let sections = Sections::of(shells.iter(), time("2026-03-01T00:00:00Z"), Support { settlement: true, snooze: true });
+    let sections = Sections::of(shells.iter(), time("2026-03-01T00:00:00Z"), Support { settlement: true, snooze: true, working_shelf: false });
     assert_eq!(sections.settled.len(), 40);
     // Newest settle first; folded away it lists nothing, unless the thread is the one open.
     assert_eq!(sections.settled[0].id.as_str(), "t39");

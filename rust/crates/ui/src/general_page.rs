@@ -9,6 +9,7 @@
 use crate::{
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View},
     settings_common::{Tabs, connected_allows},
+    settings_rows::{self, ClientRows},
 };
 use dioxus::prelude::*;
 use serde_json::Value;
@@ -81,13 +82,17 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
             None => rsx! {},
         }
     };
+    let env_value = |row: settings_rows::Row| match &settings[row.key] {
+        Value::Null => serde_json::from_str(row.default).unwrap_or(Value::Null),
+        value => value.clone(),
+    };
     let flag = |key: &str| logic::effective(&settings, project.as_deref(), key) == true;
     let days = logic::settle_days(&logic::effective(&settings, project.as_deref(), logic::SETTLE_AFTER_DAYS));
 
     rsx! {
         section { class: "settings-page", Tabs { state, current: View::General }
             h1 { "General" }
-            p { class: "muted", "What happens to threads on their own." }
+            p { class: "muted", "How threads, the composer and diffs behave." }
             if !settings_write() { p { class: "muted", role: "status", "This connection can view these settings but cannot change them." } }
             if let Some(message) = failure.read().clone() { p { class: "error-banner", role: "alert", "{message}" } }
             if *saving.read() { p { role: "status", "Saving settings\u{2026}" } }
@@ -144,6 +149,18 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                         }
                     }
                 }
+                section { class: "sc-section", "aria-label": "Behavior",
+                    h2 { "Behavior" }
+                    ClientRows { state, rows: &settings_rows::BEHAVIOR }
+                    // These belong to the environment, not to one project.
+                    if project.is_none() {
+                        for row in settings_rows::ENVIRONMENT {
+                            { settings_rows::control(row, &env_value(row), !writable, { let set = set.clone(); EventHandler::new(move |value: Value| set(row.key, value)) }) }
+                        }
+                    }
+                }
+                section { class: "sc-section", "aria-label": "Confirmations", h2 { "Confirmations" } ClientRows { state, rows: &settings_rows::CONFIRMATIONS } }
+                section { class: "sc-section", "aria-label": "Diffs", h2 { "Diffs" } ClientRows { state, rows: &settings_rows::DIFFS } }
             }
         }
     }

@@ -567,6 +567,17 @@ async fn native_pairing_project_thread_stream_and_reconnect_keep_unsent_draft() 
         .as_mut()
         .unwrap()
         .close();
+    // While the server cannot be reached the person still sees what they were looking at, not an empty
+    // app that offers to add a first project.
+    drive_until(&mut dom, state, "socket-lost", || state.peek().status != ConnectionStatus::Connected).await;
+    {
+        let model = state.peek();
+        let snapshot = model.shell.snapshot.as_ref().expect("the last known projects and threads stay");
+        assert_eq!((snapshot.projects.len(), snapshot.threads.len()), (1, 1));
+        assert_eq!(model.active_thread.as_deref(), Some("thread"));
+        assert!(model.thread.projection.is_some());
+        assert!(model.destination.is_some(), "the lost environment is still the one shown, as disconnected");
+    }
     drive_until(&mut dom, state, "socket-reconnect", || {
         state.peek().status == ConnectionStatus::Connected
             && state.peek().thread.synchronized
@@ -595,6 +606,24 @@ async fn native_pairing_project_thread_stream_and_reconnect_keep_unsent_draft() 
     assert!(state.peek().environments.records.is_empty());
     assert!(state.peek().draft.is_empty());
     assert!(props.transport.borrow().unary_waiters.is_empty());
+    drop(dom);
+    server.await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_pairing_credential_the_server_refuses_says_so_instead_of_asking_to_pair() {
+    let directory = tempfile::tempdir().unwrap();
+    let api = api_fixture(&directory, "native-ui-test");
+    let (address, server) = start_fixture(api).await;
+    let props = Harness { state: Rc::new(RefCell::new(None)), transport: TransportHandle::default(), address, credential: "an-expired-or-used-credential".into(), initial: UiModel::default() };
+    let mut dom = VirtualDom::new_with_props(harness, props.clone());
+    dom.rebuild_in_place();
+    let state = props.state.borrow().unwrap();
+    drive_until(&mut dom, state, "the refusal", || state.peek().error.is_some()).await;
+    let message = state.peek().error.clone().unwrap();
+    assert!(message.contains("pairing credential did not work") && message.contains("expired or already been used"), "{message}");
+    assert!(!message.contains("Pair with this server"), "{message}");
+    assert!(matches!(state.peek().status, ConnectionStatus::Blocked(_)));
     drop(dom);
     server.await;
 }

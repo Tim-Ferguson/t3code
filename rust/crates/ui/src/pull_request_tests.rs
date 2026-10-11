@@ -191,6 +191,41 @@ async fn a_comment_is_posted_once_cleared_and_read_back_from_the_host() {
 
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
+async fn a_pull_request_hands_a_question_an_explanation_and_its_findings_to_the_threads_composer() {
+    with_app(11, &WRITER, async |app| {
+    app.open_panel().await;
+    wait_for_rendered_text(&mut app.dom, "first remark").await;
+    let chips = |app: &Mounted| -> Vec<String> {
+        let target = crate::composer_chips::open_target(app.state).expect("a thread is open");
+        crate::composer_chips::contexts_of(app.state, &target).iter().filter_map(|record| record["text"].as_str().map(str::to_owned)).collect()
+    };
+    // A question leaves the composer empty: the pull request travels as a chip.
+    click_control(&mut app.dom, "More pull request actions");
+    click_control(&mut app.dom, "Ask a question");
+    assert_eq!(app.state.peek().draft, "");
+    let held = chips(app);
+    assert_eq!(held.len(), 1, "{held:?}");
+    assert!(held[0].contains("The pull request is #11") && held[0].contains("Answer the question asked in this message."), "{held:?}");
+    // Explaining takes the question's chip back and asks for itself; the reader's own words stay.
+    app.state.draft().set("My own note".into());
+    click_control(&mut app.dom, "More pull request actions");
+    click_control(&mut app.dom, "Explain this PR");
+    assert_eq!(app.state.peek().draft, "My own note\n\nExplain this pull request.");
+    let held = chips(app);
+    assert_eq!(held.len(), 1, "one hand-off's chips at a time: {held:?}");
+    assert!(held[0].contains("Explain only. Do not change any code."), "{held:?}");
+    // The findings: the unresolved threads as chips, the rest as the prompt.
+    click_control(&mut app.dom, "More pull request actions");
+    click_control(&mut app.dom, "Fix findings in this thread");
+    assert!(app.state.peek().draft.starts_with("My own note\n\nFix the actionable findings on PR #11"), "{}", app.state.peek().draft);
+    assert!(!app.state.peek().draft.contains("Explain this pull request."), "the earlier hand-off's sentence is replaced");
+    assert!(!chips(app).iter().any(|text| text.contains("Explain only")));
+    assert_eq!(error(app.state), None);
+    }).await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
 async fn an_action_is_disabled_without_the_connections_grant_and_absent_without_the_hosts() {
     with_app(10, &READER, async |app| {
     app.github.passing();
