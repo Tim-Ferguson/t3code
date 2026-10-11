@@ -2,6 +2,7 @@
 pub mod launch;
 pub mod menu;
 pub mod shell_env;
+pub mod ssh;
 pub mod quit_hold;
 pub mod supervisor;
 pub mod url;

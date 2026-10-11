@@ -134,6 +134,8 @@ pub struct UiModel {
     pub pr_checkout: Option<crate::pull_request_thread::Open>,
     pub lifecycle: crate::thread_lifecycle::Model,
     pub relations: crate::thread_relations::Model,
+    /// The SSH environments added, and the one the window is switched to.
+    pub ssh: crate::ssh_environments::Model,
     pub usage: crate::usage_page::Model,
     pub redeem: crate::limits_view::Redeem,
     /// The environment's tracked repository clones.
@@ -1640,6 +1642,14 @@ fn interrupt_connection(handle: &TransportHandle, state: Store<UiModel>, reason:
 
 /// A bootstrap credential is exchanged once; it never becomes an ordinary
 /// Authorization header or a WebSocket query parameter.
+/// Ends the connection in use and leaves the window at "Connecting…" before a switch to another environment begins, so that
+/// whoever then waits for the new connection does not mistake the old one, still shown as connected, for it.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn begin_connection(handle: &TransportHandle, state: Store<UiModel>) {
+    handle.borrow_mut().generation += 1;
+    reset_for_connect(handle, state, false);
+}
+
 pub async fn pair_and_connect(
     handle: TransportHandle,
     state: Store<UiModel>,
@@ -2925,6 +2935,14 @@ mod access_page_tests;
 #[cfg(all(test, unix))]
 #[path = "connect_page_tests.rs"]
 mod connect_page_tests;
+
+#[cfg(all(test, unix))]
+#[path = "connect_agent_tests.rs"]
+mod connect_agent_tests;
+
+#[cfg(all(test, unix))]
+#[path = "ssh_environments_tests.rs"]
+mod ssh_environments_tests;
 
 #[cfg(all(test, unix))]
 #[path = "file_edit_tests.rs"]

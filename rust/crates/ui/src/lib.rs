@@ -104,6 +104,10 @@ mod usage_page;
 mod timeline_scroll;
 mod work_rows;
 mod worktree_setup;
+mod connect_agent;
+mod ssh_environments;
+#[cfg(any(feature = "desktop", test))]
+mod ssh_gateway;
 #[cfg(feature = "desktop")]
 mod desktop_shell;
 #[cfg(feature = "desktop")]
@@ -125,6 +129,15 @@ pub(crate) struct AddProject(pub Signal<bool>);
 
 #[component]
 pub fn App() -> Element {
+    // `/connect-agent` is a document of its own, shown before anyone is signed in: the application, with its connection, is not started.
+    if let Some((origin, query)) = connect_agent::requested() {
+        return rsx! { connect_agent::Page { origin, query } };
+    }
+    rsx! { Main {} }
+}
+
+#[component]
+fn Main() -> Element {
     // The web runtime sets its own panic hook when it starts; this puts the error screen back on top.
     #[cfg(target_arch = "wasm32")]
     use_hook(crash::install);
@@ -444,6 +457,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             p { class: "muted", "{status_label}" }
                             connect_page::Section { state, transport: transport.clone() }
                             access_page::Authorized { state, transport: transport.clone() }
+                            ssh_environments::Section { state, transport: transport.clone() }
                             if !saved_connections.is_empty() { h2 { "Saved connections" }
                                 for (id,label,saved_address) in saved_connections {
                                     article {class:"connection-row",key:"{id}",
@@ -525,6 +539,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 }
             }
             {desktop_overlays(state)}
+            ssh_environments::Host { state, transport: transport.clone() }
             context_menu::ContextMenuHost {}
             if add_project() {
                 div { class: "modal-backdrop", div { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "add-project-heading",

@@ -7934,3 +7934,104 @@ body.sidebar-dragging {
 .file-tab-dirty {
   color: var(--accent-foreground, currentColor);
 }
+.ssh-fields {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  max-width: 440px;
+}
+.ssh-fields input {
+  padding: 9px;
+}
+.ssh-hosts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.ssh-hosts button {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.ssh-hosts button:hover:not(:disabled) {
+  background: var(--accent);
+}
+.ssh-prompt input {
+  margin-top: 8px;
+}
+.ssh-prompt-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.connect-agent-page {
+  display: block;
+  position: fixed;
+  inset: 0;
+  overflow-y: auto;
+  background: var(--background);
+  color: var(--foreground);
+}
+.connect-agent {
+  max-width: 520px;
+  margin: 8vh auto 0;
+  padding: 0 24px 48px;
+}
+.connect-agent-kicker {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.connect-agent h1 {
+  font-size: 1.75rem;
+  margin: 8px 0;
+}
+.connect-agent-note {
+  font-size: 0.75rem;
+}
+.connect-agent form {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+.connect-agent-access {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.connect-agent-access legend {
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.agent-access {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.agent-access.selected {
+  border-color: var(--primary);
+}
+.connect-agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ssh-section {
+  margin-top: 24px;
+}

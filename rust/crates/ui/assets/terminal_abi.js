@@ -46,6 +46,23 @@ try {
       case "size":
         surface.resend_size();
         break;
+      case "paste":
+        // The context menu's Paste: the surface reads the clipboard itself, unless the host hands it the text.
+        if (typeof command.text === "string") surface.paste_text(command.text);
+        else surface.paste_from_clipboard();
+        break;
+      case "copy": {
+        // The context menu's Copy; a refused write is for the host to tell the person, not for the terminal to die of.
+        const text = surface.selection_text();
+        if (text) {
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch (error) {
+            dioxus.send({ type: "notice", message: "Unable to copy terminal selection" });
+          }
+        }
+        break;
+      }
       case "selection":
         // `selection_position` is absent from a surface built before it existed; the chip then counts its own lines.
         dioxus.send({

@@ -141,21 +141,25 @@ impl Fixture {
     /// With the server's settings extended by `settings` (`autoResumeLimitedThreads`, `sidebarAutoSettleAfterDays`...)
     /// and a manual clock the test moves, which is how a reset or an idle week passes without waiting.
     pub(crate) async fn start_timed(settings: Value, environment: &[(&str, &str)]) -> Self {
-        Self::build_with_settings(false, environment, false, None, false, settings, Some(t3_server::provider_idle::IDLE_TIMEOUT_MS)).await
+        Self::build_with_settings(false, environment, false, None, false, settings, Some(t3_server::provider_idle::IDLE_TIMEOUT_MS), "diff-ui").await
     }
     /// `start_timed` with the provider idle window so long that moving the clock by days never ends it. The idle release and the
     /// auto-settle sweep run off the same clock; a test of the sweep must not have the release writing to the threads (their
     /// `updatedAt` moves with each event) while the sweep reads them, or the sweep's one pass is refused as a change under it.
     pub(crate) async fn start_timed_without_idle_release(settings: Value, environment: &[(&str, &str)]) -> Self {
-        Self::build_with_settings(false, environment, false, None, false, settings, Some(365 * 24 * 60 * 60 * 1000)).await
+        Self::build_with_settings(false, environment, false, None, false, settings, Some(365 * 24 * 60 * 60 * 1000), "diff-ui").await
+    }
+    /// A server of another environment, for a test that reaches a second machine from the window of the first.
+    pub(crate) async fn start_named(environment_id: &str) -> Self {
+        Self::build_with_settings(false, &[], false, None, false, json!({}), None, environment_id).await
     }
     async fn build(git_repository: bool, environment: &[(&str, &str)], terminals: bool) -> Self {
         Self::build_with(git_repository, environment, terminals, None, false).await
     }
     async fn build_with(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool) -> Self {
-        Self::build_with_settings(git_repository, environment, terminals, claude, real_editors, json!({}), None).await
+        Self::build_with_settings(git_repository, environment, terminals, claude, real_editors, json!({}), None, "diff-ui").await
     }
-    async fn build_with_settings(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool, extra_settings: Value, timed: Option<i64>) -> Self {
+    async fn build_with_settings(git_repository: bool, environment: &[(&str, &str)], terminals: bool, claude: Option<(&[(&str, &str)], &[(&str, String)])>, real_editors: bool, extra_settings: Value, timed: Option<i64>, environment_id: &str) -> Self {
         // Whatever a test leaves open on a developer's machine is named for what opened it.
         let directory = tempfile::Builder::new().prefix("t3code-rust-port-test-").tempdir().unwrap();
         let root = std::fs::canonicalize(directory.path()).unwrap();
@@ -191,7 +195,7 @@ impl Fixture {
             git(&workspace, &["add", "."]);
             git(&workspace, &["commit", "-q", "-m", "initial"]);
         }
-        let mut api = api_fixture(&directory, "diff-ui");
+        let mut api = api_fixture(&directory, environment_id);
         let binary = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../server/tests/fixtures/codex-provider.py")
             .canonicalize()
@@ -281,6 +285,11 @@ impl Fixture {
         setup(&mut dom);
         dom.rebuild_in_place();
         (dom, props)
+    }
+
+    /// Stops the server of a fixture no window was mounted for.
+    pub(crate) async fn finish_server(self) {
+        self.server.await;
     }
 
     pub(crate) async fn finish(self, dom: VirtualDom) {

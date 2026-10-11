@@ -7,21 +7,26 @@
 #   CARGO_TARGET_DIR=<ui target> cargo build -p t3-ui --no-default-features --features desktop
 #   CARGO_TARGET_DIR=<server target> cargo build -p t3-server
 #   rust/tools/bundle_desktop_macos.sh --ui <ui target>/debug/t3-ui --server <server target>/debug/t3-server \
-#       --out <directory for the app> [--version 0.1.0] [--force]
+#       --out <directory for the app> [--assets <web bundle>] [--version 0.1.0] [--force]
+#
+# --assets is the web app (the Dioxus web bundle: the "public" directory `dx build --platform web` writes). It is shipped as
+# "client/" beside the server program, where the server looks for it, so that a server this app launches on another machine
+# over SSH answers 2xx at "/", which its readiness check waits for. Without it the app works, and that launch cannot succeed.
 #
 # --out must be an absolute path to a directory that is empty or does not exist yet (or --force: its
 # "T3 Code.app" is replaced). Run the result with:  "<out>/T3 Code.app/Contents/MacOS/t3-ui"  or  open "<out>/T3 Code.app"
 set -eu
 
-ui=""; server=""; out=""; version="0.1.0"; force=0
+ui=""; server=""; out=""; assets=""; version="0.1.0"; force=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --ui) ui="$2"; shift 2 ;;
     --server) server="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
+    --assets) assets="$2"; shift 2 ;;
     --version) version="$2"; shift 2 ;;
     --force) force=1; shift ;;
-    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -30,6 +35,9 @@ done
 [ -n "$ui" ] && [ -n "$server" ] && [ -n "$out" ] || { echo "--ui, --server and --out are required (see --help)." >&2; exit 2; }
 [ -x "$ui" ] || { echo "The UI program is not an executable file: $ui" >&2; exit 1; }
 [ -x "$server" ] || { echo "The server program is not an executable file: $server" >&2; exit 1; }
+if [ -n "$assets" ]; then
+  [ -f "$assets/index.html" ] || { echo "--assets must be a web bundle holding index.html: $assets" >&2; exit 1; }
+fi
 case "$out" in /*) ;; *) echo "--out must be an absolute path." >&2; exit 2 ;; esac
 case "$version" in *[!0-9A-Za-z.+-]*|"") echo "--version may hold only letters, digits and . + -" >&2; exit 2 ;; esac
 
@@ -45,6 +53,12 @@ fi
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$ui" "$app/Contents/MacOS/t3-ui"
 cp "$server" "$app/Contents/MacOS/t3-server"
+if [ -n "$assets" ]; then
+  mkdir -p "$app/Contents/MacOS/client"
+  cp -R "$assets"/. "$app/Contents/MacOS/client/"
+else
+  echo "No --assets: the bundle has no client/ beside the server, so a remote launch over SSH will not become ready." >&2
+fi
 
 # The icon, the way the original's build makes it (scripts/build-desktop-artifact.ts): the 1024 px source at
 # each size of an iconset, then iconutil.

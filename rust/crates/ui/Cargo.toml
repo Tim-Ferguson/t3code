@@ -67,6 +67,7 @@ js-sys = "0.3"
 gloo-timers = { version = "0.3", features = ["futures"] }
 
 [dev-dependencies]
+t3-desktop = { path = "../desktop" }
 dioxus-html = { version = "0.7", features = ["serialize"] }
 t3-server = { path = "../server", features = ["outbound-check"] }
 # The T3 Connect section is tested against the server's own services over the fakes of `t3-remote`'s tests.

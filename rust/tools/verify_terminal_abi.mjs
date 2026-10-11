@@ -113,6 +113,22 @@ assert.deepEqual(normal.calls.slice(2), [
 ]);
 assert.equal(normal.window.__t3RustTerminals.size, 0);
 
+// The context menu's Paste reaches the surface as a paste: from the clipboard, or from text the host already holds.
+const pasting = harness({
+  surface: {
+    paste_from_clipboard: () => pasting.calls.push(["paste-clipboard"]),
+    paste_text: (text) => pasting.calls.push(["paste-text", text]),
+  },
+});
+await pasting.ready.promise;
+for (const command of [{ type: "paste" }, { type: "paste", text: "ls\n" }, { type: "dispose" }])
+  pasting.send(command);
+await pasting.task;
+assert.deepEqual(
+  pasting.calls.filter((call) => call[0].startsWith("paste")),
+  [["paste-clipboard"], ["paste-text", "ls\n"]],
+);
+
 // "Add to chat" asks for the selection: its text, and where it is when the surface can say.
 const located = harness({
   surface: {

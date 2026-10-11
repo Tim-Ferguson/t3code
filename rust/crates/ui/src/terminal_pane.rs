@@ -711,6 +711,27 @@ fn CanvasPane(
                     Some("ready") => ready.set(true),
                     // Cmd/Ctrl+click on a URL or a path in the output (`handleLinkActivate`).
                     Some("link") => open_terminal_link(state, &transport, link_editor.clone(), event["text"].as_str().unwrap_or(""), &link_cwd),
+                    // Right-click on the output (`showTerminalContextMenu`): the selection's actions, disabled with nothing selected, and Paste,
+                    // disabled for a viewer who cannot type. What is chosen goes back to the surface, which owns the selection and the clipboard.
+                    Some("contextmenu") => {
+                        let selected = event["selected"].as_bool().unwrap_or(false);
+                        let at = Some((event["x"].as_f64().unwrap_or(0.0), event["y"].as_f64().unwrap_or(0.0)));
+                        let writable = operates(state);
+                        spawn(async move {
+                            let items = terminal_menu_items(selected, writable);
+                            let command = match crate::context_menu::show("Terminal", items, at).await.as_deref() {
+                                Some("add-to-chat") => "selection",
+                                Some("copy") => "copy",
+                                Some("paste") => "paste",
+                                _ => return,
+                            };
+                            if let Some(eval) = *renderer.peek() {
+                                let _ = eval.send(json!({"type": command}));
+                            }
+                        });
+                    }
+                    // A clipboard the window refused to read or write: the terminal keeps running, and the person is told.
+                    Some("notice") => crate::notice::push(state, crate::notice::Level::Warning, event["message"].as_str().unwrap_or("The clipboard is unavailable."), ""),
                     // The selection asked for by "Add selection to chat": a chip on this thread's draft.
                     Some("selection") => {
                         let text = event["text"].as_str().unwrap_or("");
@@ -995,5 +1016,26 @@ fn open_terminal_link(state: Store<UiModel>, transport: &runtime::TransportHandl
     match (editor, last) {
         (Some(editor), Some(last)) => crate::open_in::open(transport, state, Signal::new(false), last.0, target, editor, false),
         _ => crate::notice::push(state, crate::notice::Level::Info, "No editor to open the file in", target),
+    }
+}
+
+/// The right-click menu of the terminal (`terminalContextMenuItems`): Add to chat and Copy need a selection, Paste needs write access.
+pub(crate) fn terminal_menu_items(has_selection: bool, writable: bool) -> Vec<t3_client::context_menu::Item> {
+    use t3_client::context_menu::Item;
+    let item = |id: &str, label: &str, disabled: bool| Item { disabled, ..Item::new(id, label) };
+    vec![item("add-to-chat", "Add to chat", !has_selection), item("copy", "Copy", !has_selection), item("paste", "Paste", !writable)]
+}
+
+#[cfg(test)]
+mod menu_tests {
+    use super::terminal_menu_items;
+
+    #[test]
+    fn the_terminal_menu_offers_what_the_selection_and_the_permission_allow() {
+        let state = |selected, writable| terminal_menu_items(selected, writable).into_iter().map(|item| (item.id, item.disabled)).collect::<Vec<_>>();
+        let id = |name: &str, disabled| (name.to_owned(), disabled);
+        assert_eq!(state(true, true), [id("add-to-chat", false), id("copy", false), id("paste", false)]);
+        assert_eq!(state(false, true), [id("add-to-chat", true), id("copy", true), id("paste", false)]);
+        assert_eq!(state(true, false), [id("add-to-chat", false), id("copy", false), id("paste", true)]);
     }
 }

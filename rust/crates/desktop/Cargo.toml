@@ -11,6 +11,10 @@ license.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 rand.workspace = true
+t3-remote = { path = "../remote" }
+t3-client.workspace = true
+async-trait = "0.1"
+thiserror.workspace = true
 tokio = { workspace = true, features = [
   "process",
   "sync",
@@ -26,5 +30,6 @@ tokio = { workspace = true, features = [
 libc.workspace = true
 
 [dev-dependencies]
+t3-remote = { path = "../remote", features = ["test-support"] }
 tokio = { workspace = true, features = ["test-util"] }
 tempfile = "3"

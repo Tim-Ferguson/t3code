@@ -22,7 +22,7 @@ use std::{
 use wasm_bindgen::{JsCast, prelude::*};
 use web_sys::{
     CanvasRenderingContext2d, ClipboardEvent, CompositionEvent, Event, EventTarget,
-    HtmlCanvasElement, HtmlElement, HtmlTextAreaElement, InputEvent, KeyboardEvent, PointerEvent,
+    HtmlCanvasElement, HtmlElement, HtmlTextAreaElement, InputEvent, KeyboardEvent, MouseEvent, PointerEvent,
     ResizeObserver, WheelEvent,
 };
 #[derive(Deserialize)]
@@ -1216,6 +1216,19 @@ pub async fn mount_terminal(
             Ok(())
         },
     )?);
+    // The host owns the right-click menu (`onContextMenu` of the original's surface): it is told where and whether text is selected, and
+    // the browser's own menu, whose Paste entry can never reach a canvas, is always suppressed. An application that tracks the mouse
+    // keeps the click unless a modifier is held (`shouldReportTerminalMouse`).
+    listeners.push(listen(&state, canvas_target.clone(), "contextmenu", |s, event| {
+        let event: MouseEvent = event.dyn_into()?;
+        event.prevent_default();
+        if s.core.is_mouse_tracking().unwrap_or(false) && !event.shift_key() && !event.ctrl_key() && !event.meta_key() {
+            return Ok(());
+        }
+        let selected = !s.core.selection_text()?.is_empty();
+        s.queue(json!({"type":"contextmenu","x":event.client_x(),"y":event.client_y(),"selected":selected}));
+        Ok(())
+    })?);
     listeners.push(listen(&state, canvas_target.clone(), "pointerleave", |s, _| {
         s.clear_hover();
         Ok(())
@@ -1443,6 +1456,57 @@ impl TerminalSurface {
             s.cancel_frame();
             s.selection_autoscroll(0);
         }
+        Ok(())
+    }
+    /// Delivers `text` to the shell as a paste, as the terminal's own paste does (wrapped in the bracketed-paste markers when the
+    /// application asked for them). A paste started earlier and still reading the clipboard is superseded.
+    pub fn paste_text(&self, text: &str) -> Result<()> {
+        {
+            let mut s = self.state.borrow_mut();
+            s.paste_token += 1;
+            if text.is_empty() {
+                return Ok(());
+            }
+            let data = s.core.encode_paste(text)?;
+            s.send(data);
+        }
+        dispatch(&self.state);
+        Ok(())
+    }
+    /// The context menu's Paste (`pasteFromClipboard`): reads the clipboard, then pastes it unless a shortcut, a native paste or another
+    /// call took over meanwhile, so that two pastes never both reach the shell.
+    pub fn paste_from_clipboard(&self) -> Result<()> {
+        let token = {
+            let mut s = self.state.borrow_mut();
+            s.paste_token += 1;
+            s.paste_token
+        };
+        let clipboard = web_sys::window().ok_or_else(|| error("Terminal window unavailable"))?.navigator().clipboard();
+        let owner = Rc::downgrade(&self.state);
+        wasm_bindgen_futures::spawn_local(async move {
+            let read = wasm_bindgen_futures::JsFuture::from(clipboard.read_text()).await;
+            let Some(state) = owner.upgrade() else { return };
+            {
+                let mut s = state.borrow_mut();
+                if s.disposed || s.paste_token != token {
+                    return;
+                }
+                s.paste_token += 1;
+                match read {
+                    Ok(value) => {
+                        if let Some(text) = value.as_string().filter(|text| !text.is_empty()) {
+                            match s.core.encode_paste(&text) {
+                                Ok(data) => s.send(data),
+                                Err(cause) => s.fail(cause),
+                            }
+                        }
+                    }
+                    // The terminal keeps running; the host says so (`Unable to read the clipboard`).
+                    Err(_) => s.queue(json!({"type":"notice","message":"Unable to read the clipboard"})),
+                }
+            }
+            dispatch(&state);
+        });
         Ok(())
     }
     pub fn set_read_only(&self, read_only: bool) {

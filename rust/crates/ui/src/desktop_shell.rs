@@ -43,6 +43,8 @@ pub(crate) enum Backend {
 pub(crate) struct Shell {
     dirs: AppDirs,
     backend: Backend,
+    /// SSH environments (`DesktopSshEnvironment`); none when the runtime for it cannot be made.
+    ssh: Option<t3_desktop::ssh::Ssh>,
 }
 
 fn env(name: &str) -> Option<String> {
@@ -85,7 +87,14 @@ pub fn launch(app: fn() -> Element) {
         }
     };
     let saved = window_state::load(&dirs.window_state);
-    let shell = Shell { backend: start_backend(&dirs), dirs: dirs.clone() };
+    let ssh = match t3_desktop::ssh::Ssh::new(t3_desktop::ssh::Config::from_env(env, env!("CARGO_PKG_VERSION"))) {
+        Ok(ssh) => Some(ssh),
+        Err(error) => {
+            eprintln!("SSH environments are unavailable: {error}");
+            None
+        }
+    };
+    let shell = Shell { backend: start_backend(&dirs), dirs: dirs.clone(), ssh };
     let (width, height) = saved.bounds.map_or(window_state::DEFAULT_SIZE, |bounds| (bounds.width, bounds.height));
     let mut window = WindowBuilder::new()
         .with_title(TITLE)
@@ -253,6 +262,35 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
         move || Rc::new(move || quit_app(&shell, &persist))
     });
 
+    // SSH environments: the Connections page's gateway, and the window coming forward when ssh asks for a password.
+    if let Some(ssh) = shell.ssh.clone() {
+        let backend = shell.backend.clone();
+        let saved = shell.dirs.root.join("ssh-environments.json");
+        use_context_provider(|| {
+            let ssh = ssh.clone();
+            crate::ssh_environments::GatewayHandle(Rc::new(crate::ssh_gateway::DesktopGateway { ssh, saved, primary: Box::new(move || primary_server(&backend)) }))
+        });
+        use_future(move || {
+            let mut feed = ssh.prompts().watch();
+            async move {
+                let mut open = 0;
+                loop {
+                    let now = feed.borrow_and_update().len();
+                    if now > open {
+                        let window = dioxus::desktop::window();
+                        window.set_minimized(false);
+                        window.set_visible(true);
+                        window.set_focus();
+                    }
+                    open = now;
+                    if feed.changed().await.is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+    }
+
     // The window's size and place, saved a moment after it stops changing.
     use_wry_event_handler({
         let (shell, persist, quit) = (shell.clone(), persist.clone(), quit.clone());
@@ -380,6 +418,10 @@ fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>) {
     if let Some(state) = pending {
         let _ = window_state::save(&shell.dirs.window_state, &state);
     }
+    // The tunnels close, and the servers this app started on other machines stop, before the app ends.
+    if let Some(ssh) = &shell.ssh {
+        ssh.shutdown_blocking(Duration::from_secs(10));
+    }
     if let Backend::Supervised(handle) = &shell.backend {
         // The server's grace period is five seconds; this waits a little longer than that. The file naming its process id
         // goes with it; one that outlived the wait stays, as the only way to find the server that is still running.
@@ -417,6 +459,19 @@ pub(crate) fn advertised_endpoints() -> crate::access_page::AdvertisedEndpoints 
         is_default: false,
     };
     crate::access_page::AdvertisedEndpoints { endpoints: vec![endpoint], default_key: None }
+}
+
+/// How the window reaches the server this app started, now: its address with the credential of this start, or the one the person named.
+fn primary_server(backend: &Backend) -> Option<crate::ssh_environments::Primary> {
+    use crate::ssh_environments::Primary;
+    match backend {
+        Backend::External => Some(Primary::Open { address: runtime::default_address() }),
+        Backend::Unavailable(_) => None,
+        Backend::Supervised(handle) => match handle.state().borrow().clone() {
+            ServerState::Ready { address, credential, .. } => Some(Primary::Pair { address, credential: credential.0 }),
+            _ => None,
+        },
+    }
 }
 
 /// Starts the server this app runs again (the failed-import screen's "Try again": the server that stopped importing keeps
