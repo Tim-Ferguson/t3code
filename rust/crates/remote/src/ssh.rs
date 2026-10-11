@@ -1,7 +1,15 @@
 //! SSH helpers (`packages/ssh/src/command.ts`, `config.ts`): turning an alias into a target,
 //! building ssh arguments, finding hosts to offer, and running one ssh command. The remote
-//! launcher (`tunnel.ts`: starting `t3` on the remote, forwarding ports, pairing) and the askpass
-//! password helpers (`auth.ts`) are not ported; the desktop shell owns them.
+//! launcher (`tunnel.ts`: starting `t3` on the remote, forwarding ports, pairing) is
+//! [`crate::ssh_tunnel`] with its script text in [`crate::ssh_scripts`], and the askpass password
+//! helpers (`auth.ts`) are [`crate::ssh_auth`]; they use this module's target type, argument
+//! builders and redaction.
+//!
+//! TODO(original packages/ssh/src/command.ts `buildSshHostSpec`): the destination is passed to ssh
+//! as it is, without `--` before it, so an alias that starts with `-` (a `Host` entry or
+//! known_hosts name such as `-oProxyCommand=...`, or one typed by the user) is read by ssh as an
+//! option. Copied from the original rather than fixed here; a fix has to reject such aliases in
+//! [`build_ssh_host_spec`] (callers already handle its error).
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};

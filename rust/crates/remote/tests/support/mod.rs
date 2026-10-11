@@ -12,6 +12,8 @@ use serde_json::{Value, json};
 use t3_contracts::ExecutionEnvironmentDescriptor;
 use t3_remote::cloud_link::*;
 use t3_remote::endpoint_runtime::*;
+pub mod ssh_fakes;
+
 use t3_remote::relay_client::{
     InstallError, InstallProgressStage, RelayClientResolver, RelayClientStatus,
 };

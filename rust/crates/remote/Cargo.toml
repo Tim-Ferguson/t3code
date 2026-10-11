@@ -28,6 +28,9 @@ ring = "0.17"
 async-trait = "0.1"
 # The loopback listener that receives the OAuth authorization-code callback.
 axum.workspace = true
+# SIGTERM then SIGKILL for the ssh tunnel child, as the original's `kill({ killSignal, forceKillAfter })`;
+# already in the lock file through other workspace crates.
+libc.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }

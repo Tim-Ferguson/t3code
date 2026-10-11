@@ -6001,6 +6001,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "icu_collator",
+ "libc",
  "rand 0.9.5",
  "regex",
  "reqwest",
@@ -6021,6 +6022,7 @@ dependencies = [
 name = "t3-server"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "base64 0.22.1",
  "chrono",
@@ -6041,12 +6043,14 @@ dependencies = [
  "rand 0.9.5",
  "regex",
  "reqwest",
+ "ring",
  "rusqlite",
  "serde",
  "serde_json",
  "sha2",
  "t3-acp",
  "t3-contracts",
+ "t3-remote",
  "t3-server",
  "t3-vcs",
  "tempfile",
@@ -6080,6 +6084,7 @@ name = "t3-ui"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "chrono",
  "dioxus",
  "dioxus-html",

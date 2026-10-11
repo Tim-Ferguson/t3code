@@ -20,6 +20,14 @@
 //!   [`runtime::RemoteStatus`], plus one method per HTTP route and RPC below.
 //! * [`connect_cli`]: what the `t3 connect ...` subcommands read, write and print.
 //! * [`tailscale::Tailscale`], [`ssh`]: helpers with an injectable executable.
+//! * Remote hosts: [`ssh_tunnel`] (launch or reuse `t3` on a host over ssh, forward its port, pair,
+//!   stop; the desktop shell's SSH environments), [`ssh_scripts`] (the byte-exact remote shell
+//!   scripts and the readers of their output), [`ssh_auth`] (askpass password helpers),
+//!   [`ssh_helper`] (the hidden `t3 __ssh-helper` the launch script runs on the remote),
+//!   [`tailscale_pair`] (`t3 pair --tailscale`), and the service/update machinery
+//!   [`service_protocol`], [`service_launcher_client`], [`service_preflight`], [`pinned_runtime`],
+//!   [`cli_release`], [`self_update`], [`update_handoff`] and [`boot_service_install`]. All
+//!   process, network and service-manager effects of these are behind traits.
 //! * [`awareness`], [`delivery_proof`], [`replay`], [`boot_service`]: the smaller pieces the server
 //!   calls from other features.
 //!
@@ -114,11 +122,17 @@
 //!
 //! Each is marked `TODO(original ...)` at the code: a timed-out relay request reads as "unexpected
 //! response" ([`relay_error`]); `clear_persisted_cloud_link` leaves the hold-webhooks opt-in behind
-//! ([`cli_state`]); a whitespace-only Clerk client id is accepted ([`config`]).
+//! ([`cli_state`]); a whitespace-only Clerk client id is accepted ([`config`]); the runner script
+//! embedded in the remote launch and pairing scripts loses its `"$$"` lock-owner pid to JavaScript's
+//! replacement-string expansion ([`ssh_scripts`]); an ssh alias starting with `-` is read by ssh as
+//! an option ([`ssh`]); every interactive ssh call leaves a new askpass temp directory
+//! ([`ssh_auth`]); `pair --tailscale` waits one second after its last probe ([`tailscale_pair`]).
 
 pub mod awareness;
 pub mod backoff;
 pub mod boot_service;
+pub mod boot_service_install;
+pub mod cli_release;
 pub mod cli_state;
 pub mod cli_token;
 pub mod clock;
@@ -131,14 +145,25 @@ pub mod endpoint_runtime;
 pub mod env_keys;
 pub mod jwt;
 pub mod link_checks;
+pub mod pinned_runtime;
 pub mod relay_client;
 pub mod relay_error;
 pub mod relay_url;
 pub mod replay;
 pub mod runtime;
 pub mod secrets;
+pub mod self_update;
+pub mod service_launcher_client;
+pub mod service_preflight;
+pub mod service_protocol;
 pub mod ssh;
+pub mod ssh_auth;
+pub mod ssh_helper;
+pub mod ssh_scripts;
+pub mod ssh_tunnel;
 pub mod startup;
 pub mod tailscale;
+pub mod tailscale_pair;
 pub mod types;
+pub mod update_handoff;
 pub mod util;

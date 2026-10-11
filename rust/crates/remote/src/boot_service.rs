@@ -1,8 +1,9 @@
 //! The pure part of the background service installer (`cloud/bootService.ts`): the systemd unit and
 //! launchd plist it writes, reading the T3 home back out of them, and the wording of the problems
-//! `t3 service status` reports. Running `systemctl` / `launchctl`, the pinned runtime and the
-//! update launcher (`pinnedRuntime.ts`, `serviceLauncherClient.ts`, `selfUpdate.ts`) are not
-//! ported: they belong to the service/update feature, not to remote access.
+//! `t3 service status` reports. The install / restart / uninstall / status flows around them are
+//! [`crate::boot_service_install`] (every command behind a runner trait), the pinned runtime is
+//! [`crate::pinned_runtime`], and the launcher protocol, client and self-update are
+//! [`crate::service_protocol`], [`crate::service_launcher_client`] and [`crate::self_update`].
 
 pub const BOOT_SERVICE_NAME: &str = "t3code";
 pub const BOOT_SERVICE_UNIT_FILE: &str = "t3code.service";
@@ -61,6 +62,7 @@ pub fn boot_service_base_dir_of(contents: &str) -> Option<String> {
     )
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BootServicePlan {
     /// What the service manager executes.
     pub program: Vec<String>,
