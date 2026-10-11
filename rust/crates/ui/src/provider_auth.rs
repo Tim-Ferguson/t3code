@@ -503,10 +503,16 @@ fn AuthTerminal(
                                 url.to_ascii_lowercase().starts_with("https://")
                                     || url.to_ascii_lowercase().starts_with("http://")
                             }) {
-                                let url = json!(url);
-                                let _ = document::eval(&format!(
-                                    "window.open({url},'_blank','noopener');"
-                                ));
+                                // The webview has no new window to open a page in; the system browser is.
+                                #[cfg(feature = "desktop")]
+                                crate::desktop_shell::open_external(url);
+                                #[cfg(not(feature = "desktop"))]
+                                {
+                                    let url = json!(url);
+                                    let _ = document::eval(&format!(
+                                        "window.open({url},'_blank','noopener');"
+                                    ));
+                                }
                             }
                         }
                         Some("error") => {

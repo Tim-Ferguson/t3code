@@ -1,14 +1,12 @@
 fn main() {
     #[cfg(target_arch = "wasm32")]
     t3_ui::install_panic_screen();
+    // The desktop app opens its own window, with its menu, its saved size and the server it starts itself.
     #[cfg(feature = "desktop")]
-    if let Some(path) = std::env::var_os("T3_UI_DATA_DIR").filter(|path| !path.is_empty()) {
-        dioxus::LaunchBuilder::desktop()
-            .with_cfg(
-                dioxus::desktop::Config::new().with_data_directory(std::path::PathBuf::from(path)),
-            )
-            .launch(t3_ui::App);
+    {
+        t3_ui::launch_desktop(t3_ui::App);
         return;
     }
+    #[cfg(not(feature = "desktop"))]
     dioxus::launch(t3_ui::App);
 }

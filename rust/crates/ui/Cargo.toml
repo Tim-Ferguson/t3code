@@ -7,13 +7,16 @@ license.workspace = true
 [features]
 default = ["web"]
 web = ["dioxus/web"]
-desktop = ["dioxus/desktop"]
+desktop = ["dioxus/desktop", "dep:t3-desktop", "dep:rfd", "dep:webbrowser"]
 mobile = ["dioxus/mobile"]
 
 [dependencies]
 t3-client.workspace = true
 t3-highlight.workspace = true
 t3-contracts.workspace = true
+t3-desktop = { path = "../desktop", optional = true }
+rfd = { version = "0.17", optional = true }
+webbrowser = { version = "1", optional = true }
 indexmap.workspace = true
 serde_json.workspace = true
 serde.workspace = true

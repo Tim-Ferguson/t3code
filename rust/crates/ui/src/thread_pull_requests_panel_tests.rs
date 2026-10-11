@@ -21,8 +21,11 @@ async fn several_links_open_the_tab_from_the_badge_and_are_unlinked_and_linked_f
     for number in [7, 8] {
         dom.in_scope(ScopeId::APP, || command(&props.transport, state, "thread.pull-request.link", link(number)));
     }
-    // Two unrelated links are one badge that counts them; it opens the thread's tab, not one request.
-    until(&mut dom, "the badge", |dom| control(dom, "PR #*").is_some()).await;
+    // Two unrelated links are one badge that counts them; it opens the thread's tab, not one request. The links
+    // arrive one event at a time and a badge for the first alone opens that request's panel, so the click waits
+    // for the badge that counts both.
+    wait_for_rendered_text(&mut dom, "+2").await;
+    assert!(control(&dom, "PR #*").is_some());
     assert!(crate::thread_pull_requests_panel::supported(state), "the fixture server keeps several links per thread");
     assert!(control(&dom, "Close pull requests").is_none());
     click_when_enabled(&mut dom, "PR #*").await;

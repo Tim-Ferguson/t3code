@@ -229,6 +229,12 @@ impl PartialEq for TransportHandle {
     }
 }
 
+/// Whether the endpoint in use is on this computer's loopback interface.
+#[cfg(feature = "desktop")]
+pub(crate) fn connected_to_loopback(handle: &TransportHandle) -> bool {
+    handle.borrow().endpoint.as_ref().is_some_and(|endpoint| matches!(endpoint.http("").host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
+}
+
 pub fn default_address() -> String {
     #[cfg(target_arch = "wasm32")]
     {

@@ -7416,3 +7416,58 @@ body.sidebar-dragging {
 .thread-prs-panel {
   overflow: hidden;
 }
+
+/* The desktop app's own server: shown while it starts, restarts or has failed (`desktop_shell`). */
+.shell-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--card);
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.shell-banner.failed {
+  background: color-mix(in srgb, #ef4444 8%, var(--background));
+  color: #dc2626;
+}
+.shell-banner-text {
+  flex: 1;
+  min-width: 0;
+}
+.shell-banner-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.shell-banner button {
+  flex: none;
+}
+
+/* The hint that the quit shortcut must be held or pressed twice (`QuitHoldOverlay`). */
+.quit-hint {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 22%;
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.quit-hint-pill {
+  padding: 16px 32px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--foreground) 95%, transparent);
+  color: var(--background);
+  font-size: 24px;
+  font-weight: 700;
+  box-shadow: 0 20px 40px rgb(0 0 0 / 25%);
+}

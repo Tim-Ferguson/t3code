@@ -97,6 +97,10 @@ mod usage_page;
 mod timeline_scroll;
 mod work_rows;
 mod worktree_setup;
+#[cfg(feature = "desktop")]
+mod desktop_shell;
+#[cfg(feature = "desktop")]
+pub use desktop_shell::launch as launch_desktop;
 use dioxus::prelude::*;
 use runtime::{UiModel, UiModelStoreExt, View};
 use serde_json::{Value, json};
@@ -128,6 +132,8 @@ pub fn App() -> Element {
     draft_storage::use_writer(state);
     draft_storage::use_native_close_flush(state);
     draft_storage::use_flush_on_unload(state);
+    #[cfg(feature = "desktop")]
+    desktop_shell::use_shell(state);
     use_future(move || {
         let transport = startup_transport.clone();
         let terminal_catalog = terminal_catalog.clone();
@@ -136,10 +142,51 @@ pub fn App() -> Element {
             client_settings::hydrate(state).await;
             draft_storage::hydrate(state).await;
             prompt_stash::hydrate(state).await;
+            #[cfg(feature = "desktop")]
+            desktop_shell::connect(transport, state).await;
+            #[cfg(not(feature = "desktop"))]
             runtime::connect(transport, state, runtime::default_address(), String::new()).await;
         }
     });
     rsx! { Application { state, transport } }
+}
+
+/// The desktop app's strips over the page (the server starting, the quit hint). The web build has none.
+#[cfg(feature = "desktop")]
+fn desktop_overlays(state: Store<UiModel>) -> Element {
+    rsx! { desktop_shell::Overlays { state } }
+}
+#[cfg(not(feature = "desktop"))]
+fn desktop_overlays(_state: Store<UiModel>) -> Element {
+    rsx! {}
+}
+
+/// "Browse…" beside the project directory when the server runs on this computer and the app can ask the system
+/// for a folder (`pickFolder`). A folder is also the name for a project that has none yet.
+#[cfg(feature = "desktop")]
+fn browse_button(transport: &runtime::TransportHandle, mut title: Signal<String>, mut path: Signal<String>) -> Element {
+    if !desktop_shell::server_is_local(transport) {
+        return rsx! {};
+    }
+    rsx! {
+        button { r#type: "button", "aria-label": "Browse for a folder",
+            onclick: move |_| {
+                spawn(async move {
+                    if let Some(folder) = desktop_shell::pick_folder().await {
+                        if title.peek().trim().is_empty() {
+                            if let Some(name) = std::path::Path::new(&folder).file_name() { title.set(name.to_string_lossy().into_owned()); }
+                        }
+                        path.set(folder);
+                    }
+                });
+            },
+            "Browse…"
+        }
+    }
+}
+#[cfg(not(feature = "desktop"))]
+fn browse_button(_transport: &runtime::TransportHandle, _title: Signal<String>, _path: Signal<String>) -> Element {
+    rsx! {}
 }
 
 #[component]
@@ -460,6 +507,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     },
                 }
             }
+            {desktop_overlays(state)}
             if add_project() {
                 div { class: "modal-backdrop", div { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "add-project-heading",
                     h2 { id: "add-project-heading", "Add project" }
@@ -468,7 +516,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         if runtime::request(&transport,state,"projects.mutate",json!({"type":"project.create","commandId":uuid::Uuid::new_v4().to_string(),"projectId":uuid::Uuid::new_v4().to_string(),"title":project_title(),"workspaceRoot":project_path()}),RequestKind::Unary).is_some() { add_project.set(false); }
                     } },
                         label { r#for: "project-title", "Name" } input { id: "project-title", required: true, value: "{project_title}", oninput: move |event|project_title.set(event.value()) }
-                        label { r#for: "project-path", "Project directory on the server" } input { id: "project-path", required: true, placeholder: "/path/to/project", value: "{project_path}", oninput: move |event|project_path.set(event.value()) }
+                        label { r#for: "project-path", "Project directory on the server" } input { id: "project-path", required: true, placeholder: "/path/to/project", value: "{project_path}", oninput: move |event|project_path.set(event.value()) } {browse_button(&transport, project_title, project_path)}
                         div { class: "dialog-actions", button { r#type: "button", onclick: move |_|add_project.set(false), "Cancel" } button { class: "primary", r#type: "submit", disabled: !can_operate, "Add project" } }
                     }
                 } }

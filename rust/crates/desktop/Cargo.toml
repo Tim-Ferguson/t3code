@@ -1,0 +1,30 @@
+[package]
+name = "t3-desktop"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# The desktop shell's logic without any window toolkit: the application menu model, the saved window state, the
+# supervisor of the T3 Code server this app starts, and the quit-hold timing. `t3-ui` uses it under its `desktop`
+# feature and puts these on the screen.
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+rand.workspace = true
+tokio = { workspace = true, features = [
+  "process",
+  "sync",
+  "time",
+  "rt",
+  "macros",
+  "net",
+  "io-util",
+  "signal",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
+tempfile = "3"
