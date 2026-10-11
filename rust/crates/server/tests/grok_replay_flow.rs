@@ -101,7 +101,7 @@ impl Harness {
         std::fs::set_permissions(&wrapper, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
         let home = cwd.join("home");
         std::fs::create_dir_all(home.join(".grok")).unwrap();
-        let settings = serde_json::from_value(json!({"providerInstances":{
+        let settings = serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{
             "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
             "grok":{"driver":"grok","enabled":true,"config":{"enabled":true,"binaryPath":wrapper},"environment":[
                 {"name":"HOME","value":home},{"name":"GROK_HOME","value":home.join(".grok")},

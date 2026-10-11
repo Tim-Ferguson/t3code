@@ -5,7 +5,7 @@ use crate::{
     codex_approvals::{self, Callback},
     codex_projection::Projector,
     execution::{at, event},
-    persistence::{Decision, Effect, Store, StoreError, read_projection},
+    persistence::{Decision, Effect, Store, StoreError},
     provider_process::{ProcessError, ProcessEvent},
     provider_registry::ProviderRegistry,
     thread,
@@ -674,18 +674,46 @@ pub(crate) fn commit(
         "provider.event",
         now,
         |transaction| {
-            let projection = read_projection(transaction, "thread", thread_id)?
+            // The parsed document of the last write is reused (`projection_cache`), so planning costs no parse of the thread.
+            let (mut projection, len) = crate::persistence::take_projection(transaction, "thread", thread_id)?
                 .ok_or_else(|| StoreError::InvalidCommand("Thread not found.".into()))?;
-            // `responseStreamingMode`: what the adapter streamed, held to the mode before it is stored.
-            let view = crate::assistant_streaming::held_view(store, thread_id, &projection);
-            let events = crate::assistant_streaming::filter(store, thread_id, &projection, plan(&view)?, now.timestamp_millis())
-                .into_iter()
-                .map(|(kind, payload)| {
-                    let payload = t3_contracts::normalize_event_payload(kind, payload)
-                        .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
-                    Ok(event(thread_id, &command_id, kind, payload, now))
-                })
-                .collect::<Result<Vec<_>, StoreError>>()?;
+            let planned = (|| -> Result<Vec<crate::persistence::Event>, StoreError> {
+                // `responseStreamingMode`: what the adapter streamed, held to the mode before it is stored. The rows the filter
+                // holds are laid over the projection for the plan and taken off again, so a delta never copies the thread.
+                #[cfg(test)]
+                let legacy = crate::persistence::legacy::on();
+                #[cfg(test)]
+                let mut copy = if legacy { Some(projection.clone()) } else { None };
+                #[cfg(test)]
+                if legacy {
+                    // Before: a copy of the whole thread with the held rows laid over it (`held_view`).
+                    crate::persistence::work::add(|work| {
+                        work.projection_clones += 1;
+                        work.rows_cloned += ["messages", "turnItems", "nodes", "visibleTurnItems", "runs", "attempts"].iter().map(|list| projection[list].as_array().map_or(0, Vec::len) as u64).sum::<u64>();
+                    });
+                    crate::assistant_streaming::overlay_held(store, thread_id, copy.as_mut().unwrap());
+                }
+                #[cfg(test)]
+                let overlay = if legacy { crate::assistant_streaming::Overlay::none() } else { crate::assistant_streaming::overlay_held(store, thread_id, &mut projection) };
+                #[cfg(not(test))]
+                let overlay = crate::assistant_streaming::overlay_held(store, thread_id, &mut projection);
+                #[cfg(test)]
+                let planned = plan(copy.as_ref().unwrap_or(&projection));
+                #[cfg(not(test))]
+                let planned = plan(&projection);
+                overlay.undo(&mut projection);
+                let events = crate::assistant_streaming::filter(store, thread_id, &projection, planned?, now.timestamp_millis())
+                    .into_iter()
+                    .map(|(kind, payload)| {
+                        let payload = t3_contracts::normalize_event_payload(kind, payload)
+                            .map_err(|error| StoreError::InvalidCommand(error.to_string()))?;
+                        Ok(event(thread_id, &command_id, kind, payload, now))
+                    })
+                    .collect::<Result<Vec<_>, StoreError>>()?;
+                Ok(events)
+            })();
+            crate::persistence::restore_projection("thread", thread_id, projection, len);
+            let events = planned?;
             Ok(Decision::Accepted {
                 events,
                 effects: vec![],

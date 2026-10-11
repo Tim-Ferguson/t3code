@@ -70,17 +70,28 @@ directory, on its thread's branch, with only `node_modules` ignored, of an idle 
 session inside it, and that is deleted, idle for `worktreeAfterDays`, already in the default branch, or the head of a merged pull request), browser
 artifacts and rotated logs, with the original's rules and re-checks under a per-path workspace lease that terminals share (`workspace_lease.rs`).
 The branch and the thread's `worktreePath` stay, and the next turn recreates the checkout from the branch before the provider starts
-(`recreate_missing_worktree`, in the effect loop). The original does not treat pinned, settled or archived threads differently, and neither does this port;
+(`recreate_missing_worktree`, in the effect loop). Cleanup rules that arrive with an import are not acted on (`cleanup_hold.rs`, a Rust-port
+extension): the import notes them, and until the user changes a cleanup rule the cleanup reads every rule as off; the stored values are untouched. The original does not treat pinned, settled or archived threads differently, and neither does this port;
 a nested `node_modules` keeps its worktree (git lists the parent directories of an ignored install, which the original's pattern rejects). Tests run
 against real repositories under a temporary directory with a local remote and a fake pull request host (`tests/storage_cleanup_flow.rs`,
-`tests/storage_cleanup_turn_flow.rs`). `responseStreamingMode` holds back streaming assistant text and reasoning for the Codex, Claude and Pi adapters at
-the sink every adapter commits through (`assistant_streaming.rs`, compared with the unchanged filter by `rust/tools/generate_assistant_streaming_fixtures.mjs`);
-the OpenCode adapters do their own, and the ACP family (`acpRegistry`, Grok, Antigravity) delivers every delta until its adapter keeps stream state
-in memory (what the filter withholds is handed back to the code that settles a run, `held_view`, so an interrupted answer keeps its text). `server.getConfig` and `subscribeServerConfig` carry `directEndpoints` and `remoteOpenTargets` (`environment_endpoints.rs`; the tailnet is
-reached through a trait and never run by the tests) and the environment advertises `storageCleanup`, `projectWorktreeCleanup` and
-`serverResolvedCommandContext`. Still open on the server: the pull request stack actions, usage-limit sources and the usage scan cache, SSH device
-hosts, `observability.localTracingEnabled` (no trace file is written), the reusable dev credential, response compression and the OTLP trace proxy,
-the preview/browser host registry, and the ChatGPT-signed-in Codex flows, Cursor and analytics.
+`tests/storage_cleanup_turn_flow.rs`). `responseStreamingMode` holds back streaming assistant text and reasoning for every adapter except the OpenCode ones (which do their own),
+at the sink every adapter commits through (`assistant_streaming.rs`, compared with the unchanged filter by `rust/tools/generate_assistant_streaming_fixtures.mjs`).
+What the filter withholds is laid over the projection a planner reads (`overlay_held`, in place and taken off again), so a chunk is appended to the
+whole text and an interrupted answer keeps its text; the ACP family (`acpRegistry`, Grok, Antigravity) works that way too, and its replays run in
+`turn` mode as the original's harness does. `server.getConfig` and `subscribeServerConfig` carry `directEndpoints` and `remoteOpenTargets` (`environment_endpoints.rs`; the tailnet is
+reached through a trait and never run by the tests) and the environment advertises `storageCleanup`, `projectWorktreeCleanup`,
+`serverResolvedCommandContext` and `pullRequestStackActions` (`pull_request_stack.rs`: GitHub's merge of a stack up to a layer, polled to its end, and the
+cascade rebase in a scratch clone under the temporary directory, pushed layer by layer with a lease on the reviewed head; the heads the reader reviewed
+must still be the stack's, or nothing is sent). Still open on the server: usage-limit sources and the usage scan cache, SSH device
+hosts, `observability.localTracingEnabled` (no trace file is written), the reusable dev credential, the OTLP trace proxy and the provider event
+NDJSON logs, the preview/browser host registry, and the ChatGPT-signed-in Codex flows, Cursor and analytics.
+Responses are compressed as the original's router does (`response_compression.rs`: brotli, gzip or deflate by `Accept-Encoding`, text-like types of
+1024 bytes or more); a body of unknown length is sent as it is.
+Writing a streamed delta costs what the delta is, not what the thread is, except for the stored document itself: a thread is one JSON document
+(`rust_projections`), and the parsed document of the last write is kept in memory (`projection_cache.rs`) so a write and the shell stream parse and
+copy nothing of it, the history a thread shows (`visibleTurnItems`) replaces the row an event wrote instead of being rebuilt, and the shell
+stream reads each thread once for the events that are waiting and sends a shell only when it changed (`skipUnchangedThreadShells`). The document is still
+serialised and handed to SQLite whole on every write; `src/stream_bench.rs` prints what that costs by thread length, and its guard counts the work.
 Device-host settings resolve SSH aliases without connecting, exclude only self
 targets, and preserve proxies, forwarded ports and unresolved entries. Local device
 state and session lifecycle, consent configuration and agent-daemon bootstrap,
@@ -201,7 +212,7 @@ control channel drives the app's own update over that channel (`desktop_app_upda
 updates need the background service. This server has no channel to a service launcher, so it never updates itself through one; the
 runner and release feed `self_update_rpc.rs` hands the update logic refuse everything, so nothing is ever downloaded, installed or
 relaunched. The web app route (`static_route.rs`) serves files with the original's validators (a weak `ETag`, `Last-Modified`, `304`),
-cache policy (assets named in `.vite/manifest.json` are immutable) and status answers; the response compression is not ported. The
+cache policy (assets named in `.vite/manifest.json` are immutable) and status answers. The
 descriptor's label and machine kind come from the machine itself (`environment_host.rs`). `rust/tools/check_rpc_surface.mjs` lists what the
 original exposes (RPC methods, HTTP routes, MCP tools, settings keys, environment capabilities) that this server does not serve, from
 source on both sides; its allowlist (`check_rpc_surface_allowlist.json`) carries a reason for each gap that is known.

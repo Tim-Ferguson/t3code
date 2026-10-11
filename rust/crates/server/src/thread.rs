@@ -914,10 +914,9 @@ fn decoded_instance(thread: &Value) -> String {
 
 pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(), StoreError> {
     let event = &stored.event;
-    let mut projection = projection_after(
-        read_projection(transaction, "thread", &event.aggregate_id)?,
-        event,
-    )?;
+    // Taken from the parsed document of the last write when there is one (`projection_cache`), and put back below.
+    let (current, len) = crate::persistence::take_projection(transaction, "thread", &event.aggregate_id)?.map_or((None, 0), |(projection, len)| (Some(projection), len));
+    let mut projection = projection_after(current, event)?;
     // A fork shows its source's history through the fork point before its own items.
     if matches!(event.event_type.as_str(), "thread.created" | "turn-item.updated" | "run.updated" | "run-attempt.updated") && projection["thread"]["forkedFrom"]["type"] == "run" {
         let source = read_projection(transaction, "thread", projection["thread"]["forkedFrom"]["threadId"].as_str().unwrap_or(""))?;
@@ -936,7 +935,7 @@ pub fn reduce(transaction: &Transaction<'_>, stored: &StoredEvent) -> Result<(),
     {
         transaction.execute("UPDATE rust_effect_outbox SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=?1 WHERE thread_id=?2 AND status IN ('pending','running') AND json_extract(request_json,'$.type')='provider-turn.start' AND json_extract(request_json,'$.runId')=?3",rusqlite::params![event.occurred_at,event.aggregate_id,event.payload["id"].as_str()])?;
     }
-    write_projection(transaction, "thread", &event.aggregate_id, &projection)?;
+    crate::persistence::stage_projection(transaction, "thread", &event.aggregate_id, projection, len)?;
     crate::shared_rows::apply(transaction, event)?;
     // A fork or merge-back is listed by both threads it joins, as the original's projection reads them.
     if matches!(event.event_type.as_str(), "context-transfer.created" | "context-transfer.updated") && matches!(event.payload["type"].as_str(), Some("fork" | "merge_back")) {
@@ -1041,6 +1040,8 @@ pub(crate) fn projection_after(
             run["restartCancelledBackgroundWork"] = event.payload["restartCancelledBackgroundWork"].clone();
         }
     } else if let Some(field) = field {
+        // What the row was before this event, for the history it belongs to (`refresh_visible`).
+        let mut previous: Option<(Value, Value, Value, Value)> = None;
         let rows =
             projection[field]
                 .as_array_mut()
@@ -1051,6 +1052,7 @@ pub(crate) fn projection_after(
                 })?;
         let replaced = if let Some(existing) = rows.iter_mut().find(|row| row["id"] == event.payload["id"]) {
             let before = crate::shell_state::before(field, existing);
+            previous = Some((existing["status"].clone(), existing["type"].clone(), existing["runId"].clone(), existing["inputIntent"].clone()));
             let mut next = event.payload.clone();
             // A stale snapshot must not erase what another event recorded: a run's delegated-completion
             // cohort and the work a restart cancelled, a task's completion delivery, and a provider turn's
@@ -1066,6 +1068,7 @@ pub(crate) fn projection_after(
             rows.push(event.payload.clone());
             None
         };
+        let existed = replaced.is_some();
         crate::shell_state::applied(&mut projection, field, &event.payload, replaced);
         // A provider thread that is not a queued placeholder becomes the thread's own.
         if field == "providerThreads"
@@ -1077,7 +1080,7 @@ pub(crate) fn projection_after(
         if matches!(field, "turnItems" | "runs" | "attempts") {
             // Local histories keep first-write order, less the runs a rollback undid and the queued
             // messages of cancelled runs; a fork's inherited rows are put in front by `reduce`.
-            projection["visibleTurnItems"] = Value::Array(crate::thread_fork::local_visible_rows(&projection));
+            refresh_visible(&mut projection, field, &event.payload, existed, previous);
         }
     } else if event.event_type == "checkpoint.rollback-requested" {
         // A request only: the rollback effect's own events change the projection.
@@ -1095,6 +1098,59 @@ pub(crate) fn projection_after(
     // The projection is read as of its thread's last update.
     projection["updatedAt"] = projection["thread"]["updatedAt"].clone();
     Ok(projection)
+}
+
+/// `visibleTurnItems` after `payload` was written to `field`. The history is rebuilt in full (`local_visible_rows`) only when the
+/// write can change which items belong to it, or the thread shows a fork's inherited items; a streamed update of one item, the
+/// common write, replaces that item's row alone and costs nothing in the length of the thread.
+fn refresh_visible(projection: &mut Value, field: &str, payload: &Value, existed: bool, previous: Option<(Value, Value, Value, Value)>) {
+    let rebuild = |projection: &mut Value| projection["visibleTurnItems"] = Value::Array(crate::thread_fork::local_visible_rows(projection));
+    let hides = |status: &Value| matches!(status.as_str(), Some("rolled_back" | "cancelled"));
+    #[cfg(test)]
+    let legacy = crate::persistence::legacy::on();
+    #[cfg(not(test))]
+    let legacy = false;
+    if legacy || projection["thread"]["forkedFrom"]["type"] == "run" || !projection["visibleTurnItems"].is_array() {
+        return rebuild(projection);
+    }
+    match field {
+        // Only these two statuses hide items; a run that neither was nor becomes one changes nothing in the history.
+        "runs" => {
+            if hides(&payload["status"]) || previous.as_ref().is_some_and(|(status, ..)| hides(status)) {
+                rebuild(projection);
+            }
+        }
+        // Only a superseded attempt hides an interrupt result.
+        "attempts" => {
+            if payload["status"] == "superseded" || previous.as_ref().is_some_and(|(status, ..)| *status == "superseded") {
+                rebuild(projection);
+            }
+        }
+        _ => {
+            // An interrupt result's place depends on the attempts and on whether its run has a request among the items.
+            let interrupt = |kind: &Value| kind == "run_interrupt_result" || kind == "run_interrupt_request";
+            let unchanged_identity = previous.as_ref().is_none_or(|(_, kind, run, intent)| *kind == payload["type"] && *run == payload["runId"] && *intent == payload["inputIntent"]);
+            if interrupt(&payload["type"]) || !unchanged_identity {
+                return rebuild(projection);
+            }
+            let status = payload["runId"].as_str().and_then(|run| projection["runs"].as_array()?.iter().find(|row| row["id"] == run)).and_then(|run| run["status"].as_str());
+            let visible = !(status == Some("rolled_back") || (status == Some("cancelled") && payload["type"] == "user_message" && payload["inputIntent"] == "queued_turn"));
+            let Some(rows) = projection["visibleTurnItems"].as_array_mut() else { return };
+            let place = rows.iter().rposition(|row| row["sourceItemId"] == payload["id"]);
+            match (place, visible, existed) {
+                (Some(at), true, true) => {
+                    rows[at]["item"] = payload.clone();
+                    rows[at]["sourceThreadId"] = payload["threadId"].clone();
+                }
+                (None, false, _) => {}
+                (None, true, false) => {
+                    let position = rows.len();
+                    rows.push(json!({"position":position,"visibility":"local","sourceThreadId":payload["threadId"],"sourceItemId":payload["id"],"item":payload}));
+                }
+                _ => rebuild(projection),
+            }
+        }
+    }
 }
 
 /// The thread shell the original builds from a thread's projection (`threadShellFromProjection`, `selectShellThreadRows`), field for

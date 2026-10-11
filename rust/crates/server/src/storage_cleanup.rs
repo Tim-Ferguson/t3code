@@ -199,7 +199,7 @@ pub struct HostPullRequests {
 #[async_trait]
 impl BranchPullRequests for HostPullRequests {
     async fn latest(&self, cwd: &Path, branch: &str) -> Result<Option<crate::git_workflow_status::BranchPullRequest>, String> {
-        crate::git_workflow_status::branch_pull_request(&self.host, &self.core, &cwd.to_string_lossy(), branch).await
+        crate::git_workflow_status::branch_pull_request(&self.host, &self.core, &cwd.to_string_lossy(), branch, true).await
     }
 }
 
@@ -288,10 +288,11 @@ impl StorageCleanup {
     pub fn for_server(execution: &crate::execution::ExecutionService, state_dir: PathBuf, settings: crate::server_settings::SettingsService) -> Self {
         let core = crate::vcs_service::VcsService::shared().core().clone();
         let host = crate::source_control_host::Host::process_default().with_settings(Some(settings.clone()));
+        let held = crate::cleanup_hold::HeldSettings { inner: ServiceSettings(settings), state_dir: state_dir.clone() };
         Self::new(Options {
             store: execution.store.clone(),
             state_dir,
-            settings: Arc::new(ServiceSettings(settings)),
+            settings: Arc::new(held),
             git: core.clone(),
             pull_requests: Arc::new(HostPullRequests { host, core }),
             clock: execution.providers.idle_release().clock(),
@@ -669,6 +670,11 @@ impl StorageCleanup {
             return keep("the rules changed while deciding");
         }
         git.remove_worktree(&resolve(project_root), worktree, false).await.map_err(|error| error.to_string())?;
+        // The project's status shown to clients lists its worktrees (`gitManager.invalidateStatus`).
+        {
+            use crate::vcs_status::StatusSource as _;
+            crate::vcs_service::VcsService::shared().status().source().invalidate_status(project_root).await;
+        }
         // The branch and path stay: `recreate_missing_worktree` makes the checkout again when the thread resumes.
         tracing::info!(thread = thread["id"].as_str().unwrap_or_default(), "storage cleanup removed worktree");
         Ok(())

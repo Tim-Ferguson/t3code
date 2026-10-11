@@ -315,6 +315,10 @@ pub trait PullRequestProvider: Send + Sync {
     }
 
     fn run_action<'a>(&'a self, subject: &'a Subject, run: &'a RunAction) -> BoxFuture<'a, Read<()>>;
+    /// The same action over the whole stack the change request belongs to, where the host has stacks it can act on.
+    fn run_stack_action<'a>(&'a self, _subject: &'a Subject, _run: &'a RunAction, _stack: &'a crate::pull_request_stack::StackRun) -> BoxFuture<'a, Read<()>> {
+        Box::pin(async { Err(unsupported("stack actions")) })
+    }
     fn update<'a>(&'a self, _subject: &'a Subject, _title: Option<&'a str>, _body: Option<&'a str>) -> BoxFuture<'a, Read<()>> {
         Box::pin(async { Err(unsupported("editing a change request")) })
     }

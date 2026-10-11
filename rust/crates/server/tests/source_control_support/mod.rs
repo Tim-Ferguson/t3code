@@ -314,6 +314,8 @@ pub fn test_host(env: &[(&str, &str)], path: Option<String>, github: Option<GitH
         path,
         clock: clock.clone(),
         github_api: github,
+        git_remote: None,
+        stack_poll_unit: None,
         process: VcsProcess::new(),
     });
     TestHost { host, clock, cwd: cwd.to_path_buf() }

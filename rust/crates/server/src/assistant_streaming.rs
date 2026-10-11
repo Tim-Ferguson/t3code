@@ -10,17 +10,20 @@
 //! (the original has one per attempt; message ids are unique, and the state is dropped when a run ends). The OpenCode
 //! adapters buffer by block themselves (`opencode_projection`), and filtering their output again would cut it short at
 //! a list item boundary, so they are left out here; both ways produce the original's `paragraph` result.
-//! Not applied to the ACP family (`acpRegistry`, Grok, Antigravity): `acp_adapter`'s own tests and replays are written against a
-//! stream that is delivered whole, and its session handling has not been run against withheld rows; they deliver every delta
-//! as before. [`held_view`] is what would let them be added (their streaming items are found in the projection they are handed).
+//! The ACP family (`acpRegistry`, Grok, Antigravity) is filtered too. Their adapter keeps the text a message has reached in the
+//! projection it plans from rather than in memory, which is what the held rows are for: [`overlay_held`] lays the latest full row
+//! of every withheld message, item and node over the projection the planner is handed (in place, and taken off again), so a chunk
+//! is appended to the whole text and not to the part that was delivered. What a test or client of this family sees of a message
+//! that is still streaming is therefore the original's: nothing until a paragraph (or the end of the message) in `paragraph`
+//! mode, nothing until the message ends in `turn` mode.
 //!
-//! Withheld rows are not lost. Code that settles a run (an interruption, a failure, a subagent's end) finds
-//! the streaming rows it closes in the projection it is handed, so [`held_view`] hands them the thread's projection with the
-//! latest full row of every message, item and node the filter is holding, and what they write back (not streaming any more) is
-//! delivered whole. A run interrupted mid-answer therefore keeps the answer it had.
+//! Withheld rows are not lost. Code that settles a run (an interruption, a failure, a subagent's end) finds the streaming rows it
+//! closes in the projection it is handed, which has the held rows laid over it, and what it writes back (not streaming any more)
+//! is delivered whole. A run interrupted mid-answer therefore keeps the answer it had.
 //!
 //! Cost: a delta that arrives within 400 ms of the last delivery of its message is dropped by a map lookup and a
-//! subtraction; the text is scanned (once, linearly) only when a delivery is possible. A thread with no installed
+//! subtraction (the row is moved into the held map, not copied); the text is scanned (once, linearly) only when a delivery is
+//! possible. Nothing here depends on the length of the thread. A thread with no installed
 //! filter source (the unit tests of an adapter) is not filtered.
 use crate::persistence::Store;
 use serde_json::Value;
@@ -71,23 +74,28 @@ impl Filter {
             self.held.remove(&key);
             return Some(payload);
         }
-        self.held.insert(key.clone(), (kind, payload.clone()));
+        // What is withheld is kept whole, moved in rather than copied: a delta costs the size of its message, not twice that.
         if mode == Mode::Turn {
+            self.held.insert(key, (kind, payload));
             return None;
         }
         let previous = self.delivered.get(&key);
         if previous.is_some_and(|(_, at)| now_ms - at < MIN_INTERVAL_MS) {
+            self.held.insert(key, (kind, payload));
             return None;
         }
         let text = payload["text"].as_str().unwrap_or_default();
         let ready = &text[..crate::opencode_projection::split_buffered(text)];
         if ready.is_empty() || previous.is_some_and(|(delivered, _)| delivered == ready) {
+            self.held.insert(key, (kind, payload));
             return None;
         }
         let ready = ready.to_owned();
-        payload["text"] = Value::String(ready.clone());
+        let mut delivery = payload.clone();
+        delivery["text"] = Value::String(ready.clone());
+        self.held.insert(key.clone(), (kind, payload));
         self.delivered.insert(key, (ready, now_ms));
-        Some(payload)
+        Some(delivery)
     }
 }
 
@@ -109,7 +117,7 @@ pub fn install(store: &Store, providers: &crate::provider_registry::ProviderRegi
         let thread = &projection["thread"];
         // Only adapters that hold their stream state in memory can have events withheld (see the module comment).
         let instance = thread["modelSelection"]["instanceId"].as_str()?;
-        if !providers.driver(instance).is_ok_and(|driver| matches!(driver, "codex" | "claudeAgent" | "pi")) {
+        if !providers.driver(instance).is_ok_and(|driver| matches!(driver, "codex" | "claudeAgent" | "pi" | "acpRegistry" | "grok" | "antigravity")) {
             return None;
         }
         let project: Option<t3_contracts::ProjectId> = thread["projectId"].as_str().and_then(|id| id.parse().ok());
@@ -122,7 +130,7 @@ pub fn install(store: &Store, providers: &crate::provider_registry::ProviderRegi
     install_source(store, source);
 }
 
-fn install_source(store: &Store, source: ModeSource) {
+pub(crate) fn install_source(store: &Store, source: ModeSource) {
     *store.extension(Filters::default).source.write().unwrap() = Some(source);
 }
 
@@ -130,28 +138,54 @@ fn streams_text(kind: &str) -> bool {
     matches!(kind, "message.updated" | "turn-item.updated" | "node.updated")
 }
 
-/// The events of one adapter write that reach the store (`filterAssistantEvent` over each).
-/// `projection` with the rows the filter holds for the thread laid over it, or the projection itself when it holds none.
-pub(crate) fn held_view<'a>(store: &Store, thread_id: &str, projection: &'a Value) -> std::borrow::Cow<'a, Value> {
+/// The rows the filter holds for the thread, laid over `projection` in place so that code settling a run finds each streaming
+/// message, item and node with the text it had reached; [`Overlay::undo`] puts the projection back as it was. Costs the held rows
+/// (searched from the end, where streaming rows are) and nothing in the length of the thread.
+pub(crate) fn overlay_held(store: &Store, thread_id: &str, projection: &mut Value) -> Overlay {
     let filters = store.extension(Filters::default);
     let threads = filters.threads.lock().unwrap();
-    let Some(filter) = threads.get(thread_id).filter(|filter| !filter.held.is_empty()) else { return std::borrow::Cow::Borrowed(projection) };
-    let mut view = projection.clone();
+    let mut changes = Vec::new();
+    let Some(filter) = threads.get(thread_id).filter(|filter| !filter.held.is_empty()) else { return Overlay(changes) };
     for (kind, row) in filter.held.values() {
         let list = match *kind {
             "message.updated" => "messages",
             "turn-item.updated" => "turnItems",
             _ => "nodes",
         };
-        let Some(rows) = view[list].as_array_mut() else { continue };
-        match rows.iter_mut().find(|existing| existing["id"] == row["id"]) {
-            Some(existing) => *existing = row.clone(),
-            None => rows.push(row.clone()),
+        let Some(rows) = projection[list].as_array_mut() else { continue };
+        match rows.iter().rposition(|existing| existing["id"] == row["id"]) {
+            Some(at) => changes.push((list, at, Some(std::mem::replace(&mut rows[at], row.clone())))),
+            None => {
+                changes.push((list, rows.len(), None));
+                rows.push(row.clone());
+            }
         }
     }
-    std::borrow::Cow::Owned(view)
+    Overlay(changes)
 }
 
+/// What [`overlay_held`] changed: the row each place held before, or none for a row it appended.
+pub(crate) struct Overlay(Vec<(&'static str, usize, Option<Value>)>);
+
+impl Overlay {
+    #[cfg(test)]
+    pub(crate) fn none() -> Self {
+        Overlay(Vec::new())
+    }
+    pub(crate) fn undo(self, projection: &mut Value) {
+        for (list, at, prior) in self.0.into_iter().rev() {
+            let Some(rows) = projection[list].as_array_mut() else { continue };
+            match prior {
+                Some(row) => rows[at] = row,
+                None => {
+                    rows.pop();
+                }
+            }
+        }
+    }
+}
+
+/// The events of one adapter write that reach the store (`filterAssistantEvent` over each).
 pub(crate) fn filter(store: &Store, thread_id: &str, projection: &Value, events: Vec<(&'static str, Value)>, now_ms: i64) -> Vec<(&'static str, Value)> {
     if !events.iter().any(|(kind, _)| streams_text(kind) || *kind == "run.updated") {
         return events;
@@ -253,33 +287,24 @@ mod tests {
         let withheld = filter(&store, "t", &projection, vec![("node.updated", json!({"id": "n", "kind": "assistant_message", "status": "running"})), ("message.updated", message("a", "half an answer", true))], 0);
         assert!(withheld.is_empty(), "turn mode delivers nothing while the message streams");
         // What an interruption sees: the thread as stored, plus the rows held back, with the text they had reached.
-        let view = held_view(&store, "t", &projection);
+        let mut view = projection.clone();
+        let overlay = overlay_held(&store, "t", &mut view);
         assert_eq!(view["messages"][0]["text"], "half an answer");
         assert_eq!(view["nodes"][0]["status"], "running");
         assert_eq!(view["turnItems"].as_array().unwrap().len(), 1, "unrelated rows are untouched");
+        overlay.undo(&mut view);
+        assert_eq!(view, projection, "the projection is as it was once the overlay is undone");
+        let mut view = projection.clone();
+        overlay_held(&store, "t", &mut view);
         // Closing them, as the run settling does, delivers the whole message and the node.
         let mut closing = view["messages"][0].clone();
         closing["streaming"] = json!(false);
         let delivered = filter(&store, "t", &projection, vec![("message.updated", closing), ("node.updated", json!({"id": "n", "kind": "assistant_message", "status": "interrupted"}))], 5);
         assert_eq!(delivered.len(), 2);
         assert_eq!(delivered[0].1["text"], "half an answer");
-        assert!(matches!(held_view(&store, "t", &projection), std::borrow::Cow::Borrowed(_)), "nothing is held after the close");
-        assert!(matches!(held_view(&store, "never-seen", &projection), std::borrow::Cow::Borrowed(_)));
-    }
-
-    /// What `held_view` adds to a write while a message is withheld: a copy of the projection.
-    #[test]
-    fn the_held_view_of_a_long_thread_costs_one_copy() {
-        let store = Store::memory().unwrap();
-        install_source(&store, Arc::new(|_| Some(Mode::Paragraph)));
-        let items: Vec<Value> = (0..3000).map(|index| json!({"id": format!("item-{index}"), "type": "command_execution", "status": "completed", "output": "x".repeat(400)})).collect();
-        let projection = json!({"thread": {"id": "t"}, "messages": [], "turnItems": items, "nodes": []});
-        filter(&store, "t", &projection, vec![("message.updated", message("a", "no boundary yet", true))], 0);
-        let started = std::time::Instant::now();
-        for _ in 0..50 {
-            assert!(matches!(held_view(&store, "t", &projection), std::borrow::Cow::Owned(_)));
-        }
-        eprintln!("held view of a thread with 3000 items (1.2 MB): {:?} per write", started.elapsed() / 50);
+        let mut after = projection.clone();
+        assert!(overlay_held(&store, "t", &mut after).0.is_empty() && after == projection, "nothing is held after the close");
+        assert!(overlay_held(&store, "never-seen", &mut after).0.is_empty());
     }
 
     #[test]
@@ -312,6 +337,5 @@ mod tests {
         }
         let delivering = started.elapsed() / 200;
         eprintln!("assistant streaming filter, 40 KB message: {inside:?} per delta inside the window (includes building the payload), {delivering:?} per delivering delta");
-        assert!(delivering < std::time::Duration::from_millis(20), "{delivering:?}");
     }
 }

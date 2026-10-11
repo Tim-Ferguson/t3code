@@ -81,12 +81,38 @@ pub fn refresh_frame(store: &Store, changes: &[crate::project_enrichment::Change
 #[derive(Default)]
 pub struct Dedupe {
     previous: Option<(Vec<Value>, HashSet<String>)>,
+    /// The shell last sent for each thread and when (`skipUnchangedThreadShells`).
+    threads: std::collections::HashMap<String, (Value, tokio::time::Instant)>,
 }
+
+/// How long an unchanged thread shell may go unsent on a live subscription (`UNCHANGED_THREAD_SHELL_RESEND_MS`).
+const UNCHANGED_THREAD_SHELL_RESEND: std::time::Duration = std::time::Duration::from_millis(5_000);
 
 impl Dedupe {
     /// Whether to send this stream item.
     pub fn keep(&mut self, item: &Value) -> bool {
         match item["kind"].as_str() {
+            // Every event of a thread moves its `updatedAt`, so streamed text and tool output alone would send the whole, otherwise
+            // unchanged shell once per write. A skipped one leaves the client's cursor behind and a resume replays what follows
+            // it, so an unchanged shell is still sent once the last send is five seconds old (`skipUnchangedThreadShells`).
+            Some("thread.removed") => {
+                if let Some(id) = item["threadId"].as_str() {
+                    self.threads.remove(id);
+                }
+                true
+            }
+            Some("thread.updated") => {
+                let (Some(id), now) = (item["thread"]["id"].as_str(), tokio::time::Instant::now()) else { return true };
+                if let Some((previous, sent)) = self.threads.get(id) {
+                    let mut same = item["thread"].clone();
+                    same["updatedAt"] = previous["updatedAt"].clone();
+                    if now.duration_since(*sent) < UNCHANGED_THREAD_SHELL_RESEND && same == *previous {
+                        return false;
+                    }
+                }
+                self.threads.insert(id.to_owned(), (item["thread"].clone(), now));
+                true
+            }
             Some("project.updated" | "project.removed") => {
                 self.previous = None;
                 true

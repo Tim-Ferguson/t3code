@@ -124,6 +124,10 @@ fn legacy_projection_after(
 
 
 fn events() -> Vec<Event> {
+    events_of(40)
+}
+
+fn events_of(copies: usize) -> Vec<Event> {
     let directory = tempfile::tempdir().unwrap();
     let userdata = directory.path().join("userdata");
     std::fs::create_dir_all(&userdata).unwrap();
@@ -135,7 +139,7 @@ fn events() -> Vec<Event> {
     let rows = read_rows(&source, 0, 1_000_000).unwrap();
     let originals: Vec<Event> = rows.iter().filter(|row| row.aggregate_kind == "thread").map(|row| decode(row).unwrap()).collect();
     let mut out = Vec::new();
-    for copy in 0..40 {
+    for copy in 0..copies {
         for event in &originals {
             // A copy is its own thread: the thread's id, wherever the event names it, takes a suffix.
             let text = serde_json::to_string(event).unwrap().replace(&event.aggregate_id, &format!("{}~{copy}", event.aggregate_id));
@@ -185,4 +189,21 @@ fn reducer_throughput_on_a_synthetic_source() {
     }
     let seconds = started.elapsed().as_secs_f64();
     eprintln!("importer projector over a store, {count} events: {:.0} events/s ({seconds:.2}s)", count as f64 / seconds);
+}
+
+/// The history a thread shows (`visibleTurnItems`) is kept by replacing the one row an event writes (`thread::refresh_visible`);
+/// after every event of every thread of the import fixture it equals the history rebuilt from scratch.
+#[test]
+fn the_incrementally_kept_history_equals_the_rebuilt_one_after_every_event() {
+    let events = events_of(1);
+    let mut projections: HashMap<String, Value> = HashMap::new();
+    let (mut checked, mut kept) = (0, 0);
+    for event in &events {
+        let Ok(next) = crate::thread::projection_after(projections.remove(&event.aggregate_id), event) else { continue };
+        assert_eq!(next["visibleTurnItems"], Value::Array(crate::thread_fork::local_visible_rows(&next)), "after {} {}", event.event_type, event.event_id);
+        checked += 1;
+        kept += next["visibleTurnItems"].as_array().map_or(0, Vec::len);
+        projections.insert(event.aggregate_id.clone(), next);
+    }
+    assert!(checked > 200 && kept > 0, "{checked} events checked, {kept} rows kept");
 }

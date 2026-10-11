@@ -181,7 +181,7 @@ fn background_command(call: &str, task: &str) -> Vec<Value> {
 async fn an_approval_offers_its_choices_a_stop_ends_the_turn_and_the_next_one_reloads_the_session() {
     let script = json!({"prompts":[
         [text("Running it."), permission(), text("Done."), {"end":"end_turn"}],
-        [text("Working slowly."), {"hang":true}],
+        [text("Working slowly.\n\n"), {"hang":true}],
         [text("Back again."), {"end":"end_turn"}]]});
     let mut flow = Flow::start(script, "approval-required").await;
     let mut stream = Stream::open(&flow.served, "orchestration.subscribeThread", json!({"threadId":flow.thread})).await;
@@ -203,7 +203,8 @@ async fn an_approval_offers_its_choices_a_stop_ends_the_turn_and_the_next_one_re
 
     // A turn the user stops. The process goes with it, so the saved session is loaded by the next one.
     assert_eq!(flow.send("Take your time").await, 2);
-    flow.until("the slow turn to start", |view| view["turnItems"].as_array()?.iter().any(|item| item["text"] == "Working slowly.").then_some(())).await;
+    // A paragraph ends the text, so `responseStreamingMode` lets it through while the turn hangs.
+    flow.until("the slow turn to start", |view| view["turnItems"].as_array()?.iter().any(|item| item["text"] == "Working slowly.\n\n").then_some(())).await;
     let run = flow.view()["runs"][1]["id"].clone();
     flow.dispatch(json!({"type":"run.interrupt","commandId":"stop","threadId":flow.thread,"runId":run})).await;
     flow.run_status(2, "interrupted").await;

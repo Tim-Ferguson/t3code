@@ -44,7 +44,9 @@ impl Harness {
         }
         let agent = install_fake_agent(&cwd);
         let environment = vec![json!({"name":"ANTIGRAVITY_FIXTURE_TRANSCRIPT","value":path}), json!({"name":"ANTIGRAVITY_FIXTURE_STATUS","value":status}), json!({"name":"ANTIGRAVITY_FIXTURE_WORKSPACE","value":workspace})];
-        let settings = settings(&cwd, &agent, json!({}), environment);
+        // The original's replay harness runs in `turn` mode.
+        let mut settings = settings(&cwd, &agent, json!({}), environment);
+        settings.response_streaming_mode = t3_contracts::ResponseStreamingMode::Turn;
         let (providers, _) = registry(&settings, &cwd, &workspace).await;
         let store = Store::open(cwd.join("rust-state.sqlite")).unwrap();
         ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Fixture","workspaceRoot":workspace}), Utc::now()).unwrap();

@@ -285,6 +285,10 @@ impl PullRequestProvider for GitHubProvider {
         Box::pin(async move { self.gh.run_action(&target(subject), run).await })
     }
 
+    fn run_stack_action<'a>(&'a self, subject: &'a Subject, run: &'a RunAction, stack: &'a crate::pull_request_stack::StackRun) -> BoxFuture<'a, Read<()>> {
+        Box::pin(async move { self.gh.run_stack_action(&target(subject), run, stack).await })
+    }
+
     fn update<'a>(&'a self, subject: &'a Subject, title: Option<&'a str>, body: Option<&'a str>) -> BoxFuture<'a, Read<()>> {
         Box::pin(async move { self.gh.update_pull_request(&target(subject), title, body).await })
     }

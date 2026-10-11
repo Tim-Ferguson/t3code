@@ -10,9 +10,8 @@
 //! - the service methods, which run a gated write as an interactive caller and then strand what
 //!   is held for the pull request.
 //!
-//! Not ported: native stack actions (`stackNumber`). The capabilities this server states leave
-//! `stackActions` out, so the gate refuses them with the original's own sentence for a host that
-//! cannot.
+//! Native stack actions (`stackNumber`) are GitHub's alone (`pull_request_stack.rs`); the capabilities of every other host leave
+//! `stackActions` out, so the gate refuses them with the original's own sentence.
 use crate::{
     pull_request_decode::{Decoded, DecodeFailure, trimmed},
     pull_request_github::{self as github, GitHub, PrFailure, Read, Reason, Target},
@@ -981,20 +980,23 @@ impl PullRequestService {
         let provider = self.provider_of(env, &resolved)?;
         let capabilities = provider.capabilities();
         Box::pin(authorize_action(input, &capabilities, self.fetcher(env, &resolved, "runAction"))).await?;
-        // The gates above stop a stack; nothing past them knows how to run one.
-        if input.stack_number.is_some() {
-            return Err(PrError::operation("runAction", "This stack action is not supported or has no expected head revision."));
-        }
         let settings = env.host.settings().await;
         let run = RunAction {
             action: input.action,
             merge_method: input.merge_method,
             update_method: input.update_method,
             remove_agent_credits: resolved.project.kind == SourceControlProviderKind::Github
-                && removes_agent_credits(settings.as_ref(), &input.reference.project_id, input.action, false),
+                && removes_agent_credits(settings.as_ref(), &input.reference.project_id, input.action, input.stack_number.is_some()),
         };
         let kind = resolved.project.kind;
-        let result = api::with_allow_reserve(Box::pin(provider.run_action(&resolved.subject(), &run))).await;
+        // A stack action is the host's own scope of the action, with the heads the reader reviewed (the gates above saw them).
+        let result = match input.stack_number {
+            Some(stack_number) => {
+                let stack = crate::pull_request_stack::StackRun { stack_number, expected_heads: input.expected_stack_heads.clone() };
+                api::with_allow_reserve(Box::pin(provider.run_stack_action(&resolved.subject(), &run, &stack))).await
+            }
+            None => api::with_allow_reserve(Box::pin(provider.run_action(&resolved.subject(), &run))).await,
+        };
         if let Err(failure) = result {
             // Once the action has started a failure may leave partial remote updates, so what is
             // held for the pull request is dropped on this path too.

@@ -182,3 +182,35 @@ async fn a_server_with_a_dev_url_hands_loopback_requests_to_it() {
     }
     assert!(static_route::is_dev_proxied_path("/api") && !static_route::is_dev_proxied_path("/apis"));
 }
+
+#[tokio::test]
+async fn files_are_compressed_as_the_originals_router_does() {
+    use std::io::Read;
+    let base = tempfile::Builder::new().prefix("t3code-rust-port-test-static-").tempdir().unwrap();
+    let root = bundle(base.path());
+    let script = "export const row = 'the same row again';\n".repeat(200);
+    std::fs::write(root.join("assets/big-abcd1234.js"), &script).unwrap();
+    let state = make_state(base.path(), Some(&root), None);
+
+    // A large script goes out compressed for a browser that asks, with a weak validator and a vary header.
+    let plain = ask(&state, Method::GET, "/assets/big-abcd1234.js", &[]).await;
+    assert_eq!((header_of(&plain, "content-encoding"), header_of(&plain, "vary")), (None, Some("Accept-Encoding")));
+    assert_eq!(plain.body, script.as_bytes());
+    let gzip = ask(&state, Method::GET, "/assets/big-abcd1234.js", &[("accept-encoding", "gzip")]).await;
+    assert_eq!((header_of(&gzip, "content-encoding"), header_of(&gzip, "vary")), (Some("gzip"), Some("Accept-Encoding")));
+    assert!(header_of(&gzip, "etag").unwrap().starts_with("W/"));
+    let mut decoded = String::new();
+    flate2::read::GzDecoder::new(&gzip.body[..]).read_to_string(&mut decoded).unwrap();
+    assert_eq!(decoded, script);
+    assert_eq!(header_of(&gzip, "content-length").unwrap().parse::<usize>().unwrap(), gzip.body.len());
+    let brotli = ask(&state, Method::GET, "/assets/big-abcd1234.js", &[("accept-encoding", "gzip, deflate, br")]).await;
+    assert_eq!(header_of(&brotli, "content-encoding"), Some("br"));
+    let mut decoded = String::new();
+    brotli::Decompressor::new(&brotli.body[..], 4096).read_to_string(&mut decoded).unwrap();
+    assert_eq!(decoded, script);
+    // A small file, a binary one and a not-modified answer are as they were.
+    for (path, extra) in [("/assets/other-abcd1234.js", &[("accept-encoding", "gzip")][..]), ("/assets/app.wasm", &[("accept-encoding", "gzip")][..])] {
+        let answer = ask(&state, Method::GET, path, extra).await;
+        assert_eq!(header_of(&answer, "content-encoding"), None, "{path}");
+    }
+}

@@ -412,8 +412,10 @@ async fn without_public_configuration_the_server_asks_nobody_for_anything() {
     assert!(server.spawner.count() == 0);
     let (status, state) = get(&server, "/api/connect/link-state", Some(&server.reader)).await;
     assert_eq!((status, state["linked"].as_bool()), (200, Some(false)));
-    let status = server.connect.services.status().borrow().clone();
-    assert_eq!(format!("{:?}", status.phase), "Unlinked");
+    // Startup passes through `Linking` on its own task, so the settled phase is waited for, not read at once.
+    let mut status = server.connect.services.status();
+    let settled = within(status.wait_for(|status| format!("{:?}", status.phase) != "Linking")).await.unwrap().clone();
+    assert_eq!(format!("{:?}", settled.phase), "Unlinked");
     let server = server.finish().await;
     assert!(server.relay.recorded().is_empty());
     assert_eq!(server.spawner.count(), 0);

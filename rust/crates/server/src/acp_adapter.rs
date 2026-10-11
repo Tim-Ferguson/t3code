@@ -222,7 +222,7 @@ mod tests {
                 .dispatch(&message(&thread, "held-run", "hold"), Utc::now())
                 .unwrap();
             milestone(&store, &mut events, &thread, |view| {
-                assistant_text(view, &view["runs"][0]["id"]) == "waiting"
+                assistant_text(view, &view["runs"][0]["id"]).trim_end() == "waiting"
             })
             .await;
             let mut buffer = [0; 512];
@@ -397,7 +397,7 @@ mod tests {
             .unwrap();
         let held = milestone(&store, &mut events, &thread, |view| {
             view["runs"].as_array().unwrap().len() == 3
-                && assistant_text(view, &view["runs"][2]["id"]) == "waiting"
+                && assistant_text(view, &view["runs"][2]["id"]).trim_end() == "waiting"
         })
         .await;
         execution.dispatch(&json!({"type":"run.interrupt","commandId":"interrupt","threadId":thread,"runId":held["runs"][2]["id"]}),Utc::now()).unwrap();

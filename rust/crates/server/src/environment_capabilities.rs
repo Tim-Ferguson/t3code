@@ -77,6 +77,7 @@ fn base() -> Value {
         // the active run), a `titleSeed` on the first message, `thread.model-selection.set` for any provider, and
         // `checkpoint.rollback` by scope and checkpoint id.
         "serverResolvedCommandContext": true,
+        "pullRequestStackActions": true,
         "projectWorktreeCleanup": true,
     })
 }
@@ -105,17 +106,17 @@ mod tests {
     }
 
     /// Held back because their feature is not (fully) ported: the
-    /// quota streamed from usage-limit sources, native stack actions on a pull request,
+    /// quota streamed from usage-limit sources,
     /// the browser, and the self-update entries.
     #[test]
     fn the_advertised_capabilities_are_valid_and_leave_out_what_is_not_ported() {
         let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":advertised()});
         let decoded: t3_contracts::ExecutionEnvironmentDescriptor = serde_json::from_value(descriptor.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap()["capabilities"], descriptor["capabilities"]);
-        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases", "repositoryIdentity", "storageCleanup", "projectWorktreeCleanup", "serverResolvedCommandContext"] {
+        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases", "repositoryIdentity", "storageCleanup", "projectWorktreeCleanup", "serverResolvedCommandContext", "pullRequestStackActions"] {
             assert_eq!(advertised()[ported], true, "{ported}");
         }
-        for held_back in ["usageLimitSources", "pullRequestStackActions", "serverBrowser"] {
+        for held_back in ["usageLimitSources", "serverBrowser"] {
             assert!(advertised().get(held_back).is_none(), "{held_back}");
         }
     }

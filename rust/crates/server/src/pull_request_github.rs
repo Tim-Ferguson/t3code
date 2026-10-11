@@ -130,7 +130,7 @@ pub fn capabilities() -> PullRequestCapabilities {
         reviewers: PullRequestReviewerCapabilities { request: true, list_candidates: true },
         edit: Some(PullRequestEditCapabilities { change_request: true, comment: true }),
         stacks: Some(true),
-        stack_actions: None,
+        stack_actions: Some(true),
         labels: Some(true),
     }
 }

@@ -6,6 +6,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
+use crate::projection_cache as cache;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -26,6 +27,54 @@ pub enum StoreError {
         id: String,
         detail: String,
     },
+}
+
+/// Counts of the work a write does, read by the tests that guard the cost of a streaming turn (`stream_bench.rs`). The counters
+/// belong to the calling thread, so a test sees only its own work; they exist only in test builds.
+/// Puts back the per-write work this store did before the parsed-projection cache, the in-place held rows and the incremental
+/// history, so the benchmark (`stream_bench.rs`) can print both columns from one binary. Tests only; a build of the server
+/// has none of it.
+#[cfg(test)]
+pub(crate) mod legacy {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static ON: AtomicBool = AtomicBool::new(false);
+    pub(crate) fn set(on: bool) {
+        ON.store(on, Ordering::SeqCst);
+    }
+    pub(crate) fn on() -> bool {
+        ON.load(Ordering::SeqCst)
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod work {
+    use std::cell::Cell;
+    #[derive(Debug, Default, Clone, Copy)]
+    pub(crate) struct Work {
+        /// Projection documents read from the database and parsed, and the bytes parsed.
+        pub projection_reads: u64,
+        pub projection_read_bytes: u64,
+        /// Projection documents serialised and stored, and the bytes stored.
+        pub projection_writes: u64,
+        pub projection_write_bytes: u64,
+        /// Bytes of event JSON stored.
+        pub event_bytes: u64,
+        /// Copies made of a whole projection, and of rows of one (a copy of a list of N rows counts N).
+        pub projection_clones: u64,
+        pub rows_cloned: u64,
+    }
+    thread_local!(static WORK: Cell<Work> = const { Cell::new(Work { projection_reads: 0, projection_read_bytes: 0, projection_writes: 0, projection_write_bytes: 0, event_bytes: 0, projection_clones: 0, rows_cloned: 0 }) });
+    pub(crate) fn add(change: impl FnOnce(&mut Work)) {
+        WORK.with(|cell| {
+            let mut work = cell.get();
+            change(&mut work);
+            cell.set(work);
+        });
+    }
+    /// The work so far on this thread, which is then reset.
+    pub(crate) fn take() -> Work {
+        WORK.with(|cell| cell.replace(Work::default()))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -101,6 +150,8 @@ pub struct Store {
     runtime_owned: Arc<std::sync::atomic::AtomicBool>,
     /// Services that belong to this store and are made on first use (`extension`).
     extensions: Arc<Mutex<std::collections::HashMap<std::any::TypeId, Arc<dyn std::any::Any + Send + Sync>>>>,
+    /// Parsed thread projections kept between writes (see [`cache`]).
+    projections: Arc<Mutex<cache::ProjectionCache>>,
 }
 pub struct RuntimeLease {
     file: Option<std::fs::File>,
@@ -217,6 +268,7 @@ impl Store {
               created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_error TEXT);
             CREATE INDEX IF NOT EXISTS rust_effect_claim ON rust_effect_outbox(status,available_at);")?;
         crate::shared_rows::ensure(&connection)?;
+        let cache = cache::ProjectionCache::watching(&connection);
         let (committed, _) = tokio::sync::broadcast::channel(256);
         Ok(Self {
             connection: Arc::new(Mutex::new(connection)),
@@ -224,6 +276,7 @@ impl Store {
             database_path,
             runtime_owned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             extensions: Arc::default(),
+            projections: Arc::new(Mutex::new(cache)),
         })
     }
     /// Other connections may read/issue pairing credentials while one execution
@@ -286,6 +339,35 @@ impl Store {
         read_projection(&connection, kind, id)
     }
 
+    /// `read` on the projection of `kind`/`id` without copying it: the parsed document of the last write when there is one.
+    /// Answers `None` when there is no such projection. A subscriber that builds a thread's shell for each event reads here.
+    pub(crate) fn with_projection<R>(&self, kind: &str, id: &str, read: impl FnOnce(&Value) -> R) -> Result<Option<R>, StoreError> {
+        let connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
+        let mut cache = self.projections.lock().map_err(|_| StoreError::Poisoned)?;
+        let key = (kind.to_owned(), id.to_owned());
+        cache.get(
+            &connection,
+            &key,
+            || {
+                let json = connection
+                    .query_row("SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 AND aggregate_id=?2", params![kind, id], |row| row.get::<_, String>(0))
+                    .optional()?;
+                match json {
+                    None => Ok(None),
+                    Some(json) => {
+                        #[cfg(test)]
+                        work::add(|work| {
+                            work.projection_reads += 1;
+                            work.projection_read_bytes += json.len() as u64;
+                        });
+                        Ok(Some((serde_json::from_str(&json)?, json.len())))
+                    }
+                }
+            },
+            read,
+        )
+    }
+
     pub fn projections(&self, kind: &str) -> Result<Vec<Value>, StoreError> {
         let connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
         read_projections(&connection, kind)
@@ -337,6 +419,24 @@ impl Store {
         reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
     ) -> Result<(Receipt, bool), StoreError> {
         let mut connection = self.connection.lock().map_err(|_| StoreError::Poisoned)?;
+        let stage = cache::Stage::begin(&self.projections, &connection);
+        let result = Self::dispatch_locked(&self.committed, &mut connection, command_id, kind, command_type, now, resolve, decide, reduce);
+        // Still under the command lock: a reader of the cache cannot see the thread before this write is in it.
+        stage.finish(result.is_ok());
+        result
+    }
+
+    fn dispatch_locked(
+        committed: &tokio::sync::broadcast::Sender<Vec<StoredEvent>>,
+        connection: &mut Connection,
+        command_id: &str,
+        kind: &str,
+        command_type: &str,
+        now: DateTime<Utc>,
+        resolve: impl FnOnce(&Transaction<'_>, Option<&Receipt>) -> Result<String, StoreError>,
+        decide: impl FnOnce(&Transaction<'_>, &str) -> Result<Decision, StoreError>,
+        reduce: impl Fn(&Transaction<'_>, &StoredEvent) -> Result<(), StoreError>,
+    ) -> Result<(Receipt, bool), StoreError> {
         let transaction =
             connection.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let existing = read_receipt(&transaction, command_id)?;
@@ -383,8 +483,11 @@ impl Store {
             }
         }
         for event in events {
+            let event_json = serde_json::to_string(&event)?;
+            #[cfg(test)]
+            work::add(|work| work.event_bytes += event_json.len() as u64);
             transaction.execute("INSERT INTO rust_application_events(event_id,aggregate_kind,aggregate_id,command_id,event_type,occurred_at,event_json) VALUES(?1,?2,?3,?4,?5,?6,?7)",
-                        params![event.event_id,event.aggregate_kind,event.aggregate_id,event.command_id,event.event_type,event.occurred_at,serde_json::to_string(&event)?])?;
+                        params![event.event_id,event.aggregate_kind,event.aggregate_id,event.command_id,event.event_type,event.occurred_at,event_json])?;
             let event = StoredEvent {
                 sequence: transaction.last_insert_rowid() as u64,
                 event,
@@ -392,6 +495,7 @@ impl Store {
             reduce(&transaction, &event)?;
             stored.push(event);
         }
+        write_pending_projections(&transaction)?;
         for effect in effects {
             transaction.execute("INSERT OR IGNORE INTO rust_effect_outbox(id,command_id,thread_id,request_json,status,available_at,created_at,updated_at) VALUES(?1,?2,?3,?4,'pending',?5,?6,?6)",
                         params![effect.id,effect.command_id,effect.thread_id,serde_json::to_string(&effect.request)?,effect.available_at,now.to_rfc3339()])?;
@@ -449,7 +553,7 @@ impl Store {
         transaction.commit()?;
         // Publication must remain inside the command lock to preserve commit ordering.
         if !stored.is_empty() {
-            let _ = self.committed.send(stored);
+            let _ = committed.send(stored);
         }
         Ok((receipt, false))
     }
@@ -620,6 +724,7 @@ pub fn read_projection(
     kind: &str,
     id: &str,
 ) -> Result<Option<Value>, StoreError> {
+    write_pending_projections(connection)?;
     connection
         .query_row(
             "SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 AND aggregate_id=?2",
@@ -627,17 +732,96 @@ pub fn read_projection(
             |row| row.get::<_, String>(0),
         )
         .optional()?
-        .map(|json| serde_json::from_str(&json))
+        .map(|json| {
+            #[cfg(test)]
+            work::add(|work| {
+                work.projection_reads += 1;
+                work.projection_read_bytes += json.len() as u64;
+            });
+            serde_json::from_str(&json)
+        })
         .transpose()
         .map_err(Into::into)
 }
 
 pub fn read_projections(connection: &Connection, kind: &str) -> Result<Vec<Value>, StoreError> {
+    write_pending_projections(connection)?;
     let mut statement = connection.prepare("SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 ORDER BY json_extract(state_json,'$.createdAt'),aggregate_id")?;
     statement
         .query_map([kind], |row| row.get::<_, String>(0))?
         .map(|row| Ok(serde_json::from_str(&row?)?))
         .collect()
+}
+
+/// The projection of a thread for a write that is about to replace it: parsed, with the size of its stored JSON. Inside a
+/// command (`Store::dispatch`) the parsed document of the last write is reused, so a write costs no parse of the thread; the
+/// caller gives it back with [`stage_projection`] (changed) or [`restore_projection`] (not). Anywhere else it is read from the
+/// database.
+pub(crate) fn take_projection(connection: &Connection, kind: &str, id: &str) -> Result<Option<(Value, usize)>, StoreError> {
+    if let Some(taken) = cache::take(kind, id) {
+        return Ok(Some(taken));
+    }
+    let Some(json) = connection
+        .query_row(
+            "SELECT state_json FROM rust_projections WHERE aggregate_kind=?1 AND aggregate_id=?2",
+            params![kind, id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    #[cfg(test)]
+    work::add(|work| {
+        work.projection_reads += 1;
+        work.projection_read_bytes += json.len() as u64;
+    });
+    Ok(Some((serde_json::from_str(&json)?, json.len())))
+}
+
+/// Stores `state` as the projection, and keeps the parsed document for the next write when the command commits. Inside a command
+/// the database write waits until the command's events are all reduced (`write_pending_projections`), so a thread that several
+/// events change is serialised and written once.
+pub(crate) fn stage_projection(transaction: &Transaction<'_>, kind: &str, id: &str, state: Value, previous_len: usize) -> Result<(), StoreError> {
+    let state = if cache::in_command() {
+        // The size is not known before it is serialised, which waits; the document's last size says whether it is kept.
+        match cache::stage_changed(kind, id, state, previous_len) {
+            Ok(()) => return Ok(()),
+            Err(state) => state,
+        }
+    } else {
+        state
+    };
+    let json = serde_json::to_string(&state)?;
+    #[cfg(test)]
+    work::add(|work| {
+        work.projection_writes += 1;
+        work.projection_write_bytes += json.len() as u64;
+    });
+    cache::own_write(|| transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json", params![kind, id, json]))?;
+    cache::stage(kind, id, state, json.len());
+    Ok(())
+}
+
+/// Writes the documents the command changed, once each, after its last event was reduced and before it commits.
+fn write_pending_projections(transaction: &Connection) -> Result<(), StoreError> {
+    if !cache::has_pending() {
+        return Ok(());
+    }
+    for ((kind, id), json) in cache::pending_writes() {
+        #[cfg(test)]
+        work::add(|work| {
+            work.projection_writes += 1;
+            work.projection_write_bytes += json.len() as u64;
+        });
+        cache::own_write(|| transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json", params![kind, id, json]))?;
+    }
+    Ok(())
+}
+
+/// Gives back a projection taken with [`take_projection`] that was not changed.
+pub(crate) fn restore_projection(kind: &str, id: &str, state: Value, len: usize) {
+    cache::stage(kind, id, state, len);
 }
 
 pub fn write_projection(
@@ -646,7 +830,15 @@ pub fn write_projection(
     id: &str,
     state: &Value,
 ) -> Result<(), StoreError> {
-    transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json",params![kind,id,serde_json::to_string(state)?])?;
+    // What the command has changed and not yet written goes first, so this write is the newest.
+    write_pending_projections(transaction)?;
+    let json = serde_json::to_string(state)?;
+    #[cfg(test)]
+    work::add(|work| {
+        work.projection_writes += 1;
+        work.projection_write_bytes += json.len() as u64;
+    });
+    transaction.execute("INSERT INTO rust_projections(aggregate_kind,aggregate_id,state_json) VALUES(?1,?2,?3) ON CONFLICT(aggregate_kind,aggregate_id) DO UPDATE SET state_json=excluded.state_json",params![kind,id,json])?;
     Ok(())
 }
 

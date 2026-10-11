@@ -210,6 +210,10 @@ fn handler() -> Handler {
                 other => Step::json(500, json!({"message":format!("unscripted document {other}")})),
             };
         }
+        if request.path.ends_with("/stacks") && request.method == "GET" {
+            // GitHub knows no stack for the pull request.
+            return json(json!([]));
+        }
         if request.path.contains("/actions/runs") && request.method == "GET" {
             return json(json!({"workflow_runs":[{"id":901,"name":"CI","html_url":"https://github.com/acme/web/actions/runs/901"}]}));
         }
@@ -354,8 +358,15 @@ async fn scenario() {
         assert_eq!(sent, vec!["viewerPermissions"], "{action}: only the standing was read");
     }
 
-    // -- what the host does not offer is refused without a request -----------------------------------------
+    // -- a stack action is the host's own scope of the action (`pull_request_stack.rs`): GitHub is asked which stack the pull request
+    //    is in, and a stack that is not the one named is refused before anything is written --------------------------------------
     let (n, tag, payload) = call("pullRequests.runAction", with(reference(7), json!({"action":"merge","mergeMethod":"merge","stackNumber":3,"expectedStackHeads":[{"number":7,"headSha":"abc"}]})));
+    let exit = rpc(&mut socket, n, tag, payload).await;
+    assert_eq!(failure(&exit)["detail"], "The stack changed. Refresh it before trying again.");
+    let sent: Vec<String> = github.since(&mut seen).iter().map(kind_of).collect();
+    assert_eq!(sent, vec!["viewerPermissions", "GET repos/acme/web/stacks"], "the standing, then the stack, and no write");
+    // What the contract does not allow of a stack is refused without a request.
+    let (n, tag, payload) = call("pullRequests.runAction", with(reference(7), json!({"action":"merge","mergeMethod":"merge","stackNumber":3})));
     let exit = rpc(&mut socket, n, tag, payload).await;
     assert_eq!(failure(&exit)["detail"], "This stack action is not supported or has no expected head revision.");
     let (n, tag, payload) = call("pullRequests.runAction", with(reference(7), json!({"action":"merge","mergeMethod":"fast-forward"})));

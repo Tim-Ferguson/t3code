@@ -157,6 +157,7 @@ pub fn router(state: ApiState) -> Router {
         .layer(axum::middleware::from_fn_with_state(state.clone(), dpop_layer))
         .layer(axum::middleware::from_fn(log_requests))
         .layer(axum::middleware::map_response(no_cache))
+        .layer(axum::middleware::from_fn(crate::response_compression::layer))
         .layer(axum::middleware::from_fn_with_state(cors_origins, cors))
         .with_state(state)
 }
@@ -2537,14 +2538,24 @@ async fn stream_inner(
         let flush_due = flush_at;
         tokio::select! {
             events = live.recv() => {
-                let events=events.map_err(|error|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":format!("Live subscription lost continuity; reconnect with its sequence: {error}")}))?;
+                let lost=|error: tokio::sync::broadcast::error::RecvError|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":format!("Live subscription lost continuity; reconnect with its sequence: {error}")});
+                let mut events=events.map_err(lost)?;
+                if shell {
+                    // Each thread's shell is read once for everything that happened to it since the last frame
+                    // (`coalesceShellApplicationEvents`): writes that are already waiting join this one's.
+                    loop {
+                        match live.try_recv() {
+                            Ok(more) => events.extend(more),
+                            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => return Err(lost(tokio::sync::broadcast::error::RecvError::Lagged(skipped))),
+                            Err(_) => break,
+                        }
+                    }
+                }
                 let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
                 authorize_rpc(&active, &request.tag)?;
-                for event in events.into_iter().filter(|event| event.sequence > through) {
-                    if let Some(value) = stream_item(state, &event, is_thread, archive, thread_id)? {
-                        if !send_item(output, ack, &request.id, &mut dedupe, value).await {
-                            return Ok(());
-                        }
+                for value in live_items(state, events, is_thread, archive, thread_id, through)? {
+                    if !send_item(output, ack, &request.id, &mut dedupe, value).await {
+                        return Ok(());
                     }
                 }
             }
@@ -2578,6 +2589,26 @@ async fn stream_inner(
     }
 }
 
+/// The frames a batch of committed events makes for one subscriber, after its snapshot at `through`. A shell stream reads each
+/// thread and project once for everything that happened to it in the batch (`coalesceShellApplicationEvents`: the newest event of
+/// each aggregate, in order), because it reads the aggregate afresh for each event; a thread stream sends each of its events.
+pub(crate) fn live_items(state: &ApiState, events: Vec<StoredEvent>, is_thread: bool, archive: bool, thread_id: Option<&str>, through: u64) -> Result<Vec<Value>, Value> {
+    let mut events: Vec<StoredEvent> = events.into_iter().filter(|event| event.sequence > through).collect();
+    if !is_thread && !archive {
+        let mut latest: HashMap<(String, String), StoredEvent> = HashMap::new();
+        for event in events {
+            latest.insert((event.event.aggregate_kind.clone(), event.event.aggregate_id.clone()), event);
+        }
+        events = latest.into_values().collect();
+        events.sort_by_key(|event| event.sequence);
+    }
+    let mut items = Vec::new();
+    for event in &events {
+        items.extend(stream_item(state, event, is_thread, archive, thread_id)?);
+    }
+    Ok(items)
+}
+
 fn stream_item(
     state: &ApiState,
     event: &StoredEvent,
@@ -2586,6 +2617,9 @@ fn stream_item(
     thread_id: Option<&str>,
 ) -> Result<Option<Value>, Value> {
     if is_thread {
+        // TODO(original ThreadLiveEventCoalescer.ts): the original keeps only the newest running update of each tool call within a
+        // 50 ms window (`coalesceLiveToolUpdatedEvents`); here every update is sent. The adapters flush output every 50 ms, so the
+        // difference is small, and a client replays the same final row either way.
         return Ok((event.event.aggregate_kind=="thread"&&Some(event.event.aggregate_id.as_str())==thread_id).then(||json!({"kind":"event","sequence":event.sequence,"event":crate::wire_projection::domain_event(crate::thread::wire_event(event))})));
     }
     if event.event.aggregate_kind == "project" {
@@ -2610,12 +2644,12 @@ fn stream_item(
     if event.event.aggregate_kind != "thread" {
         return Ok(None);
     }
-    let projection = ThreadService::new(state.store.clone())
-        .projection(&event.event.aggregate_id)
-        .map_err(|error| json!({"message":error.to_string()}))?;
-    let shell = projection
-        .filter(|projection| projection["thread"]["deletedAt"].is_null())
-        .map(|projection| crate::thread::shell(&projection));
+    // From the parsed document of the last write when there is one: a shell costs no parse of the thread.
+    let shell = state
+        .store
+        .with_projection("thread", &event.event.aggregate_id, |projection| projection["thread"]["deletedAt"].is_null().then(|| crate::thread::shell(projection)))
+        .map_err(|error| json!({"message":error.to_string()}))?
+        .flatten();
     if archive {
         if let Some(shell) = shell.filter(|shell| !shell["archivedAt"].is_null()) {
             return Ok(Some(

@@ -35,9 +35,7 @@
       "GET /api/preview-stream/*": "Preview browser frame stream: not ported.",
       "POST /api/preview-stream/upload": "Preview browser file upload: not ported."
     },
-    "partial": {
-      "GET *": "The static route serves files with validators, the cache policy and the dev redirect, but not the response compression the original's router applies to every response."
-    }
+    "partial": {}
   },
   "mcp": {
     "pending": {
@@ -76,14 +74,11 @@
       "projectAutoPullOverrides": "A derived view of projectSettingsOverrides, maintained by the settings model (server_settings_model.rs).",
       "projectAgentBrowserAccessOverrides": "A derived view of projectSettingsOverrides, maintained by the settings model (server_settings_model.rs)."
     },
-    "partial": {
-      "responseStreamingMode": "Applied for Codex, Claude and Pi (assistant_streaming.rs, at the sink every adapter commits through) and by the OpenCode adapters; the ACP family (acpRegistry, Grok, Antigravity) delivers every delta because acp_adapter keeps its stream state in the projection."
-    }
+    "partial": {}
   },
   "env": {
     "pending": {
       "usageLimitSources": "Usage-limit sources (UsageLimitSources.ts, cliproxyApi.ts) are not polled or streamed.",
-      "pullRequestStackActions": "Native stack scope of pull request actions (githubStackActions.ts, githubStackRebase.ts): not ported.",
       "serverBrowser": "Server-side browser (preview/ServerBrowser.ts): not ported."
     }
   }

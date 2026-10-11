@@ -262,32 +262,54 @@ impl StatusPrLookup {
         *self.epochs.lock().unwrap().entry(cwd.to_string()).or_default() += 1;
     }
 
-    /// The pull request to show for `details` in `cwd`, or `None`. Never fails: a lookup that
-    /// cannot be made keeps the last answer known for the branch.
-    pub async fn lookup(&self, host: &Host, core: &GitCore, cwd: &str, details: &BranchDetails, refresh_missing: bool) -> Option<Value> {
+    /// What the cache keys a branch's lookup by: the checkout, the branch, its upstream and the default branch, and the epoch.
+    fn key(&self, cwd: &str, details: &BranchDetails) -> String {
         let epoch = self.epochs.lock().unwrap().get(cwd).copied().unwrap_or(0);
-        let key = [cwd, &details.branch, details.upstream_ref.as_deref().unwrap_or(""), details.default_branch.as_deref().unwrap_or(""), &epoch.to_string()].join("\u{0}");
-        let branch_key = format!("{cwd}\u{0}{}", details.branch);
-        // A "no pull request" answer is retried on request, since someone may just have opened one.
+        [cwd, &details.branch, details.upstream_ref.as_deref().unwrap_or(""), details.default_branch.as_deref().unwrap_or(""), &epoch.to_string()].join("\u{0}")
+    }
+
+    /// How long a loaded answer is kept: a "no pull request" answer is retried on request, since someone may just have opened
+    /// one, and a failed lookup backs off exponentially.
+    fn ttl(&self, key: String) -> impl Fn(&Result<Lookup, ()>) -> Duration + use<> {
         let streaks = self.streaks.clone();
-        let ttl_key = key.clone();
-        let ttl = move |result: &Result<Lookup, ()>| match result {
+        move |result: &Result<Lookup, ()>| match result {
             Ok(lookup) => {
-                streaks.lock().unwrap().remove(&ttl_key);
+                streaks.lock().unwrap().remove(&key);
                 if lookup.latest.as_ref().is_some_and(|pr| pr.state == ChangeRequestState::Open) { PR_LOOKUP_CACHE_TTL } else { PR_LOOKUP_NO_OPEN_PR_CACHE_TTL }
             }
             Err(()) => {
                 let mut streaks = streaks.lock().unwrap();
-                let streak = streaks.get(&ttl_key).copied().unwrap_or(0) + 1;
-                if streaks.len() >= PR_LOOKUP_CACHE_CAPACITY && !streaks.contains_key(&ttl_key) {
+                let streak = streaks.get(&key).copied().unwrap_or(0) + 1;
+                if streaks.len() >= PR_LOOKUP_CACHE_CAPACITY && !streaks.contains_key(&key) {
                     if let Some(oldest) = streaks.keys().next().cloned() {
                         streaks.remove(&oldest);
                     }
                 }
-                streaks.insert(ttl_key.clone(), streak);
+                streaks.insert(key.clone(), streak);
                 pr_lookup_failure_ttl(streak)
             }
-        };
+        }
+    }
+
+    /// `getPrLookup` as `GitManager.branchPullRequest` asks it: through the cache the status shares. A refresh drops a cached
+    /// success first (a completed turn can have created a pull request or reused a merged one's branch) and keeps a cached
+    /// failure, so a host that is failing is not asked again before its backoff ends.
+    pub(crate) async fn through_cache(&self, host: &Host, core: &GitCore, cwd: &str, details: &BranchDetails, refresh: bool) -> Result<Lookup, ()> {
+        let key = self.key(cwd, details);
+        if refresh && matches!(self.cache.peek(&key), Some(Ok(_))) {
+            self.cache.invalidate(&key);
+        }
+        let ttl = self.ttl(key.clone());
+        let load = Box::pin(self.read(host.clone(), core.clone(), cwd.to_string(), details.clone()));
+        self.cache.get(key, load, ttl).await
+    }
+
+    /// The pull request to show for `details` in `cwd`, or `None`. Never fails: a lookup that
+    /// cannot be made keeps the last answer known for the branch.
+    pub async fn lookup(&self, host: &Host, core: &GitCore, cwd: &str, details: &BranchDetails, refresh_missing: bool) -> Option<Value> {
+        let key = self.key(cwd, details);
+        let branch_key = format!("{cwd}\u{0}{}", details.branch);
+        let ttl = self.ttl(key.clone());
         if refresh_missing {
             // Peeking would need the cache to expose it: a forced re-ask is the same as a new epoch.
             self.bump_epoch(cwd);
@@ -585,12 +607,12 @@ pub struct BranchPullRequest {
     pub head_sha: Option<String>,
 }
 
-/// `GitManager.branchPullRequest(..., { refresh: true })` for a branch that exists locally: the same
-/// remote, upstream and default-branch reading, the same head context and the same latest-pull-request
-/// choice as the status lookup, asked of the host afresh (a refresh drops the cached answer). Differences:
+/// `GitManager.branchPullRequest` for a branch that exists locally: the same remote, upstream and
+/// default-branch reading, the same head context and the same latest-pull-request choice as the status
+/// lookup, through the cache the status lookup shares (`refresh` drops a cached success first). Differences:
 /// a branch with no local ref answers `None` (the original follows a remote-tracking ref; cleanup only asks
 /// about checked-out branches), and there is no repository-identity re-check, which only guards the cache.
-pub async fn branch_pull_request(host: &Host, core: &GitCore, cwd: &str, branch: &str) -> Result<Option<BranchPullRequest>, String> {
+pub async fn branch_pull_request(host: &Host, core: &GitCore, cwd: &str, branch: &str, refresh: bool) -> Result<Option<BranchPullRequest>, String> {
     let remotes = core
         .execute(ExecuteGitInput { operation: "GitManager.branchPullRequest.remotes".into(), cwd: cwd.into(), args: vec!["remote".into()], ..Default::default() })
         .await
@@ -620,7 +642,7 @@ pub async fn branch_pull_request(host: &Host, core: &GitCore, cwd: &str, branch:
     let default_remote = if remote_names.contains(&"origin") { "origin" } else { first };
     let default_branch = core.resolve_default_branch_name(Path::new(cwd), default_remote).await.ok().flatten();
     let details = BranchDetails { branch: branch.into(), upstream_ref, default_branch: default_branch.clone(), is_default_branch: false };
-    let lookup = StatusPrLookup::shared().read(host.clone(), core.clone(), cwd.into(), details).await.map_err(|()| format!("The pull request of {branch} could not be read."))?;
+    let lookup = StatusPrLookup::shared().through_cache(host, core, cwd, &details, refresh).await.map_err(|()| format!("The pull request of {branch} could not be read."))?;
     let Some(latest) = lookup.latest else { return Ok(None) };
     let on_default = default_branch.as_deref() == Some(branch) || (default_branch.is_none() && matches!(branch, "main" | "master"));
     if on_default && latest.state != ChangeRequestState::Open {

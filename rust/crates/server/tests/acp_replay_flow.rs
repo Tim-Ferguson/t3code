@@ -39,7 +39,7 @@ impl Harness {
             json!({"label":held["label"],"fifo":fifo})
         });
         std::fs::write(&path, json!({"scenario":row["name"],"entries":transcript,"gate":gate}).to_string()).unwrap();
-        let settings = serde_json::from_value(json!({"providerInstances":{
+        let settings = serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{
             "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
             "acpRegistry":{"driver":"acpRegistry","enabled":true,"config":{"enabled":true,"source":"local","commandPath":"python3","commandArgs":[AGENT,path,status,cwd]}}}}))
         .unwrap();

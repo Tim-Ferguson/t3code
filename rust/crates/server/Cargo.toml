@@ -30,7 +30,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 axum.workspace = true
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["hooks"] }
 uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
@@ -46,6 +46,8 @@ hmac.workspace = true
 sha2.workspace = true
 # Inflates the entries of Antigravity's release archive.
 flate2.workspace = true
+# Brotli, the first choice of the response compression (`response_compression.rs`); already in the lock through reqwest.
+brotli = "8"
 base64.workspace = true
 rand.workspace = true
 # Named zones: usage buckets days in the zone the client names. Also drives the schedule fixtures.

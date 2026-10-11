@@ -1611,7 +1611,7 @@ mod tests {
         };
         assert_eq!(
             serde_json::to_value(waiting).unwrap()["update"]["content"]["text"],
-            "waiting"
+            "waiting\n\n"
         );
         session
             .client

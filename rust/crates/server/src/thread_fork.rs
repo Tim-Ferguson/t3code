@@ -284,6 +284,8 @@ fn refresh(mut projection: Value, read: &dyn Fn(&str) -> Option<Value>, depth: u
 /// `item_visible` lets through, numbered from zero.
 pub(crate) fn local_visible_rows(projection: &Value) -> Vec<Value> {
     let (runs, attempts, items) = (rows(projection, "runs"), rows(projection, "attempts"), rows(projection, "turnItems"));
+    #[cfg(test)]
+    crate::persistence::work::add(|work| work.rows_cloned += items.len() as u64);
     let statuses: std::collections::HashMap<&str, &str> = runs.iter().filter_map(|run| Some((run["id"].as_str()?, run["status"].as_str()?))).collect();
     items
         .iter()

@@ -638,3 +638,42 @@ async fn deleting_a_thread_sweeps_when_a_delete_rule_exists_and_the_worktree_goe
     assert!(!path.exists());
     world.cleanup.shutdown().await;
 }
+
+// ---- cleanup rules an import carried --------------------------------------------------------------------------
+
+/// The fake settings, read through the hold an import leaves (`cleanup_hold.rs`).
+struct Shared(Arc<FakeSettings>);
+#[async_trait]
+impl SettingsFeed for Shared {
+    async fn current(&self) -> Result<Value, String> {
+        self.0.current().await
+    }
+    async fn changes(&self) -> Option<tokio::sync::mpsc::UnboundedReceiver<Value>> {
+        self.0.changes().await
+    }
+}
+
+#[tokio::test]
+async fn rules_an_import_carried_delete_nothing_until_the_user_changes_one() {
+    let world = world(json!({"worktreeAfterDays": 30}));
+    let path = world.thread("old");
+    std::fs::write(world.state_dir.join(t3_server::cleanup_hold::HOLD_FILE), br#"{"rules":null}"#).unwrap();
+    let held = StorageCleanup::new(Options {
+        store: world.store.clone(),
+        state_dir: world.state_dir.clone(),
+        settings: Arc::new(t3_server::cleanup_hold::HeldSettings { inner: Shared(world.settings.clone()), state_dir: world.state_dir.clone() }),
+        git: world.git.clone(),
+        pull_requests: world.prs.clone(),
+        clock: world.clock.clone(),
+        terminals: world.terminals.clone(),
+    });
+    world.days_later(400);
+    tokio::time::timeout(HANG_BOUND, held.sweep()).await.expect("a sweep ends");
+    assert!(path.exists(), "a worktree idle for 400 days stays while the carried rules are held");
+    // The user changes a rule: what they set is acted on as written, and the hold is over.
+    world.rules(|rules| rules["worktreeAfterDays"] = json!(31));
+    tokio::time::timeout(HANG_BOUND, held.sweep()).await.expect("a sweep ends");
+    assert!(!path.exists(), "the changed rule removes it");
+    assert!(!world.state_dir.join(t3_server::cleanup_hold::HOLD_FILE).exists());
+    assert!(world.branch_exists("old"));
+}

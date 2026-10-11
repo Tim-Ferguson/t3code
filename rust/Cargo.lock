@@ -6037,6 +6037,7 @@ dependencies = [
  "async-trait",
  "axum",
  "base64 0.22.1",
+ "brotli",
  "chrono",
  "chrono-tz",
  "fff-search",

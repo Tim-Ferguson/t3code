@@ -54,6 +54,9 @@ pub mod mcp_oauth;
 pub mod mcp_oauth_http;
 pub mod agent_device_launcher;
 pub mod persistence;
+pub mod pull_request_stack;
+pub mod response_compression;
+mod projection_cache;
 pub mod project;
 pub mod project_enrichment;
 pub mod import_status;
@@ -128,9 +131,12 @@ pub mod thread;
 mod thread_fork;
 mod shell_state;
 mod shared_rows;
+pub mod cleanup_hold;
 mod projection_read;
 #[cfg(test)]
 mod reducer_bench;
+#[cfg(test)]
+mod stream_bench;
 mod context_handoff;
 mod context_transfer;
 mod claude_fork;

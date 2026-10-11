@@ -124,7 +124,8 @@ for line in sys.stdin:
             with open(sys.argv[3], "a") as log:
                 log.write(json.dumps(text) + "\n")
         if text == "hold":
-            update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "waiting"}})
+            # A paragraph ends the text, so `responseStreamingMode` lets it through while the turn is held.
+            update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "waiting\n\n"}})
         else:
             if scenario == "thoughts":
                 update({"sessionUpdate": "agent_thought_chunk", "content": {"type": "image", "mimeType": "image/png", "data": "AQ=="}})

@@ -96,16 +96,28 @@ pub fn adopt_environment_identity(userdata: &Path, state_dir: &Path, report: &mu
     Ok(())
 }
 
+/// Cleanup rules in the settings that arrive are held (`cleanup_hold`); the report says so.
+fn hold_cleanup(state_dir: &Path, report: &mut Report) {
+    if let Some(line) = crate::cleanup_hold::on_import(state_dir) {
+        report.credentials_to_reenter.push(line);
+    }
+}
+
 pub fn copy(userdata: &Path, state_dir: &Path, report: &mut Report) -> Result<(), ImportError> {
     if fs::canonicalize(userdata).ok().as_deref() == Some(state_dir) {
         note(report, "settings.json, keybindings.json, attachments/, secrets/", "used in place (same directory)", 0);
+        hold_cleanup(state_dir, report);
         return Ok(());
     }
     for name in ["settings.json", "keybindings.json"] {
         let from = userdata.join(name);
         if from.is_file() {
-            let action = if copy_file(&from, &state_dir.join(name), false, false)? { "copied" } else { "kept the destination's own" };
+            let copied = copy_file(&from, &state_dir.join(name), false, false)?;
+            let action = if copied { "copied" } else { "kept the destination's own" };
             note(report, name, action, 1);
+            if copied && name == "settings.json" {
+                hold_cleanup(state_dir, report);
+            }
         }
     }
     let attachments = userdata.join("attachments");

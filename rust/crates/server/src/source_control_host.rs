@@ -18,6 +18,7 @@ use crate::{
     vcs_cache::TtlCache,
     vcs_registry::VcsRegistry,
 };
+use std::time::Duration;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -52,6 +53,10 @@ impl HostEnv {
 /// Where the GitHub API for a host lives: `(rest, graphql)` endpoints.
 pub type GitHubApiResolver = Arc<dyn Fn(&str) -> (String, String) + Send + Sync>;
 
+/// Where git fetches from and pushes to for a repository `(host, owner/name)`; the stack rebase uses it. `None` is the repository's
+/// own URL on its host.
+pub type GitRemoteResolver = Arc<dyn Fn(&str, &str) -> String + Send + Sync>;
+
 pub struct HostOptions {
     pub env: HostEnv,
     /// The server's working directory, used to probe CLIs outside any checkout.
@@ -61,6 +66,11 @@ pub struct HostOptions {
     pub clock: Arc<dyn Clock>,
     /// Redirects GitHub API requests; `None` uses the real endpoints.
     pub github_api: Option<GitHubApiResolver>,
+    /// Redirects the git remote of a GitHub repository; tests point it at a local bare repository.
+    pub git_remote: Option<GitRemoteResolver>,
+    /// The second of the stack merge's polling (it waits one unit, then two, four, up to ten, for at most 300 units); tests
+    /// shorten it. `None` is one second.
+    pub stack_poll_unit: Option<Duration>,
     pub process: VcsProcess,
 }
 
@@ -72,6 +82,8 @@ impl Default for HostOptions {
             path: None,
             clock: Arc::new(SystemClock),
             github_api: None,
+            git_remote: None,
+            stack_poll_unit: None,
             process: VcsProcess::new(),
         }
     }
@@ -87,6 +99,8 @@ pub struct Shared {
     pub clock: Arc<dyn Clock>,
     pub http: reqwest::Client,
     pub github_api: Option<GitHubApiResolver>,
+    pub git_remote: Option<GitRemoteResolver>,
+    pub stack_poll_unit: Duration,
     pub github: GitHubShared,
     /// Detected hosts per working directory (`SourceControlRegistry::resolve_handle`).
     pub(crate) contexts: TtlCache<String, Option<ProviderContext>, SourceControlProviderError>,
@@ -129,6 +143,8 @@ impl Host {
                 clock: options.clock,
                 http: reqwest::Client::new(),
                 github_api: options.github_api,
+                git_remote: options.git_remote,
+                stack_poll_unit: options.stack_poll_unit.unwrap_or(Duration::from_secs(1)),
             }),
             settings: None,
         }

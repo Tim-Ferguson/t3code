@@ -224,9 +224,10 @@ async fn a_launch_that_wants_a_browser_sign_in_fails_with_the_message_that_says_
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_stop_cancels_the_prompt_in_the_same_session_and_a_restarted_server_resumes_it_in_a_new_process() {
-    let mut flow = Flow::start(|_| json!({"prompts":[[text("Working slowly."), {"hang":true}],[text("Back again."), {"end":"end_turn"}],[text("After the restart."), {"end":"end_turn"}]]}), json!({}), vec![], "full-access").await;
+    let mut flow = Flow::start(|_| json!({"prompts":[[text("Working slowly.\n\n"), {"hang":true}],[text("Back again."), {"end":"end_turn"}],[text("After the restart."), {"end":"end_turn"}]]}), json!({}), vec![], "full-access").await;
     flow.send("Take your time").await;
-    flow.until("the slow turn to start", |view| view["turnItems"].as_array()?.iter().any(|item| item["text"] == "Working slowly.").then_some(())).await;
+    // A paragraph ends the text, so `responseStreamingMode` lets it through while the turn hangs.
+    flow.until("the slow turn to start", |view| view["turnItems"].as_array()?.iter().any(|item| item["text"] == "Working slowly.\n\n").then_some(())).await;
     let run = flow.view()["runs"][0]["id"].clone();
     flow.dispatch(json!({"type":"run.interrupt","commandId":"stop","threadId":flow.thread,"runId":run})).await;
     flow.run_status(1, "interrupted").await;
