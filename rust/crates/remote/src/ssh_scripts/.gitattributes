@@ -1,0 +1,2 @@
+# Remote script templates are compared byte for byte with the original, CRLF included.
+*.tmpl -text
