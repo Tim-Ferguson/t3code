@@ -1281,6 +1281,8 @@ async fn run(
         std::sync::Arc::new(move || Some(local_port)),
     ))?;
     t3_server::connect::install(&store, connect.clone());
+    // The addresses and SSH names `server.getConfig` reports (`DirectEndpoints`, `RemoteOpenTargets`).
+    t3_server::environment_endpoints::install(&store, t3_server::environment_endpoints::Endpoints::production(options.host.clone(), local_port, options.tailscale_serve.unwrap_or(false).then(|| options.tailscale_serve_port.unwrap_or(443))));
     t3_server::static_route::install(&store, t3_server::static_route::StaticConfig::with_dev_url(options.dev_url.clone()));
     t3_server::transport::set_request_logging(options.log_requests);
     // The origin a CLI on this machine reaches the running server at (`t3 connect unlink`).
@@ -1314,6 +1316,15 @@ async fn run(
     let signals = StopSignals::install();
     announce_ready(&listener)?;
     connect.start();
+    // Worktrees, browser artifacts and rotated logs the cleanup settings ask to be removed (`storageCleanup.ts`), swept once the server runs.
+    let storage_cleanup = match &settings_service {
+        Some(service) => {
+            let cleanup = t3_server::storage_cleanup::StorageCleanup::for_server(&execution, state_dir.clone(), service.clone());
+            cleanup.start(Some(terminals.metadata())).await;
+            Some(cleanup)
+        }
+        None => None,
+    };
     serve_until_stopped(listener, router(state).merge(mcp.router()), signals, (options.mode == "desktop").then_some(parent), async move { stopping_mcp.shutdown().await }).await?;
     // The server's finalizers: the link (releasing a CLI-managed tunnel unless an update is replacing this server), the
     // connector, and Tailscale Serve if this server configured it.
@@ -1322,6 +1333,9 @@ async fn run(
         tailscale.deactivate().await;
     }
     let _ = fs::remove_file(&runtime_state);
+    if let Some(cleanup) = storage_cleanup {
+        cleanup.shutdown().await;
+    }
     mcp.shutdown().await;
     if let Some(background) = background {
         background.shutdown().await;

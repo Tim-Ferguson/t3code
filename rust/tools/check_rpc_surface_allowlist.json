@@ -20,8 +20,8 @@
     "partial": {
       "device.testHost": "A host that is not this machine answers the probe's failure envelope: SSH device hosts are not ported.",
       "device.configure": "Remote SSH device hosts are stored but never connected to.",
-      "server.getConfig": "directEndpoints and remoteOpenTargets are always empty (DirectEndpoints.ts, RemoteOpenTargets.ts not ported), observability.localTracingEnabled is false, and usage-limit sources are not merged.",
-      "subscribeServerConfig": "No usageLimitSourcesUpdated events (sources are not polled); remoteOpenTargets/directEndpoints empty. environmentThemesUpdated is served.",
+      "server.getConfig": "observability.localTracingEnabled is false (no local trace file is written), and usage-limit sources are not merged. directEndpoints and remoteOpenTargets are served (environment_endpoints.rs).",
+      "subscribeServerConfig": "No usageLimitSourcesUpdated events (sources are not polled). environmentThemesUpdated is served; directEndpoints/remoteOpenTargets are in the snapshot.",
       "provider.consumeResetCredit": "Provider reset credits only; the CLIProxyAPI usage-limit source variant is not ported.",
       "server.updateServer": "Answers as an unconfigured build (no launcher IPC channel, so never boot-service managed); the desktop-app path runs over the control channel. Nothing is downloaded or installed.",
       "server.updateServerWithProgress": "As server.updateServer.",
@@ -66,10 +66,7 @@
     "partial": {}
   },
   "settings": {
-    "pending": {
-      "worktreeCleanup": "Stored and edited, never acted on: storageCleanup.ts (hourly sweep, on settings change and on thread deletion) is not ported.",
-      "storageCleanup": "Stored and edited, never acted on: no worktree, browser-artifact or rotated-log cleanup runs."
-    },
+    "pending": {},
     "omitted": {
       "cursorKeychainUsageEnabled": "Cursor is deliberately not ported."
     },
@@ -80,16 +77,13 @@
       "projectAgentBrowserAccessOverrides": "A derived view of projectSettingsOverrides, maintained by the settings model (server_settings_model.rs)."
     },
     "partial": {
-      "responseStreamingMode": "Applied by the OpenCode adapters only; the original filters the assistant stream of every provider (RunExecutionService.ts)."
+      "responseStreamingMode": "Applied for Codex, Claude and Pi (assistant_streaming.rs, at the sink every adapter commits through) and by the OpenCode adapters; the ACP family (acpRegistry, Grok, Antigravity) delivers every delta because acp_adapter keeps its stream state in the projection."
     }
   },
   "env": {
     "pending": {
-      "storageCleanup": "See settings: the cleanup is not ported.",
-      "projectWorktreeCleanup": "See settings: per-project worktree cleanup is not ported.",
       "usageLimitSources": "Usage-limit sources (UsageLimitSources.ts, cliproxyApi.ts) are not polled or streamed.",
       "pullRequestStackActions": "Native stack scope of pull request actions (githubStackActions.ts, githubStackRebase.ts): not ported.",
-      "serverResolvedCommandContext": "Server-resolved command context: not ported.",
       "serverBrowser": "Server-side browser (preview/ServerBrowser.ts): not ported."
     }
   }

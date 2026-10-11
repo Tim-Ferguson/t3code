@@ -400,7 +400,10 @@ pub fn start(
                     let store = store.clone();
                     let owner = owner.clone();
                     let mut stopped = stopped.clone();
+                    let providers = providers.clone();
                     effects.spawn(async move{
+                    // A worktree that storage cleanup (or the user) removed comes back from the thread's branch before the turn, and before its baseline.
+                    if effect.request["type"]=="provider-turn.start"{crate::storage_cleanup::recreate_missing_worktree(&store,||providers.settings(),crate::vcs_service::VcsService::shared().core(),&effect.thread_id).await;}
                     if effect.request["type"]=="provider-turn.start"{crate::checkpoint_capture::capture_baseline(&store,&effect.thread_id,effect.request["runId"].as_str()).await;}
                     let result=tokio::select!{result=async{if actor.send(work).await.is_err(){Err("Provider actor stopped.".into())}else{result.await.unwrap_or_else(|_|Err("Provider actor stopped.".into()))}}=>result,_=stopped.changed()=>Err("The server stopped during provider execution.".into())};
                     if let Err(error) = &result {
@@ -673,7 +676,9 @@ pub(crate) fn commit(
         |transaction| {
             let projection = read_projection(transaction, "thread", thread_id)?
                 .ok_or_else(|| StoreError::InvalidCommand("Thread not found.".into()))?;
-            let events = plan(&projection)?
+            // `responseStreamingMode`: what the adapter streamed, held to the mode before it is stored.
+            let view = crate::assistant_streaming::held_view(store, thread_id, &projection);
+            let events = crate::assistant_streaming::filter(store, thread_id, &projection, plan(&view)?, now.timestamp_millis())
                 .into_iter()
                 .map(|(kind, payload)| {
                     let payload = t3_contracts::normalize_event_payload(kind, payload)

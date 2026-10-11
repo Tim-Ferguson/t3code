@@ -54,7 +54,7 @@ impl Harness {
         let models = transcript.iter().find(|entry| entry["label"] == "response:get_available_models").map_or(json!([]), |entry| entry["frame"]["data"]["models"].clone());
         let home = cwd.join("home");
         std::fs::create_dir_all(&home).unwrap();
-        let settings = serde_json::from_value(json!({"providerInstances":{
+        let settings = serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{
             "codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","enabled":false},
             "pi":{"driver":"pi","enabled":true,"config":{"enabled":true,"binaryPath":binary,"launchArgs":row["launchArgs"]},"environment":[
                 {"name":"HOME","value":home},{"name":"PI_FIXTURE_SOCKET","value":replay.socket},{"name":"PI_FIXTURE_MODELS","value":models.to_string()},{"name":"PI_FIXTURE_LOG","value":cwd.join("fixture.log")}]}}}))

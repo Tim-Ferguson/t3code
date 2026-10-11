@@ -60,7 +60,7 @@ impl Harness {
         // The original's replay runs on a test clock, so streamed text is only ever persisted at the
         // end of its item; the flush timer is stretched so that it cannot reorder items here.
         environment.push(json!({"name":"T3CODE_CODEX_STREAM_FLUSH_MS","value":"600000"}));
-        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{
             "claudeAgent":{"driver":"claudeAgent","enabled":false},
             "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":shim(&cwd),"homePath":cwd.join("codex-home")},"environment":environment}}}))
         .unwrap();
@@ -498,7 +498,7 @@ impl Forks {
         .into_iter()
         .map(|(name, value)| json!({"name":name,"value":value}))
         .collect();
-        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{
             "claudeAgent":{"driver":"claudeAgent","enabled":false},
             "codex":{"driver":"codex","enabled":true,"config":{"binaryPath":shim(&cwd),"homePath":cwd.join("codex-home")},"environment":environment}}}))
         .unwrap();

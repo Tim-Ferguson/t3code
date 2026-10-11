@@ -64,6 +64,23 @@ and move inline Bitbucket/GitHub tokens into the secret store. Background policy
 now publishes live client leases and desktop power changes through scoped RPCs;
 disconnect removes only that connection's leases. Periodic provider, VCS, usage
 and Git consumers remain pending.
+Storage cleanup (`storage_cleanup.rs`, `storageCleanup.ts`) runs once at start, hourly on the injected clock, when a cleanup setting changes, and when a
+thread is deleted or a provider session ends while a delete rule exists. It removes worktrees (a clean linked worktree under a managed worktrees
+directory, on its thread's branch, with only `node_modules` ignored, of an idle thread that nothing else uses, with no live terminal or provider
+session inside it, and that is deleted, idle for `worktreeAfterDays`, already in the default branch, or the head of a merged pull request), browser
+artifacts and rotated logs, with the original's rules and re-checks under a per-path workspace lease that terminals share (`workspace_lease.rs`).
+The branch and the thread's `worktreePath` stay, and the next turn recreates the checkout from the branch before the provider starts
+(`recreate_missing_worktree`, in the effect loop). The original does not treat pinned, settled or archived threads differently, and neither does this port;
+a nested `node_modules` keeps its worktree (git lists the parent directories of an ignored install, which the original's pattern rejects). Tests run
+against real repositories under a temporary directory with a local remote and a fake pull request host (`tests/storage_cleanup_flow.rs`,
+`tests/storage_cleanup_turn_flow.rs`). `responseStreamingMode` holds back streaming assistant text and reasoning for the Codex, Claude and Pi adapters at
+the sink every adapter commits through (`assistant_streaming.rs`, compared with the unchanged filter by `rust/tools/generate_assistant_streaming_fixtures.mjs`);
+the OpenCode adapters do their own, and the ACP family (`acpRegistry`, Grok, Antigravity) delivers every delta until its adapter keeps stream state
+in memory (what the filter withholds is handed back to the code that settles a run, `held_view`, so an interrupted answer keeps its text). `server.getConfig` and `subscribeServerConfig` carry `directEndpoints` and `remoteOpenTargets` (`environment_endpoints.rs`; the tailnet is
+reached through a trait and never run by the tests) and the environment advertises `storageCleanup`, `projectWorktreeCleanup` and
+`serverResolvedCommandContext`. Still open on the server: the pull request stack actions, usage-limit sources and the usage scan cache, SSH device
+hosts, `observability.localTracingEnabled` (no trace file is written), the reusable dev credential, response compression and the OTLP trace proxy,
+the preview/browser host registry, and the ChatGPT-signed-in Codex flows, Cursor and analytics.
 Device-host settings resolve SSH aliases without connecting, exclude only self
 targets, and preserve proxies, forwarded ports and unresolved entries. Local device
 state and session lifecycle, consent configuration and agent-daemon bootstrap,

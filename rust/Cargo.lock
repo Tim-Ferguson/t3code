@@ -5979,11 +5979,15 @@ dependencies = [
 name = "t3-desktop"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "libc",
  "rand 0.9.5",
  "serde",
  "serde_json",
+ "t3-client",
+ "t3-remote",
  "tempfile",
+ "thiserror 2.0.21",
  "tokio",
 ]
 

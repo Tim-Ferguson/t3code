@@ -126,7 +126,7 @@ impl Forks {
         .into_iter()
         .map(|(name, value)| json!({"name":name,"value":value}))
         .collect();
-        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+        let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{
             "codex":{"driver":"codex","enabled":false},
             "claudeAgent":{"driver":"claudeAgent","enabled":true,"config":{"binaryPath":shim(&cwd),"homePath":cwd.join("claude-home")},"environment":environment}}}))
         .unwrap();

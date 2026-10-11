@@ -64,6 +64,7 @@ impl ExecutionService {
     ) -> Result<Self, StoreError> {
         store.validate_runtime_lease(&lease)?;
         crate::provider_switch::register(&store, &providers);
+        crate::assistant_streaming::install(&store, &providers);
         crate::restart_continuation::started(&store);
         // The turns this start finds cut get their continuation before recovery cancels them.
         crate::restart_continuation::queue_after_crash(&store, &providers, &store.projections("thread")?);

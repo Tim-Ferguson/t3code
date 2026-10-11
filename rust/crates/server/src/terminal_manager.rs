@@ -1334,6 +1334,22 @@ impl TerminalManager {
         env: Option<Environment>,
         restart: bool,
     ) -> Result<TerminalSessionSnapshot, TerminalFailure> {
+        // Under the lease of the checkout, as the original does (`withWorkspaceLease`), so storage cleanup cannot
+        // remove a worktree while a terminal starts in it.
+        let lease = crate::workspace_lease::resolve(worktree.clone().flatten().as_deref().unwrap_or(&cwd));
+        crate::workspace_lease::with_workspace_lease(lease, self.open_resolved_leased(thread, terminal, cwd, worktree, cols, rows, env, restart)).await
+    }
+    async fn open_resolved_leased(
+        &self,
+        thread: String,
+        terminal: String,
+        cwd: String,
+        worktree: Option<Option<String>>,
+        cols: Option<u16>,
+        rows: Option<u16>,
+        env: Option<Environment>,
+        restart: bool,
+    ) -> Result<TerminalSessionSnapshot, TerminalFailure> {
         Self::valid_cwd(&cwd).await?;
         if self.0.closed.load(Ordering::SeqCst) {
             return Err(TerminalFailure::from_value(

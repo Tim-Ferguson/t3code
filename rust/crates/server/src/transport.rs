@@ -1191,6 +1191,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                 crate::connect::overlay_config(&state.store, &mut config);
                 crate::project_folders::ManagedProjectFolders::overlay_config(&state.store, &mut config).await;
                 crate::external_launcher::overlay_config(&mut config).await;
+                crate::environment_endpoints::overlay_config(&state.store, &mut config).await;
         crate::import_status::overlay_config(&state.store, &mut config);
                 return Ok(config);
             }
@@ -2357,6 +2358,7 @@ async fn config_stream(
         crate::connect::overlay_config(&state.store,&mut config);
         crate::project_folders::ManagedProjectFolders::overlay_config(&state.store,&mut config).await;
         crate::external_launcher::overlay_config(&mut config).await;
+        crate::environment_endpoints::overlay_config(&state.store, &mut config).await;
         crate::import_status::overlay_config(&state.store, &mut config);
         let (changes,mut provider_events)=mpsc::unbounded_channel();
         struct Abort(tokio::task::JoinHandle<()>);

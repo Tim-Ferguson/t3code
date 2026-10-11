@@ -30,7 +30,7 @@ fn shim(cwd: &std::path::Path) -> PathBuf {
 }
 fn settings(binary: &std::path::Path, environment: Vec<(&str, String)>) -> t3_contracts::ServerSettings {
     let environment: Vec<Value> = environment.into_iter().map(|(name, value)| json!({"name":name,"value":value})).collect();
-    serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","config":{"binaryPath":binary,"homePath":binary.parent().unwrap().join("claude-home")},"environment":environment}}})).unwrap()
+    serde_json::from_value(json!({"responseStreamingMode":"turn","providerInstances":{"codex":{"driver":"codex","enabled":false},"claudeAgent":{"driver":"claudeAgent","config":{"binaryPath":binary,"homePath":binary.parent().unwrap().join("claude-home")},"environment":environment}}})).unwrap()
 }
 
 impl Harness {

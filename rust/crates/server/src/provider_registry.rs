@@ -553,6 +553,10 @@ impl ProviderRegistry {
     pub(crate) fn settings(&self) -> ServerSettings {
         self.state.read().unwrap().settings.clone()
     }
+    /// Reads the settings without copying them, for a caller on a hot path.
+    pub(crate) fn with_settings<R>(&self, read: impl FnOnce(&ServerSettings) -> R) -> R {
+        read(&self.state.read().unwrap().settings)
+    }
     pub fn driver(&self, instance_id: &str) -> Result<&'static str, ProcessError> {
         state_driver(&self.state.read().unwrap(), instance_id)
     }

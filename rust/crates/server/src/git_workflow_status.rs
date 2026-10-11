@@ -61,6 +61,8 @@ pub struct PrInfo {
     pub is_cross_repository: Option<bool>,
     pub head_repository: Option<String>,
     pub head_owner: Option<String>,
+    /// The commit the host says the head was at (`headSha`); `None` when the host does not report it.
+    pub head_sha: Option<String>,
 }
 
 impl PrInfo {
@@ -77,6 +79,7 @@ impl PrInfo {
             is_cross_repository: request.is_cross_repository,
             head_repository: request.head_repository_name_with_owner.clone().flatten(),
             head_owner: request.head_repository_owner_login.clone().flatten(),
+            head_sha: request.head_sha.clone(),
         }
     }
 
@@ -573,6 +576,59 @@ async fn find_latest(host: &Host, cwd: &str, head: &HeadContext) -> Result<Optio
     Ok(open.map(|index| parsed.remove(index)).or_else(|| parsed.into_iter().next()))
 }
 
+/// What storage cleanup needs of `GitManager.branchPullRequest`: the latest pull request of the branch in any state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BranchPullRequest {
+    pub state: ChangeRequestState,
+    pub head_ref: String,
+    pub base_ref: String,
+    pub head_sha: Option<String>,
+}
+
+/// `GitManager.branchPullRequest(..., { refresh: true })` for a branch that exists locally: the same
+/// remote, upstream and default-branch reading, the same head context and the same latest-pull-request
+/// choice as the status lookup, asked of the host afresh (a refresh drops the cached answer). Differences:
+/// a branch with no local ref answers `None` (the original follows a remote-tracking ref; cleanup only asks
+/// about checked-out branches), and there is no repository-identity re-check, which only guards the cache.
+pub async fn branch_pull_request(host: &Host, core: &GitCore, cwd: &str, branch: &str) -> Result<Option<BranchPullRequest>, String> {
+    let remotes = core
+        .execute(ExecuteGitInput { operation: "GitManager.branchPullRequest.remotes".into(), cwd: cwd.into(), args: vec!["remote".into()], ..Default::default() })
+        .await
+        .map_err(|error| error.to_string())?;
+    let remote_names: Vec<&str> = remotes.stdout.lines().map(str::trim).filter(|name| !name.is_empty()).collect();
+    let Some(first) = remote_names.first().copied() else { return Ok(None) };
+    let expected = format!("refs/heads/{branch}");
+    let refs = core
+        .execute(ExecuteGitInput {
+            operation: "GitManager.branchPullRequest.branchRef".into(),
+            cwd: cwd.into(),
+            args: vec!["for-each-ref".into(), "--format=%(refname)%00%(upstream:short)%00%(upstream:remotename)%00%(upstream:remoteref)".into(), expected.clone()],
+            ..Default::default()
+        })
+        .await
+        .map_err(|error| error.to_string())?;
+    let Some(exact) = refs.stdout.lines().find(|line| line.split('\u{0}').next() == Some(expected.as_str())) else { return Ok(None) };
+    let mut fields = exact.split('\u{0}').skip(1);
+    let (saved_upstream, saved_remote, saved_ref) = (fields.next().unwrap_or(""), fields.next().unwrap_or(""), fields.next().unwrap_or(""));
+    let upstream_ref = if saved_upstream.is_empty() {
+        None
+    } else if saved_remote.is_empty() || saved_ref.is_empty() {
+        return Err(format!("Saved upstream for {branch} is incomplete."));
+    } else {
+        Some(format!("{saved_remote}/{}", saved_ref.strip_prefix("refs/heads/").unwrap_or(saved_ref)))
+    };
+    let default_remote = if remote_names.contains(&"origin") { "origin" } else { first };
+    let default_branch = core.resolve_default_branch_name(Path::new(cwd), default_remote).await.ok().flatten();
+    let details = BranchDetails { branch: branch.into(), upstream_ref, default_branch: default_branch.clone(), is_default_branch: false };
+    let lookup = StatusPrLookup::shared().read(host.clone(), core.clone(), cwd.into(), details).await.map_err(|()| format!("The pull request of {branch} could not be read."))?;
+    let Some(latest) = lookup.latest else { return Ok(None) };
+    let on_default = default_branch.as_deref() == Some(branch) || (default_branch.is_none() && matches!(branch, "main" | "master"));
+    if on_default && latest.state != ChangeRequestState::Open {
+        return Ok(None);
+    }
+    Ok(Some(BranchPullRequest { state: latest.state, head_ref: latest.head, base_ref: latest.base, head_sha: latest.head_sha }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -615,6 +671,7 @@ mod tests {
                         is_cross_repository: pr["isCrossRepository"].as_bool(),
                         head_repository: text(&pr["headRepository"]),
                         head_owner: text(&pr["headOwner"]),
+                        head_sha: None,
                     };
                     assert_eq!(matches_head_context(&pr, &head), row["result"].as_bool().unwrap(), "{row}");
                 }
