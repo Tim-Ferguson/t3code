@@ -144,6 +144,10 @@ pub struct UiModel {
     pub reorder: crate::sidebar_sections::Reorder,
     /// The Snoozed and Settled shelves of the sidebar: open or folded.
     pub shelves: crate::sidebar_sections::Shelves,
+    /// The file tree beside the file panel: what it has read and which folders are open.
+    pub file_tree: crate::file_tree::Model,
+    /// The project group the sidebar is filtered to (the key of its row), none for every project.
+    pub project_scope: Option<String>,
     /// The prompts put aside with the stash shortcut, and whether its list is open.
     pub stash: crate::prompt_stash::Model,
     /// The plan being started in a new thread, while its two commands are in flight.
@@ -3071,3 +3075,11 @@ mod thread_pull_requests_panel_tests;
 #[cfg(all(test, unix))]
 #[path = "settings_search_tests.rs"]
 mod settings_search_tests;
+
+#[cfg(all(test, unix))]
+#[path = "sidebar_groups_tests.rs"]
+mod sidebar_groups_tests;
+
+#[cfg(all(test, unix))]
+#[path = "file_tree_tests.rs"]
+mod file_tree_tests;

@@ -98,7 +98,7 @@ pub fn placement(id: &str) -> Placement {
         "font-smoothing" => Placement::Here("appearance"),
         "word-wrap" => Placement::Here("appearance"),
         "composer-context" => Placement::Missing("unported feature: the composer's persistent context strip"),
-        "project-grouping" => Placement::Missing("unported feature: grouped project rows in the sidebar"),
+        "project-grouping" => Placement::Here("general"),
         "project-order" => Placement::Here("general"),
         "snooze-limited-threads" => Placement::Here("general"),
         "auto-resume-limited-threads" => Placement::Here("general"),

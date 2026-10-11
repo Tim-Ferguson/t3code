@@ -8035,3 +8035,192 @@ body.sidebar-dragging {
 .ssh-section {
   margin-top: 24px;
 }
+
+/* Grouped project rows and the sidebar's project filter. */
+.project-group-count {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 18px;
+  text-align: center;
+}
+.project-scope {
+  position: relative;
+  padding: 0 8px;
+  display: flex;
+}
+.context-menu.project-scope-popup {
+  left: 8px;
+  right: 8px;
+  max-width: none;
+  top: 100%;
+  position: absolute;
+  gap: 4px;
+}
+.project-scope-popup input {
+  margin: 2px;
+}
+.menu-heading {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+
+/* Files the panel plays, frames or tabulates instead of reading as text. */
+.file-media {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.file-media audio {
+  width: 100%;
+  max-width: 36rem;
+}
+.file-media video {
+  max-width: 100%;
+  max-height: 100%;
+}
+.file-document {
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+.file-table-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file-table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.file-table {
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+.file-table th,
+.file-table td {
+  max-width: 20rem;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.file-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--muted);
+  font-weight: 500;
+  vertical-align: bottom;
+}
+.file-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+/* The file tree beside the file panel. */
+.file-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.file-panel-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file-explorer {
+  flex: none;
+  width: min(16rem, 46%);
+  min-height: 0;
+  display: flex;
+  border-left: 1px solid var(--border);
+}
+.file-tree-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.file-tree-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.file-tree-bar input {
+  flex: 1;
+  min-width: 0;
+}
+.file-tree-error {
+  text-align: left;
+  font-size: 0.75rem;
+}
+.file-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0;
+}
+.file-tree-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  padding-right: 8px;
+  font-size: 0.75rem;
+  text-align: left;
+}
+.file-tree-row:hover {
+  background: var(--muted);
+}
+.file-tree-row.selected {
+  background: var(--accent);
+}
+.file-tree-row.ignored {
+  opacity: 0.55;
+}
+.file-tree-fold {
+  flex: none;
+  width: 12px;
+  color: var(--muted-foreground);
+}
+.file-tree-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The desktop app's update pill. */
+.update-pill {
+  margin: 0 8px 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  font-size: 0.75rem;
+  text-align: center;
+}

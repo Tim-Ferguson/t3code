@@ -24,7 +24,11 @@ mod pull_request_summary;
 mod pull_request_thread;
 mod pull_request_files;
 mod diff_panel;
+#[cfg(feature = "desktop")]
+mod desktop_updates;
+mod file_media;
 mod file_panel;
+mod file_tree;
 mod project_defaults;
 mod projects_page;
 mod pull_request_stack;
@@ -66,6 +70,8 @@ mod scroll_state;
 mod secret_card;
 mod plan_thread;
 mod prompt_stash;
+mod project_menu;
+mod sidebar_groups;
 mod sidebar_rows;
 mod sidebar_sections;
 mod search;
@@ -177,6 +183,26 @@ fn Main() -> Element {
     rsx! { Application { state, transport } }
 }
 
+/// The About rows of the settings (version, update track), on the desktop app only.
+#[cfg(feature = "desktop")]
+pub(crate) fn desktop_update_rows() -> Element {
+    rsx! { desktop_updates::Rows {} }
+}
+#[cfg(not(feature = "desktop"))]
+pub(crate) fn desktop_update_rows() -> Element {
+    rsx! {}
+}
+
+/// The sidebar's update pill, on the desktop app only.
+#[cfg(feature = "desktop")]
+fn desktop_update_pill() -> Element {
+    rsx! { desktop_updates::Pill {} }
+}
+#[cfg(not(feature = "desktop"))]
+fn desktop_update_pill() -> Element {
+    rsx! {}
+}
+
 /// The desktop app's strips over the page (the server starting, the quit hint). The web build has none.
 #[cfg(feature = "desktop")]
 fn desktop_overlays(state: Store<UiModel>) -> Element {
@@ -227,6 +253,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
     let mut add_project = use_signal(|| false);
     use_context_provider(|| AddProject(add_project));
     sidebar_sections::use_shelves(state);
+    sidebar_groups::use_scope(state);
     // A chosen row that left the sidebar leaves the choice, so a bulk menu never counts rows nobody can see.
     use_effect(move || {
         let _ = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.snapshot_sequence);
@@ -250,6 +277,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         .map(|snapshot| snapshot.threads.clone())
         .unwrap_or_default();
     drop(snapshot);
+    let (_, groups) = sidebar_groups::groups_of(&projects, &state.client_settings().read());
+    let scope_items: Vec<(String, String)> = groups.iter().map(|group| (group.key.clone(), group.label.clone())).collect();
+    let scoped = sidebar_groups::scoped_key(state, groups.iter().map(|group| group.key.as_str()));
     let row_caps = sidebar_rows::caps(state);
     // A snoozed row wakes when its time passes with nothing else changing. One timer is set for the
     // earliest wake time (never a clock that ticks), and the sidebar is built again when it fires.
@@ -363,6 +393,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
             aside { class: "sidebar", "aria-label": "Main sidebar",
                 header { class: "brand", Wordmark {} span { "Code" } }
+                {desktop_update_pill()}
                 nav { class: "sidebar-actions",
                     button { title: match &new_thread_hint { Some(hint) => format!("New thread ({hint})"), None => "New thread".to_owned() }, onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
                     button { onclick: move |_| add_project.set(true), "＋ Add project" }
@@ -370,19 +401,29 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     button { "aria-label": "New project", disabled: !can_operate || project_create::new_projects_root(state).is_none(), onclick: move |_| command_palette::open(state, command_palette::Intent::NewProject), "＋ New project" }
                 }
                 search::SidebarSearch { state, transport: transport.clone() }
+                if !scope_items.is_empty() { sidebar_groups::ScopeFilter { state, items: scope_items.clone() } }
                 div { class: "project-list",
                     sidebar_sections::DragBridge { state, transport: transport.clone() }
-                    for project in projects.iter() {
-                        div { class: "project-group", key: "{project.id}",
-                            div { class: "project-header",
-                                button { class: "project-heading", title: "{project.workspace_root}", onclick: { let transport=transport.clone();let id = project.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
-                                    file_preview::ProjectFavicon { key: "favicon:{project.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: project.workspace_root.to_string(), title: project.title.to_string() } "{project.title}"
+                    for group in groups.iter().filter(|group| scoped.as_ref().is_none_or(|key| *key == group.key)) {
+                        {
+                            let representative = &projects[group.representative];
+                            let members: Vec<project_menu::Member> = group.members.iter().map(|member| { let project = &projects[member.index]; project_menu::Member { id: project.id.to_string(), title: project.title.to_string(), workspace_root: project.workspace_root.to_string() } }).collect();
+                            let scope = sidebar_groups::Scope { key: representative.id.to_string(), ids: group.project_ids() };
+                            let grouped = group.members.len();
+                            rsx! {
+                                div { class: "project-group", key: "{group.key}",
+                                    div { class: "project-header",
+                                        button { class: "project-heading", title: "{representative.workspace_root}", onclick: { let transport=transport.clone();let id = representative.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
+                                            file_preview::ProjectFavicon { key: "favicon:{representative.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: representative.workspace_root.to_string(), title: representative.title.to_string() } "{group.label}"
+                                            if grouped > 1 { span { class: "project-group-count", "aria-label": "{grouped} projects grouped", title: "{grouped} projects grouped", "{grouped}" } }
+                                        }
+                                        project_menu::ProjectMenu { key: "menu:{group.key}", state, transport: transport.clone(), label: group.label.clone(), members, can_operate }
+                                    }
+                                    for id in scope.ids.iter() { clone_view::ProjectState { key: "clone:{id}", state, project_id: id.clone() } }
+                                    sidebar_sections::ProjectThreads { key: "threads:{group.key}", scope: scope.clone(), state, transport: transport.clone(), caps: row_caps, can_operate, tick: wake_tick() }
+                                    for id in scope.ids.iter() { thread_lifecycle::Archived { key: "archived:{id}", state, transport: transport.clone(), project_id: id.clone() } }
                                 }
-                                sidebar_rows::ProjectMenu { key: "menu:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string(), title: project.title.to_string(), workspace_root: project.workspace_root.to_string(), can_operate }
                             }
-                            clone_view::ProjectState { key: "clone:{project.id}", state, project_id: project.id.to_string() }
-                            sidebar_sections::ProjectThreads { key: "threads:{project.id}", project_id: project.id.to_string(), workspace_root: project.workspace_root.to_string(), state, transport: transport.clone(), caps: row_caps, can_operate, tick: wake_tick() }
-                            thread_lifecycle::Archived { key: "archived:{project.id}", state, transport: transport.clone(), project_id: project.id.to_string() }
                         }
                     }
                 }

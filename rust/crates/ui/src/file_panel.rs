@@ -13,7 +13,7 @@ use crate::{
 use dioxus::prelude::*;
 use serde_json::json;
 use std::{cell::RefCell, rc::Rc};
-use t3_client::{diff::language_for_path, file_save, project_files as files};
+use t3_client::{diff::language_for_path, file_preview as logic_preview, file_save, project_files as files};
 use t3_contracts::AuthEnvironmentScope;
 
 /// Which file the panel shows, for which thread (or the new-thread form, when `owner` is None).
@@ -34,6 +34,7 @@ pub(crate) fn open(state: Store<UiModel>, owner: Option<String>, cwd: String, pa
     state.diff().write().open = false;
     state.pr_panel().set(None);
     state.thread_prs().set(None);
+    crate::file_tree::follow(state, &cwd);
     let request = state.file_panel().peek().as_ref().map_or(0, |target| target.request) + 1;
     {
         let mut tabs = state.file_tabs();
@@ -236,7 +237,7 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     use_future({
         let (transport, cwd, path) = (transport.clone(), target.cwd.clone(), target.path.clone());
         move || {
-            let skip = files::is_image_path(&path);
+            let skip = files::is_image_path(&path) || crate::file_media::Kind::of(&path).is_some();
             let (transport, cwd, path) = (transport.clone(), cwd.clone(), path.clone());
             async move {
                 if skip {
@@ -285,6 +286,17 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     let tabs = state.file_tabs().read().clone();
     let is_image = t3_client::project_files::is_image_path(&target.path);
     let is_markdown = t3_client::project_files::is_markdown_path(&target.path);
+    let media = crate::file_media::Kind::of(&target.path);
+    let explorer = state.file_tree().read().open;
+    // A table is a preference of this device, as the original keeps it; a revealed line only exists in the source.
+    let table_delimiter = logic_preview::delimiter(&target.path);
+    let mut table_preferred = use_signal(|| true);
+    use_hook(move || spawn(async move {
+        if let Ok(Some(stored)) = document::eval(&format!("try{{return window.localStorage.getItem('{}');}}catch{{return null;}}", logic_preview::RENDER_TABLE_KEY)).join::<Option<String>>().await {
+            table_preferred.set(stored != "false");
+        }
+    }));
+    let show_table = table_delimiter.is_some() && table_preferred() && reveal.is_none() && !editing();
     // The choice between the rendered page and its source is kept on this device, as the original keeps it.
     let mut rendered = use_signal(|| true);
     use_hook(move || spawn(async move {
@@ -342,6 +354,14 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                             if editing() { "Done" } else { "Edit" } }
                     }
                     if pending { span { class: "muted", role: "status", "Saving\u{2026}" } }
+                    button { r#type: "button", "aria-label": if explorer { "Hide files" } else { "Show files" }, "aria-pressed": "{explorer}", title: "The files of this project",
+                        onclick: move |_| { let next = !explorer; state.file_tree().write().open = next; },
+                        if explorer { "Hide files" } else { "Files" } }
+                    if table_delimiter.is_some() && reveal.is_none() {
+                        button { r#type: "button", "aria-label": if table_preferred() { "Show table source" } else { "Show table" }, "aria-pressed": "{table_preferred()}",
+                            onclick: move |_| { let next = !table_preferred(); table_preferred.set(next); document::eval(&format!("try{{window.localStorage.setItem('{}','{next}');}}catch{{}}", logic_preview::RENDER_TABLE_KEY)); },
+                            if table_preferred() { "Show source" } else { "Show table" } }
+                    }
                     if is_markdown {
                         button { r#type: "button", "aria-label": if rendered() { "Show markdown source" } else { "Show rendered markdown" }, "aria-pressed": "{rendered()}", onclick: move |_| { let next = !rendered(); rendered.set(next); document::eval(&format!("try{{window.localStorage.setItem('t3code.renderMarkdown','{next}');}}catch{{}}")); },
                             if rendered() { "Show markdown source" } else { "Show rendered markdown" } }
@@ -355,10 +375,17 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                     button { class: "icon-button diff-close", "aria-label": "Close file", title: "Close file", onclick: move |_| match tabs.len() { 0 | 1 => close(state), _ => close_tab(state, &target.path) }, "\u{00d7}" }
                 }
             }
+            div { class: "file-panel-body",
+            div { class: "file-panel-main",
             if is_image {
                 match target.owner.clone() {
                     Some(thread_id) => rsx! { div { class: "file-image", crate::file_preview::WorkspaceImage { key: "{target.path}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, path: target.path.clone() } } },
                     None => rsx! { p { class: "muted file-panel-note", role: "status", "Open a thread to preview this image." } },
+                }
+            } else if let Some(kind) = media {
+                match target.owner.clone() {
+                    Some(thread_id) => rsx! { crate::file_media::Media { key: "{target.path}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, cwd: target.cwd.clone(), path: target.path.clone(), kind } },
+                    None => rsx! { p { class: "muted file-panel-note", role: "status", "Open a thread to preview this file." } },
                 }
             } else {
             match &*read.read() {
@@ -375,15 +402,19 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                             }
                         } }
                 },
+                Read::Ready(loaded) if show_table => rsx! {
+                    if loaded.truncated { p { class: "muted file-panel-note", role: "status", "{logic_preview::limit_notice(loaded.byte_length)}" } }
+                    crate::file_media::Table { name: target.path.clone(), text: loaded.text.clone(), delimiter: table_delimiter.unwrap_or(',') }
+                },
                 Read::Ready(_) if show_rendered => rsx! {
                     if loaded.as_ref().is_some_and(|loaded| loaded.truncated) {
-                        p { class: "muted file-panel-note", role: "status", "This file is large, so only the start of it ({loaded.as_ref().map_or(0, |loaded| loaded.byte_length)} bytes in all) is shown." }
+                        p { class: "muted file-panel-note", role: "status", "{logic_preview::limit_notice(loaded.as_ref().map_or(0, |loaded| loaded.byte_length))}" }
                     }
                     div { class: "file-markdown", "aria-label": "Rendered {name}", crate::markdown::Markdown { text: markdown_text } }
                 },
                 Read::Ready(_) => rsx! {
                     if loaded.as_ref().is_some_and(|loaded| loaded.truncated) {
-                        p { class: "muted file-panel-note", role: "status", "This file is large, so only the start of it ({loaded.as_ref().map_or(0, |loaded| loaded.byte_length)} bytes in all) is shown." }
+                        p { class: "muted file-panel-note", role: "status", "{logic_preview::limit_notice(loaded.as_ref().map_or(0, |loaded| loaded.byte_length))}" }
                     }
                     if total == 0 { p { class: "muted file-panel-note", role: "status", "This file is empty." } }
                     div { class: "file-lines", role: "table", "aria-label": "Contents of {name}",
@@ -408,6 +439,13 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                         }
                     }
                 },
+            }
+            }
+            }
+            if explorer {
+                aside { class: "file-explorer", "aria-label": "Files",
+                    crate::file_tree::Tree { key: "{target.cwd}", state, transport: transport.clone(), cwd: target.cwd.clone(), owner: target.owner.clone(), selected: target.path.clone() }
+                }
             }
             }
         }

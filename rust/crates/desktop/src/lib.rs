@@ -1,9 +1,12 @@
 //! The desktop app's shell without a window toolkit. See the modules.
+pub mod control_channel;
 pub mod launch;
 pub mod menu;
+pub mod network;
 pub mod shell_env;
 pub mod ssh;
 pub mod quit_hold;
 pub mod supervisor;
+pub mod updates;
 pub mod url;
 pub mod window_state;

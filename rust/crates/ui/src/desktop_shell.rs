@@ -69,7 +69,8 @@ fn start_backend(dirs: &AppDirs) -> Backend {
             }
         }).map_err(|error| format!("Cannot ask the login shell: {error}"))?;
         let config = ServerConfig { binary, state_dir: dirs.server_state.clone(), log_file: dirs.server_log.clone(), pid_file: Some(dirs.server_pid.clone()), host: "127.0.0.1".into(), port, login_shell: Some(login_shell) };
-        Handle::spawn(ServerLauncher::new(config), Timing::default(), true).map_err(|error| format!("Cannot start the supervisor: {error}"))
+        let answers = crate::desktop_updates::answers(&dirs.root.join(t3_desktop::updates::SETTINGS_FILE));
+        Handle::spawn(ServerLauncher::new(config).with_control_channel(answers), Timing::default(), true).map_err(|error| format!("Cannot start the supervisor: {error}"))
     })();
     match result {
         Ok(handle) => Backend::Supervised(handle),
@@ -211,6 +212,11 @@ pub(crate) struct QuitHint(pub Signal<Option<quit_hold::Mode>>);
 
 fn shell() -> Shell {
     consume_context::<Shell>()
+}
+
+/// The file the app keeps its own settings in (the update track).
+pub(crate) fn settings_path() -> Option<PathBuf> {
+    try_consume_context::<Shell>().map(|shell| shell.dirs.root.join(t3_desktop::updates::SETTINGS_FILE))
 }
 
 /// Connects to the server this app started, once it answers, or to `T3_SERVER_URL`. Replaces the web build's

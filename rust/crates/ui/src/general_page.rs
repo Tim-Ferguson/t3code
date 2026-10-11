@@ -115,6 +115,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                 section { class: "sc-section", "aria-label": "Organization",
                     h2 { "Organization" }
                     if project.is_none() {
+                        crate::sidebar_groups::GroupingSwitch { state }
                         label { class: "switch-row",
                             input { r#type: "checkbox", role: "switch", "aria-label": "Auto-resume limited threads", checked: flag(logic::AUTO_RESUME_LIMITED), disabled: !writable,
                                 onchange: { let set = set.clone(); move |event| set(logic::AUTO_RESUME_LIMITED, Value::Bool(event.checked())) } }
@@ -154,6 +155,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                     }
                 }
                 div { key: "scoped:{scope}", ScopedRows { state, transport: transport.clone(), project: project.clone() } }
+                {crate::desktop_update_rows()}
                 section { class: "sc-section", "aria-label": "Behavior",
                     h2 { "Behavior" }
                     crate::notifications::ModeRow { state }

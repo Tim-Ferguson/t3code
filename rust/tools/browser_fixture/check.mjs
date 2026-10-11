@@ -63,7 +63,12 @@ const stream = rpc.subscribe(
   "orchestration.subscribeShell",
   { requestCompletionMarker: true },
   (values) => {
-    for (const value of values) if (value.kind === "snapshot") shell = value.snapshot;
+    // The server follows the full snapshot with a project-only one (marked by `resolvedRepositoryIdentityRoots`, no threads) that
+    // carries the repository identities resolved since. It is not the shell: taking the last snapshot read it as a shell with no
+    // threads whenever both frames arrived before the first poll below.
+    for (const value of values)
+      if (value.kind === "snapshot" && value.resolvedRepositoryIdentityRoots === undefined)
+        shell = value.snapshot;
   },
 );
 for (let waited = 0; !shell && waited < 10_000; waited += 100)

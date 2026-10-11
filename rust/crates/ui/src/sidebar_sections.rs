@@ -93,10 +93,10 @@ pub struct Reorder {
 }
 
 /// The threads of a project in their sections, with a held drop applied.
-pub(crate) fn sections_of<'a>(threads: &'a [ThreadShell], project_id: &'a str, now: chrono::DateTime<Utc>, caps: Caps, held: Option<&Held>) -> Sections<'a> {
-    let mut sections = Sections::of(sidebar_rows::listed(threads, project_id), now, caps.support());
-    let Some(held) = held.filter(|held| held.project == project_id) else { return sections };
-    let Some(moved) = sidebar_rows::listed(threads, project_id).find(|thread| thread.id.as_str() == held.id) else { return sections };
+pub(crate) fn sections_of<'a>(threads: &'a [ThreadShell], scope: &'a crate::sidebar_groups::Scope, now: chrono::DateTime<Utc>, caps: Caps, held: Option<&Held>) -> Sections<'a> {
+    let mut sections = Sections::of(sidebar_rows::listed_in(threads, &scope.ids), now, caps.support());
+    let Some(held) = held.filter(|held| held.project == scope.key) else { return sections };
+    let Some(moved) = sidebar_rows::listed_in(threads, &scope.ids).find(|thread| thread.id.as_str() == held.id) else { return sections };
     for section in [Section::Pinned, Section::Active, Section::Snoozed, Section::Settled] {
         sections.section_mut(section).retain(|thread| thread.id.as_str() != held.id);
     }
@@ -115,11 +115,11 @@ pub(crate) fn sections_of<'a>(threads: &'a [ThreadShell], project_id: &'a str, n
 /// The rows a project lists. Reads only what its own rows are made of, so a drop in one project
 /// does not rebuild another's.
 #[component]
-pub(crate) fn ProjectThreads(project_id: String, workspace_root: String, state: Store<UiModel>, transport: runtime::TransportHandle, caps: Caps, can_operate: bool, tick: u64) -> Element {
+pub(crate) fn ProjectThreads(scope: crate::sidebar_groups::Scope, state: Store<UiModel>, transport: runtime::TransportHandle, caps: Caps, can_operate: bool, tick: u64) -> Element {
     let _ = tick;
     let mine = use_memo({
-        let project_id = project_id.clone();
-        move || state.reorder().read().held.clone().filter(|held| held.project == project_id)
+        let key = scope.key.clone();
+        move || state.reorder().read().held.clone().filter(|held| held.project == key)
     });
     let mut shown = use_signal(|| sidebar::SETTLED_INITIAL);
     let now = Utc::now();
@@ -128,11 +128,11 @@ pub(crate) fn ProjectThreads(project_id: String, workspace_root: String, state: 
     let field = state.shell();
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return rsx! {} };
-    let sections = sections_of(&snapshot.threads, &project_id, now, caps, held.as_ref());
+    let sections = sections_of(&snapshot.threads, &scope, now, caps, held.as_ref());
     let providers = sidebar_rows::provider_names(state);
     let chosen = state.selection().read().keys.clone();
     let row = |thread: &ThreadShell| {
-        let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| Some(workspace_root.clone()));
+        let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string()));
         let mut view = sidebar_rows::view(thread, open.as_deref() == Some(thread.id.as_str()), workspace, caps, can_operate, now, &providers);
         view.chosen = chosen.contains(thread.id.as_str());
         rsx! { sidebar_rows::ThreadRow { key: "{thread.id}", view, state, transport: transport.clone() } }
@@ -235,9 +235,10 @@ fn plan_of(state: Store<UiModel>, caps: Caps, request: &DropRequest) -> Option<(
     let shell = field.read();
     let snapshot = shell.snapshot.as_ref()?;
     let moved = snapshot.threads.iter().find(|thread| thread.id.as_str() == request.id)?;
-    let project = moved.project_id.to_string();
+    let scope = crate::sidebar_groups::scope_of(state, moved.project_id.as_str());
+    let project = scope.key.clone();
     let now = Utc::now();
-    let sections = Sections::of(sidebar_rows::listed(&snapshot.threads, &project), now, caps.support());
+    let sections = Sections::of(sidebar_rows::listed_in(&snapshot.threads, &scope.ids), now, caps.support());
     let from = sidebar::section_of(moved, now, caps.support());
     let target = sidebar::drop_target(&sections, &request.id, request.section, request.before.as_deref())?;
     let ids = |list: &[&ThreadShell]| list.iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>();
@@ -274,7 +275,8 @@ fn in_place(state: Store<UiModel>, caps: Caps, held: &Held) -> bool {
     let field = state.shell();
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return false };
-    let sections = Sections::of(sidebar_rows::listed(&snapshot.threads, &held.project), Utc::now(), caps.support());
+    let ids = crate::sidebar_groups::scope_of(state, &held.project).ids;
+    let sections = Sections::of(sidebar_rows::listed_in(&snapshot.threads, &ids), Utc::now(), caps.support());
     let current: Vec<String> = sections.section(held.section).iter().map(|thread| thread.id.to_string()).collect();
     if held.section == Section::Settled { current.contains(&held.id) } else { current == held.order }
 }

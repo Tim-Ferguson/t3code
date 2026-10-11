@@ -146,6 +146,10 @@ fn pull_request_badge(thread: &ThreadShell) -> Option<PullRequestBadge> {
 pub(crate) fn listed<'a>(threads: &'a [ThreadShell], project_id: &'a str) -> impl Iterator<Item = &'a ThreadShell> {
     threads.iter().filter(move |thread| thread.project_id.as_str() == project_id && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
 }
+/// The threads of every project of a row: a group's members, listed as one.
+pub(crate) fn listed_in<'a>(threads: &'a [ThreadShell], project_ids: &'a [String]) -> impl Iterator<Item = &'a ThreadShell> {
+    threads.iter().filter(move |thread| project_ids.iter().any(|id| id == thread.project_id.as_str()) && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
+}
 /// A project's threads in the order the sidebar lists them, whatever is collapsed: pinned, active,
 /// working (the beta shelf), snoozed, settled.
 pub(crate) fn rows<'a>(threads: &'a [ThreadShell], project_id: &'a str, now: chrono::DateTime<Utc>, support: sidebar::Support) -> Vec<&'a ThreadShell> {
@@ -541,75 +545,6 @@ async fn run_menu(state: Store<UiModel>, transport: runtime::TransportHandle, vi
     }
 }
 
-/// The menu of a project's header: what the original's project context menu holds that this UI has
-/// a handler for (renaming, the path to copy, and removing it with its own confirmation). Project
-/// settings and grouping have no page here yet.
-#[component]
-pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHandle, project_id: String, title: String, workspace_root: String, can_operate: bool) -> Element {
-    let mut open = use_signal(|| false);
-    let mut renaming = use_signal(|| None::<String>);
-    let (id, path, remove_label) = (project_id.clone(), workspace_root.clone(), format!("Remove project {title}"));
-    // The name is saved once, by Enter or the button; an empty name is refused and an unchanged one is not sent.
-    let save = {
-        let (id, original, transport) = (project_id.clone(), title.clone(), transport.clone());
-        use_callback(move |typed: String| {
-            let typed = typed.trim().to_owned();
-            if typed.is_empty() {
-                notice::push(state, Level::Warning, "Project name cannot be empty", "");
-                return;
-            }
-            renaming.set(None);
-            if typed == original {
-                return;
-            }
-            let (id, transport) = (id.clone(), transport.clone());
-            spawn(async move {
-                let payload = json!({"type":"project.update","commandId":uuid::Uuid::new_v4().to_string(),"projectId":id,"title":typed});
-                if let Err(reason) = runtime::request_value_reported(transport, state, "projects.mutate", payload).await {
-                    notice::push(state, Level::Error, "Could not rename the project", reason);
-                }
-            });
-        })
-    };
-    // A rename in progress when the connection stops allowing it is dropped.
-    if renaming.peek().is_some() && !can_operate {
-        renaming.set(None);
-    }
-    let draft = renaming.read().clone();
-    rsx! {
-        div {class:"project-menu",
-            button {class:"icon-button project-menu-button",r#type:"button","aria-label":"Project actions for {title}","aria-haspopup":"menu","aria-expanded":"{open()}",title:"Project actions",
-                onclick:move |_| open.set(!open()),"\u{22ef}"}
-            if open() {
-                div {class:"menu-backdrop",onclick:move |_| open.set(false),oncontextmenu:move |event| {event.prevent_default();open.set(false);}}
-                div {class:"context-menu project-menu-popup",role:"menu","aria-label":"Project actions",tabindex:"0",
-                    onmounted:move |event| {drop(event.set_focus(true));},
-                    onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();open.set(false);}},
-                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Rename project {title}",disabled:!can_operate,onclick:{let title=title.clone();move |_| {open.set(false);renaming.set(Some(title.clone()));}},"Rename"}
-                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Copy project path",onclick:move |_| {open.set(false);copy_text(&path);},"Copy path"}
-                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"Project settings for {title}",onclick:{let id=id.clone();move |_| {open.set(false);crate::projects_page::open(state,&id);}},"Project settings"}
-                    button {class:"menu-item",role:"menuitem",r#type:"button","aria-label":"{remove_label}",disabled:!can_operate,onclick:move |_| {open.set(false);thread_lifecycle::request_remove_project(state,&id);},"Remove project"}
-                }
-            }
-            if let Some(draft) = draft {
-                div {class:"modal-backdrop",onclick:move |_| renaming.set(None),
-                    div {class:"dialog",role:"dialog","aria-modal":"true","aria-label":"Rename project",onclick:move |event| event.stop_propagation(),
-                        onkeydown:move |event| {if event.key()==Key::Escape {event.stop_propagation();renaming.set(None);}},
-                        h2 {"Rename project"}
-                        input {"aria-label":"Project name",value:"{draft}",onmounted:move |event| {drop(event.set_focus(true));},
-                            oninput:move |event| renaming.set(Some(event.value())),
-                            onkeydown:move |event| {if event.key()==Key::Enter {event.prevent_default();let typed=renaming.peek().clone().unwrap_or_default();save.call(typed);}}}
-                        div {class:"dialog-actions",
-                            button {r#type:"button","aria-label":"Cancel rename",onclick:move |_| renaming.set(None),"Cancel"}
-                            button {class:"primary",r#type:"button","aria-label":"Save project name",onclick:move |_| {let typed=renaming.peek().clone().unwrap_or_default();save.call(typed);},"Save"}
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// What `thread.copyReference` copies for the open thread: its pull request's link when it has one,
 /// else its ID (`resolveThreadReferenceCopyTarget`).
 pub(crate) fn reference_target(state: Store<UiModel>) -> Option<(&'static str, String)> {
@@ -637,7 +572,8 @@ fn section_order(state: Store<UiModel>, thread_id: &str, section: sidebar::Secti
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return Default::default() };
     let Some(project) = snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id).map(|thread| thread.project_id.clone()) else { return Default::default() };
-    let sections = sidebar::Sections::of(listed(&snapshot.threads, project.as_str()), Utc::now(), caps_of(state).support());
+    let scope = crate::sidebar_groups::scope_of(state, project.as_str());
+    let sections = sidebar::Sections::of(listed_in(&snapshot.threads, &scope.ids), Utc::now(), caps_of(state).support());
     let pinned = section == sidebar::Section::Pinned;
     let keys = snapshot.threads.iter().map(|thread| (thread.id.to_string(), if pinned { thread.pin_order_key.clone() } else { thread.active_order_key.clone() }.flatten().map(|key| key.to_string()))).collect();
     (sections.section(section).iter().map(|thread| thread.id.to_string()).collect(), keys)

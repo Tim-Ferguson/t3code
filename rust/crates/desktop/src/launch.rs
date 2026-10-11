@@ -11,6 +11,9 @@ use std::{
 pub const FIRST_PORT: u16 = 3773;
 /// The descriptor on which the server reads its bootstrap envelope (`--bootstrap-fd 3`, as the original).
 pub const BOOTSTRAP_FD: i32 = 3;
+/// The descriptor of the socket the server talks to this app over (`--desktop-telemetry-fd 4 --desktop-telemetry-control-fd 4`: the
+/// server accepts one socket for both directions). See `control_channel`.
+pub const CONTROL_FD: i32 = 4;
 
 /// Where this app keeps what it writes. All of it lives under one directory, so that a test or a second profile
 /// is a different directory.
@@ -254,11 +257,19 @@ pub struct ServerLauncher {
     ready: Option<tokio::sync::oneshot::Receiver<ReadyLine>>,
     /// How long `ready` waits for the line before it asks over HTTP as well.
     ready_line_grace: Duration,
+    /// What the server's requests over the control channel are answered with; none starts the server without the channel.
+    answers: Option<crate::control_channel::Answers>,
 }
 
 impl ServerLauncher {
     pub fn new(config: ServerConfig) -> Self {
-        Self { config, log_start: 0, ready: None, ready_line_grace: READY_LINE_GRACE }
+        Self { config, log_start: 0, ready: None, ready_line_grace: READY_LINE_GRACE, answers: None }
+    }
+
+    /// Starts the server with the control channel, and answers what it asks over it as `answers` say.
+    pub fn with_control_channel(mut self, answers: crate::control_channel::Answers) -> Self {
+        self.answers = Some(answers);
+        self
     }
 
     /// Changes how long a start waits for the ready line before it also polls (a test of the polling).
@@ -316,6 +327,26 @@ impl Launcher for ServerLauncher {
             writer.write_all(line.as_bytes()).map_err(|error| format!("Cannot write the bootstrap envelope: {error}"))?;
             drop(writer);
             let descriptor = std::os::fd::AsRawFd::as_raw_fd(&reader);
+            // The control channel: a socket whose child end becomes descriptor 4. Both ends are first moved above the low
+            // numbers the child's descriptors are placed on, so placing one cannot overwrite the other.
+            let channel = match &self.answers {
+                Some(_) => {
+                    let (app_end, child_end) = std::os::unix::net::UnixStream::pair().map_err(|error| format!("Cannot make the control channel: {error}"))?;
+                    let high = |end: std::os::unix::net::UnixStream| -> Result<std::os::fd::OwnedFd, String> {
+                        let moved = unsafe { libc::fcntl(std::os::fd::AsRawFd::as_raw_fd(&end), libc::F_DUPFD_CLOEXEC, 10) };
+                        if moved < 0 {
+                            return Err(format!("Cannot make the control channel: {}", std::io::Error::last_os_error()));
+                        }
+                        Ok(unsafe { std::os::fd::FromRawFd::from_raw_fd(moved) })
+                    };
+                    Some((high(app_end)?, high(child_end)?))
+                }
+                None => None,
+            };
+            let channel_child = channel.as_ref().map(|(_, child)| std::os::fd::AsRawFd::as_raw_fd(child));
+            if channel.is_some() {
+                command.args(["--desktop-telemetry-fd", &CONTROL_FD.to_string(), "--desktop-telemetry-control-fd", &CONTROL_FD.to_string()]);
+            }
             // After the fork and before the exec: the read end becomes descriptor 3 (which clears close-on-exec).
             // Everything else the pipe created stays close-on-exec.
             unsafe {
@@ -333,11 +364,24 @@ impl Launcher for ServerLauncher {
                     } else if libc::dup2(descriptor, BOOTSTRAP_FD) < 0 {
                         return Err(std::io::Error::last_os_error());
                     }
+                    if let Some(child_end) = channel_child {
+                        if libc::dup2(child_end, CONTROL_FD) < 0 {
+                            return Err(std::io::Error::last_os_error());
+                        }
+                    }
                     Ok(())
                 });
             }
             let mut child = command.spawn().map_err(|error| format!("Cannot start {}: {error}", self.config.binary.display()))?;
             drop(reader);
+            if let (Some((app_end, child_end)), Some(answers)) = (channel, self.answers.clone()) {
+                // The server holds its end now; this app keeps its own and serves the channel until the server closes it.
+                drop(child_end);
+                let app_end: std::os::unix::net::UnixStream = app_end.into();
+                app_end.set_nonblocking(true).map_err(|error| format!("Cannot use the control channel: {error}"))?;
+                let stream = tokio::net::UnixStream::from_std(app_end).map_err(|error| format!("Cannot use the control channel: {error}"))?;
+                tokio::spawn(crate::control_channel::serve(stream, answers));
+            }
             let pid = child.id();
             if let (Some(file), Some(pid)) = (&self.config.pid_file, pid) {
                 let _ = std::fs::write(file, pid.to_string());
@@ -650,5 +694,33 @@ mod tests {
         config.binary = directory.path().join("missing");
         let error = ServerLauncher::new(config).launch(1).err().unwrap();
         assert!(error.contains("Cannot start"), "{error}");
+    }
+}
+
+#[cfg(all(test, unix))]
+mod control_channel_tests {
+    use super::*;
+    use crate::updates::{self, Channel, RuntimeInfo};
+
+    /// A stand-in server that says what it read on descriptor 4: the app's hello, then the answer to an update request it makes.
+    #[tokio::test]
+    async fn the_server_is_started_with_the_control_channel_on_descriptor_4_and_its_update_request_is_answered() {
+        use std::os::unix::fs::PermissionsExt;
+        let directory = tempfile::Builder::new().prefix("t3code-rust-port-test-desktop-channel-").tempdir().unwrap();
+        let script = directory.path().join("t3-server");
+        let body = "read line <&3\nread hello <&4\necho \"hello: $hello\"\nprintf '{\"version\":1,\"type\":\"requestDesktopUpdate\",\"requestId\":\"r1\"}\\n' >&4\nread answer <&4\necho \"answer: $answer\"\necho \"args: $*\"\nexit 0";
+        std::fs::write(&script, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let config = ServerConfig { binary: script, state_dir: directory.path().join("state"), log_file: directory.path().join("logs/server.log"), pid_file: None, host: "127.0.0.1".into(), port: 3781, login_shell: None };
+        let runtime = RuntimeInfo { host_arch: "arm64".into(), app_arch: "arm64".into(), running_under_arm64_translation: false };
+        let reason = updates::disabled_reason(&updates::Environment { has_update_feed_config: false, is_development: false, is_packaged: true, disabled_by_env: false }).map(str::to_owned);
+        let answers = crate::control_channel::Answers { state: updates::unavailable("1.0.0", &runtime, Channel::Latest), reason };
+        let mut launcher = ServerLauncher::new(config.clone()).with_control_channel(answers);
+        let Launched { mut process, .. } = launcher.launch(1).unwrap();
+        assert_eq!(process.wait().await, Exit("exit code 0".into()));
+        let log = std::fs::read_to_string(&config.log_file).unwrap();
+        assert!(log.contains("\"type\":\"desktopTelemetryHello\"") && log.contains("hello: "), "{log}");
+        assert!(log.contains("\"type\":\"desktopUpdateStatus\"") && log.contains("\"requestId\":\"r1\"") && log.contains("\"outcome\":\"failed\"") && log.contains("no update feed is configured"), "{log}");
+        assert!(log.contains("--desktop-telemetry-fd 4 --desktop-telemetry-control-fd 4"), "{log}");
     }
 }
