@@ -105,6 +105,17 @@ impl<K: Hash + Eq + Clone, V: Clone, E: Clone> TtlCache<K, V, E> {
         result
     }
 
+    /// The result for `key` if one is held and still live, without loading anything.
+    pub(crate) fn peek(&self, key: &K) -> Option<Result<V, E>> {
+        let now = self.clock.monotonic();
+        let state = self.state.lock().unwrap();
+        state
+            .0
+            .get(key)
+            .filter(|entry| entry.expires_at.is_none_or(|expires_at| now < expires_at))
+            .and_then(|entry| entry.cell.get().cloned())
+    }
+
     pub(crate) fn invalidate(&self, key: &K) {
         self.state.lock().unwrap().0.remove(key);
     }

@@ -11,6 +11,10 @@ use serde_json::{Value, json};
 /// What the original's decoding makes of `payload`: the value to hand to the handler, or the wire failure (a defect, as
 /// the RPC server sends it, carrying the default formatter's text). A method outside the group is not decoded.
 pub fn admit(method: &str, payload: &Value) -> Result<Option<Value>, Value> {
+    // RUST-PORT EXTENSION (`import_status`): no fields, so it is decoded as the original decodes a method that takes none.
+    if method == t3_contracts::ACKNOWLEDGE_STATE_IMPORT_METHOD {
+        return admit("projects.ensureScratch", payload);
+    }
     // Methods outside the group have no schema, and their payloads are never copied.
     if !schemas().covers_rpc(method) {
         return Ok(None);

@@ -75,6 +75,14 @@ fn internal(error: impl std::fmt::Display) -> ApiError {
         ),
     )
 }
+/// An internal error that names what failed, as the routes of the original do.
+fn internal_because(reason: &str, error: impl std::fmt::Display) -> ApiError {
+    tracing::error!(error=%error,reason,"native API service failed");
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(json!({"_tag":"EnvironmentInternalError","code":"internal_error","reason":reason,"traceId":"unavailable"})),
+    )
+}
 fn scope_error(scope: AuthEnvironmentScope) -> ApiError {
     let response = t3_contracts::auth_scope_required_response(scope);
     (
@@ -96,6 +104,14 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/auth/session", get(session_state))
         .route("/api/auth/browser-session", post(browser_session))
         .route("/api/auth/websocket-ticket", post(websocket_ticket))
+        .route("/api/projects", get(project_snapshot))
+        .route("/api/projects/mutate", post(project_mutate))
+        .route("/api/auth/pairing-token", post(pairing_credential))
+        .route("/api/auth/pairing-links", get(pairing_links))
+        .route("/api/auth/pairing-links/revoke", post(revoke_pairing_link))
+        .route("/api/auth/clients", get(client_sessions))
+        .route("/api/auth/clients/revoke", post(revoke_client_session))
+        .route("/api/auth/clients/revoke-others", post(revoke_other_client_sessions))
         .route("/oauth/token", post(exchange_token))
         .route("/api/orchestration/shell", get(shell_snapshot))
         .route(
@@ -125,7 +141,12 @@ pub fn router(state: ApiState) -> Router {
 }
 
 async fn static_asset(State(state): State<ApiState>, uri: axum::http::Uri) -> Response {
-    let Some(root) = state.assets else {
+    serve_asset(state.assets, uri).await
+}
+
+/// A file of the built web app, or its index for a path with no extension (a client-side route). Nothing outside the root is served.
+pub(crate) async fn serve_asset(root: Option<std::path::PathBuf>, uri: axum::http::Uri) -> Response {
+    let Some(root) = root else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let path = uri.path().trim_start_matches('/');
@@ -333,16 +354,38 @@ async fn session_state(State(state): State<ApiState>, headers: HeaderMap) -> Jso
     let session = authenticate(&state, &headers).ok();
     Json(state.auth.session_state(session.as_ref()))
 }
+/// The address a request came from, when the server was built to know it (`axum::serve` over
+/// `into_make_service_with_connect_info`).
+struct Peer(Option<std::net::IpAddr>);
+impl<S: Send + Sync> axum::extract::FromRequestParts<S> for Peer {
+    type Rejection = std::convert::Infallible;
+    async fn from_request_parts(parts: &mut axum::http::request::Parts, _: &S) -> Result<Self, Self::Rejection> {
+        Ok(Peer(parts.extensions.get::<axum::extract::ConnectInfo<std::net::SocketAddr>>().map(|info| info.0.ip())))
+    }
+}
+fn user_agent(headers: &HeaderMap) -> Option<&str> {
+    headers.get(header::USER_AGENT).and_then(|value| value.to_str().ok())
+}
+fn named_cookie<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
+    headers.get(header::COOKIE).and_then(|value| value.to_str().ok()).and_then(|cookies| {
+        cookies.split(';').find_map(|part| {
+            let (key, value) = part.trim().split_once('=')?;
+            (key == name).then_some(value)
+        })
+    })
+}
 async fn browser_session(
     State(state): State<ApiState>,
     headers: HeaderMap,
+    Peer(peer): Peer,
     Json(input): Json<Value>,
 ) -> Result<Response, ApiError> {
     let credential = input["credential"].as_str().ok_or_else(unauthorized)?;
-    let client = json!({"deviceType":"unknown","userAgent":headers.get(header::USER_AGENT).and_then(|value|value.to_str().ok())});
+    let client = crate::auth::derive_client_metadata(user_agent(&headers), peer, &Default::default());
+    // A browser that pairs again with its old cookie replaces that session rather than adding one.
     let (session, token) = state
         .auth
-        .exchange_pairing_credential(credential, client, Utc::now())
+        .exchange_pairing_credential_replacing(credential, client, Utc::now(), named_cookie(&headers, &state.auth.cookie_name))
         .map_err(|_| unauthorized())?;
     let grants = t3_contracts::auth_scope_response(&session.scopes);
     let mut response=Json(json!({"authenticated":true,"scopes":grants.scopes,"permissions":grants.permissions,"sessionMethod":session.method,"expiresAt":session.expires_at})).into_response();
@@ -367,9 +410,121 @@ async fn websocket_ticket(
         .map_err(internal)
 }
 
+/// A body the schema of the route does not accept answers an empty 400, which is how the original's
+/// HTTP API renders a payload that fails to decode.
+fn undecodable() -> ApiError {
+    (StatusCode::BAD_REQUEST, Json(Value::Null))
+}
+
+/// `GET /api/projects` (`project/http.ts`): the active projects, with the repository identity known so far.
+async fn project_snapshot(State(state): State<ApiState>, headers: HeaderMap) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::OrchestrationRead)?;
+    let mut projects = ProjectService::new(state.store.clone()).list().map_err(|error| internal_because("project_snapshot_failed", error))?;
+    crate::shell_enrichment::enrich_projects(&crate::shell_enrichment::service(&state), &mut projects);
+    for project in &mut projects {
+        project["deletedAt"] = Value::Null;
+    }
+    Ok(Json(json!({"projects":projects,"updatedAt":Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)})))
+}
+
+/// `POST /api/projects/mutate`: the same mutation `projects.mutate` makes, answered with the project it left.
+async fn project_mutate(State(state): State<ApiState>, headers: HeaderMap, body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    let payload: Value = serde_json::from_slice(&body).map_err(|_| undecodable())?;
+    if crate::project::ProjectCommand::from_json(payload.clone()).ok().and_then(|command| command.normalized().ok()).is_none() {
+        return Err(undecodable());
+    }
+    require(&session, AuthEnvironmentScope::OrchestrationOperate)?;
+    let projects = ProjectService::new(state.store.clone());
+    let id = payload["projectId"].as_str().unwrap_or_default().to_owned();
+    let root_of = |projects: &ProjectService| projects.get(&id).ok().flatten().and_then(|project| project["workspaceRoot"].as_str().map(str::to_owned));
+    let before = root_of(&projects);
+    let mut project = projects.mutate(payload, Utc::now()).map_err(|error| match error {
+        StoreError::InvalidCommand(_) => invalid_request("invalid_command"),
+        other => internal_because("project_mutation_failed", other),
+    })?;
+    let enrichment = crate::shell_enrichment::service(&state);
+    enrichment.invalidate(before.iter().map(String::as_str).chain(project["workspaceRoot"].as_str()));
+    if project["deletedAt"].is_null() {
+        crate::shell_enrichment::enrich_projects(&enrichment, std::slice::from_mut(&mut project));
+    }
+    Ok(Json(project))
+}
+
+/// `POST /api/auth/pairing-token`: a one-use link for another device, for scopes the caller itself holds.
+async fn pairing_credential(State(state): State<ApiState>, headers: HeaderMap, body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    let input: t3_contracts::AuthCreatePairingCredentialInput = serde_json::from_slice(&body).map_err(|_| undecodable())?;
+    require(&session, AuthEnvironmentScope::AccessWrite)?;
+    let delegated: Vec<AuthEnvironmentScope> = input.scopes.as_ref().map_or_else(|| t3_contracts::AUTH_STANDARD_CLIENT_SCOPES.to_vec(), |scopes| scopes.iter().map(|scope| scope.scope()).collect());
+    let distinct = delegated.iter().collect::<std::collections::HashSet<_>>().len();
+    if delegated.is_empty() || distinct != delegated.len() {
+        return Err(invalid_request("invalid_scope"));
+    }
+    for scope in &delegated {
+        require(&session, *scope)?;
+    }
+    let issued = state
+        .auth
+        .issue_pairing_link(&delegated, "one-time-token", input.label.as_ref().map(|label| label.as_str()), Utc::now(), chrono::Duration::minutes(5))
+        .map_err(|error| internal_because("pairing_credential_issuance_failed", error))?;
+    let mut result = json!({"id":issued.id,"credential":issued.credential,"expiresAt":t3_contracts::UtcDateTime::from(issued.expires_at)});
+    if let Some(label) = issued.label {
+        result["label"] = json!(label);
+    }
+    Ok(Json(result))
+}
+
+/// `GET /api/auth/pairing-links`: the links that can still be used, without their credentials.
+async fn pairing_links(State(state): State<ApiState>, headers: HeaderMap) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::AccessRead)?;
+    let links = state.auth.list_pairing_links(Utc::now()).map_err(|error| internal_because("pairing_links_load_failed", error))?;
+    Ok(Json(serde_json::to_value(links).map_err(internal)?))
+}
+
+async fn revoke_pairing_link(State(state): State<ApiState>, headers: HeaderMap, body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    let input: t3_contracts::AuthRevokePairingLinkInput = serde_json::from_slice(&body).map_err(|_| undecodable())?;
+    require(&session, AuthEnvironmentScope::AccessWrite)?;
+    let revoked = state.auth.revoke_pairing_link(input.id.as_str(), Utc::now()).map_err(|error| internal_because("pairing_link_revoke_failed", error))?;
+    Ok(Json(json!({"revoked":revoked})))
+}
+
+/// `GET /api/auth/clients`: the signed-in clients, the caller's own marked `current`.
+async fn client_sessions(State(state): State<ApiState>, headers: HeaderMap) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::AccessRead)?;
+    let clients = state.auth.list_client_sessions(&session.session_id, Utc::now()).map_err(|error| internal_because("client_sessions_load_failed", error))?;
+    Ok(Json(serde_json::to_value(clients).map_err(internal)?))
+}
+
+async fn revoke_client_session(State(state): State<ApiState>, headers: HeaderMap, body: axum::body::Bytes) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    let input: t3_contracts::AuthRevokeClientSessionInput = serde_json::from_slice(&body).map_err(|_| undecodable())?;
+    require(&session, AuthEnvironmentScope::AccessWrite)?;
+    match state.auth.revoke_client_session(&session.session_id, input.session_id.as_str(), Utc::now()) {
+        Ok(revoked) => Ok(Json(json!({"revoked":revoked}))),
+        Err(crate::auth::RevokeClientError::CurrentSession) => Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({"_tag":"EnvironmentOperationForbiddenError","code":"operation_forbidden","reason":"current_session_revoke_not_allowed","traceId":"unavailable"})),
+        )),
+        Err(error) => Err(internal_because("client_session_revoke_failed", error)),
+    }
+}
+
+async fn revoke_other_client_sessions(State(state): State<ApiState>, headers: HeaderMap) -> Result<Json<Value>, ApiError> {
+    let session = authenticate(&state, &headers)?;
+    require(&session, AuthEnvironmentScope::AccessWrite)?;
+    let revoked = state.auth.revoke_all_except(&session.session_id, Utc::now()).map_err(|error| internal_because("client_session_revoke_failed", error))?;
+    Ok(Json(json!({"revokedCount":revoked})))
+}
+
 async fn exchange_token(
     State(state): State<ApiState>,
     headers: HeaderMap,
+    Peer(peer): Peer,
     Form(input): Form<t3_contracts::AuthTokenExchangeRequest>,
 ) -> Result<Json<Value>, ApiError> {
     if headers.contains_key("dpop") {
@@ -381,19 +536,15 @@ async fn exchange_token(
         .map(|scope| requested_scopes(scope.as_str()))
         .transpose()?;
     let now = Utc::now();
-    let mut client = json!({"deviceType":input.client_device_type.unwrap_or(t3_contracts::AuthClientMetadataDeviceType::Unknown)});
-    if let Some(label) = input.client_label {
-        client["label"] = json!(label);
-    }
-    if let Some(os) = input.client_os {
-        client["os"] = json!(os);
-    }
-    if let Some(agent) = headers
-        .get(header::USER_AGENT)
-        .and_then(|value| value.to_str().ok())
-    {
-        client["userAgent"] = json!(agent);
-    }
+    let client = crate::auth::derive_client_metadata(
+        user_agent(&headers),
+        peer,
+        &crate::auth::PresentedClient {
+            label: input.client_label.as_ref().map(|label| label.as_str().to_owned()),
+            device_type: input.client_device_type,
+            os: input.client_os.as_ref().map(|os| os.as_str().to_owned()),
+        },
+    );
     let (session, token) = state
         .auth
         .exchange_pairing_bearer(
@@ -453,10 +604,14 @@ async fn shell_snapshot(
 ) -> Result<Json<Value>, ApiError> {
     let session = authenticate(&state, &headers)?;
     require(&session, AuthEnvironmentScope::OrchestrationRead)?;
+    let enrichment = crate::shell_enrichment::service(&state);
     ThreadService::new(state.store)
         .shell_snapshot()
         .map(|mut snapshot| {
             snapshot["archivedThreads"] = json!([]);
+            // What is known of each project's repository now; the rest resolves in the background and
+            // reaches the socket (`shell_enrichment.rs`).
+            crate::shell_enrichment::enrich_snapshot(&enrichment, &mut snapshot);
             Json(snapshot)
         })
         .map_err(internal)
@@ -611,6 +766,18 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
             }
         }
     }
+    // The session counts as connected while this socket is open, however the connection ends.
+    struct Connected {
+        auth: AuthService,
+        session: String,
+    }
+    impl Drop for Connected {
+        fn drop(&mut self) {
+            self.auth.mark_disconnected(&self.session, Utc::now());
+        }
+    }
+    state.auth.mark_connected(&session.session_id, Utc::now());
+    let _connected = Connected { auth: state.auth.clone(), session: session.session_id.clone() };
     let mut leases = Leases {
         reported: reported.clone(),
         policy: state.background.clone(),
@@ -666,9 +833,9 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
-                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones") {
+                            let (ack, task)=if matches!(request.tag.as_str(),"orchestration.subscribeShell"|"orchestration.subscribeThread"|"orchestration.subscribeArchivedShell"|"terminal.attach"|"terminal.observe"|"subscribeTerminalMetadata"|"subscribeTerminalEvents"|"subscribeDiscoveredLocalServers"|"subscribeServerConfig"|"subscribeResourceTelemetry"|"subscribeBackgroundPolicy"|"subscribeServerLifecycle"|"subscribeDeviceState"|"subscribeVcsStatus"|"pullRequests.subscribeRefreshes"|"git.runStackedAction"|"scheduledTasks.subscribe"|"provider.auth.subscribe"|"provider.install.subscribe"|"subscribeWorktreeSetup"|"subscribeProjectClones"|"subscribeAuthAccess") {
                                 let(ack,acknowledged)=mpsc::channel(1);
-                                let task=tokio::spawn(async move {if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
+                                let task=tokio::spawn(async move {if request.tag=="provider.auth.subscribe" {provider_auth_stream(request,state,session,output,acknowledged).await;}else if request.tag=="provider.install.subscribe" {provider_install_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDeviceState" {device_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeBackgroundPolicy" {background_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerLifecycle" {lifecycle_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeServerConfig" {config_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeVcsStatus" {vcs_status_stream(request,state,session,output,acknowledged).await;}else if request.tag=="git.runStackedAction" {git_stacked_action_stream(request,state,session,output,acknowledged).await;}else if request.tag=="pullRequests.subscribeRefreshes" {pull_request_refresh_stream(request,state,session,output,acknowledged).await;}else if request.tag=="scheduledTasks.subscribe" {scheduled_tasks_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeResourceTelemetry" {resource_telemetry_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeDiscoveredLocalServers" {discovery_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeWorktreeSetup" {worktree_setup_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeProjectClones" {project_clone_stream(request,state,session,output,acknowledged).await;}else if request.tag=="subscribeAuthAccess" {auth_access_stream(request,state,session,output,acknowledged).await;}else if request.tag.starts_with("terminal.") || request.tag.starts_with("subscribeTerminal") {terminal_stream(request,state,session,output,acknowledged).await;}else{stream(request,state,session,output,acknowledged).await;}let _=finished.send((completed_id,current_generation,None)).await;});
                                 (Some(ack),task)
                             }else{
                                 let task=tokio::spawn(async move {
@@ -859,6 +1026,7 @@ async fn execute_unary(state: ApiState, request: RpcRequest) -> Result<Value, Va
                 crate::keybindings_rpc::overlay(&mut config).await?;
                 crate::project_folders::ManagedProjectFolders::overlay_config(&state.store, &mut config).await;
                 crate::external_launcher::overlay_config(&mut config).await;
+        crate::import_status::overlay_config(&state.store, &mut config);
                 return Ok(config);
             }
             return Ok(settings);
@@ -1187,9 +1355,25 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
         "orchestration.getTurnItem"=>crate::history::HistoryService::new(state.store.clone()).detail(request.payload.clone()).map_err(error),
         "orchestration.getArchivedShellSnapshot"=>{
             let mut snapshot=ThreadService::new(state.store.clone()).shell_snapshot().map_err(error)?;
+            crate::shell_enrichment::enrich_snapshot(&crate::shell_enrichment::service(state),&mut snapshot);
             snapshot["threads"]=snapshot["archivedThreads"].take();snapshot.as_object_mut().unwrap().remove("archivedThreads");Ok(snapshot)
         },
-        "projects.mutate"=>ProjectService::new(state.store.clone()).mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)})),
+        "server.acknowledgeStateImport"=>{
+            // RUST-PORT EXTENSION (`import_status`): the notice of the import is cleared once seen.
+            let directory=state.store.state_dir().ok_or_else(||json!({"_tag":"NativeServiceUnavailableError","message":"This store has no state directory."}))?;
+            let acknowledged=crate::import_status::acknowledge(directory).map_err(|error|json!({"_tag":"NativeServiceError","method":request.tag,"message":error.to_string()}))?;
+            Ok(json!({"acknowledged":acknowledged}))
+        },
+        "projects.mutate"=>{
+            // A project made, moved or removed no longer has the identity its old root resolved to.
+            let projects=ProjectService::new(state.store.clone());
+            let id=request.payload["projectId"].as_str().unwrap_or_default();
+            let before=projects.get(id).ok().flatten().and_then(|project|project["workspaceRoot"].as_str().map(str::to_owned));
+            let result=projects.mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)}))?;
+            let after=projects.get(id).ok().flatten().and_then(|project|project["workspaceRoot"].as_str().map(str::to_owned));
+            crate::shell_enrichment::service(state).invalidate(before.iter().chain(after.iter()).map(String::as_str).chain(request.payload["workspaceRoot"].as_str()));
+            Ok(result)
+        },
         "projects.readFile"=>{
             let input:t3_contracts::ProjectReadFileInput=serde_json::from_value(request.payload.clone()).map_err(|error|json!({"_tag":"ProjectReadFileError","message":error.to_string()}))?;
             crate::workspace_files::read_file(&input).map_err(|error|error.rpc_error(false,input.cwd.as_str(),input.relative_path.0.as_str()))
@@ -1519,6 +1703,57 @@ async fn background_stream(
             let sent=tokio::select!{biased;_=service.closed()=>return Ok::<(),Value>(()),sent=chunk(&output,&mut ack,&request.id,vec![serde_json::to_value(next).unwrap()])=>sent};
             if !sent{return Ok(());}
             match subscription.recv().await{Some(snapshot)=>next=snapshot,None=>return Ok(())}
+        }
+    }.await;
+    let response = match result {
+        Ok(()) => RpcServerMessage::Exit {
+            request_id: request.id,
+            exit: RpcExit::Success { value: Value::Null },
+        },
+        Err(error) => failure(request.id, error),
+    };
+    let _ = output.send(response).await;
+}
+
+/// `subscribeAuthAccess`: the pairing links and signed-in clients as they stand, then each change to
+/// either. The revision counts the events sent; a subscriber that falls behind gets a new snapshot in
+/// place of what it missed.
+async fn auth_access_stream(
+    request: RpcRequest,
+    state: ApiState,
+    session: Session,
+    output: SocketSender,
+    mut ack: mpsc::Receiver<()>,
+) {
+    let result=async {
+        let stream_error=|error:crate::auth::AuthError|json!({"_tag":"AuthAccessStreamError","message":error.to_string()});
+        // Subscribed before the snapshot is read, so a change in between is delivered twice rather than lost.
+        let mut changes=state.auth.subscribe_access();
+        let snapshot=|revision:u64|->Result<Value,Value>{
+            let now=Utc::now();
+            let links=state.auth.list_pairing_links(now).map_err(stream_error)?;
+            let clients=state.auth.list_client_sessions(&session.session_id,now).map_err(stream_error)?;
+            Ok(json!({"version":1,"revision":revision,"type":"snapshot","payload":{"pairingLinks":links,"clientSessions":clients}}))
+        };
+        let mut revision=1u64;
+        if !chunk(&output,&mut ack,&request.id,vec![snapshot(revision)?]).await{return Ok::<(),Value>(());}
+        loop {
+            let event=match changes.recv().await{
+                Ok(change)=>{
+                    revision+=1;
+                    match change{
+                        crate::auth::AccessChange::PairingLinkUpserted(link)=>json!({"version":1,"revision":revision,"type":"pairingLinkUpserted","payload":link}),
+                        crate::auth::AccessChange::PairingLinkRemoved(id)=>json!({"version":1,"revision":revision,"type":"pairingLinkRemoved","payload":{"id":id}}),
+                        crate::auth::AccessChange::ClientUpserted(mut client)=>{client.current=client.session_id.as_str()==session.session_id;json!({"version":1,"revision":revision,"type":"clientUpserted","payload":client})},
+                        crate::auth::AccessChange::ClientRemoved(id)=>json!({"version":1,"revision":revision,"type":"clientRemoved","payload":{"sessionId":id}}),
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_))=>{revision+=1;snapshot(revision)?}
+                Err(_)=>return Ok(()),
+            };
+            let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
+            authorize_rpc(&active,&request.tag)?;
+            if !chunk(&output,&mut ack,&request.id,vec![event]).await{return Ok(());}
         }
     }.await;
     let response = match result {
@@ -1890,6 +2125,7 @@ async fn config_stream(
         let mut keybindings=crate::keybindings_rpc::open_stream(&mut config).await?;
         crate::project_folders::ManagedProjectFolders::overlay_config(&state.store,&mut config).await;
         crate::external_launcher::overlay_config(&mut config).await;
+        crate::import_status::overlay_config(&state.store, &mut config);
         let (changes,mut provider_events)=mpsc::unbounded_channel();
         struct Abort(tokio::task::JoinHandle<()>);
         impl Drop for Abort {fn drop(&mut self) {self.0.abort();}}
@@ -1932,6 +2168,18 @@ async fn config_stream(
     let _ = output.send(response).await;
 }
 
+/// One chunk of a stream. A shell stream passes each item by its dedupe first.
+async fn send_item(output: &SocketSender, ack: &mut mpsc::Receiver<()>, id: &RpcRequestId, dedupe: &mut Option<crate::shell_enrichment::Dedupe>, value: Value) -> bool {
+    if dedupe.as_mut().is_some_and(|dedupe| !dedupe.keep(&value)) {
+        return true;
+    }
+    chunk(output, ack, id, vec![value]).await
+}
+
+/// How long roots that resolve close together wait to be sent as one frame, and how many go in one.
+const ENRICHMENT_WINDOW: std::time::Duration = std::time::Duration::from_millis(25);
+const ENRICHMENT_BATCH: usize = 64;
+
 async fn stream_inner(
     request: &RpcRequest,
     state: &ApiState,
@@ -1942,12 +2190,17 @@ async fn stream_inner(
     let mut live = state.store.subscribe();
     let is_thread = request.tag == "orchestration.subscribeThread";
     let archive = request.tag == "orchestration.subscribeArchivedShell";
+    let shell = !is_thread && !archive;
     let thread_id = request.payload["threadId"].as_str();
     if is_thread && thread_id.is_none() {
         return Err(
             json!({"_tag":"OrchestrationV2GetThreadProjectionError","threadId":"","message":"threadId is required."}),
         );
     }
+    // Attached before the snapshot is read, so a root that resolves while it is built still reaches this stream.
+    let enrichment = (!is_thread).then(|| crate::shell_enrichment::service(state));
+    let mut enrichment_changes = enrichment.as_ref().filter(|_| shell).map(|enrichment| enrichment.subscribe());
+    let mut dedupe = shell.then(crate::shell_enrichment::Dedupe::default);
     let mut snapshot = if is_thread {
         read_thread_snapshot(&state.store, thread_id.unwrap(), request.payload["acceptBoundedSnapshot"] == true)
     } else {
@@ -1960,8 +2213,17 @@ async fn stream_inner(
     if !is_thread && !archive {
         snapshot["archivedThreads"] = json!([]);
     }
+    // Known identities go into the snapshot as it stands; roots already resolved follow as one marked frame.
+    let resolved = enrichment.as_ref().map(|enrichment| crate::shell_enrichment::enrich_snapshot(enrichment, &mut snapshot)).unwrap_or_default();
+    let resolved_frame = shell.then(|| crate::shell_enrichment::initial_enrichment_frame(&snapshot, &resolved)).flatten();
     let after = request.payload.get("afterSequence").and_then(Value::as_u64);
     if let Some(after) = after.filter(|after| *after <= through) {
+        // A resume gets the metadata alone, never another shell body.
+        if let Some(frame) = resolved_frame {
+            if !send_item(output, ack, &request.id, &mut dedupe, frame).await {
+                return Ok(());
+            }
+        }
         let mut cursor = after;
         loop {
             let events=state.store.events(cursor,Some(through),None,None,256).map_err(|error|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":error.to_string()}))?;
@@ -1971,7 +2233,7 @@ async fn stream_inner(
             for event in events {
                 cursor = event.sequence;
                 if let Some(value) = stream_item(state, &event, is_thread, archive, thread_id)? {
-                    if !chunk(output, ack, &request.id, vec![value]).await {
+                    if !send_item(output, ack, &request.id, &mut dedupe, value).await {
                         return Ok(());
                     }
                 }
@@ -1999,8 +2261,13 @@ async fn stream_inner(
         } else {
             json!({"kind":"snapshot","snapshot":snapshot})
         };
-        if !chunk(output, ack, &request.id, vec![value]).await {
+        if !send_item(output, ack, &request.id, &mut dedupe, value).await {
             return Ok(());
+        }
+        if let Some(frame) = resolved_frame {
+            if !send_item(output, ack, &request.id, &mut dedupe, frame).await {
+                return Ok(());
+            }
         }
     }
     if request.payload["requestCompletionMarker"] == true && !archive {
@@ -2015,13 +2282,46 @@ async fn stream_inner(
             return Ok(());
         }
     }
+    let mut pending: Vec<crate::project_enrichment::Change> = Vec::new();
+    let mut flush_at: Option<tokio::time::Instant> = None;
     loop {
-        let events=live.recv().await.map_err(|error|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":format!("Live subscription lost continuity; reconnect with its sequence: {error}")}))?;
-        let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
-        authorize_rpc(&active, &request.tag)?;
-        for event in events.into_iter().filter(|event| event.sequence > through) {
-            if let Some(value) = stream_item(state, &event, is_thread, archive, thread_id)? {
-                if !chunk(output, ack, &request.id, vec![value]).await {
+        let flush_due = flush_at;
+        tokio::select! {
+            events = live.recv() => {
+                let events=events.map_err(|error|json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":format!("Live subscription lost continuity; reconnect with its sequence: {error}")}))?;
+                let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
+                authorize_rpc(&active, &request.tag)?;
+                for event in events.into_iter().filter(|event| event.sequence > through) {
+                    if let Some(value) = stream_item(state, &event, is_thread, archive, thread_id)? {
+                        if !send_item(output, ack, &request.id, &mut dedupe, value).await {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+            change = async { match enrichment_changes.as_mut() { Some(changes) => changes.recv().await, None => std::future::pending().await } } => {
+                match change {
+                    Ok(change) => {
+                        pending.push(change);
+                        flush_at.get_or_insert_with(|| tokio::time::Instant::now() + ENRICHMENT_WINDOW);
+                    }
+                    // Roots resolved in the gap are in the next snapshot a client takes; the others still arrive.
+                    Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                    Err(tokio::sync::broadcast::error::RecvError::Closed) => enrichment_changes = None,
+                }
+            }
+            _ = async move { match flush_due { Some(at) => tokio::time::sleep_until(at).await, None => std::future::pending().await } } => {
+                flush_at = None;
+            }
+        }
+        if !pending.is_empty() && (flush_at.is_none() || pending.len() >= ENRICHMENT_BATCH) {
+            flush_at = None;
+            let batch = std::mem::take(&mut pending);
+            let frame = crate::shell_enrichment::refresh_frame(&state.store, &batch).map_err(|error| json!({"_tag":"OrchestrationV2GetShellSnapshotError","message":error.to_string()}))?;
+            if let Some(frame) = frame {
+                let active=state.auth.active_session(&session.session_id,Utc::now()).map_err(|_|session_ended(&request.tag))?;
+                authorize_rpc(&active, &request.tag)?;
+                if !send_item(output, ack, &request.id, &mut dedupe, frame).await {
                     return Ok(());
                 }
             }
@@ -2048,9 +2348,12 @@ fn stream_item(
                 json!({"kind":"project.removed","sequence":event.sequence,"projectId":event.event.aggregate_id}),
             ));
         }
-        let project = ProjectService::new(state.store.clone())
+        let mut project = ProjectService::new(state.store.clone())
             .get(&event.event.aggregate_id)
             .map_err(|error| json!({"message":error.to_string()}))?;
+        if let Some(project) = project.as_mut() {
+            crate::shell_enrichment::enrich_projects(&crate::shell_enrichment::service(state), std::slice::from_mut(project));
+        }
         return Ok(project.map(
             |project| json!({"kind":"project.updated","sequence":event.sequence,"project":project}),
         ));

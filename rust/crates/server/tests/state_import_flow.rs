@@ -232,17 +232,11 @@ fn short(value: &Value) -> String {
 /// The differences from what the original served that are intended, and why. Every other difference fails the comparison, in any
 /// field of the shell and of each thread projection, and "absent" is not "null".
 ///
-/// 1. `repositoryIdentity` of a project, and `resolvedRepositoryIdentityRoots`: the original resolves them from the workspace's git
-///    remote with a service of its own (`ProjectEnrichmentService`) and sends them after the snapshot; this server runs no such
-///    service, sends null, and says so in its environment descriptor (`capabilities.repositoryIdentity: false`).
-/// 2. A V1 thread's `updatedAt` (the shell's, and its projection's `thread` and `updatedAt`), for the two V1 homes only: V1 recorded
+/// 1. A V1 thread's `updatedAt` (the shell's, and its projection's `thread` and `updatedAt`), for the two V1 homes only: V1 recorded
 ///    when the thread last changed. The original, importing a transcript lazily at first open, appends the older messages after the
 ///    thread's shell event, so its thread ends up stamped with the time of the last message it hydrated, which is when it happened
 ///    to hydrate them. The import writes the whole transcript first and the shell last, so the thread keeps V1's own time.
 fn allowed(path: &str) -> bool {
-    if path.contains(".repositoryIdentity") || path.contains("resolvedRepositoryIdentityRoots") {
-        return true;
-    }
     LEGACY.with(|legacy| legacy.get()) && (path.starts_with("shell.threads[") || path.starts_with("thread[")) && (path.ends_with("].updatedAt") || path.ends_with(".thread.updatedAt"))
 }
 
@@ -761,4 +755,58 @@ fn serve_imports_in_place_on_first_start_only_and_leaves_the_originals_files_whe
     for (name, bytes) in &before {
         assert_eq!(after.iter().find(|(other, _)| other == name).map(|(_, bytes)| bytes), Some(bytes), "{name}");
     }
+}
+
+/// RUST-PORT EXTENSION (`import_status.rs`): the config a client reads says what the import did, until it is acknowledged.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_config_reports_the_import_until_it_is_acknowledged() {
+    let base = tempfile::tempdir().unwrap();
+    let from = home("full", base.path());
+    let state = base.path().join("state");
+    let report = imported(&from, &state);
+    let served = serve(&state).await;
+    let mut socket = served.connect().await;
+    // Both the call and the stream a client opens carry it.
+    let config = success(&rpc(&mut socket, 1, "server.getConfig", json!({})).await).clone();
+    let block: t3_contracts::StateImportStatus = serde_json::from_value(config["stateImport"].clone()).unwrap();
+    assert_eq!(block.status, t3_contracts::StateImportOutcome::Imported);
+    assert_eq!(block.source.as_ref().unwrap().kind, t3_contracts::StateImportSourceKind::V2);
+    let counts = block.counts.clone().unwrap();
+    assert!(counts.projects > 0 && counts.threads > 0 && counts.events > 0, "{counts:?}");
+    assert_eq!(counts.projects, report.projects_imported);
+    assert!(block.skipped.iter().any(|row| row.item == "auth_sessions" || row.item == "orchestration_v2_effect_outbox") || !block.reenter.is_empty(), "{block:?}");
+    assert_eq!(block.reenter.len(), report.credentials_to_reenter.len());
+    // The block is part of the typed config a client decodes.
+    let typed: t3_contracts::ServerConfig = serde_json::from_value(config.clone()).unwrap();
+    assert_eq!(typed.state_import, Some(block.clone()));
+    send(&mut socket, json!({"_tag":"Request","id":2,"tag":"subscribeServerConfig","payload":{},"headers":[]})).await;
+    let first = loop {
+        let message = next(&mut socket).await;
+        if message["_tag"] == "Chunk" {
+            break message;
+        }
+    };
+    assert_eq!(first["values"][0]["config"]["stateImport"], config["stateImport"]);
+    send(&mut socket, json!({"_tag":"Interrupt","requestId":2})).await;
+
+    // The outbound check lets this one extra key through and nothing else: a block that does not fit its contract is a violation.
+    let exit_of = |value: Value| t3_contracts::RpcServerMessage::Exit { request_id: "1".into(), exit: serde_json::from_value(json!({"_tag":"Success","value":value})).unwrap() };
+    assert_eq!(t3_server::rpc_response::violations("server.getConfig", &exit_of(config.clone())), vec![]);
+    let mut spoiled = config.clone();
+    spoiled["stateImport"]["surprise"] = json!(true);
+    assert_eq!(t3_server::rpc_response::violations("server.getConfig", &exit_of(spoiled)).len(), 1);
+    // Only where the config carries it: the same key anywhere else in the reply is still refused.
+    let mut elsewhere = config.clone();
+    let block = elsewhere.as_object_mut().unwrap().remove("stateImport").unwrap();
+    elsewhere["settings"]["stateImport"] = block;
+    assert_eq!(t3_server::rpc_response::violations("server.getConfig", &exit_of(elsewhere)).len(), 1);
+
+    // A payload that is not an object is refused before the handler, as the original refuses one for a method with no fields.
+    let refused = rpc(&mut socket, 3, "server.acknowledgeStateImport", Value::Null).await;
+    assert_eq!(refused["_tag"], "Failure", "{refused}");
+    assert_eq!(success(&rpc(&mut socket, 4, "server.acknowledgeStateImport", json!({})).await), &json!({"acknowledged":true}));
+    let config = success(&rpc(&mut socket, 5, "server.getConfig", json!({})).await).clone();
+    assert!(config.get("stateImport").is_none(), "{}", config["stateImport"]);
+    assert_eq!(success(&rpc(&mut socket, 6, "server.acknowledgeStateImport", json!({})).await), &json!({"acknowledged":false}));
+    served.finish().await;
 }

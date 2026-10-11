@@ -705,6 +705,8 @@ pub const RPC_REQUIRED_SCOPES: &[(&str, AuthEnvironmentScope)] = &[
         AuthEnvironmentScope::OrchestrationRead,
     ),
     ("subscribeAuthAccess", AuthEnvironmentScope::AccessRead),
+    // RUST-PORT EXTENSION (state_import.rs): clears the notice of the one-time import of the original's data.
+    ("server.acknowledgeStateImport", AuthEnvironmentScope::SettingsWrite),
     (
         "subscribeBackgroundPolicy",
         AuthEnvironmentScope::OrchestrationRead,

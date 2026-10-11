@@ -209,7 +209,7 @@ impl Actor {
         let extension = pi_launch::materialize_extension(&cache).map_err(|cause| format!("Could not write the Pi extension: {cause}"))?;
         let extension = extension.to_string_lossy().into_owned();
         let mcp = self.mcp.as_ref().map(|mcp| (mcp.endpoint.as_str(), mcp.authorization_header.as_str()));
-        let plan = pi_launch::build_rpc_launch(&LaunchOptions { launch_args: &launch_args, mcp, extension_path: Some(&extension), ephemeral: false, runtime_mode: Some(runtime_mode) });
+        let plan = pi_launch::build_rpc_launch(&LaunchOptions { launch_args: &launch_args, mcp, extension_path: Some(&extension), ephemeral: false, runtime_mode: Some(runtime_mode), disable_extensions: false, disable_tools: false });
         let launch_key = json!({"args":plan.args,"env":plan.env.iter().collect::<std::collections::BTreeMap<_, _>>(),"cwd":self.cwd,"binary":self.instance.binary_path()}).to_string();
         if self.live.as_ref().is_some_and(|live| live.launch_key == launch_key) {
             return Ok(());

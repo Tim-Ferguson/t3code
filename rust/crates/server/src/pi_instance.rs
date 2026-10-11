@@ -156,7 +156,7 @@ impl PiInstance {
 
     /// `discoverPiViaRpc`.
     async fn discover_via_rpc(&self, launch_args: &[String], cwd: &Path) -> Result<Discovery, String> {
-        let launch = pi_launch::build_rpc_launch(&LaunchOptions { launch_args, mcp: None, extension_path: None, ephemeral: true, runtime_mode: None });
+        let launch = pi_launch::build_rpc_launch(&LaunchOptions { launch_args, mcp: None, extension_path: None, ephemeral: true, runtime_mode: None, disable_extensions: false, disable_tools: false });
         let mut env = self.process_environment();
         env.extend(launch.env);
         let (process, _events) = PiProcess::spawn(&Launch { binary: self.binary_path(), args: launch.args, cwd: cwd.to_path_buf(), env, remove_env: launch.remove_env })?;

@@ -461,6 +461,19 @@ const syncScenarios = [
     ]),
   },
   { name: "already complete", file: JSON.stringify(Shared.DEFAULT_KEYBINDINGS) },
+  // A config written before these defaults existed is brought up to date on the next start.
+  {
+    name: "a config from before the file picker and project search",
+    file: JSON.stringify(
+      Shared.DEFAULT_KEYBINDINGS.filter(
+        (rule) => rule.command !== "filePicker.toggle" && rule.command !== "projectSearch.toggle",
+      ),
+    ),
+  },
+  {
+    name: "a config holding one default takes every other",
+    file: JSON.stringify(Shared.DEFAULT_KEYBINDINGS.slice(0, 1)),
+  },
   {
     name: "comments and trailing commas are rewritten",
     file: '[\n // mine\n {"key":"mod+j","command":"terminal.toggle"},\n]',

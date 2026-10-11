@@ -18,6 +18,7 @@ Environment:
   PI_FIXTURE_BLOCK      when set, `get_state` is never answered (a Pi that hangs on startup)
   PI_FIXTURE_VERSION_FILE / PI_FIXTURE_UPDATE_TO
                         the version `--version` prints is read from this file, and `pi update --self` writes the other value to it
+  PI_FIXTURE_REPLY      when set, every prompt is answered with this text (a one-shot text generation reads it back)
   PI_FIXTURE_DISCOVERY_FAILS  when set, the discovery launch (`--no-session`) exits at once
 """
 import json, os, signal, socket, sys, threading, time, uuid
@@ -163,6 +164,8 @@ class Script:
         self.entries = [json.loads(line) for line in open(path)] if os.path.exists(path) else []
 
     def save(self):
+        if self.file is None:  # --no-session: nothing is written
+            return
         with open(self.file, "w") as handle:
             for entry in self.entries:
                 handle.write(json.dumps(entry) + "\n")
@@ -211,6 +214,9 @@ class Script:
             return self.respond(request, {"sessionFile": self.file, "contextUsage": {"tokens": 1000 + 10 * len(self.entries), "contextWindow": 100000}, "tokens": {"input": 900, "output": 100, "cacheRead": 0}})
         if kind == "get_messages":
             return self.respond(request, {"messages": [entry["message"] for entry in self.entries if entry["type"] == "message"]})
+        if kind == "get_last_assistant_text":
+            replies = [entry["message"]["content"][0]["text"] for entry in self.entries if entry["message"]["role"] == "assistant"]
+            return self.respond(request, {"text": replies[-1] if replies else None})
         if kind == "set_model":
             self.model = {"provider": request["provider"], "id": request["modelId"]}
             return self.respond(request, next((m for m in self.models if m.get("id") == request["modelId"]), self.models[0]))
@@ -305,6 +311,8 @@ class Script:
             emit({"type": "compaction_start", "reason": "manual"})
             emit({"type": "compaction_end", "reason": "manual", "aborted": False, "willRetry": False, "result": {"summary": "Summary of the conversation.", "tokensBefore": 5000, "estimatedTokensAfter": 800}})
             emit({"type": "response", "command": "compact", "success": True, "data": {}})
+        elif os.environ.get("PI_FIXTURE_REPLY") is not None:
+            self.reply(os.environ["PI_FIXTURE_REPLY"])
         elif text.startswith("approve edit"):
             answer = self.dialog("confirm", title="Allow edit?", message="edit notes.txt")
             if answer.get("confirmed"):

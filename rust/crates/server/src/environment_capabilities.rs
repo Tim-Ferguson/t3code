@@ -7,7 +7,8 @@ use t3_contracts::PROVIDER_SEND_TURN_MAX_FILE_BYTES;
 
 pub fn advertised() -> Value {
     json!({
-        "repositoryIdentity": false,
+        // Shell frames carry each project's repository identity once its root has resolved (`shell_enrichment`).
+        "repositoryIdentity": true,
         "connectionProbe": true,
         "attachmentUploads": true,
         "questionAttachments": true,
@@ -57,7 +58,7 @@ mod tests {
         let descriptor = json!({"environmentId":"environment","label":"Rust","platform":{"os":"linux","arch":"x64"},"serverVersion":"test","orchestrationProtocolVersion":2,"capabilities":advertised()});
         let decoded: t3_contracts::ExecutionEnvironmentDescriptor = serde_json::from_value(descriptor.clone()).unwrap();
         assert_eq!(serde_json::to_value(decoded).unwrap()["capabilities"], descriptor["capabilities"]);
-        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases"] {
+        for ported in ["threadSettlement", "threadAutoSettlement", "threadRestartContinuation", "threadPullRequestWatch", "pullRequestChecks", "usagePriceOverrides", "usageModelAliases", "repositoryIdentity"] {
             assert_eq!(advertised()[ported], true, "{ported}");
         }
         for held_back in ["storageCleanup", "projectWorktreeCleanup", "usageLimitSources", "environmentThemes", "pullRequestStackActions", "serverResolvedCommandContext", "environmentIcon", "serverBrowser"] {

@@ -99,6 +99,8 @@ pub struct Store {
     committed: tokio::sync::broadcast::Sender<Vec<StoredEvent>>,
     database_path: Option<PathBuf>,
     runtime_owned: Arc<std::sync::atomic::AtomicBool>,
+    /// Services that belong to this store and are made on first use (`extension`).
+    extensions: Arc<Mutex<std::collections::HashMap<std::any::TypeId, Arc<dyn std::any::Any + Send + Sync>>>>,
 }
 pub struct RuntimeLease {
     file: Option<std::fs::File>,
@@ -170,6 +172,19 @@ impl Store {
         self.database_path.as_deref().and_then(Path::parent)
     }
 
+    /// The one `T` this store holds, made by `make` on first use. A service that belongs to a store and
+    /// is reached from code that has the store but not the server's own state (a transport handler,
+    /// a test's server) lives here instead of in a field every constructor of that state would need.
+    pub fn extension<T: std::any::Any + Send + Sync>(&self, make: impl FnOnce() -> T) -> Arc<T> {
+        let mut extensions = self.extensions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        extensions
+            .entry(std::any::TypeId::of::<T>())
+            .or_insert_with(|| Arc::new(make()) as Arc<dyn std::any::Any + Send + Sync>)
+            .clone()
+            .downcast::<T>()
+            .expect("an extension is stored under its own type")
+    }
+
     /// Equal for clones of one store; lets a per-store service find its running instance.
     pub fn identity(&self) -> usize {
         Arc::as_ptr(&self.connection) as usize
@@ -208,6 +223,7 @@ impl Store {
             committed,
             database_path,
             runtime_owned: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            extensions: Arc::default(),
         })
     }
     /// Other connections may read/issue pairing credentials while one execution

@@ -704,6 +704,9 @@ impl ProviderRegistry {
         if let Some(instance) = state.claude.get(instance_id) {
             return Some(TextInstance::Claude(instance.clone()));
         }
+        if let Some(instance) = state.pi.get(instance_id) {
+            return Some(TextInstance::Pi(instance.clone()));
+        }
         Some(TextInstance::Other(snapshot["driver"].as_str().unwrap_or("").to_string()))
     }
     /// How one-shot text generations are bounded; tests tighten it.
@@ -719,6 +722,7 @@ pub enum TextInstance {
     /// With the models its last snapshot listed.
     Codex(CodexInstance, Vec<Value>),
     Claude(ClaudeInstance),
+    Pi(crate::pi_instance::PiInstance),
     /// A driver with no adapter here.
     Other(String),
 }

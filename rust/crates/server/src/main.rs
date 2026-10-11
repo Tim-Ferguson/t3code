@@ -34,6 +34,8 @@ struct Options {
     from: Option<PathBuf>,
     /// `--no-import`: start with an empty store even though the original's database is beside it.
     no_import: bool,
+    /// `--strict-import`: a failed import ends the process with an error, as it must when nothing watches the status page.
+    strict_import: bool,
 }
 fn options() -> Result<Options, Box<dyn std::error::Error>> {
     parse_options(std::env::args().skip(1), |key| std::env::var(key).ok())
@@ -62,6 +64,7 @@ fn parse_options(
         fixture_github_api_origin: None,
         from: None,
         no_import: false,
+        strict_import: false,
     };
     for (key, name) in [
         ("T3CODE_HOST", "--host"),
@@ -112,6 +115,7 @@ fn parse_options(
             "serve" | "pair" | "import" => options.command = arg,
             "--from" => options.from = Some(PathBuf::from(args.next().ok_or("--from requires the original's T3 home")?)),
             "--no-import" => options.no_import = true,
+            "--strict-import" => options.strict_import = true,
             "--state-dir" => {
                 options.state_dir = PathBuf::from(args.next().ok_or("--state-dir requires a path")?)
             }
@@ -255,14 +259,24 @@ fn acquire_bootstrap(
     }
     Ok(Some(input.into_descriptor()))
 }
+/// Where the original reads the envelope on Windows is a pipe handle Node maps to a descriptor number (`new Net.Socket({fd})`); Rust
+/// has no such mapping for an inherited handle, so only the delivery its desktop uses across the WSL boundary is understood here:
+/// `--bootstrap-fd 0`, the envelope as the first line of standard input. Another descriptor is refused.
 #[cfg(not(unix))]
 fn acquire_bootstrap(options: &mut Options) -> Result<Option<()>, Box<dyn std::error::Error>> {
-    if options.bootstrap_fd.is_some() {
-        return Err(
-            "Inherited desktop bootstrap descriptors are not supported on this platform yet".into(),
-        );
+    match options.bootstrap_fd {
+        None => Ok(None),
+        Some(0) => {
+            use std::io::BufRead;
+            let mut line = String::new();
+            std::io::stdin().lock().read_line(&mut line)?;
+            if !line.trim().is_empty() {
+                apply_bootstrap(options, serde_json::from_str(line.trim())?)?;
+            }
+            Ok(None)
+        }
+        Some(_) => Err("On this platform the desktop bootstrap is read from standard input only (--bootstrap-fd 0)".into()),
     }
-    Ok(None)
 }
 
 fn secret(path: &Path) -> Result<[u8; 32], Box<dyn std::error::Error>> {
@@ -449,6 +463,7 @@ mod tests {
             fixture_github_api_origin: None,
             from: None,
             no_import: false,
+            strict_import: false,
         };
         let descriptors = adopt_desktop_descriptors(&options, None).unwrap();
         assert_ne!(
@@ -593,17 +608,135 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+    let parent = parent_at_start();
     let mut options = options()?;
     let bootstrap_owner = acquire_bootstrap(&mut options)?;
     let descriptors = adopt_desktop_descriptors(&options, bootstrap_owner)?;
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?
-        .block_on(run(options, descriptors))
+        .block_on(run(options, descriptors, parent))
+}
+/// The signals that stop the server, registered once it is ready to be stopped gracefully: SIGINT, SIGTERM (what the original
+/// desktop stops its backend with, followed by SIGKILL after a grace period) and SIGHUP (the original does not catch it, so its
+/// process just ends; here the stop is as graceful as the others). Until they are registered a signal ends the process at once,
+/// as it does the original's while it starts.
+struct StopSignals {
+    #[cfg(unix)]
+    streams: Option<[tokio::signal::unix::Signal; 3]>,
+}
+impl StopSignals {
+    fn install() -> Self {
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{SignalKind, signal};
+            let streams = (|| Some([signal(SignalKind::interrupt()).ok()?, signal(SignalKind::terminate()).ok()?, signal(SignalKind::hangup()).ok()?]))();
+            Self { streams }
+        }
+        #[cfg(not(unix))]
+        Self {}
+    }
+    async fn wait(self) {
+        #[cfg(unix)]
+        if let Some([mut interrupt, mut terminate, mut hangup]) = self.streams {
+            tokio::select! { _ = interrupt.recv() => {}, _ = terminate.recv() => {}, _ = hangup.recv() => {} }
+            return;
+        }
+        let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+/// The process that started this one, noted before anything else happens.
+#[cfg(unix)]
+fn parent_at_start() -> i32 {
+    unsafe { libc::getppid() }
+}
+#[cfg(not(unix))]
+fn parent_at_start() -> i32 {
+    0
+}
+
+/// Completes when the process that started this one has gone. The original has no such watch (its desktop ends a backend with
+/// SIGTERM and a grace period, and a backend left behind by a killed desktop keeps running); a server this desktop started
+/// holds the state directory's runtime lock, so an orphan would keep the next start from opening the same data. A parent that is
+/// gone leaves the child to another process (init or a subreaper), so a changed parent id is the signal. `parent` is the id the
+/// process had when it began: a parent that died while the server was still starting is already gone by the time this runs.
+#[cfg(unix)]
+async fn parent_gone(parent: i32) {
+    loop {
+        if unsafe { libc::getppid() } != parent {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+}
+#[cfg(not(unix))]
+async fn parent_gone(_parent: i32) {
+    std::future::pending::<()>().await
+}
+
+/// Why the server is stopping, for the log.
+async fn stop_requested(signals: StopSignals, watch_parent: Option<i32>) {
+    tokio::select! {
+        _ = signals.wait() => tracing::info!("stop requested by signal"),
+        _ = async { match watch_parent { Some(parent) => parent_gone(parent).await, None => std::future::pending::<()>().await } } => tracing::warn!("the supervising process is gone; stopping"),
+    }
+}
+
+/// How long open connections get to finish once a stop is asked for.
+const CONNECTION_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Serves until a stop is requested, then lets connections finish for [`CONNECTION_GRACE`] and no longer: a client that keeps
+/// its WebSocket open must not keep the server from releasing the state directory.
+async fn serve_until_stopped(listener: tokio::net::TcpListener, app: axum::Router, signals: StopSignals, watch_parent: Option<i32>, then: impl std::future::Future<Output = ()> + Send + 'static) -> std::io::Result<()> {
+    let stopping = std::sync::Arc::new(tokio::sync::Notify::new());
+    let notified = stopping.clone();
+    let service = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
+    let serving = axum::serve(listener, service).with_graceful_shutdown(async move {
+        stop_requested(signals, watch_parent).await;
+        then.await;
+        notified.notify_one();
+    });
+    tokio::select! {
+        result = serving => result,
+        _ = async { stopping.notified().await; tokio::time::sleep(CONNECTION_GRACE).await } => {
+            tracing::warn!("connections were still open after the grace period; closing them");
+            Ok(())
+        }
+    }
+}
+
+/// One machine-readable line on standard output once the socket is bound (the original has no such signal: its desktop polls
+/// `/.well-known/t3/environment`). `T3_SERVER_READY ` then a JSON object; documented in rust/README.md.
+fn announce_ready(listener: &tokio::net::TcpListener) -> std::io::Result<()> {
+    use std::io::Write;
+    let address = listener.local_addr()?;
+    let host = if address.ip().is_unspecified() { "127.0.0.1".to_owned() } else if address.is_ipv6() { format!("[{}]", address.ip()) } else { address.ip().to_string() };
+    let line = json!({"pid":std::process::id(),"host":address.ip().to_string(),"port":address.port(),"origin":format!("http://{host}:{}",address.port())});
+    let mut out = std::io::stdout().lock();
+    writeln!(out, "T3_SERVER_READY {line}")?;
+    out.flush()
+}
+
+/// RUST-PORT EXTENSION (`import_status`): the import failed, so there is no store to serve. Answer the descriptor, the
+/// status block and the web assets, so the client can show what went wrong; the process ends 0 when it is stopped.
+async fn serve_import_failed(options: &Options, state_dir: &Path, message: String) -> Result<(), Box<dyn std::error::Error>> {
+    eprintln!("{message}");
+    let router = t3_server::import_status::failed_router(t3_server::import_status::FailedMode {
+        environment: t3_server::import_status::failed_environment(state_dir, env!("CARGO_PKG_VERSION")),
+        assets: options.assets.clone().map(fs::canonicalize).transpose()?,
+        status: t3_server::import_status::failed(&message),
+    });
+    let listener = tokio::net::TcpListener::bind((options.host.as_str(), options.port)).await?;
+    let signals = StopSignals::install();
+    announce_ready(&listener)?;
+    serve_until_stopped(listener, router, signals, None, async {}).await?;
+    Ok(())
 }
 async fn run(
     options: Options,
     descriptors: DesktopDescriptors,
+    parent: i32,
 ) -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
@@ -625,7 +758,13 @@ async fn run(
         match tokio::task::spawn_blocking(move || t3_server::state_import::automatic(&directory)).await? {
             Ok(Some(report)) => t3_server::state_import::print_report(&report),
             Ok(None) => {}
-            Err(error) => return Err(format!("Importing the original T3 Code state failed, so the server did not start: {error} (start with --no-import to use an empty store instead)").into()),
+            Err(error) => {
+                let message = format!("Importing the original T3 Code state failed, so the server did not start: {error} (start with --no-import to use an empty store instead)");
+                if options.strict_import {
+                    return Err(message.into());
+                }
+                return serve_import_failed(&options, &state_dir, message).await;
+            }
         }
     }
     let store = Store::open(state_dir.join("rust-state.sqlite"))?;
@@ -922,12 +1061,9 @@ async fn run(
     };
     tracing::info!(address=%listener.local_addr()?,state_dir=%state_dir.display(),"native server listening");
     let stopping_mcp = mcp.clone();
-    axum::serve(listener, router(state).merge(mcp.router()))
-        .with_graceful_shutdown(async move {
-            let _ = tokio::signal::ctrl_c().await;
-            stopping_mcp.shutdown().await;
-        })
-        .await?;
+    let signals = StopSignals::install();
+    announce_ready(&listener)?;
+    serve_until_stopped(listener, router(state).merge(mcp.router()), signals, (options.mode == "desktop").then_some(parent), async move { stopping_mcp.shutdown().await }).await?;
     mcp.shutdown().await;
     if let Some(background) = background {
         background.shutdown().await;

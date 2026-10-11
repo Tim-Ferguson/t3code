@@ -99,6 +99,11 @@ pub struct Report {
     pub environment_id: Option<String>,
     pub credentials_to_reenter: Vec<String>,
     pub warnings: Vec<String>,
+    /// When the import finished (the clock of `rust_import_record`).
+    pub imported_at: Option<String>,
+    /// Projects and threads the store held when the import finished, those deleted not counted (`import_status`).
+    pub projects_imported: u64,
+    pub threads_imported: u64,
 }
 #[derive(Debug, Serialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -341,6 +346,14 @@ fn import_into_staging(options: &Options<'_>, progress: Progress<'_>) -> Result<
 
     // Publish: a record, then the staging file becomes the store in one rename.
     report.seconds = started.elapsed().as_secs_f64();
+    report.imported_at = Some(Utc::now().to_rfc3339_opts(SecondsFormat::Millis, true));
+    (report.projects_imported, report.threads_imported) = store.read(|connection| {
+        let count = |sql: &str| connection.query_row(sql, [], |row| row.get::<_, i64>(0)).map(|count| count as u64);
+        Ok((
+            count("SELECT COUNT(*) FROM rust_projections WHERE aggregate_kind='project' AND json_extract(state_json,'$.deletedAt') IS NULL")?,
+            count("SELECT COUNT(*) FROM rust_projections WHERE aggregate_kind='thread' AND json_extract(state_json,'$.thread.deletedAt') IS NULL")?,
+        ))
+    })?;
     let record = json!({
         "importerVersion": IMPORTER_VERSION,
         "sourceKind": source.kind,

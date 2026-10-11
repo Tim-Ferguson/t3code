@@ -99,6 +99,27 @@ deleted (its scan cache) is not carried. What the import serves is held to what 
 served for the same state (`tests/state_import_flow.rs`): every field of the shell and of each
 thread's projection, with a short list of differences that are intended and why.
 
+Process contract of `t3-server serve`, for a supervisor. Once the socket is bound and every service is running, the server
+writes one line to standard output: `T3_SERVER_READY ` followed by a JSON object
+`{"pid":N,"host":"127.0.0.1","port":P,"origin":"http://127.0.0.1:P"}` (`host` is the address bound, `origin` one a client on the
+same machine can use; with `--port 0` this is where the port is learned). The original has no such line (its desktop polls
+`/.well-known/t3/environment`, which still works). SIGINT, SIGTERM (what the original desktop stops its backend with) and SIGHUP
+end the server the same way: executions, terminals and the other services stop, open connections get five seconds to finish, the
+store is closed and the runtime lock of the state directory is released. With `--mode desktop` the server also stops when the
+process that started it is gone (a changed parent process id, noted at startup); the original has no such watch, and without it a
+backend left behind by a desktop that was killed keeps the state directory's lock. A lock whose holder died is released by the
+operating system, so none is ever stale. On Windows the bootstrap envelope is read from standard input (`--bootstrap-fd 0`, the
+delivery the original's desktop uses across the WSL boundary); the original maps an inherited pipe handle to a descriptor number,
+which this server does not.
+
+A start that finds the original's database and no store of this server's own imports it first (see above). When that import
+fails the server does not open a store: it serves the environment descriptor, the web assets (`--assets`) and the failure at
+`GET /api/rust/state-import` (`{"stateImport": {...}}`), so a client can show what went wrong, and `--strict-import` makes it exit
+with an error instead. After a successful import the server config (`server.getConfig`, the snapshot of `subscribeServerConfig`)
+carries a `stateImport` object (status, counts of projects and threads imported, what was read and not carried, warnings, what the
+user has to enter again) until `server.acknowledgeStateImport` is called. These are Rust-port extensions
+(`t3_contracts::state_import`); the original has no such state.
+
 The workspace contains shared JSON contracts (`t3-contracts`), client connection,
 RPC and projection state (`t3-client`), SQLite event/receipt/outbox persistence and
 project commands and HTTP/WebSocket transport (`t3-server`), and a Dioxus UI (`t3-ui`). Contracts

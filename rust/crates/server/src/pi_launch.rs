@@ -116,16 +116,66 @@ pub struct LaunchOptions<'a> {
     pub extension_path: Option<&'a str>,
     pub ephemeral: bool,
     pub runtime_mode: Option<&'a str>,
+    /// Drop the user's `--extension` arguments and add `--no-extensions`, and carry no T3 extension.
+    pub disable_extensions: bool,
+    /// Drop the user's tool selection and add `--no-tools`.
+    pub disable_tools: bool,
 }
+/// `withoutExplicitExtensions`.
+fn without_explicit_extensions(args: &[String]) -> Vec<String> {
+    let mut kept = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        let arg = &args[index];
+        if arg == "--extension" || arg == "-e" {
+            index += 2;
+            continue;
+        }
+        if !(arg.starts_with("--extension=") || arg.starts_with("-e=")) {
+            kept.push(arg.clone());
+        }
+        index += 1;
+    }
+    kept
+}
+
+/// `withoutToolSelectionArgs`.
+fn without_tool_selection_args(args: &[String]) -> Vec<String> {
+    let mut kept = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        if matches!(arg, "--tools" | "-t" | "--exclude-tools" | "-xt") {
+            index += 2;
+            continue;
+        }
+        let dropped = matches!(arg, "--no-tools" | "-nt" | "--no-builtin-tools" | "-nbt") || ["--tools=", "-t=", "--exclude-tools=", "-xt="].iter().any(|prefix| arg.starts_with(prefix));
+        if !dropped {
+            kept.push(arg.to_owned());
+        }
+        index += 1;
+    }
+    kept
+}
+
 /// `buildPiRpcLaunch`.
 pub fn build_rpc_launch(options: &LaunchOptions) -> RpcLaunch {
-    let has_extension = options.extension_path.is_some();
+    let has_extension = !options.disable_extensions && options.extension_path.is_some();
     let mut args: Vec<String> = vec!["--mode".into(), "rpc".into()];
     if options.ephemeral {
         args.push("--no-session".into());
     }
-    args.extend(options.launch_args.iter().cloned());
-    if let Some(extension) = options.extension_path {
+    let launch_args = if options.disable_extensions { without_explicit_extensions(options.launch_args) } else { options.launch_args.to_vec() };
+    let launch_args = if options.disable_tools { without_tool_selection_args(&launch_args) } else { launch_args };
+    args.extend(launch_args);
+    // Restrictions follow the user's launch arguments, so a configured `--tools` or `--extension` cannot re-enable unattended code.
+    if options.disable_extensions {
+        args.push("--no-extensions".into());
+    }
+    if options.disable_tools {
+        args.push("--no-tools".into());
+    }
+    if let (true, Some(extension)) = (has_extension, options.extension_path) {
         if !has_explicit_extension(&args, extension) {
             args.extend(["--extension".into(), extension.to_owned()]);
         }
@@ -197,17 +247,45 @@ mod tests {
         assert_eq!(resolve("--tools 'read,bash' --offline").unwrap(), ["--tools", "read,bash", "--offline"]);
     }
     #[test]
+    fn the_rpc_launch_is_the_originals_for_every_combination_of_its_options() {
+        let mut checked = 0;
+        for line in include_str!("../tests/fixtures/pi-rpc-launch.jsonl").lines() {
+            let row: serde_json::Value = serde_json::from_str(line).unwrap();
+            let launch_args: Vec<String> = row["launchArgs"].as_array().unwrap().iter().map(|arg| arg.as_str().unwrap().to_owned()).collect();
+            let with_extension = row["withExtension"] == true;
+            let launch = build_rpc_launch(&LaunchOptions {
+                launch_args: &launch_args,
+                mcp: with_extension.then_some(("http://127.0.0.1:1/mcp", "Bearer secret")),
+                extension_path: with_extension.then_some("/cache/pi-t3-mcp-extension.ts"),
+                ephemeral: row["ephemeral"] == true,
+                runtime_mode: Some("auto"),
+                disable_extensions: row["disableExtensions"] == true,
+                disable_tools: row["disableTools"] == true,
+            });
+            assert_eq!(serde_json::to_value(&launch.args).unwrap(), row["args"], "{line}");
+            // The fixture's environment is the original's whole result; the base it started from is PATH and KEEP.
+            let mut expected = row["env"].as_object().unwrap().clone();
+            expected.remove("PATH");
+            expected.remove("KEEP");
+            assert_eq!(serde_json::to_value(&launch.env).unwrap(), serde_json::Value::Object(expected), "{line}");
+            assert!(launch.remove_env.contains(&"T3_MCP_URL".to_owned()));
+            checked += 1;
+        }
+        assert_eq!(checked, 360);
+    }
+
+    #[test]
     fn the_rpc_launch_adds_the_extension_once_and_hands_the_session_its_own_credentials() {
-        let launch = build_rpc_launch(&LaunchOptions { launch_args: &["--approve".into()], mcp: Some(("http://127.0.0.1:1/mcp", "Bearer secret-token")), extension_path: Some("/cache/pi-t3-mcp-extension.ts"), ephemeral: false, runtime_mode: Some("auto") });
+        let launch = build_rpc_launch(&LaunchOptions { launch_args: &["--approve".into()], mcp: Some(("http://127.0.0.1:1/mcp", "Bearer secret-token")), extension_path: Some("/cache/pi-t3-mcp-extension.ts"), ephemeral: false, runtime_mode: Some("auto"), disable_extensions: false, disable_tools: false });
         assert_eq!(launch.args, ["--mode", "rpc", "--approve", "--extension", "/cache/pi-t3-mcp-extension.ts"]);
         assert_eq!(launch.env[RUNTIME_MODE_ENV], "approval-required");
         assert_eq!((launch.env[MCP_URL_ENV].as_str(), launch.env[MCP_BEARER_ENV].as_str()), ("http://127.0.0.1:1/mcp", "secret-token"));
         assert_eq!(launch.remove_env, [MCP_URL_ENV, MCP_BEARER_ENV]);
         // A user-configured copy of the same extension is not added twice; without a session there is no credential.
-        let configured = build_rpc_launch(&LaunchOptions { launch_args: &["-e".into(), "/cache/pi-t3-mcp-extension.ts/".into()], mcp: None, extension_path: Some("/cache/pi-t3-mcp-extension.ts"), ephemeral: true, runtime_mode: Some("full-access") });
+        let configured = build_rpc_launch(&LaunchOptions { launch_args: &["-e".into(), "/cache/pi-t3-mcp-extension.ts/".into()], mcp: None, extension_path: Some("/cache/pi-t3-mcp-extension.ts"), ephemeral: true, runtime_mode: Some("full-access"), disable_extensions: false, disable_tools: false });
         assert_eq!(configured.args, ["--mode", "rpc", "--no-session", "-e", "/cache/pi-t3-mcp-extension.ts/"]);
         assert!(!configured.env.contains_key(MCP_URL_ENV) && configured.env[RUNTIME_MODE_ENV] == "full-access");
-        let bare = build_rpc_launch(&LaunchOptions { launch_args: &[], mcp: None, extension_path: None, ephemeral: true, runtime_mode: Some("full-access") });
+        let bare = build_rpc_launch(&LaunchOptions { launch_args: &[], mcp: None, extension_path: None, ephemeral: true, runtime_mode: Some("full-access"), disable_extensions: false, disable_tools: false });
         assert_eq!((bare.args.as_slice(), bare.env.is_empty()), (&["--mode".to_owned(), "rpc".into(), "--no-session".into()][..], true));
     }
     #[test]

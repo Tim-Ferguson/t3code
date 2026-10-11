@@ -37,6 +37,19 @@ fn constants_and_defaults_match_the_original() {
     assert_eq!(serde_json::to_value(t3_contracts::default_resolved_keybindings()).unwrap(), Value::Array(ours));
 }
 
+/// The two rules a browser pass found missing from the config a server sent. The list itself is held to the original's by
+/// `constants_and_defaults_match_the_original`; this names these two so a regenerated fixture cannot lose them unnoticed, and the
+/// sync rows of `keybindings.jsonl` show a config written before them gaining them on the next start.
+#[test]
+fn the_file_picker_and_project_search_shortcuts_are_defaults() {
+    for (key, command) in [("mod+p", "filePicker.toggle"), ("mod+shift+f", "projectSearch.toggle")] {
+        let rule = default_rules().iter().find(|rule| rule.command == command).unwrap_or_else(|| panic!("{command} is not a default"));
+        assert_eq!((rule.key.as_str(), rule.when.as_deref()), (key, Some("!terminalFocus")), "{command}");
+        assert!(default_resolved().iter().any(|resolved| resolved.command == command), "{command} is not in the resolved defaults");
+        assert!(t3_contracts::default_resolved_keybindings().0.iter().any(|resolved| serde_json::to_value(resolved).unwrap()["command"] == command), "{command} is not in the contracts' defaults");
+    }
+}
+
 #[test]
 fn shortcuts_parse_like_the_original() {
     let rows = rows_of("shortcut");

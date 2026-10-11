@@ -53,6 +53,7 @@ pub fn violations(method: &str, message: &RpcServerMessage) -> Vec<Violation> {
             collect(&issue, Vec::new(), &mut leaves);
             leaves.sort();
             leaves.dedup();
+            leaves.retain(|(path, message)| !is_state_import_extension(method, &wire, path, message));
             leaves
                 .into_iter()
                 .take(8)
@@ -63,6 +64,31 @@ pub fn violations(method: &str, message: &RpcServerMessage) -> Vec<Violation> {
                 .collect()
         }
     }
+}
+
+/// The one key this server adds to a reply the original defines: `stateImport` of the server config (RUST-PORT EXTENSION, see
+/// `t3_contracts::state_import`). It is let through only there, and only if what it holds is a valid `StateImportStatus`.
+fn is_state_import_extension(method: &str, wire: &Value, path: &[String], message: &str) -> bool {
+    let steps: Vec<&str> = path.iter().map(String::as_str).collect();
+    let in_config = matches!((method, steps.as_slice()), ("server.getConfig", ["value", "stateImport"]) | ("subscribeServerConfig", ["0", "config", "stateImport"]));
+    if !in_config || !message.starts_with("Expected no excess property") {
+        return false;
+    }
+    let mut found = wire;
+    for step in &steps {
+        found = match found {
+            Value::Object(entries) => match entries.get(*step) {
+                Some(next) => next,
+                None => return false,
+            },
+            Value::Array(items) => match step.parse::<usize>().ok().and_then(|index| items.get(index)) {
+                Some(next) => next,
+                None => return false,
+            },
+            _ => return false,
+        };
+    }
+    serde_json::from_value::<t3_contracts::StateImportStatus>(found.clone()).is_ok()
 }
 
 /// Whether the original's group has the method, which is what a reply can be checked against.

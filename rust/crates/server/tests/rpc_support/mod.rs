@@ -25,6 +25,8 @@ pub struct Harness {
     pub _directory: tempfile::TempDir,
     pub address: std::net::SocketAddr,
     pub store: Store,
+    /// The server's own authentication service, to issue sessions of any scopes and to look at what it holds.
+    pub auth: AuthService,
     /// Every operation scope a flow here needs, short of administration.
     pub operator: String,
     /// `orchestration:read` only.
@@ -124,7 +126,7 @@ async fn start(with_config: bool, checkout: bool) -> Harness {
     }
     let state = ApiState {
         store: store.clone(),
-        auth,
+        auth: auth.clone(),
         environment,
         config,
         settings: settings.clone(),
@@ -146,7 +148,7 @@ async fn start(with_config: bool, checkout: bool) -> Harness {
     let address = listener.local_addr().unwrap();
     let (stop, stopped) = tokio::sync::oneshot::channel();
     let server = tokio::spawn(async move {
-        axum::serve(listener, router(state))
+        axum::serve(listener, router(state).into_make_service_with_connect_info::<std::net::SocketAddr>())
             .with_graceful_shutdown(async {
                 let _ = stopped.await;
             })
@@ -158,6 +160,7 @@ async fn start(with_config: bool, checkout: bool) -> Harness {
         _directory: directory,
         address,
         store,
+        auth,
         operator,
         reader,
         settings,

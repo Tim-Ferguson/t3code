@@ -254,6 +254,38 @@ pub struct CliRunner {
 
 /// A CLI that could not be started. The original reports every spawn failure alike, a missing binary
 /// included (what it checked for in the failure's text never appears in the one it gets).
+/// `extractJsonObject` (`packages/shared/src/schemaJson.ts`): the first balanced `{...}` of a reply that may wrap it in prose or a
+/// code fence; the rest of the text if it is never closed, and the text itself if it has no brace.
+pub fn extract_json_object(raw: &str) -> String {
+    let trimmed = crate::text_generation::js_trim(raw);
+    let Some(start) = trimmed.find('{') else { return trimmed.to_owned() };
+    let (mut depth, mut in_string, mut escaping) = (0i64, false, false);
+    for (offset, character) in trimmed[start..].char_indices() {
+        if in_string {
+            if escaping {
+                escaping = false;
+            } else if character == '\\' {
+                escaping = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return trimmed[start..start + offset + 1].to_owned();
+                }
+            }
+            _ => {}
+        }
+    }
+    trimmed[start..].to_owned()
+}
+
 fn spawn_failure(operation: Operation, label: &str) -> TextGenerationError {
     TextGenerationError::new(operation, format!("Failed to spawn {label} CLI process"))
 }
@@ -343,6 +375,48 @@ impl CliRunner {
         })
     }
 
+    /// `makePiTextGeneration`: an ephemeral `pi --mode rpc --no-session` with extensions and tools off (no user is present to answer
+    /// a dialog, and background text must never change the workspace). The user's model configuration and sign-in still apply.
+    async fn pi(&self, instance: crate::pi_instance::PiInstance, request: Request) -> Result<Value, TextGenerationError> {
+        use crate::{pi_launch::{self, LaunchOptions}, pi_protocol::{DEFAULT_REQUEST_TIMEOUT, Event, Launch, PiProcess}};
+        let operation = request.operation;
+        let failed = |detail: &str| TextGenerationError::new(operation, detail);
+        let launch_args = pi_launch::resolve_launch_args(instance.config.launch_args.as_str()).map_err(|message| failed(&message))?;
+        let launch = pi_launch::build_rpc_launch(&LaunchOptions { launch_args: &launch_args, mcp: None, extension_path: None, ephemeral: true, runtime_mode: None, disable_extensions: true, disable_tools: true });
+        let mut env = instance.process_environment();
+        env.extend(launch.env);
+        let (process, mut events) = PiProcess::spawn(&Launch { binary: instance.binary_path(), args: launch.args, cwd: PathBuf::from(&request.cwd), env, remove_env: launch.remove_env })
+            .map_err(|_| failed("Pi text generation failed."))?;
+        let run = async {
+            let model = request.model_selection["model"].as_str().unwrap_or("");
+            if model != "default" {
+                // `customModels` accepts arbitrary strings, so an unusable slug is rejected rather than skipped: running Pi's own default
+                // here would report success for a model the caller never asked for.
+                let Some((provider, model_id)) = crate::pi_commands::parse_model_slug(model) else {
+                    return Err(failed(&format!("Pi model '{model}' must use provider/model format.")));
+                };
+                process.request(json!({"type":"set_model","provider":provider,"modelId":model_id}), DEFAULT_REQUEST_TIMEOUT).await.map_err(|_| failed("Pi text generation failed."))?;
+            }
+            process.request(json!({"type":"prompt","message":request.prompt}), DEFAULT_REQUEST_TIMEOUT).await.map_err(|_| failed("Pi text generation failed."))?;
+            loop {
+                match events.recv().await {
+                    Some(Event::Record(record)) if record["type"] == "agent_settled" => break,
+                    Some(Event::Record(_)) => {}
+                    Some(Event::Closed(_)) | None => return Err(failed("Pi text generation failed.")),
+                }
+            }
+            let data = process.request(json!({"type":"get_last_assistant_text"}), DEFAULT_REQUEST_TIMEOUT).await.map_err(|_| failed("Pi text generation failed."))?;
+            let text = data["text"].as_str().map(crate::text_generation::js_trim).unwrap_or_default();
+            if text.is_empty() {
+                return Err(failed("Pi returned empty output."));
+            }
+            serde_json::from_str::<Value>(&extract_json_object(&text)).ok().and_then(|answer| request.shape.decode(&answer)).ok_or_else(|| failed("Pi returned invalid structured output."))
+        };
+        let outcome = tokio::time::timeout(self.timeout(), run).await;
+        process.terminate().await;
+        outcome.unwrap_or_else(|_| Err(failed("Pi request timed out.")))
+    }
+
     fn timeout(&self) -> Duration {
         (self.options)().timeout
     }
@@ -356,6 +430,7 @@ impl Runner for CliRunner {
                 None => Err(TextGenerationError::new(request.operation, format!("No provider instance registered for id '{id}'."))),
                 Some(TextInstance::Codex(instance, models)) => Box::pin(self.codex(instance, models, request)).await,
                 Some(TextInstance::Claude(instance)) => Box::pin(self.claude(instance, request)).await,
+                Some(TextInstance::Pi(instance)) => Box::pin(self.pi(instance, request)).await,
                 Some(TextInstance::Other(driver)) => Err(TextGenerationError::new(request.operation, format!("Provider driver '{driver}' cannot write text in this server."))),
             }
         })

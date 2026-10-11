@@ -410,6 +410,11 @@ pub struct ServerConfig {
         deserialize_with = "deserialize_optional"
     )]
     pub usage_limit_sources: Option<Option<ForwardCompatibleArray<UsageLimitSourceSnapshot>>>,
+
+    /// RUST-PORT EXTENSION, not in the original's `ServerConfig` (see `state_import.rs`): what the one-time import
+    /// of the original's data did. Absent when there was none or it has been acknowledged.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_import: Option<crate::StateImportStatus>,
 }
 
 pub const STATIC_KEYBINDING_COMMANDS: &[&str] = &[
