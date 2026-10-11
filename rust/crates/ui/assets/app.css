@@ -7686,6 +7686,7 @@ body.sidebar-dragging {
 }
 .access-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 10px 0;
@@ -7811,4 +7812,67 @@ body.sidebar-dragging {
 .file-image img {
   max-width: 100%;
   height: auto;
+}
+
+/* T3 Connect's relay client installation. */
+.relay-install progress {
+  display: block;
+  width: 100%;
+  height: 0.25rem;
+}
+
+/* The share panel of a pairing link. */
+.access-share {
+  flex: 1 0 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.access-endpoint {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  align-items: baseline;
+  text-align: left;
+}
+.access-endpoint.chosen {
+  border-color: var(--foreground);
+}
+.access-share-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+.access-share-link code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+}
+.access-qr {
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Editing a file in the panel. */
+.file-editor {
+  width: 100%;
+  min-height: 60vh;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: 0;
+  resize: none;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  tab-size: 4;
+  white-space: pre;
+  overflow: auto;
+}
+.file-tab-dirty {
+  color: var(--accent-foreground, currentColor);
 }

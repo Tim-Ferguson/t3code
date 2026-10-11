@@ -101,8 +101,15 @@ pub struct UiModel {
     pub file_panel: Option<crate::file_panel::Target>,
     /// The files open in that panel, in the order they were opened; `file_panel` is the one shown.
     pub file_tabs: Vec<crate::file_panel::Target>,
+    /// The files whose edits are not on disk yet (`cwd`, a NUL, the path): the dot on a tab.
+    pub file_pending: std::collections::BTreeSet<String>,
+    /// What was last handed to the server to write for such a file, until a write confirms it, so a panel opened again before that
+    /// shows the edit and not the file as it was.
+    pub file_unsaved: std::collections::BTreeMap<String, String>,
     /// Whether the custom snooze dialog is open for the chosen threads.
     pub custom_snooze: bool,
+    /// The one thread the custom snooze dialog is for (its row's menu), else the chosen threads.
+    pub custom_snooze_thread: Option<String>,
     pub rewind: crate::rollback::Model,
     pub palette: crate::command_palette::Model,
     /// Whether the open thread's branch control offers its picker, and how often something has
@@ -1441,11 +1448,18 @@ async fn read_json(request: reqwest::RequestBuilder, token: &str, path: &str) ->
     read_json_within(request, token, path, 15).await
 }
 
-async fn read_json_within(
+async fn read_json_within(request: reqwest::RequestBuilder, token: &str, path: &str, seconds: u64) -> Result<Value, String> {
+    read_json_answering(request, token, path, seconds, false).await
+}
+
+/// `read_json_within`; with `server_message` a refusal that carries the server's own `message` (the shape of the original's
+/// HTTP API errors) is returned as that message.
+async fn read_json_answering(
     mut request: reqwest::RequestBuilder,
     token: &str,
     path: &str,
     seconds: u64,
+    server_message: bool,
 ) -> Result<Value, String> {
     request = request.timeout(std::time::Duration::from_secs(seconds));
     if !token.is_empty() {
@@ -1469,11 +1483,15 @@ async fn read_json_within(
         if status == 401 && matches!(path, "browser pairing" | "oauth/token") {
             return Err("That pairing credential did not work. It may have expired or already been used; create a new one on the server.".into());
         }
-        return Err(if status == 401 {
-            "Pair with this server or enter a valid access token to connect.".into()
-        } else {
-            format!("Server returned {} for {path}", response.status())
-        });
+        let described = format!("Server returned {} for {path}", response.status());
+        if status == 401 {
+            return Err("Pair with this server or enter a valid access token to connect.".into());
+        }
+        if server_message {
+            let body: Value = response.json().await.unwrap_or(Value::Null);
+            return Err(body["message"].as_str().map_or(described, str::to_owned));
+        }
+        return Err(described);
     }
     response
         .json()
@@ -1561,6 +1579,15 @@ pub async fn post_environment_json(handle: &TransportHandle, state: Store<UiMode
 
 /// The same for a read (`payload` none) or a write: the pairing links and signed-in clients of the environment.
 pub(crate) async fn environment_json(handle: &TransportHandle, state: Store<UiModel>, payload: Option<&Value>, path: &str) -> Result<Value, String> {
+    environment_json_answering(handle, state, payload, path, false).await
+}
+
+/// `environment_json` where a refusal comes back as the server's own message, for a page that words the failure with it.
+pub(crate) async fn environment_json_with_message(handle: &TransportHandle, state: Store<UiModel>, payload: Option<&Value>, path: &str) -> Result<Value, String> {
+    environment_json_answering(handle, state, payload, path, true).await
+}
+
+async fn environment_json_answering(handle: &TransportHandle, state: Store<UiModel>, payload: Option<&Value>, path: &str, server_message: bool) -> Result<Value, String> {
     let Some(owner) = response_owner(handle, state) else { return Err("Reconnect to read this.".into()) };
     let (endpoint, token) = {
         let transport = handle.borrow();
@@ -1573,7 +1600,7 @@ pub(crate) async fn environment_json(handle: &TransportHandle, state: Store<UiMo
         None => client.get(endpoint.http(path)),
     }
     .header("x-t3-orchestration-protocol", "2");
-    let answer = read_json_within(request, &token, path, 60).await;
+    let answer = read_json_answering(request, &token, path, 60, server_message).await;
     if response_owner(handle, state) != Some(owner) {
         return Err("The connection changed while this was being read.".into());
     }
@@ -2895,6 +2922,14 @@ mod git_action_tests;
 #[cfg(all(test, unix))]
 #[path = "access_page_tests.rs"]
 mod access_page_tests;
+
+#[cfg(all(test, unix))]
+#[path = "connect_page_tests.rs"]
+mod connect_page_tests;
+
+#[cfg(all(test, unix))]
+#[path = "file_edit_tests.rs"]
+mod file_edit_tests;
 
 #[cfg(all(test, unix))]
 #[path = "import_notice_tests.rs"]

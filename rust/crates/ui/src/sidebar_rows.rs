@@ -357,6 +357,9 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     let until = preset.until.clone();
                     entries.push(item(name, !can || !view.can_snooze, Box::new(move || command("thread.snooze", json!({"snoozedUntil":until}), "Failed to snooze thread"))));
                 }
+                // The dialog of the original's "Custom…": a date and time, or a length of time, for this thread alone.
+                let id = view.id.clone();
+                entries.push(item("Snooze: Custom\u{2026}".to_owned(), !can || !view.can_snooze, Box::new(move || { state.custom_snooze_thread().set(Some(id.clone())); state.custom_snooze().set(true); })));
             }
         }
         if view.caps.title_regeneration {

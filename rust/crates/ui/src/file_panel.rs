@@ -1,6 +1,8 @@
 //! A file of the open project, read by the server (`projects.readFile`) and shown in the panel
 //! beside the conversation: what the file picker and the content search open, at the line a
-//! content match names. Port of the read-only side of `FilePreviewPanel.tsx`; saving is not here.
+//! content match names. Port of `FilePreviewPanel.tsx`: the file can be edited (a text field, for a file up to
+//! `EDIT_LIMIT_BYTES`, when the connection may write files) and is saved by `t3_client::file_save` a moment after the edits stop.
+//! Not ported: the line comments, the file tree and the table, audio, video and PDF previews.
 //!
 //! The panel draws a window of the file, never all of it, so a file of tens of thousands of lines
 //! costs the same as a short one: the window starts above the revealed line and grows by request.
@@ -10,8 +12,9 @@ use crate::{
 };
 use dioxus::prelude::*;
 use serde_json::json;
-use std::rc::Rc;
-use t3_client::{diff::language_for_path, project_files as files};
+use std::{cell::RefCell, rc::Rc};
+use t3_client::{diff::language_for_path, file_save, project_files as files};
+use t3_contracts::AuthEnvironmentScope;
 
 /// Which file the panel shows, for which thread (or the new-thread form, when `owner` is None).
 #[derive(Debug, Clone, PartialEq)]
@@ -72,6 +75,86 @@ fn close_tab(state: Store<UiModel>, path: &str) {
     }
 }
 
+fn now_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
+fn key_of(cwd: &str, path: &str) -> String {
+    format!("{cwd}\u{0}{path}")
+}
+
+/// What the saver of one panel needs to act on its effects. It outlives the panel's drawing: a write begun when the panel
+/// closes still finishes (`spawn_forever`), and the signals it touches are written only while they exist.
+#[derive(Clone)]
+struct Saving {
+    state: Store<UiModel>,
+    transport: TransportHandle,
+    cwd: String,
+    path: String,
+    saver: Rc<RefCell<file_save::Saver>>,
+    /// Which timer is the one waiting: a replaced timer does nothing when it fires.
+    ticket: Rc<std::cell::Cell<u64>>,
+    read: Signal<Read>,
+    /// False once the panel is gone: its signals are not touched after that.
+    alive: Rc<std::cell::Cell<bool>>,
+}
+impl Saving {
+    fn can_write(&self) -> bool {
+        crate::settings_common::connected_allows(self.state, AuthEnvironmentScope::FilesystemWrite)
+    }
+
+    fn apply(&self, effects: Vec<file_save::Effect>) {
+        let key = key_of(&self.cwd, &self.path);
+        for effect in effects {
+            match effect {
+                file_save::Effect::Pending(pending) => {
+                    let mut set = self.state.file_pending();
+                    if pending { set.write().insert(key.clone()); } else { set.write().remove(&key); }
+                }
+                file_save::Effect::Schedule(milliseconds) => {
+                    let ticket = self.ticket.get() + 1;
+                    self.ticket.set(ticket);
+                    let this = self.clone();
+                    // Tied to the panel: a panel that closes writes at once instead (`dispose`).
+                    spawn(async move {
+                        runtime::delay(milliseconds).await;
+                        if this.ticket.get() == ticket {
+                            let effects = this.saver.borrow_mut().timer(this.can_write());
+                            this.apply(effects);
+                        }
+                    });
+                }
+                file_save::Effect::Persist { revision, contents } => {
+                    self.state.file_unsaved().write().insert(key.clone(), contents.clone());
+                    let this = self.clone();
+                    let (key, payload) = (key.clone(), json!({"cwd":self.cwd,"relativePath":self.path,"contents":contents}));
+                    dioxus::dioxus_core::spawn_forever(async move {
+                        let answer = runtime::request_value_reported(this.transport.clone(), this.state, files::WRITE_FILE, payload).await;
+                        let succeeded = answer.is_ok();
+                        if let Err(message) = answer {
+                            crate::notice::push(this.state, crate::notice::Level::Error, "Could not save the file", message);
+                        }
+                        let effects = this.saver.borrow_mut().written(revision, succeeded, now_ms(), this.can_write());
+                        let _ = key;
+                        this.apply(effects);
+                    });
+                }
+                file_save::Effect::Confirmed(contents) => {
+                    let mut unsaved = self.state.file_unsaved();
+                    if unsaved.peek().get(&key) == Some(&contents) {
+                        unsaved.write().remove(&key);
+                    }
+                    // The view follows what is on disk, if the panel is still there.
+                    if self.alive.get() {
+                        let mut read = self.read;
+                        *read.write() = Read::Ready(Rc::new(Loaded::of(&contents, contents.len() as u64, false)));
+                    }
+                }
+            }
+        }
+    }
+}
+
 #[component]
 pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle, thread_id: Option<String>) -> Element {
     let target = use_memo(move || state.file_panel().read().clone().filter(|target| target.owner == thread_id));
@@ -87,6 +170,14 @@ struct Loaded {
     lines: Vec<String>,
     byte_length: u64,
     truncated: bool,
+    /// The file as it is, for the editor to start from; empty for a file the panel will not edit.
+    text: String,
+}
+impl Loaded {
+    fn of(contents: &str, byte_length: u64, truncated: bool) -> Self {
+        let text = if !truncated && byte_length <= files::EDIT_LIMIT_BYTES { contents.to_owned() } else { String::new() };
+        Self { lines: files::lines(contents).into_iter().map(str::to_owned).collect(), byte_length, truncated, text }
+    }
 }
 #[derive(Default)]
 enum Read {
@@ -99,6 +190,22 @@ enum Read {
 #[component]
 fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> Element {
     let mut read = use_signal(Read::default);
+    let saving = use_hook({
+        let (transport, cwd, path) = (transport.clone(), target.cwd.clone(), target.path.clone());
+        move || Saving { state, transport, cwd, path, saver: Rc::new(RefCell::new(file_save::Saver::new(file_save::DEBOUNCE_MS))), ticket: Rc::new(std::cell::Cell::new(0)), read, alive: Rc::new(std::cell::Cell::new(true)) }
+    });
+    // Closing the panel (or switching to another file) writes what is not on disk yet.
+    use_drop({
+        let saving = saving.clone();
+        move || {
+            saving.alive.set(false);
+            let effects = saving.saver.borrow_mut().dispose(saving.can_write());
+            saving.apply(effects);
+        }
+    });
+    let can_write = crate::settings_common::connected_allows(state, AuthEnvironmentScope::FilesystemWrite);
+    let mut editing = use_signal(|| false);
+    let mut edit_from = use_signal(String::new);
     let reveal = target.line;
     let mut start = use_signal(|| files::view_start(reveal));
     let mut end = use_signal(|| files::view_start(reveal) + files::VIEW_WINDOW);
@@ -119,7 +226,14 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                 }
                 read.set(match answer {
                     Ok(value) => match value["contents"].as_str() {
-                        Some(contents) => Read::Ready(Rc::new(Loaded { lines: files::lines(contents).into_iter().map(str::to_owned).collect(), byte_length: value["byteLength"].as_u64().unwrap_or(contents.len() as u64), truncated: value["truncated"].as_bool().unwrap_or(false) })),
+                        Some(contents) => {
+                            // An edit handed to the server a moment ago may not be on disk yet: it is what the file is.
+                            let unsaved = state.file_unsaved().peek().get(&key_of(&cwd, &path)).cloned();
+                            match unsaved {
+                                Some(unsaved) => Read::Ready(Rc::new(Loaded::of(&unsaved, unsaved.len() as u64, false))),
+                                None => Read::Ready(Rc::new(Loaded::of(contents, value["byteLength"].as_u64().unwrap_or(contents.len() as u64), value["truncated"].as_bool().unwrap_or(false)))),
+                            }
+                        }
                         None => Read::Failed("The server answered without file contents.".into()),
                     },
                     Err(message) => Read::Failed(files::read_failure_message(&message)),
@@ -159,7 +273,9 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
     let editor = crate::open_in::favorite(state, last.read().as_deref());
     let full_path = format!("{}/{}", target.cwd.trim_end_matches('/'), target.path);
     let environment_key = state.destination().read().as_ref().map(ToString::to_string).unwrap_or_default();
-    let show_rendered = is_markdown && rendered();
+    let editable = can_write && !is_image && loaded.as_ref().is_some_and(|loaded| !loaded.truncated && loaded.byte_length <= files::EDIT_LIMIT_BYTES);
+    let pending = state.file_pending().read().contains(&key_of(&target.cwd, &target.path));
+    let show_rendered = is_markdown && rendered() && !editing();
     let markdown_text = loaded.as_ref().filter(|_| show_rendered).map(|loaded| loaded.lines.join("\n")).unwrap_or_default();
     rsx! {
         section { class: "diff-panel file-panel", role: "region", "aria-label": "File {name}",
@@ -170,10 +286,11 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                             {
                                 let tab_name = tab.path.rsplit('/').next().unwrap_or(&tab.path).to_owned();
                                 let selected = tab.path == target.path;
+                                let dirty = state.file_pending().read().contains(&key_of(&tab.cwd, &tab.path));
                                 let (select_path, close_path) = (tab.path.clone(), tab.path.clone());
                                 rsx! {
                                     span { key: "{tab.path}", class: if selected { "file-tab selected" } else { "file-tab" },
-                                        button { class: "file-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", title: "{tab.path}", onclick: move |_| select(state, &select_path), "{tab_name}" }
+                                        button { class: "file-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", title: "{tab.path}", onclick: move |_| select(state, &select_path), "{tab_name}" if dirty { span { class: "file-tab-dirty", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes", " \u{2022}" } } }
                                         button { class: "file-tab-close", r#type: "button", "aria-label": "Close {tab_name}", onclick: move |_| close_tab(state, &close_path), "\u{00d7}" }
                                     }
                                 }
@@ -183,6 +300,21 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
                 }
                 div { class: "diff-header-main",
                     span { class: "file-panel-path", title: "{target.path}", span { class: "muted", "{directory}" } strong { "{name}" } }
+                    if editable {
+                        button { r#type: "button", "aria-label": if editing() { "Stop editing {name}" } else { "Edit {name}" }, "aria-pressed": "{editing()}",
+                            onclick: {
+                              let loaded = loaded.clone();
+                              move |_| {
+                                if !editing() {
+                                    edit_from.set(loaded.as_ref().map(|loaded| loaded.text.clone()).unwrap_or_default());
+                                }
+                                let next = !editing();
+                                editing.set(next);
+                              }
+                            },
+                            if editing() { "Done" } else { "Edit" } }
+                    }
+                    if pending { span { class: "muted", role: "status", "Saving\u{2026}" } }
                     if is_markdown {
                         button { r#type: "button", "aria-label": if rendered() { "Show markdown source" } else { "Show rendered markdown" }, "aria-pressed": "{rendered()}", onclick: move |_| { let next = !rendered(); rendered.set(next); document::eval(&format!("try{{window.localStorage.setItem('t3code.renderMarkdown','{next}');}}catch{{}}")); },
                             if rendered() { "Show markdown source" } else { "Show rendered markdown" } }
@@ -205,6 +337,17 @@ fn Panel(state: Store<UiModel>, transport: TransportHandle, target: Target) -> E
             match &*read.read() {
                 Read::Loading => rsx! { p { class: "muted file-panel-note", role: "status", "Loading file\u{2026}" } },
                 Read::Failed(message) => rsx! { p { class: "error-banner", role: "alert", "{message}" } },
+                Read::Ready(_) if editing() => rsx! {
+                    textarea { class: "file-editor", "aria-label": "Edit {name}", spellcheck: false, value: "{edit_from}",
+                        oninput: {
+                            let saving = saving.clone();
+                            move |event| {
+                                // The text is the saver's; the field keeps its own, so typing repaints nothing else.
+                                let effects = saving.saver.borrow_mut().change(event.value(), now_ms());
+                                saving.apply(effects);
+                            }
+                        } }
+                },
                 Read::Ready(_) if show_rendered => rsx! {
                     if loaded.as_ref().is_some_and(|loaded| loaded.truncated) {
                         p { class: "muted file-panel-note", role: "status", "This file is large, so only the start of it ({loaded.as_ref().map_or(0, |loaded| loaded.byte_length)} bytes in all) is shown." }

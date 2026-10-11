@@ -3,6 +3,7 @@
 //! client; and what a connection without the access permissions sees.
 use super::diff_tests::{Fixture, rendered_text, seed, until, wait_for_rendered_text};
 use super::*;
+use crate::access_page::AdvertisedEndpoints;
 use crate::diff_panel::Gate;
 use crate::runtime::transport_tests::{click_control, control, control_attribute, input_control};
 
@@ -114,6 +115,86 @@ async fn a_connection_that_cannot_read_access_sees_no_section_and_one_that_canno
     for label in ["Create link", "Revoke others"] {
         assert_eq!(control_attribute(&dom, label, "disabled").unwrap().1.as_deref(), Some("true"), "{label}");
     }
+    fixture.finish(dom).await;
+}
+
+fn endpoint(id: &str, label: &str, url: &str, reachability: &str, hosted: &str) -> t3_client::access::Endpoint {
+    t3_client::access::Endpoint::parse(&json!({"id":id,"label":label,"provider":{"id":"desktop-core"},"httpBaseUrl":url,"reachability":reachability,"compatibility":{"hostedHttpsApp":hosted},"status":"available"})).unwrap()
+}
+
+/// Makes a link in the open window and returns its label's control names.
+async fn link_in(dom: &mut VirtualDom, label: &str) {
+    click_control(dom, "Create link");
+    until(dom, "the dialog", |dom| control(dom, "Client label").is_some()).await;
+    input_control(dom, "Client label", label);
+    click_control(dom, "Create");
+    until(dom, "the link", |dom| control(dom, &format!("Pairing link for {label}")).is_some()).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_link_is_shared_through_an_endpoint_with_a_qr_code_unless_the_endpoint_is_loopback() {
+    let fixture = Fixture::start(false).await;
+    let advertised = AdvertisedEndpoints {
+        endpoints: vec![
+            endpoint("desktop-loopback:3774", "This machine", "http://127.0.0.1:3774", "loopback", "mixed-content-blocked"),
+            endpoint("desktop-lan:http://192.168.1.20:3774", "Local network", "http://192.168.1.20:3774", "lan", "mixed-content-blocked"),
+            endpoint("tailscale-magicdns:box.ts.net", "Tailscale HTTPS", "https://box.ts.net/", "private-network", "compatible"),
+        ],
+        default_key: None,
+    };
+    let (mut dom, props) = fixture.client_with(Gate::default(), ADMIN, |dom| dom.provide_root_context(advertised.clone()));
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    state.view().set(View::Connections);
+    wait_for_rendered_text(&mut dom, "1 client").await;
+    // A link nobody holds the credential of cannot be shared.
+    link_in(&mut dom, "Kitchen iPad").await;
+    assert!(control(&dom, "Share pairing link Kitchen iPad").is_some());
+    assert!(control(&dom, "Reach via Local network").is_none(), "closed until asked for");
+    click_control(&mut dom, "Share pairing link Kitchen iPad");
+    until(&mut dom, "the panel", |dom| control(dom, "Reach via Local network").is_some()).await;
+    // It opens on the endpoint a code can be made for, not on the loopback one that comes first.
+    assert_eq!(control_attribute(&dom, "Reach via Local network", "aria-checked").unwrap().1.as_deref(), Some("true"));
+    assert_eq!(control_attribute(&dom, "Reach via This machine", "aria-checked").unwrap().1.as_deref(), Some("false"));
+    let text = rendered_text(&dom);
+    assert!(text.contains("Reach this machine via") && text.contains("Devices on the same network") && text.contains("Opens the hosted app, no install needed"), "{text}");
+    let code = "Pairing link \u{2014} scan to open on another device";
+    assert!(rendered_text(&dom).contains("http://192.168.1.20:3774/pair#token="), "{text}");
+    let credential = control_attribute(&dom, "Pairing link for Kitchen iPad", "value").unwrap().1.unwrap().split("token=").nth(1).unwrap().to_owned();
+    // The code drawn is the original's drawing of that very link: the same size, and the paths are proved against its encoder in `t3_client::qr`.
+    let view_of = |link: &str| {
+        let drawing = t3_client::qr::draw(link, t3_client::qr::Level::Medium, 1).unwrap();
+        format!("0 0 {0} {0}", drawing.view)
+    };
+    let lan = format!("http://192.168.1.20:3774/pair#token={credential}");
+    assert_eq!(control_attribute(&dom, code, "viewBox").unwrap().1, Some(view_of(&lan)));
+
+    // The hosted app's link for the https endpoint, longer, so a bigger code.
+    click_control(&mut dom, "Reach via Tailscale HTTPS");
+    let hosted = format!("https://app.t3.codes/pair?host=https%3A%2F%2Fbox.ts.net%2F#token={credential}");
+    until(&mut dom, "the hosted link", |dom| rendered_text(dom).contains(&hosted)).await;
+    assert_eq!(control_attribute(&dom, code, "viewBox").unwrap().1, Some(view_of(&hosted)));
+    assert_ne!(view_of(&hosted), view_of(&lan));
+    // The loopback endpoint stays copyable and gets no code.
+    click_control(&mut dom, "Reach via This machine");
+    until(&mut dom, "no code", |dom| rendered_text(dom).contains("No QR for this endpoint.")).await;
+    assert!(control(&dom, code).is_none());
+    assert!(rendered_text(&dom).contains(&format!("http://127.0.0.1:3774/pair#token={credential}")));
+    // Closing hides the panel.
+    click_control(&mut dom, "Share pairing link Kitchen iPad");
+    until(&mut dom, "closed", |dom| control(dom, "Reach via This machine").is_none()).await;
+    fixture.finish(dom).await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_server_reached_on_loopback_with_no_other_endpoint_offers_no_share() {
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.client(Gate::default(), ADMIN);
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    state.view().set(View::Connections);
+    wait_for_rendered_text(&mut dom, "1 client").await;
+    link_in(&mut dom, "Laptop").await;
+    assert!(control(&dom, "Share pairing link Laptop").is_none(), "a loopback address cannot be dialed from another device");
+    assert!(control(&dom, "Copy link for Laptop").is_some(), "the link itself is still copyable on this machine");
     fixture.finish(dom).await;
 }
 

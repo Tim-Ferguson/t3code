@@ -148,16 +148,68 @@ pub fn find_server_binary(env: impl Fn(&str) -> Option<String>, current_exe: Opt
     }
 }
 
+/// What the server said about itself on its first line of standard output (`announce_ready` in the server):
+/// `T3_SERVER_READY {"pid":N,"host":"127.0.0.1","port":P,"origin":"http://127.0.0.1:P"}`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReadyLine {
+    pub pid: u32,
+    pub port: u16,
+    /// An address a client on this computer can use.
+    pub origin: String,
+}
+
+/// The ready line in one line of the server's output, when that is what it is.
+pub fn parse_ready_line(line: &str) -> Option<ReadyLine> {
+    let json = line.trim_end().strip_prefix("T3_SERVER_READY ")?;
+    let value: serde_json::Value = serde_json::from_str(json).ok()?;
+    Some(ReadyLine { pid: u32::try_from(value["pid"].as_u64()?).ok()?, port: u16::try_from(value["port"].as_u64()?).ok()?, origin: value["origin"].as_str()?.to_owned() })
+}
+
+/// How long a start waits for the ready line before it also asks the server over HTTP. The original's server prints
+/// no such line, and a server that does not is as welcome as one that does.
+pub const READY_LINE_GRACE: Duration = Duration::from_secs(3);
+
+/// Copies the server's standard output to the log, line by line, and reports the ready line when it passes. Ends at
+/// the end of the output, which is when the server ends.
+async fn forward_output(stdout: tokio::process::ChildStdout, log: std::fs::File, ready: tokio::sync::oneshot::Sender<ReadyLine>) {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+    let mut log = tokio::fs::File::from_std(log);
+    let mut ready = Some(ready);
+    let mut lines = tokio::io::BufReader::new(stdout).split(b'\n');
+    while let Ok(Some(mut line)) = lines.next_segment().await {
+        if ready.is_some() {
+            if let Some(found) = parse_ready_line(&String::from_utf8_lossy(&line)) {
+                if let Some(sender) = ready.take() {
+                    let _ = sender.send(found);
+                }
+            }
+        }
+        line.push(b'\n');
+        if log.write_all(&line).await.is_err() {
+            // The log is gone; keep reading so the server never blocks on a full pipe.
+            continue;
+        }
+        let _ = log.flush().await;
+    }
+}
+
 /// The server as a child of this process. Only the id captured at spawn is ever signalled.
 pub struct ChildProcess {
     child: tokio::process::Child,
     pid: Option<u32>,
     pid_file: Option<PathBuf>,
+    /// Copies its output to the log; finished when the output ends.
+    output: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Process for ChildProcess {
     async fn wait(&mut self) -> Exit {
         let result = self.child.wait().await;
+        // What it printed last is in the log before this returns (a program it started that kept the pipe open is not waited for).
+        if let Some(output) = self.output.as_mut() {
+            let _ = tokio::time::timeout(Duration::from_secs(2), output).await;
+            self.output = None;
+        }
         if let Some(file) = self.pid_file.take() {
             let _ = std::fs::remove_file(file);
         }
@@ -198,11 +250,21 @@ fn describe(status: std::process::ExitStatus) -> String {
 pub struct ServerLauncher {
     config: ServerConfig,
     log_start: u64,
+    /// The ready line of the server the last `launch` started.
+    ready: Option<tokio::sync::oneshot::Receiver<ReadyLine>>,
+    /// How long `ready` waits for the line before it asks over HTTP as well.
+    ready_line_grace: Duration,
 }
 
 impl ServerLauncher {
     pub fn new(config: ServerConfig) -> Self {
-        Self { config, log_start: 0 }
+        Self { config, log_start: 0, ready: None, ready_line_grace: READY_LINE_GRACE }
+    }
+
+    /// Changes how long a start waits for the ready line before it also polls (a test of the polling).
+    pub fn with_ready_line_grace(mut self, grace: Duration) -> Self {
+        self.ready_line_grace = grace;
+        self
     }
 }
 
@@ -235,9 +297,10 @@ impl Launcher for ServerLauncher {
         }
         let log = std::fs::OpenOptions::new().create(true).append(true).open(&self.config.log_file).map_err(|error| format!("Cannot open {}: {error}", self.config.log_file.display()))?;
         self.log_start = log.metadata().map(|metadata| metadata.len()).unwrap_or(0);
-        let log_for_errors = log.try_clone().map_err(|error| error.to_string())?;
         let mut command = tokio::process::Command::new(&self.config.binary);
-        command.args(self.config.args()).stdin(std::process::Stdio::null()).stdout(log).stderr(log_for_errors).kill_on_drop(false);
+        // Standard output is read for the ready line and copied to the log; standard error is the same pipe (below), so
+        // the log keeps the order in which the server wrote.
+        command.args(self.config.args()).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).kill_on_drop(false);
         // Provider tools are found the way the person's own shell finds them, not through the server's
         // settings of an earlier run.
         command.env_remove("T3CODE_HOME").env_remove("T3CODE_PORT").env_remove("T3CODE_HOST").env_remove("T3CODE_MODE").env_remove("T3CODE_BOOTSTRAP_FD");
@@ -257,6 +320,10 @@ impl Launcher for ServerLauncher {
             // Everything else the pipe created stays close-on-exec.
             unsafe {
                 command.pre_exec(move || {
+                    // Standard error joins standard output (already set up by now).
+                    if libc::dup2(1, 2) < 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
                     if descriptor == BOOTSTRAP_FD {
                         // Already in place; dup2 would leave close-on-exec set.
                         let flags = libc::fcntl(descriptor, libc::F_GETFD);
@@ -269,13 +336,16 @@ impl Launcher for ServerLauncher {
                     Ok(())
                 });
             }
-            let child = command.spawn().map_err(|error| format!("Cannot start {}: {error}", self.config.binary.display()))?;
+            let mut child = command.spawn().map_err(|error| format!("Cannot start {}: {error}", self.config.binary.display()))?;
             drop(reader);
             let pid = child.id();
             if let (Some(file), Some(pid)) = (&self.config.pid_file, pid) {
                 let _ = std::fs::write(file, pid.to_string());
             }
-            Ok(Launched { process: ChildProcess { child, pid, pid_file: self.config.pid_file.clone() }, address: self.config.address(), credential: Secret(credential) })
+            let (announced, ready) = tokio::sync::oneshot::channel();
+            self.ready = Some(ready);
+            let output = child.stdout.take().map(|stdout| tokio::spawn(forward_output(stdout, log, announced)));
+            Ok(Launched { process: ChildProcess { child, pid, pid_file: self.config.pid_file.clone(), output }, address: self.config.address(), credential: Secret(credential) })
         }
         #[cfg(not(unix))]
         {
@@ -284,13 +354,30 @@ impl Launcher for ServerLauncher {
         }
     }
 
-    async fn ready(&mut self, address: &str) {
-        let Some(authority) = address.strip_prefix("http://") else { return std::future::pending().await };
-        loop {
-            if answers(authority).await {
-                return;
+    /// The server's ready line says it is bound and every service runs. A server that prints none is asked over HTTP once
+    /// `ready_line_grace` has passed, until it answers its descriptor; the supervisor bounds the whole wait.
+    async fn ready(&mut self, address: &str) -> Option<String> {
+        let line = self.ready.take();
+        let by_line = async {
+            match line {
+                Some(line) => line.await.ok(),
+                None => None,
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
+        };
+        let grace = self.ready_line_grace;
+        let by_asking = async {
+            let Some(authority) = address.strip_prefix("http://") else { return std::future::pending().await };
+            tokio::time::sleep(grace).await;
+            loop {
+                if answers(authority).await {
+                    return;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        };
+        tokio::select! {
+            Some(found) = by_line => Some(found.origin).filter(|origin| origin.as_str() != address),
+            () = by_asking => None,
         }
     }
 
@@ -475,6 +562,74 @@ mod tests {
         let log = std::fs::read_to_string(&config.log_file).unwrap();
         assert_eq!(log.matches("path: /only/the/shell/knows:").count(), 2, "{log}");
         assert_eq!(std::fs::read_to_string(&asked).unwrap().lines().count(), 1, "the shell was asked once for two starts");
+    }
+
+    #[test]
+    fn the_ready_line_is_the_servers_announcement_and_nothing_else_is() {
+        let line = r#"T3_SERVER_READY {"pid":4242,"host":"0.0.0.0","port":3775,"origin":"http://127.0.0.1:3775"}"#;
+        assert_eq!(parse_ready_line(line), Some(ReadyLine { pid: 4242, port: 3775, origin: "http://127.0.0.1:3775".into() }));
+        assert_eq!(parse_ready_line(&format!("{line}\r\n")), parse_ready_line(line));
+        for other in ["", "listening on 127.0.0.1:3775", "T3_SERVER_READY", "T3_SERVER_READY not json", r#"T3_SERVER_READY {"pid":1,"port":70000,"origin":"x"}"#, r#"T3_SERVER_READY {"pid":1,"port":1}"#, r#" T3_SERVER_READY {"pid":1,"port":1,"origin":"x"}"#] {
+            assert_eq!(parse_ready_line(other), None, "{other:?}");
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_server_that_prints_its_ready_line_is_ready_at_once_and_the_line_reaches_the_log() {
+        let directory = tempfile::tempdir().unwrap();
+        // Nothing listens on the server's port: only the line can say it is ready.
+        let config = stand_in(directory.path(), "read line <&3\necho 'T3_SERVER_READY {\"pid\":1,\"host\":\"127.0.0.1\",\"port\":3779,\"origin\":\"http://127.0.0.1:3779\"}'\nexec sleep 30");
+        let mut launcher = ServerLauncher::new(config.clone());
+        let Launched { mut process, address, .. } = launcher.launch(1).unwrap();
+        assert_eq!(launcher.ready(&address).await, None, "the address it was started for is the one it names");
+        process.kill();
+        process.wait().await;
+        assert!(std::fs::read_to_string(&config.log_file).unwrap().contains("T3_SERVER_READY"), "standard output is still logged");
+        assert!(!config.pid_file.unwrap().exists());
+        // A server that names another address is ready there.
+        let config = stand_in(directory.path(), "echo 'T3_SERVER_READY {\"pid\":1,\"host\":\"127.0.0.1\",\"port\":4001,\"origin\":\"http://127.0.0.1:4001\"}'\nexec sleep 30");
+        let mut launcher = ServerLauncher::new(config);
+        let Launched { mut process, address, .. } = launcher.launch(1).unwrap();
+        assert_eq!(launcher.ready(&address).await, Some("http://127.0.0.1:4001".into()));
+        process.kill();
+        process.wait().await;
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_server_without_a_ready_line_is_asked_over_http_once_the_grace_is_over() {
+        use tokio::io::AsyncWriteExt;
+        let directory = tempfile::tempdir().unwrap();
+        // A server of the original's kind: says nothing, and answers its descriptor.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let answering = tokio::spawn(async move {
+            loop {
+                let Ok((mut stream, _)) = listener.accept().await else { return };
+                let _ = stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n").await;
+            }
+        });
+        let mut config = stand_in(directory.path(), "echo starting\nexec sleep 30");
+        config.port = port;
+        let mut launcher = ServerLauncher::new(config.clone()).with_ready_line_grace(Duration::ZERO);
+        let Launched { mut process, address, .. } = launcher.launch(1).unwrap();
+        assert_eq!(launcher.ready(&address).await, None);
+        process.kill();
+        process.wait().await;
+        answering.abort();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_server_that_ends_without_a_ready_line_does_not_leave_the_wait_ended() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut launcher = ServerLauncher::new(stand_in(directory.path(), "exit 3"));
+        let Launched { mut process, address, .. } = launcher.launch(1).unwrap();
+        assert_eq!(process.wait().await, Exit("exit code 3".into()));
+        // The line never came and never will; with a long grace the wait does not pretend otherwise.
+        let waited = tokio::time::timeout(Duration::from_millis(200), launcher.ready(&address)).await;
+        assert!(waited.is_err());
     }
 
     #[cfg(unix)]

@@ -68,6 +68,9 @@ gloo-timers = { version = "0.3", features = ["futures"] }
 [dev-dependencies]
 dioxus-html = { version = "0.7", features = ["serialize"] }
 t3-server = { path = "../server", features = ["outbound-check"] }
+# The T3 Connect section is tested against the server's own services over the fakes of `t3-remote`'s tests.
+t3-remote = { path = "../remote", features = ["test-support"] }
+async-trait = "0.1"
 axum.workspace = true
 tempfile = "3"
 tokio-tungstenite.workspace = true

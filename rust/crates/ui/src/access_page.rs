@@ -1,11 +1,13 @@
 //! "Authorized clients" on the Connections page: the pairing links that can still be used and the clients signed in
 //! to this server, with creating a link (what it may do, whom it is for), revoking one link or one client, and
 //! revoking every client but this one. Port of the access section of `ConnectionsSettings.tsx`
-//! (`AuthorizedClientsHeaderAction`, `PairingLinkListRow`, `ConnectedClientListRow`). The original's QR code and its
-//! choice among advertised network endpoints are not ported: the link is this connection's own address.
+//! (`AuthorizedClientsHeaderAction`, `PairingLinkListRow`, `ConnectedClientListRow`).
 //!
 //! The lists are read when the section opens and again after each change made here. A link's credential exists
-//! only in the answer that created it, so only links made in this window can be copied.
+//! only in the answer that created it, so only links made in this window can be copied or shared. "Share" opens the
+//! original's panel: the endpoint to reach this machine at (when more than one is advertised), the link, and its QR code.
+//! The endpoints are the desktop app's (`AdvertisedEndpoints`); a server reached over a network address that is not
+//! loopback is the one endpoint of a browser, as in the original, where only the desktop knows more.
 use crate::{
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
     settings_common::connected_allows,
@@ -15,6 +17,26 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use t3_client::access as logic;
 use t3_contracts::AuthEnvironmentScope;
+
+/// The addresses this machine can be reached at, and the saved choice among them (`defaultAdvertisedEndpointKey`; nothing here
+/// saves one). Provided by the desktop shell and by tests; a browser has none.
+#[derive(Clone, Default, PartialEq)]
+pub(crate) struct AdvertisedEndpoints {
+    pub endpoints: Vec<logic::Endpoint>,
+    pub default_key: Option<String>,
+}
+
+fn advertised() -> AdvertisedEndpoints {
+    if let Some(provided) = try_consume_context::<AdvertisedEndpoints>() {
+        return provided;
+    }
+    #[cfg(feature = "desktop")]
+    {
+        return crate::desktop_shell::advertised_endpoints();
+    }
+    #[allow(unreachable_code)]
+    AdvertisedEndpoints::default()
+}
 
 #[derive(Clone, Default, PartialEq)]
 struct Lists {
@@ -116,6 +138,7 @@ pub(crate) fn Authorized(state: Store<UiModel>, transport: TransportHandle) -> E
 
     let snapshot = lists.read().clone();
     let origin = runtime::connected_origin(&transport).unwrap_or_default();
+    let advertised = advertised();
     let summary = snapshot.as_ref().map(|lists| logic::summarize(lists.clients.len(), lists.links.len()));
     let others = snapshot.as_ref().is_none_or(|lists| logic::can_revoke_others(&lists.clients));
     let revoking = busy.read().clone();
@@ -152,6 +175,9 @@ pub(crate) fn Authorized(state: Store<UiModel>, transport: TransportHandle) -> E
                                     }
                                     if let Some(url) = url {
                                         button { r#type: "button", "aria-label": "Copy link for {label}", onclick: move |_| { let text = serde_json::to_string(&url).unwrap_or_default(); dioxus::document::eval(&format!("navigator.clipboard?.writeText({text})")); }, "Copy link" }
+                                    }
+                                    if let Some(credential) = credential.clone() {
+                                        Share { key: "share:{id}", label: label.clone(), credential, origin: origin.clone(), advertised: advertised.clone() }
                                     }
                                     button { r#type: "button", class: "danger", "aria-label": "Revoke link {label}", disabled: !can_write || revoking.is_some(), onclick: move |_| change.call((key.clone(), logic::PAIRING_LINK_REVOKE, json!({"id": wire_id}))), if revoking.as_deref() == Some(&format!("link:{id}")) { "Revoking\u{2026}" } else { "Revoke" } }
                                 }
@@ -267,6 +293,63 @@ fn CreateDialog(state: Store<UiModel>, transport: TransportHandle, on_close: Eve
                 div { class: "dialog-actions",
                     button { r#type: "button", disabled: pending(), "aria-label": "Cancel", onclick: move |_| on_close.call(()), "Cancel" }
                     button { class: "primary", r#type: "button", "aria-label": "Create", disabled: pending() || none, onclick: create, if pending() { "Creating\u{2026}" } else { "Create link" } }
+                }
+            }
+        }
+    }
+}
+
+/// The share panel of one link: which address to reach this machine at, the link to open there, and its QR code
+/// (`PairingLinkListRow`'s panel). A link for this computer's own loopback address gets no code: the device that scanned
+/// it would dial itself.
+#[component]
+fn Share(label: String, credential: String, origin: String, advertised: AdvertisedEndpoints) -> Element {
+    let mut open = use_signal(|| false);
+    let mut picked = use_signal(|| None::<String>);
+    let options = logic::share_options(&advertised.endpoints, &credential);
+    // `shareablePairingUrl`: the endpoint a link would use, else this connection's own address unless that is loopback.
+    let shareable = logic::select_pairing_endpoint(&advertised.endpoints, advertised.default_key.as_deref())
+        .map(|endpoint| endpoint.pairing_url(&credential))
+        .or_else(|| (!origin.is_empty() && !logic::is_loopback_origin(&origin)).then(|| logic::pairing_url(&origin, &credential)));
+    let Some(shareable) = shareable else { return rsx! {} };
+    let selected = logic::select_share_option(&options, picked.read().as_deref(), advertised.default_key.as_deref()).cloned();
+    let url = selected.as_ref().map_or(shareable, |option| option.url.clone());
+    let drawable = selected.as_ref().is_none_or(|option| option.qr_shareable);
+    let drawing = drawable.then(|| t3_client::qr::draw(&url, t3_client::qr::Level::Medium, 1)).flatten();
+    let expanded = open();
+    let (code, link) = (credential.clone(), url.clone());
+    rsx! {
+        button { r#type: "button", "aria-label": "Share pairing link {label}", "aria-expanded": "{expanded}", onclick: move |_| { let next = !open(); open.set(next); }, "Share" }
+        if expanded {
+            div { class: "access-share", role: "group", "aria-label": "Share {label}",
+                if options.len() > 1 {
+                    div { role: "radiogroup", "aria-label": "Endpoint the pairing QR code and URL use",
+                        p { class: "muted", "Reach this machine via" }
+                        for option in options.iter() {
+                            {
+                                let id = option.id.clone();
+                                let chosen = selected.as_ref().is_some_and(|selected| selected.id == option.id);
+                                rsx! {
+                                    button { key: "{option.id}", r#type: "button", role: "radio", "aria-checked": "{chosen}", "aria-label": "Reach via {option.label}", class: if chosen { "access-endpoint chosen" } else { "access-endpoint" },
+                                        onclick: move |_| picked.set(Some(id.clone())),
+                                        strong { "{option.label}" } span { class: "muted", " {option.detail}" } }
+                                }
+                            }
+                        }
+                    }
+                }
+                div { class: "access-share-link",
+                    code { "aria-label": "Pairing URL for {label}", "{url}" }
+                    button { r#type: "button", "aria-label": "Copy pairing URL for {label}", onclick: move |_| { let link = link.clone(); spawn(async move { crate::settings_common::copy_text(&link).await; }); }, "Copy link" }
+                }
+                button { r#type: "button", "aria-label": "Copy code only for {label}", onclick: move |_| { let code = code.clone(); spawn(async move { crate::settings_common::copy_text(&code).await; }); }, "Copy code only" }
+                if let Some(drawing) = drawing {
+                    svg { class: "access-qr", xmlns: "http://www.w3.org/2000/svg", view_box: "0 0 {drawing.view} {drawing.view}", width: "168", height: "168", shape_rendering: "crispEdges", role: "img", "aria-label": "Pairing link \u{2014} scan to open on another device",
+                        rect { width: "{drawing.view}", height: "{drawing.view}", fill: "#fff" }
+                        path { d: "{drawing.path}", fill: "#000" }
+                    }
+                } else {
+                    p { class: "muted", role: "note", "No QR for this endpoint. Another device scanning a loopback link would dial itself; copy the URL for use on this machine instead." }
                 }
             }
         }

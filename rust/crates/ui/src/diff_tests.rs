@@ -248,6 +248,11 @@ impl Fixture {
         Self { directory, workspace, auth, address, store, clock, server }
     }
 
+    /// The server's authentication service, for a test that wires another service to the same sessions.
+    pub(crate) fn auth(&self) -> t3_server::auth::AuthService {
+        self.auth.clone()
+    }
+
     pub(crate) fn operator(&self, gate: Gate) -> (VirtualDom, Harness) {
         self.client(gate, &[AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate])
     }

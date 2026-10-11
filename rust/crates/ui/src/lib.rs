@@ -31,6 +31,7 @@ mod pull_request_stack;
 mod thread_pull_requests_panel;
 mod thread_selection;
 mod access_page;
+mod connect_page;
 mod import_notice;
 mod notifications;
 mod project_search;
@@ -156,7 +157,7 @@ pub fn App() -> Element {
     let mut failed_import_again = failed_import;
     let failed = failed_import.read().clone().flatten();
     if let Some(status) = failed {
-        return rsx! { style { "{STYLES}" } style { {include_str!("../assets/theme-tokens.css")} } import_notice::FailedScreen { status, retry: move |()| failed_import_again.restart() } };
+        return rsx! { style { "{STYLES}" } style { {include_str!("../assets/theme-tokens.css")} } import_notice::FailedScreen { status, retry: move |()| { #[cfg(feature = "desktop")] desktop_shell::restart_server(); failed_import_again.restart() } } };
     }
     rsx! { Application { state, transport } }
 }
@@ -439,6 +440,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                                 button { class: "primary", r#type: "submit", "Connect" }
                             }
                             p { class: "muted", "{status_label}" }
+                            connect_page::Section { state, transport: transport.clone() }
                             access_page::Authorized { state, transport: transport.clone() }
                             if !saved_connections.is_empty() { h2 { "Saved connections" }
                                 for (id,label,saved_address) in saved_connections {

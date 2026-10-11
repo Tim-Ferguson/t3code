@@ -37,6 +37,9 @@ pub enum ServerState {
 pub enum Command {
     Stop,
     Retry,
+    /// Ends the running server and starts a new one at once, as a first start (a server that serves only the failure of
+    /// its import is what this is for: fixing the data does not change what it serves).
+    Restart,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -88,21 +91,23 @@ pub trait Launcher: Send + 'static {
     type Proc: Process;
     /// Starts the server, or says why that is not possible (no such program, no free port).
     fn launch(&mut self, attempt: u32) -> Result<Launched<Self::Proc>, String>;
-    /// Resolves once the server started by the last `launch` answers; never if it does not.
-    fn ready(&mut self, address: &str) -> impl Future<Output = ()> + Send;
+    /// Resolves once the server started by the last `launch` answers; never if it does not. The address, when the
+    /// server named one that differs from `address`, is where it answers.
+    fn ready(&mut self, address: &str) -> impl Future<Output = Option<String>> + Send;
     /// What the server said just before it ended, for the failure message.
     fn last_words(&mut self) -> Option<String> {
         None
     }
 }
 
-/// Waits for a stop. A closed command channel means nobody is left to ask for anything: the same.
-async fn stop_requested(commands: &mut mpsc::UnboundedReceiver<Command>) {
+/// Waits for a stop or a restart. A closed command channel means nobody is left to ask for anything: a stop.
+async fn interruption(commands: &mut mpsc::UnboundedReceiver<Command>) -> Command {
     while let Some(command) = commands.recv().await {
-        if command == Command::Stop {
-            return;
+        if command != Command::Retry {
+            return command;
         }
     }
+    Command::Stop
 }
 
 async fn shut_down<P: Process>(process: &mut P, grace: Duration) {
@@ -114,10 +119,10 @@ async fn shut_down<P: Process>(process: &mut P, grace: Duration) {
 }
 
 enum Phase {
-    Answered,
+    Answered(Option<String>),
     Ended(Exit),
     TimedOut,
-    Stopped,
+    Interrupted(Command),
 }
 
 /// Runs until stopped. `publish` receives every state, in order.
@@ -132,14 +137,18 @@ pub async fn run<L: Launcher>(mut launcher: L, timing: Timing, mut commands: mps
                 launch += 1;
                 let phase = tokio::select! {
                     biased;
-                    () = stop_requested(&mut commands) => Phase::Stopped,
+                    command = interruption(&mut commands) => Phase::Interrupted(command),
                     exit = process.wait() => Phase::Ended(exit),
-                    () = launcher.ready(&address) => Phase::Answered,
+                    named = launcher.ready(&address) => Phase::Answered(named),
                     () = tokio::time::sleep(timing.readiness_timeout) => Phase::TimedOut,
                 };
                 let mut reason = match phase {
-                    Phase::Stopped => {
+                    Phase::Interrupted(command) => {
                         shut_down(&mut process, timing.stop_grace).await;
+                        if command == Command::Restart {
+                            failures = 0;
+                            continue;
+                        }
                         publish(ServerState::Stopped);
                         return;
                     }
@@ -148,13 +157,16 @@ pub async fn run<L: Launcher>(mut launcher: L, timing: Timing, mut commands: mps
                         format!("It did not answer within {} seconds.", timing.readiness_timeout.as_secs())
                     }
                     Phase::Ended(exit) => format!("It stopped before it answered ({}).", exit.0),
-                    Phase::Answered => {
+                    Phase::Answered(named) => {
                         failures = 0;
-                        publish(ServerState::Ready { address, credential, launch });
+                        publish(ServerState::Ready { address: named.unwrap_or(address), credential, launch });
                         tokio::select! {
                             biased;
-                            () = stop_requested(&mut commands) => {
+                            command = interruption(&mut commands) => {
                                 shut_down(&mut process, timing.stop_grace).await;
+                                if command == Command::Restart {
+                                    continue;
+                                }
                                 publish(ServerState::Stopped);
                                 return;
                             }
@@ -173,7 +185,7 @@ pub async fn run<L: Launcher>(mut launcher: L, timing: Timing, mut commands: mps
             publish(ServerState::Failed { reason: failure });
             loop {
                 match commands.recv().await {
-                    Some(Command::Retry) => break,
+                    Some(Command::Retry | Command::Restart) => break,
                     Some(Command::Stop) | None => {
                         publish(ServerState::Stopped);
                         return;
@@ -187,7 +199,11 @@ pub async fn run<L: Launcher>(mut launcher: L, timing: Timing, mut commands: mps
         publish(ServerState::Restarting { attempt: failures, in_ms: delay.as_millis() as u64, reason: failure });
         tokio::select! {
             biased;
-            () = stop_requested(&mut commands) => {
+            command = interruption(&mut commands) => {
+                if command == Command::Restart {
+                    failures = 0;
+                    continue;
+                }
                 publish(ServerState::Stopped);
                 return;
             }
@@ -251,6 +267,11 @@ impl Handle {
 
     pub fn retry(&self) {
         let _ = self.commands.send(Command::Retry);
+    }
+
+    /// Ends the running server and starts another.
+    pub fn restart(&self) {
+        let _ = self.commands.send(Command::Restart);
     }
 
     /// Stops the server and waits for it to have stopped, up to `timeout`. True if it had.
@@ -336,6 +357,8 @@ mod tests {
         scripts: VecDeque<Script>,
         record: Arc<Mutex<Record>>,
         answers: bool,
+        /// The address the next answer names, when it differs from the one the server was started for.
+        names: Option<String>,
     }
     impl Launcher for FakeLauncher {
         type Proc = Fake;
@@ -356,10 +379,11 @@ mod tests {
             }
             Ok(Launched { process: Fake { ends: Some(receiver), record: self.record.clone(), stubborn, ended: None, killed }, address: "http://127.0.0.1:3773".into(), credential: Secret(format!("credential-{number}")) })
         }
-        async fn ready(&mut self, _address: &str) {
+        async fn ready(&mut self, _address: &str) -> Option<String> {
             if !self.answers {
                 std::future::pending::<()>().await;
             }
+            self.names.take()
         }
     }
 
@@ -374,7 +398,7 @@ mod tests {
             let record = Arc::new(Mutex::new(Record::default()));
             let (commands, command_receiver) = mpsc::unbounded_channel();
             let (sender, states) = mpsc::unbounded_channel();
-            let launcher = FakeLauncher { scripts: scripts.into(), record: record.clone(), answers: false };
+            let launcher = FakeLauncher { scripts: scripts.into(), record: record.clone(), answers: false, names: None };
             let task = tokio::spawn(run(launcher, timing, command_receiver, move |state| {
                 let _ = sender.send((state, Instant::now()));
             }));
@@ -502,6 +526,45 @@ mod tests {
         assert_eq!(stopped - asked, Duration::from_secs(5));
         let record = run.record.lock().unwrap();
         assert_eq!((record.terminated, record.killed), (1, 1));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_restart_ends_the_running_server_and_starts_another_as_a_first_start() {
+        let mut run = Harness::start(vec![Script::Healthy, Script::Dies("exit code 1"), Script::Healthy], Timing::default());
+        assert_eq!(run.state().await, starting(1));
+        assert!(matches!(run.state().await, ServerState::Ready { launch: 1, .. }));
+        run.commands.send(Command::Restart).unwrap();
+        // The first server is asked to stop, and the next one starts without a failure counted.
+        assert_eq!(run.state().await, starting(1));
+        assert!(matches!(run.state().await, ServerState::Restarting { attempt: 1, .. }), "the second one died");
+        assert_eq!(run.state().await, starting(2));
+        assert!(matches!(run.state().await, ServerState::Ready { launch: 3, .. }));
+        // And again, from a server that answered.
+        run.commands.send(Command::Restart).unwrap();
+        assert_eq!(run.state().await, starting(1));
+        assert!(matches!(run.state().await, ServerState::Ready { launch: 4, .. }));
+        run.commands.send(Command::Stop).unwrap();
+        assert_eq!(run.state().await, ServerState::Stopped);
+        run.task.await.unwrap();
+        let record = run.record.lock().unwrap();
+        assert_eq!(record.launches, 4);
+        assert_eq!(record.terminated, 3, "each server that was running when asked was asked to stop");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_server_that_names_the_address_it_answers_at_is_ready_there() {
+        let record = Arc::new(Mutex::new(Record::default()));
+        let (commands, command_receiver) = mpsc::unbounded_channel();
+        let (sender, mut states) = mpsc::unbounded_channel();
+        let launcher = FakeLauncher { scripts: vec![Script::Healthy].into(), record, answers: false, names: Some("http://127.0.0.1:4000".into()) };
+        let task = tokio::spawn(run(launcher, Timing::default(), command_receiver, move |state| {
+            let _ = sender.send(state);
+        }));
+        assert_eq!(states.recv().await.unwrap(), starting(1));
+        assert!(matches!(states.recv().await.unwrap(), ServerState::Ready { address, .. } if address == "http://127.0.0.1:4000"));
+        commands.send(Command::Stop).unwrap();
+        assert_eq!(states.recv().await.unwrap(), ServerState::Stopped);
+        task.await.unwrap();
     }
 
     #[tokio::test(start_paused = true)]

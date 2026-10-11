@@ -228,6 +228,10 @@ pub fn summary(matches: &[ContentMatch], truncated: bool) -> String {
 
 /// A file's lines, as the viewer draws a window of them.
 pub const VIEW_WINDOW: usize = 400;
+/// The largest file the panel edits. The original's editor virtualizes any size; this one is a text field, which a file of
+/// megabytes would make slow to type in, so a bigger file stays a read-only view.
+pub const EDIT_LIMIT_BYTES: u64 = 1_000_000;
+pub const WRITE_FILE: &str = "projects.writeFile";
 pub const VIEW_STEP: usize = 500;
 /// The first line of the window that shows `reveal` with room above it.
 pub fn view_start(reveal: Option<u64>) -> usize {

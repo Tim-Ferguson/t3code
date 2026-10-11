@@ -14,12 +14,27 @@ use t3_contracts::{AuthEnvironmentScope, StateImportOutcome, StateImportStatus};
 /// What the failed-import server answers when the app cannot connect: read while disconnected, so a working
 /// server is never asked.
 pub(crate) fn use_failed_import(state: Store<UiModel>) -> Resource<Option<StateImportStatus>> {
-    use_resource(move || async move {
-        if *state.status().read() == ConnectionStatus::Connected {
-            return None;
+    use_resource(move || {
+        // On the desktop the server is the one this app started, at the address it answered on; it is asked when it does.
+        let address = probe_address();
+        async move {
+            if *state.status().read() == ConnectionStatus::Connected {
+                return None;
+            }
+            runtime::probe_state_import(&address?).await.filter(|status| status.status == StateImportOutcome::Failed)
         }
-        runtime::probe_state_import(&runtime::default_address()).await.filter(|status| status.status == StateImportOutcome::Failed)
     })
+}
+
+fn probe_address() -> Option<String> {
+    #[cfg(feature = "desktop")]
+    {
+        crate::desktop_shell::server_address()
+    }
+    #[cfg(not(feature = "desktop"))]
+    {
+        Some(runtime::default_address())
+    }
 }
 
 #[component]

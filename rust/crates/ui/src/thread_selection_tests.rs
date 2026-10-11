@@ -123,3 +123,30 @@ async fn a_custom_snooze_for_the_chosen_threads_is_a_duration_or_a_date_and_refu
     .await;
     fixture.finish(dom).await;
 }
+
+#[tokio::test(flavor = "current_thread")]
+async fn a_rows_own_custom_snooze_is_for_that_thread_alone() {
+    use crate::runtime::transport_tests::input_control;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, _props, state) = connected(&fixture).await;
+    {
+        let mut config = state.typed_config();
+        config.write().as_mut().expect("the server's config").environment.capabilities.thread_snooze = Some(true);
+    }
+    until(&mut dom, "both rows", |dom| control(dom, "Thread thread-a").is_some() && control(dom, "Thread thread-b").is_some()).await;
+    // Nothing is chosen: the right-click menu is the row's own, with the original's "Custom…" among the snoozes.
+    mouse_control(&mut dom, "Thread thread-a", "contextmenu", false, false, false);
+    click_when_enabled(&mut dom, "Snooze: Custom\u{2026}").await;
+    until(&mut dom, "the dialog", |dom| control(dom, "Duration").is_some()).await;
+    click_when_enabled(&mut dom, "Duration").await;
+    input_control(&mut dom, "Snooze for", "3");
+    click_when_enabled(&mut dom, "Snooze").await;
+    until(&mut dom, "thread-a snoozed and the dialog closed", |dom| {
+        let snoozed = |id: &str| state.peek().shell.snapshot.as_ref().is_some_and(|snapshot| snapshot.threads.iter().any(|thread| thread.id.to_string() == id && thread.snoozed_until.flatten().is_some()));
+        snoozed("thread-a") && control(dom, "Duration").is_none()
+    })
+    .await;
+    assert!(state.peek().shell.snapshot.as_ref().unwrap().threads.iter().filter(|thread| thread.id.to_string() == "thread-b").all(|thread| thread.snoozed_until.flatten().is_none()), "the other thread is not snoozed");
+    assert_eq!(state.peek().custom_snooze_thread, None);
+    fixture.finish(dom).await;
+}

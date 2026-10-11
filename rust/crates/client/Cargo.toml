@@ -17,3 +17,5 @@ sha2.workspace = true
 flate2.workspace = true
 icu_normalizer = "2"
 indexmap.workspace = true
+# Nayuki's QR Code generator, of which `packages/shared/src/qrCode.ts` (the original's encoder) is a port: no dependencies, builds for wasm.
+qrcodegen = "1.8"

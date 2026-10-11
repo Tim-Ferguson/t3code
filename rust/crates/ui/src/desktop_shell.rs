@@ -380,10 +380,50 @@ fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>) {
         let _ = window_state::save(&shell.dirs.window_state, &state);
     }
     if let Backend::Supervised(handle) = &shell.backend {
-        // The server's grace period is five seconds; this waits a little longer than that.
-        handle.stop_blocking(Duration::from_secs(8));
+        // The server's grace period is five seconds; this waits a little longer than that. The file naming its process id
+        // goes with it; one that outlived the wait stays, as the only way to find the server that is still running.
+        if handle.stop_blocking(Duration::from_secs(8)) {
+            let _ = std::fs::remove_file(&shell.dirs.server_pid);
+        }
     }
     std::process::exit(0);
+}
+
+/// The address of the server this app started, once it answers; the page's own for a server the person named.
+/// None while the server starts, restarts or has failed.
+pub(crate) fn server_address() -> Option<String> {
+    match try_consume_context::<ServerView>()?.0.read().as_ref() {
+        Some(ServerState::Ready { address, .. }) => Some(address.clone()),
+        Some(_) => None,
+        None => Some(runtime::default_address()),
+    }
+}
+
+/// The addresses the advertised endpoints of the original's desktop (`DesktopServerExposure`) come to here: the server this app
+/// started listens on loopback only, so "This machine" is the one endpoint. A server the person named is not this app's to
+/// describe.
+pub(crate) fn advertised_endpoints() -> crate::access_page::AdvertisedEndpoints {
+    let Some(address) = server_address().filter(|_| matches!(shell().backend, Backend::Supervised(_))) else { return Default::default() };
+    let port = address.rsplit(':').next().unwrap_or_default().trim_end_matches('/').to_owned();
+    let endpoint = t3_client::access::Endpoint {
+        id: format!("desktop-loopback:{port}"),
+        label: "This machine".into(),
+        http_base_url: address,
+        provider_id: "desktop-core".into(),
+        reachability: t3_client::access::Reachability::Loopback,
+        hosted_app_compatible: false,
+        available: true,
+        is_default: false,
+    };
+    crate::access_page::AdvertisedEndpoints { endpoints: vec![endpoint], default_key: None }
+}
+
+/// Starts the server this app runs again (the failed-import screen's "Try again": the server that stopped importing keeps
+/// serving the failure until it is started anew). A server the person named is not this app's to restart.
+pub(crate) fn restart_server() {
+    if let Backend::Supervised(handle) = shell().backend {
+        handle.restart();
+    }
 }
 
 /// Runs in the page: Cmd/Ctrl+Q is held back so that quitting can require a hold or a second press (the original

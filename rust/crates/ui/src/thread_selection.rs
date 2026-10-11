@@ -135,7 +135,7 @@ pub(crate) fn Host(state: Store<UiModel>, transport: TransportHandle) -> Element
                     }
                     {
                         let label = format!("{}: Custom\u{2026}", item.label);
-                        rsx! { button { class: "menu-item", role: "menuitem", r#type: "button", disabled: item.disabled, "aria-label": "{label}", onclick: move |_| { close(); state.custom_snooze().set(true); }, "{label}" } }
+                        rsx! { button { class: "menu-item", role: "menuitem", r#type: "button", disabled: item.disabled, "aria-label": "{label}", onclick: move |_| { close(); state.custom_snooze_thread().set(None); state.custom_snooze().set(true); }, "{label}" } }
                     }
                 } else {
                     {
@@ -195,7 +195,7 @@ fn CustomSnooze(state: Store<UiModel>, transport: TransportHandle) -> Element {
     let mut amount = use_signal(|| "2".to_owned());
     let mut unit = use_signal(|| "hours".to_owned());
     let mut error = use_signal(|| None::<&'static str>);
-    let close = move || state.custom_snooze().set(false);
+    let close = move || { state.custom_snooze().set(false); state.custom_snooze_thread().set(None); };
     let submit = use_callback(move |()| {
         let (date, time, amount, unit_text) = (date.peek().clone(), time.peek().clone(), amount.peek().clone(), unit.peek().clone());
         let input = if *by_date.peek() { logic::Input::Date { date: &date, time: &time } } else { logic::Input::Duration { amount: &amount, unit: logic::Unit::parse(&unit_text).unwrap_or(logic::Unit::Hours) } };
@@ -203,10 +203,17 @@ fn CustomSnooze(state: Store<UiModel>, transport: TransportHandle) -> Element {
             error.set(Some(if *by_date.peek() { logic::DATE_ERROR } else { logic::DURATION_ERROR }));
             return;
         };
-        for (_, facts) in chosen(state).into_iter().filter(|(_, facts)| facts.can_snooze) {
-            runtime::command(&transport, state, "thread.snooze", json!({"threadId": facts.id, "snoozedUntil": until}));
+        // A row's own menu names its thread; the bulk menu snoozes the chosen ones.
+        let own = state.custom_snooze_thread().peek().clone();
+        match own {
+            Some(thread_id) => { runtime::command(&transport, state, "thread.snooze", json!({"threadId": thread_id, "snoozedUntil": until})); }
+            None => {
+                for (_, facts) in chosen(state).into_iter().filter(|(_, facts)| facts.can_snooze) {
+                    runtime::command(&transport, state, "thread.snooze", json!({"threadId": facts.id, "snoozedUntil": until}));
+                }
+                state.selection().write().clear();
+            }
         }
-        state.selection().write().clear();
         close();
     });
     rsx! {
