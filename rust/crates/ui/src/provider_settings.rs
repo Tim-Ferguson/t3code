@@ -181,6 +181,8 @@ fn EnvironmentProviders(
                 ProviderEditor {key:"{row.instance_id}",state,transport:transport.clone(),environment:destination.clone(),row,live,pending:*pending.read(),allowed,onupdate:update}
             }else{p {"No configured provider instances."}}
         }
+        crate::usage_hubs::UsageProviders {settings:settings.clone(),environment:environment_label.clone(),allowed:allowed&&!*pending.read(),onupdate:update}
+        crate::usage_hubs::HealthInterval {state,saving:*pending.read(),writable:crate::settings_common::connected_allows(state,AuthEnvironmentScope::SettingsWrite),onsave:update}
     }
 }
 

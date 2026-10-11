@@ -139,23 +139,49 @@ pub fn preset_seconds(activity: &Value) -> u64 {
     preset_fetch_seconds(base_profile(activity))
 }
 pub fn fetch_seconds(activity: &Value) -> u64 {
-    if activity["profile"] == "custom" {
-        if let Some(millis) = activity["overrides"]["automaticGitFetchInterval"].as_u64() {
-            return (millis as f64 / 1000.0).round() as u64;
-        }
-    }
-    preset_seconds(activity)
+    override_seconds(activity, "automaticGitFetchInterval", preset_seconds(activity))
 }
 /// The patch that sets the interval, or (with `None`) goes back to the preset's. Setting keeps
 /// the other overrides and turns the policy into a custom one on the same base, as the original.
 pub fn fetch_patch(activity: &Value, seconds: Option<u64>) -> Value {
+    interval_patch(activity, "automaticGitFetchInterval", seconds)
+}
+
+/// The provider health check interval, which lives in the same policy as the fetch interval.
+pub const HEALTH_STEP_SECONDS: u64 = 30;
+fn preset_health_seconds(profile: &str) -> u64 {
+    match profile {
+        "performance" => 60,
+        "battery-saver" => 900,
+        _ => 300,
+    }
+}
+pub fn health_preset_seconds(activity: &Value) -> u64 {
+    preset_health_seconds(base_profile(activity))
+}
+pub fn health_seconds(activity: &Value) -> u64 {
+    override_seconds(activity, "providerHealthRefreshInterval", health_preset_seconds(activity))
+}
+pub fn health_patch(activity: &Value, seconds: Option<u64>) -> Value {
+    interval_patch(activity, "providerHealthRefreshInterval", seconds)
+}
+
+fn override_seconds(activity: &Value, key: &str, preset: u64) -> u64 {
+    if activity["profile"] == "custom" {
+        if let Some(millis) = activity["overrides"][key].as_u64() {
+            return (millis as f64 / 1000.0).round() as u64;
+        }
+    }
+    preset
+}
+fn interval_patch(activity: &Value, key: &str, seconds: Option<u64>) -> Value {
     let mut overrides = if activity["profile"] == "custom" { activity["overrides"].as_object().cloned().unwrap_or_default() } else { Map::new() };
     match seconds {
         Some(seconds) => {
-            overrides.insert("automaticGitFetchInterval".into(), json!(seconds * 1000));
+            overrides.insert(key.into(), json!(seconds * 1000));
         }
         None => {
-            overrides.remove("automaticGitFetchInterval");
+            overrides.remove(key);
         }
     }
     json!({"patch":{"backgroundActivity":{"schemaVersion":1,"profile":"custom","baseProfile":base_profile(activity),"overrides":overrides}}})
@@ -232,6 +258,21 @@ mod tests {
         assert_eq!(fetch_patch(&custom, None)["patch"]["backgroundActivity"]["overrides"], json!({"idleClientTtl":1000}));
         assert_eq!(fetch_patch(&balanced, Some(0))["patch"]["backgroundActivity"]["baseProfile"], "balanced");
         assert_eq!((parse_seconds(" 12.4 "), parse_seconds("-3"), parse_seconds("abc")), (Some(12), Some(0), None));
+    }
+
+    #[test]
+    fn the_health_check_interval_follows_the_policy_like_the_fetch_interval() {
+        // The presets of `backgroundActivitySettings.ts`: a minute, five minutes, a quarter of an hour.
+        assert_eq!(health_seconds(&json!({"profile":"performance","overrides":{}})), 60);
+        let balanced = json!({"schemaVersion":1,"profile":"balanced","overrides":{}});
+        assert_eq!((health_seconds(&balanced), health_preset_seconds(&balanced)), (300, 300));
+        assert_eq!(health_seconds(&json!({"profile":"battery-saver","overrides":{}})), 900);
+        let custom = json!({"schemaVersion":1,"profile":"custom","baseProfile":"performance","overrides":{"automaticGitFetchInterval":45000,"providerHealthRefreshInterval":90000}});
+        assert_eq!((health_seconds(&custom), health_preset_seconds(&custom), fetch_seconds(&custom)), (90, 60, 45));
+        // Setting one interval leaves the other override alone; going back to the preset drops only its own.
+        assert_eq!(health_patch(&custom, Some(120))["patch"]["backgroundActivity"]["overrides"], json!({"automaticGitFetchInterval":45000,"providerHealthRefreshInterval":120000}));
+        assert_eq!(health_patch(&custom, None)["patch"]["backgroundActivity"]["overrides"], json!({"automaticGitFetchInterval":45000}));
+        assert_eq!(health_patch(&balanced, Some(0))["patch"]["backgroundActivity"]["baseProfile"], "balanced");
     }
 }
 

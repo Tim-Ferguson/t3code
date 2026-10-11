@@ -347,7 +347,12 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             }
         }
     });
-    let claims = use_memo(move || Claims::build(&rules.read(), platform, &context.read(), |command| available.read().contains(command)));
+    // The letters the launcher of an empty panel acts on: a memo of their own, so the table is rebuilt when they change, not when the shell does.
+    let launcher = use_memo(move || crate::right_panel::launcher_letters(state));
+    let claims = use_memo(move || {
+        Claims::build(&rules.read(), platform, &context.read(), |command| available.read().contains(command))
+            .with_plain_letters(&launcher.read(), |dom| !(dom.terminal_focus || dom.editable_focus || dom.composer_focus || dom.dialog_open))
+    });
     use_effect(move || {
         let table = claims.read().to_json();
         if let Some(eval) = *page.read() {
@@ -418,13 +423,34 @@ impl Runner {
             let context = self.keys.context.peek().clone().with_dom(dom);
             let rules = self.keys.rules.peek();
             let available = self.keys.available.peek();
-            keybindings::decide(event, &rules, self.keys.platform, &context, |command| available.contains(command))?.command.clone()
+            match keybindings::decide(event, &rules, self.keys.platform, &context, |command| available.contains(command)) {
+                Some(rule) => rule.command.clone(),
+                None => return self.launcher_letter(event, dom),
+            }
         };
         // A held key repeats; the first press already ran the command.
         if !event.repeat {
             self.execute(&command);
         }
         Some(command)
+    }
+
+    /// A plain letter while the launcher of an empty panel shows: it opens the row it names, whatever has focus unless that is a
+    /// place to type or a dialog. Not a binding, so no rule names it. Returns the name of what it opened.
+    fn launcher_letter(&self, event: &KeyEvent, dom: Dom) -> Option<String> {
+        if event.meta || event.ctrl || event.alt || event.is_composing() || dom.terminal_focus || dom.editable_focus || dom.composer_focus || dom.dialog_open {
+            return None;
+        }
+        let mut letters = event.key.chars();
+        let (letter, None) = (letters.next()?, letters.next()) else { return None };
+        if !letter.is_alphabetic() {
+            return None;
+        }
+        // A held key repeats; the first press already opened it.
+        if event.repeat {
+            return crate::right_panel::launcher_letters(self.state).contains(&letter.to_ascii_uppercase()).then(|| "rightPanel.launcher".to_owned());
+        }
+        crate::right_panel::run_launcher_letter(self.state, letter).map(|label| format!("rightPanel.launcher.{label}"))
     }
 
     /// Runs a command: what its shortcut does, and what the palette's entry for it does.

@@ -373,6 +373,67 @@ pub const STOP_WATCHING: &str = "Stop watching";
 pub const WATCHING_HINT: &str = "Watching: the agent wakes when checks finish, someone comments, or the branch conflicts.";
 pub const WATCH_FAILED: &str = "Could not change the pull request watch";
 
+/// `resolvePullRequestTabLink`, then its snapshot's state: what the newest link to this pull request among the threads says of it
+/// (`open`, `closed` or `merged`, and whether it is a draft). A link not yet synced says nothing, and neither does a reference that
+/// names no host. "Newest" is by the snapshot's `syncedAt` text, the first of equals, as the original compares it.
+pub fn linked_state(links: &[Value], reference: &Reference) -> Option<(String, bool)> {
+    let host = reference.host.as_deref()?.to_lowercase();
+    let repository = reference.repository.to_lowercase();
+    let mut newest: Option<&Value> = None;
+    for link in links {
+        let same = link["host"].as_str().is_some_and(|value| value.to_lowercase() == host) && link["repository"].as_str().is_some_and(|value| value.to_lowercase() == repository) && link["number"].as_u64() == Some(reference.number);
+        if same && newest.is_none_or(|current| link["snapshot"]["syncedAt"].as_str().unwrap_or("") > current["snapshot"]["syncedAt"].as_str().unwrap_or("")) {
+            newest = Some(link);
+        }
+    }
+    let snapshot = &newest?["snapshot"];
+    Some((snapshot["state"].as_str()?.to_owned(), snapshot["isDraft"] == true))
+}
+
+/// `savedPullRequestStack`: the stack a pull request was last seen in, from the links of the threads it is filed under. It lets a
+/// stack's layers be navigated while the host's own read is loading or has failed; it never carries a head SHA, so no action
+/// can be asked from it. A newer link that records no stack is a saved removal. Nothing is borrowed across hosts or repositories,
+/// and a reference that names no host has no saved stack.
+pub fn saved_stack(links: &[Value], reference: &Reference) -> Option<Value> {
+    let host = reference.host.as_deref()?.to_lowercase();
+    let repository = reference.repository.to_lowercase();
+    let matching: Vec<&Value> = links.iter().filter(|link| link["host"].as_str().is_some_and(|value| value.to_lowercase() == host) && link["repository"].as_str().is_some_and(|value| value.to_lowercase() == repository)).collect();
+    // `Date.parse` of a timestamp that does not parse is NaN, which sorts after nothing; an unreadable one is the oldest here.
+    fn stamp(link: &Value) -> i64 {
+        link["snapshot"]["syncedAt"].as_str().or(link["linkedAt"].as_str()).and_then(|at| chrono::DateTime::parse_from_rfc3339(at).ok()).map_or(i64::MIN, |at| at.timestamp_millis())
+    }
+    // The first of equally recent links, as a stable descending sort leaves it.
+    fn newest(candidates: Vec<&Value>) -> Option<&Value> {
+        let mut best: Option<&Value> = None;
+        for link in candidates {
+            if best.is_none_or(|current| stamp(link) > stamp(current)) {
+                best = Some(link);
+            }
+        }
+        best
+    }
+    let exact: Vec<&Value> = matching.iter().copied().filter(|link| link["number"].as_u64() == Some(reference.number)).collect();
+    let candidates = if exact.is_empty() { matching.iter().copied().filter(|link| link["stack"]["layers"].as_array().is_some_and(|layers| layers.iter().any(|layer| layer["number"].as_u64() == Some(reference.number)))).collect() } else { exact };
+    let stack = &newest(candidates)?["stack"];
+    let layers = stack["layers"].as_array()?;
+    if !layers.iter().any(|layer| layer["number"].as_u64() == Some(reference.number)) {
+        return None;
+    }
+    let layers: Vec<Value> = layers
+        .iter()
+        .map(|layer| {
+            let mut layer = layer.clone();
+            let snapshot = newest(matching.iter().copied().filter(|link| link["number"] == layer["number"]).collect()).map(|link| &link["snapshot"]).filter(|snapshot| snapshot.is_object());
+            if let (Some(snapshot), Some(fields)) = (snapshot, layer.as_object_mut()) {
+                fields.insert("title".into(), snapshot["title"].clone());
+                fields.insert("isDraft".into(), snapshot["isDraft"].clone());
+            }
+            layer
+        })
+        .collect();
+    Some(json!({"id":stack["id"],"number":stack["number"],"url":stack["url"],"base":stack["base"],"layers":layers}))
+}
+
 pub const LINK_FAILED: &str = "Could not link the pull request";
 pub const UNLINK_FAILED: &str = "Could not unlink the pull request";
 pub const LINK: &str = "Link to this thread";
@@ -464,6 +525,61 @@ mod tests {
         assert_eq!((top.depth, top.stack), (1, None));
         let single = lines.iter().find(|line| line.link["number"] == 9).unwrap();
         assert_eq!((single.depth, single.stack), (0, None));
+    }
+
+    /// The case of `pullRequestStackSnapshot.test.ts`: layer 2 is linked, layer 1 is only in the stack.
+    fn top_layer() -> Value {
+        let mut top = link("github.com", "acme/web", 2, Some("open"), "2026-09-09T10:00:00Z", "manual");
+        top["snapshot"] = json!({"title":"Top layer","headBranch":"top","baseBranch":"bottom","state":"open","isDraft":false,"updatedAt":null,"syncedAt":"2026-09-09T10:00:00Z"});
+        top["stack"] = json!({"kind":"native","id":"stack","number":3,"url":"https://github.com/acme/web/pull/3","base":"main","layers":[{"number":1,"headBranch":"bottom","state":"open"},{"number":2,"headBranch":"top","state":"open"}]});
+        top
+    }
+    fn reference(host: Option<&str>, repository: &str, number: u64) -> Reference {
+        Reference { project_id: "project".into(), host: host.map(str::to_owned), repository: repository.into(), number }
+    }
+
+    #[test]
+    fn a_saved_stack_keeps_every_layer_with_the_titles_of_the_linked_ones_and_no_head_shas() {
+        let saved = saved_stack(&[top_layer()], &reference(Some("github.com"), "acme/web", 2)).unwrap();
+        assert_eq!(saved["layers"], json!([{"number":1,"headBranch":"bottom","state":"open"},{"number":2,"headBranch":"top","state":"open","title":"Top layer","isDraft":false}]));
+        assert_eq!((saved["id"].as_str(), saved["number"].as_u64(), saved["base"].as_str()), (Some("stack"), Some(3), Some("main")));
+        assert_eq!(saved_stack(&[top_layer()], &reference(Some("GitHub.com"), "Acme/Web", 1)).unwrap()["number"], 3, "a layer that is only in the stack finds it");
+    }
+
+    #[test]
+    fn a_saved_stack_is_not_borrowed_across_hosts_repositories_or_a_missing_host() {
+        let links = [top_layer()];
+        assert_eq!(saved_stack(&links, &reference(Some("enterprise.example"), "acme/web", 2)), None);
+        assert_eq!(saved_stack(&links, &reference(Some("github.com"), "other/web", 2)), None);
+        assert_eq!(saved_stack(&links, &reference(None, "acme/web", 2)), None);
+    }
+
+    #[test]
+    fn a_tab_wears_the_state_of_the_newest_link_to_its_pull_request() {
+        let mut older = link("github.com", "acme/web", 2, Some("open"), "2026-01-01T00:00:00Z", "manual");
+        older["snapshot"]["syncedAt"] = json!("2026-01-01T00:00:00Z");
+        older["snapshot"]["isDraft"] = json!(true);
+        let mut newer = link("GitHub.com", "Acme/Web", 2, Some("merged"), "2026-01-01T00:00:00Z", "manual");
+        newer["snapshot"]["syncedAt"] = json!("2026-02-01T00:00:00Z");
+        let other = link("github.com", "acme/web", 3, Some("closed"), "2026-01-01T00:00:00Z", "manual");
+        let links = [older, newer, other];
+        assert_eq!(linked_state(&links, &reference(Some("github.com"), "acme/web", 2)), Some(("merged".into(), false)));
+        assert_eq!(linked_state(&links, &reference(Some("github.com"), "acme/web", 3)), Some(("closed".into(), false)));
+        // Nothing is said for a pull request no link names, one whose link is not synced yet, or a reference without a host.
+        assert_eq!(linked_state(&links, &reference(Some("github.com"), "acme/web", 9)), None);
+        assert_eq!(linked_state(&links, &reference(None, "acme/web", 2)), None);
+        assert_eq!(linked_state(&[link("github.com", "acme/web", 4, None, "2026-01-01T00:00:00Z", "manual")], &reference(Some("github.com"), "acme/web", 4)), None);
+    }
+
+    #[test]
+    fn a_newer_link_without_a_stack_is_a_saved_removal() {
+        let mut removed = top_layer();
+        removed["stack"] = Value::Null;
+        removed["snapshot"]["syncedAt"] = json!("2026-09-09T11:00:00Z");
+        assert_eq!(saved_stack(&[top_layer(), removed.clone()], &reference(Some("github.com"), "acme/web", 2)), None);
+        // An older one does not win over the stack that was saved later.
+        removed["snapshot"]["syncedAt"] = json!("2026-09-09T09:00:00Z");
+        assert!(saved_stack(&[top_layer(), removed], &reference(Some("github.com"), "acme/web", 2)).is_some());
     }
 
     #[test]

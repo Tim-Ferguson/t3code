@@ -24,6 +24,7 @@ pub(crate) async fn wait_for_rendered_text(dom: &mut VirtualDom, expected: &str)
 thread_local! {
     static OFFERED: RefCell<Option<Value>> = const { RefCell::new(None) };
     static WITH_BACKGROUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static WITH_USAGE_SOURCES: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[derive(Clone)]
@@ -169,6 +170,13 @@ impl Fixture {
         WITH_BACKGROUND.with(|flag| flag.set(false));
         fixture
     }
+    /// A server that reads the CLIProxyAPI hubs of its settings (`usageLimitSources`) over HTTP, as a real one does.
+    pub(crate) async fn start_with_usage_sources() -> Self {
+        WITH_USAGE_SOURCES.with(|flag| flag.set(true));
+        let fixture = Self::build(false, &[], false).await;
+        WITH_USAGE_SOURCES.with(|flag| flag.set(false));
+        fixture
+    }
     pub(crate) async fn start_named(environment_id: &str) -> Self {
         Self::build_with_settings(false, &[], false, None, false, json!({}), None, environment_id).await
     }
@@ -264,6 +272,10 @@ impl Fixture {
             telemetry.clock = clock.clone();
             let desktop = t3_server::desktop_telemetry::DesktopTelemetryReceiver::new(telemetry).await;
             api.background = Some(t3_server::background_policy::BackgroundPolicy::start(settings_service.clone(), desktop, clock).await.unwrap());
+        }
+        if WITH_USAGE_SOURCES.with(std::cell::Cell::get) {
+            let clock: t3_server::cliproxy_api::Clock = std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis());
+            t3_server::usage_limit_sources::install(&api.store, t3_server::usage_limit_sources::UsageLimitSources::start(Some(settings_service.clone()), api.background.clone(), std::sync::Arc::new(t3_server::cliproxy_api::CliproxyApi::default()), clock).await);
         }
         let clock = timed.map(|idle_timeout| {
             let clock = t3_server::scheduled_tasks::ManualClock::new(chrono::Utc::now().timestamp_millis());

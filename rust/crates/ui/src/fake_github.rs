@@ -104,7 +104,7 @@ impl Gate {
 }
 
 #[derive(Clone)]
-pub(crate) struct Github(Arc<Mutex<Data>>, Arc<Mutex<Option<Arc<Gate>>>>);
+pub(crate) struct Github(Arc<Mutex<Data>>, Arc<Mutex<Option<Arc<Gate>>>>, Arc<Mutex<Option<Arc<Gate>>>>);
 
 /// Whether the request is this document; the server appends a rate-limit field, so a document is
 /// known by all of it but its last brace.
@@ -185,11 +185,16 @@ pub(crate) fn kind_of(asked: &Asked) -> String {
 impl Github {
     /// Installs a fresh host for pull request `number` as the answer to everything the server asks.
     pub(crate) fn install(world: &World, number: u64) -> Self {
-        let github = Self(Arc::new(Mutex::new(Data::new(number))), Arc::default());
-        let (data, hold) = (github.0.clone(), github.1.clone());
+        let github = Self(Arc::new(Mutex::new(Data::new(number))), Arc::default(), Arc::default());
+        let (data, hold, hold_stack) = (github.0.clone(), github.1.clone(), github.2.clone());
         world.script(Arc::new(move |asked| {
             // Held before the data is locked, so the other reads go on while a write waits.
             let gate = hold.lock().unwrap().clone().filter(|_| matches!(kind_of(asked).as_str(), "merge" | "draft" | "close" | "react" | "unreact" | "update" | "editComment"));
+            if let Some(gate) = gate {
+                gate.pass();
+            }
+            // The read of one pull request's stack, which the panel makes once its details have landed.
+            let gate = hold_stack.lock().unwrap().clone().filter(|_| kind_of(asked).starts_with("GET repos/acme/web/stacks/"));
             if let Some(gate) = gate {
                 gate.pass();
             }
@@ -205,6 +210,12 @@ impl Github {
     pub(crate) fn hold_writes(&self) -> Arc<Gate> {
         let gate = Arc::new(Gate::default());
         *self.1.lock().unwrap() = Some(gate.clone());
+        gate
+    }
+    /// Holds the read of a pull request's stack from now until the returned gate is released.
+    pub(crate) fn hold_stack_reads(&self) -> Arc<Gate> {
+        let gate = Arc::new(Gate::default());
+        *self.2.lock().unwrap() = Some(gate.clone());
         gate
     }
     pub(crate) fn set(&self, change: impl FnOnce(&mut Data)) {

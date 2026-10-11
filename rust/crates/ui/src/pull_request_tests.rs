@@ -1186,3 +1186,71 @@ async fn the_stack_offers_only_what_the_layers_and_the_account_allow() {
     })
     .await;
 }
+
+/// A pull request's tab in the panel's bar wears the state it was last read in, and follows it.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_pull_requests_tab_wears_its_state_and_follows_it() {
+    with_app(81, &WRITER, async |app| {
+        app.open_panel().await;
+        until(&mut app.dom, "the open glyph", |dom| control(dom, "Pull request state: Open").is_some()).await;
+        app.github.set(|data| data.draft = true);
+        click_when_enabled(&mut app.dom, "Refresh pull request").await;
+        until(&mut app.dom, "the draft glyph", |dom| control(dom, "Pull request state: Draft").is_some()).await;
+        assert!(control(&app.dom, "Pull request state: Open").is_none());
+        app.github.set(|data| {
+            data.draft = false;
+            data.state = "MERGED";
+        });
+        click_when_enabled(&mut app.dom, "Refresh pull request").await;
+        until(&mut app.dom, "the merged glyph", |dom| control(dom, "Pull request state: Merged").is_some()).await;
+    })
+    .await;
+}
+
+/// While the host's own read of the stack is on its way, the layers the threads saved for the pull request can be opened (an old
+/// link keeps them), marked as refreshing and with nothing to do to them; the host's answer replaces them and offers the actions.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_stack_the_threads_saved_keeps_its_layers_open_to_the_eye_until_the_hosts_own_read_arrives() {
+    with_app(80, &WRITER, async |app| {
+        app.github.passing();
+        app.github.set(|data| data.stack = Some(three_layers(80, ["aaa1111", "bbb2222", "ccc3333"])));
+        let gate = app.github.hold_stack_reads();
+        wait_for_rendered_text(&mut app.dom, "PR #80 \u{b7} Open").await;
+        click_control(&mut app.dom, "pull request #80");
+        wait_for_rendered_text(&mut app.dom, "Please").await;
+        assert!(control(&app.dom, "Stack 80, layer 2 of 3").is_none(), "nothing is known of a stack yet");
+        assert!(control(&app.dom, crate::pull_request_summary::CHECKING_STACK).is_some(), "the lookup is on its way");
+
+        // The thread's link saved a stack at an earlier sync. Nothing is awaited between this and the look at the screen.
+        let link: t3_contracts::ThreadPullRequestLink = serde_json::from_value(json!({
+            "host":"github.com","repository":"acme/web","number":80,"url":"https://github.com/acme/web/pull/80","source":"manual","linkedAt":"2026-09-09T10:00:00Z",
+            "snapshot":{"title":"Fix it","headBranch":"feature","baseBranch":"saved-79","state":"open","isDraft":false,"updatedAt":null,"syncedAt":"2026-09-09T10:00:00Z"},
+            "stack":{"kind":"native","id":"stack","number":80,"url":"https://github.com/acme/web/stacks/80","base":"main","layers":[
+                {"number":79,"headBranch":"saved-79","state":"open"},{"number":80,"headBranch":"feature","state":"open"},{"number":81,"headBranch":"saved-81","state":"open"}]}
+        }))
+        .unwrap();
+        app.dom.in_scope(ScopeId::APP, || {
+            let mut shell = app.state.shell();
+            let mut shell = shell.write();
+            let thread = shell.snapshot.as_mut().unwrap().threads.iter_mut().find(|thread| thread.id.as_str() == "thread-a").unwrap();
+            thread.pull_requests = Some(Some(vec![link]));
+        });
+        app.dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+        assert!(control(&app.dom, "Stack 80, layer 2 of 3").is_some(), "the saved layers are in the header");
+        assert!(control(&app.dom, "Merge stack").is_none(), "nothing can be done to a stack the host has not just said");
+        click_control(&mut app.dom, "Stack 80, layer 2 of 3");
+        assert!(rendered_text(&app.dom).contains("Refreshing\u{2026}"), "{}", rendered_text(&app.dom));
+        assert!(control(&app.dom, "saved-79, #79").is_some() && control(&app.dom, "Merge stack (2)").is_none() && control(&app.dom, "Rebase stack").is_none());
+
+        // The host answers: its layers replace the saved ones, and the actions are offered.
+        gate.release();
+        until(&mut app.dom, "the host's stack", |dom| control(dom, "Merge stack").is_some()).await;
+        // The menu was left open: it now lists the host's layers.
+        assert!(control(&app.dom, "Layer 79, #79").is_some() && control(&app.dom, "saved-79, #79").is_none());
+        assert!(!rendered_text(&app.dom).contains("Refreshing\u{2026}"));
+        assert_eq!(error(app.state), None);
+    })
+    .await;
+}

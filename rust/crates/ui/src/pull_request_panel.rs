@@ -151,6 +151,12 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
                             value["checks"] = checks["checks"].clone();
                         }
                         if detail.peek().clone() != Read::Ready(Rc::new(value.clone())) {
+                            // Its tab in the panel's bar wears the state it was last read in.
+                            let status = (value["state"].as_str().unwrap_or("open").to_owned(), value["isDraft"] == true);
+                            let key = crate::right_panel::status_key(&reference.project_id, &reference.repository, reference.number);
+                            if state.pr_states().peek().get(&key) != Some(&status) {
+                                state.pr_states().write().insert(key, status);
+                            }
                             detail.set(Read::Ready(Rc::new(value)));
                         }
                         fresh.set(true);
@@ -213,6 +219,24 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
             }
         });
     }
+
+    // The stack the threads saved, under the host of the address the detail names where the reference has none.
+    let saved_stack = use_memo({
+        let reference = reference.clone();
+        move || {
+            let mut reference = reference.clone();
+            if reference.host.is_none() {
+                reference.host = match &*detail.read() {
+                    Read::Ready(value) => value["url"].as_str().and_then(|url| url::Url::parse(url).ok()).and_then(|url| url.host_str().map(str::to_owned)),
+                    _ => None,
+                };
+            }
+            if !stack_wanted() {
+                return None;
+            }
+            crate::pull_request_stack::saved(state, &reference)
+        }
+    });
 
     // The conversation (the Summary's comments, the Timeline, the Code tab's threads) is read once the panel is open.
     {
@@ -299,7 +323,13 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
         refresh_count.set(next);
     });
     let write_ok = use_memo(move || can_write() && fresh());
-    let held = stack.read().clone();
+    // What the layers show: the host's last read, or until it succeeds what the threads saved. A read that succeeded with nothing
+    // is an absence the saved layers must not override. A saved stack never carries head SHAs, so no action can be asked from it
+    // (`fresh` is false until a read has succeeded).
+    let mut held = stack.read().clone();
+    if !held.succeeded && held.data.is_none() {
+        held.data = saved_stack();
+    }
     let stack_view = t3_client::pull_request_stack::view(held.data.is_some(), held.succeeded, held.pending, held.error.as_deref());
     let single_merge = t3_client::pull_request_stack::single_merge_allowed(supports_stack_actions(), held.data.is_some(), held.pending || !held.succeeded && held.error.is_none(), held.error.is_some());
     let _editing = crate::pull_request_edit::provide(state, transport.clone(), reference.clone(), write_ok, Callback::new(move |_| { let next = *refresh_count.peek() + 1; refresh_count.set(next); }));

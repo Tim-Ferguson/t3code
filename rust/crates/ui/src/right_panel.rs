@@ -7,8 +7,7 @@
 //! a reload finds the same tabs. What the panel draws is derived from one thread's entry behind a memo, so the conversation and
 //! the sidebar never repaint for it, and a streaming turn never repaints an open panel.
 //!
-//! Not ported: the browser, terminal and device tabs (the terminal is the drawer under the conversation here), the pull
-//! request tab's state icon, the scroll buttons of an overflowing tab bar, and letter shortcuts of the launcher outside the panel.
+//! Not ported: the browser, terminal and device tabs (the terminal is the drawer under the conversation here).
 use crate::{
     diff_panel, file_panel, pull_request_panel,
     notice::{self, Level},
@@ -16,7 +15,11 @@ use crate::{
     thread_pull_requests_panel,
 };
 use dioxus::prelude::*;
-use t3_client::right_panel::{self as logic, Closed, History, Kind, Panels, PullRequestTarget, Surface, ThreadPanel};
+use t3_client::{
+    connection::ConnectionStatus,
+    right_panel::{self as logic, Closed, History, Kind, Panels, PullRequestTarget, Surface, ThreadPanel},
+};
+use t3_contracts::AuthEnvironmentScope;
 
 /// The owner a panel is kept under when no thread is open: the new-thread form, which can open files of its project.
 pub(crate) const NEW_THREAD_FORM: &str = "~new";
@@ -444,6 +447,48 @@ fn availability(state: Store<UiModel>, thread: Option<&str>, cwd: &str, can_read
     rows(!cwd.is_empty(), thread.is_some() && can_read, pull_request, thread.is_some() && thread_pull_requests_panel::supported(state))
 }
 
+/// The rows the launcher offers right now, when the window shows one: the panel is open on nothing, and nothing else that takes
+/// letters (the add menu, the palette, the model picker) is up. Subscribes the caller.
+fn launcher_rows(state: Store<UiModel>) -> Option<Vec<Row>> {
+    if *state.view().read() != runtime::View::Chat || state.palette().read().open {
+        return None;
+    }
+    let environment = state.destination().read().as_ref()?.to_string();
+    let thread = state.active_thread().read().clone();
+    let panels = state.right_panel();
+    let model = panels.read();
+    let panel = model.panels.get(&key_of(&environment, thread.as_deref()));
+    if !panel.is_open || panel.active().is_some() || model.menu {
+        return None;
+    }
+    drop(model);
+    // The checkout the Files row opens: the thread's worktree, else its project's root, else the selected project's.
+    let shell = state.shell();
+    let shell = shell.read();
+    let snapshot = shell.snapshot.as_ref()?;
+    let selected = state.selected_project().read().clone();
+    let project_root = |id: &str| snapshot.projects.iter().find(|project| project.id.as_str() == id).map(|project| project.workspace_root.to_string());
+    let cwd = match thread.as_deref().and_then(|id| snapshot.threads.iter().find(|candidate| candidate.id.as_str() == id)) {
+        Some(thread) => thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| project_root(thread.project_id.as_str())).unwrap_or_default(),
+        None => selected.as_deref().and_then(project_root).unwrap_or_default(),
+    };
+    let connected = *state.status().read() == ConnectionStatus::Connected;
+    let can_read = connected && state.environments().read().allows(&state.destination().read().clone()?, AuthEnvironmentScope::OrchestrationRead);
+    Some(availability(state, thread.as_deref(), &cwd, can_read).into_iter().filter(|row| row.available).collect())
+}
+/// The letters the launcher acts on wherever focus is (`RightPanelEmptyState`'s window listener), for the key claims. Subscribes the caller.
+pub(crate) fn launcher_letters(state: Store<UiModel>) -> Vec<char> {
+    launcher_rows(state).unwrap_or_default().into_iter().map(|row| row.shortcut).collect()
+}
+/// Opens the row a pressed letter names, when the launcher shows it. Returns what was opened.
+pub(crate) fn run_launcher_letter(state: Store<UiModel>, letter: char) -> Option<&'static str> {
+    let owner = active_owner(state)?;
+    let letter = letter.to_ascii_uppercase();
+    let row = launcher_rows(state)?.into_iter().find(|row| row.shortcut == letter)?;
+    run(state, &owner, row.choice);
+    Some(row.label)
+}
+
 fn letter_of(event: &KeyboardEvent) -> Option<char> {
     let modifiers = event.modifiers();
     if modifiers.meta() || modifiers.ctrl() || modifiers.alt() {
@@ -456,6 +501,93 @@ fn letter_of(event: &KeyboardEvent) -> Option<char> {
 }
 
 // ---- the components -------------------------------------------------------------------------
+
+/// Where a pull request's last read state is kept: by project, repository and number, as the original's shared summaries are.
+pub(crate) fn status_key(project_id: &str, repository: &str, number: u64) -> String {
+    format!("{project_id}/{}#{number}", repository.to_lowercase())
+}
+
+/// The state glyph of a pull request tab (`PullRequestSurfaceIcon`): the newest link to it among the threads, else what the panel
+/// last read of it, else the plain mark. It is its own component so that the shell's changes repaint this glyph and not the bar.
+#[component]
+fn PullRequestTabIcon(state: Store<UiModel>, target: PullRequestTarget) -> Element {
+    let reference = t3_client::pull_request::Reference { project_id: target.project_id.clone(), host: target.host.clone(), repository: target.repository.clone(), number: target.number };
+    let status = use_memo(move || {
+        let linked = {
+            let shell = state.shell();
+            let shell = shell.read();
+            let host = reference.host.as_deref();
+            let links: Vec<serde_json::Value> = shell
+                .snapshot
+                .iter()
+                .flat_map(|snapshot| snapshot.threads.iter())
+                .flat_map(|thread| thread.pull_requests.iter().flatten().flatten())
+                .filter(|link| host.is_some_and(|host| link.host.as_str().eq_ignore_ascii_case(host)) && link.repository.as_str().eq_ignore_ascii_case(&reference.repository) && link.number.0 == reference.number)
+                .filter_map(|link| serde_json::to_value(link).ok())
+                .collect();
+            t3_client::thread_pull_requests::linked_state(&links, &reference)
+        };
+        linked.or_else(|| state.pr_states().read().get(&status_key(&reference.project_id, &reference.repository, reference.number)).cloned())
+    });
+    match status() {
+        Some((lifecycle, draft)) => {
+            let pr_state = t3_client::thread_pull_requests::State::of(&lifecycle, draft);
+            rsx! { span { role: "img", "aria-label": "Pull request state: {pr_state.label()}", crate::pull_request_glyph::Glyph { state: pr_state, stack: false } } }
+        }
+        None => rsx! { span { class: "pr-tab-unknown", crate::pull_request_glyph::Glyph { state: t3_client::thread_pull_requests::State::Open, stack: false } } },
+    }
+}
+
+/// What the page says of the tab bar's overflow (`assets/tab_scroll_abi.js`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct Overflow {
+    has: bool,
+    left: bool,
+    right: bool,
+}
+
+/// The two buttons that scroll a tab bar whose tabs do not fit, and the page script that watches the bar for them (it also brings
+/// the shown tab into view when the selection changes). Nothing is drawn while the tabs fit. The measuring is the page's, so a
+/// test without a page sees no overflow; the buttons and what they ask of the page are checked in a browser.
+#[component]
+fn TabScroll(selected: Option<String>) -> Element {
+    let mut page = use_signal(|| None::<document::Eval>);
+    let mut overflow = use_signal(Overflow::default);
+    use_future(move || async move {
+        let mut eval = document::eval(include_str!("../assets/tab_scroll_abi.js"));
+        page.set(Some(eval));
+        while let Ok(message) = eval.recv::<serde_json::Value>().await {
+            let next = Overflow { has: message["has"] == true, left: message["left"] == true, right: message["right"] == true };
+            if *overflow.peek() != next {
+                overflow.set(next);
+            }
+        }
+    });
+    use_effect(use_reactive((&selected,), move |_| {
+        if let Some(eval) = *page.peek() {
+            let _ = eval.send(serde_json::json!({"type":"reveal"}));
+        }
+    }));
+    use_drop(move || {
+        if let Some(eval) = *page.peek() {
+            let _ = eval.send(serde_json::json!({"type":"stop"}));
+        }
+    });
+    let scroll = move |direction: i32| {
+        if let Some(eval) = *page.peek() {
+            let _ = eval.send(serde_json::json!({"type":"scroll","direction":direction}));
+        }
+    };
+    let overflow = overflow();
+    rsx! {
+        if overflow.has {
+            div { class: "right-panel-scroll", role: "group", "aria-label": "Scroll panel tabs",
+                button { class: "icon-button", r#type: "button", "aria-label": "Scroll tabs left", title: "Scroll tabs left", disabled: !overflow.left, onclick: move |_| scroll(-1), "\u{2039}" }
+                button { class: "icon-button", r#type: "button", "aria-label": "Scroll tabs right", title: "Scroll tabs right", disabled: !overflow.right, onclick: move |_| scroll(1), "\u{203a}" }
+            }
+        }
+    }
+}
 
 /// The header's button for the whole panel (`rightPanel.toggle`).
 #[component]
@@ -523,7 +655,7 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
                                             close_surface(state, &middle_owner, &middle_id);
                                         }
                                     },
-                                    button { class: "right-panel-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", "aria-label": "{title}", title: "{full_title}", onclick: move |_| activate(state, &owner, &select_id), "{title}" if dirty { span { class: "file-tab-dirty", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes", " \u{2022}" } } }
+                                    button { class: "right-panel-tab-name", r#type: "button", role: "tab", "aria-selected": "{selected}", "aria-label": "{title}", title: "{full_title}", onclick: move |_| activate(state, &owner, &select_id), if let Surface::PullRequest(target) = surface { PullRequestTabIcon { state, target: target.clone() } } "{title}" if dirty { span { class: "file-tab-dirty", role: "img", "aria-label": "Unsaved changes", title: "Unsaved changes", " \u{2022}" } } }
                                     button { class: "right-panel-tab-close", r#type: "button", "aria-label": "Close {title} tab", title: "Close {title}", onclick: { let owner = Owner { environment: environment_key.clone(), thread: thread_id.clone() }; move |_| close_surface(state, &owner, &close_id) }, "\u{00d7}" }
                                 }
                             }
@@ -537,6 +669,7 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
                         }
                     }
                 }
+                TabScroll { selected: shown.as_ref().map(Surface::id) }
                 div { class: "right-panel-controls",
                     button { class: "icon-button", r#type: "button", "aria-label": if maximized() { "Restore panel" } else { "Maximize panel" }, "aria-pressed": "{maximized()}", title: if maximized() { "Give the conversation its width back" } else { "Let the panel fill the window" }, onclick: move |_| toggle_maximized(state), if maximized() { "\u{2921}" } else { "\u{2922}" } }
                     button { class: "icon-button", r#type: "button", "aria-label": "Hide panel", title: "Hide the panel; its tabs stay", onclick: move |_| toggle_panel(state), "\u{00d7}" }

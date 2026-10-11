@@ -689,6 +689,18 @@ impl Claims {
         }
         Self { masks }
     }
+    /// Also claims these plain letters (Shift allowed, no other modifier), where the focus passes `typing_free`. They are not
+    /// bindings: the launcher of an empty panel acts on its letters wherever focus is, unless the person is typing or a dialog is up.
+    pub fn with_plain_letters(mut self, letters: &[char], typing_free: impl Fn(Dom) -> bool) -> Self {
+        let mask = (0..Dom::COMBINATIONS).filter(|bits| typing_free(Dom::from_bits(*bits))).fold(0, |mask, bits| mask | 1 << bits);
+        for letter in letters {
+            let key = letter.to_ascii_lowercase().to_string();
+            for shift in [false, true] {
+                *self.masks.entry(chord_key(false, false, shift, false, &key)).or_insert(0) |= mask;
+            }
+        }
+        self
+    }
     pub fn is_empty(&self) -> bool {
         self.masks.is_empty()
     }
@@ -859,5 +871,18 @@ mod tests {
             let composing = KeyEvent { key: "k".into(), meta: platform.is_mac(), ctrl: !platform.is_mac(), composing: true, ..Default::default() };
             assert!(!claims.claims(&composing, Dom::default(), platform));
         }
+    }
+
+    #[test]
+    fn plain_letters_are_claimed_only_where_no_one_is_typing_and_only_with_shift_or_nothing() {
+        let rules = merge_with_defaults(vec![]);
+        let base = Context::base(true);
+        let claims = Claims::build(&rules, Platform::Other, &base, |_| false).with_plain_letters(&['F', 'D'], |dom| !(dom.terminal_focus || dom.editable_focus || dom.composer_focus || dom.dialog_open));
+        assert!(claims.claims(&event("f"), Dom::default(), Platform::Other));
+        assert!(claims.claims(&KeyEvent { shift: true, ..event("F") }, Dom::default(), Platform::Other), "Shift+F: the key's case is not the question");
+        assert!(!claims.claims(&event("f"), Dom { editable_focus: true, ..Default::default() }, Platform::Other));
+        assert!(!claims.claims(&event("f"), Dom { dialog_open: true, ..Default::default() }, Platform::Other));
+        assert!(!claims.claims(&event("x"), Dom::default(), Platform::Other), "a letter no row names");
+        assert!(!claims.claims(&KeyEvent { ctrl: true, ..event("f") }, Dom::default(), Platform::Other), "another modifier is a chord of its own");
     }
 }

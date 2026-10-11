@@ -90,7 +90,7 @@
     "partial": {
       "navigation.back": "The page's history, on the web build, where the address follows the view; the desktop window has no address, so the command is not offered there (useNavigationHistory).",
       "navigation.forward": "As navigation.back.",
-      "view.reopenClosed": "Reopens panel tabs (the diff, files, a file, pull requests); the original also brings back a closed browser tab, and has a View menu entry on the desktop that this window's shell does not have."
+      "view.reopenClosed": "Reopens panel tabs (the diff, files, a file, pull requests); the original also brings back a closed browser tab. It has no View menu entry for it: DesktopApplicationMenu.ts lists none, and the desktop's onMenuAction('view.reopenClosed') is only what the preview browser forwards while a preview has focus, so there is nothing to add to this shell's menu."
     },
     "pending": {
       "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel/ThreadDetailsCard) as a toggle beside the right panel: the Rust header shows its parts inline.",
@@ -130,8 +130,6 @@
       "agent-device-access": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
       "device-hub": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
       "device-platform-support": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
-      "usage-providers": "Usage limit sources (AddUsageLimitSourceDialog): the server does not poll them either (check_rpc_surface: usageLimitSources).",
-      "provider-health-check-interval": "Per-provider health check interval field of the provider card: not built.",
       "setting-glass-opacity": "Translucent menus and dialogs: not built (the CSS has no backdrop-filter layer).",
       "environment-identification": "The environment stage pill and artwork (EnvironmentIdentification): not built.",
       "composer-context": "The composer's persistent context strip: not built.",

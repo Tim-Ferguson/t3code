@@ -135,6 +135,9 @@ pub struct UiModel {
     pub pr_reviews: std::collections::BTreeMap<String, t3_client::pull_request_line_comments::ReviewDraft>,
     /// The dialog that starts a thread from a pull request, while it is open.
     pub pr_checkout: Option<crate::pull_request_thread::Open>,
+    /// The lifecycle state and draft flag of each pull request the panel has read (`useSharedPullRequestSummary`), by
+    /// `right_panel::status_key`: what a pull request's tab wears when no thread's link carries a newer snapshot.
+    pub pr_states: std::collections::BTreeMap<String, (String, bool)>,
     pub lifecycle: crate::thread_lifecycle::Model,
     pub server_update: crate::server_update::Model,
     pub relations: crate::thread_relations::Model,
@@ -661,7 +664,8 @@ fn start_config_subscription(handle: &TransportHandle, state: Store<UiModel>) {
         handle,
         state,
         "subscribeServerConfig",
-        json!({"environmentThemes":true,"usageLimitSources":true}),
+        // `usageLimitsCommand`: this client answers `/usage-limits` itself (limits_view), so the server may advertise it.
+        json!({"environmentThemes":true,"usageLimitSources":true,"usageLimitsCommand":true}),
     ) else {
         return;
     };
@@ -3075,6 +3079,10 @@ mod prompt_history_tests;
 #[cfg(all(test, unix))]
 #[path = "usage_tests.rs"]
 mod usage_tests;
+
+#[cfg(all(test, unix))]
+#[path = "usage_hub_tests.rs"]
+mod usage_hub_tests;
 
 #[cfg(all(test, unix))]
 #[path = "import_clone_tests.rs"]

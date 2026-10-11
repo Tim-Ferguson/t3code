@@ -8536,6 +8536,20 @@ body.sidebar-dragging {
 .right-panel-tab-close {
   padding-left: 2px;
 }
+.right-panel-scroll {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+/* A pull request's state glyph in front of its tab's title; the plain mark is muted until a state is known. */
+.right-panel-tab-name .pr-glyph {
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.right-panel-tab-name .pr-tab-unknown .pr-glyph {
+  color: var(--muted-foreground);
+}
 .right-panel-add {
   flex: none;
   position: relative;
@@ -8627,4 +8641,9 @@ body.sidebar-dragging {
   flex: 1;
   width: auto;
   border-left: 0;
+}
+
+/* The address line of a hub in the usage providers list: a long URL wraps instead of widening the row. */
+.usage-hub-address {
+  overflow-wrap: anywhere;
 }

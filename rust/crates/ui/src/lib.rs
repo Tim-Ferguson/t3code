@@ -117,6 +117,7 @@ mod composer_chips;
 mod context_menu;
 mod link_menus;
 mod import_projects;
+mod usage_hubs;
 mod usage_page;
 mod timeline_scroll;
 mod work_rows;

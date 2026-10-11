@@ -48,6 +48,39 @@ fn write_keybindings(fixture: &Fixture, contents: &str) {
     std::fs::rename(staging, path).unwrap();
 }
 
+/// The launcher's letters work wherever focus is while it shows (they are a listener on the window, not on the list), except in a
+/// place to type, a terminal or a dialog; a letter that names no row, or a panel with a tab shown, leaves the key alone.
+#[tokio::test(flavor = "current_thread")]
+async fn the_launchers_letters_work_anywhere_in_the_window_but_not_where_a_person_types() {
+    use crate::runtime::keys_tests::typed;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props, state) = ready(&fixture).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    // No launcher yet: a plain letter is the page's own.
+    assert_eq!(press(&mut dom, typed("f"), Dom::default()).await, None);
+    assert_eq!(press(&mut dom, chord("b", false, true), Dom::default()).await.as_deref(), Some("rightPanel.toggle"));
+    until(&mut dom, "the launcher", |dom| control(dom, OPEN).is_some()).await;
+
+    // Typing, a terminal and a dialog keep their letters; so do a modifier and a letter that names no row.
+    for focus in [Dom { editable_focus: true, ..Default::default() }, Dom { composer_focus: true, ..Default::default() }, Dom { terminal_focus: true, ..Default::default() }, Dom { dialog_open: true, ..Default::default() }] {
+        assert_eq!(press(&mut dom, typed("f"), focus).await, None, "{focus:?}");
+    }
+    assert_eq!(press(&mut dom, typed("x"), Dom::default()).await, None);
+    assert_eq!(press(&mut dom, chord("f", false, false), Dom::default()).await, None);
+    assert!(tabs(state, "thread-a").is_empty());
+    // A letter a row cannot use (no pull request on this branch) is not claimed.
+    assert_eq!(press(&mut dom, typed("p"), Dom::default()).await, None);
+
+    // Anywhere else, the letter opens its row, whichever case it comes in.
+    assert_eq!(press(&mut dom, typed("F"), Dom::default()).await.as_deref(), Some("rightPanel.launcher.Files"));
+    until(&mut dom, "the Files tab", |dom| control(dom, "Close Files tab").is_some() && control(dom, OPEN).is_none()).await;
+    assert_eq!(tabs(state, "thread-a"), ["files"]);
+    // With a tab shown there is no launcher, so the letter is left alone.
+    assert_eq!(press(&mut dom, typed("d"), Dom::default()).await, None);
+    assert_eq!(tabs(state, "thread-a"), ["files"]);
+    fixture.finish(dom).await;
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn the_shortcut_shows_an_empty_panel_with_its_launcher_and_a_row_a_letter_or_the_add_menu_opens_a_tab() {
     let fixture = Fixture::start(false).await;

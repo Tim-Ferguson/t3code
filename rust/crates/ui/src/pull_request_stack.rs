@@ -10,7 +10,7 @@
 use crate::{
     notice::{self, Level},
     pull_request_panel::{self, Target},
-    runtime::{self, TransportHandle, UiModel},
+    runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
 };
 use dioxus::prelude::*;
 use serde_json::Value;
@@ -36,6 +36,25 @@ pub(crate) struct Held {
     pub succeeded: bool,
     pub pending: bool,
     pub error: Option<String>,
+}
+
+/// The stack the open environment's threads saved for this pull request (`savedPullRequestStack`), so the layers can still be
+/// navigated while the host's own read is loading or has failed. Subscribes the caller to the shell; the links read are only the
+/// ones of this pull request's repository, so a busy shell costs a scan and no serialization.
+pub(crate) fn saved(state: Store<UiModel>, reference: &Reference) -> Option<Rc<Value>> {
+    let (host, repository) = (reference.host.as_deref()?, reference.repository.as_str());
+    let shell = state.shell();
+    let shell = shell.read();
+    let links: Vec<Value> = shell
+        .snapshot
+        .as_ref()?
+        .threads
+        .iter()
+        .flat_map(|thread| thread.pull_requests.iter().flatten().flatten())
+        .filter(|link| link.host.as_str().eq_ignore_ascii_case(host) && link.repository.as_str().eq_ignore_ascii_case(repository))
+        .filter_map(|link| serde_json::to_value(link).ok())
+        .collect();
+    t3_client::thread_pull_requests::saved_stack(&links, reference).map(Rc::new)
 }
 
 #[derive(Default)]
@@ -69,6 +88,10 @@ pub(crate) fn Chip(state: Store<UiModel>, transport: TransportHandle, thread_id:
 #[component]
 fn Layers(state: Store<UiModel>, transport: TransportHandle, thread_id: String, reference: Reference, number: u64, on_close: EventHandler<()>) -> Element {
     let mut read = use_signal(Read::default);
+    let saved = use_memo({
+        let reference = reference.clone();
+        move || saved(state, &reference)
+    });
     let mut attempt = use_signal(|| 0u32);
     use_resource({
         let (transport, reference) = (transport.clone(), reference.clone());
@@ -100,14 +123,24 @@ fn Layers(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
             onclick: move |event| event.stop_propagation(),
             onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); on_close.call(()); } },
             p { class: "pr-stack-title", "Stack #{number}" }
-            match &*read.read() {
-                Read::Loading => rsx! { p { class: "muted", role: "status", "Loading stack\u{2026}" } },
-                Read::Gone => rsx! { p { class: "muted", role: "status", "This pull request is no longer in a stack." } },
-                Read::Failed(message) => rsx! {
+            // While the host's stack is being read, or could not be, the layers the threads saved keep it navigable.
+            match (&*read.read(), saved()) {
+                (Read::Loading, Some(stack)) => rsx! {
+                    p { class: "muted", role: "status", "{logic::view(true, false, true, None).notice.unwrap_or_default()}" }
+                    LayerList { state, thread_id: thread_id.clone(), reference: reference.clone(), stack, disabled: false, on_close }
+                },
+                (Read::Failed(message), Some(stack)) => rsx! {
+                    p { class: "muted", role: "status", "{logic::view(true, false, false, Some(message)).notice.unwrap_or_default()}" }
+                    button { class: "menu-item", role: "menuitem", r#type: "button", onclick: move |_| attempt.set(attempt() + 1), "Retry stack refresh" }
+                    LayerList { state, thread_id: thread_id.clone(), reference: reference.clone(), stack, disabled: false, on_close }
+                },
+                (Read::Loading, None) => rsx! { p { class: "muted", role: "status", "Loading stack\u{2026}" } },
+                (Read::Gone, _) => rsx! { p { class: "muted", role: "status", "This pull request is no longer in a stack." } },
+                (Read::Failed(message), None) => rsx! {
                     p { class: "error-banner", role: "alert", "{message}" }
                     button { class: "menu-item", role: "menuitem", r#type: "button", onclick: move |_| attempt.set(attempt() + 1), "Retry stack refresh" }
                 },
-                Read::Ready(stack) => rsx! { LayerList { state, thread_id: thread_id.clone(), reference: reference.clone(), stack: stack.clone(), disabled: false, on_close } },
+                (Read::Ready(stack), _) => rsx! { LayerList { state, thread_id: thread_id.clone(), reference: reference.clone(), stack: stack.clone(), disabled: false, on_close } },
             }
         }
     }

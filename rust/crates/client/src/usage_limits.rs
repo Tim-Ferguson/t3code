@@ -130,6 +130,78 @@ pub fn sources_from(value: &Value) -> Vec<Source> {
     value.as_array().map(|items| items.iter().filter_map(|item| serde_json::from_value(item.clone()).ok()).collect()).unwrap_or_default()
 }
 
+// ---- hubs in the provider settings --------------------------------------------------------------
+
+/// One configured hub as the settings list shows it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Hub {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+}
+
+/// The hubs of `settings.usageLimitSources`, in the order the server lists them. A hub reads as its label, or its URL
+/// when it has none; the description names the kind, whether it is switched off, and the URL where it is not the title.
+pub fn hubs_from(sources: &Value) -> Vec<Hub> {
+    let Some(entries) = sources.as_object() else { return vec![] };
+    entries
+        .iter()
+        .map(|(id, entry)| {
+            let url = entry["url"].as_str().unwrap_or_default();
+            let title = entry["label"].as_str().map(str::trim).filter(|label| !label.is_empty()).unwrap_or(url).to_owned();
+            // A hub the server has not reported `enabled` for is on, as the schema's default.
+            let disabled = if entry["enabled"] == false { " \u{b7} Disabled" } else { "" };
+            let address = if title != url { format!(" \u{b7} {url}") } else { String::new() };
+            Hub { id: id.clone(), title, description: format!("CLI Proxy{disabled}{address}") }
+        })
+        .collect()
+}
+
+/// `sourceIdFromUrl` of `AddUsageLimitSourceDialog.tsx`: stable per hub and readable in settings.json. Dots and dashes in
+/// the host are kept so `foo-bar.com` and `foo.bar.com` do not collide; anything else (a port's colon, a path) folds to a
+/// dash. An address that does not parse is slugged as typed; the server reports it on the hub's row.
+pub fn source_id_from_url(url: &str) -> String {
+    let host = match url::Url::parse(url) {
+        Ok(parsed) => match (parsed.host_str(), parsed.port()) {
+            (Some(host), Some(port)) => format!("{host}:{port}"),
+            (Some(host), None) => host.to_owned(),
+            (None, _) => String::new(),
+        },
+        Err(_) => url.to_owned(),
+    };
+    let mut slug = String::new();
+    for character in host.to_lowercase().chars() {
+        if character.is_ascii_alphanumeric() || character == '.' || character == '-' {
+            slug.push(character);
+        } else if !slug.ends_with('\u{0}') {
+            // Runs of anything else fold to one dash; marked so the trim below can tell them from typed dashes.
+            slug.push('\u{0}');
+        }
+    }
+    let slug = slug.replace('\u{0}', "-");
+    let slug = slug.trim_matches('-');
+    format!("cliproxy-{}", if slug.is_empty() { "hub" } else { slug })
+}
+
+/// The settings patch that adds a hub, or `None` until the address and the key are filled in. It names only this entry;
+/// the server merges it into its map, and keeps the key in its secret store.
+pub fn add_hub_patch(label: &str, url: &str, management_key: &str) -> Option<Value> {
+    let (url, key, label) = (url.trim(), management_key.trim(), label.trim());
+    if url.is_empty() || key.is_empty() {
+        return None;
+    }
+    let mut entry = serde_json::json!({"kind":"cliproxy","url":url,"managementKey":key,"enabled":true});
+    if !label.is_empty() {
+        entry["label"] = label.into();
+    }
+    Some(serde_json::json!({"patch":{"usageLimitSources":{source_id_from_url(url):entry}}}))
+}
+
+/// The patch that removes a hub (its stored key goes with it).
+pub fn remove_hub_patch(id: &str) -> Value {
+    serde_json::json!({"patch":{"usageLimitSources":{id:Value::Null}}})
+}
+
 pub fn uses_chatgpt_sharing(provider: &Provider) -> bool {
     provider.auth.status == "authenticated" && provider.auth.subscription_sharing == Some(true)
 }
@@ -910,5 +982,48 @@ mod recovery_tests {
         let past = Recovery { reset_at: Some("2025-12-31T00:00:00Z"), ..recovery };
         assert!(!past.can_schedule());
         assert!(past.reset_passed(ms("2026-01-01T00:00:00Z").unwrap()));
+    }
+}
+
+#[cfg(test)]
+mod hub_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn a_hub_is_named_by_its_host_and_port_with_everything_else_folded_to_a_dash() {
+        // Values `sourceIdFromUrl` of the original gives (checked by running its code in node).
+        assert_eq!(source_id_from_url("https://hub.example.ts.net:8318"), "cliproxy-hub.example.ts.net-8318");
+        assert_eq!(source_id_from_url("http://Hub.Example.com/v0/management"), "cliproxy-hub.example.com");
+        assert_eq!(source_id_from_url("https://foo-bar.com:443/x"), "cliproxy-foo-bar.com");
+        assert_ne!(source_id_from_url("http://foo-bar.com"), source_id_from_url("http://foo.bar.com"));
+        assert_eq!(source_id_from_url("http://[::1]:8317"), "cliproxy-1-8317");
+        assert_eq!(source_id_from_url("hub.example.com:8318"), "cliproxy-hub");
+        assert_eq!(source_id_from_url("not a url"), "cliproxy-not-a-url");
+        assert_eq!(source_id_from_url(""), "cliproxy-hub");
+    }
+
+    #[test]
+    fn adding_needs_an_address_and_a_key_and_sends_one_entry_with_the_label_only_when_given() {
+        assert_eq!(add_hub_patch("", " ", "key"), None);
+        assert_eq!(add_hub_patch("", "http://hub.test", "  "), None);
+        assert_eq!(
+            add_hub_patch(" Proxy ", " http://hub.test:8317 ", " secret "),
+            Some(json!({"patch":{"usageLimitSources":{"cliproxy-hub.test-8317":{"kind":"cliproxy","label":"Proxy","url":"http://hub.test:8317","managementKey":"secret","enabled":true}}}}))
+        );
+        assert_eq!(add_hub_patch("", "http://hub.test", "secret").unwrap()["patch"]["usageLimitSources"]["cliproxy-hub.test"].get("label"), None);
+        assert_eq!(remove_hub_patch("hub"), json!({"patch":{"usageLimitSources":{"hub":null}}}));
+    }
+
+    #[test]
+    fn the_list_reads_a_label_or_the_address_and_says_when_a_hub_is_off() {
+        let hubs = hubs_from(&json!({
+            "a": {"kind":"cliproxy","label":"Proxy","url":"http://a.test","enabled":true},
+            "b": {"kind":"cliproxy","url":"http://b.test","enabled":false},
+            "c": {"kind":"cliproxy","label":"  ","url":"http://c.test"},
+        }));
+        let text: Vec<_> = hubs.iter().map(|hub| (hub.id.as_str(), hub.title.as_str(), hub.description.as_str())).collect();
+        assert_eq!(text, [("a", "Proxy", "CLI Proxy \u{b7} http://a.test"), ("b", "http://b.test", "CLI Proxy \u{b7} Disabled"), ("c", "http://c.test", "CLI Proxy")]);
+        assert!(hubs_from(&json!({})).is_empty() && hubs_from(&Value::Null).is_empty());
     }
 }
