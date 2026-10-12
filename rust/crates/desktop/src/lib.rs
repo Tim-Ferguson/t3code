@@ -1,4 +1,5 @@
 //! The desktop app's shell without a window toolkit. See the modules.
+pub mod app_activation;
 pub mod branding;
 pub mod catalog_vault;
 pub mod cli_command;
@@ -10,7 +11,10 @@ pub mod network;
 pub mod settings;
 pub mod shell_env;
 pub mod ssh;
+pub mod project_favicon;
 pub mod provider_auth_callback;
+pub mod remote_editors;
+pub mod remote_open;
 pub mod quit_hold;
 pub mod supervisor;
 pub mod updates;

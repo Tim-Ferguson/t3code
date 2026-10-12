@@ -45,6 +45,7 @@ mod file_media;
 mod file_panel;
 mod file_tree;
 mod project_defaults;
+mod project_icon_row;
 mod projects_page;
 mod pull_request_stack;
 mod thread_pull_requests_panel;
@@ -145,6 +146,10 @@ mod connect_agent;
 mod ssh_environments;
 #[cfg(any(feature = "desktop", test))]
 mod ssh_gateway;
+#[cfg(any(feature = "desktop", test))]
+mod desktop_app_activation;
+#[cfg(any(feature = "desktop", test))]
+mod desktop_open_in;
 #[cfg(feature = "desktop")]
 mod desktop_shell;
 #[cfg(feature = "desktop")]
@@ -253,11 +258,11 @@ fn desktop_update_pill() -> Element {
 
 /// The desktop app's strips over the page (the server starting, the quit hint). The web build has none.
 #[cfg(feature = "desktop")]
-fn desktop_overlays(state: Store<UiModel>) -> Element {
-    rsx! { desktop_shell::Overlays { state } }
+fn desktop_overlays(state: Store<UiModel>, transport: runtime::TransportHandle) -> Element {
+    rsx! { desktop_shell::Overlays { state } desktop_app_activation::Coordinator { state, transport } }
 }
 #[cfg(not(feature = "desktop"))]
-fn desktop_overlays(_state: Store<UiModel>) -> Element {
+fn desktop_overlays(_state: Store<UiModel>, _transport: runtime::TransportHandle) -> Element {
     rsx! {}
 }
 
@@ -626,7 +631,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     },
                 }
             }
-            {desktop_overlays(state)}
+            {desktop_overlays(state, transport.clone())}
             ssh_environments::Host { state, transport: transport.clone() }
             context_menu::ContextMenuHost {}
             if add_project() {

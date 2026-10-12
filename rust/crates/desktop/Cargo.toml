@@ -16,6 +16,7 @@ base64.workspace = true
 # Seals the saved connections (`catalog_vault`).
 ring = "0.17"
 t3-remote = { path = "../remote" }
+t3-contracts.workspace = true
 t3-client.workspace = true
 async-trait = "0.1"
 # The network interfaces of this machine (`exposure`).

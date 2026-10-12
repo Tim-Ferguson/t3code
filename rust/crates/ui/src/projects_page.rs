@@ -88,6 +88,7 @@ fn Overview(state: Store<UiModel>, transport: TransportHandle, id: String, title
                 div { class: "font-description", strong { "Folder" } p { class: "muted", "{path}" } }
                 div { class: "font-controls", button { r#type: "button", "aria-label": "Copy project path", onclick: { let path = path.clone(); move |_| copy_text(&path) }, "Copy path" } }
             }
+            crate::project_icon_row::Row { state, transport: transport.clone(), id: id.clone() }
             div { class: "setting-row",
                 div { class: "font-description", strong { "Remove project" } p { class: "muted", "Takes the project out of T3 Code. {threads} thread(s) in it are deleted; the folder stays on disk." } }
                 div { class: "font-controls", button { class: "destructive", r#type: "button", "aria-label": "Remove project {title}", disabled: !can, onclick: { let id = id.clone(); move |_| thread_lifecycle::request_remove_project(state, &id) }, "Remove project" } }

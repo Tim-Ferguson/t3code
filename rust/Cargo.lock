@@ -5989,6 +5989,7 @@ dependencies = [
  "serde",
  "serde_json",
  "t3-client",
+ "t3-contracts",
  "t3-remote",
  "tempfile",
  "thiserror 2.0.21",

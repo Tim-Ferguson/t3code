@@ -57,10 +57,56 @@ pub(crate) struct Shell {
     exposure: Option<Arc<Exposure>>,
     /// Whether the local environment was on when the app started (`getLocalEnvironmentEnabled`).
     local_environment: bool,
+    /// The control socket `t3 app` asks at; none when it cannot be served here.
+    activation: Option<Activation>,
+}
+
+/// `DesktopAppActivation`: the socket service, and the requests to bring the window forward it makes from its own threads, which the
+/// window's thread takes up.
+#[derive(Clone)]
+struct Activation {
+    #[cfg(unix)]
+    service: Arc<t3_desktop::app_activation::Service>,
+    raised: Arc<std::sync::Mutex<Option<futures_channel::mpsc::UnboundedReceiver<()>>>>,
+}
+
+/// Serves `t3 app` at the address of this app's state directory (`<T3 home>/userdata` for the command's `--base-dir`).
+fn start_activation(dirs: &AppDirs) -> Option<Activation> {
+    #[cfg(unix)]
+    {
+        // The address is named for the state directory, and the original app's own is `~/.t3/userdata`: the newest app takes an address
+        // over, so an app pointed at the original's live data must not bind it (the server is refused there for the same reason).
+        if let Err(message) = dirs.check_state_is_not_live_data(env("HOME").map(PathBuf::from).as_deref()) {
+            eprintln!("`t3 app` cannot reach this window: {message}");
+            return None;
+        }
+        let config = t3_desktop::app_activation::Config::for_process(&dirs.server_state, &env);
+        let (raise, raised) = futures_channel::mpsc::unbounded();
+        match t3_desktop::app_activation::Service::start(&config, move || {
+            let _ = raise.unbounded_send(());
+        }) {
+            Ok(service) => Some(Activation { service: Arc::new(service), raised: Arc::new(std::sync::Mutex::new(Some(raised))) }),
+            Err(error) => {
+                eprintln!("`t3 app` cannot reach this window: {error}");
+                None
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = dirs;
+        None
+    }
 }
 
 fn env(name: &str) -> Option<String> {
     std::env::var(name).ok()
+}
+
+/// The login shell's environment, asked for once for the whole run: the server this app starts and the lookup of editors both use it.
+fn login_shell() -> Arc<t3_desktop::shell_env::Cached> {
+    static LOGIN_SHELL: std::sync::OnceLock<Arc<t3_desktop::shell_env::Cached>> = std::sync::OnceLock::new();
+    LOGIN_SHELL.get_or_init(|| Arc::new(t3_desktop::shell_env::Cached::new(t3_desktop::shell_env::Config::for_process()))).clone()
 }
 
 fn start_backend(dirs: &AppDirs) -> (Backend, Option<Arc<Exposure>>) {
@@ -77,7 +123,7 @@ fn start_backend(dirs: &AppDirs) -> (Backend, Option<Arc<Exposure>>) {
         let binary = launch::find_server_binary(env, std::env::current_exe().ok().as_deref())?;
         let port = launch::find_port(launch::FIRST_PORT, launch::port_is_free).ok_or("No port is free for the server.")?;
         // Asked now, beside the window opening, so the first start of the server does not wait for the person's shell.
-        let login_shell = std::sync::Arc::new(t3_desktop::shell_env::Cached::new(t3_desktop::shell_env::Config::for_process()));
+        let login_shell = login_shell();
         std::thread::Builder::new().name("t3-login-shell".into()).spawn({
             let login_shell = login_shell.clone();
             move || {
@@ -116,7 +162,7 @@ pub fn launch(app: fn() -> Element) {
     };
     let (backend, exposure) = start_backend(&dirs);
     let local_environment = !matches!(backend, Backend::Off);
-    let shell = Shell { backend, dirs: dirs.clone(), ssh, exposure, local_environment };
+    let shell = Shell { backend, dirs: dirs.clone(), ssh, exposure, local_environment, activation: start_activation(&dirs) };
     let (width, height) = saved.bounds.map_or(window_state::DEFAULT_SIZE, |bounds| (bounds.width, bounds.height));
     let mut window = WindowBuilder::new()
         .with_title(title())
@@ -305,6 +351,41 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
         Backend::Supervised(handle) => Some(handle.state().borrow().clone()),
         Backend::External => None,
     })));
+    // `t3 app`: the page answers the requests the socket receives, and the window comes forward for each.
+    #[cfg(unix)]
+    if let Some(activation) = shell.activation.clone() {
+        let server = consume_context::<ServerView>().0;
+        use_context_provider(|| crate::desktop_app_activation::Handle { broker: activation.service.broker(), server_address: Rc::new(move || server_address_of(&server.read())) });
+        use_future(move || {
+            let raised = activation.raised.lock().unwrap().take();
+            async move {
+                let Some(mut raised) = raised else { return };
+                while futures_util::StreamExt::next(&mut raised).await.is_some() {
+                    reveal_window();
+                }
+            }
+        });
+    }
+    // "Open in <editor>" on an environment of another machine: a link for the editor here, and which editors there are.
+    use_hook(|| {
+        let server = consume_context::<ServerView>().0;
+        crate::desktop_open_in::install(crate::desktop_open_in::Bridge {
+            server_address: Rc::new(move || server_address_of(&server.read())),
+            open_link: Rc::new(open_external),
+            probe: Rc::new(|| {
+                Box::pin(async {
+                    // The directories are read on a thread of their own, with the PATH the person's shell has.
+                    let path = login_shell().get().get("PATH").cloned();
+                    tokio::task::spawn_blocking(move || t3_desktop::remote_editors::probe(&t3_desktop::remote_editors::Host::new(path))).await.unwrap_or_default()
+                })
+            }),
+        });
+    });
+    // The Projects page's "Open in Finder" for a project icon (`pickProjectFavicon`).
+    use_context_provider({
+        let local_environment = shell.local_environment;
+        move || crate::project_icon_row::PickerHandle(Rc::new(ImagePicker { local_environment }))
+    });
     let hint = use_context_provider(|| QuitHint(Signal::new(None)));
     let persist = use_hook(|| {
         let saved = window_state::load(&shell.dirs.window_state);
@@ -338,10 +419,7 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
                 loop {
                     let now = feed.borrow_and_update().len();
                     if now > open {
-                        let window = dioxus::desktop::window();
-                        window.set_minimized(false);
-                        window.set_visible(true);
-                        window.set_focus();
+                        reveal_window();
                     }
                     open = now;
                     if feed.changed().await.is_err() {
@@ -404,10 +482,7 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
     // Dock icon clicked with no window showing.
     use_wry_event_handler(|event, _| {
         if let Event::Reopen { has_visible_windows: false, .. } = event {
-            let window = dioxus::desktop::window();
-            window.set_minimized(false);
-            window.set_visible(true);
-            window.set_focus();
+            reveal_window();
         }
     });
 
@@ -492,6 +567,11 @@ fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>, relaunch:
     if let Some(state) = pending {
         let _ = window_state::save(&shell.dirs.window_state, &state);
     }
+    // `t3 app` stops being answered, and what it waits for is told the app is closing.
+    #[cfg(unix)]
+    if let Some(activation) = &shell.activation {
+        activation.service.close();
+    }
     // The tunnels close, and the servers this app started on other machines stop, before the app ends.
     if let Some(ssh) = &shell.ssh {
         ssh.shutdown_blocking(Duration::from_secs(10));
@@ -516,11 +596,23 @@ fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>, relaunch:
 /// The address of the server this app started, once it answers; the page's own for a server the person named.
 /// None while the server starts, restarts or has failed.
 pub(crate) fn server_address() -> Option<String> {
-    match try_consume_context::<ServerView>()?.0.read().as_ref() {
+    server_address_of(&try_consume_context::<ServerView>()?.0.read())
+}
+
+fn server_address_of(view: &Option<ServerState>) -> Option<String> {
+    match view {
         Some(ServerState::Ready { address, .. }) => Some(address.clone()),
         Some(_) => None,
         None => Some(runtime::default_address()),
     }
+}
+
+/// Brings the window forward from wherever it is: minimized, hidden (closing it only hides it on macOS) or behind another app.
+fn reveal_window() {
+    let window = dioxus::desktop::window();
+    window.set_minimized(false);
+    window.set_visible(true);
+    window.set_focus();
 }
 
 /// The addresses of the server this app started, as the last read of them found (`ShellControl::endpoints`); none before the first.
@@ -909,10 +1001,14 @@ pub(crate) fn set_badge(count: usize) {
 }
 
 /// Hands a link to the system browser. Only what `safe_external_url` accepted gets here.
-pub(crate) fn open_external(url: &str) {
-    if let Some(url) = safe_external_url(url) {
-        if let Err(error) = webbrowser::open(&url) {
+/// Whether the system took it (`openExternal`).
+pub(crate) fn open_external(url: &str) -> bool {
+    let Some(url) = safe_external_url(url) else { return false };
+    match webbrowser::open(&url) {
+        Ok(()) => true,
+        Err(error) => {
             eprintln!("Cannot open {url}: {error}");
+            false
         }
     }
 }
@@ -929,6 +1025,33 @@ pub(crate) async fn pick_folder() -> Option<String> {
         dialog = dialog.set_directory(home);
     }
     dialog.pick_folder().await.map(|folder| folder.path().to_string_lossy().into_owned())
+}
+
+/// The system's file dialog for an image of this computer to be a project's icon (`pickProjectFavicon`).
+struct ImagePicker {
+    /// The dialog is not opened while this app runs no server of its own, as the original's handler returns none then.
+    local_environment: bool,
+}
+impl crate::project_icon_row::Picker for ImagePicker {
+    fn offered(&self, transport: &runtime::TransportHandle, workspace_root: &str) -> bool {
+        server_is_local(transport) && t3_desktop::project_favicon::can_pick_external(workspace_root, std::env::consts::OS)
+    }
+    fn manager_name(&self) -> &'static str {
+        t3_desktop::project_favicon::file_manager_name(std::env::consts::OS)
+    }
+    fn pick(&self, workspace_root: &str) -> futures_util::future::LocalBoxFuture<'static, Result<Option<String>, String>> {
+        if !self.local_environment {
+            return Box::pin(std::future::ready(Ok(None)));
+        }
+        let start = t3_desktop::project_favicon::start_directory(workspace_root);
+        Box::pin(async move {
+            let mut dialog = rfd::AsyncFileDialog::new().set_title("Choose project icon").add_filter("Images", &t3_desktop::project_favicon::IMAGE_EXTENSIONS);
+            if let Some(start) = start {
+                dialog = dialog.set_directory(start);
+            }
+            Ok(dialog.pick_file().await.map(|file| file.path().to_string_lossy().into_owned()))
+        })
+    }
 }
 
 /// The native save dialog (`dialog.showSaveDialog`), starting at the person's downloads folder. None if cancelled.

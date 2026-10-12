@@ -2,8 +2,8 @@
 //! Port of `OpenInPicker.tsx` and `OpenInPickerShortcut.ts` for a server that runs the editor
 //! itself (`shell.openInEditor`). The editor chosen last is remembered in this browser, as the
 //! original remembers it, and is the one the main button and the shortcut use while the server
-//! still offers it. A server on another machine that can only offer remote deep links is not
-//! handled: its editors are not offered here.
+//! still offers it. In the desktop app, an environment on another machine is opened by a deep link for the
+//! editor on this computer (`desktop_open_in`).
 use crate::{
     notice::{self, Level},
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
@@ -16,6 +16,11 @@ use t3_contracts::AuthEnvironmentScope;
 
 /// The editors the connected server offers, as ids.
 pub(crate) fn available(state: Store<UiModel>) -> Vec<String> {
+    // The desktop app, on an environment of another machine: the editors this computer has, opened by a link.
+    #[cfg(any(feature = "desktop", test))]
+    if let Some(remote) = crate::desktop_open_in::editors(state) {
+        return remote;
+    }
     state.typed_config().read().as_ref().map(|config| config.available_editors.0.iter().filter_map(|id| serde_json::to_value(id).ok()?.as_str().map(str::to_owned)).collect()).unwrap_or_default()
 }
 
@@ -42,7 +47,19 @@ pub(crate) fn use_last() -> Last {
 
 /// Opens `cwd` in `editor` and remembers the choice. One request per click; the answer is reported.
 pub(crate) fn open(transport: &TransportHandle, state: Store<UiModel>, mut busy: Signal<bool>, mut last: Signal<Option<String>>, cwd: String, editor: String, reveal: bool) {
-    if *busy.peek() || !connected_allows(state, AuthEnvironmentScope::OrchestrationOperate) {
+    if *busy.peek() {
+        return;
+    }
+    // On another machine the editor here is given a link; no request is made of the server.
+    #[cfg(any(feature = "desktop", test))]
+    if let Some(opened) = crate::desktop_open_in::open(state, &cwd, &editor) {
+        if opened {
+            write_last(&editor);
+            last.set(Some(editor));
+        }
+        return;
+    }
+    if !connected_allows(state, AuthEnvironmentScope::OrchestrationOperate) {
         return;
     }
     busy.set(true);
@@ -75,6 +92,15 @@ pub(crate) fn thread_cwd(state: Store<UiModel>) -> Option<String> {
     thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string())).filter(|cwd| !cwd.is_empty())
 }
 
+/// Whether an editor may be opened: by a link when the environment is on another machine, else as the server asks.
+fn may_open(state: Store<UiModel>) -> bool {
+    #[cfg(any(feature = "desktop", test))]
+    if crate::desktop_open_in::links(state) {
+        return true;
+    }
+    connected_allows(state, AuthEnvironmentScope::OrchestrationOperate)
+}
+
 /// The editor `editor.openFavorite` opens, if the server offers any.
 pub(crate) fn favorite(state: Store<UiModel>, last: Option<&str>) -> Option<String> {
     editors::preferred(&available(state), last)
@@ -85,9 +111,18 @@ pub(crate) fn OpenIn(state: Store<UiModel>, transport: TransportHandle, cwd: Str
     let last = try_consume_context::<Last>().map_or_else(|| use_signal(|| None::<String>), |last| last.0);
     let busy = use_signal(|| false);
     let mut menu = use_signal(|| false);
-    let operable = use_memo(move || connected_allows(state, AuthEnvironmentScope::OrchestrationOperate));
+    #[cfg(any(feature = "desktop", test))]
+    crate::desktop_open_in::use_probe();
+    let operable = use_memo(move || may_open(state));
     let offered = available(state);
-    let Some(preferred) = editors::preferred(&offered, last.read().as_deref()) else { return rsx! {} };
+    let Some(preferred) = editors::preferred(&offered, last.read().as_deref()) else {
+        // A machine no link reaches: the button says so, as the original's disabled entry does.
+        #[cfg(any(feature = "desktop", test))]
+        if let Some(note) = crate::desktop_open_in::no_route(state) {
+            return rsx! { div {class:"open-in", button {class:"icon-button","aria-label":"Open in editor",title:"{note}",disabled:true,"Open"}} };
+        }
+        return rsx! {};
+    };
     let label = editors::menu_label(Some(&preferred));
     let choices: Vec<(String, String)> = editors::offered(&offered).into_iter().map(|editor| (editor.id.clone(), editors::entry_label(editor))).collect();
     let title = if operable() { "Open this thread's folder in an editor on the server's machine".to_owned() } else { "This connection cannot open editors.".to_owned() };
@@ -102,8 +137,19 @@ pub(crate) fn OpenIn(state: Store<UiModel>, transport: TransportHandle, cwd: Str
                     button {key:"{id}",role:"menuitem","aria-label":"{entry}",
                         onclick:{let (transport, cwd) = (transport.clone(), cwd.clone());move |_| {menu.set(false);open(&transport,state,busy,last,cwd.clone(),id.clone(),false)}},"{entry}"}
                 }
+                if let Some(note) = remote_hint(state) { button {role:"menuitem",disabled:true,"{note}"} }
             }}
         }
+    }
+}
+/// The note that stays in the menu until the first open over SSH.
+fn remote_hint(state: Store<UiModel>) -> Option<String> {
+    #[cfg(any(feature = "desktop", test))]
+    return crate::desktop_open_in::hint(state);
+    #[cfg(not(any(feature = "desktop", test)))]
+    {
+        let _ = state;
+        None
     }
 }
 fn preferred_short(choices: &[(String, String)], id: &str) -> String {

@@ -69,7 +69,9 @@
     },
     "omitted": {
       "button without handler ui/desktop_updates.rs \"Check for Updates\"": "Deliberately disabled with its reason shown: this app has no update feed (desktop_updates.rs).",
-      "button without handler ui/git_control.rs \"{label}\"": "A disabled busy placeholder while a Git action runs."
+      "button without handler ui/git_control.rs \"{label}\"": "A disabled busy placeholder while a Git action runs.",
+      "button without handler ui/open_in.rs \"button {class:\"icon-button\",\"aria-label\"\"": "Deliberately disabled, with its reason in the title: an environment of another machine that no SSH name or advertised host reaches (the original's disabled \"No SSH route to <environment>\" entry).",
+      "button without handler ui/open_in.rs \"button {role:\"menuitem\",disabled:true,\"{\"": "The note that stays in the Open-in menu until the first open over SSH (\"Opens over SSH. Needs your key on <environment>\"); the original's menu item is disabled too."
     }
   },
   "settings": {
@@ -283,6 +285,26 @@
       "getPathForFile": {
         "probe": "desktop_drop.rs::fn split",
         "reason": "the desktop window gives the path of each dropped item (FileData::path); a dropped folder becomes a link in the prompt of a local server's composer, files upload"
+      },
+      "appActivation.setReady": {
+        "probe": "desktop_app_activation.rs::register_renderer",
+        "reason": "desktop_app_activation::Coordinator tells the shell's broker (t3_desktop::app_activation::Broker) when the app's own environment is connected and its shell has arrived; the broker holds `t3 app` requests until then"
+      },
+      "appActivation.onRequest": {
+        "probe": "desktop_app_activation.rs::handle_request",
+        "reason": "the broker hands the page one request at a time; the page opens the project and a new thread (t3_desktop::app_activation::handle_request over the page's Dependencies)"
+      },
+      "appActivation.complete": {
+        "probe": "desktop_app_activation.rs::broker.complete",
+        "reason": "the page answers each request (opened, project-create-failed, thread-open-failed, platform-mismatch, environment-unavailable); the control socket (t3_remote::desktop_app_control) carries it back to `t3 app`"
+      },
+      "pickProjectFavicon": {
+        "probe": "desktop_shell.rs::impl crate::project_icon_row::Picker",
+        "reason": "the Projects page's icon row (project_icon_row.rs) offers 'Open in Finder' in the image picker; the system dialog is rfd's with the Images filter (t3_desktop::project_favicon). The row's 'Choose icon' dialog (icons, emoji, monograms) is not built"
+      },
+      "probeRemoteEditors": {
+        "probe": "desktop_shell.rs::remote_editors::probe",
+        "reason": "t3_desktop::remote_editors reads this computer's PATH (the login shell's) and install folders; desktop_open_in.rs offers the result in the Open-in picker of an environment on another machine"
       }
     },
     "partial": {
@@ -333,14 +355,9 @@
       "preview.*.onFrame": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
       "preview.onStateChange": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
       "preview.onPointerEvent": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "onTrackpadScrollEnd": "Only the device viewport uses it, and the device panel is the other agent's work; tao reports the end of a trackpad scroll (MouseWheel phase Ended) only for events its own view receives, which the web view takes, so it needs the panel to be tried.",
-      "pickProjectFavicon": "Choosing an image for a project's icon (ProjectFaviconPickerDialog): the Projects page has no icon row, and t3-contracts' Project carries neither faviconPath nor projectIcon to show or reset the choice (t3-contracts is not part of this work).",
-      "checkSystemPermission": "Only the Integrations page's Safari cookie import reads it (full-disk-access), which belongs to the preview browser; no Integrations page here.",
-      "openSystemSettings": "As checkSystemPermission: its callers are the Safari import row and the local API's shell.openSystemSettings, neither built.",
-      "probeRemoteEditors": "Opening a file on a remote machine in a local editor (remoteOpen.ts) is not built: open_in.rs offers the server's editors only. It needs the remote-link mode (host from the server's remoteOpenTargets or the ssh alias, buildRemoteOpenUrl, then open_external) and this probe of the editors installed here (resolveEditorCommand).",
-      "appActivation.setReady": "Desktop app activation socket (`t3 app`): needs the server's `app` command (not ported, README) to ask it, a socket with the original's ownership checks (DesktopAppActivation.ts), and the page opening the project and thread (DesktopAppActivationCoordinator).",
-      "appActivation.complete": "Desktop app activation socket (`t3 app`): needs the server's `app` command (not ported, README) to ask it, a socket with the original's ownership checks (DesktopAppActivation.ts), and the page opening the project and thread (DesktopAppActivationCoordinator).",
-      "appActivation.onRequest": "Desktop app activation socket (`t3 app`): needs the server's `app` command (not ported, README) to ask it, a socket with the original's ownership checks (DesktopAppActivation.ts), and the page opening the project and thread (DesktopAppActivationCoordinator)."
+      "onTrackpadScrollEnd": "Not deliverable by the windowing layer: tao's macOS view sees a scrollWheel (with its NSEventPhase) only when its WKWebView subview does not take the event, and the web view takes every scroll over the page, so tao's MouseWheel phase Ended never arrives; wry has no scroll hook; Windows and Linux report no gesture end to the window either. The only consumer is the device viewport (the other agent's panel). A macOS NSEvent local monitor from objc2-app-kit could report NSEventPhaseEnded, but it cannot be tried without a trackpad and a panel to read it.",
+      "checkSystemPermission": "No consumer: the only caller is the Integrations page's Safari cookie import (full-disk-access), and this app has no Integrations page or Safari import. Reading a privacy permission would touch the system, so it is not built ahead of a caller.",
+      "openSystemSettings": "No consumer: the callers are the Integrations page's Safari import row and the local API's shell.openSystemSettings, neither built. Opening the system's privacy settings would touch the system, so it is not built ahead of a caller."
     },
     "omitted": {
       "requestSnapShotPermissions": "SnapShots: Electron-only native screen capture with no Rust counterpart planned.",

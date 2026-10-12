@@ -1,0 +1,1848 @@
+{"editor":"cursor","host":"devbox","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+devbox/home/me/project"}
+{"editor":"cursor","host":"devbox","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+devbox/home/me/my%20project"}
+{"editor":"cursor","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+devbox/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+devbox/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"devbox","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+devbox/relative/dir"}
+{"editor":"cursor","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"cursor","host":"devbox","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"cursor","host":"devbox","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+devbox/D%3A/work/x%20y"}
+{"editor":"cursor","host":"devbox","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+devbox//server/share/project"}
+{"editor":"cursor","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+devbox/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"devbox","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+devbox/"}
+{"editor":"cursor","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+devbox/a'b(c)d!e~f*g"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/project"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/my%20project"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/relative/dir"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/D%3A/work/x%20y"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net//server/share/project"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/"}
+{"editor":"cursor","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+devbox.tail1234.ts.net/a'b(c)d!e~f*g"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+my-box.local/home/me/project"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+my-box.local/home/me/my%20project"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+my-box.local/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+my-box.local/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+my-box.local/relative/dir"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+my-box.local/D%3A/work/x%20y"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+my-box.local//server/share/project"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+my-box.local/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+my-box.local/"}
+{"editor":"cursor","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+my-box.local/a'b(c)d!e~f*g"}
+{"editor":"cursor","host":"user name","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+user%20name/home/me/project"}
+{"editor":"cursor","host":"user name","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+user%20name/home/me/my%20project"}
+{"editor":"cursor","host":"user name","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+user%20name/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+user%20name/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"user name","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+user%20name/relative/dir"}
+{"editor":"cursor","host":"user name","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"cursor","host":"user name","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"cursor","host":"user name","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+user%20name/D%3A/work/x%20y"}
+{"editor":"cursor","host":"user name","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+user%20name//server/share/project"}
+{"editor":"cursor","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+user%20name/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"user name","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+user%20name/"}
+{"editor":"cursor","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+user%20name/a'b(c)d!e~f*g"}
+{"editor":"cursor","host":"café","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/home/me/project"}
+{"editor":"cursor","host":"café","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/home/me/my%20project"}
+{"editor":"cursor","host":"café","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"café","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/relative/dir"}
+{"editor":"cursor","host":"café","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"cursor","host":"café","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"cursor","host":"café","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/D%3A/work/x%20y"}
+{"editor":"cursor","host":"café","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9//server/share/project"}
+{"editor":"cursor","host":"café","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"café","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/"}
+{"editor":"cursor","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+caf%C3%A9/a'b(c)d!e~f*g"}
+{"editor":"cursor","host":"a+b","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+a%2Bb/home/me/project"}
+{"editor":"cursor","host":"a+b","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+a%2Bb/home/me/my%20project"}
+{"editor":"cursor","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+a%2Bb/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+a%2Bb/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"a+b","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+a%2Bb/relative/dir"}
+{"editor":"cursor","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"cursor","host":"a+b","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"cursor","host":"a+b","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+a%2Bb/D%3A/work/x%20y"}
+{"editor":"cursor","host":"a+b","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+a%2Bb//server/share/project"}
+{"editor":"cursor","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+a%2Bb/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"a+b","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+a%2Bb/"}
+{"editor":"cursor","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+a%2Bb/a'b(c)d!e~f*g"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/home/me/project","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/home/me/project"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/home/me/my project","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/home/me/my%20project"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"relative/dir","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/relative/dir"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/D%3A/work/x%20y"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":"cursor://vscode-remote/ssh-remote+100.64.0.9//server/share/project"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/C%3A/looks/like/a/drive"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/"}
+{"editor":"cursor","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":"cursor://vscode-remote/ssh-remote+100.64.0.9/a'b(c)d!e~f*g"}
+{"editor":"trae","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"/","url":null}
+{"editor":"trae","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"trae","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"trae","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/","url":null}
+{"editor":"trae","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"trae","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"café","absolutePath":"/","url":null}
+{"editor":"trae","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/","url":null}
+{"editor":"trae","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"trae","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/","url":null}
+{"editor":"kiro","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"kiro","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"kiro","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/","url":null}
+{"editor":"kiro","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/","url":null}
+{"editor":"kiro","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/","url":null}
+{"editor":"kiro","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"kiro","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"vscode","host":"devbox","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+devbox/home/me/project"}
+{"editor":"vscode","host":"devbox","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+devbox/home/me/my%20project"}
+{"editor":"vscode","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+devbox/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+devbox/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"devbox","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+devbox/relative/dir"}
+{"editor":"vscode","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"vscode","host":"devbox","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"vscode","host":"devbox","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+devbox/D%3A/work/x%20y"}
+{"editor":"vscode","host":"devbox","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+devbox//server/share/project"}
+{"editor":"vscode","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+devbox/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"devbox","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+devbox/"}
+{"editor":"vscode","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+devbox/a'b(c)d!e~f*g"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/project"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/my%20project"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/relative/dir"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/D%3A/work/x%20y"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net//server/share/project"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/"}
+{"editor":"vscode","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+devbox.tail1234.ts.net/a'b(c)d!e~f*g"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+my-box.local/home/me/project"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+my-box.local/home/me/my%20project"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+my-box.local/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+my-box.local/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+my-box.local/relative/dir"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+my-box.local/D%3A/work/x%20y"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+my-box.local//server/share/project"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+my-box.local/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+my-box.local/"}
+{"editor":"vscode","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+my-box.local/a'b(c)d!e~f*g"}
+{"editor":"vscode","host":"user name","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+user%20name/home/me/project"}
+{"editor":"vscode","host":"user name","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+user%20name/home/me/my%20project"}
+{"editor":"vscode","host":"user name","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+user%20name/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+user%20name/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"user name","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+user%20name/relative/dir"}
+{"editor":"vscode","host":"user name","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"vscode","host":"user name","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"vscode","host":"user name","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+user%20name/D%3A/work/x%20y"}
+{"editor":"vscode","host":"user name","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+user%20name//server/share/project"}
+{"editor":"vscode","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+user%20name/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"user name","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+user%20name/"}
+{"editor":"vscode","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+user%20name/a'b(c)d!e~f*g"}
+{"editor":"vscode","host":"café","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/home/me/project"}
+{"editor":"vscode","host":"café","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/home/me/my%20project"}
+{"editor":"vscode","host":"café","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"café","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/relative/dir"}
+{"editor":"vscode","host":"café","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"vscode","host":"café","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"vscode","host":"café","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/D%3A/work/x%20y"}
+{"editor":"vscode","host":"café","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9//server/share/project"}
+{"editor":"vscode","host":"café","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"café","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/"}
+{"editor":"vscode","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+caf%C3%A9/a'b(c)d!e~f*g"}
+{"editor":"vscode","host":"a+b","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+a%2Bb/home/me/project"}
+{"editor":"vscode","host":"a+b","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+a%2Bb/home/me/my%20project"}
+{"editor":"vscode","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+a%2Bb/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+a%2Bb/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"a+b","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+a%2Bb/relative/dir"}
+{"editor":"vscode","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"vscode","host":"a+b","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"vscode","host":"a+b","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+a%2Bb/D%3A/work/x%20y"}
+{"editor":"vscode","host":"a+b","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+a%2Bb//server/share/project"}
+{"editor":"vscode","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+a%2Bb/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"a+b","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+a%2Bb/"}
+{"editor":"vscode","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+a%2Bb/a'b(c)d!e~f*g"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/home/me/project","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/home/me/project"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/home/me/my project","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/home/me/my%20project"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"relative/dir","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/relative/dir"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/D%3A/work/x%20y"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":"vscode://vscode-remote/ssh-remote+100.64.0.9//server/share/project"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/C%3A/looks/like/a/drive"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/"}
+{"editor":"vscode","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":"vscode://vscode-remote/ssh-remote+100.64.0.9/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/home/me/project"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/relative/dir"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox//server/share/project"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/"}
+{"editor":"vscode-insiders","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+devbox/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/project"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/relative/dir"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net//server/share/project"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/"}
+{"editor":"vscode-insiders","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+devbox.tail1234.ts.net/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/home/me/project"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/relative/dir"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local//server/share/project"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/"}
+{"editor":"vscode-insiders","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+my-box.local/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/home/me/project"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/relative/dir"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name//server/share/project"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/"}
+{"editor":"vscode-insiders","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+user%20name/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/home/me/project"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/relative/dir"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9//server/share/project"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/"}
+{"editor":"vscode-insiders","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+caf%C3%A9/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/home/me/project"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/relative/dir"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb//server/share/project"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/"}
+{"editor":"vscode-insiders","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+a%2Bb/a'b(c)d!e~f*g"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/home/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/home/me/project"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/home/me/my project","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/home/me/my%20project"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"relative/dir","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/relative/dir"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/D%3A/work/x%20y"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9//server/share/project"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/C%3A/looks/like/a/drive"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/"}
+{"editor":"vscode-insiders","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":"vscode-insiders://vscode-remote/ssh-remote+100.64.0.9/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+devbox/home/me/project"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+devbox/home/me/my%20project"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+devbox/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+devbox/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"devbox","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+devbox/relative/dir"}
+{"editor":"vscodium","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"devbox","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+devbox/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"devbox","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+devbox/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"devbox","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+devbox//server/share/project"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+devbox/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+devbox/"}
+{"editor":"vscodium","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+devbox/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/project"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/my%20project"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/relative/dir"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net//server/share/project"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/"}
+{"editor":"vscodium","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+devbox.tail1234.ts.net/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+my-box.local/home/me/project"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+my-box.local/home/me/my%20project"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+my-box.local/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+my-box.local/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+my-box.local/relative/dir"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+my-box.local/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+my-box.local/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+my-box.local//server/share/project"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+my-box.local/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+my-box.local/"}
+{"editor":"vscodium","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+my-box.local/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"user name","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+user%20name/home/me/project"}
+{"editor":"vscodium","host":"user name","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+user%20name/home/me/my%20project"}
+{"editor":"vscodium","host":"user name","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+user%20name/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+user%20name/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"user name","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+user%20name/relative/dir"}
+{"editor":"vscodium","host":"user name","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"user name","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+user%20name/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"user name","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+user%20name/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"user name","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+user%20name//server/share/project"}
+{"editor":"vscodium","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+user%20name/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"user name","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+user%20name/"}
+{"editor":"vscodium","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+user%20name/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"café","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/home/me/project"}
+{"editor":"vscodium","host":"café","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/home/me/my%20project"}
+{"editor":"vscodium","host":"café","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"café","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/relative/dir"}
+{"editor":"vscodium","host":"café","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"café","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"café","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"café","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9//server/share/project"}
+{"editor":"vscodium","host":"café","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"café","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/"}
+{"editor":"vscodium","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+caf%C3%A9/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/home/me/project"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/home/me/my%20project"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"a+b","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/relative/dir"}
+{"editor":"vscodium","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"a+b","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"a+b","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"a+b","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+a%2Bb//server/share/project"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/"}
+{"editor":"vscodium","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+a%2Bb/a'b(c)d!e~f*g"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/home/me/project","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/home/me/project"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/home/me/my project","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/home/me/my%20project"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"relative/dir","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/relative/dir"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/C%3A/Users/me/project"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/D%3A/work/x%20y"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9//server/share/project"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/C%3A/looks/like/a/drive"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/"}
+{"editor":"vscodium","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":"vscodium://vscode-remote/ssh-remote+100.64.0.9/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"devbox","absolutePath":"/home/me/project","url":"zed://ssh/devbox/home/me/project"}
+{"editor":"zed","host":"devbox","absolutePath":"/home/me/my project","url":"zed://ssh/devbox/home/me/my%20project"}
+{"editor":"zed","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/devbox/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/devbox/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"devbox","absolutePath":"relative/dir","url":"zed://ssh/devbox/relative/dir"}
+{"editor":"zed","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/devbox/Users/me/project"}
+{"editor":"zed","host":"devbox","absolutePath":"C:/Users/me/project","url":"zed://ssh/devbox/Users/me/project"}
+{"editor":"zed","host":"devbox","absolutePath":"D:\\work\\x y","url":"zed://ssh/devbox/D%3A/work/x%20y"}
+{"editor":"zed","host":"devbox","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/devbox//server/share/project"}
+{"editor":"zed","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/devbox/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"devbox","absolutePath":"/","url":"zed://ssh/devbox/"}
+{"editor":"zed","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/devbox/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":"zed://ssh/devbox.tail1234.ts.net/home/me/project"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":"zed://ssh/devbox.tail1234.ts.net/home/me/my%20project"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/devbox.tail1234.ts.net/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/devbox.tail1234.ts.net/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":"zed://ssh/devbox.tail1234.ts.net/relative/dir"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/devbox.tail1234.ts.net/Users/me/project"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":"zed://ssh/devbox.tail1234.ts.net/Users/me/project"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":"zed://ssh/devbox.tail1234.ts.net/D%3A/work/x%20y"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/devbox.tail1234.ts.net//server/share/project"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/devbox.tail1234.ts.net/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/","url":"zed://ssh/devbox.tail1234.ts.net/"}
+{"editor":"zed","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/devbox.tail1234.ts.net/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/home/me/project","url":"zed://ssh/my-box.local/home/me/project"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/home/me/my project","url":"zed://ssh/my-box.local/home/me/my%20project"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/my-box.local/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/my-box.local/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"my-box.local","absolutePath":"relative/dir","url":"zed://ssh/my-box.local/relative/dir"}
+{"editor":"zed","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/my-box.local/Users/me/project"}
+{"editor":"zed","host":"my-box.local","absolutePath":"C:/Users/me/project","url":"zed://ssh/my-box.local/Users/me/project"}
+{"editor":"zed","host":"my-box.local","absolutePath":"D:\\work\\x y","url":"zed://ssh/my-box.local/D%3A/work/x%20y"}
+{"editor":"zed","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/my-box.local//server/share/project"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/my-box.local/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/","url":"zed://ssh/my-box.local/"}
+{"editor":"zed","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/my-box.local/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"user name","absolutePath":"/home/me/project","url":"zed://ssh/user%20name/home/me/project"}
+{"editor":"zed","host":"user name","absolutePath":"/home/me/my project","url":"zed://ssh/user%20name/home/me/my%20project"}
+{"editor":"zed","host":"user name","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/user%20name/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/user%20name/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"user name","absolutePath":"relative/dir","url":"zed://ssh/user%20name/relative/dir"}
+{"editor":"zed","host":"user name","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/user%20name/Users/me/project"}
+{"editor":"zed","host":"user name","absolutePath":"C:/Users/me/project","url":"zed://ssh/user%20name/Users/me/project"}
+{"editor":"zed","host":"user name","absolutePath":"D:\\work\\x y","url":"zed://ssh/user%20name/D%3A/work/x%20y"}
+{"editor":"zed","host":"user name","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/user%20name//server/share/project"}
+{"editor":"zed","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/user%20name/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"user name","absolutePath":"/","url":"zed://ssh/user%20name/"}
+{"editor":"zed","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/user%20name/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"café","absolutePath":"/home/me/project","url":"zed://ssh/caf%C3%A9/home/me/project"}
+{"editor":"zed","host":"café","absolutePath":"/home/me/my project","url":"zed://ssh/caf%C3%A9/home/me/my%20project"}
+{"editor":"zed","host":"café","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/caf%C3%A9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/caf%C3%A9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"café","absolutePath":"relative/dir","url":"zed://ssh/caf%C3%A9/relative/dir"}
+{"editor":"zed","host":"café","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/caf%C3%A9/Users/me/project"}
+{"editor":"zed","host":"café","absolutePath":"C:/Users/me/project","url":"zed://ssh/caf%C3%A9/Users/me/project"}
+{"editor":"zed","host":"café","absolutePath":"D:\\work\\x y","url":"zed://ssh/caf%C3%A9/D%3A/work/x%20y"}
+{"editor":"zed","host":"café","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/caf%C3%A9//server/share/project"}
+{"editor":"zed","host":"café","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/caf%C3%A9/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"café","absolutePath":"/","url":"zed://ssh/caf%C3%A9/"}
+{"editor":"zed","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/caf%C3%A9/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"a+b","absolutePath":"/home/me/project","url":"zed://ssh/a%2Bb/home/me/project"}
+{"editor":"zed","host":"a+b","absolutePath":"/home/me/my project","url":"zed://ssh/a%2Bb/home/me/my%20project"}
+{"editor":"zed","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/a%2Bb/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/a%2Bb/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"a+b","absolutePath":"relative/dir","url":"zed://ssh/a%2Bb/relative/dir"}
+{"editor":"zed","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/a%2Bb/Users/me/project"}
+{"editor":"zed","host":"a+b","absolutePath":"C:/Users/me/project","url":"zed://ssh/a%2Bb/Users/me/project"}
+{"editor":"zed","host":"a+b","absolutePath":"D:\\work\\x y","url":"zed://ssh/a%2Bb/D%3A/work/x%20y"}
+{"editor":"zed","host":"a+b","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/a%2Bb//server/share/project"}
+{"editor":"zed","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/a%2Bb/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"a+b","absolutePath":"/","url":"zed://ssh/a%2Bb/"}
+{"editor":"zed","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/a%2Bb/a'b(c)d!e~f*g"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/home/me/project","url":"zed://ssh/100.64.0.9/home/me/project"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/home/me/my project","url":"zed://ssh/100.64.0.9/home/me/my%20project"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":"zed://ssh/100.64.0.9/home/me/projet%20%C3%A9t%C3%A9/%E6%97%A5%E6%9C%AC%E8%AA%9E"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":"zed://ssh/100.64.0.9/srv/a%23b%3Fc%3Dd%26e/f%25g"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"relative/dir","url":"zed://ssh/100.64.0.9/relative/dir"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":"zed://ssh/100.64.0.9/Users/me/project"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":"zed://ssh/100.64.0.9/Users/me/project"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":"zed://ssh/100.64.0.9/D%3A/work/x%20y"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":"zed://ssh/100.64.0.9//server/share/project"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":"zed://ssh/100.64.0.9/C%3A/looks/like/a/drive"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/","url":"zed://ssh/100.64.0.9/"}
+{"editor":"zed","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":"zed://ssh/100.64.0.9/a'b(c)d!e~f*g"}
+{"editor":"antigravity","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"antigravity","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/","url":null}
+{"editor":"idea","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"idea","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"idea","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/","url":null}
+{"editor":"idea","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"café","absolutePath":"/","url":null}
+{"editor":"idea","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/","url":null}
+{"editor":"idea","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"idea","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/","url":null}
+{"editor":"aqua","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"aqua","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"aqua","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/","url":null}
+{"editor":"aqua","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/","url":null}
+{"editor":"aqua","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/","url":null}
+{"editor":"aqua","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"aqua","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/","url":null}
+{"editor":"clion","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"clion","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"clion","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/","url":null}
+{"editor":"clion","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"café","absolutePath":"/","url":null}
+{"editor":"clion","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/","url":null}
+{"editor":"clion","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"clion","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"datagrip","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"dataspell","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/","url":null}
+{"editor":"goland","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"goland","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"goland","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/","url":null}
+{"editor":"goland","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"café","absolutePath":"/","url":null}
+{"editor":"goland","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/","url":null}
+{"editor":"goland","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"goland","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"phpstorm","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"pycharm","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/","url":null}
+{"editor":"rider","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"rider","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"rider","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/","url":null}
+{"editor":"rider","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"café","absolutePath":"/","url":null}
+{"editor":"rider","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/","url":null}
+{"editor":"rider","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"rider","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"rubymine","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"rustrover","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"webstorm","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"file-manager","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"devbox","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"devbox.tail1234.ts.net","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"my-box.local","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"user name","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"café","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"a+b","absolutePath":"/a'b(c)d!e~f*g","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/home/me/project","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/home/me/my project","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/home/me/projet été/日本語","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/srv/a#b?c=d&e/f%g","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"relative/dir","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"C:\\Users\\me\\project","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"C:/Users/me/project","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"D:\\work\\x y","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"\\\\server\\share\\project","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/C:/looks/like/a/drive","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/","url":null}
+{"editor":"not-an-editor","host":"100.64.0.9","absolutePath":"/a'b(c)d!e~f*g","url":null}
