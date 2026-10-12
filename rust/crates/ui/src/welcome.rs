@@ -4,7 +4,8 @@
 //!
 //! Differences from the original: this app is connected to one computer at a time, so the first step picks the computer
 //! this app uses and sets up that one (the original sets up every computer ticked); T3 Connect (the hosted account) has
-//! no counterpart here; the privacy policy link and the stalled-gate recovery screen are not drawn.
+//! no counterpart here; the privacy policy link is not drawn. Unlike the original, which holds the app back until the gate has decided, the
+//! app is already drawn under the gate; its recovery screen (a gate stalled for four seconds, or preferences that could not be read) covers it.
 use crate::runtime::{self, TransportHandle, UiModel, UiModelStoreExt};
 use dioxus::prelude::*;
 use serde_json::json;
@@ -102,6 +103,7 @@ fn finish(transport: &TransportHandle, state: Store<UiModel>, landing: Option<St
 #[component]
 pub(crate) fn Gate(state: Store<UiModel>) -> Element {
     let writer = try_consume_context::<crate::client_settings::Writer>();
+    let stall_writer = writer.clone();
     let decision = use_memo(move || {
         let hydrated = writer.as_ref().is_some_and(|writer| writer.document.read().hydrated());
         let completed = state.client_settings().read().onboarding_completed_at.is_some();
@@ -146,6 +148,20 @@ pub(crate) fn Gate(state: Store<UiModel>) -> Element {
             thread_count: threads.len(),
         })
     });
+    // A decision that has not come four seconds after the preferences were read gets the recovery screen (`FIRST_RUN_DECISION_TIMEOUT_MS`).
+    let hydrated = use_memo(move || stall_writer.as_ref().is_some_and(|writer| writer.document.read().hydrated()));
+    use_effect(move || {
+        if !hydrated() {
+            return;
+        }
+        spawn(async move {
+            delay(STALL_AFTER_MS).await;
+            let gate = state.welcome().peek().gate;
+            if gate.decision == Decision::Pending {
+                state.welcome().write().gate = onboarding::transition(gate, GateEvent::Timeout);
+            }
+        });
+    });
     use_effect(move || {
         let (next, persist) = decision();
         let gate = state.welcome().peek().gate;
@@ -162,6 +178,46 @@ pub(crate) fn Gate(state: Store<UiModel>) -> Element {
         }
     });
     rsx! {}
+}
+
+/// How long the gate may stay undecided before the person is offered a way out.
+const STALL_AFTER_MS: u64 = 4_000;
+async fn delay(ms: u64) {
+    #[cfg(target_arch = "wasm32")]
+    gloo_timers::future::TimeoutFuture::new(ms as u32).await;
+    #[cfg(not(target_arch = "wasm32"))]
+    tokio::time::sleep(std::time::Duration::from_millis(ms)).await;
+}
+
+/// What covers the window when the first-run decision cannot be made (`FirstRunRecovery`): the device's preferences could not be
+/// read, or the server did not confirm the workspace. Nothing here changes the workspace; the person retries or reloads.
+#[component]
+pub(crate) fn Recovery(state: Store<UiModel>) -> Element {
+    let writer = try_consume_context::<crate::client_settings::Writer>();
+    let settings_failed = writer.as_ref().is_some_and(|writer| !writer.document.read().hydrated()) && state.client_settings_error().read().is_some();
+    let gate = state.welcome().read().gate;
+    let stalled = gate.stalled && gate.decision == Decision::Pending;
+    if !settings_failed && !stalled {
+        return rsx! {};
+    }
+    let (title, body, action) = if settings_failed {
+        ("Could not read settings", "Your saved settings could not be loaded.", "Retry")
+    } else {
+        ("Still connecting", "T3 Code could not confirm this workspace.", "Reload")
+    };
+    rsx! {
+        main { class: "first-run-recovery", role: "alert",
+            h1 { "{title}" }
+            p { class: "muted", "{body}" }
+            button { r#type: "button", onclick: move |_| {
+                if settings_failed {
+                    spawn(crate::client_settings::hydrate(state));
+                } else {
+                    let _ = document::eval("window.location.reload();");
+                }
+            }, "{action}" }
+        }
+    }
 }
 
 #[component]

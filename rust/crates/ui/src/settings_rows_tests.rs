@@ -109,6 +109,30 @@ async fn a_busy_thread_folds_into_the_working_shelf_once_it_is_switched_on_and_c
     .await;
 }
 
+/// The mark of a Dev environment follows the preference: artwork under the brand (and behind the send button), a version
+/// pill, or nothing.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn the_environment_mark_follows_the_identification_preference() {
+    let marked = |dom: &VirtualDom| control_attribute(dom, "Main sidebar", "class").and_then(|(_, class)| class).is_some_and(|class| class.contains("has-stage-art"));
+    let pill = |dom: &VirtualDom| control(dom, "Dev environment").is_some();
+    with_page(&NO_SETTINGS, async |dom, _props, state| {
+        state.view().set(View::Appearance);
+        wait_for_rendered_text(dom, "Environment identification").await;
+        until(dom, "the artwork", |dom| marked(dom)).await;
+        assert!(control(dom, "Reset Environment identification").is_none(), "artwork is the default");
+        change_control(dom, "Environment identification", "\"pill\"");
+        until(dom, "the pill", |dom| !marked(dom) && pill(dom)).await;
+        assert_eq!(state.client_settings().peek().environment_identification_mode, t3_contracts::EnvironmentIdentificationMode::Pill);
+        change_control(dom, "Environment identification", "\"none\"");
+        until(dom, "nothing", |dom| !marked(dom) && !pill(dom)).await;
+        until(dom, "the reset", |dom| control(dom, "Reset Environment identification").is_some()).await;
+        click_control(dom, "Reset Environment identification");
+        until(dom, "the artwork again", |dom| marked(dom)).await;
+    })
+    .await;
+}
+
 /// The slider is the contract's range and default, so no value it can send is refused and none the contract accepts is out of reach.
 #[test]
 fn the_glass_opacity_slider_is_the_contracts_range_and_default() {
@@ -118,4 +142,119 @@ fn the_glass_opacity_slider_is_the_contracts_range_and_default() {
     assert!(accepts(40) && accepts(100) && accepts(80));
     assert!(!accepts(35) && !accepts(105));
     assert!(t3_contracts::ClientSettings::default().glass_opacity.0 == 80);
+}
+
+/// The conversation's wheel rests the composer once a gesture has gone far enough, and the composer's use lifts it again.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_scrolled_conversation_rests_the_composer_until_it_is_used() {
+    use crate::composer_rest::ModelStoreExt as _;
+    use crate::runtime::transport_tests::mouse_control;
+    let fixture = Fixture::start(false).await;
+    let (mut dom, props) = fixture.client(Gate::default(), &WRITER);
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    let resting = |dom: &VirtualDom| control_attribute(dom, "Message composer", "data-resting").and_then(|(_, value)| value).as_deref() == Some("true");
+    let owner = crate::composer_rest::owner(state.destination().peek().as_ref().unwrap().as_str(), "thread-a");
+    // The composer says it may be rested, once it has rendered with the setting on.
+    until(&mut dom, "the composer's claim", |_| state.composer_rest().eligible_for().peek().as_deref() == Some(owner.as_str())).await;
+    assert!(!resting(&dom));
+    // Up the conversation, far enough in one gesture.
+    crate::timeline_scroll::feed_wheel(state, &owner, 500.0, 3000.0, &[(0.0, -10.0), (16.0, -10.0), (32.0, -10.0)]);
+    until(&mut dom, "the resting composer", |dom| resting(dom)).await;
+    // Using the composer lifts it.
+    mouse_control(&mut dom, "Message composer", "mousedown", false, false, false);
+    until(&mut dom, "the composer expanded", |dom| !resting(dom)).await;
+    // Down at the end of the conversation, or a short wheel turn, rests nothing.
+    crate::timeline_scroll::feed_wheel(state, &owner, 2400.0, 3000.0, &[(1000.0, 50.0), (1016.0, 50.0)]);
+    crate::timeline_scroll::feed_wheel(state, &owner, 500.0, 3000.0, &[(2000.0, -10.0)]);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!resting(&dom));
+    // A draft of several lines keeps the composer open, and so does turning the setting off.
+    input_control(&mut dom, "Message", "one\ntwo");
+    until(&mut dom, "no claim for a multiline draft", |_| state.composer_rest().eligible_for().peek().is_none()).await;
+    crate::timeline_scroll::feed_wheel(state, &owner, 500.0, 3000.0, &[(3000.0, -30.0), (3016.0, -30.0)]);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!resting(&dom));
+    input_control(&mut dom, "Message", "one");
+    until(&mut dom, "the claim again", |_| state.composer_rest().eligible_for().peek().as_deref() == Some(owner.as_str())).await;
+    state.view().set(View::General);
+    wait_for_rendered_text(&mut dom, "Collapse composer on scroll").await;
+    change_control(&mut dom, "Collapse composer on scroll", "false");
+    until(&mut dom, "the setting off", |_| !state.client_settings().peek().composer_collapse_on_scroll).await;
+    state.view().set(View::Chat);
+    until(&mut dom, "no claim", |_| state.composer_rest().eligible_for().peek().is_none()).await;
+    crate::timeline_scroll::feed_wheel(state, &owner, 500.0, 3000.0, &[(4000.0, -30.0), (4016.0, -30.0)]);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!resting(&dom));
+    fixture.finish(dom).await;
+}
+
+/// "Composer context" moves the branch control from the header to under the composer.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn composer_context_puts_the_branch_control_under_the_composer() {
+    let fixture = Fixture::start(true).await;
+    let (mut dom, props) = fixture.client(Gate::default(), &WRITER);
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    let in_strip = |dom: &VirtualDom| control_attribute(dom, "Branch controls", "data-composer-context-strip").is_some();
+    assert!(!in_strip(&dom));
+    state.view().set(View::Appearance);
+    wait_for_rendered_text(&mut dom, "Composer context").await;
+    change_control(&mut dom, "Composer context", "true");
+    until(&mut dom, "the setting", |_| state.client_settings().peek().persist_composer_context_strip).await;
+    state.view().set(View::Chat);
+    until(&mut dom, "the strip under the composer", |dom| in_strip(dom)).await;
+    state.view().set(View::Appearance);
+    wait_for_rendered_text(&mut dom, "Composer context").await;
+    change_control(&mut dom, "Composer context", "false");
+    until(&mut dom, "the setting off", |_| !state.client_settings().peek().persist_composer_context_strip).await;
+    state.view().set(View::Chat);
+    until(&mut dom, "the strip gone", |dom| !in_strip(dom)).await;
+    fixture.finish(dom).await;
+}
+
+/// A finished turn that changed enough opens the diff by itself, once "Proactive panels" is on and the person has not chosen otherwise.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_finished_turn_that_changed_enough_opens_the_diff_by_itself() {
+    use super::diff_tests::turn;
+    let fixture = Fixture::start(true).await;
+    let (mut dom, props) = fixture.operator(Gate::default());
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    let diff_open = |dom: &VirtualDom| control(dom, "Diff scope").is_some();
+    // The first turn changes nothing; it is the baseline the next turn's checkpoint is taken against.
+    turn(&mut dom, &props, state, 1).await;
+    // Off by default: a turn that changed three files opens nothing.
+    fixture.write("a.txt", "a\n");
+    fixture.write("b.txt", "b\n");
+    fixture.write("c.txt", "c\n");
+    turn(&mut dom, &props, state, 2).await;
+    wait_for_rendered_text(&mut dom, "3 changed files").await;
+    // Let the finished turn be seen with the setting off, so that turning it on later is not what first meets the turn.
+    super::diff_tests::pump(&mut dom).await;
+    assert!(!diff_open(&dom));
+    state.view().set(View::General);
+    wait_for_rendered_text(&mut dom, "Proactive panels").await;
+    change_control(&mut dom, "Proactive panels", "true");
+    until(&mut dom, "the setting", |_| state.client_settings().peek().proactive_panels_enabled).await;
+    state.view().set(View::Chat);
+    // Turning it on does not reach back to the turn that finished before.
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+    assert!(!diff_open(&dom));
+    // A small change is not worth a panel.
+    fixture.write("a.txt", "a\nb\n");
+    turn(&mut dom, &props, state, 3).await;
+    wait_for_rendered_text(&mut dom, "1 changed file").await;
+    super::diff_tests::pump(&mut dom).await;
+    assert!(!diff_open(&dom));
+    // Three files are.
+    fixture.write("a.txt", "a\nb\nc\n");
+    fixture.write("b.txt", "b\nb\n");
+    fixture.write("c.txt", "c\nc\n");
+    turn(&mut dom, &props, state, 4).await;
+    until(&mut dom, "the diff opened by itself", |dom| diff_open(dom)).await;
+    fixture.finish(dom).await;
 }

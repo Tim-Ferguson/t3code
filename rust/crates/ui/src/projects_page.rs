@@ -39,8 +39,9 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                 if let Some((id, title, path)) = chosen.as_deref().and_then(|chosen| projects.iter().find(|(id, ..)| id == chosen)).cloned() {
                     Overview { key: "overview:{id}", state, transport: transport.clone(), id: id.clone(), title, path }
                     div { id: "project-defaults",
-                        ScopedRows { key: "defaults:{id}", state, transport: transport.clone(), project: Some(id) }
+                        ScopedRows { key: "defaults:{id}", state, transport: transport.clone(), project: Some(id.clone()) }
                     }
+                    crate::project_actions::Section { key: "actions:{id}", state, transport: transport.clone(), project: Some(id) }
                 }
             }
         }

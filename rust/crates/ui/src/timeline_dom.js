@@ -90,6 +90,8 @@ listen(
   (event) =>
     intent("wheel", {
       deltaY: event.deltaY,
+      deltaMode: event.deltaMode,
+      timeStamp: event.timeStamp,
       ctrlKey: event.ctrlKey,
       timelineTarget: !nestedConsumes(event.target, event.deltaY),
     }),

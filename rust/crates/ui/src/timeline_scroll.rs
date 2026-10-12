@@ -47,6 +47,11 @@ struct Frame {
     content_length: f64,
     #[serde(default)]
     delta_y: f64,
+    /// `WheelEvent.deltaMode`: 0 pixels, 1 lines, 2 pages.
+    #[serde(default)]
+    delta_mode: u8,
+    #[serde(default)]
+    time_stamp: f64,
     #[serde(default)]
     ctrl_key: bool,
     #[serde(default)]
@@ -93,6 +98,10 @@ struct Session {
     pill_generation: u64,
     pill_scheduled: bool,
     show_pill: bool,
+    /// The wheel gesture that may rest the composer, and the composer interactions it has seen.
+    gesture: t3_client::composer_rest::Gesture,
+    seen_lifts: u64,
+    overflow: bool,
 }
 impl Session {
     fn new(owner: String, positions: Positions) -> Self {
@@ -114,6 +123,9 @@ impl Session {
             pill_generation: 0,
             pill_scheduled: false,
             show_pill: false,
+            gesture: Default::default(),
+            seen_lifts: 0,
+            overflow: false,
         }
     }
     fn request_measurement(&self) {
@@ -156,6 +168,7 @@ impl Session {
         };
         let at_end = frame.at_end();
         let overflow = measurements.content_overflows(0.0, CHAT_TIMELINE_ANCHOR_OFFSET);
+        self.overflow = overflow;
         let restore_cancelled = !self.initialized
             && match frame.kind.as_str() {
                 "wheel" => !frame.ctrl_key && frame.timeline_target,
@@ -303,6 +316,8 @@ impl Session {
 #[derive(Clone)]
 pub(crate) struct Handle {
     session: Rc<RefCell<Session>>,
+    state: Store<UiModel>,
+    owner: String,
     pub id: String,
     pub show_latest: Signal<bool>,
     pub error: Signal<Option<String>>,
@@ -368,6 +383,7 @@ impl Handle {
                             && !frame.at_end(),
                     )
                 };
+                handle.rest_composer(&frame);
                 let ticket = {
                     let mut session = handle.session.borrow_mut();
                     session.show_pill = show;
@@ -409,6 +425,9 @@ impl Handle {
             }
         });
     }
+    fn rest_composer(&self, frame: &Frame) {
+        rest_composer(self.state, &self.owner, &self.session, frame);
+    }
     fn failed(&self, message: String) {
         if let Some(eval) = self.session.borrow_mut().eval.take() {
             let _ = eval.send(json!({"type":"stop"}));
@@ -425,6 +444,61 @@ impl Handle {
         session.show_pill = false;
         session.pending = Some(session.policy.follow_end());
         session.request_measurement();
+    }
+}
+
+/// Tells the composer what a frame says of the conversation: whether it overflows, and whether the wheel has scrolled far
+/// enough up it to rest the composer (`handleTimelineWheel` of `ChatComposer.tsx`).
+fn rest_composer(state: Store<UiModel>, owner: &str, session: &RefCell<Session>, frame: &Frame) {
+    let overflow = session.borrow().overflow;
+    crate::composer_rest::set_overflow(state, overflow);
+    if frame.kind != "wheel" || frame.ctrl_key || !frame.timeline_target {
+        return;
+    }
+    let down = frame.delta_y > 0.0;
+    let room = if down { frame.scroll < frame.content_length - frame.viewport_height } else { frame.scroll > 0.0 };
+    let wheel = t3_client::composer_rest::Wheel {
+        at: frame.time_stamp,
+        delta_px: frame.delta_y.abs()
+            * match frame.delta_mode {
+                1 => 16.0,
+                2 => frame.viewport_height,
+                _ => 1.0,
+            },
+        over_timeline: true,
+        collapse_eligible: crate::composer_rest::eligible(state, owner),
+        can_scroll_that_way: room,
+        toward_end: down && frame.at_end(),
+    };
+    use crate::composer_rest::ModelStoreExt as _;
+    let lifts = *state.composer_rest().lifts().peek();
+    let rests = {
+        let mut session = session.borrow_mut();
+        // Touching the composer while a gesture is under way ends that gesture's chance to rest it.
+        if session.seen_lifts != lifts {
+            session.seen_lifts = lifts;
+            session.gesture.suppress(wheel.at);
+        }
+        session.gesture.record(wheel)
+    };
+    if rests {
+        crate::composer_rest::rest(state, owner);
+    }
+}
+
+/// Feeds wheel events (time stamp in ms, `deltaY`) over a conversation scrolled to `scroll` of `content` through the path the scroll
+/// bridge's frames take, as the same gesture.
+#[cfg(test)]
+pub(crate) fn feed_wheel(state: Store<UiModel>, owner: &str, scroll: f64, content: f64, wheel: &[(f64, f64)]) {
+    let session = RefCell::new(Session::new(owner.to_owned(), Positions::default()));
+    for (at, delta_y) in wheel {
+        let frame: Frame = serde_json::from_value(json!({
+            "kind": "wheel", "intentGeneration": 0, "hasGeometry": true, "rowIds": ["a", "b"], "positions": [0.0, content - 100.0], "sizes": [100.0, 100.0], "messages": [null, null],
+            "scroll": scroll, "viewportHeight": 600.0, "contentLength": content, "deltaY": delta_y, "timelineTarget": true, "timeStamp": at, "deltaMode": 0
+        }))
+        .expect("a wheel frame");
+        session.borrow_mut().frame(&frame);
+        rest_composer(state, owner, &session, &frame);
     }
 }
 
@@ -453,6 +527,8 @@ pub(crate) fn use_scroll(state: Store<UiModel>, owner: String) -> Handle {
     let error = use_signal(|| None);
     let handle = Handle {
         session: session.clone(),
+        state,
+        owner: owner.clone(),
         id,
         show_latest,
         error,
@@ -609,6 +685,8 @@ mod tests {
             viewport_height: 400.0,
             content_length: positions.last().copied().unwrap_or(0.0) + 100.0,
             delta_y: 0.0,
+            delta_mode: 0,
+            time_stamp: 0.0,
             ctrl_key: false,
             timeline_target: true,
             scrollbar: false,

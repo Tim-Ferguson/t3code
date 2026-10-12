@@ -118,6 +118,8 @@ pub struct UiModel {
     pub diff: crate::diff_panel::DiffModel,
     /// The tabbed panel beside the conversation: its tabs per thread, the history of closed ones, and what shows of it.
     pub right_panel: crate::right_panel::Model,
+    /// The composer's resting layout, which the conversation's scroll rests and the composer's use lifts.
+    pub composer_rest: crate::composer_rest::Model,
     /// The files whose edits are not on disk yet (`cwd`, a NUL, the path): the dot on a tab.
     pub file_pending: std::collections::BTreeSet<String>,
     /// What was last handed to the server to write for such a file, until a write confirms it, so a panel opened again before that

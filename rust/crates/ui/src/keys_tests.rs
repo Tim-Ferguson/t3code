@@ -765,3 +765,63 @@ async fn the_local_new_thread_shortcut_starts_a_thread_from_any_page_and_not_fro
     // Not offered where there is no project to start in.
     fixture.finish(dom).await;
 }
+
+/// An action is added on the Projects page, shows as a Run button in the open thread's header, runs in a new terminal of the drawer
+/// from the button and from its shortcut, and is deleted again.
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_project_action_is_added_run_from_the_header_and_its_shortcut_and_deleted() {
+    let fixture = Fixture::start_with_terminals(false).await;
+    let scopes = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::SettingsWrite, AuthEnvironmentScope::TerminalRead, AuthEnvironmentScope::TerminalOperate];
+    let (first, props) = fixture.client(Gate::default(), &scopes);
+    drop(first);
+    let mut dom = VirtualDom::new_with_props(terminal_harness, props.clone());
+    dom.rebuild_in_place();
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "config", |_| state.peek().typed_config.is_some() && has_rule(state, "diff.toggle", "d")).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    let catalog = dom.in_scope(ScopeId::APP, || try_consume_context::<crate::terminal_pane::Catalog>()).expect("the catalog");
+    let key = t3_client::terminal_ui::ScopedPanes::key(state.peek().destination.as_ref().unwrap().as_str(), "thread-a");
+    let terminals = |catalog: &crate::terminal_pane::Catalog| catalog.panes.peek().get(&key).terminal_ids.len();
+    assert!(control(&dom, "Run Dev server").is_none(), "no action yet");
+
+    // An action needs a name and a command; saved, it is the project's own list on the server.
+    crate::projects_page::open(state, "project");
+    wait_for_rendered_text(&mut dom, "No actions configured.").await;
+    click_control(&mut dom, "Add action");
+    input_control(&mut dom, "Action name", "Dev server");
+    click_control(&mut dom, "Save action");
+    wait_for_rendered_text(&mut dom, "Enter the command the action runs.").await;
+    input_control(&mut dom, "Action command", "echo hi");
+    click_control(&mut dom, "Save action");
+    until(&mut dom, "the saved list", |_| state.peek().config["settings"]["projectSettingsOverrides"]["project"]["defaultProjectScripts"][0]["id"] == "dev-server").await;
+    let saved = state.peek().config["settings"]["projectSettingsOverrides"]["project"]["defaultProjectScripts"][0].clone();
+    assert_eq!((saved["name"].as_str(), saved["command"].as_str(), saved["icon"].as_str(), saved["runOnWorktreeCreate"].clone()), (Some("Dev server"), Some("echo hi"), Some("play"), json!(false)));
+    until(&mut dom, "the editor to close", |dom| control(dom, "Save action").is_none()).await;
+    assert!(rendered_text(&dom).contains("Dev server"));
+
+    // The header runs it in a new terminal of the thread's drawer.
+    state.view().set(View::Chat);
+    until(&mut dom, "the Run button", |dom| control(dom, "Run Dev server").is_some()).await;
+    assert!(!catalog.is_open(&key) && terminals(&catalog) == 0);
+    click_control(&mut dom, "Run Dev server");
+    assert!(catalog.is_open(&key));
+    assert_eq!(terminals(&catalog), 1);
+
+    // Its shortcut does the same.
+    let request = json!({"command": "script.dev-server.run", "key": "mod+shift+y"});
+    dom.in_scope(ScopeId::APP, || crate::runtime::request(&props.transport, state, "server.upsertKeybinding", request, RequestKind::Unary)).unwrap();
+    until(&mut dom, "the shortcut", |_| has_rule(state, "script.dev-server.run", "y")).await;
+    assert_eq!(press(&mut dom, chord("y", true, false), Dom::default()).await.as_deref(), Some("script.dev-server.run"));
+    assert_eq!(terminals(&catalog), 2);
+
+    // Deleting it asks first, and takes the button away.
+    crate::projects_page::open(state, "project");
+    click_control(&mut dom, "Edit Dev server");
+    click_control(&mut dom, "Delete action");
+    click_control(&mut dom, "Delete");
+    until(&mut dom, "the list to empty", |_| state.peek().config["settings"]["projectSettingsOverrides"]["project"]["defaultProjectScripts"].as_array().is_some_and(Vec::is_empty)).await;
+    state.view().set(View::Chat);
+    until(&mut dom, "the Run button to go", |dom| control(dom, "Run Dev server").is_none()).await;
+    fixture.finish(dom).await;
+}

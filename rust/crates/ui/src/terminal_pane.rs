@@ -16,6 +16,13 @@ use t3_contracts::{AuthEnvironmentScope, TerminalAttachInput};
 // Generate this directory with tools/build_terminal_surface.sh before UI builds.
 // All WebViews use the same Rust surface; the JS file is wasm-bindgen ABI glue.
 pub(crate) const SURFACE: Asset = asset!("/assets/terminal-surface");
+/// A command to run in a terminal the drawer is about to attach: a project action (`project_actions`). The pane attaches with
+/// `env` and, once the session runs, types `command` and Enter, once.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Launch {
+    pub env: serde_json::Value,
+    pub command: String,
+}
 #[derive(Clone)]
 pub struct Catalog {
     pub panes: Signal<ScopedPanes>,
@@ -25,6 +32,8 @@ pub struct Catalog {
     known: Signal<std::collections::BTreeMap<String, Vec<String>>>,
     /// The terminal a pane is asking to close, until the user answers.
     closing: Signal<Option<(String, String)>>,
+    /// Commands waiting for the terminal they were made for to attach, by pane key and terminal id.
+    launches: Signal<std::collections::BTreeMap<(String, String), Launch>>,
     hydrated: Signal<bool>,
     write_allowed: Signal<bool>,
     writer: futures_channel::mpsc::UnboundedSender<String>,
@@ -36,6 +45,7 @@ pub fn use_catalog() -> Catalog {
     let write_allowed = use_signal(|| true);
     let known = use_signal(std::collections::BTreeMap::new);
     let closing = use_signal(|| None);
+    let launches = use_signal(std::collections::BTreeMap::new);
     let (sender, receiver) = use_hook(|| {
         let (sender, receiver) = futures_channel::mpsc::unbounded::<String>();
         (sender, Rc::new(RefCell::new(Some(receiver))))
@@ -59,6 +69,7 @@ pub fn use_catalog() -> Catalog {
         error,
         known,
         closing,
+        launches,
         hydrated,
         write_allowed,
         writer: sender,
@@ -129,6 +140,25 @@ impl Catalog {
         let id = self.allocate(key);
         self.change(key, |panes, key| panes.upsert(key, &id, split.is_some(), split.unwrap_or(Direction::Horizontal)));
         true
+    }
+    /// A new terminal in the thread's drawer that runs `launch.command` as soon as it is attached (`runProjectScript`). Returns its id.
+    pub(crate) fn run_command(&self, key: &str, launch: Launch) -> String {
+        let id = self.allocate(key);
+        let mut launches = self.launches;
+        launches.write().insert((key.to_owned(), id.clone()), launch);
+        // The terminal first: opening an empty drawer makes the default terminal, which this one is instead.
+        self.change(key, |panes, key| panes.upsert(key, &id, false, Direction::Horizontal));
+        if !self.panes.peek().get(key).terminal_open {
+            self.change(key, |panes, key| panes.set_open(key, true));
+        }
+        id
+    }
+    fn launch(&self, key: &str, terminal: &str) -> Option<Launch> {
+        self.launches.peek().get(&(key.to_owned(), terminal.to_owned())).cloned()
+    }
+    fn launched(&self, key: &str, terminal: &str) {
+        let mut launches = self.launches;
+        launches.write().remove(&(key.to_owned(), terminal.to_owned()));
     }
     /// Asks to close a terminal (the active one when none is named); the drawer confirms with
     /// the user before anything is stopped. False when there is nothing to close.
@@ -649,6 +679,7 @@ fn CanvasPane(
         (tx, Rc::new(RefCell::new(Some(rx))))
     });
     let ordered_transport = transport.clone();
+    let launch_actions = actions.clone();
     use_future(move || {
         let receiver = action_receiver
             .borrow_mut()
@@ -840,6 +871,7 @@ fn CanvasPane(
         let ack = stream_ack.clone();
         let environment = environment.clone();
         let catalog = exit_catalog.clone();
+        let launch_actions = launch_actions.clone();
         async move {
             let mut exit = t3_client::terminal_drawer::ExitState::default();
             loop {
@@ -852,9 +884,13 @@ fn CanvasPane(
                 if !linked() {
                     return;
                 }
-                let input: TerminalAttachInput = match serde_json::from_value(
-                    json!({"threadId":thread,"terminalId":terminal,"cwd":cwd,"worktreePath":worktree}),
-                ) {
+                let pane_key = ScopedPanes::key(&environment, &thread);
+                let launch = catalog.launch(&pane_key, &terminal);
+                let mut attach = json!({"threadId":thread,"terminalId":terminal,"cwd":cwd,"worktreePath":worktree});
+                if let Some(launch) = &launch {
+                    attach["env"] = launch.env.clone();
+                }
+                let input: TerminalAttachInput = match serde_json::from_value(attach) {
                     Ok(input) => input,
                     Err(cause) => {
                         error.set(Some(cause.to_string()));
@@ -882,6 +918,19 @@ fn CanvasPane(
                         }
                     };
                     running.set(buffer.status == SessionStatus::Running);
+                    // A project action's command is typed once the shell it was made for is up.
+                    if buffer.status == SessionStatus::Running {
+                        if let Some(launch) = catalog.launch(&pane_key, &terminal) {
+                            if let Some(owner) = runtime::response_owner(&handle, state).filter(|_| operates(state)) {
+                                catalog.launched(&pane_key, &terminal);
+                                let _ = launch_actions.unbounded_send(crate::terminal_bridge::Action {
+                                    owner,
+                                    method: "terminal.write",
+                                    payload: json!({"threadId":thread,"terminalId":terminal,"data":format!("{}\r", launch.command)}),
+                                });
+                            }
+                        }
+                    }
                     while !*ready.peek() {
                         if ack.is_closed() {
                             return;

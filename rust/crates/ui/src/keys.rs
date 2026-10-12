@@ -292,6 +292,8 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             for number in 1..=order.len().min(9) {
                 set.insert(format!("thread.jump.{number}"));
             }
+            // The open thread's project actions, each with the shortcut command its id makes.
+            set.extend(crate::project_actions::runnable_commands(state));
             set
         }
     });
@@ -457,6 +459,11 @@ impl Runner {
     pub fn execute(&self, command: &str) {
         let state = self.state;
         match command {
+            command if command.starts_with("script.") && command.ends_with(".run") => {
+                if let Some(catalog) = &self.catalog {
+                    crate::project_actions::run_command(state, catalog, command);
+                }
+            }
             "sidebar.toggle" => {
                 let open = state.peek().sidebar_open;
                 state.sidebar_open().set(!open);

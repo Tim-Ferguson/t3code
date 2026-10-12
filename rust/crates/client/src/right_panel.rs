@@ -144,9 +144,19 @@ impl ThreadPanel {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Panels {
     by_thread: BTreeMap<String, ThreadPanel>,
+    /// How many panel choices the person has made per thread this session (`userActionRevisionByThreadKey`). An automatic
+    /// opening (`open_proactive`, `reconcile_files`) does not advance it, so it can tell a choice made after it looked.
+    revisions: BTreeMap<String, u64>,
+}
+
+/// Two sets of panels are the same when they hold the same tabs: the count of choices is bookkeeping of this session.
+impl PartialEq for Panels {
+    fn eq(&self, other: &Self) -> bool {
+        self.by_thread == other.by_thread
+    }
 }
 
 static EMPTY: ThreadPanel = ThreadPanel { is_open: false, active_surface_id: None, surfaces: Vec::new() };
@@ -163,6 +173,15 @@ impl Panels {
     pub fn is_active(&self, key: &str, kind: Kind) -> bool {
         self.active(key).is_some_and(|surface| surface.kind() == Some(kind))
     }
+    /// How many choices the person has made in this thread's panel.
+    pub fn user_revision(&self, key: &str) -> u64 {
+        self.revisions.get(key).copied().unwrap_or(0)
+    }
+    /// An edit that is the person's choice: it counts, even when it changes nothing.
+    fn user<R>(&mut self, key: &str, change: impl FnOnce(&mut ThreadPanel) -> R) -> R {
+        *self.revisions.entry(key.to_owned()).or_insert(0) += 1;
+        self.edit(key, change)
+    }
     /// A panel with nothing in it is not kept (`updateThreadStateMap`).
     fn edit<R>(&mut self, key: &str, change: impl FnOnce(&mut ThreadPanel) -> R) -> R {
         let mut panel = self.by_thread.get(key).cloned().unwrap_or_default();
@@ -178,12 +197,12 @@ impl Panels {
 
     /// Opens a tab that exists once, or shows the one there is.
     pub fn open(&mut self, key: &str, kind: Kind) {
-        self.edit(key, |panel| panel.upsert(Surface::of(kind)));
+        self.user(key, |panel| panel.upsert(Surface::of(kind)));
     }
     /// Opens a file as a tab beside the others; the standalone explorer gives way. `.` is the project's root, which is the
     /// explorer. Files of another folder start a new row of tabs, since a path means nothing against another checkout.
     pub fn open_file(&mut self, key: &str, cwd: &str, requested: &str, line: Option<u64>) {
-        self.edit(key, |panel| {
+        self.user(key, |panel| {
             if requested == "." {
                 panel.upsert(Surface::Files);
                 return;
@@ -210,7 +229,7 @@ impl Panels {
         });
     }
     pub fn open_pull_request(&mut self, key: &str, target: PullRequestTarget) {
-        self.edit(key, |panel| {
+        self.user(key, |panel| {
             let surface = Surface::PullRequest(target).normalized();
             let id = surface.id();
             panel.upsert(surface.clone());
@@ -223,7 +242,7 @@ impl Panels {
         });
     }
     pub fn activate(&mut self, key: &str, id: &str) {
-        self.edit(key, |panel| {
+        self.user(key, |panel| {
             if panel.surfaces.iter().any(|surface| surface.id() == id) {
                 panel.is_open = true;
                 panel.active_surface_id = Some(id.to_owned());
@@ -233,7 +252,7 @@ impl Panels {
 
     /// Closes tabs; returns what went, in the order a reopen should find them: the shown tab last, so it comes back first.
     fn close(&mut self, key: &str, change: impl FnOnce(&mut ThreadPanel)) -> Vec<Surface> {
-        self.edit(key, |panel| {
+        self.user(key, |panel| {
             let before = panel.surfaces.clone();
             let active = panel.active_surface_id.clone();
             change(panel);
@@ -304,18 +323,18 @@ impl Panels {
         });
     }
     pub fn show(&mut self, key: &str) {
-        self.edit(key, |panel| panel.is_open = true);
+        self.user(key, |panel| panel.is_open = true);
     }
     /// Hides the panel; its tabs and the shown one stay.
     pub fn hide(&mut self, key: &str) {
-        self.edit(key, |panel| panel.is_open = false);
+        self.user(key, |panel| panel.is_open = false);
     }
     pub fn toggle_visibility(&mut self, key: &str) {
-        self.edit(key, |panel| panel.is_open = !panel.is_open);
+        self.user(key, |panel| panel.is_open = !panel.is_open);
     }
     /// `toggle`: hides the panel when `kind` is what it shows, else shows `kind`.
     pub fn toggle(&mut self, key: &str, kind: Kind) {
-        self.edit(key, |panel| {
+        self.user(key, |panel| {
             let shown = panel.is_open && panel.active().is_some_and(|surface| surface.kind() == Some(kind));
             if shown {
                 panel.is_open = false;
@@ -326,6 +345,21 @@ impl Panels {
     }
     pub fn remove_thread(&mut self, key: &str) {
         self.by_thread.remove(key);
+        self.revisions.remove(key);
+    }
+    /// `openProactive`: opens a tab on the app's account, not the person's. Refused when the person has made a panel choice
+    /// since `expected_revision` was read, and a diff never replaces a pull request the panel is showing (a linked pull request
+    /// takes priority over a finished turn's diff). Returns whether it opened.
+    pub fn open_proactive(&mut self, key: &str, surface: Surface, expected_revision: u64) -> bool {
+        if self.user_revision(key) != expected_revision {
+            return false;
+        }
+        if surface == Surface::Diff && matches!(self.active(key), Some(Surface::PullRequest(_) | Surface::PullRequests)) {
+            return false;
+        }
+        let surface = surface.normalized();
+        self.edit(key, |panel| panel.upsert(surface));
+        true
     }
     /// Every key that holds a panel, for pruning.
     pub fn keys(&self) -> Vec<String> {
@@ -359,7 +393,7 @@ impl Panels {
                 by_thread.insert(key, panel);
             }
         }
-        Self { by_thread }
+        Self { by_thread, revisions: BTreeMap::new() }
     }
 }
 
@@ -474,6 +508,36 @@ pub fn plan_next_reopen<'a>(entries: &'a [Closed], owner: impl Fn(&Closed) -> Ow
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_proactive_opening_gives_way_to_a_choice_of_the_persons_and_a_diff_to_a_pull_request() {
+        let mut panels = Panels::default();
+        let key = "e:t";
+        let seen = panels.user_revision(key);
+        assert!(panels.open_proactive(key, Surface::Diff, seen));
+        assert!(panels.is_active(key, Kind::Diff));
+        assert_eq!(panels.user_revision(key), seen, "opening on the app's own account is not a choice");
+        // A tab the person opens after the count was read stops later proactive openings.
+        panels.open(key, Kind::Files);
+        assert!(panels.user_revision(key) > seen);
+        assert!(!panels.open_proactive(key, Surface::PullRequests, seen));
+        assert!(panels.is_active(key, Kind::Files));
+        // Closing is a choice too, and so is showing or hiding the panel.
+        let after_open = panels.user_revision(key);
+        panels.hide(key);
+        assert!(!panels.open_proactive(key, Surface::Diff, after_open));
+        // A diff never takes the place of the pull requests the panel shows; a pull request tab does.
+        let mut panels = Panels::default();
+        panels.open(key, Kind::PullRequests);
+        let revision = panels.user_revision(key);
+        assert!(!panels.open_proactive(key, Surface::Diff, revision));
+        assert!(panels.open_proactive(key, Surface::PullRequests, revision));
+        // A file tab going away with its workspace is not a choice.
+        panels.open_file(key, "/w", "a.txt", None);
+        let revision = panels.user_revision(key);
+        panels.reconcile_files(key, false);
+        assert_eq!(panels.user_revision(key), revision);
+        assert!(panels.open_proactive(key, Surface::PullRequests, revision));
+    }
     use super::*;
 
     const A: &str = "env:thread-a";

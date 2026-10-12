@@ -155,6 +155,11 @@ fn spelled(rule: &Rule) -> (String, String) {
     (shortcut_to_input(&rule.shortcut), rule.when.as_ref().map(|when| when.expression()).unwrap_or_default())
 }
 
+/// The spelling (key, condition) of the last rule for a command, which is the one in effect: what a change to it names as the old one.
+pub fn spelling_of(rules: &[Rule], command: &str) -> Option<(String, String)> {
+    rules.iter().rev().find(|rule| rule.command == command).map(spelled)
+}
+
 fn defaults() -> &'static [Rule] {
     static RULES: std::sync::OnceLock<Vec<Rule>> = std::sync::OnceLock::new();
     RULES.get_or_init(crate::keybindings::default_rules)

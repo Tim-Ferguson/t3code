@@ -98,8 +98,7 @@
       "preview.zoomOut": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.resetZoom": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "composer.host": "Pick the environment a new thread runs on (BranchToolbarEnvironmentSelector): the Rust new-thread form has one environment.",
-      "composer.cycleHost": "As composer.host.",
-      "script.<id>.run": "Project actions (scripts) with their own shortcut and Run button (ProjectScriptsControl): not built."
+      "composer.cycleHost": "As composer.host."
     },
     "omitted": {
       "button without handler ui/desktop_updates.rs \"Check for Updates\"": "Deliberately disabled with its reason shown: this app has no update feed (desktop_updates.rs).",
@@ -128,13 +127,8 @@
       "device-hub": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
       "device-platform-support": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
       "setting-glass-opacity": "Translucent menus and dialogs: not built (the CSS has no backdrop-filter layer).",
-      "environment-identification": "The environment stage pill and artwork (EnvironmentIdentification): not built.",
-      "composer-context": "The composer's persistent context strip: not built.",
-      "proactive-panels": "Panels that open on their own (a finished turn's diff, a linked pull request: ChatView's openProactive and ChatView.logic's rules, with the per-thread count of the person's own choices): the tabbed panel exists (right_panel.rs) but nothing opens it unasked yet.",
-      "composer-collapse": "The composer's resting layout (collapse on scroll): not built.",
       "cli-command": "Desktop only. The t3 command install row (CliCommandSettingsRow, DesktopCliCommand.ts): not built.",
       "open-source-licenses": "Licenses page: no generated manifest (see routes).",
-      "project-actions": "Project actions (scripts) editor of the project settings: not built.",
       "local-environment": "Desktop only. The local environment switch (LocalEnvironmentSetting; setLocalEnvironmentEnabled): the desktop app always runs and uses its own server.",
       "network-access": "Desktop only. Exposing the app's server to the local network (setServerExposureMode): the server this app starts listens on loopback only.",
       "tailscale-https": "Desktop only. Tailscale Serve toggle (setTailscaleServeEnabled): not wired.",
@@ -339,7 +333,7 @@
       "preview.onPointerEvent": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
       "onNotificationBadgeClear": "The main process tells the page to clear the badge when the window is focused; the Rust badge follows the page's own unread count only.",
       "getPathForFile": "Dropped files give no absolute path (WebView File objects have none): dropping a folder to add a project, and dropping a file to attach by path, are not built; file drops upload their bytes.",
-      "getAppBranding": "The stage label and app name of the build (dev/nightly pill): the Rust app has a fixed title.",
+      "getAppBranding": "The app name of the build (the window title stays fixed). The stage label is not asked of the shell: t3_client::stage::app_stage_label derives it (a debug build is Dev, a nightly version Nightly, else Alpha) for the environment mark.",
       "getSystemLocale": "The 'System default' time format reads the page's locale; the OS locale is not asked.",
       "onTrackpadScrollEnd": "Only the device viewport uses it; no device panel.",
       "getLocalEnvironmentEnabled": "The Local environment switch (settings 'local-environment'): not built.",
@@ -502,8 +496,12 @@
         "probe": "prompt_stash.rs::fn shortcut",
         "reason": "the stash"
       },
+      "composer composerScrollGesture": {
+        "probe": "composer_rest.rs::fn use_resting",
+        "reason": "the scroll-to-collapse gesture (client composer_rest.rs, fed by the timeline bridge's wheel frames)"
+      },
       "composer ComposerSurface": {
-        "probe": "lib.rs::class: \"composer\"",
+        "probe": "lib.rs::\"composer resting\"",
         "reason": "the composer container"
       },
       "composer ComposerUsageLimits": {
@@ -616,7 +614,6 @@
     },
     "omitted": {
       "composer composerEventScope": "DOM event scoping of the rich editor; the plain text box has no equivalent.",
-      "composer composerScrollGesture": "Scroll-to-collapse gesture of the composer (setting composer-collapse): not built.",
       "composer useComposerFocusState": "React focus bookkeeping; the Rust box uses the DOM focus.",
       "composer useComposerMultilinePrompt": "Multiline editor measurement of the rich editor."
     }

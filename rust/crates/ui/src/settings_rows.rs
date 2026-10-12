@@ -45,12 +45,14 @@ impl Row {
 }
 
 /// The rows that follow this device's preferences.
-pub(crate) const BEHAVIOR: [Row; 6] = [
+pub(crate) const BEHAVIOR: [Row; 8] = [
     Row::choice("sendShortcut", "Send shortcut", "Choose when Enter sends a prompt or inserts a new line", "\"enter\"", &[("\"enter\"", "Enter sends"), ("\"mod-enter-multiline\"", "Mod+Enter sends, Enter adds a line"), ("\"mod-enter\"", "Mod+Enter sends")]),
     Row::choice("followUpBehavior", "Follow-up behavior", "What a message sent while a run is going does. Queue waits for the run to end; steer redirects it now.", "\"queue\"", &[("\"queue\"", "Queue"), ("\"steer\"", "Steer")]),
     Row::switch("showSkillsInSlashMenu", "Show skills in slash menu", "Also include skills in the / command menu. Skills always appear when you type $.", true),
     Row::switch("planModeEnabled", "Plan mode (legacy)", "Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode.", false),
     Row::switch("inAppNotificationsEnabled", "In-app notifications", "Show a toast when another thread finishes, fails, or needs input or approval while this app has focus.", false),
+    Row::switch("proactivePanelsEnabled", "Proactive panels", "Open linked pull requests first. Otherwise, open Changes for edits to at least 3 files or 50 lines.", false),
+    Row::switch("composerCollapseOnScroll", "Collapse composer on scroll", "Rest the composer of an existing thread into a single line when you scroll the conversation. Focus the composer or start typing to expand it again.", true),
     Row::switch("sidebarWorkingShelfEnabled", "Working section (beta)", "Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you.", false),
 ];
 /// How a thread that finishes or needs you is announced outside the window. Changing it asks the system for permission first.
@@ -75,13 +77,16 @@ pub(crate) const DIFFS: [Row; 3] = [
     Row::choice("diffFilesCollapsed", "Default diff file state", "Start with files expanded or collapsed when opening diffs or a pull request's Code tab.", "true", &[("true", "Collapsed"), ("false", "Expanded")]),
 ];
 /// The rows of the Appearance page that follow this device's preferences.
-pub(crate) const LAYOUT: [Row; 5] = [
+pub(crate) const LAYOUT: [Row; 6] = [
     Row::slider("appearanceContrast", "Contrast", "Adjust the contrast of colors and borders across the interface.", "100", 50, 200, 5, "%"),
     Row::slider("glassOpacity", "Glass opacity", "Higher values make menus, dialogs, and the composer more solid.", "80", 40, 100, 5, "%"),
     Row::slider("panelAnimationDurationMs", "Panel animations", "Set how fast panels open and close.", "0", 0, 400, 50, " ms"),
+    Row::switch("persistComposerContextStrip", "Composer context", "Keep branch and worktree controls below the composer after a thread starts.", false),
     Row::choice("chatWidth", "Chat width", "Set how wide messages and the composer can grow on large screens.", "\"comfortable\"", &[("\"comfortable\"", "Comfortable"), ("\"wide\"", "Wide"), ("\"full\"", "Full width")]),
     Row::choice("diffColorScheme", "Diff colors", "Choose colors for additions and deletions, including change counts.", "\"red-green\"", &[("\"red-green\"", "Red and green"), ("\"blue-orange\"", "Blue and orange")]),
 ];
+/// How a Dev or Nightly environment is marked in the sidebar (`stage_art`); the row is offered only where the environment has a mark.
+pub(crate) const ENVIRONMENT_IDENTIFICATION: [Row; 1] = [Row::choice("environmentIdentificationMode", "Environment identification", "Choose how Dev and Nightly environments are identified.", "\"artwork\"", &[("\"artwork\"", "Artwork"), ("\"pill\"", "Version pill"), ("\"none\"", "None")])];
 /// The rows that follow the environment's settings, by the key of the server's settings document.
 pub(crate) const ENVIRONMENT: [Row; 4] = [
     Row::choice("responseStreamingMode", "Response streaming", "Show a reply as it is written, paragraph by paragraph, or once the turn ends.", "\"paragraph\"", &[("\"paragraph\"", "By paragraph"), ("\"turn\"", "When the turn ends")]),
@@ -151,7 +156,7 @@ pub(crate) fn ClientRows(state: Store<UiModel>, rows: &'static [Row]) -> Element
 }
 
 /// Every row that follows this device's preferences, for "Restore device defaults".
-const DEVICE: [&[Row]; 7] = [&[NOTIFICATION_MODE], &BEHAVIOR, &CONFIRMATIONS, &QUIT, &DIFFS, &LAYOUT, &DISPLAY];
+const DEVICE: [&[Row]; 8] = [&[NOTIFICATION_MODE], &BEHAVIOR, &CONFIRMATIONS, &QUIT, &DIFFS, &LAYOUT, &ENVIRONMENT_IDENTIFICATION, &DISPLAY];
 
 /// The titles of the device preferences that are not at their defaults.
 pub(crate) fn changed_labels(state: Store<UiModel>) -> Vec<&'static str> {

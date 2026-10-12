@@ -50,6 +50,30 @@ pub(crate) fn harness(props: Harness) -> Element {
     rsx! {crate::Application {state,transport:props.transport}}
 }
 
+/// The app as a person's first launch has it: the device's preferences exist (and hold nothing), so the first-run gate may decide.
+/// `harness` has no preference store, which leaves the gate waiting for one.
+pub(crate) fn harness_with_preferences(props: Harness) -> Element {
+    let state = use_store(UiModel::default);
+    crate::themes::use_themes(state);
+    crate::client_settings::use_writer(state);
+    use_hook(|| {
+        let writer = consume_context::<crate::client_settings::Writer>();
+        let mut document = writer.document;
+        let generation = document.write().begin_hydration();
+        document.write().hydrate(generation, Ok(None)).expect("empty preferences");
+    });
+    use_context_provider(|| props.gate.clone());
+    *props.state.borrow_mut() = Some(state);
+    let transport = props.transport.clone();
+    use_future(move || {
+        let transport = transport.clone();
+        let address = props.address.clone();
+        let credential = props.credential.clone();
+        async move { pair_and_connect(transport, state, address, credential).await }
+    });
+    rsx! {crate::Application {state,transport:props.transport}}
+}
+
 pub(crate) async fn until(dom: &mut VirtualDom, label: &str, ready: impl Fn(&VirtualDom) -> bool) {
     tokio::time::timeout(Duration::from_secs(45), async {
         loop {
@@ -114,6 +138,8 @@ pub(crate) struct Fixture {
     pub(crate) address: String,
     /// The server's own store, for a test that must put a record where only the server writes one.
     pub(crate) store: t3_server::persistence::Store,
+    /// The environment descriptor the server reports, for the welcome it announces itself with.
+    environment: Value,
     /// The server's manual clock, which moves a limit's reset and the auto-settle sweep: set by `start_timed`.
     pub(crate) clock: Option<std::sync::Arc<t3_server::scheduled_tasks::ManualClock>>,
     /// Stops the server, the execution service and the settings owner (whose worker runs on the
@@ -294,8 +320,9 @@ impl Fixture {
         api.workspace = Some(t3_server::workspace_entries::WorkspaceEntries::new(root.clone(), workspace.clone()));
         let auth = api.auth.clone();
         let store = api.store.clone();
+        let environment = api.environment.clone();
         let (address, server) = start_fixture(api).await;
-        Self { directory, workspace, auth, address, store, clock, server }
+        Self { directory, workspace, auth, address, store, environment, clock, server }
     }
 
     /// The server's authentication service, for a test that wires another service to the same sessions.
@@ -311,7 +338,21 @@ impl Fixture {
         self.client_with(gate, scopes, |_| {})
     }
     /// As `client`, with `setup` run on the document before the first render (a context to provide).
+    /// What `t3-server serve` publishes once it accepts commands (`main.rs`): the working directory and the project's name, and no
+    /// bootstrap fields, since nothing was bootstrapped. The fixture does not start through `main`, so a test of the first-run gate
+    /// says it.
+    pub(crate) fn publish_startup_welcome(&self) {
+        let name = self.workspace.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned());
+        t3_server::server_lifecycle::publish(&self.store, "welcome", json!({"environment": self.environment, "cwd": self.workspace, "projectName": name}));
+    }
+    /// A client whose device preferences have been read, as on a first launch (see `harness_with_preferences`).
+    pub(crate) fn first_launch(&self, gate: Gate, scopes: &[AuthEnvironmentScope]) -> (VirtualDom, Harness) {
+        self.client_rooted(harness_with_preferences, gate, scopes, |_| {})
+    }
     pub(crate) fn client_with(&self, gate: Gate, scopes: &[AuthEnvironmentScope], setup: impl FnOnce(&mut VirtualDom)) -> (VirtualDom, Harness) {
+        self.client_rooted(harness, gate, scopes, setup)
+    }
+    fn client_rooted(&self, root: fn(Harness) -> Element, gate: Gate, scopes: &[AuthEnvironmentScope], setup: impl FnOnce(&mut VirtualDom)) -> (VirtualDom, Harness) {
         let credential = self
             .auth
             .create_pairing_credential(
@@ -327,7 +368,7 @@ impl Fixture {
             credential,
             gate,
         };
-        let mut dom = VirtualDom::new_with_props(harness, props.clone());
+        let mut dom = VirtualDom::new_with_props(root, props.clone());
         setup(&mut dom);
         dom.rebuild_in_place();
         (dom, props)

@@ -162,6 +162,12 @@ impl Catalog {
             .chain(&self.environment)
             .find(|theme| theme.id == id)
     }
+    /// `themeAllowsSidebarArtwork`: artwork palettes are reviewed with the built-ins; a theme the person made or an environment
+    /// publishes gets the pill instead.
+    pub fn allows_sidebar_artwork(&self, preference: &str) -> bool {
+        let id = normalize_id(preference);
+        self.data.builtin.iter().find(|theme| theme.id == id).is_some_and(|theme| theme.sidebar_artwork == Some(true))
+    }
     pub fn known(&self, preference: &str) -> bool {
         Mode::parse(preference).is_some() || self.definition(preference).is_some()
     }

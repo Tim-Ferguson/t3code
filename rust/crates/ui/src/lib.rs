@@ -10,6 +10,7 @@ mod command_palette;
 mod composer_banners;
 mod composer_menu;
 mod composer_panels;
+mod composer_rest;
 mod item_cards;
 mod base_ref_picker;
 mod git_control;
@@ -67,6 +68,8 @@ mod new_thread;
 mod notice;
 mod open_in;
 mod plan_save;
+mod proactive_panels;
+mod project_actions;
 mod project_create;
 mod provider_auth;
 mod provider_auth_local;
@@ -85,6 +88,7 @@ mod project_menu;
 mod sidebar_groups;
 mod sidebar_rows;
 mod sidebar_sections;
+mod stage_art;
 mod search;
 mod settings_common;
 mod settings_rows;
@@ -397,6 +401,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         ConnectionStatus::Disconnected => "Disconnected",
     };
     let error = state.error().read().clone();
+    let stage = stage_art::artwork(state);
+    // With "Composer context" on, the branch control sits under the composer of an open thread instead of in its header.
+    let persist_context_strip = state.client_settings().read().persist_composer_context_strip;
     let saved_connections: Vec<_> = state
         .environments()
         .read()
@@ -423,9 +430,11 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         style { {include_str!("../assets/theme-tokens.css")} }
         import_notice::Notice { state, transport: transport.clone() }
         background_activity::Reporter { state, transport: transport.clone() }
+        proactive_panels::Host { state }
         div { class: "{layout_class}", "data-theme": theme, "data-palette":palette,"data-contrast":if state.client_settings().read().appearance_contrast.0 == 100 {"default"} else {"custom"},style:format!("--ui-contrast:{};--panel-ms:{}ms;--glass-opacity:{}%{}",state.client_settings().read().appearance_contrast.0 as f64 / 100.0,state.client_settings().read().panel_animation_duration_ms.0,state.client_settings().read().glass_opacity.0,if state.client_settings().read().glass_opacity.0 == 100 {";--glass-blur:0px"} else {""}),"data-word-wrap":state.client_settings().read().word_wrap,"data-chat-width":wire_text(&state.client_settings().read().chat_width),"data-diff-color-scheme":wire_text(&state.client_settings().read().diff_color_scheme),
-            aside { class: "sidebar", "aria-label": "Main sidebar",
-                header { class: "brand", Wordmark {} span { "Code" } }
+            aside { class: if stage.is_some() { "sidebar has-stage-art" } else { "sidebar" }, "aria-label": "Main sidebar",
+                if let Some(variant) = stage { stage_art::Backdrop { key: "{variant:?}", variant } }
+                header { class: "brand", Wordmark {} span { "Code" } stage_art::Pill { state } }
                 {desktop_update_pill()}
                 nav { class: "sidebar-actions",
                     button { title: match &new_thread_hint { Some(hint) => format!("New thread ({hint})"), None => "New thread".to_owned() }, onclick: {let transport=transport.clone();move |_| runtime::new_thread(&transport,state,None)}, "＋ New thread" }
@@ -480,8 +489,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             let project_cwd = projects.iter().find(|project| project.id == active_thread.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
                             let worktree = active_thread.worktree_path.as_ref().map(ToString::to_string);
                             let cwd = worktree.clone().unwrap_or_else(|| project_cwd.clone());
-                            rsx! { if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
+                            rsx! { if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() && !persist_context_strip { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
                         }
+                        project_actions::RunControl { key: "run:{timeline_key}", state, thread_id: active_thread.id.to_string() }
                         diff_panel::Toggle { state, environment_key: environment_key.clone(), thread_id: active_thread.id.to_string() }
                         thread_pull_requests_panel::Toggle { state, thread_id: active_thread.id.to_string() }
                         thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
@@ -565,8 +575,9 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         section { class: "settings-page", settings_common::Tabs { state, current: View::Appearance }
                             h1 { "Appearance" }
                             themes::ThemeControls {}
-                            section { class: "sc-section", "aria-label": "Layout", h2 { "Layout" } settings_rows::ClientRows { state, rows: &settings_rows::LAYOUT } }
-                            appearance::Typography {state}
+                            section { class: "sc-section", "aria-label": "Layout", h2 { "Layout" } settings_rows::ClientRows { state, rows: &settings_rows::LAYOUT } if stage_art::offered(state) { settings_rows::ClientRows { state, rows: &settings_rows::ENVIRONMENT_IDENTIFICATION } } }
+                            // The font service is the app's (`use_fonts`); a harness that mounts the page without it has no fonts to set.
+                            if try_consume_context::<font_service::Fonts>().is_some() { appearance::Typography {state} }
                         }
                     },
                     View::Chat => rsx! {
@@ -643,6 +654,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
             thread_lifecycle::Host { state, transport: transport.clone() }
             draft_sessions::UndoNotice { state }
             welcome::Gate { state }
+            welcome::Recovery { state }
             welcome::Host { state, transport: transport.clone() }
             thread_relations::Host { state, transport: transport.clone() }
             thread_pull_requests_panel::LinkDialog { state, transport: transport.clone() }
@@ -1011,6 +1023,15 @@ fn Composer(
     // Enter in the box does what the Send button does, and nothing when that is not possible.
     let enter_send = use_callback({ let mut submit = submit.clone(); move |()| { if !blocked { submit(false); } } });
     let show_stop = running && !has_content && editing.read().is_none() && following_up.is_none();
+    let send_art = stage_art::artwork(state);
+    let persist_context_strip = state.client_settings().read().persist_composer_context_strip;
+    // "Collapse composer on scroll": a conversation scrolled up rests this composer into one line until it is used again.
+    let resting = {
+        let owner = composer_rest::owner(destination.as_ref().map(|id| id.as_str()).unwrap_or_default(), thread.id.as_str());
+        let attachment_problem = target.as_ref().is_some_and(|target| state.attachment_error().read().as_ref().is_some_and(|(owner, _)| owner == target));
+        let needs_room = unsupported || pending || attachment_block.is_some() || attachment_problem || state.prompt_length_error().read().is_some();
+        composer_rest::use_resting(state, owner, draft.contains('\n'), needs_room)
+    };
     let edit_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.editQueuedMessage"));
     let steer_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.steerQueuedMessage"));
     rsx! {
@@ -1022,7 +1043,10 @@ fn Composer(
         composer_panels::GoalStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         if let Some(plan)=following_up.clone() { composer_panels::PlanReady {plan} }
-        form { class: "composer", onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },
+        form { class: if resting { "composer resting" } else { "composer" }, "aria-label": "Message composer", "data-resting": "{resting}",
+            // Focusing, clicking or typing in the composer lifts the resting layout.
+            onfocusin: move |_| composer_rest::lift(state), onmousedown: move |_| composer_rest::lift(state),
+            onsubmit: { let mut submit=submit.clone(); move |event| { event.prevent_default(); submit(false); } },
             ondragover: move |event| event.prevent_default(),
             ondrop: move |event| { if let Some(handler)=drop_files.as_mut() { handler(event); } },
             prompt_stash::Dock {state,transport:transport.clone()}
@@ -1039,12 +1063,14 @@ fn Composer(
                     button { r#type: "button", "aria-label":"Stop generation", disabled: !can_operate, onclick: { let transport=transport.clone(); let id=thread.id.to_string(); move |_| { runtime::stop_thread(&transport,state,&id); } }, "■ Stop" }
                 } else {
                     if let Some(plan)=following_up.clone().filter(|_| !has_content && editing.read().is_none()) { plan_thread::ImplementActions {state,transport:transport.clone(),thread_id:thread.id.to_string(),plan,disabled:blocked} }
-                    button { class: "primary", r#type: "button", "aria-label":"{submit_label}", title:if rewinding() {"Rewinding the conversation\u{2026}".to_owned()} else if let Some(reason)=attachment_block.clone() {reason} else if running && editing.read().is_none() && following_up.is_none() {format!("Click to {}, Ctrl/\u{2318}-click to {}",if queue_by_default{"queue"}else{"steer"},if queue_by_default{"steer"}else{"queue"})} else {submit_label.to_owned()}, disabled: blocked,
+                    button { class: if send_art.is_some() { "primary stage" } else { "primary" }, r#type: "button", "aria-label":"{submit_label}", title:if rewinding() {"Rewinding the conversation\u{2026}".to_owned()} else if let Some(reason)=attachment_block.clone() {reason} else if running && editing.read().is_none() && following_up.is_none() {format!("Click to {}, Ctrl/\u{2318}-click to {}",if queue_by_default{"queue"}else{"steer"},if queue_by_default{"steer"}else{"queue"})} else {submit_label.to_owned()}, disabled: blocked,
                         onclick:{let mut submit=submit.clone();move |event: MouseEvent| {let modifiers=event.modifiers();if !blocked {submit(modifiers.ctrl()||modifiers.meta());}}},
+                        if let Some(variant) = send_art { stage_art::ButtonArt { key: "{variant:?}", variant } }
                         if pending { "Sending…" } else if following_up.is_some() || resume_run.is_some() { "{submit_label}" } else if editing.read().is_some() { "✓ Save" } else { "Send ↑" } }
                 }
             }
         }
+        if persist_context_strip { branch::ComposerStrip { state, transport: transport.clone(), thread: thread.clone() } }
     }
 }
 

@@ -57,6 +57,29 @@ fn refresh(transport: &TransportHandle, state: Store<UiModel>, cwd: &str) {
     });
 }
 
+/// The branch control under the composer of an open thread, where "Composer context" puts it (`mountComposerContextStrip`,
+/// `shouldShowComposerContextStrip`): the thread's workspace is its worktree, else its project's checkout. The header carries the
+/// control when the setting is off, so the two never show at once.
+#[component]
+pub(crate) fn ComposerStrip(state: Store<UiModel>, transport: TransportHandle, thread: t3_contracts::ThreadShell) -> Element {
+    let project_cwd = state
+        .shell()
+        .read()
+        .snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string()))
+        .unwrap_or_default();
+    let worktree = thread.worktree_path.as_ref().map(ToString::to_string);
+    let cwd = worktree.clone().unwrap_or_else(|| project_cwd.clone());
+    rsx! {
+        if !cwd.is_empty() {
+            div { class: "composer-context-strip", "aria-label": "Branch controls", "data-composer-context-strip": "{cwd}",
+                Control { key: "strip:{thread.id}:{cwd}", state, transport, thread_id: thread.id.to_string(), project_id: thread.project_id.to_string(), cwd: cwd.clone(), project_cwd, worktree }
+            }
+        }
+    }
+}
+
 #[component]
 pub(crate) fn Control(
     state: Store<UiModel>,
