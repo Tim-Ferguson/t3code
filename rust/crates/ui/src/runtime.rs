@@ -31,6 +31,7 @@ pub enum View {
     Projects,
     Diagnostics,
     Storage,
+    Integrations,
     Archived,
     PullRequests,
     Usage,
@@ -125,6 +126,9 @@ pub struct UiModel {
     pub diff: crate::diff_panel::DiffModel,
     /// The tabbed panel beside the conversation: its tabs per thread, the history of closed ones, and what shows of it.
     pub right_panel: crate::right_panel::Model,
+    /// The browser sessions of each thread the panel has followed, and the device state of each environment it has read.
+    pub previews: crate::preview_panel::Model,
+    pub devices: crate::device_panel::Model,
     /// The composer's resting layout, which the conversation's scroll rests and the composer's use lifts.
     pub composer_rest: crate::composer_rest::Model,
     /// The files whose edits are not on disk yet (`cwd`, a NUL, the path): the dot on a tab.
@@ -1782,6 +1786,68 @@ async fn environment_json_answering(handle: &TransportHandle, state: Store<UiMod
         return Err("The connection changed while this was being read.".into());
     }
     answer
+}
+
+/// A request to the connected environment's own HTTP API (a file a page downloaded, a screenshot, files for an open picker) with the
+/// connection's credential, answered in bytes. The answer is dropped, as an error, when the connection it was asked on is no longer
+/// the one the caller is on.
+pub(crate) async fn environment_bytes(handle: &TransportHandle, state: Store<UiModel>, method: reqwest::Method, path: &str, body: Option<(String, Vec<u8>)>) -> Result<Vec<u8>, String> {
+    let Some(owner) = response_owner(handle, state) else { return Err("Reconnect to read this.".into()) };
+    let (endpoint, token) = {
+        let transport = handle.borrow();
+        let Some(endpoint) = transport.endpoint.clone() else { return Err("Connect to a server to read this.".into()) };
+        (endpoint, transport.bearer_token.clone())
+    };
+    let mut request = reqwest::Client::new().request(method, endpoint.http(path)).header("x-t3-orchestration-protocol", "2").timeout(std::time::Duration::from_secs(120));
+    if !token.is_empty() {
+        request = request.bearer_auth(&token);
+    }
+    if let Some((content_type, bytes)) = body {
+        request = request.header("content-type", content_type).body(bytes);
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        request = match cookie_policy(!token.is_empty()) {
+            CookiePolicy::Omit => request.fetch_credentials_omit(),
+            CookiePolicy::SameOrigin => request.fetch_credentials_same_origin(),
+        };
+    }
+    let answer = async {
+        let response = request.send().await.map_err(|error| format!("Could not reach your T3 Code server: {error}"))?;
+        let status = response.status();
+        let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+        if status.is_success() { Ok(bytes.to_vec()) } else { Err(match String::from_utf8_lossy(&bytes).trim() { "" => format!("Server returned {status}"), text => text.to_owned() }) }
+    }
+    .await;
+    if response_owner(handle, state) != Some(owner) {
+        return Err("The connection changed while this was being read.".into());
+    }
+    answer
+}
+
+/// What a socket to one of the environment's media routes (`/api/preview-stream/ws`, the device hub) is given instead of a header,
+/// which a socket cannot carry: nothing for a cookie session, else a ticket, which covers everything a panel opens at once.
+pub(crate) async fn media_ticket(handle: &TransportHandle, state: Store<UiModel>) -> Result<Option<String>, String> {
+    if handle.borrow().bearer_token.is_empty() {
+        return Ok(None);
+    }
+    let answer = environment_json(handle, state, Some(&json!({})), "api/auth/websocket-ticket").await?;
+    answer["ticket"].as_str().map(|ticket| Some(ticket.to_owned())).ok_or_else(|| "Server did not issue a WebSocket ticket".to_owned())
+}
+
+/// The address of a route of the connected environment for an element that loads it itself (an `<img>`), which cannot carry a header
+/// either (`path` carries its query).
+pub(crate) fn environment_http_url(handle: &TransportHandle, path: &str) -> Option<String> {
+    handle.borrow().endpoint.as_ref().map(|endpoint| endpoint.http(path).to_string())
+}
+
+/// The address of a route of the connected environment for a socket (`path` carries its query).
+pub(crate) fn environment_socket_url(handle: &TransportHandle, path: &str) -> Option<String> {
+    let endpoint = handle.borrow().endpoint.clone()?;
+    let mut url = endpoint.http(path);
+    let scheme = if url.scheme() == "https" { "wss" } else { "ws" };
+    url.set_scheme(scheme).ok()?;
+    Some(url.to_string())
 }
 
 /// The address this connection reaches the server at, for a link another device can open.
@@ -3660,6 +3726,12 @@ mod thread_pull_requests_panel_tests;
 #[cfg(all(test, unix))]
 #[path = "right_panel_tests.rs"]
 mod right_panel_tests;
+#[cfg(all(test, unix))]
+#[path = "preview_tests.rs"]
+mod preview_tests;
+#[cfg(all(test, unix))]
+#[path = "device_tests.rs"]
+mod device_tests;
 
 #[cfg(all(test, unix))]
 #[path = "settings_search_tests.rs"]

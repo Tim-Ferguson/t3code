@@ -284,8 +284,11 @@ async fn the_keybindings_page_records_shows_a_clash_saves_resets_and_removes() {
     let default_label = label_for("diff.toggle");
     // Only commands this app has are listed.
     assert!(control(&dom, &format!("Edit shortcut for Diff: Toggle: {default_label}")).is_some());
-    assert!(control(&dom, "Edit shortcut for Preview: Toggle: ").is_none());
-    assert!(rendered_text(&dom).contains("more shortcuts in the file are for features this app does not have yet"));
+    // The browser's commands are listed now; the thread details panel's still is not.
+    assert!(rendered_text(&dom).contains("Preview: Toggle") && rendered_text(&dom).contains("Preview: Refresh"));
+    assert!(!rendered_text(&dom).contains("Thread Panel: Toggle"));
+    // Every shortcut the default file binds is a command this app carries out now, so no line counts the ones it does not.
+    assert!(!rendered_text(&dom).contains("more shortcuts in the file are for features this app does not have yet"));
 
     // Record mod+k for the diff: it takes the chord of the palette under the same condition.
     click_control(&mut dom, &format!("Edit shortcut for Diff: Toggle: {default_label}"));

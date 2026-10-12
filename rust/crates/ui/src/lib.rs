@@ -34,6 +34,9 @@ mod pull_request_thread;
 mod pull_request_files;
 mod diff_panel;
 mod right_panel;
+mod preview_panel;
+mod device_panel;
+mod media_save;
 #[cfg(feature = "desktop")]
 mod desktop_updates;
 #[cfg(feature = "desktop")]
@@ -108,6 +111,7 @@ fn wire_text(value: &impl serde::Serialize) -> String {
 mod server_update;
 mod source_control_page;
 mod storage_page;
+mod integrations_page;
 mod subagent_rows;
 mod thread_status_line;
 mod syntax_highlighting;
@@ -304,6 +308,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         thread_selection::prune(state);
     });
     right_panel::use_persist(state);
+    right_panel::use_cleanup(state, transport.clone());
     let runner = keys::use_keys(state, transport.clone());
     clone_view::use_stream(state, transport.clone());
     let new_thread_hint = runner.keys.label("chat.new");
@@ -561,6 +566,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     View::TextGeneration => rsx! {text_generation_page::Page {state,transport:transport.clone()}},
                     View::Diagnostics => rsx! {diagnostics_page::Page {state,transport:transport.clone()}},
                     View::Storage => rsx! {storage_page::Page {state,transport:transport.clone()}},
+                    View::Integrations => rsx! {integrations_page::Page {state,transport:transport.clone()}},
                     View::Archived => rsx! {thread_lifecycle::ArchivedPage {state,transport:transport.clone()}},
                     View::PullRequests => rsx! {
                         pull_request_list::Page {state,transport:transport.clone()}

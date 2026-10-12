@@ -408,7 +408,10 @@ impl Context {
         self
     }
     pub fn with_dom(self, dom: Dom) -> Self {
-        let context = self.with("terminalFocus", dom.terminal_focus).with("editableFocus", dom.editable_focus).with("composerFocus", dom.composer_focus).with("dialogOpen", dom.dialog_open);
+        // The browser has the keyboard while one is shown and the focus is not in the composer, a terminal or a dialog (the original reads
+        // the focus of its webview, which this page does not have).
+        let preview = self.has("previewOpen") && !dom.composer_focus && !dom.terminal_focus && !dom.dialog_open;
+        let context = self.with("previewFocus", preview).with("terminalFocus", dom.terminal_focus).with("editableFocus", dom.editable_focus).with("composerFocus", dom.composer_focus).with("dialogOpen", dom.dialog_open);
         // The Usage page's plain letters never take a key from a field or a dialog (`resolveUsageShortcut`).
         if dom.editable_focus || dom.dialog_open { context.with("usagePageOpen", false) } else { context }
     }
@@ -419,7 +422,7 @@ impl Context {
 
 /// Every name the app's contexts define, for the editor's variable list.
 pub const CONTEXT_NAMES: &[&str] = &[
-    "terminalFocus", "terminalOpen", "isWeb", "isDesktop", "editableFocus", "composerFocus", "dialogOpen", "diffOpen", "turnRunning", "commandPaletteOpen", "modelPickerOpen", "usagePageOpen", "true", "false",
+    "terminalFocus", "terminalOpen", "isWeb", "isDesktop", "editableFocus", "composerFocus", "dialogOpen", "diffOpen", "previewOpen", "previewFocus", "turnRunning", "commandPaletteOpen", "modelPickerOpen", "usagePageOpen", "true", "false",
 ];
 
 pub fn evaluate_when(node: &When, context: &Context) -> bool {

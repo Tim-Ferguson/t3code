@@ -4,14 +4,14 @@
 //!
 //! The model is shallow on purpose, as the original's: it owns the ordered tab descriptors and the
 //! shown one, while each feature keeps its own resource state (a file's text, a pull request's
-//! detail). Tabs here are the diff, the project's files, a file, a pull request and the thread's
-//! linked pull requests; the browser, terminal and device tabs of the original are not part of this
-//! port's panel.
+//! detail). Tabs here are the diff, the project's files, a file, a pull request, the thread's linked
+//! pull requests, a browser (a session of the server's own browser, `preview.rs`), a terminal (one
+//! of the thread's terminals, with no splits) and a device (`device_panel.rs`).
 //!
 //! A "key" is the panel's owner, `environment:thread` (`terminal_ui::ScopedPanes::key`).
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Where the panels are kept (the original's is `t3code:right-panel-state:v2` and holds tabs this
 /// port has no kind for, so this port neither reads nor writes it).
@@ -27,6 +27,30 @@ pub enum Kind {
     Diff,
     Files,
     PullRequests,
+    /// The browser: any of its tabs, or the empty one a first opening makes.
+    Preview,
+    /// The device picker, or a device chosen from it.
+    Device,
+}
+
+/// The simulator or emulator a device tab shows (`DeviceTabTarget`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceTarget {
+    pub host_id: String,
+    pub device_id: String,
+    /// `ios` or `android`.
+    pub platform: String,
+    pub name: String,
+}
+impl DeviceTarget {
+    fn surface_id_of(target: Option<&DeviceTarget>) -> String {
+        target.map_or_else(|| "device".to_owned(), DeviceTarget::surface_id)
+    }
+    fn surface_id(&self) -> String {
+        let encode = |text: &str| url::form_urlencoded::byte_serialize(text.as_bytes()).collect::<String>().replace('+', "%20");
+        format!("device:{}:{}", encode(&self.host_id), encode(&self.device_id))
+    }
 }
 
 /// What a pull request tab shows. The reference lives in the tab's id, so several pull requests can
@@ -62,6 +86,20 @@ pub enum Surface {
     },
     PullRequest(PullRequestTarget),
     PullRequests,
+    /// A browser tab: the server's session for it, or none yet (`browser:new`, the empty tab that waits for an address).
+    Preview {
+        #[serde(default)]
+        resource_id: Option<String>,
+    },
+    /// One of the thread's terminals.
+    Terminal { terminal_id: String },
+    /// The device picker (`device`), or a device chosen from it.
+    Device {
+        #[serde(default)]
+        target: Option<DeviceTarget>,
+        #[serde(default)]
+        title: Option<String>,
+    },
 }
 impl Surface {
     /// `pullRequestSurfaceId`: the environment leads where there is one, so one pull request read from two servers is two
@@ -79,6 +117,10 @@ impl Surface {
             Surface::File { relative_path, .. } => format!("file:{relative_path}"),
             Surface::PullRequest(target) => Self::pull_request_id(target),
             Surface::PullRequests => "pull-requests".into(),
+            Surface::Preview { resource_id: Some(tab) } => format!("browser:{tab}"),
+            Surface::Preview { resource_id: None } => "browser:new".into(),
+            Surface::Terminal { terminal_id } => format!("terminal:{terminal_id}"),
+            Surface::Device { target, .. } => DeviceTarget::surface_id_of(target.as_ref()),
         }
     }
     pub fn of(kind: Kind) -> Self {
@@ -86,6 +128,8 @@ impl Surface {
             Kind::Diff => Surface::Diff,
             Kind::Files => Surface::Files,
             Kind::PullRequests => Surface::PullRequests,
+            Kind::Preview => Surface::Preview { resource_id: None },
+            Kind::Device => Surface::Device { target: None, title: None },
         }
     }
     pub fn kind(&self) -> Option<Kind> {
@@ -93,6 +137,8 @@ impl Surface {
             Surface::Diff => Some(Kind::Diff),
             Surface::Files => Some(Kind::Files),
             Surface::PullRequests => Some(Kind::PullRequests),
+            Surface::Preview { .. } => Some(Kind::Preview),
+            Surface::Device { .. } => Some(Kind::Device),
             _ => None,
         }
     }
@@ -104,6 +150,10 @@ impl Surface {
             Surface::File { relative_path, .. } => relative_path.rsplit(['/', '\\']).next().unwrap_or(relative_path).to_owned(),
             Surface::PullRequest(target) => format!("#{}", target.number),
             Surface::PullRequests => "Pull requests".into(),
+            // The page's title is the session's; the panel draws it from there.
+            Surface::Preview { .. } => "Browser".into(),
+            Surface::Terminal { terminal_id } => crate::terminal_labels::label(terminal_id, None),
+            Surface::Device { target, title } => title.clone().or_else(|| target.as_ref().map(|target| target.name.clone())).unwrap_or_else(|| "Device".into()),
         }
     }
     /// A pull request tab with its host in the form the id uses.
@@ -132,6 +182,11 @@ impl ThreadPanel {
     }
     fn is_empty(&self) -> bool {
         !self.is_open && self.active_surface_id.is_none() && self.surfaces.is_empty()
+    }
+    /// A tab of `kind` for the panel to show: the one of that kind it already has, else a new one.
+    fn upsert_kind(&mut self, kind: Kind) {
+        let existing = if matches!(kind, Kind::Preview | Kind::Device) { self.surfaces.iter().find(|surface| surface.kind() == Some(kind)).cloned() } else { None };
+        self.upsert(existing.unwrap_or_else(|| Surface::of(kind)));
     }
     /// `upsertSurface`: the panel opens, the tab is added when it is new, and it is shown.
     fn upsert(&mut self, surface: Surface) {
@@ -195,9 +250,9 @@ impl Panels {
         result
     }
 
-    /// Opens a tab that exists once, or shows the one there is.
+    /// Opens a tab that exists once, or shows the one there is. The browser shows the tab it has, else an empty one.
     pub fn open(&mut self, key: &str, kind: Kind) {
-        self.user(key, |panel| panel.upsert(Surface::of(kind)));
+        self.user(key, |panel| panel.upsert_kind(kind));
     }
     /// Opens a file as a tab beside the others; the standalone explorer gives way. `.` is the project's root, which is the
     /// explorer. Files of another folder start a new row of tabs, since a path means nothing against another checkout.
@@ -339,9 +394,78 @@ impl Panels {
             if shown {
                 panel.is_open = false;
             } else {
-                panel.upsert(Surface::of(kind));
+                panel.upsert_kind(kind);
             }
         });
+    }
+    /// `openBrowser`: the tab of a session; opening one for a session replaces the empty tab that waited for it.
+    pub fn open_preview(&mut self, key: &str, tab_id: Option<&str>) {
+        self.user(key, |panel| {
+            let surface = Surface::Preview { resource_id: tab_id.map(str::to_owned) };
+            if tab_id.is_some() {
+                panel.surfaces.retain(|entry| entry.id() != "browser:new");
+            }
+            panel.upsert(surface);
+        });
+    }
+    /// `openTerminal`.
+    pub fn open_terminal(&mut self, key: &str, terminal_id: &str) {
+        self.user(key, |panel| panel.upsert(Surface::Terminal { terminal_id: terminal_id.to_owned() }));
+    }
+    /// `openDevice`: the picker tab turns into the device chosen from it, and a device already open is shown instead.
+    pub fn open_device(&mut self, key: &str, target: DeviceTarget) {
+        self.user(key, |panel| {
+            let surface = Surface::Device { target: Some(target), title: None };
+            let id = surface.id();
+            if panel.surfaces.iter().any(|entry| entry.id() == id) {
+                panel.surfaces.retain(|entry| entry.id() != "device");
+            } else {
+                for entry in panel.surfaces.iter_mut() {
+                    if entry.id() == "device" {
+                        *entry = surface.clone();
+                    }
+                }
+            }
+            panel.upsert(surface);
+        });
+    }
+    /// `renameDevice`: an empty name is the device's own.
+    pub fn rename_device(&mut self, key: &str, surface_id: &str, new_title: &str) {
+        self.user(key, |panel| {
+            for entry in panel.surfaces.iter_mut() {
+                if let Surface::Device { target, title } = entry {
+                    if DeviceTarget::surface_id_of(target.as_ref()) == surface_id {
+                        let trimmed = new_title.trim();
+                        *title = Some(if trimmed.is_empty() { target.as_ref().map_or("Device".to_owned(), |target| target.name.clone()) } else { trimmed.to_owned() });
+                    }
+                }
+            }
+        });
+    }
+    /// `reconcileBrowserSurfaces`: the panel holds a tab for each session the server lists (but those `hidden`, which the
+    /// person closed), keeps the empty tab, and shows the first browser tab when the shown one went. Not a choice of the person's.
+    pub fn reconcile_previews(&mut self, key: &str, tab_ids: &[String], hidden: &BTreeSet<String>) {
+        self.edit(key, |panel| {
+            let valid: BTreeSet<String> = tab_ids.iter().map(|tab| format!("browser:{tab}")).collect();
+            let mut surfaces: Vec<Surface> = panel.surfaces.iter().filter(|surface| !matches!(surface, Surface::Preview { .. })).cloned().collect();
+            let existing: Vec<Surface> = panel.surfaces.iter().filter(|surface| matches!(surface, Surface::Preview { .. }) && surface.id() != "browser:new" && valid.contains(&surface.id())).cloned().collect();
+            let known: BTreeSet<String> = existing.iter().map(Surface::id).collect();
+            let added: Vec<Surface> = tab_ids.iter().filter(|tab| !known.contains(&format!("browser:{tab}")) && !hidden.contains(*tab)).map(|tab| Surface::Preview { resource_id: Some(tab.clone()) }).collect();
+            surfaces.extend(existing);
+            surfaces.extend(added);
+            if surfaces == panel.surfaces {
+                return;
+            }
+            let active_exists = surfaces.iter().any(|surface| Some(surface.id()) == panel.active_surface_id);
+            if !active_exists {
+                panel.active_surface_id = surfaces.iter().find(|surface| matches!(surface, Surface::Preview { .. })).or(surfaces.first()).map(Surface::id);
+            }
+            panel.surfaces = surfaces;
+        });
+    }
+    /// The terminals the panel's tabs hold, so the drawer leaves them alone.
+    pub fn terminal_ids(&self, key: &str) -> Vec<String> {
+        self.get(key).surfaces.iter().filter_map(|surface| if let Surface::Terminal { terminal_id } = surface { Some(terminal_id.clone()) } else { None }).collect()
     }
     pub fn remove_thread(&mut self, key: &str) {
         self.by_thread.remove(key);
@@ -401,6 +525,8 @@ fn valid(surface: &Surface) -> bool {
     match surface {
         Surface::File { relative_path, .. } => !relative_path.is_empty(),
         Surface::PullRequest(target) => target.number >= 1 && !target.repository.is_empty() && !target.project_id.is_empty(),
+        Surface::Terminal { terminal_id } => !terminal_id.is_empty(),
+        Surface::Preview { resource_id } => resource_id.as_deref().is_none_or(|tab| !tab.is_empty()),
         _ => true,
     }
 }
@@ -419,6 +545,27 @@ pub struct Closed {
     pub environment: String,
     pub thread_id: String,
     pub surface: Surface,
+    /// Set for a browser tab that had a session: what reopening it opens again (`ClosedView` `browser`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub browser: Option<ClosedBrowser>,
+}
+/// The session of a browser tab that was closed (its snapshot, as far as a reopening reads it).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedBrowser {
+    /// None for a tab that never had an address.
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub viewport: Option<Value>,
+    #[serde(default)]
+    pub profile_id: Option<String>,
+}
+impl ClosedBrowser {
+    /// A tab in the incognito profile is not kept for reopening, nor written to storage.
+    fn persists(&self) -> bool {
+        self.profile_id.as_deref() != Some("incognito")
+    }
 }
 impl Closed {
     pub fn key(&self) -> String {
@@ -434,9 +581,20 @@ pub struct History {
 impl History {
     /// Remembers a closed tab; closing it again moves it to the front.
     pub fn remember(&mut self, environment: &str, thread_id: &str, surface: Surface, id: String) {
+        self.remember_with(environment, thread_id, surface, None, id);
+    }
+    /// A browser tab that had a session comes back as a new session at its address, profile and size.
+    pub fn remember_browser(&mut self, environment: &str, thread_id: &str, surface: Surface, browser: ClosedBrowser, id: String) {
+        self.remember_with(environment, thread_id, surface, Some(browser), id);
+    }
+    fn remember_with(&mut self, environment: &str, thread_id: &str, surface: Surface, browser: Option<ClosedBrowser>, id: String) {
+        // A terminal is stopped with its tab: there is nothing to bring back.
+        if matches!(surface, Surface::Terminal { .. }) || browser.as_ref().is_some_and(|browser| !browser.persists()) {
+            return;
+        }
         let key = surface.id();
         self.entries.retain(|entry| !(entry.environment == environment && entry.thread_id == thread_id && entry.surface.id() == key));
-        self.entries.insert(0, Closed { id, environment: environment.to_owned(), thread_id: thread_id.to_owned(), surface });
+        self.entries.insert(0, Closed { id, environment: environment.to_owned(), thread_id: thread_id.to_owned(), surface, browser });
         self.entries.truncate(MAX_CLOSED);
     }
     /// Puts an entry that could not be restored last, so the next press tries the one before it.
@@ -457,7 +615,7 @@ impl History {
         let entries = raw
             .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
             .and_then(|value| value.get("entries").and_then(Value::as_array).cloned())
-            .map(|list| list.into_iter().filter_map(|entry| serde_json::from_value::<Closed>(entry).ok()).filter(|entry| valid(&entry.surface) && !entry.id.is_empty()).collect())
+            .map(|list| list.into_iter().filter_map(|entry| serde_json::from_value::<Closed>(entry).ok()).filter(|entry| valid(&entry.surface) && !entry.id.is_empty() && !matches!(entry.surface, Surface::Terminal { .. }) && entry.browser.as_ref().is_none_or(ClosedBrowser::persists)).collect())
             .unwrap_or_default();
         Self { entries }
     }
@@ -736,6 +894,100 @@ mod tests {
         assert!(panels.keys().is_empty() || !panels.get(A).is_open);
     }
 
+    fn target(device: &str) -> DeviceTarget {
+        DeviceTarget { host_id: "local".into(), device_id: device.into(), platform: "ios".into(), name: format!("Phone {device}") }
+    }
+
+    #[test]
+    fn browser_tabs_are_one_per_session_and_a_session_replaces_the_empty_tab() {
+        let mut panels = Panels::default();
+        panels.open(A, Kind::Preview);
+        panels.open(A, Kind::Preview);
+        assert_eq!(ids(&panels, A), ["browser:new"], "an open browser is shown, not added again");
+        panels.open_preview(A, Some("tab_1"));
+        assert_eq!(ids(&panels, A), ["browser:tab_1"], "the tab that waited for an address is the session's now");
+        panels.open_preview(A, Some("tab_2"));
+        panels.open(A, Kind::Files);
+        panels.open(A, Kind::Preview);
+        assert_eq!(panels.get(A).active_surface_id.as_deref(), Some("browser:tab_1"), "the browser the panel has comes up");
+        assert_eq!(panels.get(A).surfaces[0].title(), "Browser");
+        // The shortcut hides the browser and shows it again; any browser tab counts as shown.
+        panels.toggle(A, Kind::Preview);
+        assert!(!panels.get(A).is_open);
+        panels.toggle(A, Kind::Preview);
+        assert!(panels.is_active(A, Kind::Preview) && ids(&panels, A).len() == 3);
+    }
+
+    #[test]
+    fn the_server_listing_the_sessions_adds_and_drops_tabs_without_counting_as_a_choice() {
+        let mut panels = Panels::default();
+        panels.open(A, Kind::Files);
+        panels.open_preview(A, Some("gone"));
+        let revision = panels.user_revision(A);
+        let hidden: BTreeSet<String> = ["closed".to_owned()].into();
+        panels.reconcile_previews(A, &["kept".to_owned(), "closed".to_owned(), "new".to_owned()], &hidden);
+        assert_eq!(ids(&panels, A), ["files", "browser:kept", "browser:new"], "a session the person closed stays closed, one the server lists is added");
+        assert_eq!(panels.get(A).active_surface_id.as_deref(), Some("browser:kept"), "the shown tab went with its session: the first browser tab is shown");
+        assert_eq!(panels.user_revision(A), revision);
+        panels.open(A, Kind::Preview);
+        panels.activate(A, "browser:new");
+        let empty = Surface::Preview { resource_id: None };
+        assert!(!panels.get(A).surfaces.contains(&empty));
+        panels.reconcile_previews(A, &["kept".to_owned(), "new".to_owned()], &BTreeSet::new());
+        assert_eq!(ids(&panels, A), ["files", "browser:kept", "browser:new"]);
+    }
+
+    #[test]
+    fn a_terminal_tab_is_one_terminal_and_is_not_remembered_for_reopening() {
+        let mut panels = Panels::default();
+        let mut history = History::default();
+        panels.open_terminal(A, "term-2");
+        panels.open_terminal(A, "term-2");
+        panels.open_terminal(A, "term-3");
+        assert_eq!(ids(&panels, A), ["terminal:term-2", "terminal:term-3"]);
+        assert_eq!(panels.terminal_ids(A), ["term-2", "term-3"]);
+        assert_eq!(panels.get(A).surfaces[0].title(), "Terminal 2");
+        closing(&mut panels, &mut history, A, |panels| panels.close_all(A));
+        assert!(history.entries.is_empty(), "a terminal stops with its tab");
+    }
+
+    #[test]
+    fn a_device_tab_replaces_the_picker_and_is_renamed_by_the_person() {
+        let mut panels = Panels::default();
+        panels.open(A, Kind::Device);
+        assert_eq!(ids(&panels, A), ["device"]);
+        panels.open_device(A, target("one"));
+        assert_eq!(ids(&panels, A), ["device:local:one"], "the picker became the device chosen from it");
+        panels.open(A, Kind::Device);
+        assert_eq!(ids(&panels, A), ["device:local:one"], "an open device is what the Device tab shows");
+        panels.open_device(A, target("two"));
+        panels.open_device(A, target("one"));
+        assert_eq!(ids(&panels, A), ["device:local:one", "device:local:two"], "choosing an open device shows it and adds nothing");
+        assert_eq!(panels.get(A).active_surface_id.as_deref(), Some("device:local:one"));
+        panels.rename_device(A, "device:local:one", "  Rear camera ");
+        assert_eq!(panels.get(A).surfaces[0].title(), "Rear camera");
+        panels.rename_device(A, "device:local:one", "  ");
+        assert_eq!(panels.get(A).surfaces[0].title(), "Phone one", "an empty name is the device's own");
+        let again = Panels::parse(Some(&panels.to_json()));
+        assert_eq!(again, panels);
+    }
+
+    #[test]
+    fn a_closed_browser_session_comes_back_as_a_new_session_unless_it_was_private() {
+        let mut history = History::default();
+        let tab = Surface::Preview { resource_id: Some("tab_1".into()) };
+        let session = |profile: &str| ClosedBrowser { url: Some("http://localhost:5173/".into()), viewport: Some(serde_json::json!({"_tag":"fill"})), profile_id: Some(profile.into()) };
+        history.remember_browser("env", "thread-a", tab.clone(), session("work"), "1".into());
+        history.remember_browser("env", "thread-a", Surface::Preview { resource_id: Some("tab_2".into()) }, session("incognito"), "2".into());
+        assert_eq!(history.entries.len(), 1, "an incognito tab leaves nothing behind");
+        let again = History::parse(Some(&history.to_json()));
+        assert_eq!(again, history);
+        assert_eq!(again.entries[0].browser.as_ref().and_then(|browser| browser.profile_id.as_deref()), Some("work"));
+        // A stored incognito entry is dropped on reading.
+        let stored = serde_json::json!({"version":1,"entries":[{"id":"x","environment":"e","threadId":"t","surface":{"kind":"preview","resourceId":"tab"},"browser":{"url":"http://x/","profileId":"incognito"}}]});
+        assert!(History::parse(Some(&stored.to_string())).entries.is_empty());
+    }
+
     #[test]
     fn the_history_keeps_twenty_and_moves_a_closed_again_tab_to_the_front() {
         let mut history = History::default();
@@ -787,7 +1039,7 @@ mod tests {
 
     #[test]
     fn reopening_plans_in_the_originals_order() {
-        let closed = |id: &str, surface: Surface| Closed { id: id.into(), environment: "env".into(), thread_id: "thread-a".into(), surface };
+        let closed = |id: &str, surface: Surface| Closed { id: id.into(), environment: "env".into(), thread_id: "thread-a".into(), surface, browser: None };
         let entries = [closed("a", Surface::Diff), closed("b", Surface::Files)];
         let hidden = ThreadPanel { is_open: false, active_surface_id: Some("diff".into()), surfaces: vec![Surface::Diff] };
         let shown = ThreadPanel { is_open: true, ..hidden.clone() };

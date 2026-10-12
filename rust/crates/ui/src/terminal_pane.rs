@@ -108,9 +108,10 @@ impl Catalog {
             let _ = self.writer.unbounded_send(bytes);
         }
     }
-    /// A terminal id no terminal of this thread has, whether the pane or the server knows it.
-    fn allocate(&self, key: &str) -> String {
+    /// A terminal id no terminal of this thread has, whether the pane or the server knows it, or `others` (the panel's tabs).
+    fn allocate(&self, key: &str, others: &[String]) -> String {
         let mut ids = self.panes.peek().get(key).terminal_ids;
+        ids.extend(others.iter().cloned());
         let known = self.known.peek();
         let saved = known.get(key);
         if let Some(rows) = saved {
@@ -137,13 +138,13 @@ impl Catalog {
         if !self.panes.peek().get(key).terminal_open {
             self.change(key, |panes, key| panes.set_open(key, true));
         }
-        let id = self.allocate(key);
+        let id = self.allocate(key, &[]);
         self.change(key, |panes, key| panes.upsert(key, &id, split.is_some(), split.unwrap_or(Direction::Horizontal)));
         true
     }
     /// A new terminal in the thread's drawer that runs `launch.command` as soon as it is attached (`runProjectScript`). Returns its id.
     pub(crate) fn run_command(&self, key: &str, launch: Launch) -> String {
-        let id = self.allocate(key);
+        let id = self.allocate(key, &[]);
         let mut launches = self.launches;
         launches.write().insert((key.to_owned(), id.clone()), launch);
         // The terminal first: opening an empty drawer makes the default terminal, which this one is instead.
@@ -354,10 +355,13 @@ pub fn Drawer(
                         .into_iter()
                         .filter(|row| row.thread_id.as_str() == thread)
                         .collect::<Vec<_>>();
-                    let ids = rows
+                    let all = rows
                         .iter()
                         .map(|row| row.terminal_id.to_string())
                         .collect::<Vec<_>>();
+                    // A terminal the right panel holds in a tab of its own is not the drawer's.
+                    let held = crate::right_panel::terminal_tabs(state, &environment, &thread);
+                    let ids = all.iter().filter(|id| !held.contains(id)).cloned().collect::<Vec<_>>();
                     let current = catalog.panes.peek().get(&key);
                     // Source preserves local split/new IDs while the server list lags an open.
                     if current.terminal_ids != ids
@@ -367,7 +371,7 @@ pub fn Drawer(
                         catalog.change(&key, |panes, key| panes.reconcile(key, &ids));
                     }
                     let mut known = catalog.known;
-                    known.write().insert(key.clone(), ids.clone());
+                    known.write().insert(key.clone(), all);
                     summaries.set(Some(rows));
                 }
                 delay(250).await;
@@ -592,6 +596,37 @@ fn close_terminal(
             errors.set(Some(cause));
         }
     });
+}
+
+/// An id for a terminal of the thread that nothing has, for a new tab of the right panel.
+pub(crate) fn allocate_id(state: Store<UiModel>, environment: &str, thread: &str) -> String {
+    let key = ScopedPanes::key(environment, thread);
+    let held = crate::right_panel::terminal_tabs(state, environment, thread);
+    match try_consume_context::<Catalog>() {
+        Some(catalog) => catalog.allocate(&key, &held),
+        None => t3_client::terminal_labels::next_id(&held, Some(&uuid::Uuid::new_v4().to_string())),
+    }
+}
+
+/// Stops a terminal whose tab was closed and clears its history, when the connection may operate terminals (`closeTerminalMutation`).
+pub(crate) fn close_on_server(transport: &TransportHandle, state: Store<UiModel>, thread: &str, terminal: &str) {
+    if !operates(state) {
+        return;
+    }
+    let (transport, thread, terminal) = (transport.clone(), thread.to_owned(), terminal.to_owned());
+    spawn(async move {
+        let _ = runtime::request_value_reported(transport, state, "terminal.close", json!({"threadId":thread,"terminalId":terminal,"deleteHistory":true})).await;
+    });
+}
+
+/// A terminal as a tab of the right panel: one terminal of the thread, attached for as long as the tab is shown.
+#[component]
+pub(crate) fn Tab(state: Store<UiModel>, transport: TransportHandle, environment: String, thread_id: String, terminal_id: String, cwd: String) -> Element {
+    if try_consume_context::<Catalog>().is_none() {
+        return rsx! {};
+    }
+    let can_operate = use_memo(move || *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|id| state.environments().read().allows(id, AuthEnvironmentScope::TerminalOperate)));
+    rsx! { div { class: "terminal-tab", CanvasPane { environment, state, transport, thread_id, terminal_id, cwd, worktree: None, visible: true, can_operate: can_operate(), active: true } } }
 }
 
 /// The terminal of the welcome wizard's agent setup: one pane that belongs to no thread's drawer.

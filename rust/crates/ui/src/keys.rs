@@ -162,6 +162,7 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             Context::base(desktop())
                 .with("terminalOpen", terminal_open)
                 .with("diffOpen", crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Diff))
+                .with("previewOpen", crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Preview))
                 .with("rightPanelOpen", crate::right_panel::is_open(state))
                 .with("turnRunning", open_thread(state).is_some_and(|thread| thread.working))
                 .with("commandPaletteOpen", state.palette().read().open)
@@ -217,6 +218,13 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
             }
             if chat && crate::right_panel::is_open(state) {
                 set.extend(["rightPanel.new", "rightPanel.toggleMaximized"].map(String::from));
+            }
+            // The browser: its key shows or hides it (and says when it cannot be shown); the others act on the one that is shown.
+            if chat && open.is_some() && (crate::preview_panel::available(state) || crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Preview) || !crate::preview_panel::hosted(state)) {
+                set.insert("preview.toggle".into());
+            }
+            if chat && crate::right_panel::is_shown(state, t3_client::right_panel::Kind::Preview) && crate::preview_panel::can_operate(state) {
+                set.extend(["preview.refresh", "preview.focusUrl", "preview.zoomIn", "preview.zoomOut", "preview.resetZoom"].map(String::from));
             }
             // Nothing shown: the key keeps its meaning of closing the window or the browser's tab.
             if chat && crate::right_panel::shown_surface(state).is_some() {
@@ -468,7 +476,7 @@ impl Runner {
         if event.repeat {
             return crate::right_panel::launcher_letters(self.state).contains(&letter.to_ascii_uppercase()).then(|| "rightPanel.launcher".to_owned());
         }
-        crate::right_panel::run_launcher_letter(self.state, letter).map(|label| format!("rightPanel.launcher.{label}"))
+        crate::right_panel::run_launcher_letter(self.state, &self.transport, letter).map(|label| format!("rightPanel.launcher.{label}"))
     }
 
     /// Runs a command: what its shortcut does, and what the palette's entry for it does.
@@ -521,6 +529,12 @@ impl Runner {
             "rightPanel.new" => crate::right_panel::open_add_menu(state),
             "rightPanel.toggleMaximized" => crate::right_panel::toggle_maximized(state),
             "rightPanel.close" => crate::right_panel::close_shown(state),
+            "preview.toggle" => crate::preview_panel::toggle(&self.transport, state),
+            "preview.refresh" => crate::preview_panel::dispatch(state, crate::preview_panel::Action::Refresh),
+            "preview.focusUrl" => crate::preview_panel::dispatch(state, crate::preview_panel::Action::FocusUrl),
+            "preview.zoomIn" => crate::preview_panel::dispatch(state, crate::preview_panel::Action::ZoomIn),
+            "preview.zoomOut" => crate::preview_panel::dispatch(state, crate::preview_panel::Action::ZoomOut),
+            "preview.resetZoom" => crate::preview_panel::dispatch(state, crate::preview_panel::Action::ResetZoom),
             "view.reopenClosed" => crate::right_panel::reopen_closed(&self.transport, state),
             "editor.openFavorite" => {
                 let last = self.last_editor.0.peek().clone();

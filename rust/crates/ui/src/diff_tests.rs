@@ -25,6 +25,8 @@ thread_local! {
     static OFFERED: RefCell<Option<Value>> = const { RefCell::new(None) };
     static WITH_BACKGROUND: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static WITH_USAGE_SOURCES: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The hosts besides the local one that the device service of the next fixture manages.
+    static WITH_DEVICES: RefCell<Option<Vec<std::sync::Arc<dyn t3_server::device_host::DeviceHost>>>> = const { RefCell::new(None) };
 }
 
 #[derive(Clone)]
@@ -142,6 +144,11 @@ pub(crate) struct Fixture {
     environment: Value,
     /// The server's manual clock, which moves a limit's reset and the auto-settle sweep: set by `start_timed`.
     pub(crate) clock: Option<std::sync::Arc<t3_server::scheduled_tasks::ManualClock>>,
+    /// The device service, for a fixture started `with_devices`, and the folder of the files its hub and helpers read.
+    pub(crate) devices: Option<t3_server::device_service::DeviceService>,
+    pub(crate) device_files: PathBuf,
+    /// Where the scripts report their milestones: a socket path has to be short, so this is not under the fixture's folder.
+    _device_socket: Option<tempfile::TempDir>,
     /// Stops the server, the execution service and the settings owner (whose worker runs on the
     /// runtime's blocking pool, which a runtime cannot be dropped without), awaited or dropped.
     server: crate::runtime::fixture_server::Server,
@@ -201,6 +208,15 @@ impl Fixture {
         WITH_USAGE_SOURCES.with(|flag| flag.set(true));
         let fixture = Self::build(false, &[], false).await;
         WITH_USAGE_SOURCES.with(|flag| flag.set(false));
+        fixture
+    }
+    /// A server with a device service over the hub and helper fixtures of the server's own tests (a simulator, and an emulator when
+    /// `device_files()/profile.json` names one), plus `others` as further hosts.
+    #[cfg(unix)]
+    pub(crate) async fn start_with_devices(others: Vec<std::sync::Arc<dyn t3_server::device_host::DeviceHost>>) -> Self {
+        WITH_DEVICES.with(|devices| *devices.borrow_mut() = Some(others));
+        let fixture = Self::build(false, &[], false).await;
+        WITH_DEVICES.with(|devices| *devices.borrow_mut() = None);
         fixture
     }
     pub(crate) async fn start_named(environment_id: &str) -> Self {
@@ -270,6 +286,28 @@ impl Fixture {
         let mut options = t3_server::server_settings::SettingsOptions::file(settings_file, t3_server::server_secret_store::ServerSecretStore::open(root.join("secrets")).unwrap());
         options.watch = false;
         let settings_service = t3_server::server_settings::SettingsService::start(options).await.unwrap();
+        let device_files = root.join("device-files");
+        #[cfg(unix)]
+        let (devices, device_socket) = match WITH_DEVICES.with(|devices| devices.borrow_mut().take()) {
+            Some(others) => {
+                let socket = tempfile::Builder::new().prefix("t3d").tempdir().unwrap();
+                (Some(device_service(&device_files, socket.path(), settings_service.clone(), others).await), Some(socket))
+            }
+            None => (None, None),
+        };
+        #[cfg(not(unix))]
+        let (devices, device_socket): (Option<t3_server::device_service::DeviceService>, Option<tempfile::TempDir>) = (None, None);
+        api.devices = devices.clone();
+        // The SSH of the device hosts is a script that answers `-G` as a machine that is not this one and a probe from
+        // `device_files/ssh-reply` (nothing there: the probe fails).
+        #[cfg(unix)]
+        if devices.is_some() {
+            use std::os::unix::fs::PermissionsExt;
+            let ssh = device_files.join("ssh-fake");
+            std::fs::write(&ssh, format!("#!/bin/sh\ncase \" $* \" in *\" -G \"*) echo 'hostname 192.0.2.1'; echo 'port 22';; *) cat > /dev/null; cat '{}';; esac\n", device_files.join("ssh-reply").display())).unwrap();
+            std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
+            api.device_hosts = Some(t3_server::device_host_resolver::DeviceHostResolver::new(t3_server::device_host_resolver::DeviceHostResolverOptions { ssh_binary: ssh, local_addresses: std::sync::Arc::new(std::collections::HashSet::new), lookup: std::sync::Arc::new(|_| Box::pin(async { vec![] })), ..Default::default() }));
+        }
         // The canonical path, so the keybindings file watcher (which reports real paths) matches it.
         let native = t3_server::config::NativeConfig::from_settings(
             settings,
@@ -322,7 +360,7 @@ impl Fixture {
         let store = api.store.clone();
         let environment = api.environment.clone();
         let (address, server) = start_fixture(api).await;
-        Self { directory, workspace, auth, address, store, environment, clock, server }
+        Self { directory, workspace, auth, address, store, environment, clock, devices, device_files, _device_socket: device_socket, server }
     }
 
     /// The server's authentication service, for a test that wires another service to the same sessions.
@@ -825,4 +863,62 @@ async fn without_the_read_grant_the_diff_is_not_offered() {
     assert!(control(&dom, "Changed file hello.txt").is_some());
     assert_eq!(error(state), None);
     fixture.finish(dom).await;
+}
+
+/// The device service the server's own tests run (`device_service::tests::fixture`): its hub and agent are the fixture scripts, its
+/// `xcrun` the fixture command, so no simulator is ever started; `others` are further hosts beside the local one. Draining the
+/// milestones the scripts report keeps their sockets from filling.
+#[cfg(unix)]
+async fn device_service(root: &Path, socket_dir: &Path, settings: t3_server::server_settings::SettingsService, others: Vec<std::sync::Arc<dyn t3_server::device_host::DeviceHost>>) -> t3_server::device_service::DeviceService {
+    use std::os::unix::fs::PermissionsExt;
+    use t3_contracts::DeviceToolKind;
+    use t3_server::{
+        device_toolchain::{AGENT_DEVICE_VERSION, DEVICE_HUB_VERSION, DeviceToolchain, ToolchainOptions},
+        local_device_host::{LocalDeviceHost, LocalDeviceHostOptions},
+    };
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../server/tests/fixtures");
+    let write = |path: PathBuf, contents: Vec<u8>| {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, contents).unwrap();
+    };
+    let tools = DeviceToolchain::new(ToolchainOptions::new(root.into()));
+    let hub = tools.paths(DeviceToolKind::Hub);
+    write(hub.entry_path.clone(), std::fs::read(fixtures.join("device-hub.py")).unwrap());
+    write(hub.sentinel_path.clone(), format!("{DEVICE_HUB_VERSION}\n").into_bytes());
+    let agent = tools.paths(DeviceToolKind::Agent);
+    write(agent.entry_path.clone(), std::fs::read(fixtures.join("device-agent.py")).unwrap());
+    write(agent.sentinel_path.clone(), format!("{AGENT_DEVICE_VERSION}\n").into_bytes());
+    write(hub.install_dir.join("node_modules/expo-device-hub/vendor/serve-sim/dist/simax/serve-sim-ax-settings"), b"fixture helper".to_vec());
+    let compressed = root.join("compressed.jsonl");
+    write(compressed.clone(), std::fs::read(fixtures.join("device-proxy-compression.jsonl")).unwrap());
+    let commands = root.join("commands.json");
+    write(commands.clone(), b"{}".to_vec());
+    let profile = root.join("profile.json");
+    write(profile.clone(), b"{}".to_vec());
+    let bin = root.join("bin");
+    write(bin.join("xcrun"), std::fs::read(fixtures.join("device-command.py")).unwrap());
+    std::fs::set_permissions(bin.join("xcrun"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    let socket_path = socket_dir.join("events.sock");
+    let socket = tokio::net::UnixDatagram::bind(&socket_path).unwrap();
+    tokio::spawn(async move {
+        let mut bytes = [0u8; 4096];
+        while socket.recv(&mut bytes).await.is_ok() {}
+    });
+    let mut options = LocalDeviceHostOptions::host(root.join("state"));
+    options.platform = "darwin".into();
+    options.node_override = Some("/usr/bin/python3".into());
+    options.environment = [
+        ("HOME", root.join("home")),
+        ("PATH", bin),
+        ("FIXTURE_PROFILE", profile),
+        ("FIXTURE_COMMAND_DATA", commands),
+        ("FIXTURE_COMPRESSED_DATA", compressed),
+        ("FIXTURE_MILESTONES", socket_path),
+        ("FIXTURE_LOG", root.join("agent-calls.jsonl")),
+        ("FIXTURE_HOLD_START", root.join("agent-hold")),
+    ]
+    .into_iter()
+    .map(|(key, value)| (key.into(), value.to_string_lossy().into_owned()))
+    .collect();
+    t3_server::device_service::DeviceService::with_hosts(settings, LocalDeviceHost::new(options, tools), others).await.unwrap()
 }

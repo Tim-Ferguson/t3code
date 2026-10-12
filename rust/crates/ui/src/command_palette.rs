@@ -128,7 +128,7 @@ fn relative(updated: &t3_contracts::UtcDateTime) -> String {
 }
 
 const RECENT_THREADS: usize = 12;
-const SETTINGS: [(View, &str, &str, &[&str]); 12] = [
+const SETTINGS: [(View, &str, &str, &[&str]); 13] = [
     (View::Projects, "Projects", "settings:projects", &["project", "name", "remove", "defaults", "overrides", "folder"]),
     (View::General, "General", "settings:general", &["auto-resume", "snooze", "usage limit", "limited threads", "settle", "auto-settle", "inactive", "merged"]),
     (View::Providers, "Providers", "settings:providers", &["provider", "model", "codex", "claude", "agents"]),
@@ -139,6 +139,7 @@ const SETTINGS: [(View, &str, &str, &[&str]); 12] = [
     (View::SourceControl, "Source control", "settings:source-control", &["git", "github", "gitlab", "bitbucket", "azure", "credentials", "token", "hosting", "accounts"]),
     (View::TextGeneration, "Text generation", "settings:text-generation", &["model", "commit message", "branch naming", "writing style", "titles", "pull request text", "branch prefix"]),
     (View::Storage, "Storage", "settings:storage", &["disk", "worktrees", "cleanup", "retention", "artifacts", "logs", "delete"]),
+    (View::Integrations, "Integrations", "settings:integrations", &["browser", "preview", "device", "simulator", "emulator", "ios", "android", "ssh", "hub", "agent"]),
     (View::Archived, "Archived threads", "settings:archived", &["archive", "restore", "unarchive", "history"]),
     (View::Diagnostics, "Diagnostics", "settings:diagnostics", &["processes", "trace", "failures", "slow", "kill", "memory", "cpu", "logs"]),
 ];

@@ -36,6 +36,7 @@ fn page_view(page: SettingsPage) -> View {
         SettingsPage::Projects => View::Projects,
         SettingsPage::Diagnostics => View::Diagnostics,
         SettingsPage::Storage => View::Storage,
+        SettingsPage::Integrations => View::Integrations,
         SettingsPage::Archived => View::Archived,
     }
 }
@@ -63,6 +64,7 @@ pub(crate) fn route_of(view: &View, thread: Option<&str>, environment: Option<&E
         View::Projects => page(SettingsPage::Projects),
         View::Diagnostics => page(SettingsPage::Diagnostics),
         View::Storage => page(SettingsPage::Storage),
+        View::Integrations => page(SettingsPage::Integrations),
         View::Archived => page(SettingsPage::Archived),
         View::PullRequests => Route::PullRequests,
         View::Usage => Route::Usage,

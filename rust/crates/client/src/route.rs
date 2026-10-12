@@ -21,9 +21,11 @@ pub enum SettingsPage {
     Storage,
     /// Archived threads (`/settings/archived`).
     Archived,
+    /// The browser and device hubs, and the machines that host simulators (`/settings/integrations`).
+    Integrations,
 }
 impl SettingsPage {
-    pub const ALL: [SettingsPage; 12] = [Self::General, Self::Projects, Self::Providers, Self::Appearance, Self::Connections, Self::Keybindings, Self::ScheduledTasks, Self::SourceControl, Self::TextGeneration, Self::Diagnostics, Self::Storage, Self::Archived];
+    pub const ALL: [SettingsPage; 13] = [Self::General, Self::Projects, Self::Providers, Self::Appearance, Self::Connections, Self::Keybindings, Self::ScheduledTasks, Self::SourceControl, Self::TextGeneration, Self::Diagnostics, Self::Storage, Self::Integrations, Self::Archived];
     pub fn segment(self) -> &'static str {
         match self {
             Self::General => "general",
@@ -38,6 +40,7 @@ impl SettingsPage {
             Self::Diagnostics => "diagnostics",
             Self::Storage => "storage",
             Self::Archived => "archived",
+            Self::Integrations => "integrations",
         }
     }
     fn of(segment: &str) -> Option<Self> {

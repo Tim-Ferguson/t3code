@@ -3,26 +3,11 @@
     "handled": {},
     "partial": {},
     "pending": {
-      "preview.adjust": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.clearProfile": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.close": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.list": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.navigate": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.open": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.refresh": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.reportStatus": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.resize": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "subscribePreviewEvents": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "subscribeDiscoveredLocalServers": "Preview panel's list of local dev servers (usePreviewDiscovery): no preview panel.",
-      "device.action": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.close": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.configure": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.detail": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.list": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.open": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.shutdown": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "device.testHost": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
-      "subscribeDeviceState": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
       "mcpApps.callTool": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
       "mcpApps.readResource": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
       "mcpApps.toolInfo": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
@@ -46,10 +31,7 @@
   "http": {
     "handled": {},
     "partial": {},
-    "pending": {
-      "GET /api/device-hub": "Device hub proxy of the device panel: no device UI.",
-      "GET /api/preview-stream": "Preview browser stream: no preview panel."
-    },
+    "pending": {},
     "omitted": {
       "GET /api/orchestration/shell": "The original loads a shell snapshot over HTTP before the socket opens; the Rust client takes its snapshot from the orchestration.subscribeShell stream.",
       "POST /api/connect/link-proof": "Linking an environment with the account sign-in of the hosted service (linkEnvironment.ts): this app has no account sign-in; use `t3 connect`.",
@@ -69,7 +51,6 @@
     },
     "partial": {},
     "pending": {
-      "/settings/integrations": "Integrations page (browser preview, agent browser/device access): not built.",
       "/settings/open-source-licenses": "Licenses page: the original fetches third-party-licenses.json from its web bundle; the Rust build generates no manifest, so the server has no data to serve."
     },
     "omitted": {
@@ -81,17 +62,10 @@
     "handled": {},
     "partial": {
       "navigation.back": "The page's history, on the web build, where the address follows the view; the desktop window has no address, so the command is not offered there (useNavigationHistory).",
-      "navigation.forward": "As navigation.back.",
-      "view.reopenClosed": "Reopens panel tabs (the diff, files, a file, pull requests); the original also brings back a closed browser tab. It has no View menu entry for it: DesktopApplicationMenu.ts lists none, and the desktop's onMenuAction('view.reopenClosed') is only what the preview browser forwards while a preview has focus, so there is nothing to add to this shell's menu."
+      "navigation.forward": "As navigation.back."
     },
     "pending": {
-      "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel/ThreadDetailsCard) as a toggle beside the right panel: the Rust header shows its parts inline.",
-      "preview.toggle": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.refresh": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.focusUrl": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.zoomIn": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.zoomOut": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.resetZoom": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either."
+      "threadPanel.toggle": "The thread details panel (ThreadDetailsPanel/ThreadDetailsCard) as a toggle beside the right panel: the Rust header shows its parts inline."
     },
     "omitted": {
       "button without handler ui/desktop_updates.rs \"Check for Updates\"": "Deliberately disabled with its reason shown: this app has no update feed (desktop_updates.rs).",
@@ -104,10 +78,8 @@
       "response-streaming": "Written and read, but the server applies it to the OpenCode adapters only (check_rpc_surface: responseStreamingMode)."
     },
     "pending": {
-      "agent-browser-access": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-profiles": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-default-profile": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-default-viewport": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-default-zoom": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-default-appearance": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-recording-frame-rate": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
@@ -115,10 +87,6 @@
       "browser-recording-mouse-presses": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-link-target": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
       "browser-auto-show-floating-preview": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "device-hosts": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
-      "agent-device-access": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
-      "device-hub": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
-      "device-platform-support": "Device hosts and agent device access (Integrations page): not built. The server serves device.*.",
       "setting-glass-opacity": "Translucent menus and dialogs: not built (the CSS has no backdrop-filter layer).",
       "cli-command": "Desktop only. The t3 command install row (CliCommandSettingsRow, DesktopCliCommand.ts): not built.",
       "open-source-licenses": "Licenses page: no generated manifest (see routes).",
@@ -147,7 +115,6 @@
     "pending": {
       "usagePriceOverrides": "Price override editor of the Usage page (UsagePriceOverrides): not built.",
       "usageModelAliases": "Model alias editor of the Usage page: not built.",
-      "serverBrowser": "Server-side browser (preview): not built.",
       "questionAttachments": "Attachments on an answer to an agent's question (the question card's attach control, attachmentsByQuestionId on runtime-request.respond, the answered question's attachments in the timeline): the Rust question card takes text answers only. Server advertises it.",
       "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Server advertises it."
     },
@@ -612,12 +579,23 @@
       "right panel surface pull-requests": {
         "probe": "right_panel.rs::Surface::PullRequests",
         "reason": "a tab of right_panel.rs (client/right_panel.rs keeps the tabs)"
+      },
+      "right panel surface preview": {
+        "probe": "right_panel.rs::Surface::Preview \\{ resource_id \\} => match thread_id",
+        "reason": "preview_panel.rs: a tab of the environment's browser (server tabs only; the Electron webview tab has no counterpart)"
+      },
+      "right panel surface terminal": {
+        "probe": "right_panel.rs::Surface::Terminal \\{ terminal_id \\} => match thread_id",
+        "reason": "terminal_pane::Tab: one terminal of the thread per tab; splits and further terminals stay in the drawer"
+      },
+      "right panel surface device": {
+        "probe": "right_panel.rs::surface @ Surface::Device \\{ \\.\\. \\} => match thread_id",
+        "reason": "device_panel.rs"
       }
     },
     "partial": {
       "message context mention": "The @file reference is sent as text and shown as text; the original's inline file chip with its icon (FileTagChip, SkillInlineText) is not drawn.",
       "message context skill": "As mention: a $skill token shows as plain text, not the original's inline chip.",
-      "right panel surface terminal": "The terminal is a drawer under the conversation, not a tab of the right panel; splits and multiple terminals work there.",
       "composer ComposerTasksBadge": "Background work is listed in composer_panels; the scheduled-tasks badge/popover (ThreadAutomationsPanel) is not built.",
       "composer composer-code-block": "Rich text composer: not built.",
       "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo).",
@@ -629,8 +607,6 @@
       "timeline row mcp-app": "McpAppTimelineRow (MCP app frames): not built; see rpc mcpApps.*.",
       "message context element": "A picked page element from the preview browser: no preview panel.",
       "message context preview-annotation": "A preview annotation: no preview panel.",
-      "right panel surface preview": "Preview browser tab: not built.",
-      "right panel surface device": "Device (simulator) tab: not built.",
       "composer ComposerCodeBlockLanguagePicker": "Rich text composer code blocks: not built.",
       "composer ComposerCodeBlockNodeView": "Rich text composer code blocks: not built.",
       "composer ComposerFeedback": "Thumbs up/down feedback on a reply (uploadFeedback): not built.",

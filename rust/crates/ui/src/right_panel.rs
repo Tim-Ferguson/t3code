@@ -7,11 +7,15 @@
 //! a reload finds the same tabs. What the panel draws is derived from one thread's entry behind a memo, so the conversation and
 //! the sidebar never repaint for it, and a streaming turn never repaints an open panel.
 //!
-//! Not ported: the browser, terminal and device tabs (the terminal is the drawer under the conversation here).
+//! The browser tab is `preview_panel`, the device tab `device_panel`; a terminal tab holds one of the thread's terminals (the drawer under
+//! the conversation holds the others, and the splits). Closing a browser or terminal tab also closes the session or the terminal
+//! behind it, which is done once the tab is gone (`use_cleanup`).
 use crate::{
-    diff_panel, file_panel, pull_request_panel,
+    device_panel, diff_panel, file_panel, pull_request_panel,
     notice::{self, Level},
+    preview_panel,
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
+    terminal_pane,
     thread_pull_requests_panel,
 };
 use dioxus::prelude::*;
@@ -34,6 +38,8 @@ pub struct Model {
     pub menu: bool,
     /// Storage has been read: nothing is written before, so the first read is not overwritten.
     pub hydrated: bool,
+    /// Tabs that have gone and still have a browser session or a terminal to close on the environment.
+    pub cleanup: Vec<(Owner, Surface)>,
 }
 
 /// Who a panel belongs to.
@@ -172,7 +178,41 @@ fn remember(state: Store<UiModel>, owner: &Owner, removed: Vec<Surface>) {
     let Some(thread) = owner.thread.as_deref() else { return };
     edit(state, |model| {
         for surface in removed {
+            // A session or a terminal is closed once the tab is gone, and a browser tab with a session is remembered from there.
+            if matches!(surface, Surface::Preview { resource_id: Some(_) } | Surface::Terminal { .. }) {
+                model.cleanup.push((owner.clone(), surface));
+                continue;
+            }
             model.history.remember(&owner.environment, thread, surface, uuid::Uuid::new_v4().to_string());
+        }
+    });
+}
+
+/// Closes what the tabs that went held: the browser session (and remembers it for reopening) and the terminal. Mounted with the app,
+/// since the panel is gone when the last tab is.
+pub(crate) fn use_cleanup(state: Store<UiModel>, transport: TransportHandle) {
+    let pending = use_memo(move || !state.right_panel().read().cleanup.is_empty());
+    use_effect(move || {
+        if !pending() {
+            return;
+        }
+        let gone = std::mem::take(&mut state.right_panel().write().cleanup);
+        for (owner, surface) in gone {
+            let Some(thread) = owner.thread.clone() else { continue };
+            // The tabs of another environment than the one in view are closed there when the window is there again; none are.
+            if state.destination().peek().as_ref().map(ToString::to_string).as_deref() != Some(owner.environment.as_str()) {
+                continue;
+            }
+            match surface {
+                Surface::Preview { resource_id: Some(tab) } => {
+                    if let Some(closed) = preview_panel::closed_browser(state, &owner.environment, &thread, &tab) {
+                        edit(state, |model| model.history.remember_browser(&owner.environment, &thread, Surface::Preview { resource_id: Some(tab.clone()) }, closed, uuid::Uuid::new_v4().to_string()));
+                    }
+                    preview_panel::close_session(&transport, state, &owner.environment, &thread, &tab);
+                }
+                Surface::Terminal { terminal_id } => terminal_pane::close_on_server(&transport, state, &thread, &terminal_id),
+                _ => {}
+            }
         }
     });
 }
@@ -203,6 +243,23 @@ pub(crate) fn open_pull_request(state: Store<UiModel>, thread_id: &str, target: 
     let Some(environment) = state.destination().peek().as_ref().map(ToString::to_string) else { return };
     let key = key_of(&environment, Some(thread_id));
     edit(state, |model| model.panels.open_pull_request(&key, target));
+}
+/// Shows a browser tab: the session's, or the empty one.
+pub(crate) fn open_preview(state: Store<UiModel>, environment: &str, thread: &str, tab: Option<&str>) {
+    let key = key_of(environment, Some(thread));
+    edit(state, |model| model.panels.open_preview(&key, tab));
+}
+/// Shows the device chosen in the picker.
+pub(crate) fn open_device(state: Store<UiModel>, environment: &str, thread: &str, target: t3_client::right_panel::DeviceTarget) {
+    let key = key_of(environment, Some(thread));
+    edit(state, |model| model.panels.open_device(&key, target));
+}
+pub(crate) fn open_terminal_in(state: Store<UiModel>, owner: &Owner, terminal_id: &str) {
+    edit(state, |model| model.panels.open_terminal(&owner.key(), terminal_id));
+}
+/// The terminals the open thread's panel holds, so the drawer leaves them alone.
+pub(crate) fn terminal_tabs(state: Store<UiModel>, environment: &str, thread: &str) -> Vec<String> {
+    peek(state, |model| model.panels.terminal_ids(&key_of(environment, Some(thread))))
 }
 pub(crate) fn activate(state: Store<UiModel>, owner: &Owner, id: &str) {
     edit(state, |model| model.panels.activate(&owner.key(), id));
@@ -342,6 +399,7 @@ pub(crate) fn reopen_closed(transport: &TransportHandle, state: Store<UiModel>) 
         return;
     }
     let key = entry.key();
+    let browser = entry.browser.clone().filter(|_| entry.environment == current);
     edit(state, |model| {
         match &entry.surface {
             Surface::Diff => model.panels.open(&key, Kind::Diff),
@@ -349,9 +407,27 @@ pub(crate) fn reopen_closed(transport: &TransportHandle, state: Store<UiModel>) 
             Surface::PullRequests => model.panels.open(&key, Kind::PullRequests),
             Surface::File { cwd, relative_path, reveal_line, .. } => model.panels.open_file(&key, cwd, relative_path, *reveal_line),
             Surface::PullRequest(target) => model.panels.open_pull_request(&key, target.clone()),
+            // A browser tab that had a session comes back as a new session, below; one that never had one as the empty tab.
+            Surface::Preview { .. } => {
+                if browser.is_none() {
+                    model.panels.open_preview(&key, None);
+                }
+            }
+            Surface::Device { target: Some(target), title } => {
+                model.panels.open_device(&key, target.clone());
+                if let Some(title) = title {
+                    model.panels.rename_device(&key, &entry.surface.id(), title);
+                }
+            }
+            Surface::Device { target: None, .. } => model.panels.open(&key, Kind::Device),
+            // A terminal is never kept.
+            Surface::Terminal { .. } => {}
         }
         model.history.remove(&entry.id);
     });
+    if let Some(browser) = &browser {
+        preview_panel::reopen_session(transport, state, &entry.environment, &entry.thread_id, browser);
+    }
     if state.active_thread().peek().as_deref() != Some(entry.thread_id.as_str()) {
         runtime::select_thread(transport, state, entry.thread_id.clone());
     }
@@ -394,10 +470,13 @@ pub(crate) fn shown_file(state: Store<UiModel>) -> Option<(String, Option<u64>)>
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Choice {
+    Browser,
+    Terminal,
     Files,
     Diff,
     PullRequest,
     PullRequests,
+    Device,
 }
 struct Row {
     choice: Choice,
@@ -410,17 +489,37 @@ struct Row {
     reason: &'static str,
 }
 
-fn rows(files: bool, diff: bool, pull_request: bool, pull_requests: bool) -> [Row; 4] {
+/// What can be opened now, in the order of the original's menu.
+struct Open {
+    browser: bool,
+    terminal: bool,
+    files: bool,
+    diff: bool,
+    pull_request: bool,
+    pull_requests: bool,
+    device: bool,
+}
+const ROWS: usize = 7;
+fn rows(open: &Open) -> [Row; ROWS] {
     [
-        Row { choice: Choice::Files, label: "Files", shortcut: 'F', available: files, hint: "Available when a project is open.", reason: "Files are only available when a project is open." },
-        Row { choice: Choice::Diff, label: "Diff", shortcut: 'D', available: diff, hint: "Available for Git repositories.", reason: "Diff is only available for server threads in Git repositories." },
-        Row { choice: Choice::PullRequest, label: "Pull request", shortcut: 'P', available: pull_request, hint: "No pull request on this branch yet.", reason: "This thread's branch has no pull request yet." },
-        Row { choice: Choice::PullRequests, label: "Linked pull requests", shortcut: 'L', available: pull_requests, hint: "No linked pull requests available.", reason: "No linked pull requests are available for this thread." },
+        Row { choice: Choice::Browser, label: "Browser", shortcut: 'B', available: open.browser, hint: "Only available in the desktop app.", reason: "Browser previews are only available in the T3 Code desktop app." },
+        Row { choice: Choice::Terminal, label: "Terminal", shortcut: 'T', available: open.terminal, hint: "Available when a project is open.", reason: "Terminal surfaces are only available from a project thread." },
+        Row { choice: Choice::Files, label: "Files", shortcut: 'F', available: open.files, hint: "Available when a project is open.", reason: "Files are only available when a project is open." },
+        Row { choice: Choice::Diff, label: "Diff", shortcut: 'D', available: open.diff, hint: "Available for Git repositories.", reason: "Diff is only available for server threads in Git repositories." },
+        Row { choice: Choice::PullRequest, label: "Pull request", shortcut: 'P', available: open.pull_request, hint: "No pull request on this branch yet.", reason: "This thread's branch has no pull request yet." },
+        Row { choice: Choice::PullRequests, label: "Linked pull requests", shortcut: 'L', available: open.pull_requests, hint: "No linked pull requests available.", reason: "No linked pull requests are available for this thread." },
+        Row { choice: Choice::Device, label: "Device", shortcut: 'M', available: open.device, hint: "Available from a thread.", reason: "Devices are only available from a thread." },
     ]
 }
 
-fn run(state: Store<UiModel>, owner: &Owner, choice: Choice) {
+fn run(state: Store<UiModel>, transport: &TransportHandle, owner: &Owner, choice: Choice) {
     match choice {
+        Choice::Browser => preview_panel::add_browser(transport, state, owner),
+        Choice::Terminal => {
+            let Some(thread) = owner.thread.as_deref() else { return };
+            let id = terminal_pane::allocate_id(state, &owner.environment, thread);
+            open_terminal_in(state, owner, &id);
+        }
         Choice::Files => open_kind_in(state, owner, Kind::Files),
         Choice::Diff => {
             if let Some(thread) = owner.thread.as_deref() {
@@ -438,13 +537,23 @@ fn run(state: Store<UiModel>, owner: &Owner, choice: Choice) {
                 thread_pull_requests_panel::open(state, thread);
             }
         }
+        Choice::Device => open_kind_in(state, owner, Kind::Device),
     }
 }
 
 /// What can be opened in this panel now, subscribing the caller.
-fn availability(state: Store<UiModel>, thread: Option<&str>, cwd: &str, can_read: bool) -> [Row; 4] {
+fn availability(state: Store<UiModel>, thread: Option<&str>, cwd: &str, can_read: bool) -> [Row; ROWS] {
     let pull_request = state.pr_available().read().as_ref().is_some_and(|target| Some(target.thread_id.as_str()) == thread);
-    rows(!cwd.is_empty(), thread.is_some() && can_read, pull_request, thread.is_some() && thread_pull_requests_panel::supported(state))
+    let terminals = *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|id| state.environments().read().allows(id, AuthEnvironmentScope::TerminalOperate));
+    rows(&Open {
+        browser: thread.is_some() && preview_panel::available(state),
+        terminal: thread.is_some() && !cwd.is_empty() && terminals,
+        files: !cwd.is_empty(),
+        diff: thread.is_some() && can_read,
+        pull_request,
+        pull_requests: thread.is_some() && thread_pull_requests_panel::supported(state),
+        device: thread.is_some(),
+    })
 }
 
 /// The rows the launcher offers right now, when the window shows one: the panel is open on nothing, and nothing else that takes
@@ -481,11 +590,11 @@ pub(crate) fn launcher_letters(state: Store<UiModel>) -> Vec<char> {
     launcher_rows(state).unwrap_or_default().into_iter().map(|row| row.shortcut).collect()
 }
 /// Opens the row a pressed letter names, when the launcher shows it. Returns what was opened.
-pub(crate) fn run_launcher_letter(state: Store<UiModel>, letter: char) -> Option<&'static str> {
+pub(crate) fn run_launcher_letter(state: Store<UiModel>, transport: &TransportHandle, letter: char) -> Option<&'static str> {
     let owner = active_owner(state)?;
     let letter = letter.to_ascii_uppercase();
     let row = launcher_rows(state)?.into_iter().find(|row| row.shortcut == letter)?;
-    run(state, &owner, row.choice);
+    run(state, transport, &owner, row.choice);
     Some(row.label)
 }
 
@@ -626,12 +735,18 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
     let shown = panel.active().cloned();
     rsx! {
         section { class: "right-panel", role: "region", "aria-label": "Panel", "data-maximized": "{maximized()}",
+            if let Some(thread_id) = thread_id.clone().filter(|_| preview_panel::available(state)) {
+                preview_panel::Sync { state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id }
+            }
             div { class: "right-panel-bar",
                 div { class: "right-panel-tabs", role: "tablist", "aria-label": "Panel tabs",
                     for (index, surface) in panel.surfaces.iter().enumerate() {
                         {
                             let id = surface.id();
-                            let title = surface.title();
+                            let title = match surface {
+                                Surface::Preview { resource_id } => preview_panel::title_of(state, &key, resource_id.as_deref()),
+                                _ => surface.title(),
+                            };
                             let selected = shown.as_ref().is_some_and(|shown| shown.id() == id);
                             let (owner, select_id, close_id, menu_id) = (owner.clone(), id.clone(), id.clone(), id.clone());
                             let (middle_owner, menu_owner) = (owner.clone(), owner.clone());
@@ -665,7 +780,7 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
                         button { class: "icon-button", r#type: "button", "aria-label": "Add panel surface", "aria-haspopup": "menu", "aria-expanded": "{menu()}", title: "Add a tab",
                             onclick: move |_| { let next = !menu(); edit(state, |model| model.menu = next); }, "+" }
                         if menu() {
-                            AddMenu { state, owner: owner.clone(), rows: rows_view(&rows) }
+                            AddMenu { state, transport: transport.clone(), owner: owner.clone(), rows: rows_view(&rows) }
                         }
                     }
                 }
@@ -677,7 +792,7 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
             }
             div { class: "right-panel-body",
                 match shown {
-                    None => rsx! { Launcher { state, owner: owner.clone(), rows: rows_view(&rows) } },
+                    None => rsx! { Launcher { state, transport: transport.clone(), owner: owner.clone(), rows: rows_view(&rows) } },
                     Some(Surface::Diff) => match thread_id.clone() {
                         Some(thread_id) => rsx! { diff_panel::Panel { state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, cwd: cwd.clone() } },
                         None => rsx! {},
@@ -692,6 +807,18 @@ pub(crate) fn Shell(state: Store<UiModel>, transport: TransportHandle, environme
                     }
                     Some(Surface::PullRequests) => match thread_id.clone() {
                         Some(thread_id) => rsx! { thread_pull_requests_panel::Panel { state, transport: transport.clone(), thread_id } },
+                        None => rsx! {},
+                    },
+                    Some(Surface::Preview { resource_id }) => match thread_id.clone() {
+                        Some(thread_id) => rsx! { preview_panel::Panel { key: "{resource_id:?}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, tab: resource_id } },
+                        None => rsx! {},
+                    },
+                    Some(Surface::Terminal { terminal_id }) => match thread_id.clone() {
+                        Some(thread_id) => rsx! { terminal_pane::Tab { key: "{terminal_id}", state, transport: transport.clone(), environment: environment_key.clone(), thread_id, terminal_id, cwd: cwd.clone() } },
+                        None => rsx! {},
+                    },
+                    Some(surface @ Surface::Device { .. }) => match thread_id.clone() {
+                        Some(thread_id) => rsx! { device_panel::Panel { key: "{surface.id()}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id, surface } },
                         None => rsx! {},
                     },
                 }
@@ -710,23 +837,23 @@ struct RowView {
     hint: &'static str,
     reason: &'static str,
 }
-fn rows_view(rows: &[Row; 4]) -> Vec<RowView> {
+fn rows_view(rows: &[Row; ROWS]) -> Vec<RowView> {
     rows.iter().map(|row| RowView { choice: row.choice as u8, label: row.label, shortcut: row.shortcut, available: row.available, hint: row.hint, reason: row.reason }).collect()
 }
 fn choice_of(code: u8) -> Choice {
-    [Choice::Files, Choice::Diff, Choice::PullRequest, Choice::PullRequests][code as usize]
+    [Choice::Browser, Choice::Terminal, Choice::Files, Choice::Diff, Choice::PullRequest, Choice::PullRequests, Choice::Device][code as usize]
 }
 
 /// The menu of the "+" button: a row opens its tab, and its letter does the same while the menu is open.
 #[component]
-fn AddMenu(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element {
+fn AddMenu(state: Store<UiModel>, transport: TransportHandle, owner: Owner, rows: Vec<RowView>) -> Element {
     let close = move || edit(state, |model| model.menu = false);
     rsx! {
         div { class: "menu-backdrop", onclick: move |_| close() }
         div { class: "context-menu right-panel-menu", role: "menu", "aria-label": "Add a tab", tabindex: "0",
             onmounted: move |event| { drop(event.set_focus(true)); },
             onkeydown: {
-                let (rows, owner) = (rows.clone(), owner.clone());
+                let (rows, owner, transport) = (rows.clone(), owner.clone(), transport.clone());
                 move |event| {
                     if event.key() == Key::Escape {
                         event.stop_propagation();
@@ -736,17 +863,17 @@ fn AddMenu(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element {
                             event.prevent_default();
                             event.stop_propagation();
                             close();
-                            run(state, &owner, choice_of(row.choice));
+                            run(state, &transport, &owner, choice_of(row.choice));
                         }
                     }
                 }
             },
             for row in rows.iter() {
                 {
-                    let (owner, choice, available) = (owner.clone(), choice_of(row.choice), row.available);
+                    let (owner, choice, available, transport) = (owner.clone(), choice_of(row.choice), row.available, transport.clone());
                     rsx! {
                         button { key: "{row.label}", class: "menu-item", role: "menuitem", r#type: "button", "aria-label": "Add {row.label}", "aria-keyshortcuts": "{row.shortcut}", "aria-disabled": "{!available}", disabled: !available, title: if available { "" } else { "{row.reason}" },
-                            onclick: move |_| { close(); run(state, &owner, choice); },
+                            onclick: move |_| { close(); run(state, &transport, &owner, choice); },
                             span { "{row.label}" } kbd { class: "menu-shortcut", "{row.shortcut}" } }
                     }
                 }
@@ -758,7 +885,7 @@ fn AddMenu(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element {
 /// What an empty panel shows: the tabs that can be opened, each with its letter. A row that cannot be opened stays, with a line
 /// saying why. Arrows and Enter work while the list is focused.
 #[component]
-fn Launcher(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element {
+fn Launcher(state: Store<UiModel>, transport: TransportHandle, owner: Owner, rows: Vec<RowView>) -> Element {
     let mut highlight = use_signal(|| -1i32);
     let available: Vec<usize> = rows.iter().enumerate().filter(|(_, row)| row.available).map(|(index, _)| index).collect();
     let current = (!available.is_empty()).then(|| (*highlight.read()).min(available.len() as i32 - 1)).filter(|at| *at >= 0);
@@ -766,7 +893,7 @@ fn Launcher(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element 
         div { class: "surface-launcher", tabindex: "0", "aria-label": "Open a surface", "data-surface-launcher-keys": "{available.iter().map(|at| rows[*at].shortcut.to_string()).collect::<String>()}",
             onmounted: move |event| { drop(event.set_focus(true)); },
             onkeydown: {
-                let (rows, owner, available) = (rows.clone(), owner.clone(), available.clone());
+                let (rows, owner, available, transport) = (rows.clone(), owner.clone(), available.clone(), transport.clone());
                 move |event| {
                     let modifiers = event.modifiers();
                     if modifiers.meta() || modifiers.ctrl() || modifiers.alt() || available.is_empty() {
@@ -780,14 +907,14 @@ fn Launcher(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element 
                         Key::Enter => {
                             if at >= 0 {
                                 event.prevent_default();
-                                run(state, &owner, choice_of(rows[available[at as usize]].choice));
+                                run(state, &transport, &owner, choice_of(rows[available[at as usize]].choice));
                             }
                         }
                         _ => {
                             if let Some(letter) = letter_of(&event) {
                                 if let Some(row) = rows.iter().find(|row| row.available && row.shortcut == letter) {
                                     event.prevent_default();
-                                    run(state, &owner, choice_of(row.choice));
+                                    run(state, &transport, &owner, choice_of(row.choice));
                                 }
                             }
                         }
@@ -798,14 +925,14 @@ fn Launcher(state: Store<UiModel>, owner: Owner, rows: Vec<RowView>) -> Element 
                 h3 { "Open a surface" }
                 for (index, row) in rows.iter().enumerate() {
                     {
-                        let (owner, choice, available) = (owner.clone(), choice_of(row.choice), available.clone());
+                        let (owner, choice, available, transport) = (owner.clone(), choice_of(row.choice), available.clone(), transport.clone());
                         let selected = row.available && current.is_some_and(|at| available[at as usize] == index);
                         rsx! {
                             if row.available {
                                 button { key: "{row.label}", class: if selected { "surface-launcher-row selected" } else { "surface-launcher-row" }, r#type: "button", "aria-label": "Open {row.label}",
                                     onmouseenter: move |_| { if let Some(at) = available.iter().position(|candidate| *candidate == index) { highlight.set(at as i32); } },
                                     onmouseleave: move |_| highlight.set(-1),
-                                    onclick: move |_| run(state, &owner, choice),
+                                    onclick: move |_| run(state, &transport, &owner, choice),
                                     span { "{row.label}" } kbd { "{row.shortcut}" } }
                             } else {
                                 div { key: "{row.label}", class: "surface-launcher-row disabled", tabindex: "0", "aria-disabled": "true", title: "{row.hint}", span { "{row.label}" } span { class: "muted", "{row.hint}" } }

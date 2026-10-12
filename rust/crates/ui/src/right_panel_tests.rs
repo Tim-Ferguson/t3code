@@ -244,3 +244,82 @@ async fn a_thread_that_is_deleted_takes_its_panel_with_it() {
     assert_eq!(tabs(state, "thread-b"), ["files"], "another thread's panel is left alone");
     fixture.finish(dom).await;
 }
+
+fn terminal_harness(props: super::diff_tests::Harness) -> Element {
+    let catalog = crate::terminal_pane::use_catalog();
+    catalog.mark_hydrated();
+    super::diff_tests::harness(props)
+}
+
+/// The ids of the terminals the server holds for thread-a, read from the metadata stream's first answer (the stream keeps the
+/// window's own work going while it waits).
+#[cfg(unix)]
+async fn terminals_on_server(dom: &mut VirtualDom, props: &super::diff_tests::Harness, state: Store<UiModel>) -> Vec<String> {
+    let mut stream = crate::terminal_stream::MetadataStream::subscribe(&props.transport, state).unwrap();
+    let rows = crate::runtime::transport_tests::drive_future(dom, "the server's terminals", async move { stream.next().await.unwrap().unwrap() }).await;
+    rows.into_iter().filter(|row| row.thread_id.as_str() == "thread-a").map(|row| row.terminal_id.to_string()).collect()
+}
+
+/// A terminal opened from the add menu is a tab of its own: the drawer does not take it over, it is the same terminal the server
+/// holds, and closing the tab stops it there (the original's `terminal` surface, with no splits).
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_terminal_tab_is_a_terminal_the_drawer_leaves_alone_and_closing_it_stops_it() {
+    let fixture = Fixture::start_with_terminals(false).await;
+    MEMORY.with(|memory| memory.borrow_mut().clear());
+    let scopes = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate, AuthEnvironmentScope::FilesystemRead, AuthEnvironmentScope::TerminalRead, AuthEnvironmentScope::TerminalOperate];
+    let (first, props) = fixture.client(Gate::default(), &scopes);
+    drop(first);
+    let mut dom = VirtualDom::new_with_props(terminal_harness, props.clone());
+    dom.rebuild_in_place();
+    let state = seed(&mut dom, &props, &fixture.workspace).await;
+    until(&mut dom, "the config", |_| state.peek().typed_config.is_some()).await;
+    dom.in_scope(ScopeId::APP, || spawn(crate::right_panel::hydrate(state)));
+    crate::runtime::diff_tests::pump(&mut dom).await;
+    open_thread(&mut dom, &props, state, "thread-a").await;
+    let catalog = dom.in_scope(ScopeId::APP, || try_consume_context::<crate::terminal_pane::Catalog>()).expect("the catalog");
+    let environment = state.peek().destination.as_ref().unwrap().to_string();
+    let drawer = t3_client::terminal_ui::ScopedPanes::key(&environment, "thread-a");
+
+    assert_eq!(press(&mut dom, chord("b", false, true), Dom::default()).await.as_deref(), Some("rightPanel.toggle"));
+    until(&mut dom, "the launcher", |dom| control(dom, "Open Terminal").is_some()).await;
+    click_when_enabled(&mut dom, "Open Terminal").await;
+    until(&mut dom, "the tab", |dom| control(dom, "Close Terminal 1 tab").is_some()).await;
+    let id = tabs(state, "thread-a")[0].trim_start_matches("terminal:").to_owned();
+    assert!(id.starts_with("term-1"), "{id}");
+
+    // Attached, it is a terminal of the thread on the server; the drawer lists it nowhere.
+    let mut held = Vec::new();
+    for _ in 0..50 {
+        held = terminals_on_server(&mut dom, &props, state).await;
+        if !held.is_empty() {
+            break;
+        }
+        crate::runtime::diff_tests::pump(&mut dom).await;
+    }
+    assert_eq!(held, [id.clone()]);
+    crate::runtime::diff_tests::pump(&mut dom).await;
+    assert!(catalog.panes.peek().get(&drawer).terminal_ids.is_empty(), "the drawer has no part in it: {:?}", catalog.panes.peek().get(&drawer));
+
+    // Another new tab picks another id; the first one stays.
+    click_when_enabled(&mut dom, "Add panel surface").await;
+    click_control(&mut dom, "Add Terminal");
+    until(&mut dom, "the second tab", |dom| control(dom, "Close Terminal 2 tab").is_some()).await;
+    assert_eq!(tabs(state, "thread-a").len(), 2);
+
+    // Closing a tab stops its terminal, and not the other one.
+    click_control(&mut dom, "Close Terminal 2 tab");
+    until(&mut dom, "one tab left", |dom| control(dom, "Close Terminal 2 tab").is_none()).await;
+    let mut left = Vec::new();
+    for _ in 0..50 {
+        left = terminals_on_server(&mut dom, &props, state).await;
+        if left == [id.clone()] {
+            break;
+        }
+        crate::runtime::diff_tests::pump(&mut dom).await;
+    }
+    assert_eq!(left, [id], "the closed tab's terminal is gone from the server, the other is not");
+    // A terminal is not brought back by "Reopen closed tab": it is stopped with its tab.
+    assert!(!crate::right_panel::can_reopen_peek(state));
+    fixture.finish(dom).await;
+}

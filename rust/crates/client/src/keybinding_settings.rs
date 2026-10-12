@@ -29,11 +29,17 @@ pub const WIRED_COMMANDS: &[&str] = &[
     "thread.jump.8",
     "thread.jump.9",
     // What `keys.rs` carries out beyond the first set: the terminal, the composer, the queue, usage, the theme editor,
-    // the commands a thread row's menu has, the tabbed panel and the page's history. The original's preview browser, thread
+    // the commands a thread row's menu has, the tabbed panel and its browser, and the page's history. The original's thread
     // details and host commands have no feature here, so they stay out.
     "navigation.back",
     "navigation.forward",
     "rightPanel.toggle",
+    "preview.toggle",
+    "preview.refresh",
+    "preview.focusUrl",
+    "preview.zoomIn",
+    "preview.zoomOut",
+    "preview.resetZoom",
     "rightPanel.new",
     "rightPanel.toggleMaximized",
     "rightPanel.close",
@@ -330,7 +336,8 @@ mod tests {
         let rows = build_rows(&rules, "");
         assert!(rows.iter().all(|row| is_wired(&row.command)));
         assert!(rows.iter().any(|row| row.command == "diff.toggle" && row.key == "mod+d" && row.when == "!terminalFocus" && row.source == Source::Default));
-        assert!(!rows.iter().any(|row| row.command == "preview.toggle"));
+        assert!(rows.iter().any(|row| row.command == "preview.toggle" && row.key == "mod+shift+j") && rows.iter().any(|row| row.command == "preview.refresh" && row.when == "previewFocus"));
+        assert!(!rows.iter().any(|row| row.command == "threadPanel.toggle"));
         assert_eq!(rows.len() + hidden_count(&rules), rules.len());
         let groups = group_rows(rows);
         let titles: Vec<_> = groups.iter().map(|group| group.title).collect();
