@@ -923,6 +923,8 @@ struct Subscription {
     ack: Option<mpsc::Sender<()>>,
     generation: u64,
     task: tokio::task::JoinHandle<()>,
+    /// The call's `ws.rpc.<method>` span; dropped with the subscription, which is what an interrupt or a closed connection does.
+    span: Option<crate::rpc_spans::RpcSpan>,
 }
 async fn connection(socket: WebSocket, state: ApiState, session: Session) {
     static NEXT_CLIENT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -986,6 +988,7 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
         }
     });
     let mut subscriptions: HashMap<RpcRequestId, Subscription> = HashMap::new();
+    let trace = crate::trace_sink::current(&state.store);
     let (finished, mut completed) =
         mpsc::channel::<(RpcRequestId, u64, Option<RpcServerMessage>)>(64);
     let mut generation = 0u64;
@@ -1006,15 +1009,16 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                             #[cfg(feature = "outbound-check")]
                             crate::rpc_response::remember(&outgoing.methods,request.id.clone(),&request.tag);
                             if let Some(previous)=subscriptions.remove(&request.id){previous.task.abort();}
-                            let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let _=outgoing.send(failure(request.id,session_ended(&request.tag))).await;continue}};
+                            let mut span=crate::rpc_spans::RpcSpan::start(trace.as_ref(),&request.tag);
+                            let session=match state.auth.active_session(&session.session_id,Utc::now()){Ok(session)=>session,Err(_)=>{let error=session_ended(&request.tag);if let Some(span)=span.take(){span.fail(&error);}let _=outgoing.send(failure(request.id,error)).await;continue}};
                             // A method the original's group does not have is a defect there, before anything else is looked at.
                             if t3_contracts::rpc_required_scope(&request.tag).is_err(){let _=outgoing.send(failure(request.id,json!({"_tag":"SchemaDecodeError","message":format!("Unknown request tag: {}",request.tag)}))).await;continue}
                             // The original decodes first, then authorizes. Here the scope is checked first, so a caller without it learns
                             // nothing of the schema; only a method whose scope depends on its payload is decoded before it.
                             let payload_scoped=matches!(request.tag.as_str(),"device.list"|"server.updateSettings");
-                            if payload_scoped{if let Err(error)=admit_payload(&mut request){let _=outgoing.send(failure(request.id,error)).await;continue}}
-                            if let Err(error)=authorize_request(&session,&request){let _=outgoing.send(failure(request.id,error)).await;continue}
-                            if !payload_scoped{if let Err(error)=admit_payload(&mut request){let _=outgoing.send(failure(request.id,error)).await;continue}}
+                            if payload_scoped{if let Err(error)=admit_payload(&mut request){if let Some(span)=span.take(){span.fail(&error);}let _=outgoing.send(failure(request.id,error)).await;continue}}
+                            if let Err(error)=authorize_request(&session,&request){if let Some(span)=span.take(){span.fail(&error);}let _=outgoing.send(failure(request.id,error)).await;continue}
+                            if !payload_scoped{if let Err(error)=admit_payload(&mut request){if let Some(span)=span.take(){span.fail(&error);}let _=outgoing.send(failure(request.id,error)).await;continue}}
                             generation += 1;
                             let current_generation = generation;
                             let id=request.id.clone();let state=state.clone();let output=outgoing.clone();let finished=finished.clone();let completed_id=id.clone();let reported=reported.clone();
@@ -1030,13 +1034,13 @@ async fn connection(socket: WebSocket, state: ApiState, session: Session) {
                                 });
                                 (None,task)
                             };
-                            subscriptions.insert(id,Subscription{ack,generation:current_generation,task});
+                            subscriptions.insert(id,Subscription{ack,generation:current_generation,task,span});
                         },
                     }
                 }
             },
             _=&mut writer=>break,
-            Some((id,generation,response))=completed.recv()=>{if subscriptions.get(&id).is_some_and(|subscription|subscription.generation==generation){subscriptions.remove(&id);if let Some(response)=response{if outgoing.send(response).await.is_err(){break;}}}}
+            Some((id,generation,response))=completed.recv()=>{if subscriptions.get(&id).is_some_and(|subscription|subscription.generation==generation){if let Some(span)=subscriptions.remove(&id).and_then(|mut done|done.span.take()){match &response{Some(RpcServerMessage::Exit{exit:RpcExit::Failure{cause},..})=>span.fail(&serde_json::to_value(cause).unwrap_or(Value::Null)),_=>span.succeed()}}if let Some(response)=response{if outgoing.send(response).await.is_err(){break;}}}}
         }
     }
     for (_, subscription) in subscriptions {
@@ -1678,9 +1682,16 @@ async fn chatgpt_profile(state: &ApiState, request: &RpcRequest) -> Result<Value
     if operation == "export" {
         return crate::codex_chatgpt_rpc::reconnect_profile(&environment, &state.store, request.payload.clone());
     }
-    // The sessions that run on the old tokens end first. This server's managed Codex does not yet run on these tokens (it uses a local
-    // `codex`), so there are none to end.
-    crate::codex_chatgpt_rpc::import_profile(&environment, &state.store, request.payload.clone(), Box::pin(async { Ok(()) })).await
+    // The sessions that run on the old tokens end first: the instance's sign-in does that when this server has one for it. A server
+    // without provider sign-in services has no sessions on these tokens.
+    match &state.provider_auth {
+        Some(service) => {
+            let input: t3_contracts::ChatGptImportProfileInput = serde_json::from_value(request.payload.clone()).map_err(|error| json!({"_tag":"SchemaDecodeError","message":error.to_string()}))?;
+            let state = service.import_chatgpt_profile(input).await.map_err(|error| serde_json::to_value(error).expect("typed provider setup error"))?;
+            Ok(serde_json::to_value(state).expect("typed sign-in state"))
+        }
+        None => crate::codex_chatgpt_rpc::import_profile(&environment, &state.store, request.payload.clone()).await,
+    }
 }
 
 /// `provider.chatgpt.handoff.subscribe`: the sign-in states, then the finished profile.

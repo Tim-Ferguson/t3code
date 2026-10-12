@@ -34,6 +34,20 @@ pub fn publish(store: &Store, kind: &str, payload: Value) -> Value {
     })
 }
 
+/// The `welcome` payload (`resolveWelcomeBase` and the targets of `resolveAutoBootstrapWelcomeTargets`): where the server runs, and the project
+/// and thread it opened when asked to. The contract also declares `bootstrapStatus`, `bootstrapProjectCreated` and `bootstrapThreadCreated`,
+/// but the original's server never sends them (the first-run gate treats their absence as a complete bootstrap), so neither does this one,
+/// with auto-bootstrap on or off.
+pub fn welcome_payload(environment: &Value, cwd: &std::path::Path, bootstrap: Option<(&str, &str)>) -> Value {
+    let project_name = cwd.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned());
+    let mut welcome = json!({"environment":environment,"cwd":cwd,"projectName":project_name});
+    if let Some((project_id, thread_id)) = bootstrap {
+        welcome["bootstrapProjectId"] = json!(project_id);
+        welcome["bootstrapThreadId"] = json!(thread_id);
+    }
+    welcome
+}
+
 /// The events to send first, in sequence order, and the stream of those published after.
 pub(crate) fn subscribe(store: &Store) -> (Vec<Value>, u64, tokio::sync::broadcast::Receiver<Value>) {
     with(store, |state| {
@@ -46,6 +60,19 @@ pub(crate) fn subscribe(store: &Store) -> (Vec<Value>, u64, tokio::sync::broadca
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_welcome_names_the_workspace_and_only_what_the_original_sends_of_the_bootstrap() {
+        let environment = json!({"environmentId":"e"});
+        let plain = welcome_payload(&environment, std::path::Path::new("/work/app"), None);
+        assert_eq!(plain, json!({"environment":environment,"cwd":"/work/app","projectName":"app"}));
+        let bootstrapped = welcome_payload(&environment, std::path::Path::new("/work/app"), Some(("project-1", "thread-1")));
+        assert_eq!(bootstrapped, json!({"environment":environment,"cwd":"/work/app","projectName":"app","bootstrapProjectId":"project-1","bootstrapThreadId":"thread-1"}));
+        for key in ["bootstrapStatus", "bootstrapProjectCreated", "bootstrapThreadCreated"] {
+            assert!(plain.get(key).is_none() && bootstrapped.get(key).is_none(), "{key} is not sent by the original");
+        }
+        assert_eq!(welcome_payload(&environment, std::path::Path::new("/"), None)["projectName"], "project");
+    }
 
     #[test]
     fn a_subscriber_gets_the_latest_event_of_each_kind_in_order_and_then_what_follows() {

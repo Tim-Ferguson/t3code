@@ -104,7 +104,7 @@ async fn a_managed_install_downloads_verifies_reports_progress_republishes_provi
     let before = harness.registry.snapshots();
     let codex = provider(&Value::from(before), "codex").clone();
     assert_eq!((codex["installed"].clone(), codex["message"].clone()), (json!(false), json!("Set up Codex to get started.")));
-    assert_eq!(codex["setup"], json!({"canAuthenticate":false,"canInstall":true}));
+    assert_eq!(codex["setup"], json!({"canAuthenticate":true,"canInstall":true}));
 
     let mut manager = harness.connect(&harness.manager).await;
     let mut watcher = harness.connect(&harness.manager).await;

@@ -847,35 +847,6 @@ pub async fn remove(registry: &ProviderRegistry, instance: &ProviderInstanceId) 
     Ok(installation.state())
 }
 
-/// What a managed-setup Codex instance reports before a session exists: the installation, not a probe.
-/// Signing in with ChatGPT is not part of this build, so the instance is installed but not usable.
-pub async fn managed_snapshot(management: &Management, instance: &crate::codex::CodexInstance) -> Result<Value, crate::provider_process::ProcessError> {
-    let mut snapshot = json!({"instanceId":instance.instance_id,"driver":"codex","displayName":instance.display_name,"enabled":instance.enabled,"installed":false,"version":null,
-        "status":"warning","auth":{"status":"unknown"},"checkedAt":crate::provider_manage::now_iso(),"availability":"available","models":[],"slashCommands":[],"skills":[],
-        "showInteractionModeToggle":true,"reportsContextWindow":true,"setup":{"canAuthenticate":false,"canInstall":true}});
-    if let Some(accent) = &instance.accent_color {
-        snapshot["accentColor"] = json!(accent);
-    }
-    if !instance.enabled {
-        snapshot["status"] = json!("disabled");
-        snapshot["message"] = json!("Codex is disabled in T3 Code settings.");
-        return validated(snapshot);
-    }
-    snapshot["auth"] = json!({"status":"unauthenticated"});
-    let executable = match management.codex_installation().await {
-        Ok(installation) => installation.resolve().await.ok(),
-        Err(_) => None,
-    };
-    match executable {
-        None => snapshot["message"] = json!("Set up Codex to get started."),
-        Some(executable) => {
-            snapshot["installed"] = json!(true);
-            snapshot["version"] = json!(executable.version);
-            snapshot["message"] = json!("Codex is installed. Signing in with ChatGPT is not available in this build.");
-        }
-    }
-    validated(snapshot)
-}
 fn validated(snapshot: Value) -> Result<Value, crate::provider_process::ProcessError> {
     let typed: t3_contracts::ServerProvider = serde_json::from_value(snapshot).map_err(|error| crate::provider_process::ProcessError::Protocol(error.to_string()))?;
     serde_json::to_value(typed).map_err(|error| crate::provider_process::ProcessError::Protocol(error.to_string()))

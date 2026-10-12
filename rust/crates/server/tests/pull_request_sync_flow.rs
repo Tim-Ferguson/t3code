@@ -42,11 +42,13 @@ struct Remote {
     limited: Option<u32>,
     /// The balance every GraphQL answer reports.
     remaining: u32,
+    /// The host-native stack this pull request is in: (number, head branch) of each layer, bottom to top.
+    stack: Option<Vec<(u64, &'static str)>>,
 }
 
 impl Default for Remote {
     fn default() -> Self {
-        Remote { failing: false, title: "Fix it", head: "aaa1111".into(), state: "OPEN", mergeable: "MERGEABLE", checks: vec![("lint", "IN_PROGRESS", None)], comments: vec![], limited: None, remaining: 4_000 }
+        Remote { failing: false, title: "Fix it", head: "aaa1111".into(), state: "OPEN", mergeable: "MERGEABLE", checks: vec![("lint", "IN_PROGRESS", None)], comments: vec![], limited: None, remaining: 4_000, stack: None }
     }
 }
 
@@ -73,6 +75,13 @@ fn answer(remotes: &Remotes, request: &Recorded) -> Step {
     if request.path == "/rest/github.com/user" {
         return json(json!({"id":4242,"login":"octo"}));
     }
+    // The stacks REST read: the stack the pull request named by the query is in, or none.
+    if request.path.ends_with("/stacks") {
+        let number: u64 = request.query.as_deref().and_then(|query| query.strip_prefix("pull_request=")).and_then(|number| number.parse().ok()).unwrap_or(0);
+        let layers = remotes.lock().unwrap().get(&number).and_then(|remote| remote.stack.clone());
+        let stacks: Vec<Value> = layers.into_iter().map(|layers| json!({"id":"stack-3","number":3,"url":"https://github.com/acme/web/stack/3","base":{"ref":"main"},"pull_requests":layers.iter().map(|(number, head)| json!({"number":number,"state":"open","draft":false,"head":{"ref":head,"sha":format!("sha-{number}")}})).collect::<Vec<_>>()})).collect();
+        return json(json!(stacks));
+    }
     let query = request.body.as_ref().and_then(|body| body["query"].as_str()).unwrap_or("").to_owned();
     let number = request.body.as_ref().and_then(|body| body["variables"]["number"].as_u64()).unwrap_or(0);
     let remote = remotes.lock().unwrap().get(&number).cloned().unwrap_or_default();
@@ -93,7 +102,8 @@ fn answer(remotes: &Remotes, request: &Recorded) -> Step {
         let merged = remote.state == "MERGED";
         return with_limit(json!({"data":{"s0":{"repository":null,"pullRequest":{"number":number,"title":remote.title,"url":format!("https://github.com/acme/web/pull/{number}"),"state":remote.state,"isDraft":false,"mergeable":remote.mergeable,"reviewDecision":"REVIEW_REQUIRED",
             "additions":1,"deletions":1,"changedFiles":1,"updatedAt":if merged { "2026-10-05T13:00:00Z" } else { "2026-10-05T12:00:00Z" },"mergedAt":if merged { json!("2026-10-05T13:00:00Z") } else { Value::Null },"closedAt":Value::Null,"headRefName":"feature","baseRefName":"main",
-            "author":actor("octo"),"latestReviews":{"nodes":[]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING"}}}]},"stack":null}}}}));
+            "author":actor("octo"),"latestReviews":{"nodes":[]},"commits":{"nodes":[{"commit":{"statusCheckRollup":{"state":"PENDING"}}}]},
+            "stack":remote.stack.as_ref().map_or(Value::Null, |layers| json!({"number":3,"size":layers.len(),"baseRefName":"main"})),"stackEntry":remote.stack.as_ref().map_or(Value::Null, |_| json!({"position":1}))}}}}));
     }
     if is(queries::CORE_GITHUB_COM) {
         let contexts: Vec<Value> = remote
@@ -317,6 +327,34 @@ async fn scenario() {
     link("t7", 13);
     sync.spawn_timer();
     h.until("t7", |view| link_of(view, 13)["snapshot"]["state"].as_str().map(|_| ())).await;
+
+    // -- the host's stack fills the link, and the layers the thread does not hold are linked as `stack` ------------------------
+    remotes.lock().unwrap().insert(20, Remote { stack: Some(vec![(20, "layer-a"), (21, "layer-b")]), ..Remote::default() });
+    idle_thread("t8");
+    settled(&h, "t8").await;
+    link("t8", 20);
+    sync.sweep().await;
+    let stacked = link_of(&h.view("t8"), 20);
+    assert_eq!((stacked["stack"]["kind"].clone(), stacked["stack"]["number"].clone(), stacked["stack"]["base"].clone()), (json!("native"), json!(3), json!("main")), "{stacked}");
+    let layers = |link: &Value| link["stack"]["layers"].as_array().unwrap().iter().map(|layer| (layer["number"].as_u64().unwrap(), layer["headBranch"].as_str().unwrap().to_owned())).collect::<Vec<_>>();
+    assert_eq!(layers(&stacked), [(20, "layer-a".to_owned()), (21, "layer-b".to_owned())]);
+    let sibling = link_of(&h.view("t8"), 21);
+    assert_eq!((sibling["source"].clone(), sibling["url"].clone()), (json!("stack"), json!("https://github.com/acme/web/pull/21")), "the other layer is linked: {sibling}");
+    // A layer the user dismissed stays dismissed when the stack changes, and a new layer is linked.
+    let receipt = threads.dispatch(&json!({"type":"thread.pull-request.unlink","commandId":"unlink-t8-21","threadId":"t8","host":"github.com","repository":"acme/web","number":21}), clock.utc_now()).unwrap();
+    assert_eq!(receipt.status, "accepted", "{receipt:?}");
+    assert_eq!(link_of(&h.view("t8"), 21)["source"], "stack-dismissed");
+    {
+        let mut remotes = remotes.lock().unwrap();
+        let remote = remotes.get_mut(&20).unwrap();
+        remote.title = "Fix the first layer";
+        remote.stack = Some(vec![(20, "layer-a"), (21, "layer-b"), (22, "layer-c")]);
+    }
+    after(10);
+    sync.sweep().await;
+    let view = h.view("t8");
+    assert_eq!(layers(&link_of(&view, 20)).len(), 3);
+    assert_eq!((link_of(&view, 21)["source"].clone(), link_of(&view, 22)["source"].clone()), (json!("stack-dismissed"), json!("stack")));
 
     h.finish().await;
 }

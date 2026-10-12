@@ -29,6 +29,7 @@ struct Harness {
     _directory: tempfile::TempDir,
     store: Store,
     execution: ExecutionService,
+    providers: ProviderRegistry,
     thread: String,
     socket: Socket,
     responses: std::path::PathBuf,
@@ -69,7 +70,7 @@ async fn harness(runtime_mode: &str, interaction_mode: &str) -> Harness {
         settings: None,
         cors_origins: None,
         assets: None,
-        providers: Some(providers),
+        providers: Some(providers.clone()),
         execution: Some(execution.clone()),
         workspace: None,
         terminals: None,
@@ -90,7 +91,7 @@ async fn harness(runtime_mode: &str, interaction_mode: &str) -> Harness {
     let mut request = format!("ws://{address}/ws?orchestrationProtocol=2").into_client_request().unwrap();
     request.headers_mut().insert("Authorization", format!("Bearer {operator}").parse().unwrap());
     let socket = tokio_tungstenite::connect_async(request).await.unwrap().0;
-    Harness { _directory: directory, store, execution, thread, socket, responses, requests, next: 0, stop: Some(stop), server: Some(server) }
+    Harness { _directory: directory, store, execution, providers, thread, socket, responses, requests, next: 0, stop: Some(stop), server: Some(server) }
 }
 
 impl Harness {
@@ -406,6 +407,29 @@ async fn retried_errors_show_as_a_retry_that_recovers_and_a_usage_limit_stop_car
     let error = view["turnItems"].as_array().unwrap().iter().find(|item| item["type"] == "error").unwrap();
     assert_eq!((error["title"].as_str(), error["failure"]["class"].as_str(), error["failure"]["code"].as_str()), (Some("Usage limit reached"), Some("usage_limit"), Some("usageLimitExceeded")));
     assert_eq!(error["failure"]["resetAt"], "2027-01-15T09:00:00.000Z");
+    // The notification the session saw also reaches the provider's usage windows (`onUsageLimits`); the probe had found none.
+    let snapshot = harness.providers.snapshots().into_iter().find(|snapshot| snapshot["instanceId"] == "codex").unwrap();
+    let windows = snapshot["usageLimits"]["windows"].as_array().unwrap();
+    assert_eq!(windows.len(), 1, "{snapshot}");
+    assert_eq!((windows[0]["id"].as_str(), windows[0]["kind"].as_str(), windows[0]["usedPercent"].as_u64(), windows[0]["resetsAt"].as_str()), (Some("primary"), Some("session"), Some(100), Some("2027-01-15T09:00:00.000Z")));
+    harness.finish().await;
+}
+
+/// Every decoded frame to and from the app-server reaches the thread's provider event log, as the original's protocol logger writes it.
+#[tokio::test(flavor = "multi_thread")]
+async fn codex_frames_reach_the_provider_event_log() {
+    use t3_server::provider_event_log::{EventLogStore, Options, current, install};
+    let mut harness = harness("full-access", "default").await;
+    let logs = harness._directory.path().join("logs");
+    install(&harness.store, EventLogStore::open(&logs.join("events.log"), Options { batch_window_ms: 0, ..Options::default() }, std::sync::Arc::new(|| Utc::now().timestamp_millis()), None).unwrap());
+    harness.send("Hello", json!({})).await;
+    harness.settled(1).await;
+    current(&harness.store).unwrap().close();
+    let file = std::fs::read_dir(&logs).unwrap().map(|entry| entry.unwrap().path()).find(|path| path.file_name().unwrap().to_string_lossy().starts_with("events.") && path.file_name().unwrap().to_string_lossy() != "events.log").expect("a per-thread log");
+    let frames: Vec<Value> = std::fs::read_to_string(file).unwrap().lines().map(|line| serde_json::from_str(line.split_once("NTIVE: ").unwrap().1).unwrap()).collect();
+    assert!(frames.iter().all(|frame| frame["provider"] == "codex" && frame["protocol"] == "codex.app-server" && frame["kind"] == "protocol" && frame["event"]["stage"] == "decoded"));
+    let seen = |direction: &str, method: &str| frames.iter().any(|frame| frame["event"]["direction"] == direction && frame["event"]["payload"]["method"] == method);
+    assert!(seen("outgoing", "initialize") && seen("outgoing", "turn/start") && seen("incoming", "turn/completed"), "{frames:?}");
     harness.finish().await;
 }
 

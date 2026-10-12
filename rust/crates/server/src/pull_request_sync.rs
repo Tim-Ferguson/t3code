@@ -9,8 +9,13 @@
 //! watching: its pull request is read for the threads that are still active, and takes the fresh snapshot
 //! when it shares one.
 //!
-//! Not ported: the stack a host reports for a pull request (the stack chain of a link stays as it was, and
-//! sibling layers are not linked on their own), and the refresh a shell command that merges asks for.
+//! A link also holds the host-native stack its pull request belongs to (`stack`, what the UI draws the saved stack from). The stack
+//! is read when the link has no snapshot, the snapshot changed, or the summary says the pull request moved to another stack; a link
+//! of an active thread then gains one `source: "stack"` link per layer it does not hold (a dismissed layer counts as held, so it is
+//! not brought back).
+//!
+//! Not ported: the refresh a shell command that merges asks for (`requestSync`), and the pause a rate-limited host asks for (a failed
+//! stack read is only retried on the next pass).
 use crate::{
     execution::ExecutionService,
     pull_request_service::{Env, PullRequestService},
@@ -19,7 +24,7 @@ use crate::{
 use chrono::{SecondsFormat, Utc};
 use serde_json::{Value, json};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -33,6 +38,26 @@ struct Entry {
     project_id: String,
     link: Value,
     unsettled: bool,
+    /// Every link the thread holds, tombstones included: a layer already filed under the thread is not linked again.
+    thread_links: Arc<Vec<Value>>,
+}
+
+/// `ThreadPullRequestStack` of a host's `PullRequestStack`: only the fields a thread keeps, and the kind `native`.
+fn thread_stack(stack: &t3_contracts::PullRequestStack) -> Value {
+    let stack = serde_json::to_value(stack).unwrap_or(Value::Null);
+    let layers: Vec<Value> = stack["layers"].as_array().into_iter().flatten().map(|layer| json!({"number":layer["number"],"headBranch":layer["headBranch"],"state":layer["state"]})).collect();
+    json!({"kind":"native","id":stack["id"],"number":stack["number"],"url":stack["url"],"base":stack["base"],"layers":layers})
+}
+
+/// `stacksEqual`.
+fn same_stack(left: &Value, right: &Value) -> bool {
+    if left.is_null() || right.is_null() {
+        return left.is_null() && right.is_null();
+    }
+    let (left_layers, right_layers) = (left["layers"].as_array().map_or(&[][..], Vec::as_slice), right["layers"].as_array().map_or(&[][..], Vec::as_slice));
+    ["kind", "id", "number", "url", "base"].iter().all(|field| left[*field] == right[*field])
+        && left_layers.len() == right_layers.len()
+        && left_layers.iter().zip(right_layers).all(|(a, b)| ["number", "headBranch", "state"].iter().all(|field| a[*field] == b[*field]))
 }
 
 /// The snapshot fields a host summary gives a link (`snapshotFieldsOf`).
@@ -76,6 +101,8 @@ struct Inner {
     env: Env,
     service: Arc<PullRequestService>,
     last_read: Mutex<HashMap<String, std::time::Instant>>,
+    /// Pull requests whose stack read failed, or whose write did, until a pass completes them.
+    retry_stacks: Mutex<HashSet<String>>,
 }
 
 #[derive(Clone)]
@@ -85,7 +112,7 @@ pub struct PullRequestSync {
 
 impl PullRequestSync {
     pub fn new(execution: ExecutionService, env: Env, service: Arc<PullRequestService>) -> Self {
-        Self { inner: Arc::new(Inner { execution, env, service, last_read: Mutex::default() }) }
+        Self { inner: Arc::new(Inner { execution, env, service, last_read: Mutex::default(), retry_stacks: Mutex::default() }) }
     }
 
     /// The links of active threads, grouped by pull request.
@@ -97,10 +124,11 @@ impl PullRequestSync {
                 continue;
             }
             let links = crate::thread_pull_requests::links(thread);
+            let thread_links = Arc::new(links.clone());
             let unsettled = thread["settledOverride"] != "settled" && thread["settledAt"].is_null();
             for link in visible(&links) {
                 let key = normalize(&link);
-                groups.entry(format!("{}:{}/{}#{}", thread["projectId"].as_str().unwrap_or_default(), key["host"].as_str().unwrap_or_default(), key["repository"].as_str().unwrap_or_default(), key["number"])).or_default().push(Entry { thread_id: thread["id"].as_str().unwrap_or_default().to_owned(), project_id: thread["projectId"].as_str().unwrap_or_default().to_owned(), link, unsettled });
+                groups.entry(format!("{}:{}/{}#{}", thread["projectId"].as_str().unwrap_or_default(), key["host"].as_str().unwrap_or_default(), key["repository"].as_str().unwrap_or_default(), key["number"])).or_default().push(Entry { thread_id: thread["id"].as_str().unwrap_or_default().to_owned(), project_id: thread["projectId"].as_str().unwrap_or_default().to_owned(), link, unsettled, thread_links: thread_links.clone() });
             }
         }
         groups
@@ -110,9 +138,12 @@ impl PullRequestSync {
     pub async fn sweep(&self) {
         let groups = self.groups();
         self.inner.last_read.lock().unwrap().retain(|key, _| groups.contains_key(key));
+        self.inner.retry_stacks.lock().unwrap().retain(|key| groups.contains_key(key));
+        // Layers linked this pass, so two links of one thread that share a stack do not both add the same sibling.
+        let mut linked_this_pass: HashSet<String> = HashSet::new();
         for (key, entries) in groups {
             let since = self.inner.last_read.lock().unwrap().get(&key).map(|read| read.elapsed());
-            if !due(&entries, since) {
+            if !due(&entries, since) && !self.inner.retry_stacks.lock().unwrap().contains(&key) {
                 continue;
             }
             let first = &entries[0];
@@ -127,19 +158,71 @@ impl PullRequestSync {
                 }
             };
             let fields = snapshot_fields(&summary);
+            // The stack is read when something about the pull request moved; a summary that says it is in no stack, for links that
+            // hold none, already answers what the stack read would.
+            let needs_stack = self.inner.retry_stacks.lock().unwrap().contains(&key)
+                || entries.iter().any(|entry| entry.link["snapshot"].is_null() || !same_snapshot(&entry.link["snapshot"], &fields) || (summary.get("stack").is_some() && entry.link["stack"]["number"] != summary["stack"]["number"]));
+            let known_unstacked = summary.get("stack").is_some_and(Value::is_null) && entries.iter().all(|entry| entry.link["stack"].is_null());
+            // `Some(None)` is a pull request in no stack; `None` is a stack that was not read.
+            let fetched: Option<Option<Value>> = if !needs_stack {
+                None
+            } else if known_unstacked {
+                Some(None)
+            } else {
+                match self.inner.service.stack(&self.inner.env, &reference, None, false).await {
+                    Ok(stack) => Some(stack.as_ref().map(thread_stack)),
+                    Err(error) => {
+                        tracing::warn!(pull_request = %key, ?error, "pull request stack lookup failed");
+                        self.inner.retry_stacks.lock().unwrap().insert(key);
+                        continue;
+                    }
+                }
+            };
+            if needs_stack {
+                self.inner.retry_stacks.lock().unwrap().remove(&key);
+            }
             // The host answered, so the cadence clock ticks even if a write below is rejected.
             self.inner.last_read.lock().unwrap().insert(key.clone(), std::time::Instant::now());
             let now = Utc::now();
             for entry in &entries {
-                if !entry.link["snapshot"].is_null() && same_snapshot(&entry.link["snapshot"], &fields) {
-                    continue;
+                let current_stack = entry.link.get("stack").cloned().unwrap_or(Value::Null);
+                let next_stack = match &fetched {
+                    Some(stack) => stack.clone().unwrap_or(Value::Null),
+                    None => current_stack.clone(),
+                };
+                let changed = entry.link["snapshot"].is_null() || !same_snapshot(&entry.link["snapshot"], &fields) || !same_stack(&current_stack, &next_stack);
+                // Siblings are filed before a terminal snapshot can settle the thread. A settled thread that shares the pull request
+                // takes the fresh snapshot but gains no links.
+                let layers = if entry.unsettled { next_stack["layers"].as_array().filter(|_| fetched.is_some()).cloned().unwrap_or_default() } else { vec![] };
+                let host = normalize(&entry.link)["host"].clone();
+                let mut failed = false;
+                for layer in layers {
+                    let layer_key = json!({"host":host,"repository":entry.link["repository"],"number":layer["number"]});
+                    let normalized = normalize(&layer_key);
+                    let dedupe = format!("{}:{}/{}#{}", entry.thread_id, normalized["host"].as_str().unwrap_or_default(), normalized["repository"].as_str().unwrap_or_default(), normalized["number"]);
+                    if linked_this_pass.contains(&dedupe) || entry.thread_links.iter().any(|existing| normalize(existing) == normalized) {
+                        continue;
+                    }
+                    let Some(url) = entry.link["url"].as_str().zip(layer["number"].as_u64()).and_then(|(url, number)| crate::thread_pull_requests::sibling_pull_request_url(url, number)) else { continue };
+                    let command = json!({"type":"thread.pull-request.link","commandId":format!("server:pr-stack-link:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":layer_key["host"],"repository":layer_key["repository"],"number":layer_key["number"],"url":url,"source":"stack"});
+                    let store = self.inner.execution.store.clone();
+                    let outcome = tokio::task::spawn_blocking(move || crate::thread::ThreadService::new(store).dispatch(&command, now)).await;
+                    if !matches!(outcome, Ok(Ok(_))) {
+                        failed = true;
+                        break;
+                    }
+                    linked_this_pass.insert(dedupe);
                 }
-                let mut snapshot = fields.clone();
-                snapshot["syncedAt"] = json!(now.to_rfc3339_opts(SecondsFormat::Millis, true));
-                let command = json!({"type":"thread.pull-request-link.sync","commandId":format!("server:pr-sync:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":normalize(&entry.link)["host"],"repository":entry.link["repository"],"number":entry.link["number"],"snapshot":snapshot,"stack":entry.link.get("stack").cloned().unwrap_or(Value::Null)});
-                let store = self.inner.execution.store.clone();
-                let outcome = tokio::task::spawn_blocking(move || crate::service_commands::dispatch(&store, None, &command, now)).await;
-                if !matches!(outcome, Ok(Ok(_))) {
+                if !failed && changed {
+                    let mut snapshot = fields.clone();
+                    snapshot["syncedAt"] = json!(now.to_rfc3339_opts(SecondsFormat::Millis, true));
+                    let command = json!({"type":"thread.pull-request-link.sync","commandId":format!("server:pr-sync:{}:{}",entry.thread_id,uuid::Uuid::new_v4()),"threadId":entry.thread_id,"host":host,"repository":entry.link["repository"],"number":entry.link["number"],"snapshot":snapshot,"stack":next_stack});
+                    let store = self.inner.execution.store.clone();
+                    let outcome = tokio::task::spawn_blocking(move || crate::service_commands::dispatch(&store, None, &command, now)).await;
+                    failed = !matches!(outcome, Ok(Ok(_)));
+                }
+                if failed {
+                    self.inner.retry_stacks.lock().unwrap().insert(key.clone());
                     tracing::warn!(thread = %entry.thread_id, pull_request = %key, "pull request sync skipped");
                 }
             }
@@ -163,7 +246,21 @@ mod tests {
     use super::*;
 
     fn entry(snapshot: Value, unsettled: bool) -> Entry {
-        Entry { thread_id: "t".into(), project_id: "p".into(), link: json!({"snapshot":snapshot}), unsettled }
+        Entry { thread_id: "t".into(), project_id: "p".into(), link: json!({"snapshot":snapshot}), unsettled, thread_links: Arc::default() }
+    }
+
+    #[test]
+    fn a_stack_is_kept_as_a_thread_keeps_it_and_compared_by_what_a_link_shows() {
+        let stack: t3_contracts::PullRequestStack = serde_json::from_value(json!({"id":"s1","number":4,"url":"https://github.com/acme/web/pull/4","base":"main","layers":[{"number":4,"title":"Base","isDraft":false,"headSha":"abc","headBranch":"a","state":"open"},{"number":5,"headBranch":"b","state":"merged"}]})).unwrap();
+        let kept = thread_stack(&stack);
+        assert_eq!(kept, json!({"kind":"native","id":"s1","number":4,"url":"https://github.com/acme/web/pull/4","base":"main","layers":[{"number":4,"headBranch":"a","state":"open"},{"number":5,"headBranch":"b","state":"merged"}]}));
+        assert!(same_stack(&kept, &kept.clone()) && same_stack(&Value::Null, &Value::Null));
+        assert!(!same_stack(&kept, &Value::Null) && !same_stack(&Value::Null, &kept));
+        let mut merged = kept.clone();
+        merged["layers"][0]["state"] = json!("merged");
+        let mut shorter = kept.clone();
+        shorter["layers"].as_array_mut().unwrap().pop();
+        assert!(!same_stack(&kept, &merged) && !same_stack(&kept, &shorter));
     }
 
     #[test]

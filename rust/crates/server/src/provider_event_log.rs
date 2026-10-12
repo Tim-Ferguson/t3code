@@ -632,6 +632,14 @@ pub fn write_protocol_summary(logger: &EventLogger, provider: &str, protocol: Op
     logger.write(&json!({"observedAt":observed_at,"event":Value::Object(event)}), Some(thread_id));
 }
 
+/// What the ACP family writes (`writeNativeAcpLog`): the record `kind` is `request` or `protocol`, and the payload is already a bounded
+/// summary. Unlike [`write_protocol_summary`] it names neither a session nor a protocol.
+pub fn write_acp_record(logger: &EventLogger, provider: &str, thread_id: &str, kind: &str, payload: Value) {
+    let observed_at = iso((logger.store.clock)());
+    let event = json!({"id":uuid::Uuid::new_v4().to_string(),"kind":kind,"provider":provider,"createdAt":observed_at,"threadId":thread_id,"payload":payload});
+    logger.write(&json!({"observedAt":observed_at,"event":event}), Some(thread_id));
+}
+
 // ---- Codex ------------------------------------------------------------------------------------------------------------------------
 
 fn is_sensitive_key(key: &str) -> bool {

@@ -1274,7 +1274,18 @@ async fn run(
     }
     let event_log = t3_server::provider_event_log::current(&store);
     // How this server reaches OpenAI to sign managed Codex in with ChatGPT (and to move that sign-in between environments).
-    t3_server::codex_chatgpt_rpc::install(&store, t3_server::codex_chatgpt_rpc::Environment { environment_id: environment_id.clone(), default_return_url: None, discovery_url: None, resource: None, http: reqwest::Client::new() });
+    t3_server::codex_chatgpt_rpc::install(&store, t3_server::codex_chatgpt_rpc::Environment { environment_id: environment_id.clone(), default_return_url: None, discovery_url: None, resource: None, models_url: None, http: reqwest::Client::new() });
+    // Managed Codex runs on it: its sessions, its sign-in and its provider list read the tokens through this host. The instances listed
+    // before it existed are listed again.
+    if let Ok(environment) = t3_server::codex_chatgpt_rpc::current(&store) {
+        native_config.providers.management().set_chatgpt(t3_server::codex_managed::ChatGptHost { environment, state_dir: state_dir.clone() });
+        let providers = native_config.providers.clone();
+        tokio::spawn(async move {
+            for instance in providers.managed_codex_ids() {
+                let _ = providers.refresh_instance(&instance).await;
+            }
+        });
+    }
     // The quota of the configured usage-limit sources, read on the provider health interval and when the entries change.
     t3_server::usage_limit_sources::install(&store, t3_server::usage_limit_sources::start_production(settings_service.clone(), background.clone()).await);
     let mcp_oauth = std::sync::Arc::new(t3_server::mcp_oauth::McpOAuth::new(auth.clone(), &t3_server::server_secret_store::ServerSecretStore::open(state_dir.join("secrets"))?)?);
@@ -1318,14 +1329,14 @@ async fn run(
     }
     // The server accepts commands from here: a client following the lifecycle learns it.
     let cwd = server_cwd.clone();
-    let mut welcome = json!({"environment":environment,"cwd":cwd,"projectName":cwd.file_name().map_or("project".to_owned(), |name| name.to_string_lossy().into_owned())});
     // The project of the working directory and its first thread, when asked for, so a client opens straight into them.
-    if options.auto_bootstrap {
+    let bootstrap = if options.auto_bootstrap {
         let settings = serde_json::to_value(&native_config.settings)?;
-        let (project_id, thread_id) = t3_server::auto_bootstrap::run(&store, &settings, &cwd).map_err(|error| format!("Server runtime startup failed before command readiness: {error}"))?;
-        welcome["bootstrapProjectId"] = json!(project_id);
-        welcome["bootstrapThreadId"] = json!(thread_id);
-    }
+        Some(t3_server::auto_bootstrap::run(&store, &settings, &cwd).map_err(|error| format!("Server runtime startup failed before command readiness: {error}"))?)
+    } else {
+        None
+    };
+    let welcome = t3_server::server_lifecycle::welcome_payload(&environment, &cwd, bootstrap.as_ref().map(|(project, thread)| (project.as_str(), thread.as_str())));
     t3_server::server_lifecycle::publish(&store, "welcome", welcome);
     t3_server::server_lifecycle::publish(&store, "ready", json!({"at":chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),"environment":environment}));
     // T3 Connect: built now that the listener has an address, started when the routes serve (below).

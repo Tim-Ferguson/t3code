@@ -887,12 +887,24 @@ impl Actor {
             let mut callback_instance = instance.clone();
             callback_instance.environment = process.environment.clone();
             // Grok's tools may detach from it; its process group is ended with it.
+            let driver = providers.driver(&instance_id).map_err(error)?;
             let peer = match &flavor {
                 crate::acp_flavor::Flavor::Grok(_) => crate::acp_peer::ProcessPeer::spawn_grouped(process),
-                crate::acp_flavor::Flavor::Antigravity(antigravity) => crate::acp_peer::ProcessPeer::spawn_with_options(process, antigravity.protocol_options()),
-                crate::acp_flavor::Flavor::Registry => crate::acp_peer::ProcessPeer::spawn(process),
+                crate::acp_flavor::Flavor::Antigravity(antigravity) => {
+                    let mut options = antigravity.protocol_options();
+                    crate::acp_native_logging::log_protocol(&mut options, &store, driver, thread_id, crate::acp_native_logging::VERBOSE_PROTOCOL_LOGGING);
+                    crate::acp_peer::ProcessPeer::spawn_with_options(process, options)
+                }
+                crate::acp_flavor::Flavor::Registry => {
+                    let mut options = Default::default();
+                    crate::acp_native_logging::log_protocol(&mut options, &store, driver, thread_id, crate::acp_native_logging::VERBOSE_PROTOCOL_LOGGING);
+                    crate::acp_peer::ProcessPeer::spawn_with_options(process, options)
+                }
             }
             .map_err(error)?;
+            if let Some(logger) = crate::acp_native_logging::request_logger(&store, driver, thread_id) {
+                peer.log_requests(logger);
+            }
             // Retain the process outside this cancellable setup future. The actor
             // shutdown path waits for its reap before releasing the runtime lease.
             *pending_peer = Some(peer.clone());

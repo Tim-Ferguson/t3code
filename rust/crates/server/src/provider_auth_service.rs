@@ -22,6 +22,8 @@ struct Controller {
     flow: AuthFlow,
     /// The ACP agent's sign-in; an Antigravity instance's lives in its flow.
     backend: Option<AcpAuth>,
+    /// A managed Codex's ChatGPT sign-in, which is also the flow's backend.
+    chatgpt: Option<crate::codex_chatgpt_auth::ChatGptAuth>,
 }
 struct Inner {
     registry: ProviderRegistry,
@@ -218,6 +220,35 @@ impl ProviderAuthService {
             ));
         }
         let mut controllers = self.0.controllers.lock().await;
+        if let Some(entry) = self.0.registry.managed_codex_entry(instance) {
+            let fingerprint = structural_fingerprint(serde_json::to_value(&entry).expect("typed provider settings"));
+            if let Some(controller) = controllers.get(instance).filter(|controller| controller.fingerprint == fingerprint) {
+                return Ok(controller.clone());
+            }
+            if let Some(previous) = controllers.remove(instance) {
+                drop(controllers);
+                previous.flow.shutdown().await;
+                controllers = self.0.controllers.lock().await;
+            }
+            if *self.0.stopped.borrow() {
+                return Err(failure(instance, operation, "This provider instance is no longer available."));
+            }
+            let host = self.0.registry.management().chatgpt().ok_or_else(|| failure(instance, operation, "ChatGPT sign-in is not available on this server."))?;
+            let auth = host.auth(instance, operation)?;
+            let flow = AuthFlow::new(instance.into(), Arc::new(auth.clone()), None, std::time::Duration::from_secs(300), ProviderCredentialOwner::T3, true);
+            // The provider list follows the sign-in: it shows who is signed in, and what the account offers.
+            let (registry, id, mut states) = (self.0.registry.clone(), instance.to_owned(), flow.subscribe("managed-codex-snapshot".into()));
+            tokio::spawn(async move {
+                while let Some(state) = states.recv().await {
+                    if matches!(state.phase, ProviderAuthPhase::Idle | ProviderAuthPhase::Succeeded | ProviderAuthPhase::Failed | ProviderAuthPhase::Cancelled) {
+                        let _ = registry.refresh_instance(&id).await;
+                    }
+                }
+            });
+            let controller = Controller { fingerprint, binding: crate::codex_chatgpt_auth::binding_key("codex-chatgpt", instance), flow, backend: None, chatgpt: Some(auth) };
+            controllers.insert(instance.into(), controller.clone());
+            return Ok(controller);
+        }
         if let Some((entry, antigravity)) = self.0.registry.antigravity_auth_entry(instance) {
             let fingerprint = structural_fingerprint(serde_json::to_value(&entry).expect("typed provider settings"));
             if let Some(controller) = controllers.get(instance).filter(|controller| controller.fingerprint == fingerprint) {
@@ -231,7 +262,7 @@ impl ProviderAuthService {
             if *self.0.stopped.borrow() {
                 return Err(failure(instance, operation, "This provider instance is no longer available."));
             }
-            let controller = Controller { fingerprint, binding: format!("antigravity:{instance}"), flow: crate::antigravity_auth::AntigravityAuth::new(antigravity, self.0.registry.clone()).controller(), backend: None };
+            let controller = Controller { fingerprint, binding: format!("antigravity:{instance}"), flow: crate::antigravity_auth::AntigravityAuth::new(antigravity, self.0.registry.clone()).controller(), backend: None, chatgpt: None };
             controllers.insert(instance.into(), controller.clone());
             return Ok(controller);
         }
@@ -303,6 +334,7 @@ impl ProviderAuthService {
             binding: binding(instance, &captured.config),
             flow: backend.controller(),
             backend: Some(backend),
+            chatgpt: None,
         };
         controllers.insert(instance.into(), controller.clone());
         Ok(controller)
@@ -399,6 +431,19 @@ impl ProviderAuthService {
                 self.stop_routed(id, controller.binding),
             )
             .await
+    }
+    /// `ProviderAuthService.importProfile`: a ChatGPT connection signed in elsewhere becomes this instance's, and the sessions on the old
+    /// tokens end.
+    pub async fn import_chatgpt_profile(&self, input: ChatGptImportProfileInput) -> AuthResult<ProviderAuthState> {
+        let _credentials = self.0.credentials.lock().await;
+        let id = input.instance_id.to_string();
+        let controller = self.controller(&id, "import").await?;
+        self.check_shared_binding(&id, "start", &controller).await?;
+        let Some(auth) = controller.chatgpt.clone() else {
+            return Err(failure(&id, "import", "This provider does not support ChatGPT profile transfer."));
+        };
+        let stop = self.stop_routed(id, controller.binding.clone()).run();
+        auth.import_profile(&controller.flow, input.profile, stop).await
     }
     pub async fn respond(
         &self,
@@ -501,7 +546,7 @@ impl ProviderAuthService {
             .into_iter()
             .find(|(id, _)| id.as_str() == instance)
             .map(|(_, entry)| entry.driver);
-        if driver.is_some_and(|driver| !matches!(driver.as_str(), "acpRegistry" | "antigravity")) {
+        if driver.is_some_and(|driver| !matches!(driver.as_str(), "acpRegistry" | "antigravity")) && self.0.registry.managed_codex_entry(instance).is_none() {
             return Ok(None);
         }
         self.controller(instance, "session")

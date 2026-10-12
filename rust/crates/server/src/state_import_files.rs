@@ -11,8 +11,12 @@ use std::{
 };
 
 /// Secrets the settings and source-control services read by name (`server_settings_secrets`): provider environment variables,
-/// usage-limit source keys, GitHub tokens and the two Bitbucket tokens.
-const SETTINGS_SECRET_PREFIXES: [&str; 5] = ["provider-env-", "usage-limit-source-", "github-token-", "bitbucket-access-token", "bitbucket-api-token"];
+/// usage-limit source keys, GitHub tokens, the two Bitbucket tokens, and the ChatGPT sign-in of managed Codex (`provider-auth-<hash>`
+/// holds both a connection's tokens and the client registration, `codex_chatgpt_auth`).
+const SETTINGS_SECRET_PREFIXES: [&str; 6] = ["provider-env-", "usage-limit-source-", "github-token-", "bitbucket-access-token", "bitbucket-api-token", "provider-auth-"];
+
+/// The usage scan cache (`usage_scan_cache`) and the legacy one it falls back to. Both are the original's own files and documents.
+const USAGE_SCAN_CACHES: [&str; 2] = ["usage-scan-cache-v5.json", "usage-scan-cache.json"];
 
 fn note(report: &mut Report, name: &str, action: &str, count: u64) {
     report.files.push(FileReport { name: name.to_owned(), action: action.to_owned(), count });
@@ -139,7 +143,7 @@ pub fn copy(userdata: &Path, state_dir: &Path, report: &mut Report) -> Result<()
                 left += 1;
             }
         }
-        note(report, "secrets/ (settings and source-control tokens)", "copied with owner-only permissions", carried);
+        note(report, "secrets/ (settings, source-control and ChatGPT sign-in)", "copied with owner-only permissions", carried);
         if left > 0 {
             note(report, "secrets/ (session signing keys, T3 Connect link key, other)", "not carried", left);
             if secrets.join("cloud-link-ed25519-key-pair.bin").exists() {
@@ -147,10 +151,17 @@ pub fn copy(userdata: &Path, state_dir: &Path, report: &mut Report) -> Result<()
             }
         }
     }
-    for name in ["usage-scan-cache.json", "usage-model-rates.json"] {
-        if userdata.join(name).exists() {
-            note(report, name, "not carried (this server keeps no usage scan cache; usage is rescanned from provider transcripts, so usage from transcripts that were deleted is not shown)", 0);
+    // What the cache kept of transcripts since deleted would otherwise be lost, so it comes along; a transcript the cache no longer
+    // matches is read again as usual.
+    for name in USAGE_SCAN_CACHES {
+        let from = userdata.join(name);
+        if from.is_file() {
+            let copied = copy_file(&from, &state_dir.join(name), false, false)?;
+            note(report, name, if copied { "copied" } else { "kept the destination's own" }, 1);
         }
+    }
+    if userdata.join("usage-model-rates.json").exists() {
+        note(report, "usage-model-rates.json", "not carried (the rates table is fetched again when needed)", 0);
     }
     for name in ["themes", "browser-artifacts", "logs", "model-manifest.json", "anonymous-id", "server-runtime.json"] {
         if userdata.join(name).exists() {

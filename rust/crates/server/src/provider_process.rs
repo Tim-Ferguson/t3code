@@ -204,7 +204,12 @@ impl Drop for PendingGuard {
 
 impl ProviderProcess {
     pub fn spawn(options: ProcessOptions) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, false, ProtocolOptions::default(), false)
+        Self::spawn_protocol(options, false, ProtocolOptions::default(), false, None)
+    }
+    /// `spawn` for a raw (Codex app-server) process whose every decoded frame is also handed to `tap`, with the direction from the
+    /// server's side (`outgoing` is written to the process).
+    pub fn spawn_tapped(options: ProcessOptions, tap: Option<crate::claude_protocol::Tap>) -> Result<Self, ProcessError> {
+        Self::spawn_protocol(options, false, ProtocolOptions::default(), false, tap)
     }
     /// ACP uses versioned JSON-RPC envelopes; Codex's raw envelopes retain their
     /// existing encoding through `spawn`. Both modes share owned process cleanup.
@@ -215,18 +220,19 @@ impl ProviderProcess {
         options: ProcessOptions,
         protocol_options: ProtocolOptions,
     ) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, true, protocol_options, false)
+        Self::spawn_protocol(options, true, protocol_options, false, None)
     }
     /// A versioned JSON-RPC process that owns its process group: what it starts and detaches is ended with it
     /// (`ownDetachedProcessGroup`).
     pub fn spawn_json_rpc_grouped(options: ProcessOptions) -> Result<Self, ProcessError> {
-        Self::spawn_protocol(options, true, ProtocolOptions::default(), true)
+        Self::spawn_protocol(options, true, ProtocolOptions::default(), true, None)
     }
     fn spawn_protocol(
         options: ProcessOptions,
         json_rpc: bool,
         protocol_options: ProtocolOptions,
         grouped: bool,
+        tap: Option<crate::claude_protocol::Tap>,
     ) -> Result<Self, ProcessError> {
         let mut builder = if json_rpc && cfg!(windows) {
             let mut environment: indexmap::IndexMap<String, String> = std::env::vars().collect();
@@ -316,9 +322,13 @@ impl ProviderProcess {
         } else {
             Some(MAX_LINE_BYTES)
         };
+        let writer_tap = tap.clone();
         tokio::spawn(async move {
             let writer = tokio::spawn(async move {
                 while let Some(Outgoing { mut value, written }) = outgoing.recv().await {
+                    if let Some(tap) = &writer_tap {
+                        tap("outgoing", &value);
+                    }
                     if json_rpc && value.is_object() {
                         value["jsonrpc"] = json!("2.0");
                     }
@@ -374,6 +384,9 @@ impl ProviderProcess {
                         match result {
                             Ok(Some(values)) => {
                                 for value in values {
+                                    if let Some(tap) = &tap {
+                                        tap("incoming", &value);
+                                    }
                                     if json_rpc && value["jsonrpc"]!="2.0" {break 'reader (ProcessError::Protocol("Expected JSON-RPC version 2.0.".into()), true);}
                                     let acknowledgement = match dispatch_message(value, &pending, &events, json_rpc, ordered_ingress.load(Ordering::Acquire)) {
                                         Ok(acknowledgement) => acknowledgement,
@@ -1119,6 +1132,25 @@ mod tests {
             .unwrap();
         assert!(
             matches!(events.recv().await.unwrap(),ProcessEvent::Notification {method,params} if method=="accepted"&&params["decision"]=="accept")
+        );
+    }
+    #[tokio::test]
+    async fn a_tapped_raw_process_reports_each_frame_with_its_direction() {
+        let (_directory, options) = fixture(
+            "for line in sys.stdin:\n r=json.loads(line)\n print(json.dumps({'method':'progress','params':{}}),flush=True)\n print(json.dumps({'id':str(r['id']),'result':r['params']}),flush=True)",
+        );
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let recorder = seen.clone();
+        let process = ProviderProcess::spawn_tapped(options, Some(Arc::new(move |direction, frame| recorder.lock().unwrap().push((direction, frame.clone()))))).unwrap();
+        process.request("echo", json!({"text":"hi"}), HANG_BOUND).await.unwrap();
+        // The tap sees a frame before the reader dispatches it, so the response being back means all three were seen.
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![
+                ("outgoing", json!({"id":1,"method":"echo","params":{"text":"hi"}})),
+                ("incoming", json!({"method":"progress","params":{}})),
+                ("incoming", json!({"id":"1","result":{"text":"hi"}})),
+            ]
         );
     }
     #[tokio::test]

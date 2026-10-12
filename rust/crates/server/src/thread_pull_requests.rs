@@ -97,6 +97,25 @@ pub(crate) fn parse_change_request_url(input: &str) -> Option<Value> {
     parsed(input)
 }
 
+/// `siblingPullRequestUrl`: the URL of another change request in the same repository, in the form the given one is written in.
+pub(crate) fn sibling_pull_request_url(input: &str, number: u64) -> Option<String> {
+    static ROUTE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^/(-/merge_requests|pulls?|pull-requests|pullrequest)/\d+(?:/|$)").unwrap());
+    let reference = parsed(input)?;
+    if number == 0 || number > 9_007_199_254_740_991 {
+        return None;
+    }
+    let mut url = url::Url::parse(input).ok()?;
+    let repository = reference["repository"].as_str()?.to_owned();
+    let route = {
+        let rest = url.path().get(repository.len() + 1..)?;
+        ROUTE.captures(rest)?.get(1)?.as_str().to_owned()
+    };
+    url.set_path(&format!("/{repository}/{route}/{number}"));
+    url.set_query(None);
+    url.set_fragment(None);
+    Some(url.to_string())
+}
+
 pub(crate) fn normalize(key: &Value) -> Value {
     let repository = lower(key["repository"].as_str().unwrap());
     let parsed = key["url"].as_str().and_then(parsed);
@@ -344,6 +363,15 @@ mod tests {
     use super::*;
     fn link(number: u64, head: &str, base: &str) -> Value {
         json!({"host":"github.com","repository":"acme/web","number":number,"url":format!("https://github.com/acme/web/pull/{number}"),"source":"agent","linkedAt":"2026-01-01T00:00:00.000Z","snapshot":{"state":"open","headBranch":head,"baseBranch":base},"stack":null})
+    }
+
+    #[test]
+    fn a_sibling_url_keeps_the_hosts_route_and_drops_everything_after_it() {
+        assert_eq!(sibling_pull_request_url("https://github.com/Acme/Web/pull/4/files?x=1#top", 7).as_deref(), Some("https://github.com/acme/web/pull/7"));
+        assert_eq!(sibling_pull_request_url("https://gitlab.com/g/p/-/merge_requests/4", 9).as_deref(), Some("https://gitlab.com/g/p/-/merge_requests/9"));
+        assert_eq!(sibling_pull_request_url("https://bitbucket.org/w/r/pull-requests/4", 2).as_deref(), Some("https://bitbucket.org/w/r/pull-requests/2"));
+        assert_eq!(sibling_pull_request_url("https://github.com/acme/web/pull/4", 0), None);
+        assert_eq!(sibling_pull_request_url("https://example.com/acme/web/pull/4", 5), None);
     }
 
     #[test]

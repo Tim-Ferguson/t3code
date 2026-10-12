@@ -582,6 +582,10 @@ fn files_are_copied_to_another_directory_without_replacing_anything_and_secrets_
     let from = home("full", base.path());
     // A secret the settings service reads by name, and another the importer must not carry.
     std::fs::write(from.join("userdata/secrets/provider-env-Y29kZXg-VE9LRU4.bin"), b"token-bytes").unwrap();
+    // The ChatGPT sign-in of managed Codex, and the usage scan caches (current and legacy).
+    std::fs::write(from.join("userdata/secrets/provider-auth-0123abcd.bin"), b"chatgpt-tokens").unwrap();
+    std::fs::write(from.join("userdata/usage-scan-cache-v5.json"), b"{\"version\":5}").unwrap();
+    std::fs::write(from.join("userdata/usage-scan-cache.json"), b"{\"version\":4}").unwrap();
     let before = digest(&from);
     let state = base.path().join("state");
     std::fs::create_dir_all(&state).unwrap();
@@ -594,6 +598,11 @@ fn files_are_copied_to_another_directory_without_replacing_anything_and_secrets_
     let carried = state.join("secrets/provider-env-Y29kZXg-VE9LRU4.bin");
     assert_eq!(std::fs::read(&carried).unwrap(), b"token-bytes");
     assert_eq!(std::fs::metadata(&carried).unwrap().permissions().mode() & 0o777, 0o600);
+    let chatgpt = state.join("secrets/provider-auth-0123abcd.bin");
+    assert_eq!(std::fs::read(&chatgpt).unwrap(), b"chatgpt-tokens");
+    assert_eq!(std::fs::metadata(&chatgpt).unwrap().permissions().mode() & 0o777, 0o600);
+    assert_eq!(std::fs::read(state.join("usage-scan-cache-v5.json")).unwrap(), b"{\"version\":5}");
+    assert_eq!(std::fs::read(state.join("usage-scan-cache.json")).unwrap(), b"{\"version\":4}");
     assert!(!state.join("secrets/server-signing-key.bin").exists(), "session signing keys are not carried");
     assert!(report.credentials_to_reenter.iter().any(|line| line.contains("T3 Connect")));
 }

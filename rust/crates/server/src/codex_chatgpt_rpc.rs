@@ -5,7 +5,7 @@
 use crate::{
     codex_chatgpt_auth::{ChatGptAuth, MemorySecrets, Options},
     persistence::Store,
-    provider_auth_flow::{AuthFlow, AuthResult},
+    provider_auth_flow::AuthFlow,
     server_secret_store::ServerSecretStore,
 };
 use serde_json::{Value, json};
@@ -30,12 +30,18 @@ pub struct Environment {
     /// Overrides OpenAI's endpoints, for a test that serves its own issuer.
     pub discovery_url: Option<String>,
     pub resource: Option<String>,
+    /// Where the account's model catalog is read (`https://api.openai.com/v1/models`); a test serves its own.
+    pub models_url: Option<String>,
     pub http: reqwest::Client,
 }
 
 impl Environment {
     fn auth(&self, store: &Store, instance: &str, operation: &str, profile: Option<ChatGptReconnectProfile>) -> Result<ChatGptAuth, Value> {
         let state_dir = store.state_dir().ok_or_else(|| json!({"_tag":"NativeServiceUnavailableError","message":"ChatGPT sign-in needs a state directory."}))?;
+        self.auth_in(&state_dir, instance, operation, profile)
+    }
+    /// The sign-in of `instance`, its secrets under `state_dir`. Equal instances share the lock that keeps a refresh to one at a time.
+    pub fn auth_in(&self, state_dir: &std::path::Path, instance: &str, operation: &str, profile: Option<ChatGptReconnectProfile>) -> Result<ChatGptAuth, Value> {
         let secrets = ServerSecretStore::open(state_dir.join("secrets")).map_err(|_| setup_error(instance, operation, "Could not read the saved ChatGPT connection."))?;
         ChatGptAuth::new(Options { instance_id: instance.to_owned(), environment_id: self.environment_id.clone(), discovery_url: self.discovery_url.clone(), resource: self.resource.clone(), default_return_url: self.default_return_url.clone(), reconnect_profile: profile, secrets: Arc::new(secrets), http: self.http.clone(), clock: Arc::new(|| chrono::Utc::now().timestamp_millis()) }).map_err(wire)
     }
@@ -48,15 +54,16 @@ pub fn reconnect_profile(environment: &Environment, store: &Store, payload: Valu
     Ok(serde_json::to_value(auth.reconnect_profile(&input.method_id).map_err(wire)?).expect("a typed profile"))
 }
 
-/// `provider.chatgpt.import-profile`: validates the profile against the issuer and keeps it. `stop` ends the sessions that run on the old
-/// tokens first. The answer is the sign-in state a finished import leaves.
-pub async fn import_profile(environment: &Environment, store: &Store, payload: Value, stop: futures_util::future::BoxFuture<'static, AuthResult<()>>) -> Result<Value, Value> {
+/// `provider.chatgpt.import-profile` on a server with no sign-in service of its own for the instance: validates the profile against the
+/// issuer and keeps it, through a flow that has no sessions to end. The answer is the sign-in state a finished import leaves.
+pub async fn import_profile(environment: &Environment, store: &Store, payload: Value) -> Result<Value, Value> {
     let input: ChatGptImportProfileInput = decode(payload)?;
     let instance = input.instance_id.as_str();
     let auth = environment.auth(store, instance, "import", None)?;
-    auth.import_profile(&input.profile, stop).await.map_err(wire)?;
-    let methods = auth.methods().map_err(wire)?;
-    Ok(json!({"instanceId":instance,"phase":"succeeded","flowId":null,"authorizationUrl":null,"expiresAt":null,"message":null,"methods":methods,"interaction":null,"credentialOwner":"t3"}))
+    let flow = AuthFlow::new(instance.to_owned(), Arc::new(auth.clone()), None, Duration::from_secs(300), ProviderCredentialOwner::T3, true);
+    let state = auth.import_profile(&flow, input.profile, Box::pin(async { Ok(()) })).await;
+    flow.shutdown().await;
+    Ok(serde_json::to_value(state.map_err(wire)?).expect("typed sign-in state"))
 }
 
 /// `provider.chatgpt.handoff.subscribe`: the sign-in the primary asked this environment to run, as its states, then the finished profile.

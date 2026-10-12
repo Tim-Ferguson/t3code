@@ -453,6 +453,8 @@ pub fn start(
 
 struct Actor {
     store: Store,
+    /// Where `account/rateLimits/updated` goes (`onUsageLimits`).
+    providers: ProviderRegistry,
     thread_id: String,
     session_id: String,
     connection: CodexConnection,
@@ -479,6 +481,8 @@ struct Actor {
     interrupting: bool,
     /// How long streamed text waits before it is persisted (`T3CODE_CODEX_STREAM_FLUSH_MS`).
     flush_interval: Duration,
+    /// A ChatGPT-token runtime: its turns carry no service tier.
+    managed: bool,
     /// The session's MCP Apps and feedback operations, findable while the process lives.
     _live: crate::provider_live::Registration,
 }
@@ -519,7 +523,7 @@ async fn actor(
     } else if instance_id.as_deref().and_then(|id| providers.driver(id).ok()) == Some("pi") {
         crate::pi_adapter::actor(store, providers, thread_id, work, stopped, canceled, lifetime, mcp).await;
     } else {
-        codex_actor(store, providers, thread_id, work, stopped, canceled, mcp).await;
+        codex_actor(store, providers, thread_id, work, stopped, canceled, mcp, lifetime).await;
     }
 }
 async fn codex_actor(
@@ -530,9 +534,13 @@ async fn codex_actor(
     mut stopped: watch::Receiver<bool>,
     mut canceled: watch::Receiver<Option<String>>,
     mut mcp: Option<crate::provider_mcp::CredentialLease>,
+    lifetime: ActorLifetime,
 ) {
     let mut runtime: Option<Actor> = None;
     let mut pending_process = None;
+    // A managed instance's session is admitted by its ChatGPT sign-in for as long as it lives (`withAccess`), so a change of
+    // credentials ends it. Held here, outside the cancellable connect.
+    let mut access: Option<crate::provider_auth_flow::SessionAccess> = None;
     let mut user_cancelled = false;
     // When streamed text is next persisted; set while a notification left something buffered.
     let mut flush_due: Option<tokio::time::Instant> = None;
@@ -558,7 +566,7 @@ async fn codex_actor(
                         }
                         if let Some(mcp)=mcp.as_ref() {mcp.touch();}
                     }
-                    if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_process,mcp.as_ref()).await?);pending_process.take();}
+                    if runtime.is_none(){runtime=Some(Actor::connect(store.clone(),&providers,&thread_id,&mut pending_process,&mut access,&lifetime,mcp.as_ref()).await?);pending_process.take();}
                     runtime.as_mut().unwrap().effect(&incoming.effect).await
                 }=>result,_=stopped.changed()=>{break;},_=async{loop{if canceled.borrow_and_update().as_deref()==run_id{break;}if canceled.changed().await.is_err(){std::future::pending::<()>().await;}}},if starting=>{user_cancelled=true;Err("The run was interrupted during provider startup.".into())}};
                 let close=starting && result.is_err();
@@ -763,6 +771,8 @@ impl Actor {
         providers: &ProviderRegistry,
         thread_id: &str,
         pending_process: &mut Option<crate::provider_process::ProviderProcess>,
+        access: &mut Option<crate::provider_auth_flow::SessionAccess>,
+        lifetime: &ActorLifetime,
         mcp: Option<&crate::provider_mcp::CredentialLease>,
     ) -> Result<Self, String> {
         let projection = projection(&store, thread_id).map_err(|error| error.to_string())?;
@@ -787,19 +797,43 @@ impl Actor {
         if !cwd.is_dir() {
             return Err("Workspace root is not a directory.".into());
         }
-        let mut process = instance
-            .process_options(&cwd)
-            .map_err(|error| error.to_string())?;
+        let managed = instance.is_managed();
+        let mut process = if managed {
+            if access.is_none() {
+                if let Some(auth) = providers.authentication_service() {
+                    let lifetime = lifetime.clone();
+                    *access = auth
+                        .admit_session(instance_id, Arc::new(move || {
+                            let lifetime = lifetime.clone();
+                            Box::pin(async move { lifetime.stop_and_wait().await })
+                        }))
+                        .await
+                        .map_err(|error| error.detail)?;
+                }
+            }
+            let host = providers.management().chatgpt().ok_or("ChatGPT sign-in is not available on this server.")?;
+            crate::codex_managed::resolve(&host, providers.management(), &instance)
+                .await
+                .map_err(|error| error.detail)?
+                .process_options(&cwd)
+        } else {
+            instance
+                .process_options(&cwd)
+                .map_err(|error| error.to_string())?
+        };
         if let Some(mcp) = mcp {
             mcp.apply_device_environment(&mut process.environment);
         }
-        let process = crate::provider_process::ProviderProcess::spawn(process)
-            .map_err(|error| error.to_string())?;
+        let session_id = uuid::Uuid::new_v4().to_string();
+        let process = crate::provider_process::ProviderProcess::spawn_tapped(
+            process,
+            crate::provider_event_log::codex_protocol_tap(&store, thread_id, &session_id),
+        )
+        .map_err(|error| error.to_string())?;
         *pending_process = Some(process.clone());
         let connection = CodexInstance::initialize_process(process)
             .await
             .map_err(|error| error.to_string())?;
-        let session_id = uuid::Uuid::new_v4().to_string();
         let now = at(Utc::now());
         let capabilities: Value =
             serde_json::from_str(include_str!("codex-capabilities.json")).unwrap();
@@ -813,6 +847,7 @@ impl Actor {
         let live = crate::provider_live::register(&session_id, crate::codex_live::live_session(&connection.process));
         Ok(Self {
             store,
+            providers: providers.clone(),
             thread_id: thread_id.into(),
             session_id,
             connection,
@@ -832,6 +867,7 @@ impl Actor {
             compacting: None,
             interrupting: false,
             flush_interval,
+            managed,
             _live: live,
         })
     }
@@ -1284,6 +1320,10 @@ impl Actor {
         )
         .map_err(|error| error.to_string())?;
         crate::attachment_prompt::apply_codex_attachments(&self.store, message, &mut params).await?;
+        if self.managed {
+            // ChatGPT token sharing does not accept service tiers (`omitServiceTier`).
+            params.as_object_mut().map(|params| params.remove("serviceTier"));
+        }
         // A turn the restart cut resumes natively: its start sends no input.
         if crate::restart_continuation::resumes_natively(run) {
             params["input"] = json!([]);
@@ -1360,7 +1400,11 @@ impl Actor {
         if method == "account/rateLimits/updated" {
             let view = projection(&self.store, &self.thread_id)?;
             let events = self.projector.rate_limits(&view, &params["rateLimits"]);
-            return self.commit_events(events);
+            let committed = self.commit_events(events);
+            if let Some(update) = crate::codex_usage_limits::rate_limits_to_update(&params["rateLimits"]) {
+                self.providers.apply_usage_limits(&self.instance_id, &update, &at(Utc::now()));
+            }
+            return committed;
         }
         self.apply_subagent_models()?;
         if matches!(method, "thread/settings/updated" | "model/rerouted") {

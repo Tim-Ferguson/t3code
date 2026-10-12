@@ -13,7 +13,11 @@
 //! things keep that from corrupting a thread: the safe answer is the default ([`Touched::all`] rewrites every list, and a list a
 //! reducer cannot account for is rewritten whole); an element past the last stored position is always written, so an append cannot
 //! be missed; and in debug builds every write is read back from the database and compared with the document it came from
-//! ([`verify`]), which every test of the suite then does.
+//! ([`verify`]), which every test of the suite then does. Release builds cannot afford that read, so every write also checks the one
+//! thing that costs a lookup per list it touched: each such list ends exactly where the skeleton says ([`check_tails`]), which a lost
+//! write, a truncation that did not happen and a skeleton that outran its rows all break. The write that fails the check is rolled
+//! back with its transaction. A row that should have been rewritten and was not is not caught this way: only a comparison of its
+//! content finds it, and that is O(thread).
 //!
 //! What this module knows of the database: the skeleton and a document's rows are written in the same transaction, the layout of
 //! what is stored is kept with the parsed document ([`Layout`], row sizes per list), and a document the cache holds is by
@@ -120,6 +124,8 @@ pub(crate) struct Plan {
     /// Rows past the new end of a list are removed.
     truncate: Vec<(String, usize)>,
     rows: Vec<(String, usize, String)>,
+    /// The lists this write changed, with the length the skeleton gives each: what [`check_tails`] holds the table to.
+    ends: Vec<(String, usize)>,
 }
 impl Plan {
     /// Bytes this write hands to SQLite.
@@ -194,6 +200,7 @@ pub(crate) fn plan(kind: &str, id: &str, doc: &Value, layout: &mut Layout, touch
                 if whole {
                     layout.rows -= sizes.drain(..).map(|size| size as usize).sum::<usize>();
                 }
+                let wrote = !positions.is_empty();
                 for position in positions {
                     let json = serde_json::to_string(&rows[position])?;
                     let size = json.len() as u32;
@@ -216,6 +223,9 @@ pub(crate) fn plan(kind: &str, id: &str, doc: &Value, layout: &mut Layout, touch
                 if stored_len > rows.len() {
                     plan.truncate.push((list.clone(), rows.len()));
                 }
+                if !known || wrote || stored_len > rows.len() {
+                    plan.ends.push((list.clone(), rows.len()));
+                }
             }
             Value::Object(fields) if fields.contains_key(MARKER) => {
                 return Err(invalid(kind, id, format!("{list} holds a key the store keeps for itself")));
@@ -229,6 +239,7 @@ pub(crate) fn plan(kind: &str, id: &str, doc: &Value, layout: &mut Layout, touch
         if let Some(sizes) = layout.lists.remove(&list) {
             layout.rows -= sizes.iter().map(|&size| size as usize).sum::<usize>();
         }
+        plan.ends.push((list.clone(), 0));
         plan.reset.push(list);
     }
     layout.skeleton = plan.skeleton.len();
@@ -253,6 +264,30 @@ pub(crate) fn execute(connection: &Connection, kind: &str, id: &str, plan: &Plan
         let mut upsert = connection.prepare_cached("INSERT INTO rust_projection_rows(aggregate_kind,aggregate_id,list,pos,row_json) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(aggregate_kind,aggregate_id,list,pos) DO UPDATE SET row_json=excluded.row_json")?;
         for (list, position, json) in &plan.rows {
             upsert.execute(params![kind, id, list, *position as i64, json])?;
+        }
+    }
+    check_tails(connection, kind, id, plan)
+}
+
+/// Each list the write changed ends where the skeleton says: a row at its last position, none after it. Two point lookups a list, so the
+/// cost follows what changed and not the size of the thread.
+fn check_tails(connection: &Connection, kind: &str, id: &str, plan: &Plan) -> Result<(), StoreError> {
+    for (list, length) in &plan.ends {
+        if *length > 0 {
+            let last = connection
+                .prepare_cached("SELECT 1 FROM rust_projection_rows WHERE aggregate_kind=?1 AND aggregate_id=?2 AND list=?3 AND pos=?4")?
+                .query_row(params![kind, id, list, *length as i64 - 1], |_| Ok(()))
+                .optional()?;
+            if last.is_none() {
+                return Err(invalid(kind, id, format!("{list} should end at row {} and has no such row", length - 1)));
+            }
+        }
+        let past = connection
+            .prepare_cached("SELECT pos FROM rust_projection_rows WHERE aggregate_kind=?1 AND aggregate_id=?2 AND list=?3 AND pos>=?4 LIMIT 1")?
+            .query_row(params![kind, id, list, *length as i64], |row| row.get::<_, i64>(0))
+            .optional()?;
+        if let Some(position) = past {
+            return Err(invalid(kind, id, format!("{list} should have {length} rows and has a row {position}")));
         }
     }
     Ok(())
@@ -467,6 +502,35 @@ mod tests {
         // The sizes the layout holds are what the database holds.
         let (reread, _) = store.read(|connection| read(connection, "thread", "t")).unwrap().unwrap();
         assert_eq!(reread.layout.bytes(), held.layout.bytes());
+    }
+    /// A write that left the table other than the skeleton says is refused, in release builds too, and its transaction takes nothing.
+    #[test]
+    fn a_write_that_leaves_a_list_ending_elsewhere_than_the_skeleton_says_is_refused() {
+        let store = Store::memory().unwrap();
+        store.transaction(|transaction| write_projection(transaction, "thread", "t", &document())).unwrap();
+        let (mut held, _) = store.read(|connection| read(connection, "thread", "t")).unwrap().unwrap();
+        // An append that was never stored.
+        held.value["messages"].as_array_mut().unwrap().push(json!({"id": "m4"}));
+        let mut lost = plan_for(&mut held.clone_for_test(), &Touched::default());
+        lost.rows.clear();
+        let outcome = store.transaction(|transaction| execute(transaction, "thread", "t", &lost));
+        assert!(matches!(&outcome, Err(StoreError::InvalidProjection { detail, .. }) if detail.contains("messages should end at row 3")), "{outcome:?}");
+        assert_eq!(count(&store, "SELECT COUNT(*) FROM rust_projection_rows WHERE list='messages'"), 3, "the transaction took nothing");
+        assert_eq!(text(&store.projection("thread", "t").unwrap().unwrap()), text(&document()));
+        // A truncation that was never stored.
+        held.value["messages"].as_array_mut().unwrap().truncate(1);
+        let mut kept = plan_for(&mut held.clone_for_test(), &Touched::default());
+        kept.truncate.clear();
+        let outcome = store.transaction(|transaction| execute(transaction, "thread", "t", &kept));
+        assert!(matches!(&outcome, Err(StoreError::InvalidProjection { detail, .. }) if detail.contains("messages should have 1 rows and has a row 1")), "{outcome:?}");
+        // The honest plans pass.
+        let honest = plan_for(&mut held, &Touched::default());
+        store.transaction(|transaction| execute(transaction, "thread", "t", &honest)).unwrap();
+    }
+    impl Held {
+        fn clone_for_test(&self) -> Held {
+            Held { value: self.value.clone(), layout: self.layout.clone() }
+        }
     }
     fn plan_for(held: &mut Held, touched: &Touched) -> Plan {
         plan("thread", "t", &held.value, &mut held.layout, touched).unwrap()

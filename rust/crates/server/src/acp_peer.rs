@@ -2,8 +2,9 @@
 use crate::provider_process::{ProcessError, ProcessEvent, ProcessOptions, ProviderProcess};
 use futures_util::future::BoxFuture;
 use serde_json::Value;
+use crate::acp_native_logging::{self, RequestLogEvent, RequestLogger, Status};
 use std::{
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 use t3_acp::{AcpError, Peer, PeerEvent, RequestId, RpcError};
@@ -15,6 +16,8 @@ struct Inner {
     first_receiver: Mutex<Option<broadcast::Receiver<PeerEvent>>>,
     terminal: watch::Sender<Option<AcpError>>,
     forwarding: tokio::task::JoinHandle<()>,
+    /// Set once by an adapter that keeps the thread's provider event log (`requestLogger`).
+    request_logger: OnceLock<RequestLogger>,
 }
 impl Drop for Inner {
     fn drop(&mut self) {
@@ -90,7 +93,24 @@ impl ProcessPeer {
             first_receiver: Mutex::new(Some(first_receiver)),
             terminal,
             forwarding,
+            request_logger: OnceLock::new(),
         })))
+    }
+    /// Logs the session-setup requests this peer makes from now on (`acp_native_logging`).
+    pub(crate) fn log_requests(&self, logger: RequestLogger) {
+        let _ = self.0.request_logger.set(logger);
+    }
+    /// Runs `call`, writing the request's start and end when the peer is logging and the method is one the original logs.
+    async fn logged(&self, method: &str, params: Value, call: impl AsyncFnOnce(Value) -> Result<Value, AcpError>) -> Result<Value, AcpError> {
+        let Some(logger) = self.0.request_logger.get().filter(|_| acp_native_logging::logs_method(method)) else { return call(params).await };
+        logger(RequestLogEvent { method, payload: &params, status: Status::Started, result: None, error: None });
+        let payload = params.clone();
+        let outcome = call(params).await;
+        match &outcome {
+            Ok(result) => logger(RequestLogEvent { method, payload: &payload, status: Status::Succeeded, result: Some(result), error: None }),
+            Err(error) => logger(RequestLogEvent { method, payload: &payload, status: Status::Failed, result: None, error: Some(error) }),
+        }
+        outcome
     }
 }
 fn error(cause: ProcessError) -> AcpError {
@@ -155,11 +175,7 @@ impl Peer for ProcessPeer {
         timeout: Duration,
     ) -> BoxFuture<'a, Result<Value, AcpError>> {
         Box::pin(async move {
-            self.0
-                .process
-                .request(method, params, timeout)
-                .await
-                .map_err(error)
+            self.logged(method, params, async |params| self.0.process.request(method, params, timeout).await.map_err(error)).await
         })
     }
     fn request_core<'a>(
@@ -169,11 +185,7 @@ impl Peer for ProcessPeer {
         timeout: Duration,
     ) -> BoxFuture<'a, Result<Value, AcpError>> {
         Box::pin(async move {
-            self.0
-                .process
-                .request_core(method, params, timeout)
-                .await
-                .map_err(error)
+            self.logged(method, params, async |params| self.0.process.request_core(method, params, timeout).await.map_err(error)).await
         })
     }
     fn notify<'a>(&'a self, method: &'a str, params: Value) -> BoxFuture<'a, Result<(), AcpError>> {

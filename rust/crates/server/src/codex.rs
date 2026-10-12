@@ -1,4 +1,5 @@
 //! Source-backed Codex account/model/skill discovery over app-server.
+use crate::claude_usage_limits::make_unavailable_usage_limits;
 use crate::provider_process::{ProcessError, ProcessEvent, ProcessOptions, ProviderProcess};
 use chrono::{SecondsFormat, Utc};
 use serde::Serialize;
@@ -41,19 +42,9 @@ impl CodexInstance {
     /// instance's own, with `CODEX_HOME` when it has a home) and the configured launch arguments
     /// (`T3CODE_CODEX_LAUNCH_ARGS` wins over the setting).
     pub(crate) fn launch(&self) -> Result<(PathBuf, HashMap<String, String>, String), ProcessError> {
-        if self
-            .config
-            .setup_mode
-            .is_some_and(|mode| mode != t3_contracts::CodexSetupMode::Existing)
-        {
-            return Err(ProcessError::Protocol(
-                "Managed Codex installation has not yet been ported.".into(),
-            ));
-        }
-        if !self.config.shadow_home_path.as_str().trim().is_empty() {
-            return Err(ProcessError::Protocol(
-                "Codex shadow-home materialization has not yet been ported.".into(),
-            ));
+        if self.is_managed() {
+            // A managed instance starts through its signed-in runtime (`codex_managed::resolve`), which is asynchronous.
+            return Err(ProcessError::Protocol("Managed Codex starts only through its signed-in runtime.".into()));
         }
         let mut environment = self.environment.clone();
         let launch_args = environment
@@ -62,27 +53,22 @@ impl CodexInstance {
             .or_else(|| std::env::var("T3CODE_CODEX_LAUNCH_ARGS").ok())
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| self.config.launch_args.to_string());
-        if !self.config.home_path.as_str().trim().is_empty() {
-            environment.insert(
-                "CODEX_HOME".into(),
-                expand_home(self.config.home_path.as_str(), &environment)?
-                    .to_string_lossy()
-                    .into_owned(),
-            );
+        // The shadow home, when the instance has one, is `CODEX_HOME`: its credentials stay its own and the rest is the shared home's.
+        let layout = crate::codex_home::resolve(self.config.home_path.as_str(), self.config.shadow_home_path.as_str(), &environment);
+        crate::codex_home::materialize(&layout).map_err(ProcessError::Protocol)?;
+        if let Some(effective) = &layout.effective {
+            environment.insert("CODEX_HOME".into(), effective.to_string_lossy().into_owned());
         }
         let binary = expand_home(self.config.binary_path.as_str(), &environment)?;
         Ok((binary, environment, launch_args))
     }
+    /// A managed-setup instance (`setupMode` other than `existing`).
+    pub fn is_managed(&self) -> bool {
+        self.config.setup_mode.is_some_and(|mode| mode != t3_contracts::CodexSetupMode::Existing)
+    }
     /// `resolveCodexHomeLayout`'s shared home: the configured home, else `~/.codex`, made absolute.
     fn shared_home(&self) -> PathBuf {
-        let home = self.config.home_path.as_str();
-        let path = if home.trim().is_empty() {
-            let base = self.environment.get("HOME").cloned().or_else(|| std::env::var("HOME").ok()).unwrap_or_default();
-            PathBuf::from(base).join(".codex")
-        } else {
-            expand_home(home, &self.environment).unwrap_or_else(|_| PathBuf::from(home))
-        };
-        std::path::absolute(&path).unwrap_or(path)
+        crate::codex_home::resolve(self.config.home_path.as_str(), self.config.shadow_home_path.as_str(), &self.environment).shared
     }
     pub async fn connect(&self, cwd: &Path) -> Result<CodexConnection, ProcessError> {
         let process = ProviderProcess::spawn(self.process_options(cwd)?)?;
@@ -117,7 +103,7 @@ impl CodexInstance {
             return validate_snapshot(snapshot);
         }
         // One total probe budget, matching the original provider status timeout.
-        match tokio::time::timeout(Duration::from_secs(10), self.probe(cwd)).await {
+        match tokio::time::timeout(Duration::from_secs(10), self.probe(cwd, &now)).await {
             Ok(Ok(probe)) => {
                 snapshot["installed"] = json!(true);
                 snapshot["version"] = probe["version"].clone();
@@ -126,6 +112,9 @@ impl CodexInstance {
                 snapshot["models"] = probe["models"].clone();
                 snapshot["skills"] = probe["skills"].clone();
                 snapshot["slashCommands"] = json!([{"name":"compact","description":"Summarize the conversation and reduce context usage"}]);
+                if !probe["usageLimits"].is_null() {
+                    snapshot["usageLimits"] = probe["usageLimits"].clone();
+                }
                 if let Some(message) = probe.get("message") {
                     snapshot["message"] = message.clone();
                 }
@@ -145,12 +134,17 @@ impl CodexInstance {
         }
         validate_snapshot(snapshot)
     }
-    async fn probe(&self, cwd: &Path) -> Result<Value, ProcessError> {
+    async fn probe(&self, cwd: &Path, checked_at: &str) -> Result<Value, ProcessError> {
+        self.probe_process(self.process_options(cwd)?, cwd, checked_at, false).await
+    }
+    /// The probe of a process started as `options` says. `managed` is a ChatGPT-token runtime, whose usage is the account's and not the
+    /// CLI's: it is not read (`skipNativeUsage`) and the snapshot carries none.
+    pub(crate) async fn probe_process(&self, options: ProcessOptions, cwd: &Path, checked_at: &str, managed: bool) -> Result<Value, ProcessError> {
         let CodexConnection {
             process,
             mut events,
             initialize,
-        } = self.connect(cwd).await?;
+        } = Self::initialize_process(ProviderProcess::spawn(options)?).await?;
         let request_process = process.clone();
         // Probes cannot grant command execution, file writes or interactive
         // requests. Respond explicitly instead of leaving provider calls pending.
@@ -186,23 +180,58 @@ impl CodexInstance {
             .and_then(|(_, suffix)| suffix.split_whitespace().next());
         let auth = account_auth(&account);
         if account["account"].is_null() && account["requiresOpenaiAuth"] == true {
+            // The original reads no usage here, and an unread usage is a failed probe.
             return Ok(
-                json!({"version":version,"status":"error","auth":{"status":"unauthenticated"},"message":"Codex CLI is not authenticated. Run `codex login` and try again.","models":append_custom_models(vec![],&self.config.custom_models)?,"skills":[]}),
+                json!({"version":version,"status":"error","auth":{"status":"unauthenticated"},"message":"Codex CLI is not authenticated. Run `codex login` and try again.","models":append_custom_models(vec![],&self.config.custom_models)?,"skills":[],"usageLimits":if managed { Value::Null } else { make_unavailable_usage_limits(checked_at,"probeFailed",None) }}),
             );
         }
-        let (models, skills) = tokio::try_join!(
+        // Usage is an enrichment: a failure or a slow answer costs this probe its usage, not the account and models.
+        let rate_limits = async {
+            if managed {
+                return Ok::<_, ProcessError>(Err(String::new()));
+            }
+            Ok::<_, ProcessError>(match process.request("account/rateLimits/read", Value::Null, RATE_LIMITS_PROBE_TIMEOUT).await {
+                Ok(response) => Ok(response),
+                Err(error) => Err(rate_limits_failure_message(&error)),
+            })
+        };
+        let (models, skills, rate_limits) = tokio::try_join!(
             read_models(&process),
             process.request(
                 "skills/list",
                 json!({"cwds":[cwd]}),
                 Duration::from_secs(10)
-            )
+            ),
+            rate_limits
         )?;
+        let usage_limits = if managed {
+            Value::Null
+        } else if account["account"]["type"] == "apiKey" {
+            make_unavailable_usage_limits(checked_at, "unsupported", None)
+        } else {
+            match rate_limits {
+                Ok(response) => crate::codex_usage_limits::rate_limits_to_limits(&response["rateLimits"], Some(&response["rateLimitsByLimitId"]), Some(&response["rateLimitResetCredits"]), checked_at),
+                Err(message) => make_unavailable_usage_limits(checked_at, "probeFailed", Some(&message)),
+            }
+        };
         let mut models = append_custom_models(models, &self.config.custom_models)?;
         apply_preferred_default(&mut models);
         Ok(
-            json!({"version":version,"status":"ready","auth":auth,"models":models,"skills":parse_skills(&skills,cwd)?}),
+            json!({"version":version,"status":"ready","auth":auth,"models":models,"skills":parse_skills(&skills,cwd)?,"usageLimits":usage_limits}),
         )
+    }
+}
+
+/// `RATE_LIMITS_PROBE_TIMEOUT_MS`.
+const RATE_LIMITS_PROBE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// `codexRateLimitsFailureMessage`: a bounded reason for the Limits view; the raw error is not sent to clients.
+fn rate_limits_failure_message(error: &ProcessError) -> String {
+    match error {
+        ProcessError::Remote { code, .. } | ProcessError::JsonRpcRemote { code, .. } => format!("Codex could not read usage (JSON-RPC {code})."),
+        ProcessError::Io(_) => "Codex could not be started to read usage.".into(),
+        ProcessError::Exited { .. } | ProcessError::Closed(_) => "Codex exited before it could report usage.".into(),
+        _ => "Codex did not answer the usage request.".into(),
     }
 }
 
@@ -746,7 +775,7 @@ mod tests {
     async fn fake_app_server_discovers_account_paginated_models_and_workspace_skills() {
         let directory = tempfile::tempdir().unwrap();
         let script = directory.path().join("provider");
-        std::fs::write(&script,"#!/usr/bin/env python3\nimport sys,json,os\ninitialized=False\nfor line in sys.stdin:\n r=json.loads(line); method=r.get('method'); p=r.get('params') or {}\n if method=='initialized': initialized=True; continue\n if method=='initialize': result={'userAgent':'codex/0.156.1 native'}\n elif not initialized: sys.exit(5)\n elif method=='account/read': result={'account':{'type':'chatgpt','planType':'plus','email':'fixture@example.test'},'requiresOpenaiAuth':True}\n elif method=='model/list':\n  slug='gpt-6-astra' if p.get('cursor')=='next' else 'gpt-5.6-sol'\n  result={'data':[{'model':slug,'displayName':slug,'isDefault':slug=='gpt-5.6-sol','defaultReasoningEffort':'low','supportedReasoningEfforts':[{'reasoningEffort':'low'},{'reasoningEffort':'medium'}]}],'nextCursor':None if p.get('cursor') else 'next'}\n elif method=='skills/list': result={'data':[{'cwd':p['cwds'][0],'skills':[{'name':'fixture','path':os.environ['CODEX_HOME']+'/SKILL.md','enabled':True,'interface':{'displayName':'Fixture Skill','shortDescription':'Test'}}]}]}\n else: sys.exit(6)\n print(json.dumps({'id':r['id'],'result':result}),flush=True)\n").unwrap();
+        std::fs::write(&script,"#!/usr/bin/env python3\nimport sys,json,os\ninitialized=False\nfor line in sys.stdin:\n r=json.loads(line); method=r.get('method'); p=r.get('params') or {}\n if method=='initialized': initialized=True; continue\n if method=='initialize': result={'userAgent':'codex/0.156.1 native'}\n elif not initialized: sys.exit(5)\n elif method=='account/read': result={'account':{'type':'chatgpt','planType':'plus','email':'fixture@example.test'},'requiresOpenaiAuth':True}\n elif method=='model/list':\n  slug='gpt-6-astra' if p.get('cursor')=='next' else 'gpt-5.6-sol'\n  result={'data':[{'model':slug,'displayName':slug,'isDefault':slug=='gpt-5.6-sol','defaultReasoningEffort':'low','supportedReasoningEfforts':[{'reasoningEffort':'low'},{'reasoningEffort':'medium'}]}],'nextCursor':None if p.get('cursor') else 'next'}\n elif method=='skills/list': result={'data':[{'cwd':p['cwds'][0],'skills':[{'name':'fixture','path':os.environ['CODEX_HOME']+'/SKILL.md','enabled':True,'interface':{'displayName':'Fixture Skill','shortDescription':'Test'}}]}]}\n elif method=='account/rateLimits/read': result={'rateLimits':{'limitId':'other','primary':{'usedPercent':1}},'rateLimitsByLimitId':{'codex':{'limitId':'codex','planType':'plus','primary':{'usedPercent':42.5,'windowDurationMins':300,'resetsAt':1800003600},'secondary':{'usedPercent':10,'windowDurationMins':10080}}},'rateLimitResetCredits':{'availableCount':2,'credits':[{'status':'available','expiresAt':1800900000}]}}\n else: sys.exit(6)\n print(json.dumps({'id':r['id'],'result':result}),flush=True)\n").unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -776,6 +805,13 @@ mod tests {
         assert_eq!(snapshot["models"].as_array().unwrap().len(), 2);
         assert_eq!(snapshot["models"][1]["isDefault"], true);
         assert_eq!(snapshot["skills"][0]["displayName"], "Fixture Skill");
+        // `account/rateLimits/read`: the `codex` bucket is the main allowance, not the legacy snapshot that names another limit.
+        let limits = &snapshot["usageLimits"];
+        assert_eq!(limits["checkedAt"], snapshot["checkedAt"]);
+        assert_eq!(limits["windows"], json!([{"id":"primary","kind":"session","label":"Session","usedPercent":42.5,"windowDurationMins":300,"resetsAt":"2027-01-15T09:00:00.000Z"},{"id":"secondary","kind":"weekly","label":"Weekly","usedPercent":10,"windowDurationMins":10080}]));
+        assert_eq!(limits["resetCredits"], json!({"availableCount":2,"nextExpiresAt":"2027-01-25T18:00:00.000Z"}));
+        assert_eq!(rate_limits_failure_message(&ProcessError::Remote { code: -32601, message: String::new(), data: Value::Null }), "Codex could not read usage (JSON-RPC -32601).");
+        assert_eq!(rate_limits_failure_message(&ProcessError::Timeout { method: "account/rateLimits/read".into() }), "Codex did not answer the usage request.");
         assert_eq!(
             snapshot["skills"][0]["path"],
             directory

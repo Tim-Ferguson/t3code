@@ -85,6 +85,11 @@ async fn start_issuer() -> Shared {
                 },
             }
         }))
+        // The account's model catalog, which managed Codex lists its models from.
+        .route("/v1/models", get(|headers: axum::http::HeaderMap| async move {
+            assert!(headers["authorization"].to_str().unwrap().starts_with("Bearer access-"), "the catalog is read with the account's token");
+            axum::Json(json!({"models":[{"slug":"fixture-model","display_name":"Fixture Model","visibility":"list"},{"slug":"hidden-model","display_name":"Hidden","visibility":"hide"}]}))
+        }))
         .route("/revoke", post(|State(issuer): State<Shared>| async move {
             *issuer.revoked.lock().unwrap() += 1;
             axum::http::StatusCode::from_u16(*issuer.revocation_status.lock().unwrap()).unwrap()
@@ -274,14 +279,21 @@ async fn signing_out_revokes_with_the_issuer_and_says_when_it_could_not() {
     assert!(auth.read().unwrap().is_none());
 }
 
+/// A profile imported through a flow that has no sessions to end.
+async fn import(auth: &ChatGptAuth, profile: &t3_contracts::ChatGptTransferredProfile) -> Result<ProviderAuthState, t3_contracts::ProviderSetupError> {
+    let flow = flow_of(auth);
+    let state = auth.import_profile(&flow, profile.clone(), Box::pin(async { Ok(()) })).await;
+    flow.shutdown().await;
+    state
+}
+
 #[tokio::test]
 async fn a_profile_moves_to_another_environment_only_if_it_proves_itself() {
     let issuer = start_issuer().await;
     let primary = signed_in(&issuer, Arc::new(MemorySecrets::default()), Arc::new(clock_ms)).await;
     let exported = primary.export_profile().unwrap();
     let destination = auth_over(&issuer, Arc::new(MemorySecrets::default()), Arc::new(clock_ms));
-    let nothing = || Box::pin(async { Ok(()) }) as futures_util::future::BoxFuture<'static, _>;
-    destination.import_profile(&exported, nothing()).await.unwrap();
+    import(&destination, &exported).await.unwrap();
     assert_eq!(destination.read().unwrap().unwrap().access_token, "access-1");
     assert_eq!(destination.access().await.unwrap().subject, "user-1");
     // The registration the primary would hand over again carries the identity hint.
@@ -307,13 +319,13 @@ async fn a_profile_moves_to_another_environment_only_if_it_proves_itself() {
     ];
     for (name, profile, detail) in cases {
         let fresh = auth_over(&issuer, Arc::new(MemorySecrets::default()), Arc::new(clock_ms));
-        assert_eq!(fresh.import_profile(&profile, nothing()).await.unwrap_err().detail, detail, "{name}");
+        assert_eq!(import(&fresh, &profile).await.unwrap_err().detail, detail, "{name}");
         assert!(fresh.read().unwrap().is_none(), "{name}: nothing is kept");
     }
     // A profile for a client this environment already knows as another account conflicts.
     let known = auth_over(&issuer, Arc::new(MemorySecrets::default()), Arc::new(clock_ms));
-    known.import_profile(&exported, nothing()).await.unwrap();
-    assert!(known.import_profile(&exported, nothing()).await.is_ok(), "the same account again is fine");
+    import(&known, &exported).await.unwrap();
+    assert!(import(&known, &exported).await.is_ok(), "the same account again is fine");
 }
 
 #[test]
@@ -344,7 +356,7 @@ use rpc_support::{Harness, failure, harness_with_config, next, rpc, send, succes
 
 async fn managed(h: &Harness, issuer: &Issuer) -> String {
     h.settings.as_ref().unwrap().update(serde_json::from_value(json!({"providerInstances":{"codex":{"driver":"codex","enabled":true,"config":{"setupMode":"managed"}}}})).unwrap()).await.unwrap();
-    t3_server::codex_chatgpt_rpc::install(&h.store, t3_server::codex_chatgpt_rpc::Environment { environment_id: "environment-1".into(), default_return_url: None, discovery_url: Some(format!("{}/.well-known/openid-configuration", issuer.origin)), resource: None, http: reqwest::Client::new() });
+    t3_server::codex_chatgpt_rpc::install(&h.store, t3_server::codex_chatgpt_rpc::Environment { environment_id: "environment-1".into(), default_return_url: None, discovery_url: Some(format!("{}/.well-known/openid-configuration", issuer.origin)), resource: None, models_url: None, http: reqwest::Client::new() });
     h.auth.issue_session("manager", "bearer-access-token", vec![t3_contracts::AuthEnvironmentScope::OrchestrationRead, t3_contracts::AuthEnvironmentScope::ProvidersManage], json!({"deviceType":"unknown"}), chrono::Utc::now(), chrono::Duration::hours(1)).unwrap().1
 }
 
@@ -413,4 +425,155 @@ async fn the_primary_signs_in_for_a_remote_environment_which_then_keeps_the_prof
     // The destination's tokens are in its secret store under the original's names, not on any other disk path.
     assert!(std::fs::read_dir(h.base.join("userdata").join("secrets")).unwrap().any(|entry| entry.unwrap().file_name().to_string_lossy().starts_with("provider-auth-")));
     h.finish().await;
+}
+
+// ---- a session on the signed-in tokens --------------------------------------------------------------------------------------------
+
+/// Managed Codex end to end against the fake issuer and a fake `codex` on PATH: the provider list follows the sign-in, a session starts
+/// the executable with the access token and the token-sharing launch configuration in a shadow home, and a connection imported from
+/// another environment ends that session and refuses to arrive in the middle of a sign-in.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread")]
+async fn a_managed_codex_session_runs_on_the_signed_in_tokens_until_a_new_connection_replaces_them() {
+    use chrono::Utc;
+    use t3_server::{
+        codex_chatgpt_rpc::Environment, codex_managed::ChatGptHost, execution::ExecutionService, launch::ThreadLaunchService, persistence::Store, project::ProjectService,
+        provider_auth_service::{ProviderAuthChanges, ProviderAuthService}, provider_manage::Management, provider_registry::ProviderRegistry,
+    };
+    use std::os::unix::fs::PermissionsExt;
+
+    let issuer = start_issuer().await;
+    let directory = tempfile::tempdir().unwrap();
+    let base = std::fs::canonicalize(directory.path()).unwrap();
+    let (state, shared, workspace, bin) = (base.join("state"), base.join("shared"), base.join("workspace"), base.join("bin"));
+    for path in [&state, &workspace, &bin] {
+        std::fs::create_dir_all(path).unwrap();
+    }
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/codex-provider.py");
+    let executable = bin.join("codex");
+    std::fs::write(&executable, format!("#!/bin/sh\ncase \"$1\" in\n  --version) echo 'codex-cli 0.156.1' ;;\n  app-server) if [ \"$2\" = \"--help\" ]; then exit 0; fi; exec python3 '{}' \"$@\" ;;\nesac\n", fixture.display())).unwrap();
+    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let (launches, requests) = (base.join("launches.jsonl"), base.join("requests.jsonl"));
+
+    let settings: t3_contracts::ServerSettings = serde_json::from_value(json!({"providerInstances":{
+        "claudeAgent":{"driver":"claudeAgent","enabled":false},"codex":{"driver":"codex","enabled":false},
+        "work":{"driver":"codex","enabled":true,"config":{"setupMode":"managed","homePath":shared},"environment":[{"name":"FIXTURE_LAUNCH_RECORD","value":launches},{"name":"FIXTURE_RPC_RECORD","value":requests},{"name":"OPENAI_API_KEY","value":"sk-ambient"}]}}})).unwrap();
+    let management = Management::new(Some(base.join("tools")));
+    management.configure(|options| options.codex_path = Some(bin.to_string_lossy().into_owned()));
+    let environment = Environment { environment_id: "environment-1".into(), default_return_url: None, discovery_url: Some(format!("{}/.well-known/openid-configuration", issuer.origin)), resource: None, models_url: Some(format!("{}/v1/models", issuer.origin)), http: reqwest::Client::new() };
+    management.set_chatgpt(ChatGptHost { environment: Arc::new(environment), state_dir: state.clone() });
+    let providers = ProviderRegistry::discover_with_management(&settings, &base, None, management).await.unwrap();
+    let work = |providers: &ProviderRegistry| providers.snapshots().into_iter().find(|snapshot| snapshot["instanceId"] == "work").unwrap();
+
+    // Installed, and nobody signed in.
+    let snapshot = work(&providers);
+    assert_eq!((snapshot["installed"].clone(), snapshot["auth"]["status"].clone(), snapshot["setup"]["canAuthenticate"].clone(), snapshot["message"].clone()), (json!(true), json!("unauthenticated"), json!(true), json!("Sign in with ChatGPT to use Codex.")), "{snapshot}");
+    assert_eq!(snapshot["runtimePaths"], json!({"homePath":shared,"shadowHomePath":state.join("providers/codex/work/shadow")}));
+
+    let store = Store::open(state.join("rust-state.sqlite")).unwrap();
+    ProjectService::new(store.clone()).mutate(json!({"type":"project.create","commandId":"project","projectId":"project","title":"Project","workspaceRoot":workspace}), Utc::now()).unwrap();
+    let execution = ExecutionService::start(store.clone(), providers.clone());
+    let service = ProviderAuthService::for_server(&execution, &providers, base.clone(), &state);
+
+    // Signing in through the service: the provider list follows it.
+    let mut changes = providers.subscribe_changes();
+    let mut states: ProviderAuthChanges = service.subscribe("work", "owner".into()).await.unwrap();
+    let start = |id: &str| serde_json::from_value::<t3_contracts::ProviderAuthStartInput>(json!({"instanceId":id,"methodId":"chatgpt","returnUrl":"http://localhost:5173/settings","callbackMode":"server"})).unwrap();
+    service.start(start("work"), "owner".into()).await.unwrap();
+    let waiting = phase_of(&mut states, ProviderAuthPhase::Waiting).await;
+    let Some(Some(Some(ProviderAuthInteraction::Browser { url, .. }))) = waiting.interaction.clone() else { panic!("{waiting:?}") };
+    browser(url.0.as_str()).await;
+    phase_of(&mut states, ProviderAuthPhase::Succeeded).await;
+    let signed_in = tokio::time::timeout(HANG_BOUND, async {
+        loop {
+            let snapshot = work(&providers);
+            if snapshot["auth"]["status"] == "authenticated" && snapshot["models"].as_array().is_some_and(|models| !models.is_empty()) {
+                return snapshot;
+            }
+            changes.recv().await.expect("the provider list is served");
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!((signed_in["auth"]["type"].clone(), signed_in["auth"]["email"].clone(), signed_in["auth"]["subscriptionSharing"].clone(), signed_in["auth"]["profileId"].clone()), (json!("chatgpt"), json!("a@example.com"), json!(true), json!("oaiapp_test")), "{signed_in}");
+    assert_eq!(signed_in["models"].as_array().unwrap().iter().map(|model| (model["slug"].as_str().unwrap(), model["name"].as_str().unwrap())).collect::<Vec<_>>(), [("fixture-model", "Fixture Model")], "only the account's visible models");
+    assert_eq!(signed_in["usageLimits"]["externalUsage"]["label"], "ChatGPT usage");
+
+    let primary = signed_in_primary(&issuer).await;
+    let profile = serde_json::to_value(primary.export_profile().unwrap()).unwrap();
+    let import = || serde_json::from_value::<t3_contracts::ChatGptImportProfileInput>(json!({"instanceId":"work","profile":profile})).unwrap();
+    let thread = ThreadLaunchService::with_providers(store.clone(), providers.clone())
+        .launch(json!({"commandId":"launch","projectId":"project","title":"Thread","modelSelection":{"instanceId":"work","model":"fixture-model","options":[{"id":"serviceTier","value":"fast"}]},"runtimeMode":"full-access","interactionMode":"default","workspaceStrategy":{"type":"root"}}), Utc::now())
+        .unwrap()["threadId"].as_str().unwrap().to_owned();
+    let view = |store: &Store| store.projection("thread", &thread).unwrap().unwrap();
+    let settled = |runs: usize| {
+        let (store, thread) = (store.clone(), thread.clone());
+        async move {
+            let mut events = store.subscribe();
+            tokio::time::timeout(HANG_BOUND, async {
+                loop {
+                    let view = store.projection("thread", &thread).unwrap().unwrap();
+                    if view["runs"].as_array().unwrap().len() >= runs && view["runs"].as_array().unwrap().iter().all(|run| matches!(run["status"].as_str(), Some("completed" | "failed" | "interrupted" | "cancelled"))) {
+                        return view;
+                    }
+                    let _ = events.recv().await;
+                }
+            })
+            .await
+            .expect("the run settles")
+        }
+    };
+    let send = |text: &str, id: &str| execution.dispatch(&json!({"type":"message.dispatch","commandId":id,"threadId":thread,"messageId":id,"text":text,"attachments":[],"dispatchMode":{"type":"start_immediately"}}), Utc::now()).unwrap();
+
+    // The session runs the executable on the access token, in the shadow home, with the token-sharing provider.
+    send("after sign-in", "m1");
+    let second = settled(1).await;
+    assert_eq!(second["runs"][0]["status"], "completed", "{}", second["turnItems"]);
+    let launched = |path: &std::path::Path| std::fs::read_to_string(path).unwrap_or_default().lines().map(|line| serde_json::from_str::<Value>(line).unwrap()).collect::<Vec<_>>();
+    let shadow = state.join("providers/codex/work/shadow");
+    let records = launched(&launches);
+    assert!(!records.is_empty());
+    for record in &records {
+        assert_eq!((record["accessToken"].as_str(), record["codexHome"].as_str()), (Some("access-1"), shadow.to_str()), "{record}");
+        assert!(record["argv"].as_array().unwrap().windows(2).any(|pair| pair[0] == "-c" && pair[1] == "model_provider=\"openai_token_sharing\""), "{record}");
+    }
+    // The server's own environment is not what the instance configured: the instance's key is removed from the child's.
+    assert!(records.iter().all(|record| record["openaiKey"].is_null()), "{records:?}");
+    assert_eq!(std::fs::read_link(shadow.join("sessions")).unwrap(), shared.join("sessions"));
+    assert!(!shadow.join("auth.json").exists(), "the tokens are not written to Codex's own auth file");
+    let turn_start = launched(&requests).into_iter().find(|request| request["method"] == "turn/start").expect("a turn started");
+    assert!(turn_start["params"].get("serviceTier").is_none(), "ChatGPT token sharing takes no service tier: {turn_start}");
+
+    // A connection signed in elsewhere replaces these tokens and ends the session that runs on them.
+    let before = launched(&launches).len();
+    let state_after = service.import_chatgpt_profile(import()).await.unwrap();
+    assert_eq!((state_after.phase, state_after.message), (ProviderAuthPhase::Succeeded, None));
+    let stopped = view(&store)["providerSessions"].as_array().unwrap().iter().filter(|session| session["status"] != "stopped" && session["status"] != "error").count();
+    assert_eq!(stopped, 0, "no session is left on the old tokens: {}", view(&store)["providerSessions"]);
+    send("after import", "m2");
+    let third = settled(2).await;
+    assert_eq!(third["runs"][1]["status"], "completed", "{}", third["turnItems"]);
+    // The sign-in changing also lists the provider again, which starts a process of its own; the turn started in another.
+    assert!(launched(&launches).len() >= before + 1, "a new process was started");
+    assert_eq!(launched(&requests).iter().filter(|request| request["method"] == "turn/start").count(), 2);
+
+    service.shutdown().await;
+    execution.shutdown().await;
+}
+
+async fn signed_in_primary(issuer: &Shared) -> ChatGptAuth {
+    signed_in(issuer, Arc::new(MemorySecrets::default()), Arc::new(clock_ms)).await
+}
+
+async fn phase_of(states: &mut t3_server::provider_auth_service::ProviderAuthChanges, phase: ProviderAuthPhase) -> ProviderAuthState {
+    tokio::time::timeout(HANG_BOUND, async {
+        loop {
+            let state = states.recv().await.expect("the sign-in service ended").expect("a state");
+            if state.phase == phase {
+                return state;
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("waiting for {phase:?}"))
 }

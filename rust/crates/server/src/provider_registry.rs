@@ -592,6 +592,18 @@ impl ProviderRegistry {
         let instance = state.acp.get(instance_id)?.clone();
         Some((entry, instance))
     }
+    /// The managed Codex instances, whose snapshots depend on the sign-in.
+    pub fn managed_codex_ids(&self) -> Vec<String> {
+        self.state.read().unwrap().codex.iter().filter(|(_, instance)| instance.is_managed()).map(|(id, _)| id.clone()).collect()
+    }
+    /// The settings entry of a managed Codex instance, the one Codex whose sign-in T3 Code owns.
+    pub(crate) fn managed_codex_entry(&self, instance_id: &str) -> Option<ProviderInstanceConfig> {
+        let state = self.state.read().unwrap();
+        if !state.codex.get(instance_id)?.is_managed() {
+            return None;
+        }
+        derive_instance_configs(&state.settings).into_iter().find(|(id, _)| id.as_str() == instance_id).map(|(_, entry)| entry)
+    }
     pub(crate) fn attach_auth(
         &self,
         service: crate::provider_auth_service::WeakProviderAuthService,
@@ -1227,7 +1239,7 @@ async fn discover_entry(
         };
         // A managed-setup instance reports its installation; there is no CLI to probe until one is installed.
         let snapshot = if instance.config.setup_mode == Some(t3_contracts::CodexSetupMode::Managed) {
-            crate::provider_install::managed_snapshot(&management, &instance).await?
+            crate::codex_managed::snapshot(management.chatgpt().as_ref(), &management, &instance).await?
         } else {
             instance.discover(cwd).await?
         };

@@ -161,6 +161,31 @@ async fn messages_with_ids_and_reasoning_split_into_the_items_the_agent_meant() 
     turn.execution.shutdown().await;
 }
 
+/// The session-setup requests reach the thread's provider event log as bounded `request` lines (`AcpNativeLogging.ts`); the streamed
+/// text and the prompt are not among them, and no `protocol` line is written because the original never turns those on.
+#[tokio::test(flavor = "multi_thread")]
+async fn setup_requests_reach_the_provider_event_log_as_summaries() {
+    use t3_server::provider_event_log::{EventLogStore, Options, current, install};
+    let script = json!({"protocol":2,"prompts":[[text("secret answer text"), {"end":"end_turn"}]]});
+    let mut turn = Turn::start(script, "full-access", "default").await;
+    let logs = turn._root.path().join("logs");
+    install(&turn.store, EventLogStore::open(&logs.join("events.log"), Options { batch_window_ms: 0, ..Options::default() }, std::sync::Arc::new(|| Utc::now().timestamp_millis()), None).unwrap());
+    let run = turn.send("secret prompt text");
+    turn.settled(run).await;
+    current(&turn.store).unwrap().close();
+    let file = std::fs::read_dir(&logs).unwrap().map(|entry| entry.unwrap().path()).find(|path| path.file_name().unwrap().to_string_lossy() != "events.log").expect("a per-thread log");
+    let text = std::fs::read_to_string(file).unwrap();
+    assert!(!text.contains("secret"), "{text}");
+    let records: Vec<Value> = text.lines().map(|line| serde_json::from_str::<Value>(line.split_once("NTIVE: ").unwrap().1).unwrap()["event"].clone()).collect();
+    assert!(records.iter().all(|record| record["kind"] == "request" && record["provider"] == "acpRegistry" && record["threadId"] == turn.thread.as_str()), "{records:?}");
+    let steps: Vec<(String, String)> = records.iter().map(|record| (record["payload"]["method"].as_str().unwrap().to_owned(), record["payload"]["status"].as_str().unwrap().to_owned())).collect();
+    for method in ["initialize", "session/new"] {
+        assert!(steps.contains(&(method.into(), "started".into())) && steps.contains(&(method.into(), "succeeded".into())), "{steps:?}");
+    }
+    assert!(steps.iter().all(|(method, _)| method != "session/prompt"), "{steps:?}");
+    turn.execution.shutdown().await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_form_elicitation_is_a_user_question_and_only_asked_keys_are_answered() {
     let script = json!({"prompts":[[

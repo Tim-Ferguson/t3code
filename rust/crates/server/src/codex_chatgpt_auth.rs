@@ -13,6 +13,7 @@ use crate::{
     server_secret_store::ServerSecretStore,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use crate::provider_auth_flow::AuthFlow;
 use futures_util::future::BoxFuture;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -77,7 +78,7 @@ impl Secrets for MemorySecrets {
 }
 
 /// `ProviderCredentialStore.make`: the binding is hashed so an arbitrary instance id cannot escape or overrun a file name.
-fn binding_key(driver: &str, binding: &str) -> String {
+pub(crate) fn binding_key(driver: &str, binding: &str) -> String {
     let digest = Sha256::digest(format!("{}:{driver}{binding}", driver.len()).as_bytes());
     format!("provider-auth-{}", digest.iter().map(|byte| format!("{byte:02x}")).collect::<String>())
 }
@@ -857,10 +858,16 @@ impl ChatGptAuth {
         serde_json::from_value(json!({"registration":registration,"credentials":credentials})).map_err(|_| incomplete())
     }
 
-    /// `importProfile`: validates a connection another environment signed in and keeps it as this one's. `stop` ends the sessions that run on
-    /// the old tokens first.
-    pub async fn import_profile(&self, profile: &ChatGptTransferredProfile, stop: BoxFuture<'static, AuthResult<()>>) -> AuthResult<()> {
+    /// `importProfile`: validates a connection another environment signed in and keeps it as this one's, through `flow` so that no sign-in
+    /// is in progress and the sessions that run on the old tokens end first (`stop`, after the flow's own). Returns the state it leaves.
+    pub async fn import_profile(&self, flow: &AuthFlow, profile: ChatGptTransferredProfile, stop: BoxFuture<'static, AuthResult<()>>) -> AuthResult<ProviderAuthState> {
         let _gate = self.0.gate.lock().await;
+        self.validate_import(&profile).await?;
+        let this = self.clone();
+        flow.adopt_credentials(Box::pin(async move { this.save_imported(&profile).await }), stop).await
+    }
+
+    async fn validate_import(&self, profile: &ChatGptTransferredProfile) -> AuthResult<()> {
         let metadata = self.discover().await?;
         let credentials = &profile.credentials;
         let expires_at = credentials.expires_at.as_f64().unwrap_or(0.0);
@@ -872,15 +879,22 @@ impl ChatGptAuth {
         if mismatched {
             return Err(self.fail("import", "The transferred ChatGPT identity does not match its profile."));
         }
+        Ok(())
+    }
+
+    /// `saveImported`: under the session lock, the registration and then the tokens. A client this environment knows as another account
+    /// conflicts.
+    async fn save_imported(&self, profile: &ChatGptTransferredProfile) -> AuthResult<()> {
+        let credentials = &profile.credentials;
+        let invalid = || self.fail("import", "The transferred ChatGPT connection is invalid or expired.");
         let _lock = self.locked().await?;
-        let mut registration = serde_json::to_value(&profile.registration).map_err(|_| self.fail("import", "The transferred ChatGPT connection is invalid or expired."))?;
+        let mut registration = serde_json::to_value(&profile.registration).map_err(|_| invalid())?;
         registration.as_object_mut().map(|map| map.remove("idTokenHint"));
-        let registration: Registration = serde_json::from_value(registration).map_err(|_| self.fail("import", "The transferred ChatGPT connection is invalid or expired."))?;
+        let registration: Registration = serde_json::from_value(registration).map_err(|_| invalid())?;
         if self.read_registrations()?.profiles.iter().find(|saved| saved.client_id == registration.client_id).and_then(|saved| saved.subject.as_ref()).is_some_and(|subject| subject != &credentials.subject) {
             return Err(self.fail("import", "The transferred identity conflicts with the saved ChatGPT connection."));
         }
-        stop.await?;
-        let record: Credentials = serde_json::from_value(serde_json::to_value(credentials).map_err(|_| self.fail("import", "The transferred ChatGPT connection is invalid or expired."))?).map_err(|_| self.fail("import", "The transferred ChatGPT connection is invalid or expired."))?;
+        let record: Credentials = serde_json::from_value(serde_json::to_value(credentials).map_err(|_| invalid())?).map_err(|_| invalid())?;
         self.save_registration(registration)?;
         self.save(record, true)
     }

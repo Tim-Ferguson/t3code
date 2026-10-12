@@ -69,6 +69,8 @@ struct Inner {
     capabilities: Mutex<HashMap<String, (std::time::Instant, String, Capabilities)>>,
     latest: Mutex<HashMap<String, (i64, Option<String>)>>,
     pub(crate) install: crate::provider_install::Slot,
+    /// How managed Codex instances reach their ChatGPT sign-in; absent on a server that has none.
+    pub(crate) chatgpt: RwLock<Option<crate::codex_managed::ChatGptHost>>,
     pub(crate) antigravity: tokio::sync::OnceCell<crate::antigravity_install::AntigravityInstallation>,
 }
 #[derive(Clone, Default)]
@@ -143,6 +145,12 @@ impl Management {
         let management = Self::default();
         *management.0.options.write().unwrap() = Some(Options::new(tools_dir));
         management
+    }
+    pub fn set_chatgpt(&self, host: crate::codex_managed::ChatGptHost) {
+        *self.0.chatgpt.write().unwrap() = Some(host);
+    }
+    pub fn chatgpt(&self) -> Option<crate::codex_managed::ChatGptHost> {
+        self.0.chatgpt.read().unwrap().clone()
     }
     pub fn options(&self) -> Options {
         self.0.options.write().unwrap().get_or_insert_with(|| Options::new(None)).clone()

@@ -35,6 +35,10 @@ impl RoutedStop {
     pub fn new(stop: Arc<dyn Fn() -> BoxFuture<'static, AuthResult<()>> + Send + Sync>) -> Self {
         Self(stop)
     }
+    /// Stops the routed sessions.
+    pub fn run(&self) -> BoxFuture<'static, AuthResult<()>> {
+        (self.0)()
+    }
 }
 impl From<StopSession> for RoutedStop {
     fn from(stop: StopSession) -> Self {
@@ -726,6 +730,54 @@ impl AuthFlow {
             )
         })?
     }
+    /// `adoptCredentials`: credentials another party obtained become this connection's. The sessions that run on the old ones end first
+    /// (the flow's own, then `stop`), then `update` stores the new, and the sign-in methods are read again. A sign-in in progress is not
+    /// interrupted: it is refused. The answer is the state the change leaves, which is also published.
+    pub async fn adopt_credentials(
+        &self,
+        update: BoxFuture<'static, AuthResult<()>>,
+        stop: BoxFuture<'static, AuthResult<()>>,
+    ) -> AuthResult<ProviderAuthState> {
+        let inner = self.inner().clone();
+        let admission = inner.admission.clone().lock_owned().await;
+        let completed = {
+            let mut state = inner.state.lock().unwrap();
+            if state.operation != Operation::Idle {
+                return Err(safe_error(&inner.instance, "import", "Finish or cancel the existing sign-in first."));
+            }
+            state.operation = Operation::Stopping;
+            register_operation(&inner)
+        };
+        drop(admission);
+        tokio::spawn(async move {
+            let _completed = completed;
+            stop_sessions(&inner).await;
+            let result = match stop.await {
+                Ok(()) => update.await,
+                Err(error) => Err(error),
+            };
+            if result.is_ok() {
+                refresh_methods(&inner).await;
+            }
+            let mut state = inner.state.lock().unwrap();
+            let methods = state.snapshot.methods.clone();
+            state.owner = None;
+            state.snapshot.flow_id = None;
+            state.snapshot.authorization_url = None;
+            state.snapshot.expires_at = None;
+            state.snapshot.interaction = Some(Some(None));
+            state.snapshot.methods = methods;
+            state.snapshot.phase = if result.is_ok() { ProviderAuthPhase::Succeeded } else { ProviderAuthPhase::Failed };
+            state.snapshot.message = result.as_ref().err().map(|error| error.detail.clone());
+            if state.operation != Operation::Closed {
+                state.operation = Operation::Idle;
+            }
+            state.publish();
+            result.map(|()| state.snapshot.clone())
+        })
+        .await
+        .map_err(|_| safe_error(&self.inner().instance, "import", "Could not import the connection. Try again."))?
+    }
     pub async fn shutdown(&self) {
         let startup = self.inner().startup.lock().unwrap().take();
         if let Some(startup) = &startup {
@@ -1052,6 +1104,45 @@ mod tests {
         assert!(flow.respond("other",input.clone()).await.is_err());flow.respond("owner",input).await.unwrap();
         let succeeded=phase(&mut visible,ProviderAuthPhase::Succeeded).await;assert_eq!(succeeded.flow_id,started.flow_id);assert_eq!(succeeded.expires_at,None);assert_eq!(succeeded.message.as_deref(),Some("Sign-in complete."));assert!(!flow.is_changing_credentials());flow.shutdown().await;
     }).await.unwrap();
+    }
+    /// Adopting credentials ends the sessions on the old ones before the new are stored, refuses to interrupt a sign-in, and says what
+    /// went wrong when it fails; the flow is idle again afterwards either way.
+    #[tokio::test]
+    async fn adopting_credentials_stops_sessions_first_and_never_interrupts_a_sign_in() {
+        tokio::time::timeout(HANG_BOUND, async {
+            let (flow, _, mut events) = fixture(false, false, false, false);
+            let order = Arc::new(Mutex::new(Vec::<&'static str>::new()));
+            let stopped = order.clone();
+            let _session = flow.admit_session(Arc::new(move || {
+                let stopped = stopped.clone();
+                Box::pin(async move { stopped.lock().unwrap().push("session stopped") })
+            })).await.unwrap();
+            let mut states = flow.subscribe("owner".into());
+            let (routed, stored) = (order.clone(), order.clone());
+            let state = flow
+                .adopt_credentials(Box::pin(async move { stored.lock().unwrap().push("stored"); Ok(()) }), Box::pin(async move { routed.lock().unwrap().push("routed stop"); Ok(()) }))
+                .await
+                .unwrap();
+            assert_eq!(*order.lock().unwrap(), ["session stopped", "routed stop", "stored"]);
+            assert_eq!((state.phase, state.message.clone(), state.methods.as_ref().map(|methods| methods.0.len())), (ProviderAuthPhase::Succeeded, None, Some(1)));
+            phase(&mut states, ProviderAuthPhase::Succeeded).await;
+            assert!(!flow.is_changing_credentials());
+
+            // A failed update is reported with its own words and leaves the flow usable.
+            let failed = flow.adopt_credentials(Box::pin(async { Err(safe_error("instance", "import", "Could not keep it.")) }), Box::pin(async { Ok(()) })).await.unwrap_err();
+            assert_eq!(failed.detail, "Could not keep it.");
+            let failed_state = phase(&mut states, ProviderAuthPhase::Failed).await;
+            assert_eq!(failed_state.message.as_deref(), Some("Could not keep it."));
+
+            // A sign-in in progress is not interrupted.
+            flow.start("owner".into(), None, None, None, noop()).await.unwrap();
+            let Event::Authenticate(_, _held) = events.recv().await.unwrap() else { panic!("authenticate") };
+            let refused = flow.adopt_credentials(Box::pin(async { Ok(()) }), Box::pin(async { Ok(()) })).await.unwrap_err();
+            assert_eq!((refused.operation.as_str(), refused.detail.as_str()), ("import", "Finish or cancel the existing sign-in first."));
+            flow.shutdown().await;
+        })
+        .await
+        .unwrap();
     }
     #[tokio::test]
     async fn cancellation_waits_owned_auth_cleanup_before_idle_and_returns_unredacted_flow() {

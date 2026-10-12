@@ -88,25 +88,28 @@ untargeted `server.refreshProviders`; `subscribeServerConfig` streams them as `u
 on the providers they report on to one that sends `usageLimitsCommand`, and `provider.consumeResetCredit { sourceId, accountId, creditId }` redeems through
 the hub. Their tests serve a scripted hub from a loopback socket, with the answers of the unchanged original for the same scripts
 (`tools/generate_usage_limit_source_fixtures.mjs`); Codex's `codexRateLimitsToLimits` and `codexPlanLabel` are ported there too
-(`codex_usage_limits.rs`; the Codex adapter does not call them yet). A thread stream sends the newest running update of each tool call within a 50 ms window
-(`thread_live_coalescer.rs`), and the server writes the spans browsers export to `<logs>/server.trace.ndjson` (`trace_sink.rs`; none of its own, and nothing is
-exported over OTLP). `t3-server serve --fixture --fixture-acp-registry FILE` reads the ACP registry catalog from a file instead of
+(`codex_usage_limits.rs`; the provider probe reads `account/rateLimits/read`, and a session's `account/rateLimits/updated` updates the instance's windows). A thread stream sends the newest running update of each tool call within a 50 ms window
+(`thread_live_coalescer.rs`), and the server writes the spans browsers export, and one `ws.rpc.<method>` span per RPC call (`rpc_spans.rs`, with the original's
+labels; a subscription's lasts until it ends or is interrupted), to `<logs>/server.trace.ndjson` (`trace_sink.rs`; nothing is exported over OTLP). `t3-server serve --fixture --fixture-acp-registry FILE` reads the ACP registry catalog from a file instead of
 `cdn.agentclientprotocol.com`, for tests of a client (an error without `--fixture`). Usage keeps what it parsed of each transcript in
 `usage-scan-cache-v5.json` (`usage_scan_cache.rs`, the original's file and document, so a state directory both servers read has one cache): a transcript that
 has not changed is not read again, one that grew is read from where the last parse stopped (guarded by a hash of the bytes before that offset),
 usage of transcripts since deleted stays for 90 days, and a source keeps its volume id when its directory is recreated; Grok and Cursor are still not read.
 Provider event logs (`provider_event_log.rs`, `<logs>/provider/events.<thread>.log`, the original's filters, bounds, batching, rotation and retention)
-are written by the Claude adapter (every frame to and from the CLI) and the OpenCode adapter (a structural summary of each event); the Codex and ACP
-adapters do not write to it yet (`codex_protocol_tap` and `write_protocol_summary` are what they call). `T3CODE_DEV_AUTH_TOKEN` (32 or more characters)
+are written by the Claude adapter (every frame to and from the CLI), the Codex adapter (every app-server frame, credentials redacted), the OpenCode adapter (a
+structural summary of each event) and the ACP family (`acp_native_logging.rs`: a `request` line for each session-setup call of Grok, Antigravity and registry agents; the
+`protocol` lines exist but, as in the original, nothing turns them on). `T3CODE_DEV_AUTH_TOKEN` (32 or more characters)
 on a web server with `--dev-url` is the reusable dev credential (`auth.rs`, `ReusableDevAuth`): it signs a browser in with a cookie named for its hash and
 is itself the bearer of an administrative session; desktop and normal servers ignore it. A server a service launcher started (`NODE_CHANNEL_FD` and
 `T3_SERVICE_LAUNCHER_CONTEXT`) updates itself through the launcher (`launcher_ipc.rs`: the release archive and its `SHA256SUMS` are fetched from
 `T3CODE_RELEASE_BASE_URL` or GitHub, the staged runtime proves itself with `__service-preflight`, and the launcher is asked to switch). ChatGPT sign-in of managed
 Codex is `codex_chatgpt_auth.rs` (PKCE through a loopback callback or one the client brings, identity token checked against the issuer's keys, tokens and registrations in
 the secret store under the original's names, refresh, sign-out, profile export and import), with `provider.chatgpt.*` and `provider.codex.auth-callback.subscribe`
-served; managed Codex does not yet run on these tokens (this server starts a local `codex`), so signing in changes nothing a session uses. `device.testHost` probes a
+served. A managed Codex instance has a sign-in controller in `provider_auth_service.rs`, lists itself from the sign-in (`codex_managed.rs`), and its sessions run the installed
+`codex` with the access token and the token-sharing launch configuration in a shadow home (`codex_home.rs`); importing a profile ends the sessions on the old tokens
+(`AuthFlow::adopt_credentials`). Text generation on a managed instance is not ported. `device.testHost` probes a
 remote host over SSH (`ssh_device_host.rs`); the device service itself has the one local host. Still open on the server: the preview/browser host registry,
-OTLP export and the server's own trace spans, remote device hosts beyond the probe, Cursor and analytics.
+OTLP export, remote device hosts beyond the probe, Cursor and analytics.
 Responses are compressed as the original's router does (`response_compression.rs`: brotli, gzip or deflate by `Accept-Encoding`, text-like types of
 1024 bytes or more); a body of unknown length is sent as it is.
 Writing a streamed delta costs what the delta is, not what the thread is: a thread is a small skeleton (`rust_projections`) and one row per element of
@@ -133,8 +136,8 @@ strictly; a row that does not decode names the event and stops the import), and 
 and projects that the original would itself have imported on its next start are imported
 with their messages. Command receipts, scheduled tasks and their webhook deliveries,
 viewed-file marks and MCP app context come across; settings, keybindings, attachments and
-the settings secrets are used in place when the state directory is the original's, and are
-copied otherwise (settings load-time migrations then run on first start as ever). The import
+the settings secrets (and the ChatGPT sign-in of managed Codex) are used in place when the state directory is the original's, and are
+copied otherwise, with the usage scan caches (settings load-time migrations then run on first start as ever). The import
 builds `rust-state.sqlite.importing`, resumes it after an interruption when the source is
 unchanged, and renames it into place only when complete and checked; `rust_import_record`
 records the source's schema version and counts, so a second start or a second command
@@ -168,7 +171,8 @@ pre-migration JSON files under `OPENCODE_DATA_DIR`, Antigravity's per-conversati
 default `~/.gemini/antigravity*` directories and each Antigravity instance's profile), opened read-only on every scan (the original reads them afresh on every scan too and caches only transcripts), with the
 original's alias merging; `tests/usage_readers_flow.rs` replays what the unchanged readers made of the same stores
 (`rust/tools/generate_usage_reader_fixtures.mjs`). Grok and Cursor are still not read. The pull request sync has a flow test
-(`tests/pull_request_sync_flow.rs`) over a fake GitHub.
+(`tests/pull_request_sync_flow.rs`) over a fake GitHub; a link also holds the host's stack (read when its snapshot or stack membership moved) and an active
+thread is linked to the other layers as `stack` links.
 
 T3 Connect (`t3-remote`, wired by `server/src/connect.rs`) is built once the listener has an address and started when the routes
 serve; it is built whether or not anything is configured, as the original's `CloudLink` is, and without a relay URL and Clerk

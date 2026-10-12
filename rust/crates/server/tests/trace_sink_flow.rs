@@ -40,3 +40,54 @@ async fn a_browser_export_is_recorded_and_the_scope_is_checked() {
     assert_eq!(rpc_support::success(&config)["observability"]["localTracingEnabled"], true);
     h.finish().await;
 }
+
+/// The server's own spans: each RPC is a `ws.rpc.<method>` span with the original's attributes, a refused call is a failed one, a
+/// subscription lasts until the client lets go of it, and the four methods the original does not trace record nothing.
+#[tokio::test]
+async fn rpc_calls_are_spans_in_the_local_trace_file() {
+    let h = harness_with_config().await;
+    let path = h.base.join("userdata/logs/server.trace.ndjson");
+    let sink = TraceSink::open(&path, 1 << 20, 3).unwrap();
+    t3_server::trace_sink::install(&h.store, sink.clone());
+    let mut operator = h.connect(&h.operator).await;
+    let config = rpc_support::rpc(&mut operator, 1, "server.getConfig", json!({})).await;
+    assert_eq!(rpc_support::success(&config)["observability"]["localTracingEnabled"], true);
+    rpc_support::rpc(&mut operator, 2, "server.getTraceDiagnostics", json!({})).await;
+    rpc_support::rpc(&mut operator, 3, "no.such.method", json!({})).await;
+    // A reader may not run what needs the operate scope: refused, and still a span.
+    let mut reader = h.connect(&h.reader).await;
+    let refused = rpc_support::rpc(&mut reader, 4, "server.updateSettings", json!({"patch":{}})).await;
+    assert_eq!(refused["_tag"], "Failure", "{refused}");
+    // A subscription's span lasts until it ends; letting go of it is an interruption.
+    rpc_support::send(&mut operator, json!({"_tag":"Request","id":5,"tag":"subscribeServerLifecycle","payload":{},"headers":[]})).await;
+    rpc_support::send(&mut operator, json!({"_tag":"Interrupt","requestId":5})).await;
+    // The interrupt is answered, so the server has dropped the subscription (and its span) by then.
+    tokio::time::timeout(t3_server::test_support::HANG_BOUND, async {
+    loop {
+        let message = rpc_support::next(&mut operator).await;
+        if message["_tag"] == "Exit" && message["requestId"] == 5 {
+            break;
+        }
+    }
+    })
+    .await
+    .expect("the interrupt is answered");
+    sink.flush();
+    let spans: Vec<Value> = std::fs::read_to_string(&path).unwrap().lines().map(|line| serde_json::from_str(line).unwrap()).collect();
+    let named = |name: &str| spans.iter().filter(|span| span["name"] == name).collect::<Vec<_>>();
+    let config = named("ws.rpc.server.getConfig");
+    assert_eq!(config.len(), 1, "{spans:?}");
+    assert_eq!((config[0]["type"].as_str(), config[0]["kind"].as_str(), config[0]["sampled"].as_bool(), config[0]["exit"]["_tag"].as_str(), config[0]["traceId"].as_str().map(str::len), config[0]["spanId"].as_str().map(str::len)), (Some("effect-span"), Some("internal"), Some(true), Some("Success"), Some(32), Some(16)));
+    assert!(config[0].get("parentSpanId").is_none());
+    assert_eq!(config[0]["attributes"], json!({"rpc.transport":"websocket","rpc.system":"effect-rpc","rpc.method":"server.getConfig","rpc.aggregate":"server"}));
+    let started: u128 = config[0]["startTimeUnixNano"].as_str().unwrap().parse().unwrap();
+    let ended: u128 = config[0]["endTimeUnixNano"].as_str().unwrap().parse().unwrap();
+    assert!(ended >= started && config[0]["durationMs"].as_f64().unwrap() >= 0.0);
+    assert!(named("ws.rpc.server.getTraceDiagnostics").is_empty(), "the original traces no diagnostics read");
+    assert!(spans.iter().all(|span| span["name"] != "ws.rpc.no.such.method"));
+    let rejected = named("ws.rpc.server.updateSettings");
+    assert_eq!((rejected.len(), rejected[0]["exit"]["_tag"].as_str()), (1, Some("Failure")), "{spans:?}");
+    let lifecycle = named("ws.rpc.subscribeServerLifecycle");
+    assert_eq!((lifecycle.len(), lifecycle[0]["exit"]["_tag"].as_str(), lifecycle[0]["attributes"]["rpc.aggregate"].as_str()), (1, Some("Interrupted"), Some("server")), "{spans:?}");
+    h.finish().await;
+}

@@ -481,6 +481,9 @@ class Replay:
 
 REPLAY = Replay(os.environ["CODEX_FIXTURE_TRANSCRIPT"]) if os.environ.get("CODEX_FIXTURE_TRANSCRIPT") else None
 
+if os.environ.get("FIXTURE_LAUNCH_RECORD"):
+    with open(os.environ["FIXTURE_LAUNCH_RECORD"], "a", encoding="utf-8") as record:
+        record.write(json.dumps({"argv": sys.argv[1:], "accessToken": os.environ.get("ACCESS_TOKEN"), "codexHome": os.environ.get("CODEX_HOME"), "openaiKey": os.environ.get("OPENAI_API_KEY")}) + "\n")
 for line in sys.stdin:
     message = json.loads(line)
     if REPLAY is not None:
@@ -545,6 +548,8 @@ for line in sys.stdin:
             result["data"].append(alternative)
     elif method == "skills/list":
         result = {"data": [{"cwd": cwd, "skills": [], "errors": []} for cwd in params.get("cwds", [])]}
+    elif method == "account/rateLimits/read" and os.environ.get("FIXTURE_RATE_LIMITS"):
+        result = json.loads(os.environ["FIXTURE_RATE_LIMITS"])
     elif method == "account/rateLimits/read":
         result = {"rateLimits": {"limitId": "fixture", "limitName": "Fixture", "primary": None, "secondary": None, "credits": None, "planType": "unknown"}, "rateLimitsByLimitId": None, "rateLimitResetCredits": None}
     elif method == "thread/inject_items" and not os.environ.get("FIXTURE_NO_INJECT"):
