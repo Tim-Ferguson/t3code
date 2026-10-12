@@ -2,7 +2,9 @@
 //! provider instance with a favourites tab (`ModelPickerContent.tsx`). Typing searches every
 //! provider and ranks; Up and Down move, Enter picks, Tab and Shift+Tab change provider, Escape
 //! closes. The shortcuts (`modelPicker.toggle`, `.jump.N`, `.previousProvider`, `.nextProvider`)
-//! reach it through the shared `PickerCtl`.
+//! reach it through the shared `PickerCtl`. Where the form offers it (`Several`), Shift-click and Shift+Enter add
+//! or remove a model instead of choosing it, the list stays open, and the button names what is chosen
+//! (`ProviderModelPicker.tsx`, `ModelPickerContent.tsx`'s `onToggleModel`).
 use crate::runtime::{UiModel, UiModelStoreExt};
 use dioxus::prelude::*;
 use serde_json::json;
@@ -17,6 +19,15 @@ pub(crate) struct PickerCtl {
     pub jump: Signal<Option<usize>>,
     /// Move to the next or previous provider.
     pub step: Signal<Option<i32>>,
+}
+
+/// The models chosen together, for the picker of a new thread's form (`selectedModels`): the key of each, the text on the
+/// button and its tooltip. The list shows a check mark on each.
+#[derive(Clone, PartialEq, Default)]
+pub(crate) struct Several {
+    pub keys: Vec<(String, String)>,
+    pub label: String,
+    pub names: String,
 }
 
 fn entries(rows: &[InstanceModelOption]) -> Vec<logic::Entry> {
@@ -34,7 +45,9 @@ fn entries(rows: &[InstanceModelOption]) -> Vec<logic::Entry> {
 }
 
 #[component]
-pub(crate) fn ModelPicker(state: Store<UiModel>, rows: Vec<InstanceModelOption>, selected_key: String, selected_label: String, selected_instance: String, disabled: bool, on_pick: EventHandler<usize>) -> Element {
+pub(crate) fn ModelPicker(state: Store<UiModel>, rows: Vec<InstanceModelOption>, selected_key: String, selected_label: String, selected_instance: String, disabled: bool, on_pick: EventHandler<usize>,
+    /// Set where several models can be chosen together; `on_toggle` is told the row to add or remove.
+    #[props(default)] several: Option<Several>, #[props(default)] on_toggle: Option<EventHandler<usize>>) -> Element {
     let local_open = use_signal(|| false);
     let (local_jump, local_step) = (use_signal(|| None::<usize>), use_signal(|| None::<i32>));
     let shared = use_hook(try_consume_context::<PickerCtl>);
@@ -44,16 +57,17 @@ pub(crate) fn ModelPicker(state: Store<UiModel>, rows: Vec<InstanceModelOption>,
     rsx! {
         div {class:"model-picker",
             button {r#type:"button",class:"model-picker-trigger","aria-label":"Model","aria-haspopup":"listbox","aria-expanded":"{open()}",value:"{selected_key}",disabled,
+                title:several.as_ref().map(|several|several.names.clone()),
                 onclick:move |_|{let now=*open.peek();open.set(!now);},
-                "{selected_label}"}
+                "{several.as_ref().map_or(selected_label.as_str(), |several| several.label.as_str())}"}
             // Built when opened and gone when closed, so it opens fresh every time.
-            if open() {Popup {state,rows,selected_instance,open,jump,step,on_pick}}
+            if open() {Popup {state,rows,selected_instance,open,jump,step,on_pick,several:several.clone(),on_toggle}}
         }
     }
 }
 
 #[component]
-fn Popup(state: Store<UiModel>, rows: Vec<InstanceModelOption>, selected_instance: String, mut open: Signal<bool>, jump: Signal<Option<usize>>, step: Signal<Option<i32>>, on_pick: EventHandler<usize>) -> Element {
+fn Popup(state: Store<UiModel>, rows: Vec<InstanceModelOption>, selected_instance: String, mut open: Signal<bool>, jump: Signal<Option<usize>>, step: Signal<Option<i32>>, on_pick: EventHandler<usize>, several: Option<Several>, on_toggle: Option<EventHandler<usize>>) -> Element {
     let writer = use_hook(try_consume_context::<crate::client_settings::Writer>);
     let mut query = use_signal(String::new);
     let mut highlighted = use_signal(|| 0usize);
@@ -116,6 +130,8 @@ fn Popup(state: Store<UiModel>, rows: Vec<InstanceModelOption>, selected_instanc
                             match event.key() {
                                 Key::ArrowDown if !listed.is_empty() => {event.prevent_default();highlighted.set((cursor+1)%listed.len());}
                                 Key::ArrowUp if !listed.is_empty() => {event.prevent_default();highlighted.set((cursor+listed.len()-1)%listed.len());}
+                                // Shift+Enter adds or removes the highlighted model and keeps the list open.
+                                Key::Enter if !listed.is_empty() && shift && on_toggle.is_some() => {event.prevent_default();if let Some(toggle)=on_toggle {toggle.call(listed[cursor]);}}
                                 Key::Enter if !listed.is_empty() => {event.prevent_default();on_pick.call(listed[cursor]);open.set(false);}
                                 Key::Tab if !tabs.is_empty() => {
                                     event.prevent_default();
@@ -143,8 +159,16 @@ fn Popup(state: Store<UiModel>, rows: Vec<InstanceModelOption>, selected_instanc
                             let name = label_of(entry);
                             let (instance, slug) = entry.key();
                             let chosen = position == cursor;
-                            rsx!{li {key:"{instance}:{slug}",role:"option","aria-selected":"{chosen}",class:if chosen {"selected"} else {""},
-                                button {r#type:"button","aria-label":"{name}",class:"model-row",onmousedown:move |event| event.prevent_default(),onclick:move |_|{on_pick.call(index);open.set(false);},
+                            let checked = several.as_ref().is_some_and(|several| several.keys.contains(&entry.key()));
+                            rsx!{li {key:"{instance}:{slug}",role:"option","aria-selected":"{chosen}","data-picked":several.as_ref().map(|_|checked.to_string()),class:if chosen {"selected"} else {""},
+                                button {r#type:"button","aria-label":"{name}",class:"model-row",onmousedown:move |event| event.prevent_default(),onclick:move |event|{
+                                    // Shift-click adds or removes the model; any other click chooses it alone.
+                                    match on_toggle.filter(|_|event.modifiers().shift()) {
+                                        Some(toggle)=>toggle.call(index),
+                                        None=>{on_pick.call(index);open.set(false);}
+                                    }
+                                },
+                                    if several.is_some() {span {class:"model-check","aria-hidden":"true",if checked {"\u{2713}"}}}
                                     span {class:"model-name","{entry.name}"}
                                     if searching {span {class:"muted","{entry.provider_label}"}}
                                     if position < 9 {span {class:"muted model-jump",title:"Jump with the modelPicker.jump.{position+1} shortcut","{position+1}"}}

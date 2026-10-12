@@ -210,12 +210,14 @@ pub struct Panels {
     /// How many panel choices the person has made per thread this session (`userActionRevisionByThreadKey`). An automatic
     /// opening (`open_proactive`, `reconcile_files`) does not advance it, so it can tell a choice made after it looked.
     revisions: BTreeMap<String, u64>,
+    /// Whether each thread's details card is open (`threadPanelVisibilityByThreadKey`); kept beside the tabs, as the original's store does.
+    pub visibilities: crate::thread_panel::Visibilities,
 }
 
-/// Two sets of panels are the same when they hold the same tabs: the count of choices is bookkeeping of this session.
+/// Two sets of panels are the same when they hold the same tabs and cards: the count of choices is bookkeeping of this session.
 impl PartialEq for Panels {
     fn eq(&self, other: &Self) -> bool {
-        self.by_thread == other.by_thread
+        self.by_thread == other.by_thread && self.visibilities == other.visibilities
     }
 }
 
@@ -479,6 +481,7 @@ impl Panels {
     pub fn remove_thread(&mut self, key: &str) {
         self.by_thread.remove(key);
         self.revisions.remove(key);
+        self.visibilities.remove(key);
     }
     /// `openProactive`: opens a tab on the app's account, not the person's. Refused when the person has made a panel choice
     /// since `expected_revision` was read, and a diff never replaces a pull request the panel is showing (a linked pull request
@@ -502,13 +505,15 @@ impl Panels {
     // ---- storage -------------------------------------------------------------------------------
 
     pub fn to_json(&self) -> String {
-        serde_json::json!({"version":VERSION,"byThreadKey":self.by_thread}).to_string()
+        serde_json::json!({"version":VERSION,"byThreadKey":self.by_thread,"threadPanelVisibilityByThreadKey":self.visibilities.to_json()}).to_string()
     }
     /// What storage held (`migratePersistedRightPanelState`): a tab that cannot be read is dropped; a panel that is left with
     /// none is not kept open; an open panel always shows one.
     pub fn parse(raw: Option<&str>) -> Self {
-        let Some(map) = raw.and_then(|raw| serde_json::from_str::<Value>(raw).ok()).and_then(|value| value.get("byThreadKey").and_then(Value::as_object).cloned()) else {
-            return Self::default();
+        let stored = raw.and_then(|raw| serde_json::from_str::<Value>(raw).ok());
+        let visibilities = crate::thread_panel::Visibilities::from_json(stored.as_ref().and_then(|value| value.get("threadPanelVisibilityByThreadKey")));
+        let Some(map) = stored.and_then(|value| value.get("byThreadKey").and_then(Value::as_object).cloned()) else {
+            return Self { visibilities, ..Self::default() };
         };
         let mut by_thread = BTreeMap::new();
         for (key, stored) in map {
@@ -526,7 +531,7 @@ impl Panels {
                 by_thread.insert(key, panel);
             }
         }
-        Self { by_thread, revisions: BTreeMap::new() }
+        Self { by_thread, revisions: BTreeMap::new(), visibilities }
     }
 }
 
@@ -1067,5 +1072,21 @@ mod tests {
         assert_eq!(plan(vec![Owner { exists: false, shell_live: false, ..known(&empty) }, known(&empty)]), (vec![], None), "a cached shell may be stale: wait");
         assert_eq!(plan(vec![known(&shown), known(&empty)]), (vec!["a".into()], Some("b".into())), "a tab that is already open is dropped");
         assert_eq!(plan(vec![known(&hidden)]), (vec![], Some("a".into())), "a tab of a hidden panel is restored");
+    }
+    #[test]
+    fn a_details_card_closed_inline_is_saved_with_the_tabs_and_a_popover_is_not() {
+        use crate::thread_panel::Presentation::{Inline, Popover};
+        let mut panels = Panels::default();
+        panels.visibilities.set_open("e:t", Inline, false);
+        panels.visibilities.set_open("e:u", Popover, true);
+        let read = Panels::parse(Some(&panels.to_json()));
+        assert!(!read.visibilities.is_open("e:t", Inline));
+        assert!(!read.visibilities.is_open("e:u", Popover) && read.visibilities.is_open("e:u", Inline), "the popover opens closed again");
+        // Tabs saved before the cards existed read as they did, with every card at its default.
+        assert_eq!(Panels::parse(Some(r#"{"version":1,"byThreadKey":{}}"#)).visibilities, Default::default());
+        // A thread that is deleted keeps nothing of either.
+        let mut read = read;
+        read.remove_thread("e:t");
+        assert!(read.visibilities.is_open("e:t", Inline));
     }
 }

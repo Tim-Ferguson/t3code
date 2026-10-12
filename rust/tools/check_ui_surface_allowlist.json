@@ -53,7 +53,7 @@
     "partial": {
       "navigation.back": "The page's history, on the web build, where the address follows the view; the desktop window has no address, so the command is not offered there (useNavigationHistory).",
       "navigation.forward": "As navigation.back.",
-      "threadPanel.toggle": "thread_details.rs: the header toggle and the command open a card at the conversation's top right (Workspace summary, the Automations bound to the thread with pause/resume, run now and the way to Scheduled tasks). Not built: the card as a popover when the window is narrow, the density folding, its saved state, and the controls the original gathers in it (open in editor, branch, project scripts, Git actions, lineage), which stay in the header. The command has no default key, as in the original."
+      "threadPanel.toggle": "thread_details.rs: the header toggle and the command open the thread's card inline at the conversation's top right where the page leaves room beside the centred chat lane (open until closed, and saved as closed per thread with the right panel's tabs), else as a popover from the header (closed until asked, Escape or a click outside closes it, never saved). It folds by what fits (full, compact, essential, from the heights the page measures) and hosts the editor picker, the branch and Git actions, the project's scripts and the lineage in place of the header, which keeps them while the card is closed (the original has no such fallback), with the Workspace summary and the Automations bound to the thread. Not built: the chat lane moving left to make room (the card goes inline only where the lane need not move), the floating browser player the card steps around, the Git actions' compact form, the panel layout of those controls (they are drawn as the header draws them) and the Automations' folding. The command has no default key, as in the original."
     },
     "pending": {},
     "omitted": {
@@ -97,12 +97,13 @@
       "usageModelAliases": {
         "probe": "usage_prices.rs::usageModelAliases",
         "reason": "usage_prices.rs: the editor's Map-to column"
+      },
+      "requiredWorktreeBootstrap": {
+        "probe": "multi_model.rs::required_worktree_bootstrap",
+        "reason": "multi_model.rs (client and ui): on a new thread's form (the picker offers it only where the server advertises this), Shift-click or Shift+Enter in the model picker chooses several models, the workspace is fixed to a new worktree, and sending starts one thread for each model with `orchestration.launchThread` and a `worktree` workspace strategy (the original uses `startThreadTurn` with a worktree bootstrap). The refusals (older server, no Git project or base branch, no model), the per-model provider check, the background success notice, the per-model failure notices with the thread a lost request may have started, \"Allow retry\" and the put-back of a failed message are the original's. Not sent: `startFromOrigin`, which the form has no control for."
       }
     },
     "partial": {},
-    "pending": {
-      "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Not started: the original sends from a new thread of a Git project with a base branch and starts one thread for each selected model, each with its own worktree, which crosses the model picker, the new-thread form and the send path in runtime.rs; the server advertises the capability."
-    },
     "omitted": {
       "connectionProbe": "See rpc server.probe: the Rust client does not probe."
     }
@@ -615,9 +616,9 @@
     },
     "partial": {
       "composer composer-code-block": "Rich text composer: not built.",
-      "composer ComposerBannerStack": "One Stack docks the plan badge, the feedback exchange, the usage-limit recovery and report, and the server update in the original's order. Not built: the stack's peeking of further notices behind the front one (hover, Show other notices), the exit transition on dismiss, and the goal and background-work strips (composer_panels), which stay their own panels.",
-      "message context mention": "The @file reference is sent as text and shown as text: this app's composer writes no mention context record, so the original's file chip (FileTagChip, with the file icon and a preview on click) is drawn only for messages that carry one, and those are shown as text here. The $skill chip is built.",
-      "composer composerContextUndo": "Not built: the original restores a removed chip with the editor's undo, because its chips are tokens inside the rich text editor and the removed file or annotation is retained for it (reconcileAttachmentContextReferences). This app's chips are a tray of their own, with no editor history to undo."
+      "composer ComposerBannerStack": "composer_banners.rs: one Stack orders its notices as the original does (work in progress first: the plan badge, the goal and background work; then urgent, error and warning notices; then the rest), attaches the first to the composer and keeps the others behind it under a cap that says \"Show other notices\", coloured as the first of them; the others come out on hover over them or the cap, a click on the cap or Escape returns them (the focus going to the cap). Not built: the exit transition on dismiss and the open and close transitions (nothing in the stack animates here), and the details popover on a clipped description.",
+      "message context mention": "The original's composer does not write a mention context record: choosing an `@` path writes the canonical file link `[name](path)` into the prompt (serializeComposerFileLink), and that link, or a bare `@path` before a space, is a chip (composer_mentions.rs, with the file's icon and a button that takes it out of the text), and a file link in a sent message is a chip too (workspace_files::FileLink, FileTagChip). Not built: a `mention` record in a message's context drawn as a chip (UserMessageMentionChip): this app draws no record of any kind in a sent message; the chip standing in the text of the box (it stands above the box here, the box being a text field); the Pierre icon set by extension (one glyph for a file, one for a folder). The $skill chip is built.",
+      "composer composerContextUndo": "Not built: the original restores a removed chip with the editor's undo, because its chips are tokens inside the rich text editor and the removed file or annotation is retained for it (reconcileAttachmentContextReferences). This app's chips are a tray of their own, with no editor history to undo; the file chips are the text of the prompt, and taking one out changes the text the box holds, which the text field's own undo does not follow."
     },
     "pending": {
       "timeline row mcp-app": "McpAppTimelineRow (MCP app frames): not built; see rpc mcpApps.*.",

@@ -15,8 +15,10 @@ use serde_json::{Value, json};
 use t3_client::resource_telemetry::{self as logic, some};
 use t3_contracts::AuthEnvironmentScope;
 
+/// The page's resource usage. `onsignal` is told of a signal a row of the process tree asks for (the page asks the question and sends it);
+/// `signalling` is the pid it has one out for.
 #[component]
-pub(crate) fn Section(state: Store<UiModel>, transport: TransportHandle) -> Element {
+pub(crate) fn Section(state: Store<UiModel>, transport: TransportHandle, #[props(default)] signalling: Option<u64>, #[props(default)] onsignal: Option<EventHandler<crate::diagnostics_page::Signalling>>) -> Element {
     let readable = use_memo(move || connected_allows(state, AuthEnvironmentScope::DiagnosticsRead));
     let maintain = use_memo(move || connected_allows(state, AuthEnvironmentScope::EnvironmentMaintain));
     let mut snapshot = use_signal(|| None::<Result<Value, String>>);
@@ -106,6 +108,7 @@ pub(crate) fn Section(state: Store<UiModel>, transport: TransportHandle) -> Elem
         return rsx! {};
     }
     let shown = snapshot.read().clone();
+    let processes = shown.as_ref().and_then(|answer| answer.as_ref().ok()).map(|value| value["processes"].as_array().cloned().unwrap_or_default());
     let past = history.read().clone();
     let error = shown.as_ref().and_then(|answer| answer.as_ref().err().cloned());
     let native = shown.as_ref().and_then(|answer| answer.as_ref().ok()).and_then(|value| value["health"]["native"]["status"].as_str().map(str::to_owned));
@@ -128,6 +131,72 @@ pub(crate) fn Section(state: Store<UiModel>, transport: TransportHandle) -> Elem
                 None => rsx! { p { class: "muted", role: "status", "Loading history\u{2026}" } },
                 Some(Err(message)) => rsx! { p { class: "diagnostics-error", role: "alert", "{message}" } },
                 Some(Ok(value)) => rsx! { History { buckets: value["buckets"].as_array().cloned().unwrap_or_default() } },
+            }
+        }
+        if let Some(processes) = processes {
+            ProcessTree { processes, can_signal: maintain(), signalling, onsignal: move |signal| { if let Some(onsignal) = onsignal { onsignal.call(signal); } } }
+        }
+    }
+}
+
+/// "Live process tree": every process of T3 Code that the monitor sees, with a parent's row able to fold the ones under it, what each uses
+/// and, for what this server started, the signals. A process is its pid and its start time (`processIdentityKey`).
+#[component]
+pub(crate) fn ProcessTree(processes: Vec<Value>, can_signal: bool, signalling: Option<u64>, onsignal: EventHandler<crate::diagnostics_page::Signalling>) -> Element {
+    let mut collapsed = use_signal(std::collections::BTreeSet::<String>::new);
+    let visible = logic::visible_processes(&processes, &collapsed.read());
+    rsx! {
+        section { class: "sc-section", "aria-label": "Live process tree",
+            h2 { "Live process tree" }
+            p { class: "muted", "Identity: PID + start time" }
+            table { class: "process-table", "aria-label": "Processes of T3 Code",
+                thead { tr { th { "Process" } th { "Category" } th { "CPU" } th { "CPU Time" } th { "Memory" } th { "Read/s" } th { "Write/s" } th { "Read Total" } th { "Write Total" } th { "PID" } th { "Kill" } } }
+                tbody {
+                    if visible.is_empty() { tr { td { colspan: "11", class: "muted", "Waiting for the native process monitor." } } }
+                    for index in visible {
+                        {
+                            let process = &processes[index];
+                            let key = logic::identity_key(process);
+                            let (pid, started) = (process["identity"]["pid"].as_u64().unwrap_or(0), process["identity"]["startTimeMs"].as_u64().unwrap_or(0));
+                            let name = logic::process_name(process["name"].as_str().unwrap_or_default(), process["command"].as_str().unwrap_or_default());
+                            let command = { let command = process["command"].as_str().unwrap_or_default(); if command.is_empty() { process["name"].as_str().unwrap_or_default() } else { command }.to_owned() };
+                            let category = process["category"].as_str().unwrap_or_default().to_owned();
+                            let has_children = process["childPids"].as_array().is_some_and(|children| !children.is_empty());
+                            let folded = collapsed.read().contains(&key);
+                            let indent = process["depth"].as_u64().unwrap_or(0).min(7) * 10;
+                            let number = |field: &str| process[field].as_f64().unwrap_or(0.0);
+                            let toggle_label = if folded { format!("Expand {name}") } else { format!("Collapse {name}") };
+                            let toggle_key = key.clone();
+                            let semantics = logic::io_semantics_label(process["ioSemantics"].as_str().unwrap_or_default());
+                            rsx! { tr { key: "{key}",
+                                td { div { class: "process-tree-name", style: "padding-left:{indent}px",
+                                    if has_children {
+                                        button { r#type: "button", class: "icon-button process-tree-toggle", "aria-label": "{toggle_label}", "aria-expanded": "{!folded}",
+                                            onclick: move |_| { let mut set = collapsed.write(); if !set.remove(&toggle_key) { set.insert(toggle_key.clone()); } },
+                                            if folded { "\u{25b8}" } else { "\u{25be}" } }
+                                    } else { span { class: "process-tree-toggle", "aria-hidden": "true" } }
+                                    span { class: "process-dot {logic::category_tone(&category)}", "aria-hidden": "true" }
+                                    span { class: "process-command", title: "{command}", "{name}" }
+                                } }
+                                td { class: "muted", "{logic::category_label(&category)}" }
+                                td { {format!("{:.1}%", number("cpuPercent"))} }
+                                td { {logic::format_cpu_time(number("cpuTimeMs"))} }
+                                td { {logic::format_bytes(number("residentBytes"))} }
+                                td { {logic::format_rate(number("ioReadBytesPerSecond"))} }
+                                td { {logic::format_rate(number("ioWriteBytesPerSecond"))} }
+                                td { class: "muted", {logic::format_bytes(number("ioReadBytes"))} }
+                                td { class: "muted", title: "{semantics}", {logic::format_bytes(number("ioWriteBytes"))} }
+                                td { class: "muted", "{pid}" }
+                                td { class: "process-actions",
+                                    if logic::can_signal(&category) {
+                                        button { r#type: "button", "aria-label": "Send SIGINT to process {pid}", title: "Send SIGINT", disabled: !can_signal || signalling == Some(pid), onclick: move |_| onsignal.call(crate::diagnostics_page::Signalling::new(pid, started, "SIGINT")), "INT" }
+                                        button { class: "destructive", r#type: "button", "aria-label": "Send SIGKILL to process {pid}", title: "Send SIGKILL", disabled: !can_signal || signalling == Some(pid), onclick: move |_| onsignal.call(crate::diagnostics_page::Signalling::new(pid, started, "SIGKILL")), "KILL" }
+                                    } else { span { class: "muted", "\u{2014}" } }
+                                }
+                            } }
+                        }
+                    }
+                }
             }
         }
     }

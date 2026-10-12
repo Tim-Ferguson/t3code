@@ -25,7 +25,7 @@ pub(crate) fn Tasks(state: Store<UiModel>, thread_id: String) -> Element {
     let done = progress.completed_steps >= progress.total_steps;
     let segments = steps.len() > 1 && steps.len() <= logic::MAX_SEGMENTS;
     rsx! {
-        div { class: "composer-tasks", "data-composer-tasks-drawer": if open { "true" } else { "false" },
+        crate::composer_banners::Item { priority: t3_client::banner_stack::Priority::Activity, div { class: "composer-tasks", "data-composer-tasks-drawer": if open { "true" } else { "false" },
             button { r#type: "button", class: "composer-tasks-badge", "aria-expanded": "{open}", "aria-label": "{label}", "data-composer-tasks-badge": "true",
                 // The click must not take focus out of the message box.
                 onmousedown: move |event| event.prevent_default(),
@@ -55,6 +55,6 @@ pub(crate) fn Tasks(state: Store<UiModel>, thread_id: String) -> Element {
                     }
                 }
             }
-        }
+        } }
     }
 }

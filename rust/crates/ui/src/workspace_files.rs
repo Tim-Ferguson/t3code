@@ -81,7 +81,10 @@ pub(crate) fn FileLink(target: logic::FileTarget, title: String, children: Eleme
             spawn(async move { file_menu(host, target, busy, last, (at.x, at.y)).await });
         }
     };
-    rsx! { a { class: "file-link", href: "#", role: "button", title: "{title}", "aria-label": "{label}", onclick, oncontextmenu, {children} } }
+    // A file named in a message is a chip: the icon, then the name (`FileTagChipContent`).
+    let glyph = crate::composer_mentions::icon(&target.path);
+    rsx! { a { class: "file-link file-chip", href: "#", role: "button", title: "{title}", "aria-label": "{label}", onclick, oncontextmenu,
+        span { class: "file-chip-icon", "aria-hidden": "true", "{glyph}" } {children} } }
 }
 
 /// The menu of a file named in a message: preview it when it is media, open it in the editor, reveal it, copy its path.

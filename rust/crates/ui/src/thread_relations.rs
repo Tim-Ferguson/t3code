@@ -229,6 +229,19 @@ pub(crate) fn HeaderButton(state: Store<UiModel>, transport: TransportHandle, th
     }
 }
 
+/// The lineage drawn in place, for the thread details card (`ThreadRelationshipsPanel` in `ThreadDetailsPanel.tsx`): the same panel the header
+/// button opens, always open, and present only for a thread that has relatives.
+#[component]
+pub(crate) fn Inline(state: Store<UiModel>, transport: TransportHandle, thread_id: String) -> Element {
+    let related = use_memo(use_reactive((&thread_id,), move |(thread_id,)| has_related(state, &thread_id)));
+    if !related() {
+        return rsx! {};
+    }
+    rsx! { div { class: "lineage-inline", "data-thread-relationships-panel": "true",
+        Panel { key: "{thread_id}", state, transport, thread_id: thread_id.clone(), close: move |_| {} }
+    } }
+}
+
 #[component]
 fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id: String, close: EventHandler<()>) -> Element {
     let mut shown = use_signal(|| FIRST_ROWS);

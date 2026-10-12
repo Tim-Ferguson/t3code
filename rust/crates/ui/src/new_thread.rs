@@ -379,11 +379,17 @@ fn NewThreadOptions(
     };
     let descriptors =
         models::option_descriptors(&caps, selected.as_ref().and_then(|s| s.options.as_deref()));
-    let environment = choices
-        .environment_mode
-        .or(defaults.environment_mode)
-        .unwrap_or(ThreadEnvMode::Local);
-    let worktree_path = choices.worktree_path.clone().filter(|_| environment == ThreadEnvMode::Worktree);
+    // Several models at once (`multipleModelSelections`): only where the server can prepare a worktree for each thread, and
+    // each thread has a new worktree of its own, whatever the workspace was.
+    let supports_several = t3_client::multi_model::supported(config);
+    let several: Option<Vec<ModelSelection>> = draft_key.as_ref().filter(|_| supports_several).and_then(|key| crate::multi_model::chosen(state, key));
+    let several_sending = draft_key.as_ref().is_some_and(|key| crate::multi_model::sending(state, key));
+    let environment = if several.is_some() {
+        ThreadEnvMode::Worktree
+    } else {
+        choices.environment_mode.or(defaults.environment_mode).unwrap_or(ThreadEnvMode::Local)
+    };
+    let worktree_path = choices.worktree_path.clone().filter(|_| environment == ThreadEnvMode::Worktree && several.is_none());
     let environment_value = if worktree_path.is_some() {
         "existing"
     } else if environment == ThreadEnvMode::Worktree {
@@ -398,11 +404,6 @@ fn NewThreadOptions(
         .as_str()
         .unwrap()
         .to_owned();
-    let preserved_missing = selected.as_ref().is_some_and(|s| {
-        !rows
-            .iter()
-            .any(|r| r.instance_id == s.instance_id && r.model.slug == s.model.as_str())
-    });
     let unsupported = draft_key.as_ref().is_some_and(|key| {
         crate::draft_storage::has_unrendered(
             state,
@@ -428,7 +429,7 @@ fn NewThreadOptions(
         || pending
         || !can_operate
         || selected.is_none()
-        || (environment == ThreadEnvMode::Worktree && worktree_path.is_none() && base_ref.trim().is_empty())
+        || (environment == ThreadEnvMode::Worktree && several.is_none() && worktree_path.is_none() && base_ref.trim().is_empty())
         || selected.as_ref().is_some_and(|s| {
             rows.iter()
                 .find(|r| r.instance_id == s.instance_id && r.model.slug == s.model.as_str())
@@ -437,6 +438,12 @@ fn NewThreadOptions(
     let launch_selection = selected.clone();
     let project_id = project.id.to_string();
     let chip_count = attachment_target.as_ref().map_or(0, |target| crate::composer_chips::count(state, target));
+    // Several models send a message: there is no empty thread to start on each, and no model chosen is no send (`sendDisabledReason`).
+    let several_reason = match several.as_ref() {
+        Some(models) if models.is_empty() => Some(t3_client::multi_model::SELECT_ONE),
+        _ => None,
+    };
+    let disabled = disabled || several_sending || several_reason.is_some() || (several.is_some() && prompt.trim().is_empty() && attachment_count == 0 && chip_count == 0);
     // A project whose clone has not landed starts no thread; the reason repaints this form only when it changes.
     let clone_block = use_memo(use_reactive((&project_id,), move |(project_id,)| crate::clone_view::block_reason(state, &project_id)));
     let clone_blocked = clone_block.read().is_some();
@@ -444,7 +451,14 @@ fn NewThreadOptions(
     // Starting the thread from the button or `composer.sendBackground`; the background form leaves the person here.
     let launch = {
         let (transport, project_id, draft, prompt, launch_selection, worktree_path, base_ref) = (transport.clone(), project_id.clone(), draft.clone(), prompt.clone(), launch_selection.clone(), worktree_path.clone(), base_ref.clone());
+        let (several, draft_key, workspace_root) = (several.clone(), draft_key.clone(), project.workspace_root.to_string());
         move |background: bool| {
+            // One thread for each model, started in the background.
+            if let (Some(selections), Some(key)) = (several.clone(), draft_key.clone()) {
+                let Some(primary) = launch_selection.clone().or_else(|| selections.first().cloned()) else { return };
+                crate::multi_model::start(&transport, state, crate::multi_model::Plan { key, project_id: project_id.clone(), selections, primary, mode, base_ref: base_ref.clone(), prompt: prompt.clone(), workspace_root: workspace_root.clone() });
+                return;
+            }
             if let Some(selection)=launch_selection.as_ref() {
                 let workspace=if let Some(path)=worktree_path.clone() {
                     let Ok(worktree_path)=TrimmedNonEmptyString::new(&path) else{return;};
@@ -482,6 +496,7 @@ fn NewThreadOptions(
         div {class:"new-thread-card new-thread-attachments",ondragover:move|event|event.prevent_default(),ondrop:move|event|{if let Some(handler)=drop_files.as_mut(){handler(event);}},
             crate::prompt_stash::Dock {state,transport:transport.clone()}
             if let Some(target)=attachment_target.clone() { crate::composer_chips::Tray {state,target} }
+            crate::composer_mentions::Tray {prompt:prompt.clone(),on_edit:{let draft_key=draft_key.clone();move|next:String|{if let Some(key)=draft_key.clone() {crate::draft_storage::edit_draft_prompt(state,key,next);}}}}
             div {class:"new-thread-prompt",textarea {"aria-label":"First message","data-attach-paste":if can_operate{"on"}else{"off"},placeholder:"What would you like to work on?",value:"{prompt}",oninput:{let draft_key=draft_key.clone();move|e|{
                 if let Some(key)=draft_key.clone() {crate::draft_storage::edit_draft_prompt(state,key,e.value());}
             }},
@@ -501,22 +516,33 @@ fn NewThreadOptions(
                 if can_operate { if let Some(target)=attachment_target.clone() { crate::attachments::AttachButton {state,transport:transport.clone(),target} } }
                 span {}
                 button {"aria-label":"Start in background",disabled:disabled || clone_blocked || (prompt.trim().is_empty() && attachment_count==0 && chip_count==0),title:"Start the thread without leaving this form",onclick:{let mut launch=launch.clone();move|_|launch(true)},"Start in background"}
-                button {class:"primary","aria-label":"Create new thread",disabled:disabled || clone_blocked,title:clone_block.read().unwrap_or(""),onclick:{let mut launch=launch.clone();move|_|launch(false)},if pending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 && chip_count==0 {"New thread"} else {"Start chat"}}
+                button {class:"primary","aria-label":"Create new thread",disabled:disabled || clone_blocked,title:clone_block.read().or(several_reason).unwrap_or(""),onclick:{let mut launch=launch.clone();move|_|launch(false)},if pending || several_sending {"Creating…"} else if prompt.trim().is_empty() && attachment_count==0 && chip_count==0 {"New thread"} else {"Start chat"}}
             }
         }
         div {class:"new-thread-pickers",
             ProjectPicker {state,projects:projects.clone(),current:project_id.clone()}
             HostPicker {state,transport:transport.clone(),project:project_id.clone(),draft_target:attachment_target.clone(),sending:pending}
-        label { "Model"
-            select {"aria-label":"Model",value:selected_key,onchange:{let rows=rows.clone();let draft_key=draft_key.clone();move|event| {
-                if let Some(row)=rows.iter().find(|r|key(&r.selection())==event.value()) {
-                    let selection=row.selection();
-                    remember_selection(state,draft_key.as_ref(),&selection);
+        // Not a `label`: the picker's list opens inside it, and a click in a label would go on to its button.
+        div { class: "model-field", span { "Model" }
+            {
+                let selected_label = rows.iter().find(|row| key(&row.selection()) == selected_key).map(|row| format!("{} · {}", row.provider_label, row.model.name)).or_else(|| selected.as_ref().map(|selection| format!("{} · {}", selection.instance_id, selection.model))).unwrap_or_else(|| "No models available".to_owned());
+                let several_view = several.as_ref().map(|models| crate::model_picker::Several { keys: models.iter().map(|model| t3_client::multi_model::selection_key(&rows, model)).collect(), label: t3_client::multi_model::trigger_label(&rows, models), names: t3_client::multi_model::all_names(&rows, models) });
+                rsx! {
+                    crate::model_picker::ModelPicker {state,rows:rows.clone(),selected_key:selected_key.clone(),selected_label,selected_instance:selected.as_ref().map(|s|s.instance_id.to_string()).unwrap_or_default(),disabled:several_sending,
+                        // A model chosen alone is a single choice again.
+                        on_pick:{let rows=rows.clone();let draft_key=draft_key.clone();move|index:usize| {
+                            if let Some(row)=rows.get(index) {
+                                if let Some(key)=draft_key.as_ref() {crate::multi_model::clear(state,key);}
+                                remember_selection(state,draft_key.as_ref(),&row.selection());
+                            }
+                        }},
+                        several:several_view.filter(|_|supports_several),
+                        on_toggle:supports_several.then(||{let rows=rows.clone();let draft_key=draft_key.clone();let selected=selected.clone();EventHandler::new(move|index:usize| {
+                            if let (Some(row),Some(key),Some(primary))=(rows.get(index),draft_key.as_ref(),selected.as_ref()) {
+                                crate::multi_model::toggle(state,key,&rows,primary,&row.instance_id,&row.model.slug,|only|remember_selection(state,Some(key),&only));
+                            }
+                        })})}
                 }
-            }},
-                if preserved_missing {if let Some(selection)=selected.as_ref() {option {value:key(selection),selected:true,"{selection.instance_id} · {selection.model}"}}}
-                if rows.is_empty() && selected.is_none() {option {value:"",selected:true,"No models available"}}
-                for row in &rows {option {value:key(&row.selection()),selected:key(&row.selection())==selected_key,"{row.provider_label} · {row.model.name}"}}
             }
         }
         crate::model_controls::ModelOptions {selected:selected.clone(),prompt_effort:crate::model_controls::PromptEffort::of(&descriptors,&prompt),on_effort:{let draft_key=draft_key.clone();let prompt=prompt.clone();let injected:Vec<String>=crate::model_controls::PromptEffort::of(&descriptors,&prompt).map(|effort|effort.injected).unwrap_or_default();move|value:String|{
@@ -526,6 +552,10 @@ fn NewThreadOptions(
         label {"Permissions",select {"aria-label":"Permissions",value:runtime_value,onchange:{let draft_key=draft_key.clone();move|e|{if let Ok(mode)=serde_json::from_value(json!(e.value())) {update_choices(state,draft_key.as_ref(),|choices|choices.runtime_mode=Some(mode));}}},
             for choice in modes {option {value:serde_json::to_value(choice).unwrap().as_str().unwrap(),selected:choice==mode,"{models::runtime_mode_label(choice)}"}}
         }}
+        if several.is_some() {
+            // Fixed while several models are chosen: each thread gets a new worktree (`forceNewWorktree`).
+            label {"Workspace",span {class:"muted","aria-label":"Workspace",id:"new-thread-workspace",tabindex:"0",title:t3_client::multi_model::WORKTREE_PER_MODEL,"New worktree"}}
+        } else {
         label {"Workspace",select {"aria-label":"Workspace",id:"new-thread-workspace",value:environment_value,onchange:{let draft_key=draft_key.clone();let previous=previous.clone();move|e|{
             let chosen=e.value();
             update_choices(state,draft_key.as_ref(),|choices|match chosen.as_str() {
@@ -540,6 +570,7 @@ fn NewThreadOptions(
             if worktree_path.is_some() {option {value:"existing",selected:environment_value=="existing","Existing worktree"}}
             if let Some((branch,_))=previous.as_ref() {option {value:"previous","{lifecycle::previous_worktree_label(branch.as_deref())}"}}
         }}
+        }
         if let Some(path)=worktree_path.clone() {
             p {class:"muted",role:"status","Starts in the existing worktree {path}"}
             button {r#type:"button","aria-label":"Use a new worktree instead",onclick:{let draft_key=draft_key.clone();move|_|update_choices(state,draft_key.as_ref(),|choices|choices.worktree_path=None)},"Use a new worktree instead"}

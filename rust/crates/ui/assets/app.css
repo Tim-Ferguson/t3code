@@ -359,7 +359,8 @@ select:focus-visible {
   align-items: end;
   gap: 8px 12px;
 }
-.new-thread-pickers > label {
+.new-thread-pickers > label,
+.new-thread-pickers > .model-field {
   flex: 0 1 200px;
   min-width: 0;
 }
@@ -633,7 +634,8 @@ select:focus-visible {
   .branch-label {
     display: none;
   }
-  .new-thread-pickers > label {
+  .new-thread-pickers > label,
+  .new-thread-pickers > .model-field {
     flex: 1 1 140px;
   }
   .new-thread-controls select {
@@ -876,6 +878,7 @@ select:focus-visible {
   margin: 4px 0;
 }
 .new-thread-controls label,
+.new-thread-controls .model-field,
 .thread-controls label {
   display: flex;
   flex-direction: column;
@@ -3712,6 +3715,39 @@ html[data-theme-token-probe] *::after {
 .composer-banner-stack:empty {
   display: none;
 }
+/* Each notice is an item; the stack puts them in order with `order` (the front last, nearest the composer). The ones behind the
+   front stay out of the way until the stack is opened by the pointer, the cap or the keyboard. */
+.composer-banner-stack {
+  position: relative;
+}
+.stack-item {
+  min-width: 0;
+}
+.composer-banner-stack:not([data-expanded="true"]) > .stack-item[data-stack-role="stacked"] {
+  display: none;
+}
+/* The slim cap above the front notice: it shows that more wait behind it, in the colour of the first of them. */
+.composer-banner-peek {
+  display: block;
+  height: 0.75rem;
+  margin: 0 0.75rem;
+  padding: 0;
+  border: 1px solid var(--border, #444);
+  border-bottom: 0;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: var(--card);
+  cursor: pointer;
+}
+.composer-banner-peek[data-variant="error"] {
+  border-color: var(--error, #c0392b);
+}
+.composer-banner-peek[data-variant="warning"] {
+  border-color: var(--warning, #b45309);
+}
+.composer-banner-peek:focus-visible {
+  outline: 2px solid var(--ring, currentColor);
+  outline-offset: -2px;
+}
 .composer-banner {
   display: flex;
   gap: 0.5rem;
@@ -3833,8 +3869,37 @@ html[data-theme-token-probe] *::after {
   background: var(--popover, var(--background));
   font-size: 0.8125rem;
 }
+/* Opened as a popover from the header, where the conversation leaves no room beside it: it takes the clicks outside it. */
+.thread-details-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+}
+.thread-details-popover:focus {
+  outline: none;
+}
 .thread-details-section {
   padding: 0.5rem 0.75rem 0.625rem;
+}
+/* The controls the header also has, hosted by the card: stacked, each across the card. */
+.thread-details-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+.thread-details-controls[data-separated="true"] {
+  border-top: 1px solid var(--border);
+}
+/* The lineage in the card is the panel itself, open in place and not hanging from a button. */
+.thread-details-card .lineage-inline .lineage-panel {
+  position: static;
+  min-width: 0;
+  max-width: none;
+  max-height: 16rem;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
 }
 .thread-details-section + .thread-details-section {
   border-top: 1px solid var(--border);
@@ -4722,6 +4787,15 @@ html[data-theme-token-probe] *::after {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The check on a model chosen together with others (the new-thread form's several models). */
+.model-check {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+.model-picker-list li[data-picked="true"] .model-name {
+  font-weight: 600;
 }
 
 /* Work log: grouped tool activity, folds and the live line. Nothing here animates. */
@@ -6041,6 +6115,27 @@ button.subagent-row:hover,
   background: transparent;
   padding: 0 6px;
   line-height: 1;
+}
+/* A file named in the message box, or in a sent message: the icon, then the name, as a chip in the line of text. */
+.mention-chip {
+  padding-left: 6px;
+}
+.file-chip-icon {
+  font-size: 0.8125em;
+  line-height: 1;
+}
+.file-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  max-width: 100%;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted, transparent);
+  font-size: 0.9em;
+  text-decoration: none;
+  vertical-align: baseline;
 }
 /* A skill named in a sent message: a chip in the line of text. */
 .context-chip.skill {
@@ -8745,6 +8840,34 @@ body.sidebar-dragging {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The live process tree: a row indents by its depth, a parent folds the rows under it, and a dot says what kind of process it is. */
+.process-tree-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.process-tree-toggle {
+  flex: none;
+  width: 1.25rem;
+  padding: 0;
+}
+.process-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success, #2a9d5c);
+}
+.process-dot.warning {
+  background: var(--warning, #b45309);
+}
+.process-dot.info {
+  background: var(--info, #3b82f6);
+}
+.process-dot.server {
+  background: #8b5cf6;
 }
 .process-actions {
   white-space: nowrap;

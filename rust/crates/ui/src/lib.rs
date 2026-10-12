@@ -69,6 +69,8 @@ mod welcome;
 mod draft_storage;
 mod empty_state;
 mod header_more;
+mod composer_mentions;
+mod multi_model;
 mod environment_icon;
 mod error_text;
 mod file_preview;
@@ -507,17 +509,20 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                     if view == View::Chat && (active.is_some() || state.selected_project().read().is_some()) { right_panel::Toggle { state, hint: runner.keys.label("rightPanel.toggle") } }
                     if view == View::Chat { if let Some(active_thread) = active.as_ref() { thread_details::Toggle { key: "details-toggle:{active_thread.id}", state, thread_id: active_thread.id.to_string(), hint: runner.keys.label("threadPanel.toggle") } } }
                     if let Some(active_thread) = active.clone() {
+                      // While the details card shows, it hosts the editor picker, the branch, the scripts and the lineage.
+                      {
+                      rsx! {
                       div { class: "header-actions",
                         {
                             let project_cwd = projects.iter().find(|project| project.id == active_thread.project_id).map(|project| project.workspace_root.to_string()).unwrap_or_default();
                             let worktree = active_thread.worktree_path.as_ref().map(ToString::to_string);
                             let cwd = worktree.clone().unwrap_or_else(|| project_cwd.clone());
-                            rsx! { if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() && !persist_context_strip { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } }
+                            rsx! { thread_details::HeaderOnly { state, thread_id: active_thread.id.to_string(), if !cwd.is_empty() { open_in::OpenIn { key: "open-in:{timeline_key}:{cwd}", state, transport: transport.clone(), cwd: cwd.clone() } } if !cwd.is_empty() && !persist_context_strip { branch::Control { key: "branch:{timeline_key}:{cwd}", state, transport: transport.clone(), thread_id: active_thread.id.to_string(), project_id: active_thread.project_id.to_string(), cwd, project_cwd, worktree } } } }
                         }
-                        project_actions::RunControl { key: "run:{timeline_key}", state, thread_id: active_thread.id.to_string() }
+                        thread_details::HeaderOnly { state, thread_id: active_thread.id.to_string(), project_actions::RunControl { key: "run:{timeline_key}", state, thread_id: active_thread.id.to_string() } }
                         diff_panel::Toggle { state, environment_key: environment_key.clone(), thread_id: active_thread.id.to_string() }
                         thread_pull_requests_panel::Toggle { state, thread_id: active_thread.id.to_string() }
-                        thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() }
+                        thread_details::HeaderOnly { state, thread_id: active_thread.id.to_string(), thread_relations::HeaderButton { state, transport: transport.clone(), thread_id: active_thread.id.to_string() } }
                         header_more::Group {
                         {
                             let supported = state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.thread_title_regeneration == Some(true));
@@ -536,6 +541,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         }
                         pull_request_links::HeaderLinks { state, transport: transport.clone(), thread: active_thread.clone() }
                       }
+                      }}
                     }
                 }
                 if view == View::Chat { if let Some(active_thread) = active.as_ref() { thread_details::Card { key: "details:{active_thread.id}", state, transport: transport.clone(), thread_id: active_thread.id.to_string() } } }
@@ -1126,17 +1132,18 @@ fn Composer(
     let steer_hint = try_consume_context::<keys::Keys>().and_then(|keys| keys.label("thread.steerQueuedMessage"));
     rsx! {
         // The notices dock together, in the original's order: the feedback exchange, the usage-limit recovery and report, the update.
+        // The goal and the background work are the last sources, as in the original; their work-in-progress kind puts them first.
         composer_banners::Stack {
-            composer_tasks::Tasks { key: "tasks:{thread.id}", state, thread_id: thread.id.to_string() }
-            thread_feedback::Banners { state, thread_id: thread.id.to_string() }
-            limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) }
-            limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() }
-            server_update::Banners { state, transport: transport.clone() }
+            composer_banners::Slot { index: 0, composer_tasks::Tasks { key: "tasks:{thread.id}", state, thread_id: thread.id.to_string() } }
+            composer_banners::Slot { index: 1, thread_feedback::Banners { state, thread_id: thread.id.to_string() } }
+            composer_banners::Slot { index: 2, limits_view::RecoveryHost { state, transport: transport.clone(), thread_id: thread.id.to_string(), shell: recovery_props(&thread) } }
+            composer_banners::Slot { index: 3, limits_view::UsageLimitsPanel { state, thread_id: thread.id.to_string(), instance_id: thread.provider_instance_id.to_string() } }
+            composer_banners::Slot { index: 4, server_update::Banners { state, transport: transport.clone() } }
+            composer_banners::Slot { index: 5, composer_panels::GoalStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate} }
+            composer_banners::Slot { index: 6, composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate} }
         }
         composer_panels::PendingRequests {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         composer_panels::QueuedRuns {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate,editing,edit_hint,steer_hint:steer_hint.clone()}
-        composer_panels::GoalStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
-        composer_panels::BackgroundStrip {state,transport:transport.clone(),thread_id:thread.id.to_string(),can_operate}
         if let Some(plan)=following_up.clone() { composer_panels::PlanReady {plan} }
         form { class: if resting { "composer resting" } else { "composer" }, "aria-label": "Message composer", "data-resting": "{resting}",
             // Focusing, clicking or typing in the composer lifts the resting layout.
@@ -1146,6 +1153,7 @@ fn Composer(
             ondrop: move |event| { if let Some(handler)=drop_files.as_mut() { handler(event); } },
             prompt_stash::Dock {state,transport:transport.clone()}
             if let Some(target)=target.clone() { composer_chips::Tray {state,target} }
+            composer_mentions::Tray { prompt: draft.clone(), on_edit: move |next: String| draft_storage::edit_thread_prompt(state, next) }
             composer_menu::PromptBox { state, transport: transport.clone(), thread: thread.clone(), draft: draft.clone(), attach_paste: can_operate, on_send: enter_send, placeholder: if following_up.is_some() {"Add feedback to refine the plan, or leave this blank to implement it".to_owned()} else {"Ask anything, or describe what to build…".to_owned()} }
             if let Some(target)=target.clone() { attachments::Shelf {state,transport:transport.clone(),target,locked:pending,can_operate,paste_target:".composer textarea"} }
             if unsupported {p {class:"error-banner",role:"alert","This draft includes saved context. It is preserved; use the original app to send this complete draft."}}

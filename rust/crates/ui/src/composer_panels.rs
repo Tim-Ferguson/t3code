@@ -253,7 +253,7 @@ pub(crate) fn GoalStrip(state: Store<UiModel>, transport: runtime::TransportHand
         let (transport, state) = (transport.clone(), state);
         move |_| runtime::send_with(&transport, state, runtime::SendOptions { text: Some(text.to_owned()), mode: Some("auto"), ..Default::default() })
     };
-    rsx! {section {class:"goal-strip composer-panel",role:"status","aria-label":"Goal",
+    rsx! { crate::composer_banners::Item { priority: t3_client::banner_stack::Priority::Activity, section {class:"goal-strip composer-panel",role:"status","aria-label":"Goal",
         span {class:if working {"status-dot busy"} else {"status-dot"},"aria-hidden":"true"}
         strong {"{title}"}
         span {class:"muted goal-objective","{shown.objective}"}
@@ -261,7 +261,7 @@ pub(crate) fn GoalStrip(state: Store<UiModel>, transport: runtime::TransportHand
             if shown.can_resume { button {"aria-label":"Resume goal",disabled:!can_operate,onclick:command("/goal resume"),"Resume"} }
             button {"aria-label":"Clear goal",disabled:!can_operate,onclick:command("/goal clear"),"Clear"}
         }
-    }}
+    }}}
 }
 
 /// What a settled thread still runs, with Stop. The thread is not "working": a dev server can run
@@ -296,7 +296,7 @@ pub(crate) fn BackgroundStrip(state: Store<UiModel>, transport: runtime::Transpo
     };
     let detail = (work.items.len() > 1 || work.items.iter().any(|item| item.child_thread_id.is_some())).then(|| work.items.iter().map(|item| item.label.clone()).collect::<Vec<_>>().join(", "));
     let strip_label = "Background work";
-    rsx! {section {class:"background-strip composer-panel",role:"status","aria-label":strip_label,
+    rsx! { crate::composer_banners::Item { priority: t3_client::banner_stack::Priority::Activity, section {class:"background-strip composer-panel",role:"status","aria-label":strip_label,
         span {class:if work.waiting {"status-dot busy"} else {"status-dot"},"aria-hidden":"true"}
         strong {"{work.title}"}
         if let Some(detail)=detail {span {class:"muted","{detail}"}}
@@ -304,7 +304,7 @@ pub(crate) fn BackgroundStrip(state: Store<UiModel>, transport: runtime::Transpo
             if *stopping.peek() {return;}
             if stop_background_work(&transport,state,&thread_id) {stopping.set(true);}
         },if stopping() {"Stopping..."} else {"Stop"}}
-    }}
+    }}}
 }
 
 /// Stop for the thread's latest work: the active run, or the latest run when only background work

@@ -154,3 +154,64 @@ fn the_process_history_draws_its_totals_a_bar_for_each_bucket_and_the_processes_
     let text = crate::runtime::transport_tests::rendered_text(&empty);
     assert!(text.contains("No process resource samples found for this window.") && text.contains("ps failed"), "{text}");
 }
+
+thread_local! {
+    /// The signals the process tree under test asked for.
+    static ASKED: std::cell::RefCell<Vec<(u64, u64, &'static str)>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+fn tree_process(pid: u64, ppid: u64, depth: u64, category: &str, name: &str, children: &[u64]) -> Value {
+    json!({"identity":{"pid":pid,"startTimeMs":pid * 10},"ppid":ppid,"childPids":children,"depth":depth,"name":name,"command":format!("/bin/{name} --run"),"status":"S","category":category,
+        "cpuPercent":12.5,"cpuTimeMs":90_000,"residentBytes":3 * 1024 * 1024,"peakResidentBytes":0,"virtualBytes":0,"ioReadBytes":2048,"ioWriteBytes":4096,"ioReadBytesPerSecond":1024,"ioWriteBytesPerSecond":0,"ioSemantics":"logical","runTimeMs":0})
+}
+
+#[test]
+fn the_live_process_tree_folds_a_parents_children_and_signals_only_what_the_server_started() {
+    use crate::runtime::transport_tests::{click_control, control, control_attribute};
+    ASKED.with(|asked| asked.borrow_mut().clear());
+    let processes = vec![
+        tree_process(1, 0, 0, "server", "t3-server", &[2, 5]),
+        tree_process(2, 1, 1, "provider-root", "codex", &[3]),
+        tree_process(3, 2, 2, "server-child", "worker", &[]),
+        tree_process(5, 1, 1, "resource-monitor", "monitor", &[]),
+    ];
+    let component = |props: (Vec<Value>, bool)| rsx! { crate::resource_section::ProcessTree { processes: props.0, can_signal: props.1, signalling: None, onsignal: |signal: crate::diagnostics_page::Signalling| ASKED.with(|asked| asked.borrow_mut().push(signal.parts())) } };
+    let mut dom = VirtualDom::new_with_props(component, (processes.clone(), true));
+    dom.rebuild_in_place();
+    let text = crate::runtime::transport_tests::rendered_text(&dom);
+    // Every process, with its category, CPU, CPU time, memory and rates; the signals only for what this server started.
+    for expected in ["Live process tree", "t3-server", "codex", "worker", "monitor", "Server", "Provider", "Backend child", "Monitor", "12.5%", "1.50m", "3.00 MB", "1.00 KB/s", "2.00 KB", "4.00 KB"] {
+        assert!(text.contains(expected), "{expected}: {text}");
+    }
+    assert!(control(&dom, "Send SIGINT to process 2").is_some() && control(&dom, "Send SIGINT to process 3").is_some());
+    assert!(control(&dom, "Send SIGINT to process 1").is_none() && control(&dom, "Send SIGKILL to process 5").is_none(), "the server and the monitor are not for the page to signal");
+
+    // A parent folds the rows under it, by parentage; folding the root takes the whole tree below it.
+    click_control(&mut dom, "Collapse codex");
+    let text = crate::runtime::transport_tests::rendered_text(&dom);
+    assert!(!text.contains("worker") && text.contains("monitor") && control(&dom, "Expand codex").is_some());
+    click_control(&mut dom, "Collapse t3-server");
+    let text = crate::runtime::transport_tests::rendered_text(&dom);
+    assert!(!text.contains("codex") && !text.contains("monitor") && text.contains("t3-server"));
+    click_control(&mut dom, "Expand t3-server");
+    assert!(!crate::runtime::transport_tests::rendered_text(&dom).contains("worker"), "the fold of codex is kept");
+    click_control(&mut dom, "Expand codex");
+    assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("worker"));
+
+    // The signals go to the page with the process and the instant it started.
+    click_control(&mut dom, "Send SIGINT to process 3");
+    click_control(&mut dom, "Send SIGKILL to process 2");
+    assert_eq!(ASKED.with(|asked| asked.borrow().clone()), [(3, 30, "SIGINT"), (2, 20, "SIGKILL")]);
+
+    // Without the maintenance grant they cannot be sent.
+    let mut viewer = VirtualDom::new_with_props(component, (processes, false));
+    viewer.rebuild_in_place();
+    assert_eq!(control_attribute(&viewer, "Send SIGKILL to process 3", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"));
+}
+
+#[test]
+fn the_live_process_tree_waits_for_the_monitor_when_it_has_no_processes() {
+    let mut dom = VirtualDom::new_with_props(|processes: Vec<Value>| rsx! { crate::resource_section::ProcessTree { processes, can_signal: true, signalling: None, onsignal: |_| {} } }, vec![]);
+    dom.rebuild_in_place();
+    assert!(crate::runtime::transport_tests::rendered_text(&dom).contains("Waiting for the native process monitor."));
+}

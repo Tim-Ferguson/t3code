@@ -158,6 +158,23 @@ pub(crate) fn is_open(state: Store<UiModel>) -> bool {
     let key = key_of(&environment, state.active_thread().read().as_deref());
     state.right_panel().read().panels.get(&key).is_open
 }
+/// Whether a thread's details card is open in this presentation, subscribing the caller (`selectThreadPanelOpen`).
+pub(crate) fn card_open(state: Store<UiModel>, thread_id: &str, presentation: t3_client::thread_panel::Presentation) -> bool {
+    let Some(environment) = state.destination().read().as_ref().map(ToString::to_string) else { return false };
+    state.right_panel().read().panels.visibilities.is_open(&key_of(&environment, Some(thread_id)), presentation)
+}
+/// `setThreadPanelOpen`.
+pub(crate) fn set_card_open(state: Store<UiModel>, thread_id: &str, presentation: t3_client::thread_panel::Presentation, open: bool) {
+    let Some(environment) = state.destination().peek().as_ref().map(ToString::to_string) else { return };
+    let key = key_of(&environment, Some(thread_id));
+    edit(state, |model| model.panels.visibilities.set_open(&key, presentation, open));
+}
+/// `toggleThreadPanel`.
+pub(crate) fn toggle_card(state: Store<UiModel>, thread_id: &str, presentation: t3_client::thread_panel::Presentation) {
+    let Some(environment) = state.destination().peek().as_ref().map(ToString::to_string) else { return };
+    let key = key_of(&environment, Some(thread_id));
+    edit(state, |model| model.panels.visibilities.toggle(&key, presentation));
+}
 /// The shown tab of the open thread's panel, without subscribing the caller.
 pub(crate) fn shown_peek(state: Store<UiModel>) -> Option<Surface> {
     let owner = active_owner(state)?;

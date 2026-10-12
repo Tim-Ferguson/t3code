@@ -134,7 +134,7 @@ pub(crate) fn PromptBox(state: Store<UiModel>, transport: runtime::TransportHand
                 let entries = result.ok().and_then(|value| value["entries"].as_array().cloned()).unwrap_or_default().iter().filter_map(|entry| {
                     let path = entry["path"].as_str()?;
                     let directory = entry["kind"] == "directory";
-                    Some(Entry { id: format!("path:{path}"), label: format!("{path}{}", if directory { "/" } else { "" }), description: if directory { "Folder".into() } else { String::new() }, badge: None, apply: Apply::Insert(format!("@{path} ")) })
+                    Some(Entry { id: format!("path:{path}"), label: format!("{path}{}", if directory { "/" } else { "" }), description: if directory { "Folder".into() } else { String::new() }, badge: None, apply: Apply::Insert(format!("{} ", t3_client::file_tree::mention(path))) })
                 }).collect();
                 found.set((query, entries, false));
             });

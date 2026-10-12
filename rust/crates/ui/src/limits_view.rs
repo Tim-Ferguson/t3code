@@ -439,7 +439,7 @@ pub(crate) fn UsageLimitsPanel(state: Store<UiModel>, thread_id: String, instanc
         many => format!("{} accounts", many.len()),
     };
     let many = report.accounts.len() > 1;
-    rsx! { section { class: "composer-panel usage-limits-panel", role: "status", "aria-label": "Usage limits",
+    rsx! { crate::composer_banners::Item { priority: t3_client::banner_stack::Priority::Notice, variant: crate::composer_banners::Variant::Info, section { class: "composer-panel usage-limits-panel", role: "status", "aria-label": "Usage limits",
         onkeydown: move |event| { if event.key() == Key::Escape { event.stop_propagation(); state.usage_panel().set(None); } },
         div { class: "usage-limits-head", strong { "Usage limits" } span { class: "muted", "{summary}" }
             button { r#type: "button", "aria-label": "Dismiss usage limits", onclick: move |_| state.usage_panel().set(None), "\u{d7}" } }
@@ -455,7 +455,7 @@ pub(crate) fn UsageLimitsPanel(state: Store<UiModel>, thread_id: String, instanc
             }
         }
         for notice in report.notices.iter() { span { key: "{notice}", class: "muted", "{notice}" } }
-    } }
+    } } }
 }
 
 // ---- the usage-limit recovery banner ----------------------------------------------------
@@ -571,7 +571,7 @@ pub(crate) fn RecoveryBanner(state: Store<UiModel>, transport: TransportHandle, 
             });
         }
     };
-    rsx! { section { class: "composer-panel limit-recovery", role: "status", "aria-label": "Usage limit reached",
+    rsx! { crate::composer_banners::Item { priority: t3_client::banner_stack::Priority::Urgent, variant: crate::composer_banners::Variant::Warning, section { class: "composer-panel limit-recovery", role: "status", "aria-label": "Usage limit reached",
         div { class: "usage-limits-head", strong { "Usage limit reached" } span { class: "muted", "{description}" } }
         if can_schedule {
             div { class: "limit-recovery-actions",
@@ -584,5 +584,5 @@ pub(crate) fn RecoveryBanner(state: Store<UiModel>, transport: TransportHandle, 
                 if let Some(message) = failure.read().clone() { p { class: "error-banner", role: "alert", "{message}" } }
             }
         }
-    } }
+    } } }
 }

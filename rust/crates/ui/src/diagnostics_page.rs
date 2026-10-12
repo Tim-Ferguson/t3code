@@ -2,7 +2,7 @@
 //! about failures and slow work. Port of the "Live Processes" and "Trace Diagnostics" sections of `DiagnosticsSettings.tsx`
 //! (`server.getProcessDiagnostics`, `server.signalProcess`, `server.getTraceDiagnostics`) for the one environment this app is
 //! connected to, with the resource usage and its history (`resource_section.rs`) and the history of each process (`process_history.rs`).
-//! Not ported: the process tree of `ResourceTelemetryDiagnostics.tsx`.
+//! The process tree of `ResourceTelemetryDiagnostics.tsx` is in `resource_section.rs`; its signals go through the same question here.
 //!
 //! Nothing here ticks: the page reads once when it opens and again when Refresh is pressed or a signal has been sent, so the
 //! numbers are those of the moment shown beside "Checked".
@@ -43,6 +43,17 @@ pub(crate) struct Signalling {
     pid: u64,
     started: u64,
     signal: &'static str,
+}
+impl Signalling {
+    /// A signal for the process that started at `started`, as a row of the process tree asks for it.
+    pub(crate) fn new(pid: u64, started: u64, signal: &'static str) -> Self {
+        Self { pid, started, signal }
+    }
+    /// The process, its start time and the signal, for a test.
+    #[cfg(test)]
+    pub(crate) fn parts(&self) -> (u64, u64, &'static str) {
+        (self.pid, self.started, self.signal)
+    }
 }
 
 #[component]
@@ -140,7 +151,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                     Some(Ok(result)) => rsx! { Traces { result } },
                 }
             }
-            crate::resource_section::Section { state, transport: transport.clone() }
+            crate::resource_section::Section { state, transport: transport.clone(), signalling: *signalling.read(), onsignal: move |signal: Signalling| { if signal.signal == "SIGKILL" { asking.set(Some(signal)); } else { send.call(signal); } } }
             crate::process_history::Section { state, transport: transport.clone() }
             if let Some(signal) = pending {
                 Confirm { label: "SIGKILL", title: "Send SIGKILL?", body: format!("Send SIGKILL to process {}? This cannot be handled by the process.", signal.pid), confirm: "Send SIGKILL", busy: false,

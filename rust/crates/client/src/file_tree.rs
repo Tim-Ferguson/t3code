@@ -171,10 +171,10 @@ pub fn mention(path: &str) -> String {
 }
 
 /// The prompt after "Add to chat": the mention at the end, a space before it unless one is there (`ensureLeadingBoundary`).
-/// This composer names a file as `@path`, as its own `@` menu does.
+/// The file is named as the `@` menu names it, with the canonical file link.
 pub fn add_to_prompt(prompt: &str, path: &str) -> String {
     let boundary = if prompt.is_empty() || prompt.ends_with(char::is_whitespace) { "" } else { " " };
-    format!("{prompt}{boundary}@{path} ")
+    format!("{prompt}{boundary}{} ", mention(path))
 }
 
 #[cfg(test)]
@@ -266,8 +266,8 @@ mod tests {
 
     #[test]
     fn add_to_chat_leaves_a_boundary_before_the_mention() {
-        assert_eq!(add_to_prompt("", "a.rs"), "@a.rs ");
-        assert_eq!(add_to_prompt("look at", "a.rs"), "look at @a.rs ");
-        assert_eq!(add_to_prompt("look at ", "a.rs"), "look at @a.rs ");
+        assert_eq!(add_to_prompt("", "a.rs"), "[a.rs](a.rs) ");
+        assert_eq!(add_to_prompt("look at", "src/a b.rs"), "look at [a b.rs](src/a%20b.rs) ");
+        assert_eq!(add_to_prompt("look at ", "a.rs"), "look at [a.rs](a.rs) ");
     }
 }

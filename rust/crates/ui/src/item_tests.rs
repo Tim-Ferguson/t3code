@@ -311,7 +311,7 @@ async fn the_slash_menu_offers_commands_and_picks_with_the_keyboard_and_a_mentio
     input_control(&mut dom, "Message", "look at @READ");
     until(&mut dom, "the file", |dom| rendered_text(dom).contains("README.md")).await;
     key_on(&mut dom, "Message", Key::Enter);
-    assert_eq!(state.peek().draft, "look at @README.md ");
+    assert_eq!(state.peek().draft, "look at [README.md](README.md) ");
     assert!(control(&dom, "Suggestions").is_none());
     fixture.finish(dom).await;
 }

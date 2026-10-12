@@ -124,6 +124,8 @@ pub struct UiModel {
     pub new_thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
     pub thread_choices: std::collections::BTreeMap<(EnvironmentId, String), NewThreadChoices>,
     pub pending_launches: std::collections::BTreeMap<String, PendingLaunch>,
+    /// One message to several models: the models chosen per draft and the sends going out (`multi_model.rs`).
+    pub multi_model: crate::multi_model::Model,
     pub view: View,
     pub diff: crate::diff_panel::DiffModel,
     /// The tabbed panel beside the conversation: its tabs per thread, the history of closed ones, and what shows of it.
@@ -171,8 +173,8 @@ pub struct UiModel {
     pub server_update: crate::server_update::Model,
     /// The `/feedback` commands of each thread this session sent, which the composer and the conversation show (`thread_feedback.rs`).
     pub feedback: crate::thread_feedback::Submissions,
-    /// The threads whose details card is open, by environment and thread (`thread_details.rs`).
-    pub thread_details: std::collections::BTreeSet<String>,
+    /// The size the details card was told of, and what its content has needed (`thread_details.rs`).
+    pub thread_card: crate::thread_details::Model,
     pub relations: crate::thread_relations::Model,
     /// The SSH environments added, and the one the window is switched to.
     pub ssh: crate::ssh_environments::Model,
@@ -338,7 +340,7 @@ pub fn default_credential_kind() -> String {
     .into()
 }
 
-fn fail(state: Store<UiModel>, message: impl Into<String>) {
+pub(crate) fn fail(state: Store<UiModel>, message: impl Into<String>) {
     state.error().set(Some(message.into()));
 }
 
@@ -3657,6 +3659,18 @@ pub(crate) mod fake_github;
 #[cfg(all(test, unix))]
 #[path = "lifecycle_tests.rs"]
 mod lifecycle_tests;
+
+#[cfg(all(test, unix))]
+#[path = "multi_model_tests.rs"]
+mod multi_model_tests;
+
+#[cfg(all(test, unix))]
+#[path = "thread_details_tests.rs"]
+mod thread_details_tests;
+
+#[cfg(all(test, unix))]
+#[path = "mention_chip_tests.rs"]
+mod mention_chip_tests;
 
 #[cfg(all(test, unix))]
 #[path = "text_generation_tests.rs"]

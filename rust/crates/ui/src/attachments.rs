@@ -620,6 +620,28 @@ pub fn sent(state: Store<UiModel>, target: &DraftTarget, ids: &[String]) {
     persist(state, target);
 }
 
+/// The attachments a send took out of a draft, put back because the send failed (`multi_model.rs`). The draft's own list is
+/// the truth for what is there now: the ones put back go first, the ones added since stay.
+pub(crate) fn restore(state: Store<UiModel>, target: &DraftTarget, taken: Vec<Attachment>) {
+    if taken.is_empty() {
+        return;
+    }
+    {
+        let mut all = state.draft_attachments();
+        let mut all = all.write();
+        let list = all.entry(target.clone()).or_default();
+        let added: Vec<_> = std::mem::take(list).into_iter().filter(|attachment| !taken.iter().any(|back| back.id == attachment.id)).collect();
+        *list = taken;
+        list.extend(added);
+    }
+    persist(state, target);
+}
+
+/// The attachments of a draft as they are now.
+pub(crate) fn of_draft(state: Store<UiModel>, target: &DraftTarget) -> Vec<Attachment> {
+    state.peek().draft_attachments.get(target).cloned().unwrap_or_default()
+}
+
 fn files_of(files: Vec<FileData>) -> Vec<Incoming> {
     files.into_iter().map(Incoming::file).collect()
 }
