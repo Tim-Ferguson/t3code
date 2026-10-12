@@ -781,6 +781,10 @@ async fn paste_bridge(
     target: DraftTarget,
     selector: &'static str,
 ) {
+    // A surface with no box to paste into (an answer to a question) attaches by the picker and by drop.
+    if selector.is_empty() {
+        return;
+    }
     let script = format!(
         r#"
 const selector = {selector};

@@ -2,30 +2,21 @@
   "rpc": {
     "handled": {},
     "partial": {},
-    "pending": {
-      "preview.clearProfile": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.navigate": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.refresh": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.reportStatus": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "subscribeDiscoveredLocalServers": "Preview panel's list of local dev servers (usePreviewDiscovery): no preview panel.",
-      "mcpApps.callTool": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
-      "mcpApps.readResource": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
-      "mcpApps.toolInfo": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
-      "mcpApps.updateModelContext": "MCP app frames in the timeline (McpAppFrame.tsx, mcpApps/host.ts): the Rust timeline has no mcp-app row. The server handles it.",
-      "filesystem.browse": "Server-side folder browser of the Add project dialog (CommandPalette.tsx) for a browser client; the Rust web build asks for a typed path (the desktop build has a native picker). The server handles it.",
-      "provider.uploadFeedback": "'Send feedback' on a thread (ChatView uploadThreadFeedback): no entry point in the Rust UI. The server handles it.",
-      "pullRequests.preview": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
-      "pullRequests.routing": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
-      "pullRequests.routingIdentity": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
-      "server.getProcessResourceHistory": "One process's history in the process tree of ResourceTelemetryDiagnostics (DiagnosticsSettings): the Rust Diagnostics page shows the groups and the history of all, not the per-process tree. The server handles it."
-    },
+    "pending": {},
     "omitted": {
       "server.probe": "The original opens a probe request to learn the connection answers (rpc/session.ts); the Rust client checks the socket with its heartbeat and the first config read.",
       "assets.persistChatAttachments": "Data-URL attachments are never produced by the Rust composer: each file is uploaded at once through attachments.createUploadUrl, so there is nothing to persist at send.",
       "orchestration.getThreadProjection": "Only read to build command context for servers without serverResolvedCommandContext; the Rust client gets the projection from subscribeThread.",
       "terminal.clear": "No caller in the original web UI (defined in client-runtime state only).",
       "terminal.restart": "No caller in the original web UI (defined in client-runtime state only).",
-      "subscribeTerminalEvents": "No caller in the original web UI; terminal.attach streams the session and subscribeTerminalMetadata its list."
+      "subscribeTerminalEvents": "No caller in the original web UI; terminal.attach streams the session and subscribeTerminalMetadata its list.",
+      "preview.navigate": "Called by the desktop shell's webview (usePreviewBridge, previewState). The Browser tab is a session of the server's own headless browser (preview_panel.rs); its address, history and reloads go as messages on the tab's viewer socket, and the server reports the page's status itself.",
+      "preview.refresh": "Called by the desktop shell's webview (usePreviewBridge, previewState). The Browser tab is a session of the server's own headless browser (preview_panel.rs); its address, history and reloads go as messages on the tab's viewer socket, and the server reports the page's status itself.",
+      "preview.reportStatus": "Called by the desktop shell's webview (usePreviewBridge, previewState). The Browser tab is a session of the server's own headless browser (preview_panel.rs); its address, history and reloads go as messages on the tab's viewer socket, and the server reports the page's status itself.",
+      "mcpApps.callTool": "Called from an MCP app's sandboxed frame over the MCP Apps bridge (McpAppFrame.tsx, mcpApps/host.ts); the Rust timeline draws no mcp-app row (surface: timeline row mcp-app), so no frame exists to call it. The server answers it (mcp_apps.rs).",
+      "mcpApps.readResource": "Called from an MCP app's sandboxed frame over the MCP Apps bridge (McpAppFrame.tsx, mcpApps/host.ts); the Rust timeline draws no mcp-app row (surface: timeline row mcp-app), so no frame exists to call it. The server answers it (mcp_apps.rs).",
+      "mcpApps.toolInfo": "Called from an MCP app's sandboxed frame over the MCP Apps bridge (McpAppFrame.tsx, mcpApps/host.ts); the Rust timeline draws no mcp-app row (surface: timeline row mcp-app), so no frame exists to call it. The server answers it (mcp_apps.rs).",
+      "mcpApps.updateModelContext": "Called from an MCP app's sandboxed frame over the MCP Apps bridge (McpAppFrame.tsx, mcpApps/host.ts); the Rust timeline draws no mcp-app row (surface: timeline row mcp-app), so no frame exists to call it. The server answers it (mcp_apps.rs)."
     }
   },
   "http": {
@@ -50,12 +41,11 @@
       }
     },
     "partial": {},
-    "pending": {
-      "/settings/open-source-licenses": "Licenses page: the original fetches third-party-licenses.json from its web bundle; the Rust build generates no manifest, so the server has no data to serve."
-    },
+    "pending": {},
     "omitted": {
       "/connect": "Hosted-service CLI sign-in (ConnectCliAuthSurface): needs the account sign-in this app does not have; the original redirects to / unless that is configured.",
-      "/settings/snap-shot": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC); no Rust counterpart is planned."
+      "/settings/snap-shot": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC); no Rust counterpart is planned.",
+      "/settings/open-source-licenses": "The page lists a third-party-licenses.json manifest that the original's web build generates; this repository has no step that writes one for the Rust crates (no license-listing tool in the workspace), so the page would show nothing to list."
     }
   },
   "commands": {
@@ -79,24 +69,7 @@
     "partial": {
       "response-streaming": "Written and read, but the server applies it to the OpenCode adapters only (check_rpc_surface: responseStreamingMode)."
     },
-    "pending": {
-      "browser-profiles": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-default-profile": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-default-zoom": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-default-appearance": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-recording-frame-rate": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-recording-key-presses": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-recording-mouse-presses": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-link-target": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "browser-auto-show-floating-preview": "Integrations page (agent browser access, device hosts, browser defaults): no Integrations page or preview panel.",
-      "setting-glass-opacity": "Translucent menus and dialogs: not built (the CSS has no backdrop-filter layer).",
-      "cli-command": "Desktop only. The t3 command install row (CliCommandSettingsRow, DesktopCliCommand.ts): not built.",
-      "open-source-licenses": "Licenses page: no generated manifest (see routes).",
-      "local-environment": "Desktop only. The local environment switch (LocalEnvironmentSetting; setLocalEnvironmentEnabled): the desktop app always runs and uses its own server.",
-      "network-access": "Desktop only. Exposing the app's server to the local network (setServerExposureMode): the server this app starts listens on loopback only.",
-      "tailscale-https": "Desktop only. Tailscale Serve toggle (setTailscaleServeEnabled): not wired.",
-      "github-routing": "GitHub sharing between environments (GitHubRoutingSettings): not built; see rpc pullRequests.routing."
-    },
+    "pending": {},
     "omitted": {
       "snap-shot-enabled": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
       "snap-shot-accessibility": "SnapShots are a desktop-native screen capture (Electron SnapShot* IPC and the SnapShot settings page); no Rust counterpart is planned.",
@@ -108,7 +81,12 @@
       "composer-rich-text": "The Tiptap rich text composer: the Rust composer is a plain text box with chips; the setting would have nothing to switch.",
       "privacy-policy": "A link to the hosted service's privacy policy page; this app has no hosted account.",
       "legacy-sidebar": "The legacy sidebar (LegacySidebar.tsx) is the pre-redesign sidebar kept for a setting; not ported.",
-      "wsl-backend": "Windows only. WSL is not supported by this app (the server cannot be started on Windows yet)."
+      "wsl-backend": "Windows only. WSL is not supported by this app (the server cannot be started on Windows yet).",
+      "browser-recording-frame-rate": "Recording is done by the client from the tab's frames (browserRecording.ts, recordingCompositor.ts); the Rust panel records nothing, so a setting for it would have nothing to change.",
+      "browser-recording-key-presses": "Recording is done by the client from the tab's frames (browserRecording.ts, recordingCompositor.ts); the Rust panel records nothing, so a setting for it would have nothing to change.",
+      "browser-recording-mouse-presses": "Recording is done by the client from the tab's frames (browserRecording.ts, recordingCompositor.ts); the Rust panel records nothing, so a setting for it would have nothing to change.",
+      "browser-auto-show-floating-preview": "The floating preview is a draggable window the original opens over the chat when an agent opens a tab (FloatingPreview in RightPanelTabs); the Rust app shows an agent's tab as a tab of the panel only.",
+      "open-source-licenses": "See routes: /settings/open-source-licenses."
     }
   },
   "caps": {
@@ -117,7 +95,6 @@
     "pending": {
       "usagePriceOverrides": "Price override editor of the Usage page (UsagePriceOverrides): not built.",
       "usageModelAliases": "Model alias editor of the Usage page: not built.",
-      "questionAttachments": "Attachments on an answer to an agent's question (the question card's attach control, attachmentsByQuestionId on runtime-request.respond, the answered question's attachments in the timeline): the Rust question card takes text answers only. Server advertises it.",
       "requiredWorktreeBootstrap": "Starting one message on several models at once (multipleModelSelections in ChatView/ChatComposer): the Rust composer picks one model. Server advertises it."
     },
     "omitted": {
@@ -316,45 +293,16 @@
       "setUpdateChannel": "The track choice is kept (updates::channel_in_force) for the day a feed exists; it changes nothing now."
     },
     "pending": {
-      "preview.setForwardedShortcuts": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.createTab": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.closeTab": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.registerWebview": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.navigate": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.goBack": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.goForward": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.refresh": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.zoomIn": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.zoomOut": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.resetZoom": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.setZoomFactor": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.hardReload": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.setColorScheme": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.setAudioMuted": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.openDevTools": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.listBrowserImportSources": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.importBrowserCookies": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.clearCookies": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.clearCache": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.getPreviewConfig": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.setAnnotationTheme": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.setAnnotationSendEnabled": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.pickElement": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.cancelPickElement": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.captureScreenshot": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.revealArtifact": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.copyArtifactToClipboard": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.pictureInPicture": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.open": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.close": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.recording": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.onInput": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.startScreencast": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.stopScreencast": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.save": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.*.onFrame": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.onStateChange": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
-      "preview.onPointerEvent": "Preview browser (Electron webview, annotations, recording): the preview panel is not built in this pass.",
+      "preview.setAnnotationTheme": "Element picking and annotations (the picked-element and annotation chips) run in a script injected into the webview; the Rust panel has none.",
+      "preview.setAnnotationSendEnabled": "As preview.setAnnotationTheme.",
+      "preview.pickElement": "As preview.setAnnotationTheme.",
+      "preview.cancelPickElement": "As preview.setAnnotationTheme.",
+      "preview.captureScreenshot": "Screenshots of a tab for the chat (revealArtifact, copyArtifactToClipboard follow from it) are not built; the server's browser can take them for agents (preview_screenshot), the panel has no button.",
+      "preview.revealArtifact": "As preview.captureScreenshot.",
+      "preview.copyArtifactToClipboard": "As preview.captureScreenshot.",
+      "preview.pictureInPicture": "Not built: the panel's tab cannot be popped out into a window of its own.",
+      "preview.recording": "Recording a tab is not built (see settings: browser-recording-*).",
+      "preview.*.save": "As preview.recording.",
       "onTrackpadScrollEnd": "Not deliverable by the windowing layer: tao's macOS view sees a scrollWheel (with its NSEventPhase) only when its WKWebView subview does not take the event, and the web view takes every scroll over the page, so tao's MouseWheel phase Ended never arrives; wry has no scroll hook; Windows and Linux report no gesture end to the window either. The only consumer is the device viewport (the other agent's panel). A macOS NSEvent local monitor from objc2-app-kit could report NSEventPhaseEnded, but it cannot be tried without a trackpad and a panel to read it.",
       "checkSystemPermission": "No consumer: the only caller is the Integrations page's Safari cookie import (full-disk-access), and this app has no Integrations page or Safari import. Reading a privacy permission would touch the system, so it is not built ahead of a caller.",
       "openSystemSettings": "No consumer: the callers are the Integrations page's Safari import row and the local API's shell.openSystemSettings, neither built. Opening the system's privacy settings would touch the system, so it is not built ahead of a caller."
@@ -380,7 +328,36 @@
       "fetchSshSessionState": "No caller in the original web app.",
       "issueSshWebSocketTicket": "No caller in the original web app.",
       "clearConnectionCatalog": "No caller in the original web app.",
-      "getSystemLocale": "Electron pins Intl and app.getLocale() to en-US (ElectronApp.ts systemLocale); the Dioxus window is the system web view, whose Intl default is the OS locale already."
+      "getSystemLocale": "Electron pins Intl and app.getLocale() to en-US (ElectronApp.ts systemLocale); the Dioxus window is the system web view, whose Intl default is the OS locale already.",
+      "preview.setForwardedShortcuts": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.createTab": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.closeTab": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.registerWebview": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.navigate": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is a `navigate` message on the tab's viewer socket (preview_panel.rs).",
+      "preview.goBack": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is a `history` message (delta -1) on the tab's viewer socket.",
+      "preview.goForward": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is a `history` message (delta 1) on the tab's viewer socket.",
+      "preview.refresh": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is a `reload` message on the tab's viewer socket.",
+      "preview.zoomIn": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.adjust` with a `zoomFactor` on the server's session.",
+      "preview.zoomOut": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.adjust` with a `zoomFactor` on the server's session.",
+      "preview.resetZoom": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.adjust` with the default `zoomFactor` on the server's session.",
+      "preview.setZoomFactor": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.adjust` with a `zoomFactor` on the server's session.",
+      "preview.hardReload": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is a `reload` message with `ignoreCache` on the tab's viewer socket.",
+      "preview.setColorScheme": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.adjust` with a `colorScheme` on the server's session.",
+      "preview.setAudioMuted": "A server tab plays no sound to the person, so there is nothing to mute.",
+      "preview.openDevTools": "A server tab is a headless browser; there are no DevTools window to open for it.",
+      "preview.listBrowserImportSources": "Reads other browsers' cookie stores through the desktop shell (the import wizard of IntegrationsSettings.tsx); the Rust shell has no such service. A profile starts blank.",
+      "preview.importBrowserCookies": "As preview.listBrowserImportSources.",
+      "preview.clearCookies": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.clearProfile` on the server, which clears the profile's storage (the tab's menu and browser_settings.rs).",
+      "preview.clearCache": "Electron webview call. The Rust app's Browser tab is a session of the server's own headless browser, so this is `preview.clearProfile` on the server, which clears the profile's storage (the tab's menu and browser_settings.rs).",
+      "preview.getPreviewConfig": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.*.open": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.*.close": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.*.onInput": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.*.startScreencast": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.*.stopScreencast": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.*.onFrame": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.onStateChange": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket.",
+      "preview.onPointerEvent": "Electron webview lifecycle. A Rust tab is a server session: `preview.open` and `preview.close` make and end it, and its frames and input travel over the viewer socket."
     }
   },
   "surface": {
@@ -617,16 +594,16 @@
       "composer composer-code-block": "Rich text composer: not built.",
       "composer composerContextUndo": "Chip removal is not undoable (the original restores a removed chip with Undo).",
       "composer ComposerBanner": "The banner and its stack exist (composer_banners.rs) and carry the server update notice; the provider status and usage-limit notices are still separate panels, not banners of the stack.",
-      "composer ComposerBannerStack": "As ComposerBanner: the stack holds the server update banner only."
+      "composer ComposerBannerStack": "As ComposerBanner: the stack holds the server update banner only.",
+      "composer ComposerFeedback": "`/feedback` in a Codex thread's composer is built (thread_feedback.rs, provider.uploadFeedback) and says how it went with notices; the original's banner above the composer (feedbackBannerItem) and the two local rows of the exchange in the conversation are not drawn."
     },
     "pending": {
       "timeline row html-render": "HtmlRenderTimelineRow (the t3 html_render tool result in a sandboxed frame): the Rust timeline shows the tool call only.",
       "timeline row mcp-app": "McpAppTimelineRow (MCP app frames): not built; see rpc mcpApps.*.",
-      "message context element": "A picked page element from the preview browser: no preview panel.",
-      "message context preview-annotation": "A preview annotation: no preview panel.",
+      "message context element": "A picked page element of the Browser tab: the tab has no element picker (the webview's injected script does that in the original).",
+      "message context preview-annotation": "A preview annotation: the Browser tab has no annotation tool (the webview's injected script does that in the original).",
       "composer ComposerCodeBlockLanguagePicker": "Rich text composer code blocks: not built.",
       "composer ComposerCodeBlockNodeView": "Rich text composer code blocks: not built.",
-      "composer ComposerFeedback": "Thumbs up/down feedback on a reply (uploadFeedback): not built.",
       "composer composer-rich-text": "The rich text composer (Tiptap, block Markdown): the Rust composer is a plain text box.",
       "composer composerMentionDrag": "Dragging a file or a tree row into the composer (composerMentionDrag, workspaceFileDrop): not built."
     },

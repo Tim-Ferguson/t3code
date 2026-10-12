@@ -18,19 +18,23 @@ pub(super) struct Remote {
 }
 impl Remote {
     pub(super) async fn start(environment: &str, label: &str) -> Self {
-        Self::start_with(environment, label, None, None).await
+        Self::start_with(environment, label, None, None, false).await
     }
     /// A server whose machine is busy `busy` of the time (a fraction), with 8 processors and half of 16 GiB of memory free, as its
     /// `server.getHostResources` reports them.
     pub(super) async fn start_loaded(environment: &str, label: &str, busy: f64) -> Self {
-        Self::start_with(environment, label, None, Some(busy)).await
+        Self::start_with(environment, label, None, Some(busy), false).await
     }
     /// A server whose managed Codex signs in to ChatGPT at `issuer` (a loopback stand-in for OpenAI's discovery address), and whose
     /// session may manage providers.
     pub(super) async fn start_signing(environment: &str, label: &str, issuer: &str) -> Self {
-        Self::start_with(environment, label, Some(issuer), None).await
+        Self::start_with(environment, label, Some(issuer), None, false).await
     }
-    async fn start_with(environment: &str, label: &str, issuer: Option<&str>, busy: Option<f64>) -> Self {
+    /// A server whose session may also act on source control (pull request writes).
+    pub(super) async fn start_writing(environment: &str, label: &str) -> Self {
+        Self::start_with(environment, label, None, None, true).await
+    }
+    async fn start_with(environment: &str, label: &str, issuer: Option<&str>, busy: Option<f64>, writes: bool) -> Self {
         use t3_server::{
             server_secret_store::ServerSecretStore,
             server_settings::{SettingsOptions, SettingsService},
@@ -56,6 +60,9 @@ impl Remote {
             }));
         }
         let mut scopes = vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate];
+        if writes {
+            scopes.push(AuthEnvironmentScope::SourceControlWrite);
+        }
         let mut settings_service = None;
         if let Some(issuer) = issuer {
             scopes.push(AuthEnvironmentScope::ProvidersManage);
@@ -80,6 +87,14 @@ impl Remote {
             server.also(async move { settings.shutdown().await });
         }
         Self { id: EnvironmentId::new(environment).unwrap(), address, credential, token, directory, _store: store, server }
+    }
+    /// A project in a checkout of its own whose `origin` is `remote` (what makes a project one of a pull request host).
+    pub(super) fn checkout_project(&self, id: &str, title: &str, remote: &str) -> Value {
+        let command = self.project(id, title);
+        let root = std::path::PathBuf::from(command["workspaceRoot"].as_str().unwrap());
+        super::diff_tests::git(&root, &["init", "-q"]);
+        super::diff_tests::git(&root, &["remote", "add", "origin", remote]);
+        command
     }
     /// A project in a folder of its own: two projects do not share a workspace root.
     pub(super) fn project(&self, id: &str, title: &str) -> Value {

@@ -3826,6 +3826,79 @@ html[data-theme-token-probe] *::after {
 .resource-history .selected {
   font-weight: 600;
 }
+.folder-browser {
+  display: grid;
+  gap: 0.25rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.folder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.profile-list {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+.profile-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+.profile-row + .profile-row {
+  border-top: 1px solid var(--border);
+}
+.profile-name {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+.profile-default {
+  padding: 0 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  background: var(--accent);
+}
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.history-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+  height: 7rem;
+  padding: 0.5rem;
+  overflow: hidden;
+  border-radius: 0.125rem;
+  background: var(--muted, rgba(127, 127, 127, 0.1));
+}
+.history-bar {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0.25rem;
+  height: 100%;
+}
+.history-bar-peak,
+.history-bar-average {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  border-radius: 0.125rem 0.125rem 0 0;
+}
+.history-bar-peak {
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+.history-bar-average {
+  background: color-mix(in srgb, currentColor 60%, transparent);
+}
 .resource-legend {
   display: flex;
   gap: 1rem;
@@ -6553,6 +6626,26 @@ body.sidebar-dragging {
 }
 .question-history p {
   margin: 0;
+}
+.question-files {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 6px;
+}
+.question-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 0 12px;
+}
+.question-attachment img {
+  display: block;
+  height: 80px;
+  max-width: 128px;
+  border-radius: 6px;
+  object-fit: contain;
 }
 .divider-label {
   max-width: 100%;

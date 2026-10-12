@@ -121,3 +121,36 @@ fn the_usage_groups_the_monitors_health_and_a_restart_for_a_monitor_that_is_not_
     // One box per sample, labelled for what it shows; the heights are `t3_client::resource_telemetry::bar_height`'s.
     assert!(crate::runtime::transport_tests::control(&dom, "CPU and I/O history, 2 samples").is_some());
 }
+
+#[test]
+fn the_process_history_draws_its_totals_a_bar_for_each_bucket_and_the_processes_that_used_the_processor() {
+    let result = json!({
+        "readAt": "2026-10-11T10:00:00.000Z", "windowMs": 900_000, "bucketMs": 60_000, "sampleIntervalMs": 2500, "retainedSampleCount": 1234, "totalCpuSecondsApprox": 95.0,
+        "error": {"_tag": "None"},
+        "buckets": [
+            {"startedAt": "2026-10-11T09:45:00.000Z", "endedAt": "2026-10-11T09:46:00.000Z", "avgCpuPercent": 5.0, "maxCpuPercent": 20.0, "maxRssBytes": 1, "maxProcessCount": 2},
+            {"startedAt": "2026-10-11T09:46:00.000Z", "endedAt": "2026-10-11T09:47:00.000Z", "avgCpuPercent": 50.0, "maxCpuPercent": 80.0, "maxRssBytes": 1, "maxProcessCount": 2},
+        ],
+        "topProcesses": [
+            {"processKey": "4242:1", "pid": 4242, "ppid": 1, "command": "/usr/bin/node /srv/t3/server.js", "depth": 0, "isServerRoot": true, "firstSeenAt": "2026-10-11T09:45:00.000Z", "lastSeenAt": "2026-10-11T10:00:00.000Z",
+                "currentCpuPercent": 3.0, "avgCpuPercent": 4.25, "maxCpuPercent": 60.0, "cpuSecondsApprox": 95.0, "currentRssBytes": 100, "maxRssBytes": 150 * 1024 * 1024, "sampleCount": 300},
+            {"processKey": "4300:2", "pid": 4300, "ppid": 4242, "command": "codex app-server", "depth": 1, "isServerRoot": false, "firstSeenAt": "2026-10-11T09:45:00.000Z", "lastSeenAt": "2026-10-11T10:00:00.000Z",
+                "currentCpuPercent": 0.0, "avgCpuPercent": 1.0, "maxCpuPercent": 9.5, "cpuSecondsApprox": 4.5, "currentRssBytes": 100, "maxRssBytes": 2 * 1024 * 1024, "sampleCount": 300},
+        ],
+    });
+    let mut dom = VirtualDom::new_with_props(|result: Value| rsx! { crate::process_history::History { result } }, result);
+    dom.rebuild_in_place();
+    let text = crate::runtime::transport_tests::rendered_text(&dom);
+    for expected in ["CPU Time", "1.58m", "1,234", "2.50 s", "node", "60.0%", "150.0 MB", "codex", "4.50s", "9.5%", "4300"] {
+        assert!(text.contains(expected), "{expected} is drawn: {text}");
+    }
+    let control = |label: &str| crate::runtime::transport_tests::control(&dom, label).is_some();
+    assert!(control("Average CPU 5.0%, peak CPU 20.0%") && control("Average CPU 50.0%, peak CPU 80.0%"), "a bar for each bucket, labelled for its numbers");
+    assert!(control("Root process node") && control("Child process codex"));
+    // Nothing sampled yet is said, not drawn as an empty table.
+    let failed = json!({"buckets": [], "topProcesses": [], "error": {"_tag": "Some", "value": {"failureTag": "ProcessDiagnosticsQueryFailedError", "message": "ps failed"}}});
+    let mut empty = VirtualDom::new_with_props(|result: Value| rsx! { crate::process_history::History { result } }, failed);
+    empty.rebuild_in_place();
+    let text = crate::runtime::transport_tests::rendered_text(&empty);
+    assert!(text.contains("No process resource samples found for this window.") && text.contains("ps failed"), "{text}");
+}

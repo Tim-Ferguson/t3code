@@ -201,7 +201,7 @@ export function buildSettings(paths, { resetAtSeconds, grokFiles, withGrok }) {
 }
 
 /** The server's whole environment. Nothing is inherited: the real HOME, PATH and tokens are not visible to it. */
-export function serverEnvironment(paths, { githubApiOrigin }) {
+export function serverEnvironment(paths, { githubApiOrigin, serverBrowser = false }) {
   return {
     HOME: paths.home,
     PATH: `${paths.bin}:/usr/bin:/bin`,
@@ -234,6 +234,8 @@ export function serverEnvironment(paths, { githubApiOrigin }) {
     // Read only by `serve --fixture`, which the server insists on (the variable alone is an error). Set only with --hook.
     ...(githubApiOrigin ? { T3CODE_FIXTURE_GITHUB_API_ORIGIN: githubApiOrigin } : {}),
     RUST_LOG: "warn,t3_server=info",
+    // The server's own browser is off unless asked for (it has no Chrome to start in the fixture; the tab says so).
+    ...(serverBrowser ? { T3CODE_RUST_SERVER_BROWSER: "1" } : {}),
   };
 }
 

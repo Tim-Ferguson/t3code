@@ -296,6 +296,7 @@ fn answer(data: &mut Data, asked: &Asked) -> (u16, String) {
                 let nodes: Vec<Value> = page.into_iter().skip(usize::from(!after.is_empty())).collect();
                 json(json!({"data":{"viewer":{"login":"octo"},"repository":{"pullRequest":{"id":"PR_node"}},"node":{"pullRequest":{"id":"PR_node"},"comments":{"pageInfo":{"hasNextPage":false,"endCursor":"end"},"nodes":nodes}}}}))
             }
+            "preview" => json(json!({"data":{"repository":{"pullRequest":{"number":data.number,"title":data.title,"url":format!("https://github.com/acme/web/pull/{}", data.number),"state":data.state,"isDraft":data.draft,"createdAt":"2026-01-01T00:00:00Z","author":{"login":"alice","avatarUrl":null,"name":"Alice","__typename":"User"}}}}})),
             "filesViewed" => json(json!({"data":{"repository":{"pullRequest":{"files":{"pageInfo":{"hasNextPage":false,"endCursor":null},
                 "nodes":data.viewed.iter().map(|(path, viewed)| json!({"path":path,"viewerViewedState":if *viewed { "VIEWED" } else { "UNVIEWED" }})).collect::<Vec<_>>()}}}}})),
             "merge" => match &data.merge_refusal {

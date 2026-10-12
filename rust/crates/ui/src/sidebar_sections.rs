@@ -157,7 +157,7 @@ pub(crate) fn ProjectThreads(scope: crate::sidebar_groups::Scope, state: Store<U
         let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| snapshot.and_then(|snapshot| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string())));
         let empty = BTreeMap::new();
         let mut view = sidebar_rows::view(environment, here, arrangeable, thread, here && open.as_deref() == Some(thread.id.as_str()), workspace, row_caps, can_operate, now, providers.get(environment).unwrap_or(&empty));
-        view.chosen = here && chosen.contains(thread.id.as_str());
+        view.chosen = chosen.contains(&crate::fleet::key(environment, thread.id.as_str()));
         rsx! { sidebar_rows::ThreadRow { key: "{environment}:{thread.id}", view, state, transport: transport.clone() } }
     };
     let (working_open, snoozed_open, settled_open) = (!sections.working.is_empty() && state.shelves().read().working, !sections.snoozed.is_empty() && state.shelves().read().snoozed, caps.settlement && state.shelves().read().settled);

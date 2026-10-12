@@ -29,6 +29,18 @@ It prints the URL, a pairing credential (one use, five minutes), the PID, and ho
 node rust/tools/browser_fixture/check.mjs http://127.0.0.1:47841 "$(rust/tools/browser_fixture/pair.sh --scratch "$S" --server <target>/debug/t3-server)"
 ```
 
+With a headless Chromium of Playwright's own (never the machine's Chrome), `browser_check.mjs` pairs through the link and drives the
+UI: the right panel's launcher or add menu (Browser, Device, Terminal), a Terminal, a Device and a Browser tab, the Integrations page
+(browser zoom, appearance, link target, profiles kept across a reload, the question before a profile's data is cleared) and the
+Diagnostics page's resource history. Start the fixture with `--server-browser` (and `--hook` for the pull request reads of `check.mjs`) so
+the Browser row is offered; there is no Chrome to start in the fixture, so the tab opens with its address bar and empty state and its
+stream fails to start (the server logs "The server preview browser could not start", the page retries with the viewer's backoff):
+
+```sh
+node rust/tools/browser_fixture/browser_check.mjs http://127.0.0.1:47841 "$(rust/tools/browser_fixture/pair.sh --scratch "$S" --server <target>/debug/t3-server)" \
+  --playwright <node_modules>/.pnpm/playwright-core@1.60.0/node_modules/playwright-core
+```
+
 Stop it (checks that the PID is still the process that was started: its executable and working directory; never by
 name or pattern; leaves `$S` for inspection):
 

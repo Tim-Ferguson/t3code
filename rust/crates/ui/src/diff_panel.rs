@@ -851,7 +851,7 @@ fn Rows(file: Rc<FileDiff>, split: bool, expand: Option<Rc<ExpandSource>>) -> El
             };
             spawn(async move {
                 let owner = runtime::response_owner(&host.transport, host.state);
-                let answer = runtime::request_value_reported(host.transport.clone(), host.state, method, payload).await;
+                let answer = crate::pull_request_routing::request(host.transport.clone(), host.state, method, payload).await;
                 if owner.is_none() || owner != runtime::response_owner(&host.transport, host.state) {
                     return;
                 }

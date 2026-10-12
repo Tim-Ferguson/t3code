@@ -15,6 +15,7 @@ use t3_contracts::EnvironmentId;
 /// A draft with work in it, as the sidebar lists it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row {
+    pub environment: EnvironmentId,
     pub draft_id: String,
     pub project_id: String,
     pub preview: String,
@@ -124,11 +125,10 @@ pub(crate) fn promote(state: Store<UiModel>, destination: &EnvironmentId, draft_
     }
 }
 
-/// Discards a draft behind an undo, as the sidebar row's button and its menu do.
-pub(crate) fn discard(state: Store<UiModel>, draft_id: &str) {
-    let Some(destination) = state.destination().peek().clone() else { return };
-    let Some(saved) = forget_draft(state, &destination, draft_id) else { return };
-    if state.active_draft().peek().as_deref() == Some(draft_id) {
+/// Discards a draft of any environment behind an undo, as the sidebar row's button does.
+pub(crate) fn discard_in(state: Store<UiModel>, environment: &EnvironmentId, draft_id: &str) {
+    let Some(saved) = forget_draft(state, environment, draft_id) else { return };
+    if state.destination().peek().as_ref() == Some(environment) && state.active_draft().peek().as_deref() == Some(draft_id) {
         state.active_draft().set(None);
     }
     let token = state.discarded_draft().peek().as_ref().map_or(0, |held| held.token) + 1;
@@ -167,19 +167,20 @@ fn preview(state: Store<UiModel>, target: &DraftTarget) -> String {
     format!("{count} attachment{}", if count == 1 { "" } else { "s" })
 }
 
-/// The drafts to list: those of this environment that hold work, except the one the form is showing.
+/// The drafts to list: those of every environment this window knows that hold work, except the one the form is showing.
 fn rows(state: Store<UiModel>) -> Vec<Row> {
-    let Some(destination) = state.destination().peek().clone() else { return vec![] };
     let showing = {
         let model = state.peek();
-        (model.view == View::Chat && model.active_thread.is_none()).then(|| model.active_draft.clone()).flatten()
+        (model.view == View::Chat && model.active_thread.is_none()).then(|| model.destination.clone().zip(model.active_draft.clone())).flatten()
     };
+    let known: Vec<EnvironmentId> = state.environments().peek().records.keys().cloned().collect();
     let drafts = state.peek().draft_storage.document.borrow().drafts();
     drafts
         .into_iter()
-        .filter(|session| session.environment == destination.as_str() && showing.as_deref() != Some(session.draft_id.as_str()))
-        .filter(|session| state.peek().draft_storage.document.borrow().has_content(&session.target()))
-        .map(|session| Row { preview: preview(state, &session.target()), draft_id: session.draft_id, project_id: session.project_id })
+        .filter_map(|session| Some((known.iter().find(|environment| environment.as_str() == session.environment)?.clone(), session)))
+        .filter(|(environment, session)| showing.as_ref() != Some(&(environment.clone(), session.draft_id.clone())))
+        .filter(|(_, session)| state.peek().draft_storage.document.borrow().has_content(&session.target()))
+        .map(|(environment, session)| Row { preview: preview(state, &session.target()), environment, draft_id: session.draft_id, project_id: session.project_id })
         .collect()
 }
 
@@ -188,7 +189,7 @@ fn rows(state: Store<UiModel>) -> Vec<Row> {
 #[component]
 pub(crate) fn Rows(state: Store<UiModel>, transport: runtime::TransportHandle) -> Element {
     let list = use_memo(move || {
-        let _ = (state.draft_revision().read(), state.view().read(), state.active_thread().read(), state.active_draft().read(), state.destination().read());
+        let _ = (state.draft_revision().read(), state.view().read(), state.active_thread().read(), state.active_draft().read(), state.destination().read(), state.environments().read());
         rows(state)
     });
     let list = list.read();
@@ -196,22 +197,26 @@ pub(crate) fn Rows(state: Store<UiModel>, transport: runtime::TransportHandle) -
     if list.is_empty() {
         return rsx! {};
     }
-    let projects: std::collections::BTreeMap<String, String> = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.projects.iter().map(|project| (project.id.to_string(), project.title.to_string())).collect()).unwrap_or_default();
+    // Where a project's name is kept: the shell of its environment, the open one's or a parked one's.
+    let projects: std::collections::BTreeMap<(EnvironmentId, String), String> = crate::fleet::read(state, |shells| shells.iter().flat_map(|shell| shell.snapshot.projects.iter().map(|project| ((shell.environment.clone(), project.id.to_string()), project.title.to_string()))).collect());
+    let several = crate::fleet::count(state) > 1;
     rsx! {
         div { class: "draft-rows", role: "list", "aria-label": "Unsent drafts",
             for row in list.iter().cloned() {
                 {
-                    let name = projects.get(&row.project_id).cloned().unwrap_or_default();
-                    let (open, discard_id, id) = (row.draft_id.clone(), row.draft_id.clone(), row.draft_id.clone());
+                    let name = projects.get(&(row.environment.clone(), row.project_id.clone())).cloned().unwrap_or_default();
+                    let machine = if several { format!("{} \u{b7} ", crate::fleet::label(state, &row.environment)) } else { String::new() };
+                    let (open, discard_id, id) = (row.draft_id.clone(), row.draft_id.clone(), format!("{}:{}", row.environment, row.draft_id));
+                    let (environment, discard_environment) = (row.environment.clone(), row.environment.clone());
                     let transport = transport.clone();
                     rsx! {
-                        div { class: "draft-row", key: "{id}", role: "listitem", "data-draft-id": "{id}",
-                            button { class: "draft-row-open", r#type: "button", "aria-label": "Unsent draft {row.preview}", title: "{name}",
-                                onclick: move |_| { runtime::open_draft(&transport, state, &open); },
+                        div { class: "draft-row", key: "{id}", role: "listitem", "data-draft-id": "{row.draft_id}",
+                            button { class: "draft-row-open", r#type: "button", "aria-label": "Unsent draft {row.preview}", title: "{machine}{name}",
+                                onclick: move |_| { if crate::fleet::open(&transport, state, &environment) { runtime::open_draft(&transport, state, &open); } },
                                 span { class: "draft-row-project", "\u{270e} {name}" }
                                 span { class: "draft-row-preview", "{row.preview}" }
                             }
-                            button { class: "draft-row-discard", r#type: "button", "aria-label": "Discard draft", title: "Discard draft", onclick: move |_| discard(state, &discard_id), "\u{d7}" }
+                            button { class: "draft-row-discard", r#type: "button", "aria-label": "Discard draft", title: "Discard draft", onclick: move |_| discard_in(state, &discard_environment, &discard_id), "\u{d7}" }
                         }
                     }
                 }

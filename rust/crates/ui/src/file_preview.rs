@@ -44,6 +44,35 @@ pub(crate) fn WorkspaceImage(state: Store<UiModel>, transport: runtime::Transpor
     }
 }
 
+/// A file attached to an answer to an agent's question: its name as a link to the stored copy, a picture shown as itself.
+#[component]
+pub(crate) fn AnsweredAttachment(state: Store<UiModel>, transport: runtime::TransportHandle, environment_key: String, attachment: Value) -> Element {
+    let id = attachment["id"].as_str().unwrap_or_default().to_owned();
+    let name = attachment["name"].as_str().unwrap_or("attachment").to_owned();
+    let image = attachment["type"] == "image";
+    let resource = use_resource({
+        let (transport, environment_key, id) = (transport.clone(), environment_key.clone(), id.clone());
+        move || {
+            let (transport, environment_key, id) = (transport.clone(), environment_key.clone(), id.clone());
+            let connected = *state.status().read() == ConnectionStatus::Connected;
+            async move {
+                if !connected {
+                    return None;
+                }
+                let owner = runtime::response_owner(&transport, state);
+                let answer = asset_url(&transport, state, &environment_key, json!({"_tag":"attachment","attachmentId":id})).await;
+                if owner.is_some() && owner == runtime::response_owner(&transport, state) { answer.ok() } else { None }
+            }
+        }
+    });
+    let shown = resource.read();
+    match &*shown {
+        Some(Some(Preview { url, .. })) if image => rsx! { a { class: "question-attachment", href: "{url}", target: "_blank", rel: "noreferrer", img { alt: "{name}", src: "{url}", loading: "lazy" } } },
+        Some(Some(Preview { url, .. })) => rsx! { a { class: "question-attachment", href: "{url}", target: "_blank", rel: "noreferrer", "{name}" } },
+        _ => rsx! { span { class: "question-attachment muted", "{name}" } },
+    }
+}
+
 /// An image a tool returned inline, loaded only while its row is open. The bytes are not in the
 /// timeline: the server numbers the images of an item and signs a URL for each (`tool-output-image`).
 #[component]

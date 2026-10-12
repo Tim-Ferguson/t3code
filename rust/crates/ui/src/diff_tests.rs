@@ -27,6 +27,22 @@ thread_local! {
     static WITH_USAGE_SOURCES: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     /// The hosts besides the local one that the device service of the next fixture manages.
     static WITH_DEVICES: RefCell<Option<Vec<std::sync::Arc<dyn t3_server::device_host::DeviceHost>>>> = const { RefCell::new(None) };
+    /// The port discovery of the next fixture (every fixture has one, which finds no server listening unless the test gives it another).
+    static DISCOVERY: RefCell<Option<t3_server::resource_discovery::PortDiscovery>> = const { RefCell::new(None) };
+}
+
+/// A port discovery over a list of listeners the test holds, with no process table and no web probe to answer but yes.
+pub(crate) fn scripted_discovery(listening: std::sync::Arc<std::sync::Mutex<Vec<t3_server::resource_ports::LocalServer>>>) -> t3_server::resource_discovery::PortDiscovery {
+    use futures_util::FutureExt;
+    t3_server::resource_discovery::PortDiscovery::new(t3_server::resource_discovery::PortDiscoveryOptions::custom(
+        t3_server::resource_ports::TerminalRegistry::default(),
+        std::sync::Arc::new(move || {
+            let found = listening.lock().unwrap().clone();
+            async move { Ok(found) }.boxed()
+        }),
+        std::sync::Arc::new(|_| async { true }.boxed()),
+        std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
+    ))
 }
 
 #[derive(Clone)]
@@ -196,6 +212,11 @@ impl Fixture {
         OFFERED.with(|offered| *offered.borrow_mut() = None);
         fixture
     }
+    /// A server that offers `capabilities` as `start_offering` does, with `discovery` as the port discovery that finds its local servers.
+    pub(crate) async fn start_discovering(capabilities: Value, discovery: t3_server::resource_discovery::PortDiscovery) -> Self {
+        DISCOVERY.with(|held| *held.borrow_mut() = Some(discovery));
+        Self::start_offering(capabilities).await
+    }
     /// A server with the background policy, which learns from the window's activity reports.
     pub(crate) async fn start_with_background(git_repository: bool) -> Self {
         WITH_BACKGROUND.with(|flag| flag.set(true));
@@ -327,6 +348,7 @@ impl Fixture {
             snapshot["availableEditors"] = json!([]);
         }
         api.config = Some(snapshot);
+        api.discovery = Some(DISCOVERY.with(|discovery| discovery.borrow_mut().take()).unwrap_or_else(|| scripted_discovery(Default::default())));
         api.settings = Some(settings_service.clone());
         // The window's activity reports (`background_activity`) reach the server's policy, as on a real server. A server with a policy
         // runs its periodic work only while some window has said it is looking, so this is for the tests that report.
@@ -391,6 +413,13 @@ impl Fixture {
         self.client_rooted(harness, gate, scopes, setup)
     }
     fn client_rooted(&self, root: fn(Harness) -> Element, gate: Gate, scopes: &[AuthEnvironmentScope], setup: impl FnOnce(&mut VirtualDom)) -> (VirtualDom, Harness) {
+        self.client_rooted_at(root, gate, scopes, &self.address, setup)
+    }
+    /// A client that reaches the server at `address` (another name for it: an address that is not this machine's own, say).
+    pub(crate) fn client_at(&self, gate: Gate, scopes: &[AuthEnvironmentScope], address: &str) -> (VirtualDom, Harness) {
+        self.client_rooted_at(harness, gate, scopes, address, |_| {})
+    }
+    fn client_rooted_at(&self, root: fn(Harness) -> Element, gate: Gate, scopes: &[AuthEnvironmentScope], address: &str, setup: impl FnOnce(&mut VirtualDom)) -> (VirtualDom, Harness) {
         let credential = self
             .auth
             .create_pairing_credential(
@@ -402,7 +431,7 @@ impl Fixture {
         let props = Harness {
             state: Rc::new(RefCell::new(None)),
             transport: TransportHandle::default(),
-            address: self.address.clone(),
+            address: address.to_owned(),
             credential,
             gate,
         };

@@ -79,7 +79,7 @@ pub(crate) fn ReviewForm(state: Store<UiModel>, transport: TransportHandle, refe
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
                 let wire: Vec<Value> = comments.iter().map(pr_comments::Pending::wire).collect();
-                let answer = runtime::request_value_reported(transport.clone(), state, "pullRequests.submitReview", reference.payload(json!({"verdict":verdict,"body":text,"comments":wire}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, "pullRequests.submitReview", reference.payload(json!({"verdict":verdict,"body":text,"comments":wire}))).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     match answer {
                         Ok(_) => {
@@ -157,7 +157,7 @@ pub(crate) fn Composer(state: Store<UiModel>, transport: TransportHandle, refere
             let (transport, reference) = (transport.clone(), reference.clone());
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::COMMENT, reference.payload(json!({"body":text}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::COMMENT, reference.payload(json!({"body":text}))).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     match answer {
                         Ok(_) => {
@@ -291,7 +291,7 @@ pub(crate) fn Threads(state: Store<UiModel>, transport: TransportHandle, referen
             let (transport, reference) = (transport.clone(), reference.clone());
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, method, reference.payload(extra)).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, method, reference.payload(extra)).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     match answer {
                         Ok(_) => {
@@ -317,7 +317,7 @@ pub(crate) fn Threads(state: Store<UiModel>, transport: TransportHandle, referen
             let (transport, reference) = (transport.clone(), reference.clone());
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, "pullRequests.threadComments", reference.payload(json!({"threadId":thread_id,"cursor":cursor}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, "pullRequests.threadComments", reference.payload(json!({"threadId":thread_id,"cursor":cursor}))).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     match answer {
                         Ok(page) => {

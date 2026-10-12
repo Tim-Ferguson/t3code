@@ -511,3 +511,13 @@ A `Project` (the `projects.mutate` result, `GET /api/projects`, the MCP project 
 The server browser's snapshot lists the trees of the frames a page holds under their `iframe` lines, with `f<n>e<m>` refs. Frames in another process are still a bare `iframe` line.
 
 A server with no configuration answers `server.getConfig` and `subscribeServerConfig` with `ServerSettingsError`, and the keybinding methods with `KeybindingsConfigParseError`.
+
+## GitHub sharing, browser settings
+
+Connections → GitHub sharing (two or more machines) sets, per machine and per device, how much of its signed-in GitHub account other machines may use: Off, Read PRs, or Read and act. Grants are tied to the machine's saved addresses and kept in the connection catalog. Pull request reads and acts (`pull_request_routing.rs`) are tried on the nearest machine allowed, after it proves the same host and account (`pullRequests.routing`/`routingIdentity`); an act needs both machines on "Read and act" and carries `expectedAccountId` so a changed account is refused before it starts. Credentials stay on their machines. Two machines signed in to different accounts are covered by a unit test of the rule, not end to end.
+
+Integrations holds the new tab's zoom and appearance (applied with `preview.adjust` after the tab opens), where chat links open ("T3 Code" opens a Browser tab beside the thread, so the server's browser fetches the link), and the browser profiles (add, rename, default, clear, remove; clearing asks every connected server that hosts tabs). The Add project dialog lists server folders under a typed path (`filesystem.browse`). An empty Browser tab lists the servers listening on the environment. Answers to an agent's question can carry files. `/feedback` in a Codex thread sends it to OpenAI. Diagnostics shows the server's process resource history. Drafts, the archived list and sidebar multi-select span every connected environment (deleting a mixed selection waits for a choice of one environment). "Auto balance" stays selected after it picks.
+
+The Browser tab's tests run against the real `ServerBrowser` on the scripted Chrome (`preview_real_tests.rs`); `tools/browser_fixture/browser_check.mjs` is the headless pass over the panel tabs and these settings.
+
+Not built: importing cookies from other browsers, recording, the floating preview, annotations and screenshots of the tab, MCP app frames, the licenses page, the process tree.

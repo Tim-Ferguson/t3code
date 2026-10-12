@@ -3,8 +3,8 @@
 //! versions, and the SSH hosts that have simulators and emulators (`device.configure`, `device.list`, `device.testHost`). The
 //! environment shown is the one the window is on; the original applies a change to every environment the page is scoped to.
 //!
-//! Not ported: the browser profiles list and its cookie import, the recording options, the page-zoom and appearance defaults (a server
-//! tab has them set through the tab's own menu), and the floating preview.
+//! The browser defaults (zoom, appearance, link target, profiles) are `browser_settings.rs`. Not ported: importing cookies from another
+//! browser, the recording options (nothing records), and the floating preview.
 use crate::{
     device_panel,
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View},
@@ -109,6 +109,7 @@ pub(crate) fn Page(state: Store<UiModel>, transport: TransportHandle) -> Element
                             onchange: move |event| write_setting.call(json!({"enableAgentBrowserAccess": event.checked()})) } }
                     }
                     ViewportRow { state }
+                    crate::browser_settings::Rows { state, transport: transport.clone() }
                 }
                 section { class: "sc-section", id: "devices", "aria-label": "Devices",
                     h2 { "Devices" }

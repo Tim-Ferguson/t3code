@@ -124,7 +124,7 @@ pub(crate) fn TimelineItem(
                         for result in effective["results"].as_array().into_iter().flatten(){SearchResult {result:result.clone()}}
                     },
                     "approval_request"=>rsx!{if let Some(prompt)=effective["prompt"].as_str(){pre {class:"approval-prompt","{prompt}"}}},
-                    "user_input_request"=>rsx!{AnsweredQuestions {item:effective.clone()}},
+                    "user_input_request"=>rsx!{AnsweredQuestions {item:effective.clone(),state,transport:transport.clone(),environment_key:environment_key.clone()}},
                     "handoff"=>rsx!{if let Some(summary)=effective["summary"].as_str(){pre {"{summary}"}}},
                     "subagent"=>rsx!{p {{effective["prompt"].as_str().unwrap_or_default()}}if let Some(progress)=effective["progress"].as_str(){pre {"{progress}"}}if let Some(result)=effective["result"].as_str(){pre {"{result}"}}},
                     "secret_request"=>rsx!{p {{effective["reason"].as_str().unwrap_or_default()}}p {class:"muted",{effective["secretStatus"].as_str().unwrap_or_default()}}},
@@ -294,16 +294,18 @@ fn download_text(name: String, text: String) {
     dioxus::document::eval(&format!("const [n,t]={args};const u=URL.createObjectURL(new Blob([t],{{type:'text/markdown;charset=utf-8'}}));const a=document.createElement('a');a.href=u;a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(u),0);"));
 }
 
-/// Who asked what and what was answered, as the original's history of a question shows it.
+/// Who asked what and what was answered, as the original's history of a question shows it (`QuestionAnswerHistory`): the question, the
+/// answer, and the files attached to it, each a link to the stored copy (a picture shows itself).
 #[component]
-fn AnsweredQuestions(item: Value) -> Element {
+fn AnsweredQuestions(item: Value, state: Store<UiModel>, transport: runtime::TransportHandle, environment_key: String) -> Element {
     let answer = &item["questionAnswer"];
     let text = |id: &str| answer["answers"][id].as_str().map(str::to_owned).or_else(|| answer["answers"][id].as_array().map(|list| list.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(", ")));
-    let rows: Vec<(String, String, Option<String>)> = item["questions"].as_array().into_iter().flatten().map(|question| {
+    let rows: Vec<(String, String, Option<String>, Vec<Value>)> = item["questions"].as_array().into_iter().flatten().map(|question| {
         let id = question["id"].as_str().unwrap_or_default();
-        (id.to_owned(), answer["questionTextById"][id].as_str().or_else(|| question["question"].as_str()).unwrap_or_default().to_owned(), text(id).filter(|text| !text.is_empty()))
+        (id.to_owned(), answer["questionTextById"][id].as_str().or_else(|| question["question"].as_str()).unwrap_or_default().to_owned(), text(id).filter(|text| !text.is_empty()), answer["attachmentsByQuestionId"][id].as_array().cloned().unwrap_or_default())
     }).collect();
-    rsx! {for (id,question,reply) in rows {div {key:"{id}",class:"question-history",p {"{question}"}if let Some(reply)=reply {p {class:"question-answer muted","{reply}"}}}}}
+    rsx! {for (id,question,reply,attachments) in rows {div {key:"{id}",class:"question-history",p {"{question}"}if let Some(reply)=reply {p {class:"question-answer muted","{reply}"}}
+        if !attachments.is_empty() {div {class:"question-attachments","aria-label":"Attached files",for attachment in attachments {crate::file_preview::AnsweredAttachment {key:"{attachment[\"id\"]}",state,transport:transport.clone(),environment_key:environment_key.clone(),attachment}}}}}}}
 }
 
 /// "Sent by automation" or "Sent by another agent" above a message the person did not type; the

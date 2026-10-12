@@ -95,17 +95,78 @@ fn now() -> u64 {
     chrono::Utc::now().timestamp_millis().max(0) as u64
 }
 
+/// How the choice of "Auto balance" stands (`autoEnvironmentLabel` of `ChatView.tsx`): the machines are being asked, none could be
+/// chosen, or it is done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum Phase {
+    #[default]
+    Idle,
+    Checking,
+    Unavailable,
+}
+
+/// The form the person gave "Auto balance" (it is on the machine the balancing chose), and how the choice stands. The form stays
+/// automatic after it is on that machine: the picker keeps saying "Auto balance" until another machine is chosen.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Auto {
+    pub draft: Option<(EnvironmentId, String)>,
+    pub phase: Phase,
+}
+
+/// What the picker's automatic entry says (`autoEnvironmentLabel`).
+pub(crate) fn auto_label(phase: Phase) -> &'static str {
+    match phase {
+        Phase::Idle => "Auto balance",
+        Phase::Checking => "Checking machines\u{2026}",
+        Phase::Unavailable => "Auto balance unavailable",
+    }
+}
+
+/// Whether the form on screen is the one that has been given "Auto balance".
+pub(crate) fn is_automatic(state: Store<UiModel>) -> bool {
+    let (destination, draft) = (state.destination().read().clone(), state.active_draft().read().clone());
+    match (destination, draft) {
+        (Some(destination), Some(draft)) => state.auto_balance().read().draft == Some((destination, draft)),
+        _ => false,
+    }
+}
+
+/// The form's machine is chosen by the person: it is no longer automatic.
+pub(crate) fn forget_automatic(state: Store<UiModel>) {
+    let mut auto = state.auto_balance();
+    if auto.peek().draft.is_some() || auto.peek().phase != Phase::Idle {
+        *auto.write() = Auto::default();
+    }
+}
+
 /// "Auto balance" in the form's machine choice: starts the thread's form on the machine that is best for it now, and says which, or
-/// that none could be chosen. The choice is made once, when asked; the form is then an ordinary form on that machine.
+/// that none could be chosen. The form stays automatic (`environmentSelection: "auto"`) on the machine chosen, while the machines are
+/// being asked the picker says so, and when none can be chosen it says that and the form stays where it was.
 pub(crate) async fn auto_balance(transport: TransportHandle, state: Store<UiModel>, hosts: Vec<crate::new_thread::Host>) {
     let candidates: Vec<EnvironmentId> = hosts.iter().map(|host| host.environment.clone()).collect();
-    match choose(&transport, state, &candidates).await {
+    let mut auto = state.auto_balance();
+    auto.write().phase = Phase::Checking;
+    let owner = runtime::response_owner(&transport, state);
+    let chosen = choose(&transport, state, &candidates).await;
+    // The window moved on to another connection while the machines answered: this is no longer its question.
+    if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+        auto.write().phase = Phase::Idle;
+        return;
+    }
+    match chosen {
         Some(chosen) => {
             if let Some(host) = hosts.iter().find(|host| host.environment == chosen) {
                 crate::new_thread::retarget(&transport, state, host);
+                let (destination, draft) = (state.destination().peek().clone(), state.active_draft().peek().clone());
+                if let (Some(destination), Some(draft)) = (destination, draft) {
+                    *auto.write() = Auto { draft: Some((destination, draft)), phase: Phase::Idle };
+                }
                 notice::push(state, Level::Info, "Auto balance", format!("Starting on {}.", host.label));
             }
         }
-        None => notice::push(state, Level::Warning, "Auto balance unavailable", "No machine reported enough free CPU and memory. Choose one."),
+        None => {
+            *auto.write() = Auto { draft: None, phase: Phase::Unavailable };
+            notice::push(state, Level::Warning, "Auto balance unavailable", "No machine reported enough free CPU and memory. Choose one.");
+        }
     }
 }

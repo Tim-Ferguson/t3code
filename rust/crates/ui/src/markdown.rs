@@ -274,8 +274,18 @@ fn RenderNode(node: Node) -> Element {
         Kind::Link(href, title) if crate::safe_url(href) => {
             // A web page offers its own menu on a right-click (`showExternalLinkContextMenu`); a link to anything else, the page's.
             let href_for_menu = href.clone();
+            let href_for_click = href.clone();
             let host = crate::workspace_files::host();
+            let click_host = host.clone();
             rsx! {a {href:href.clone(),title:title.clone(),
+                // "Open links in: T3 Code" takes the click into a browser tab of the thread; Command or Control keeps the system's.
+                onclick:move |event| {
+                    let Some(host) = click_host.as_ref() else {return;};
+                    let modifiers=event.modifiers();
+                    if crate::link_menus::open_in_app(host.state,&host.transport,&host.thread_id,&href_for_click,modifiers.meta()||modifiers.ctrl()) {
+                        event.prevent_default();
+                    }
+                },
                 oncontextmenu:move |event| {
                     if crate::link_menus::web_link(&href_for_menu).is_none() {return;}
                     event.prevent_default();

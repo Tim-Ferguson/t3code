@@ -106,6 +106,8 @@ pub struct UiModel {
     /// The saved connections (routes and tokens) kept between runs, and how often they changed.
     pub saved: crate::connection_store::Saved,
     pub saved_revision: u64,
+    /// The new-thread form the person gave "Auto balance", and how that choice stands (`load_balancing.rs`).
+    pub auto_balance: crate::load_balancing::Auto,
     pub error: Option<String>,
     pub draft: String,
     /// Set when a send was refused for the prompt's length; the composer shows it for as long as the prompt is still too long.
@@ -279,7 +281,8 @@ impl Transport {
 #[path = "links.rs"]
 mod links;
 pub use links::{EnvironmentState, TransportHandle};
-use links::{Slot, environment_of, set_status, slot, status_of};
+use links::{Slot, set_status, slot, status_of};
+pub(crate) use links::environment_of;
 
 /// The environment a connection goes to.
 pub(crate) fn environment_of_handle(handle: &TransportHandle, state: Store<UiModel>) -> Option<EnvironmentId> {
@@ -1400,6 +1403,13 @@ pub fn send_with(handle: &TransportHandle, state: Store<UiModel>, options: SendO
             choices.runtime_mode.unwrap_or(thread.runtime_mode),
         ));
     drop(model);
+    // `/feedback` in a Codex thread is not a message to the agent: the conversation goes to OpenAI.
+    if attachments.is_empty() && context_ids.is_empty() && options.edit_run.is_none() {
+        if let Some(reason) = t3_client::thread_feedback::parse_command(&prompt).filter(|_| crate::thread_feedback::is_codex(state, &selection)) {
+            crate::thread_feedback::submit(handle, state, &thread_id, reason);
+            return;
+        }
+    }
     if let Some(error) = model_change_error(state, &thread, &selection) {
         fail(state, error);
         return;
@@ -3607,6 +3617,14 @@ mod thread_title_tests;
 #[cfg(all(test, unix))]
 #[path = "routing_tests.rs"]
 mod routing_tests;
+
+#[cfg(all(test, unix))]
+#[path = "pull_request_routing_tests.rs"]
+mod pull_request_routing_tests;
+
+#[cfg(all(test, unix))]
+#[path = "folder_browser_tests.rs"]
+mod folder_browser_tests;
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 #[path = "rollback_tests.rs"]

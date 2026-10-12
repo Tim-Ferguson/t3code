@@ -25,6 +25,29 @@ pub(crate) fn open_external(url: &str) {
     }
 }
 
+/// Opens a link a click chose in the app's browser, beside the thread, when "Open links in" says so (`useOpenLink`): true when it did, and
+/// the click is then not the page's. Command or Control while clicking is the way to the system's browser either way.
+pub(crate) fn open_in_app(state: Store<UiModel>, transport: &TransportHandle, thread_id: &str, href: &str, meta_or_control: bool) -> bool {
+    let Some(url) = web_link(href) else { return false };
+    let prefers_app = state.client_settings().peek().browser_link_target == t3_contracts::BrowserLinkTarget::App;
+    if !t3_client::preview::opens_in_app(prefers_app, crate::preview_panel::available(state), &url, meta_or_control) {
+        return false;
+    }
+    let (Some(environment), thread_id) = (state.destination().peek().as_ref().map(ToString::to_string), thread_id.to_owned()) else { return false };
+    let transport = transport.clone();
+    dioxus::dioxus_core::spawn_forever(async move {
+        match crate::preview_panel::open_session(transport, state, environment.clone(), thread_id.clone(), Some(url.clone())).await {
+            Ok(snapshot) => crate::right_panel::open_preview(state, &environment, &thread_id, Some(snapshot.tab_id.as_str())),
+            Err(message) => {
+                // The page is still wanted: it goes to the system's browser.
+                notice::push(state, Level::Error, "Unable to open the link in the browser tab", message);
+                open_external(&url);
+            }
+        }
+    });
+    true
+}
+
 /// Whether a link is a web page the menu is for (`resolveExternalWebLinkHost`): only `http` and `https`, with a host.
 pub(crate) fn web_link(href: &str) -> Option<String> {
     let parsed = url::Url::parse(&if href.starts_with("//") { format!("https:{href}") } else { href.to_owned() }).ok()?;
@@ -45,16 +68,40 @@ fn thread_link(state: Store<UiModel>, thread_id: &str, href: &str) -> Option<(Th
     Some((if links::linked_here(&value, &reference) { ThreadLink::Unlink } else { ThreadLink::Link }, reference))
 }
 
+/// The pull request a link names, among the projects of the thread's own environment (`resolvePullRequestPreviewTarget`): none unless the
+/// server reads pull requests and the thread's project can be the one that lends its host.
+fn named_pull_request(state: Store<UiModel>, thread_id: &str, href: &str) -> Option<Reference> {
+    if state.typed_config().read().as_ref()?.environment.capabilities.pull_requests != Some(true) {
+        return None;
+    }
+    let named = links::parse_change_request_url(href)?;
+    let thread = state.shell().read().snapshot.as_ref()?.threads.iter().find(|thread| thread.id.as_str() == thread_id).cloned()?;
+    Some(Reference { project_id: thread.project_id.to_string(), host: Some(named.host), repository: named.repository, number: named.number })
+}
+
 /// The menu of a link in a message at the pointer. The integrated browser is not part of this app, so the menu offers the system's
 /// browser and the copy; inside a thread it also offers to file a pull request the link names under the thread, or take it out.
 pub(crate) async fn external_link(state: Store<UiModel>, transport: Option<TransportHandle>, thread_id: Option<String>, href: String, at: (f64, f64)) {
     let Some(url) = web_link(&href) else { return };
     let target = thread_id.as_deref().and_then(|thread| thread_link(state, thread, &url));
-    let items = menu::external_link(false, target.as_ref().map(|(direction, _)| *direction));
+    let mut items = menu::external_link(false, target.as_ref().map(|(direction, _)| *direction));
+    // A pull request of a project here can be opened in the app, resolved by whichever machine may answer for it.
+    let pull_request = thread_id.as_deref().and_then(|thread| named_pull_request(state, thread, &url));
+    if pull_request.is_some() {
+        items.insert(0, menu::Item::new("open-pull-request", "Open pull request"));
+    }
     let Some(choice) = crate::context_menu::show("Link actions", items, Some(at)).await else { return };
     match choice.as_str() {
         "open-external" => open_external(&url),
         "copy-link" => copy_text(&url),
+        "open-pull-request" => {
+            if let (Some(transport), Some(thread_id), Some(reference)) = (transport, thread_id, pull_request) {
+                match crate::pull_request_routing::request(transport, state, "pullRequests.preview", reference.payload(serde_json::json!({}))).await {
+                    Ok(_) => crate::pull_request_panel::open(state, crate::pull_request_panel::Target { thread_id, reference }),
+                    Err(cause) => notice::push(state, Level::Error, "Could not open the pull request", cause),
+                }
+            }
+        }
         "link-to-thread" | "unlink-from-thread" => {
             if let (Some(transport), Some(thread_id), Some((_, reference))) = (transport, thread_id, target) {
                 pull_request_links::update(state, &transport, &thread_id, &reference, &url, choice == "link-to-thread");

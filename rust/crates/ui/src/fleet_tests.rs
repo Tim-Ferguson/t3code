@@ -416,6 +416,8 @@ async fn auto_balance_starts_the_form_on_the_machine_with_the_most_free_capacity
     until(&mut dom, "the window to move", |_| state.peek().destination.as_ref() == Some(&b.id)).await;
     assert_eq!(state.peek().selected_project.as_deref(), Some("widget-b"));
     assert!(state.peek().notices.iter().any(|notice| notice.title == "Auto balance" && notice.detail.contains("Beta host")), "{:?}", state.peek().notices);
+    // The form is still automatic on the machine it chose: the picker keeps saying so, as the original's does.
+    until(&mut dom, "the form to stay automatic", |dom| control(dom, "Run on").and_then(|(_, value)| value).as_deref() == Some("auto")).await;
 
     // A machine set to "Manual only" is never chosen, however idle it is.
     state.view().set(View::Connections);
@@ -426,6 +428,113 @@ async fn auto_balance_starts_the_form_on_the_machine_with_the_most_free_capacity
     until(&mut dom, "the form on the second machine", |dom| control(dom, "Run on").is_some()).await;
     change_control(&mut dom, "Run on", "auto");
     until(&mut dom, "the window to move back", |_| state.peek().destination.as_ref() == Some(&a.id)).await;
+
+    // With every machine set to "Manual only" nothing can be chosen: the picker says so and the form stays where it is.
+    state.view().set(View::Connections);
+    until(&mut dom, "the section a third time", |dom| control(dom, "Alpha host load preference").is_some()).await;
+    change_control(&mut dom, "Alpha host load preference", "0");
+    until(&mut dom, "both off", |_| state.peek().client_settings.load_balancing_weights.iter().filter(|(_, weight)| weight.0 == 0).count() == 2).await;
+    state.view().set(View::Chat);
+    until(&mut dom, "the form on the first machine", |dom| control(dom, "Run on").is_some()).await;
+    change_control(&mut dom, "Run on", "auto");
+    until(&mut dom, "the unavailable choice", |dom| rendered_text(dom).contains("Auto balance unavailable")).await;
+    assert_eq!(state.peek().destination.as_ref(), Some(&a.id));
+    // A machine chosen by hand is a manual choice again.
+    change_control(&mut dom, "Run on", "env-b");
+    until(&mut dom, "the window to move by hand", |_| state.peek().destination.as_ref() == Some(&b.id)).await;
+    until(&mut dom, "the manual choice", |dom| control(dom, "Run on").and_then(|(_, value)| value).as_deref() == Some("env-b") && state.peek().auto_balance == Default::default()).await;
+    drop(dom);
+    a.server.stop().await;
+    b.server.stop().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn an_unsent_draft_of_the_other_environment_is_listed_opens_the_window_there_and_is_discarded_with_an_undo() {
+    let (a, b) = (Remote::start("env-a", "Alpha host").await, Remote::start("env-b", "Beta host").await);
+    let (mut dom, props, state) = seeded(&a, &b).await;
+    // A draft with work in it on the second environment, which the window then leaves for the first.
+    dom.in_scope(ScopeId::APP, || new_thread_in(&props.transport, state, &b.id, Some("project-b".into())));
+    until(&mut dom, "the form on the second", |dom| state.peek().destination.as_ref() == Some(&b.id) && control(dom, "First message").is_some()).await;
+    let draft = state.peek().active_draft.clone().expect("the form shows a draft");
+    input_control(&mut dom, "First message", "write the beta changelog");
+    dom.in_scope(ScopeId::APP, || new_thread_in(&props.transport, state, &a.id, Some("project-a".into())));
+    until(&mut dom, "the form on the first", |dom| state.peek().destination.as_ref() == Some(&a.id) && control(dom, "First message").is_some()).await;
+    // It is listed beside the first environment's own, named for the machine and the project it is for.
+    until(&mut dom, "its row", |dom| control(dom, "Unsent draft write the beta changelog").is_some()).await;
+    assert!(rendered_text(&dom).contains("Beta project"), "{}", rendered_text(&dom));
+
+    // The row takes the window to that environment, with the text in it; the row is the open draft now, so it leaves the list.
+    click_control(&mut dom, "Unsent draft write the beta changelog");
+    until(&mut dom, "the window on the second", |_| state.peek().destination.as_ref() == Some(&b.id) && state.peek().active_draft.as_deref() == Some(draft.as_str())).await;
+    until(&mut dom, "the text", |dom| control(dom, "First message").and_then(|(_, value)| value).as_deref() == Some("write the beta changelog")).await;
+    until(&mut dom, "the row to leave", |dom| control(dom, "Unsent draft write the beta changelog").is_none()).await;
+
+    // From the first environment again, a discard reaches the second's draft, and the notice takes it back.
+    dom.in_scope(ScopeId::APP, || new_thread_in(&props.transport, state, &a.id, Some("project-a".into())));
+    until(&mut dom, "its row again", |dom| control(dom, "Unsent draft write the beta changelog").is_some() && state.peek().destination.as_ref() == Some(&a.id)).await;
+    click_control(&mut dom, "Discard draft");
+    until(&mut dom, "the row to go", |dom| control(dom, "Unsent draft write the beta changelog").is_none()).await;
+    assert!(state.peek().draft_storage.document.borrow().drafts().iter().all(|session| session.draft_id != draft));
+    click_control(&mut dom, "Undo discard");
+    until(&mut dom, "the row to return", |dom| control(dom, "Unsent draft write the beta changelog").is_some()).await;
+    drop(dom);
+    a.server.stop().await;
+    b.server.stop().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn the_archived_page_lists_the_threads_of_every_environment_and_brings_one_back_where_it_lives() {
+    let (a, b) = (Remote::start("env-a", "Alpha host").await, Remote::start("env-b", "Beta host").await);
+    let (mut dom, props, state) = seeded(&a, &b).await;
+    for (environment, project, id, title) in [(&a.id, "project-a", "thread-on-a", "Old alpha work"), (&b.id, "project-b", "thread-on-b", "Old beta work")] {
+        create_thread(&mut dom, &props, state, environment, project, id, title);
+        let link = props.transport.link_of(environment).expect("a connected environment");
+        until(&mut dom, "the thread", |_| thread_in(state, environment, id).is_some()).await;
+        dom.in_scope(ScopeId::APP, || command(&link, state, "thread.archive", json!({"threadId": id}))).expect("accepted");
+        until(&mut dom, "its archive", |_| thread_in(state, environment, id).is_none()).await;
+    }
+    state.view().set(View::Archived);
+    // Both machines' archived threads are listed, each under its project and the machine it is on.
+    until(&mut dom, "both lists", |dom| control(dom, "Unarchive Old alpha work").is_some() && control(dom, "Unarchive Old beta work").is_some()).await;
+    assert!(control(&dom, "Archived in Alpha project on Alpha host").is_some() && control(&dom, "Archived in Beta project on Beta host").is_some(), "{}", rendered_text(&dom));
+
+    // Bringing back the other machine's thread is written to that machine, and the page reads again.
+    click_control(&mut dom, "Unarchive Old beta work");
+    until(&mut dom, "the thread to return", |dom| control(dom, "Unarchive Old beta work").is_none()).await;
+    until(&mut dom, "the thread back in its shell", |_| thread_in(state, &b.id, "thread-on-b").is_some()).await;
+    assert!(control(&dom, "Unarchive Old alpha work").is_some() && thread_in(state, &a.id, "thread-on-a").is_none(), "the other machine's thread is left alone");
+    drop(dom);
+    a.server.stop().await;
+    b.server.stop().await;
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn threads_of_both_environments_are_chosen_together_and_each_is_acted_on_where_it_lives() {
+    use super::transport_tests::{click_when_enabled, control_attribute, mouse_control};
+    let (a, b) = (Remote::start("env-a", "Alpha host").await, Remote::start("env-b", "Beta host").await);
+    let (mut dom, props, state) = seeded(&a, &b).await;
+    create_thread(&mut dom, &props, state, &a.id, "project-a", "thread-on-a", "Alpha chosen");
+    create_thread(&mut dom, &props, state, &b.id, "project-b", "thread-on-b", "Beta chosen");
+    until(&mut dom, "both rows", |dom| control(dom, "Thread Alpha chosen").is_some() && control(dom, "Thread Beta chosen").is_some()).await;
+    let chosen = |dom: &VirtualDom, title: &str| control_attribute(dom, &format!("Thread {title}"), "aria-pressed").and_then(|(_, value)| value).as_deref() == Some("true");
+    // Ctrl or Command, as this machine's click chooses a row, on a row of each environment: neither opens.
+    let mac = crate::keys::platform().is_mac();
+    mouse_control(&mut dom, "Thread Alpha chosen", "click", !mac, mac, false);
+    mouse_control(&mut dom, "Thread Beta chosen", "click", !mac, mac, false);
+    until(&mut dom, "both chosen", |dom| chosen(dom, "Alpha chosen") && chosen(dom, "Beta chosen")).await;
+    assert!(state.peek().active_thread.is_none() && state.peek().destination.as_ref() == Some(&a.id), "choosing opens nothing and moves nothing");
+
+    // The menu is for the whole choice; deleting waits for a choice of one environment.
+    mouse_control(&mut dom, "Thread Beta chosen", "contextmenu", false, false, false);
+    until(&mut dom, "the bulk menu", |dom| control(dom, "Selected threads").is_some()).await;
+    assert_eq!(control_attribute(&dom, "Delete (2)", "disabled").and_then(|(_, value)| value).as_deref(), Some("true"), "a delete is asked of one environment at a time");
+    if control(&dom, "Settle (2)").is_some() {
+        // Settling is written to each thread's own server.
+        click_when_enabled(&mut dom, "Settle (2)").await;
+        let settled = |environment: &EnvironmentId, id: &str| thread_in(state, environment, id).and_then(|thread| serde_json::to_value(thread).ok()).is_some_and(|thread| !thread["settledOverride"].is_null());
+        until(&mut dom, "both settled", |_| settled(&a.id, "thread-on-a") && settled(&b.id, "thread-on-b")).await;
+        until(&mut dom, "the choice ended", |dom| !state.peek().selection.has_selection() && !chosen(dom, "Alpha chosen")).await;
+    }
     drop(dom);
     a.server.stop().await;
     b.server.stop().await;

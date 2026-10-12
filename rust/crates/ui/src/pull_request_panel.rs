@@ -137,8 +137,8 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
                 }
                 let owner = runtime::response_owner(&transport, state);
                 let (detail_answer, checks_answer) = futures_util::future::join(
-                    runtime::request_value_reported(transport.clone(), state, pr::DETAIL, reference.payload(json!({"allowStale":false}))),
-                    runtime::request_value_reported(transport.clone(), state, pr::CHECKS, reference.payload(json!({"allowStale":false}))),
+                    crate::pull_request_routing::request(transport.clone(), state, pr::DETAIL, reference.payload(json!({"allowStale":false}))),
+                    crate::pull_request_routing::request(transport.clone(), state, pr::CHECKS, reference.payload(json!({"allowStale":false}))),
                 )
                 .await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
@@ -198,7 +198,7 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
                 }
                 stack.write().pending = true;
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, crate::pull_request_stack::STACK, reference.payload(json!({}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, crate::pull_request_stack::STACK, reference.payload(json!({}))).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     return;
                 }
@@ -248,7 +248,7 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
                     return;
                 }
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::ACTIVITY, reference.payload(json!({"allowStale":false}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::ACTIVITY, reference.payload(json!({"allowStale":false}))).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     return;
                 }
@@ -279,7 +279,7 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
                 if let Some(method) = method {
                     extra[if action == "update-branch" { "updateMethod" } else { "mergeMethod" }] = json!(method);
                 }
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::RUN_ACTION, reference.payload(extra)).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::RUN_ACTION, reference.payload(extra)).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     acting.set(None);
                     return;
@@ -308,7 +308,7 @@ pub(crate) fn Panel(state: Store<UiModel>, transport: TransportHandle, thread_id
             let (transport, reference) = (transport.clone(), reference.clone());
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
-                let _ = runtime::request_value_reported(transport.clone(), state, pr::INVALIDATE, json!({"reference":reference.payload(json!({}))})).await;
+                let _ = crate::pull_request_routing::request(transport.clone(), state, pr::INVALIDATE, json!({"reference":reference.payload(json!({}))})).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     let next = *refresh_count.peek() + 1;
                     refresh_count.set(next);

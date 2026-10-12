@@ -175,7 +175,7 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
                     return;
                 }
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::FILES_VIEWED, reference.payload(serde_json::json!({}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::FILES_VIEWED, reference.payload(serde_json::json!({}))).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     return;
                 }
@@ -226,7 +226,7 @@ pub(crate) fn Files(state: Store<UiModel>, transport: TransportHandle, reference
             let (transport, reference) = (transport.clone(), reference.clone());
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::SET_FILES_VIEWED, pr::set_viewed_payload(&reference, &path, mark)).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::SET_FILES_VIEWED, pr::set_viewed_payload(&reference, &path, mark)).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     match answer {
                         Ok(_) => viewed_revision += 1,

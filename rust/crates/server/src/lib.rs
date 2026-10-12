@@ -224,8 +224,9 @@ mod preview_browser_host_tests;
 
 pub mod cdp;
 
-#[cfg(test)]
-mod cdp_fake;
+// The scripted DevTools endpoint and the scripted Chrome built on it, for the UI crate's tests of the browser tab.
+#[cfg(any(test, feature = "outbound-check"))]
+pub mod cdp_fake;
 
 #[cfg(test)]
 mod cdp_tests;
@@ -250,8 +251,8 @@ pub mod session_control;
 pub mod server_browser_page;
 pub mod server_browser_input;
 pub mod server_browser_viewer;
-#[cfg(test)]
-mod server_browser_double;
+#[cfg(any(test, feature = "outbound-check"))]
+pub mod server_browser_double;
 pub mod server_browser_contexts;
 pub mod server_browser;
 pub mod server_browser_http;

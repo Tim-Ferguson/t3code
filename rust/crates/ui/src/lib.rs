@@ -48,6 +48,8 @@ mod project_defaults;
 mod project_icon_row;
 mod projects_page;
 mod pull_request_stack;
+mod pull_request_routing;
+mod github_sharing;
 mod thread_pull_requests_panel;
 mod thread_selection;
 mod access_page;
@@ -89,6 +91,7 @@ mod provider_manage;
 mod provider_settings;
 mod rollback;
 mod resource_section;
+mod process_history;
 mod routing;
 mod runtime;
 mod scheduled_tasks_page;
@@ -113,6 +116,9 @@ mod server_update;
 mod source_control_page;
 mod storage_page;
 mod integrations_page;
+mod browser_settings;
+mod folder_browser;
+mod thread_feedback;
 mod subagent_rows;
 mod thread_status_line;
 mod syntax_highlighting;
@@ -559,6 +565,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             access_page::Authorized { state, transport: transport.clone() }
                             ssh_environments::Section { state, transport: transport.clone() }
                             load_balancing::Section { state }
+                            github_sharing::Section { state }
                             saved_connections::List { state, transport: transport.clone(), on_use_address: move |saved_address: String| { address.set(saved_address); token.set(String::new()); credential_kind.set(runtime::default_credential_kind()); } }
                         }
                     },
@@ -642,7 +649,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                         if runtime::request(&transport,state,"projects.mutate",json!({"type":"project.create","commandId":uuid::Uuid::new_v4().to_string(),"projectId":uuid::Uuid::new_v4().to_string(),"title":project_title(),"workspaceRoot":project_path()}),RequestKind::Unary).is_some() { add_project.set(false); }
                     } },
                         label { r#for: "project-title", "Name" } input { id: "project-title", required: true, value: "{project_title}", oninput: move |event|project_title.set(event.value()) }
-                        label { r#for: "project-path", "Project directory on the server" } input { id: "project-path", required: true, placeholder: "/path/to/project", value: "{project_path}", oninput: move |event|project_path.set(event.value()) } {browse_button(&transport, project_title, project_path)}
+                        label { r#for: "project-path", "Project directory on the server" } input { id: "project-path", "aria-label": "Project directory on the server", required: true, placeholder: "/path/to/project", value: "{project_path}", oninput: move |event|project_path.set(event.value()) } {browse_button(&transport, project_title, project_path)} folder_browser::Entries { state, transport: transport.clone(), path: project_path }
                         div { class: "dialog-actions", button { r#type: "button", onclick: move |_|add_project.set(false), "Cancel" } button { class: "primary", r#type: "submit", disabled: !can_operate, "Add project" } }
                     }
                 } }
@@ -805,7 +812,33 @@ pub(crate) fn UserInputCard(
 ) -> Element {
     let answers =
         use_signal(std::collections::BTreeMap::<String, t3_client::requests::DraftAnswer>::new);
-    let ready = t3_client::requests::build_answers(&request.questions, &answers.read()).is_some();
+    // Files attached to an answer (`questionAttachments`): kept as the composer keeps its own, in a draft of their own for each question.
+    let supports_attachments = state.typed_config().read().as_ref().is_some_and(|config| config.environment.capabilities.question_attachments == Some(true));
+    let environment = state.destination().read().as_ref().map(ToString::to_string).unwrap_or_default();
+    let target_of = {
+        let (environment, thread_id, request_id) = (environment.clone(), thread_id.clone(), request.id.clone());
+        move |question: &str| t3_client::draft_storage::DraftTarget::thread(environment.clone(), format!("question:{thread_id}:{request_id}:{question}"))
+    };
+    // What the person has typed and chosen, with what is attached: a question with a file is answered by it, and one whose files are
+    // still uploading (or cannot be sent) holds the answer back.
+    let drafts_with_files = {
+        let (questions, target_of) = (request.questions.clone(), target_of.clone());
+        move || {
+            let mut drafts = answers.read().clone();
+            let all = state.draft_attachments();
+            let attached = all.read();
+            for question in &questions {
+                let id = question["id"].as_str().unwrap_or("");
+                let target = target_of(id);
+                let count = attached.get(&target).map_or(0, Vec::len);
+                let draft = drafts.entry(id.to_owned()).or_default();
+                draft.attachment_count = count;
+                draft.attachments_blocked = count > 0 && (!supports_attachments || attachments::for_send(state, &target).is_err());
+            }
+            drafts
+        }
+    };
+    let ready = t3_client::requests::build_answers(&request.questions, &drafts_with_files()).is_some();
     let can_respond = can_operate && request.response_capability != "not_resumable";
     let questions: Vec<_> = request
         .questions
@@ -817,10 +850,44 @@ pub(crate) fn UserInputCard(
             )
         })
         .collect();
+    let submit = {
+        let (transport, thread_id, id, questions, target_of) = (transport.clone(), thread_id.clone(), request.id.clone(), request.questions.clone(), target_of.clone());
+        move |event: Event<FormData>| {
+            event.prevent_default();
+            let Some(answered) = t3_client::requests::build_answers(&questions, &drafts_with_files()) else { return };
+            let mut command = json!({"threadId":thread_id,"requestId":id,"answers":answered});
+            let (mut by_question, mut claimed) = (serde_json::Map::new(), Vec::new());
+            for question in &questions {
+                let question_id = question["id"].as_str().unwrap_or("");
+                let target = target_of(question_id);
+                match attachments::for_send(state, &target) {
+                    Ok((ids, wire)) if !wire.is_empty() => {
+                        by_question.insert(question_id.to_owned(), json!(wire));
+                        claimed.push((target, ids));
+                    }
+                    Ok(_) => {}
+                    Err(reason) => {
+                        notice::push(state, notice::Level::Error, "Attachments are not ready", reason);
+                        return;
+                    }
+                }
+            }
+            if !by_question.is_empty() {
+                command["attachmentsByQuestionId"] = serde_json::Value::Object(by_question);
+            }
+            if runtime::command(&transport, state, "runtime-request.respond", command).is_some() {
+                // The server claims the uploads with the answer: they leave the drafts but stay stored.
+                for (target, ids) in claimed {
+                    attachments::sent(state, &target, &ids);
+                    draft_storage::acknowledge(state, target);
+                }
+            }
+        }
+    };
     rsx! {
-        form { class:"composer-panel approval-card user-input", onsubmit:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();let questions=request.questions.clone();move |event|{event.prevent_default();if let Some(answers)=t3_client::requests::build_answers(&questions,&answers.peek()){runtime::command(&transport,state,"runtime-request.respond",json!({"threadId":thread_id,"requestId":id,"answers":answers}));}}},
+        form { class:"composer-panel approval-card user-input", "aria-label":"Questions from the agent", onsubmit:submit,
             h3 { "Your input is needed" }
-            for (id,question) in questions { UserQuestion { key:"{id}", question,answers,state,disabled:!can_respond } }
+            for (id,question) in questions { UserQuestion { key:"{id}", target:supports_attachments.then(|| target_of(&id)), question,answers,state,transport:transport.clone(),disabled:!can_respond } }
             div { class:"user-input-actions",
                 button { "aria-label":"Submit answers",class:"primary",r#type:"submit",disabled:!can_respond || !ready,"Submit answers" }
                 if request.dismissible { button { r#type:"button",disabled:!can_operate,onclick:{let transport=transport.clone();let thread_id=thread_id.clone();let id=request.id.clone();move |_|{runtime::command(&transport,state,"thread.user-input.dismiss",json!({"threadId":thread_id,"requestId":id}));}},"Dismiss" } }
@@ -834,6 +901,9 @@ fn UserQuestion(
     question: Value,
     mut answers: Signal<std::collections::BTreeMap<String, t3_client::requests::DraftAnswer>>,
     state: Store<UiModel>,
+    transport: runtime::TransportHandle,
+    /// The draft the files attached to this answer are kept in; none where the server takes no attachments on an answer.
+    target: Option<t3_client::draft_storage::DraftTarget>,
     disabled: bool,
 ) -> Element {
     let id = question["id"].as_str().unwrap_or("").to_owned();
@@ -877,6 +947,12 @@ fn UserQuestion(
                 }
             }
             if question["allowCustomAnswer"]!=false { textarea { "aria-label":"Custom answer",placeholder:"Your answer",value:"{draft.custom}",oninput:{let id=id.clone();move |event|t3_client::requests::set_custom_answer(answers.write().entry(id.clone()).or_default(),event.value())} } }
+            if let Some(target)=target {
+                div { class:"question-files",
+                    attachments::AttachButton { state, transport: transport.clone(), target: target.clone() }
+                    attachments::Shelf { state, transport, target, locked: false, can_operate: !disabled, paste_target: "" }
+                }
+            }
         }
     }
 }

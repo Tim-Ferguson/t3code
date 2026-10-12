@@ -101,7 +101,7 @@ fn Layers(state: Store<UiModel>, transport: TransportHandle, thread_id: String, 
             async move {
                 read.set(Read::Loading);
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, STACK, reference.payload(serde_json::json!({}))).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, STACK, reference.payload(serde_json::json!({}))).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     return;
                 }
@@ -202,7 +202,7 @@ pub(crate) fn Menu(state: Store<UiModel>, transport: TransportHandle, thread_id:
             let transport = transport.clone();
             spawn(async move {
                 let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::RUN_ACTION, input).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::RUN_ACTION, input).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     pending.set(false);
                     return;

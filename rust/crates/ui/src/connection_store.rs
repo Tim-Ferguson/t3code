@@ -16,6 +16,7 @@ use std::{cell::RefCell, rc::Rc};
 use t3_client::{
     catalog::{self, Document, Registration},
     connection::EnvironmentEndpoint,
+    github_routing,
 };
 use t3_contracts::EnvironmentId;
 
@@ -115,6 +116,11 @@ impl Saved {
     /// The token of a saved direct route, taken at the moment a connection uses it.
     pub(crate) fn token(&self, connection_id: &str) -> Option<String> {
         self.0.borrow().document.token(connection_id).map(str::to_owned)
+    }
+    /// What this client has granted other machines of each environment's GitHub access (`githubRoutingPermissions` of the document).
+    pub(crate) fn github_grants(&self) -> Vec<github_routing::Stored> {
+        let inner = self.0.borrow();
+        inner.document.github_routing_permissions.iter().flatten().filter_map(|grant| serde_json::from_value(grant.clone()).ok()).collect()
     }
     fn write(&self) -> Result<(), String> {
         let inner = self.0.borrow();
@@ -259,6 +265,62 @@ pub(crate) fn set_enabled(state: Store<UiModel>, environment: &EnvironmentId, en
         report(state, "The saved connection was not changed", &cause);
     }
     bump(state);
+}
+
+// ---- GitHub sharing --------------------------------------------------------------------------------------------------------------
+
+/// The endpoints an environment's trust is tied to: its saved routes (the ones the person paired, not those a server reported), or for
+/// an environment the app only knows from where it was opened, that address.
+fn github_endpoints(state: Store<UiModel>, environment: &EnvironmentId) -> Vec<github_routing::Endpoint> {
+    let model = state.peek();
+    let Some(entry) = model.saved.entry(environment) else {
+        return model
+            .environments
+            .records
+            .get(environment)
+            .map(|record| github_routing::Endpoint::Primary { environment: environment.to_string(), http_base_url: record.address.clone(), ws_base_url: github_routing::ws_base_of(&record.address) })
+            .into_iter()
+            .collect();
+    };
+    entry
+        .routes
+        .iter()
+        .filter(|route| !route.learned())
+        .filter_map(|route| {
+            let environment = environment.to_string();
+            Some(match (&route.target, &route.profile) {
+                (catalog::Target::Relay { .. }, _) => github_routing::Endpoint::Relay { environment },
+                (catalog::Target::Bearer { .. }, Some(catalog::Profile::Bearer { http_base_url, ws_base_url, .. })) => github_routing::Endpoint::Bearer { environment, http_base_url: http_base_url.clone(), ws_base_url: ws_base_url.clone() },
+                (catalog::Target::Ssh { .. }, Some(catalog::Profile::Ssh { target, .. })) => github_routing::Endpoint::Ssh { environment, alias: target.alias.clone(), hostname: target.hostname.clone(), username: target.username.clone(), port: target.port },
+                // A route without its profile cannot be told from another, so it earns no trust.
+                _ => return None,
+            })
+        })
+        .collect()
+}
+
+/// The key the environment's grant is stored under; none while it has no endpoint to be tied to.
+pub(crate) fn github_key(state: Store<UiModel>, environment: &EnvironmentId) -> Option<String> {
+    github_routing::connection_key(&github_endpoints(state, environment))
+}
+
+/// What other machines may use of this environment's GitHub access, as this client has granted it (`gitHubRoutingPermissionFor`).
+pub(crate) fn github_permission(state: Store<UiModel>, environment: &EnvironmentId) -> github_routing::Permission {
+    github_routing::permission_for(github_key(state, environment).as_deref(), &state.peek().saved.github_grants())
+}
+
+/// Grants or withdraws an environment's GitHub access. Nothing changes when the grant cannot be kept.
+pub(crate) fn set_github_permission(state: Store<UiModel>, environment: &EnvironmentId, permission: github_routing::Permission) -> Result<(), String> {
+    let key = github_key(state, environment).ok_or("This environment does not have a saved connection endpoint.")?;
+    let saved = state.peek().saved.clone();
+    let next = github_routing::with_permission(&saved.github_grants(), environment.as_str(), &key, permission);
+    let previous = std::mem::replace(&mut saved.0.borrow_mut().document.github_routing_permissions, Some(next.iter().filter_map(|grant| serde_json::to_value(grant).ok()).collect()));
+    if let Err(cause) = saved.write() {
+        saved.0.borrow_mut().document.github_routing_permissions = previous;
+        return Err(cause);
+    }
+    bump(state);
+    Ok(())
 }
 
 /// Connects every saved environment that is switched on and has a direct route and its token, each in the background: the window

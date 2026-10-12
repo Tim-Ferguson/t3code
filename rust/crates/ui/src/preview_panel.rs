@@ -218,8 +218,20 @@ fn open_defaults(state: Store<UiModel>) -> (Value, String) {
 pub(crate) async fn open_session(transport: TransportHandle, state: Store<UiModel>, environment: String, thread_id: String, url: Option<String>) -> Result<PreviewSessionSnapshot, String> {
     let (viewport, profile) = open_defaults(state);
     let input = logic::open_input(&thread_id, url.as_deref(), viewport, &profile);
-    let value = runtime::request_value_reported(transport, state, "preview.open", input).await?;
-    let snapshot: PreviewSessionSnapshot = serde_json::from_value(value).map_err(|error| format!("Invalid preview session: {error}"))?;
+    let value = runtime::request_value_reported(transport.clone(), state, "preview.open", input).await?;
+    let mut snapshot: PreviewSessionSnapshot = serde_json::from_value(value).map_err(|error| format!("Invalid preview session: {error}"))?;
+    // The tab starts at the person's default zoom and appearance (`browserDefaultTabState`); a tab that cannot take them keeps its own.
+    let (zoom, appearance) = {
+        let field = state.client_settings();
+        let settings = field.peek();
+        (settings.browser_default_zoom_factor.0, serde_json::to_value(settings.browser_default_appearance).ok().and_then(|value| value.as_str().map(str::to_owned)).unwrap_or_default())
+    };
+    if let Some(change) = logic::default_tab_change(zoom, &appearance) {
+        let input = logic::adjust_input(&thread_id, snapshot.tab_id.as_str(), change);
+        if let Some(adjusted) = runtime::request_value_reported(transport.clone(), state, "preview.adjust", input).await.ok().and_then(|value| serde_json::from_value(value).ok()) {
+            snapshot = adjusted;
+        }
+    }
     let key = right_panel::key_of(&environment, Some(&thread_id));
     edit_thread(state, &key, |sessions| {
         sessions.apply_snapshot(&snapshot);
@@ -955,7 +967,7 @@ fn Browser(state: Store<UiModel>, transport: TransportHandle, environment_key: S
                     Viewer { key: "{tab}", state, transport: transport.clone(), environment_key: environment_key.clone(), thread_id: thread_id.clone(), tab: tab.clone(), view, link: link.clone(), hidden: empty || failed.is_some(), retry }
                 }
                 if empty {
-                    EmptyState { recents: sessions.recent_urls.clone(), on_open: move |url: String| go.call(url), on_forget: { let key = key.clone(); move |url: String| edit_thread(state, &key, |sessions| sessions.recent_urls.retain(|entry| *entry != url)) } }
+                    EmptyState { state, transport: transport.clone(), recents: sessions.recent_urls.clone(), on_open: move |url: String| go.call(url), on_forget: { let key = key.clone(); move |url: String| edit_thread(state, &key, |sessions| sessions.recent_urls.retain(|entry| *entry != url)) } }
                 }
                 if let Some((url, code, description)) = failed {
                     Unreachable { url, code, description, on_reload: { let link = link.clone(); move |_| { link.send(logic::input::reload(false)); } } }
@@ -965,23 +977,63 @@ fn Browser(state: Store<UiModel>, transport: TransportHandle, environment_key: S
     }
 }
 
-/// `PreviewEmptyState`: the addresses used before, or a line that says what to do.
+/// `PreviewEmptyState`: the addresses used before and the servers listening on the environment's own machine
+/// (`subscribeDiscoveredLocalServers`, `useDiscoveredLocalServers`), or a line that says what to do.
 #[component]
-fn EmptyState(recents: Vec<String>, on_open: EventHandler<String>, on_forget: EventHandler<String>) -> Element {
+fn EmptyState(state: Store<UiModel>, transport: TransportHandle, recents: Vec<String>, on_open: EventHandler<String>, on_forget: EventHandler<String>) -> Element {
     let recents: Vec<String> = recents.into_iter().filter(|url| url::Url::parse(url).is_ok()).take(8).collect();
-    if recents.is_empty() {
+    let mut servers = use_signal(Vec::<Value>::new);
+    // The environment says which servers are up, and again when that changes; the list ends with the tab's empty state.
+    use_resource({
+        let transport = transport.clone();
+        move || {
+            let transport = transport.clone();
+            async move {
+                let owner = runtime::response_owner(&transport, state);
+                let Ok(mut stream) = runtime::request_stream_reported(&transport, state, "subscribeDiscoveredLocalServers", json!({})) else { return };
+                while let Some(chunk) = stream.next().await {
+                    if owner.is_none() || owner != runtime::response_owner(&transport, state) {
+                        return;
+                    }
+                    let Ok(values) = chunk else { return };
+                    if let Some(latest) = values.into_iter().last() {
+                        servers.set(logic::previewable_servers(&latest));
+                    }
+                }
+            }
+        }
+    });
+    let live = servers.read().clone();
+    if recents.is_empty() && live.is_empty() {
         return rsx! { div { class: "preview-empty", h3 { "No preview yet" } p { class: "muted", "Type a URL above, or run a dev script. Browser-ready localhost servers will show up here automatically." } } };
     }
     rsx! {
         div { class: "preview-empty",
-            h3 { "Recently used" }
-            div { class: "preview-recents", role: "list",
-                for url in recents {
-                    div { key: "{url}", class: "preview-recent", role: "listitem",
-                        button { r#type: "button", "aria-label": "Open {url}", onclick: { let url = url.clone(); move |_| on_open.call(url.clone()) }, "{url}" }
-                        button { r#type: "button", "aria-label": "Forget {url}", title: "Remove from recent addresses", onclick: { let url = url.clone(); move |_| on_forget.call(url.clone()) }, "\u{00d7}" }
+            if !recents.is_empty() {
+                h3 { "Recently used" }
+                div { class: "preview-recents", role: "list",
+                    for url in recents {
+                        div { key: "{url}", class: "preview-recent", role: "listitem",
+                            button { r#type: "button", "aria-label": "Open {url}", onclick: { let url = url.clone(); move |_| on_open.call(url.clone()) }, "{url}" }
+                            button { r#type: "button", "aria-label": "Forget {url}", title: "Remove from recent addresses", onclick: { let url = url.clone(); move |_| on_forget.call(url.clone()) }, "\u{00d7}" }
+                        }
                     }
                 }
+            }
+            if !live.is_empty() {
+                h3 { "Local servers" }
+                div { class: "preview-recents", role: "list", "aria-label": "Local servers",
+                    for server in live {
+                        {
+                            let (host, port, url) = (server["host"].as_str().unwrap_or_default().to_owned(), server["port"].as_u64().unwrap_or(0), server["url"].as_str().unwrap_or_default().to_owned());
+                            let title = server["processName"].as_str().unwrap_or("Listening").to_owned();
+                            rsx! { div { key: "{host}:{port}", class: "preview-recent", role: "listitem",
+                                button { r#type: "button", "aria-label": "Open {host}:{port}", title: "{url}", onclick: { let url = url.clone(); move |_| on_open.call(url.clone()) }, "{title} " span { class: "muted", "{host}:{port}" } }
+                            } }
+                        }
+                    }
+                }
+                p { class: "muted", "Select a live local server to open it in this browser tab." }
             }
         }
     }

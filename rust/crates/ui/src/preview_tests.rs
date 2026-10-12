@@ -1,8 +1,8 @@
 //! The browser tab through the mounted UI and the real native server: the Browser row, the session list and its events, the stream the
 //! viewer connects to (over a socket with a real ticket), taking and releasing control, the address bar, the menu, dialogs, downloads and
 //! the page's file picker, closing and reopening, and what the tab says when the host cannot run a browser. The server's browser is a
-//! double that plays a page (the fake CDP endpoint of the server crate's own tests is not reachable from this crate); everything else
-//! on the server is the real thing. The script in the page (`preview_surface_abi.js`) is stood in for by a task that speaks the same
+//! double that plays a page (`preview_real_tests` runs the same panel against the real `ServerBrowser` on the scripted Chrome); everything
+//! else on the server is the real thing. The script in the page (`preview_surface_abi.js`) is stood in for by a task that speaks the same
 //! protocol to the same socket (`driver`): it holds the socket, acks frames and forwards what the server says, and the UI decides.
 use super::diff_tests::{Fixture, open_thread, rendered_text, seed, until};
 use super::*;
@@ -573,3 +573,6 @@ async fn the_browser_key_says_so_where_the_environment_hosts_none() {
     assert!(rendered_text(&dom).contains("Open T3 Code in the desktop app to use the in-app preview."));
     fixture.finish(dom).await;
 }
+
+#[path = "preview_real_tests.rs"]
+mod real;

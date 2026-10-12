@@ -128,7 +128,7 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
                     return;
                 }
                 let owner = runtime::response_owner(&transport, state);
-                let result = runtime::request_value_reported(transport.clone(), state, kind.read(), reference.payload(json!({}))).await;
+                let result = crate::pull_request_routing::request(transport.clone(), state, kind.read(), reference.payload(json!({}))).await;
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) || !*open.peek() {
                     return;
                 }
@@ -161,7 +161,7 @@ pub(crate) fn Picker(state: Store<UiModel>, transport: TransportHandle, referenc
                     Kind::Reviewers => "pullRequests.requestReviewers",
                     Kind::Labels => "pullRequests.setLabels",
                 };
-                let result = runtime::request_value_reported(transport.clone(), state, method, reference.payload(extra)).await;
+                let result = crate::pull_request_routing::request(transport.clone(), state, method, reference.payload(extra)).await;
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) {
                     match result {
                         Ok(_) => {

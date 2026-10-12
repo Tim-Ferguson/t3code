@@ -42,6 +42,7 @@ function usage(message) {
   --no-seed   start the server and the projects but create no conversations
   --no-github-api  do not start the fake GitHub API process
   --no-sandbox     do not wrap the server in the macOS sandbox profile (loopback-only network, no editor launches)
+  --server-browser  switch the server's own browser on (T3CODE_RUST_SERVER_BROWSER), so the Browser tab is offered; it has no Chrome to start here
   --hook      pass --fixture to the server and point it at the fake GitHub API (README, "Server hooks")
   --with-grok enable the fake Grok and seed two Grok threads`);
   process.exit(2);
@@ -69,6 +70,7 @@ function parse(argv) {
     else if (arg === "--with-grok") options.grok = true;
     else if (arg === "--no-sandbox") options.sandbox = false;
     else if (arg === "--hook") options.hook = true;
+    else if (arg === "--server-browser") options.serverBrowser = true;
     else if (arg === "--help" || arg === "-h") usage();
     else usage(`unknown argument ${arg}`);
   }
@@ -250,6 +252,7 @@ export async function main(argv) {
   // The server refuses the variable without --fixture, so it is set only with the hook.
   const env = serverEnvironment(paths, {
     githubApiOrigin: options.hook ? githubApi?.origin : undefined,
+    serverBrowser: options.serverBrowser === true,
   });
   const origin = `http://127.0.0.1:${options.port}`;
   const child = launchServer({

@@ -64,7 +64,7 @@ pub(crate) fn provide(state: Store<UiModel>, transport: TransportHandle, referen
         spawn(async move {
             let release = Release(saving);
             let owner = runtime::response_owner(&transport, state);
-            let answer = runtime::request_value_reported(transport.clone(), state, method, reference.payload(input)).await;
+            let answer = crate::pull_request_routing::request(transport.clone(), state, method, reference.payload(input)).await;
             if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                 return;
             }
@@ -221,7 +221,7 @@ pub(crate) fn Reactions(state: Store<UiModel>, transport: TransportHandle, refer
                 if let Some(subject) = &subject {
                     input["subjectId"] = json!(subject);
                 }
-                let answer = runtime::request_value_reported(transport.clone(), state, pr::SET_REACTION, reference.payload(input)).await;
+                let answer = crate::pull_request_routing::request(transport.clone(), state, pr::SET_REACTION, reference.payload(input)).await;
                 in_flight.write().remove(&content);
                 if owner.is_none() || owner != runtime::response_owner(&transport, state) {
                     return;

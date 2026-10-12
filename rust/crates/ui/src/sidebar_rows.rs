@@ -379,16 +379,16 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
             } else {
             button {key:"{view.id}",class:"{class}","aria-label":"Thread {view.title}","data-thread-status":"{status}","aria-busy":"{busy()}","aria-current":if view.selected {"true"} else {"false"},
                 "aria-pressed":if view.chosen {"true"} else {"false"},
-                onclick:{let transport=transport.clone();let id=id.clone();let environment=view.environment.clone();let here=view.here;move |event| {
-                    if crate::thread_selection::click(state,&id,here,event.modifiers()) {return;}
+                onclick:{let transport=transport.clone();let id=id.clone();let environment=view.environment.clone();move |event| {
+                    if crate::thread_selection::click(state,&environment,&id,event.modifiers()) {return;}
                     runtime::select_thread_in(&transport,state,&environment,id.clone());
                 }},
                 onmounted:move |event| row.set(Some(event.data())),
-                oncontextmenu:{let id=id.clone();let open_menu=open_menu.clone();let transport=transport.clone();let view_here=view.here;move |event| {
+                oncontextmenu:{let id=id.clone();let open_menu=open_menu.clone();let transport=transport.clone();let environment=view.environment.clone();move |event| {
                     event.prevent_default();
                     let at=event.client_coordinates();
                     // On a chosen row the menu is for all the chosen rows.
-                    if view_here && state.selection().peek().contains(&id) && crate::thread_selection::open_menu(state,&transport,(at.x,at.y)) {return;}
+                    if state.selection().peek().contains(&crate::fleet::key(&environment,&id)) && crate::thread_selection::open_menu(state,&transport,(at.x,at.y)) {return;}
                     open_menu(Some((at.x,at.y)));
                 }},
                 // From the keyboard the menu opens under the row.

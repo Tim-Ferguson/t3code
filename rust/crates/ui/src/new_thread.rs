@@ -52,8 +52,11 @@ fn HostPicker(state: Store<UiModel>, transport: runtime::TransportHandle, projec
     let open = state.destination().read().clone();
     let lock = draft_target.as_ref().and_then(|target| host_lock(state, target, sending));
     let current = open.as_ref().map(ToString::to_string).unwrap_or_default();
-    // "Auto balance" is offered while the person has turned load balancing on.
+    // "Auto balance" is offered while the person has turned load balancing on, and stays the choice once it has picked a machine.
     let balancing = state.client_settings().read().load_balancing_enabled;
+    let automatic = crate::load_balancing::is_automatic(state);
+    let phase = state.auto_balance().read().phase;
+    let current = if automatic { "auto".to_owned() } else { current };
     rsx! {
         label { "Run on"
             select { "aria-label": "Run on", id: "new-thread-host", value: "{current}", disabled: lock.is_some(), title: lock.unwrap_or_default(),
@@ -65,8 +68,8 @@ fn HostPicker(state: Store<UiModel>, transport: runtime::TransportHandle, projec
                         retarget(&transport, state, host);
                     }
                 } },
-                if balancing { option { value: "auto", selected: false, "Auto balance" } }
-                for host in hosts.iter() { option { key: "{host.environment}", value: "{host.environment}", selected: Some(&host.environment) == open.as_ref(), "{host.label}" } }
+                if balancing { option { value: "auto", selected: automatic, "{crate::load_balancing::auto_label(phase)}" } }
+                for host in hosts.iter() { option { key: "{host.environment}", value: "{host.environment}", selected: !automatic && Some(&host.environment) == open.as_ref(), "{host.label}" } }
             }
         }
         if let Some(reason) = lock { p { class: "muted", role: "status", "{reason}" } }
@@ -197,6 +200,9 @@ fn host_lock(state: Store<UiModel>, target: &t3_client::draft_storage::DraftTarg
 /// (the message and the chips), in the project of the same group. The model, permissions and workspace are that machine's own
 /// to choose again. The draft left behind goes with the move.
 pub(crate) fn retarget(transport: &runtime::TransportHandle, state: Store<UiModel>, host: &Host) {
+    // A machine chosen by hand (the picker, `composer.host`, `composer.cycleHost`) is a manual choice, wherever the form was; "Auto balance"
+    // says it is automatic again once it has picked.
+    crate::load_balancing::forget_automatic(state);
     let (Some(from_environment), Some(from_draft)) = (state.destination().peek().clone(), state.active_draft().peek().clone()) else { return };
     if from_environment == host.environment {
         return;

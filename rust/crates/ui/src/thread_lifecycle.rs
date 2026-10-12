@@ -17,7 +17,7 @@ use dioxus::prelude::*;
 use serde_json::{Value, json};
 use std::cell::RefCell;
 use t3_client::{connection::ConnectionStatus, lifecycle as words};
-use t3_contracts::{AuthEnvironmentScope, ThreadShell};
+use t3_contracts::{AuthEnvironmentScope, EnvironmentId, ThreadShell};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Project {
@@ -358,7 +358,9 @@ fn delete_many(state: Store<UiModel>, transport: &TransportHandle, ids: Vec<Stri
         }
         let leave = looking_at.filter(|thread| deleted.contains(thread.id.as_str()));
         let remove = t3_client::thread_selection::deselect_after_delete(&selected, &deleted, |id| thread_of(state, id).is_some_and(|thread| thread.deleted_at.is_none()));
-        state.selection().write().remove(&remove);
+        let destination = state.destination().peek().clone();
+        let keys: Vec<String> = destination.iter().flat_map(|environment| remove.iter().map(|id| crate::fleet::key(environment, id))).collect();
+        state.selection().write().remove(&keys);
         // The thread being looked at is gone: the view goes to a new thread of its project.
         if let Some(thread) = leave {
             leave_if_open(state, &transport, &thread);
@@ -598,34 +600,64 @@ async fn archived_menu(state: Store<UiModel>, transport: TransportHandle, id: St
     }
 }
 
-/// The Archived threads settings page (`/settings/archived`, `ArchivedThreadsPanel`): every project's archived threads in one
-/// list, each with the way back and the way out. Read when the page opens and again when a thread comes or goes.
+/// One archived thread, and the environment that holds it.
+#[derive(Clone, PartialEq)]
+struct ArchivedEntry {
+    environment: EnvironmentId,
+    project: String,
+    id: String,
+    title: String,
+    at: String,
+}
+
+/// The Archived threads settings page (`/settings/archived`, `ArchivedThreadsPanel`): every project's archived threads of every
+/// connected environment in one list, each with the way back and the way out. Read when the page opens and again when a thread
+/// comes or goes; an environment that cannot answer is named, and the others are still listed.
 #[component]
 pub(crate) fn ArchivedPage(state: Store<UiModel>, transport: TransportHandle) -> Element {
-    let mut list = use_signal(|| None::<Result<Vec<(String, String, String, String)>, String>>);
-    let readable = use_memo(move || *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationRead)));
-    let allowed = *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationOperate));
-    let titles: std::collections::BTreeMap<String, String> = state.shell().read().snapshot.as_ref().map(|snapshot| snapshot.projects.iter().map(|project| (project.id.to_string(), project.title.to_string())).collect()).unwrap_or_default();
+    let mut list = use_signal(|| None::<(Vec<ArchivedEntry>, Vec<(EnvironmentId, String)>)>);
+    // The environments that can be read, in the order of their ids: the window's and every connected one's.
+    let readable = use_memo(move || {
+        let _ = (state.status().read(), state.live().read(), state.environments().read());
+        let mut environments: Vec<EnvironmentId> = state.environments().peek().records.keys().filter(|environment| crate::fleet::allows(state, environment, AuthEnvironmentScope::OrchestrationRead)).cloned().collect();
+        environments.sort();
+        environments
+    });
+    let operable = |environment: &EnvironmentId| crate::fleet::allows(state, environment, AuthEnvironmentScope::OrchestrationOperate);
+    let titles: std::collections::BTreeMap<(EnvironmentId, String), String> = crate::fleet::read(state, |shells| shells.iter().flat_map(|shell| shell.snapshot.projects.iter().map(|project| ((shell.environment.clone(), project.id.to_string()), project.title.to_string()))).collect());
+    let several = readable.read().len() > 1;
     {
         let transport = transport.clone();
         use_resource(move || {
             // Read here, in the part that runs again when it changes: a thread coming back or going reads the list again.
-            let (transport, wanted, _revision) = (transport.clone(), readable(), state.lifecycle().read().archive_revision);
+            let (transport, environments, _revision) = (transport.clone(), readable.read().clone(), state.lifecycle().read().archive_revision);
             async move {
-                if !wanted {
+                if environments.is_empty() {
                     return;
                 }
-                let owner = runtime::response_owner(&transport, state);
-                let answer = runtime::request_value_reported(transport.clone(), state, "orchestration.getArchivedShellSnapshot", json!({})).await;
-                if owner.is_none() || owner != runtime::response_owner(&transport, state) {
-                    return;
+                let asks = environments.iter().map(|environment| {
+                    let link = crate::fleet::link(&transport, environment);
+                    let owner = runtime::response_owner(&link, state);
+                    async move {
+                        let answer = runtime::request_value_reported(link.clone(), state, "orchestration.getArchivedShellSnapshot", json!({})).await;
+                        // The connection that was asked has gone: its answer is not shown.
+                        (owner.is_some() && owner == runtime::response_owner(&link, state)).then_some(answer)
+                    }
+                });
+                let answers = futures_util::future::join_all(asks).await;
+                let (mut threads, mut failures) = (Vec::new(), Vec::new());
+                for (environment, answer) in environments.iter().zip(answers) {
+                    match answer {
+                        Some(Ok(snapshot)) => threads.extend(snapshot["threads"].as_array().into_iter().flatten().filter(|thread| thread["deletedAt"].is_null()).filter_map(|thread| {
+                            Some(ArchivedEntry { environment: environment.clone(), project: thread["projectId"].as_str()?.to_owned(), id: thread["id"].as_str()?.to_owned(), title: thread["title"].as_str()?.to_owned(), at: thread["archivedAt"].as_str().unwrap_or_default().to_owned() })
+                        })),
+                        Some(Err(message)) => failures.push((environment.clone(), message)),
+                        None => {}
+                    }
                 }
-                list.set(Some(answer.map(|snapshot| {
-                    let mut threads: Vec<(String, String, String, String)> = snapshot["threads"].as_array().into_iter().flatten().filter(|thread| thread["deletedAt"].is_null()).filter_map(|thread| Some((thread["projectId"].as_str()?.to_owned(), thread["id"].as_str()?.to_owned(), thread["title"].as_str()?.to_owned(), thread["archivedAt"].as_str().unwrap_or_default().to_owned()))).collect();
-                    // Newest archive first within a project, as the original lists them.
-                    threads.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| b.3.cmp(&a.3)));
-                    threads
-                })));
+                // By environment and project, newest archive first within a project, as the original lists them.
+                threads.sort_by(|a, b| a.environment.cmp(&b.environment).then_with(|| a.project.cmp(&b.project)).then_with(|| b.at.cmp(&a.at)));
+                list.set(Some((threads, failures)));
             }
         });
     }
@@ -633,27 +665,35 @@ pub(crate) fn ArchivedPage(state: Store<UiModel>, transport: TransportHandle) ->
         section { class: "settings-page", crate::settings_common::Tabs { state, current: View::Archived }
             h1 { "Archived threads" }
             p { class: "muted", "Threads you archived stay here until you bring them back or delete them." }
-            if !readable() { p { class: "muted", role: "status", "Connect an environment to see its archived threads." } }
+            if readable.read().is_empty() { p { class: "muted", role: "status", "Connect an environment to see its archived threads." } }
             else {
                 match list.read().clone() {
                     None => rsx! { p { class: "muted", role: "status", "Loading archived threads\u{2026}" } },
-                    Some(Err(message)) => rsx! { p { class: "error-banner", role: "alert", "{message}" } },
-                    Some(Ok(threads)) if threads.is_empty() => rsx! { p { class: "muted", "No archived threads yet." } },
-                    Some(Ok(threads)) => {
-                        let mut projects: Vec<String> = threads.iter().map(|thread| thread.0.clone()).collect();
-                        projects.dedup();
+                    Some((threads, failures)) => {
+                        let mut groups: Vec<(EnvironmentId, String)> = threads.iter().map(|thread| (thread.environment.clone(), thread.project.clone())).collect();
+                        groups.dedup();
                         rsx! {
-                            for project in projects {
-                                section { key: "{project}", class: "sc-section", "aria-label": "Archived in {titles.get(&project).cloned().unwrap_or_else(|| project.clone())}",
-                                    h2 { "{titles.get(&project).cloned().unwrap_or_else(|| project.clone())}" }
-                                    for (_, id, title, archived_at) in threads.iter().filter(|thread| thread.0 == project).cloned() {
-                                        div { key: "{id}", class: "thread-line",
-                                            button { class: "thread-row", onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| { state.view().set(View::Chat); runtime::select_thread(&transport, state, id.clone()) } }, span { class: "thread-title", "{title}" } }
-                                            span { class: "muted", "Archived {relative_archive(&archived_at)}" }
-                                            button { "aria-label": "Unarchive {title}", disabled: !allowed, onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| unarchive(state, &transport, &id) }, "Unarchive" }
-                                            button { "aria-label": "Delete {title}", disabled: !allowed, onclick: { let (transport, id) = (transport.clone(), id.clone()); move |_| request_delete(state, &transport, &id) }, "Delete" }
+                            for (environment, message) in failures { p { key: "{environment}", class: "error-banner", role: "alert", if several { "{crate::fleet::label(state, &environment)}: " } "{message}" } }
+                            if threads.is_empty() { p { class: "muted", "No archived threads yet." } }
+                            for (environment, project) in groups {
+                                {
+                                    let name = titles.get(&(environment.clone(), project.clone())).cloned().unwrap_or_else(|| project.clone());
+                                    let machine = if several { format!(" on {}", crate::fleet::label(state, &environment)) } else { String::new() };
+                                    let allowed = operable(&environment);
+                                    rsx! { section { key: "{environment}:{project}", class: "sc-section", "aria-label": "Archived in {name}{machine}",
+                                        h2 { "{name}" if several { span { class: "muted", "{machine}" } } }
+                                        for thread in threads.iter().filter(|thread| thread.environment == environment && thread.project == project).cloned() {
+                                            {
+                                                let (id, title, at) = (thread.id.clone(), thread.title.clone(), thread.at.clone());
+                                                rsx! { div { key: "{id}", class: "thread-line",
+                                                    button { class: "thread-row", onclick: { let (transport, environment, id) = (transport.clone(), environment.clone(), id.clone()); move |_| { state.view().set(View::Chat); runtime::select_thread_in(&transport, state, &environment, id.clone()); } }, span { class: "thread-title", "{title}" } }
+                                                    span { class: "muted", "Archived {relative_archive(&at)}" }
+                                                    button { "aria-label": "Unarchive {title}", disabled: !allowed, onclick: { let (transport, environment, id) = (transport.clone(), environment.clone(), id.clone()); move |_| unarchive_in(state, &transport, &environment, &id) }, "Unarchive" }
+                                                    button { "aria-label": "Delete {title}", disabled: !allowed, onclick: { let (transport, environment, id) = (transport.clone(), environment.clone(), id.clone()); move |_| { if crate::fleet::open(&transport, state, &environment) { request_delete(state, &transport, &id); } } }, "Delete" }
+                                                } }
+                                            }
                                         }
-                                    }
+                                    } }
                                 }
                             }
                         }
@@ -662,6 +702,25 @@ pub(crate) fn ArchivedPage(state: Store<UiModel>, transport: TransportHandle) ->
             }
         }
     }
+}
+
+/// Brings an archived thread of any environment back, on that environment's own connection.
+fn unarchive_in(state: Store<UiModel>, transport: &TransportHandle, environment: &EnvironmentId, id: &str) {
+    if !crate::fleet::allows(state, environment, AuthEnvironmentScope::OrchestrationOperate) {
+        return;
+    }
+    let (link, id) = (crate::fleet::link(transport, environment), id.to_owned());
+    dioxus::dioxus_core::spawn_forever(async move {
+        let owner = runtime::response_owner(&link, state);
+        let answer = dispatch(&link, state, "thread.unarchive", json!({"threadId":id})).await;
+        if owner.is_none() || owner != runtime::response_owner(&link, state) {
+            return;
+        }
+        match answer {
+            Ok(_) => state.lifecycle().write().archive_revision += 1,
+            Err(reason) => notice::push(state, Level::Error, "Failed to undo archive", reason),
+        }
+    });
 }
 fn relative_archive(at: &str) -> String {
     chrono::DateTime::parse_from_rfc3339(at).map(|at| t3_client::thread_status::ago_label(at.with_timezone(&chrono::Utc), chrono::Utc::now())).unwrap_or_default()

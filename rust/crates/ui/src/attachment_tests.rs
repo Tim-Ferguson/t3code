@@ -205,9 +205,12 @@ fn png(width: u32, height: u32) -> Vec<u8> {
     bytes
 }
 fn pick(dom: &mut VirtualDom, label: &str, files: Vec<(&str, &str, Vec<u8>)>) {
+    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
+    pick_in(dom, element, files);
+}
+fn pick_in(dom: &mut VirtualDom, element: dioxus::dioxus_core::ElementId, files: Vec<(&str, &str, Vec<u8>)>) {
     use dioxus_html::{SerializedFileData, SerializedFormData, SerializedFormObject};
     dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
-    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing control {label}"));
     let values = files
         .into_iter()
         .map(|(name, mime, bytes)| SerializedFormObject {
@@ -643,6 +646,14 @@ async fn long_pasted_text_becomes_a_file_named_for_the_paste_and_short_text_does
     fixture.finish(dom).await;
 }
 
+fn submit_form(dom: &mut VirtualDom, label: &str) {
+    dioxus_html::set_event_converter(Box::new(dioxus_html::SerializedHtmlEventConverter));
+    let (element, _) = control(dom, label).unwrap_or_else(|| panic!("missing form {label}"));
+    let data = dioxus_html::SerializedFormData::new(String::new(), vec![]);
+    dom.runtime().handle_event("submit", dioxus::dioxus_core::Event::new(Rc::new(dioxus_html::PlatformEventData::new(Box::new(data))) as Rc<dyn std::any::Any>, true), element);
+    dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
+}
+
 /// Changes what the connected environment advertises, as another server (or a reconnect to an older one) would.
 fn advertise(state: Store<UiModel>, change: impl FnOnce(&mut t3_contracts::ExecutionEnvironmentCapabilities)) {
     let mut field = state.typed_config();
@@ -677,5 +688,81 @@ async fn the_advertised_upload_limit_and_capability_decide_what_the_composer_tak
     });
     assert_eq!(state.attachment_error().peek().as_ref().unwrap().1, "This server does not support attachments.");
     assert_eq!(attachments(state, &draft).len(), 1, "the file already staged stays until it is removed");
+    fixture.finish(dom).await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn a_file_attached_to_an_answer_goes_with_it_and_is_listed_with_the_question_afterwards() {
+    use crate::runtime::transport_tests::all_controls;
+    let fixture = Fixture::start().await;
+    let (mut dom, props) = fixture.operator();
+    let state = seed(&mut dom, &props, fixture.directory.path()).await;
+    open(&mut dom, &props, state, "thread-a").await;
+    until(&mut dom, "the configuration", |_| state.peek().typed_config.is_some()).await;
+    input_control(&mut dom, "Message", "Ask me [question]");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the question", |dom| control(dom, "Submit answers").is_some()).await;
+    let request = state.peek().thread.projection.as_ref().unwrap()["runtimeRequests"][0]["id"].as_str().unwrap().to_owned();
+    let question = DraftTarget::thread(state.peek().destination.as_ref().unwrap().to_string(), format!("question:thread-a:{request}:choice"));
+
+    // Choosing is not enough while a file is on its way: the answer waits for it, then goes with it.
+    let before = all_controls(&dom, "Attach files").len();
+    let element = *all_controls(&dom, "Attach files").first().expect("the question's own picker");
+    pick_in(&mut dom, element, vec![("spec.txt", "text/plain", b"the spec".to_vec())]);
+    assert!(control(&dom, "Remove spec.txt").is_some());
+    click_control(&mut dom, "One");
+    until(&mut dom, "the upload", |_| all_ready(state, &question, 1)).await;
+    assert!(attachments(state, &DraftTarget::thread(question.environment.clone(), "thread-a")).is_empty(), "the composer's draft has none of it");
+    assert_eq!(control(&dom, "Submit answers").map(|_| ()), Some(()));
+    until(&mut dom, "enabled", |dom| crate::runtime::transport_tests::control_attribute(dom, "Submit answers", "disabled").and_then(|(_, value)| value).as_deref() == Some("false")).await;
+    submit_form(&mut dom, "Questions from the agent");
+    until(&mut dom, "the answer", |_| {
+        if let Some(error) = state.error().peek().as_ref() { panic!("DEBUG error {error}"); }
+        state.peek().thread.projection.as_ref().is_some_and(|projection| projection.to_string().contains("attachmentsByQuestionId"))
+    })
+    .await;
+    let projection = state.peek().thread.projection.clone().unwrap();
+    let item = projection["turnItems"].as_array().unwrap().iter().find(|item| item["questionAnswer"].is_object()).unwrap().clone();
+    let sent = item["questionAnswer"]["attachmentsByQuestionId"]["choice"].as_array().unwrap();
+    assert_eq!((sent.len(), sent[0]["name"].as_str(), sent[0]["type"].as_str()), (1, Some("spec.txt"), Some("file")));
+    // The provider only ever sees text: the answer names the file by its path on the server.
+    let answered = item["questionAnswer"]["answers"]["choice"].to_string();
+    assert!(answered.contains("One") && answered.contains("Attached file \\\"spec.txt\\\""), "{answered}");
+    // The draft is spent, and the history of the question lists the file.
+    assert!(attachments(state, &question).is_empty());
+    assert!(all_controls(&dom, "Attach files").len() < before || control(&dom, "Submit answers").is_none());
+    until(&mut dom, "the history", |dom| control(dom, "Answered questions").is_some()).await;
+    click_control(&mut dom, "Answered questions");
+    until(&mut dom, "the file in the history", |dom| rendered_text(dom).contains("spec.txt")).await;
+    fixture.finish(dom).await;
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "current_thread")]
+async fn feedback_in_a_codex_thread_goes_to_the_provider_instead_of_the_agent_and_waits_for_a_conversation() {
+    let fixture = Fixture::start().await;
+    let (mut dom, props) = fixture.operator();
+    let state = seed(&mut dom, &props, fixture.directory.path()).await;
+    open(&mut dom, &props, state, "thread-a").await;
+    until(&mut dom, "the configuration", |_| state.peek().typed_config.is_some()).await;
+    let messages = |state: Store<UiModel>| state.peek().thread.projection.as_ref().unwrap()["messages"].as_array().map_or(0, Vec::len);
+
+    // Nothing has been said to the agent: there is no conversation to send, and the command stays in the box.
+    input_control(&mut dom, "Message", "/feedback it is slow");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the warning", |dom| rendered_text(dom).contains("Start a Codex thread first")).await;
+    assert_eq!((state.peek().draft.as_str(), messages(state)), ("/feedback it is slow", 0));
+
+    input_control(&mut dom, "Message", "Hello");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the first turn", |_| crate::runtime::diff_tests::completed_runs(state) == 1 && state.peek().pending_messages.is_empty()).await;
+    let before = messages(state);
+
+    // Now it goes to the provider: the box is emptied, the person is told, and the agent hears nothing of it.
+    input_control(&mut dom, "Message", "/feedback it forgot the tests");
+    dom.in_scope(ScopeId::APP, || send_message(&props.transport, state));
+    until(&mut dom, "the confirmation", |dom| rendered_text(dom).contains("Feedback sent to OpenAI") && rendered_text(dom).contains("Thread ID: fixture-feedback-")).await;
+    assert_eq!((state.peek().draft.as_str(), messages(state)), ("", before));
     fixture.finish(dom).await;
 }

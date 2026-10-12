@@ -1,7 +1,8 @@
 //! Choosing several threads in the sidebar (Ctrl/Cmd+click toggles a row, Shift+click extends from
 //! the anchor) and the menu of bulk actions on them. Port of the multi-select parts of `Sidebar.tsx`.
 //! The chosen rows are model state, so a click repaints the rows whose choice changed and the
-//! menu, not the conversation.
+//! menu, not the conversation. A choice spans environments: a row is named by its environment and its id, and each action is
+//! written to the environment that holds the thread (deleting is asked of one environment at a time).
 use crate::{
     keys,
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
@@ -14,7 +15,7 @@ use t3_client::{
     sidebar,
     thread_selection::{self as logic, Action},
 };
-use t3_contracts::AuthEnvironmentScope;
+use t3_contracts::{AuthEnvironmentScope, EnvironmentId};
 
 /// Whether a click has the key that toggles a row (Cmd on a Mac, Ctrl elsewhere).
 pub(crate) fn toggles(modifiers: Modifiers) -> bool {
@@ -22,16 +23,16 @@ pub(crate) fn toggles(modifiers: Modifiers) -> bool {
 }
 
 /// A click on a row: toggles, extends, or leaves the choice and opens the thread. True when the
-/// click was a choice and the thread should not open. The choice is of the open environment's rows (the bulk actions are written
-/// to its server), so a click on a row of another environment, with or without a key, opens that thread.
-pub(crate) fn click(state: Store<UiModel>, id: &str, here: bool, modifiers: Modifiers) -> bool {
-    if here && toggles(modifiers) {
-        state.selection().write().toggle(id);
+/// click was a choice and the thread should not open. Rows of any environment are chosen together.
+pub(crate) fn click(state: Store<UiModel>, environment: &EnvironmentId, id: &str, modifiers: Modifiers) -> bool {
+    let key = crate::fleet::key(environment, id);
+    if toggles(modifiers) {
+        state.selection().write().toggle(&key);
         return true;
     }
-    if here && modifiers.shift() {
-        let order: Vec<String> = keys::sidebar_order(state).into_iter().filter_map(|(environment, id)| crate::fleet::is_open(state, &environment).then_some(id)).collect();
-        state.selection().write().range_to(id, &order);
+    if modifiers.shift() {
+        let order: Vec<String> = keys::sidebar_order(state).into_iter().map(|(environment, id)| crate::fleet::key(&environment, &id)).collect();
+        state.selection().write().range_to(&key, &order);
         return true;
     }
     // Opening a thread ends a choice and makes it the anchor of the next range.
@@ -39,48 +40,60 @@ pub(crate) fn click(state: Store<UiModel>, id: &str, here: bool, modifiers: Modi
     if selection.peek().has_selection() {
         selection.write().clear();
     }
-    selection.write().set_anchor(id);
+    selection.write().set_anchor(&key);
     false
 }
 
-fn operate(state: Store<UiModel>) -> bool {
-    *state.status().peek() == t3_client::connection::ConnectionStatus::Connected && state.destination().peek().as_ref().is_some_and(|destination| state.environments().peek().allows(destination, AuthEnvironmentScope::OrchestrationOperate))
+/// A chosen thread: the environment that holds it, the thread, and what the menu needs to know of it.
+struct Chosen {
+    environment: EnvironmentId,
+    thread: t3_contracts::ThreadShell,
+    facts: logic::Facts,
+    caps: sidebar_rows::Caps,
 }
 
-/// The chosen threads that still exist, in the order chosen, with what the menu needs to know of each.
-fn chosen(state: Store<UiModel>) -> Vec<(t3_contracts::ThreadShell, logic::Facts)> {
+/// Whether every environment in the choice allows writing to its threads.
+fn operate(state: Store<UiModel>, rows: &[Chosen]) -> bool {
+    rows.iter().all(|row| crate::fleet::allows(state, &row.environment, AuthEnvironmentScope::OrchestrationOperate))
+}
+
+/// The chosen threads that still exist, in the order of their environments, with what the menu needs to know of each.
+fn chosen(state: Store<UiModel>) -> Vec<Chosen> {
     let selection = state.selection().peek().clone();
-    let caps = sidebar_rows::caps(state);
     let now = Utc::now();
-    let field = state.shell();
-    let shell = field.read();
-    let Some(snapshot) = shell.snapshot.as_ref() else { return vec![] };
-    snapshot
-        .threads
-        .iter()
-        .filter(|thread| selection.contains(thread.id.as_str()) && thread.deleted_at.is_none() && thread.archived_at.is_none())
-        .map(|thread| {
-            let facts = logic::Facts {
-                id: thread.id.to_string(),
-                settled: sidebar::section_of(thread, now, caps.support()) == sidebar::Section::Settled,
-                pinned: sidebar::is_pinned(thread),
-                can_snooze: thread.pending_runtime_request.is_none(),
-                title_regeneration: caps.title_regeneration,
-                regenerating: matches!(thread.title_regeneration, Some(Some(_))),
-            };
-            (thread.clone(), facts)
-        })
-        .collect()
+    crate::fleet::read(state, |shells| {
+        shells
+            .iter()
+            .flat_map(|shell| {
+                let caps = crate::fleet::caps(state, shell.environment);
+                let selection = &selection;
+                shell.snapshot.threads.iter().filter(move |thread| selection.contains(&crate::fleet::key(shell.environment, thread.id.as_str())) && thread.deleted_at.is_none() && thread.archived_at.is_none()).map(move |thread| {
+                    let facts = logic::Facts {
+                        id: thread.id.to_string(),
+                        settled: sidebar::section_of(thread, now, caps.support()) == sidebar::Section::Settled,
+                        pinned: sidebar::is_pinned(thread),
+                        can_snooze: thread.pending_runtime_request.is_none(),
+                        title_regeneration: caps.title_regeneration,
+                        regenerating: matches!(thread.title_regeneration, Some(Some(_))),
+                    };
+                    Chosen { environment: shell.environment.clone(), thread: thread.clone(), facts, caps }
+                })
+            })
+            .collect()
+    })
 }
 
 /// The menu of the chosen rows (the original's `handleMultiSelectContextMenu`), shown where the pointer is and carried out when
 /// something is chosen. Snooze opens the presets, and "Custom\u{2026}" the dialog.
 async fn run_menu(state: Store<UiModel>, transport: TransportHandle, at: (f64, f64)) {
     use t3_client::context_menu::Item;
-    let caps = sidebar_rows::caps(state);
     let rows = chosen(state);
-    let facts: Vec<logic::Facts> = rows.iter().map(|(_, facts)| facts.clone()).collect();
-    let can = operate(state);
+    // What the menu offers is what every environment in the choice can do.
+    let caps = rows.iter().map(|row| row.caps).reduce(|all, next| sidebar_rows::Caps { pinning: all.pinning && next.pinning, settlement: all.settlement && next.settlement, snooze: all.snooze && next.snooze, title_regeneration: all.title_regeneration && next.title_regeneration, ..all }).unwrap_or_default();
+    let facts: Vec<logic::Facts> = rows.iter().map(|row| row.facts.clone()).collect();
+    let can = operate(state, &rows);
+    let environments: std::collections::BTreeSet<&EnvironmentId> = rows.iter().map(|row| &row.environment).collect();
+    let mixed = environments.len() > 1;
     let offset = crate::scheduled_tasks_page::zone(Utc::now().timestamp_millis());
     let presets = sidebar::snooze_presets(Utc::now(), offset);
     let format = state.client_settings().peek().timestamp_format;
@@ -95,7 +108,8 @@ async fn run_menu(state: Store<UiModel>, transport: TransportHandle, at: (f64, f
     let items: Vec<Item> = logic::menu(&facts, logic::Support { pinning: caps.pinning, settlement: caps.settlement, snooze: caps.snooze }, can)
         .into_iter()
         .map(|entry| {
-            let mut item = Item::new(name(entry.action), entry.label).disabled(entry.disabled);
+            // Deleting asks about each environment's worktrees in turn, in the window of that environment: one at a time.
+            let mut item = Item::new(name(entry.action), entry.label).disabled(entry.disabled || (mixed && entry.action == Action::Delete));
             item.destructive = entry.destructive;
             if entry.action == Action::Snooze {
                 let mut children: Vec<Item> = presets
@@ -116,22 +130,27 @@ async fn run_menu(state: Store<UiModel>, transport: TransportHandle, at: (f64, f
         return;
     }
     let Some(choice) = crate::context_menu::show("Selected threads", items, Some(at)).await else { return };
-    let each = |kind: &str, ids: Vec<String>, extra: serde_json::Value| {
-        for id in ids {
+    // Each thread's command goes out on the connection of the environment that holds it.
+    let each = |kind: &str, rows: Vec<&Chosen>, extra: serde_json::Value| {
+        for row in rows {
             let mut payload = extra.clone();
-            payload["threadId"] = json!(id);
-            runtime::command(&transport, state, kind, payload);
+            payload["threadId"] = json!(row.facts.id);
+            runtime::command(&crate::fleet::link(&transport, &row.environment), state, kind, payload);
         }
     };
     // The rows are read again: what is chosen is what the person sees now.
     let rows = chosen(state);
     match choice.as_str() {
-        "unpin" => each("thread.unpin", rows.iter().filter(|(_, facts)| facts.pinned).map(|(_, facts)| facts.id.clone()).collect(), json!({})),
-        "settle" => each("thread.settle", rows.iter().filter(|(_, facts)| !facts.settled).map(|(_, facts)| facts.id.clone()).collect(), json!({})),
-        "regenerate-title" => each("thread.metadata.update", rows.iter().filter(|(_, facts)| facts.title_regeneration && !facts.regenerating).map(|(_, facts)| facts.id.clone()).collect(), json!({"regenerateTitle":true})),
-        "mark-unread" => each("thread.mark-unread", rows.iter().filter(|(thread, _)| thread.latest_run_id.is_some() && !thread.status.is_active()).map(|(_, facts)| facts.id.clone()).collect(), json!({})),
+        "unpin" => each("thread.unpin", rows.iter().filter(|row| row.facts.pinned).collect(), json!({})),
+        "settle" => each("thread.settle", rows.iter().filter(|row| !row.facts.settled).collect(), json!({})),
+        "regenerate-title" => each("thread.metadata.update", rows.iter().filter(|row| row.facts.title_regeneration && !row.facts.regenerating).collect(), json!({"regenerateTitle":true})),
+        "mark-unread" => each("thread.mark-unread", rows.iter().filter(|row| row.thread.latest_run_id.is_some() && !row.thread.status.is_active()).collect(), json!({})),
         "delete" => {
-            thread_lifecycle::request_delete_many(state, &transport, rows.iter().map(|(_, facts)| facts.id.clone()).collect());
+            // One environment's threads: the window goes there, where the question about a worktree is asked.
+            let Some(environment) = rows.first().map(|row| row.environment.clone()).filter(|environment| rows.iter().all(|row| row.environment == *environment)) else { return };
+            if crate::fleet::open(&transport, state, &environment) {
+                thread_lifecycle::request_delete_many(state, &transport, rows.iter().map(|row| row.facts.id.clone()).collect());
+            }
             return;
         }
         "snooze:custom" => {
@@ -141,7 +160,7 @@ async fn run_menu(state: Store<UiModel>, transport: TransportHandle, at: (f64, f
         }
         id => {
             let Some(preset) = presets.iter().find(|preset| format!("snooze:{}", preset.id) == id) else { return };
-            each("thread.snooze", rows.iter().map(|(_, facts)| facts.id.clone()).collect(), json!({"snoozedUntil":preset.until}));
+            each("thread.snooze", rows.iter().collect(), json!({"snoozedUntil":preset.until}));
         }
     }
     state.selection().write().clear();
@@ -166,7 +185,7 @@ pub(crate) fn prune(state: Store<UiModel>) {
     if !selection.has_selection() {
         return;
     }
-    let present: std::collections::BTreeSet<String> = state.shell().peek().snapshot.as_ref().map(|snapshot| snapshot.threads.iter().filter(|thread| thread.deleted_at.is_none() && thread.archived_at.is_none()).map(|thread| thread.id.to_string()).collect()).unwrap_or_default();
+    let present: std::collections::BTreeSet<String> = crate::fleet::read(state, |shells| shells.iter().flat_map(|shell| shell.snapshot.threads.iter().filter(|thread| thread.deleted_at.is_none() && thread.archived_at.is_none()).map(|thread| crate::fleet::key(shell.environment, thread.id.as_str()))).collect());
     let gone: Vec<String> = selection.keys.iter().filter(|key| !present.contains(*key)).cloned().collect();
     if !gone.is_empty() {
         state.selection().write().remove(&gone);
@@ -206,8 +225,8 @@ fn CustomSnooze(state: Store<UiModel>, transport: TransportHandle) -> Element {
         match own {
             Some(thread_id) => { runtime::command(&transport, state, "thread.snooze", json!({"threadId": thread_id, "snoozedUntil": until})); }
             None => {
-                for (_, facts) in chosen(state).into_iter().filter(|(_, facts)| facts.can_snooze) {
-                    runtime::command(&transport, state, "thread.snooze", json!({"threadId": facts.id, "snoozedUntil": until}));
+                for row in chosen(state).into_iter().filter(|row| row.facts.can_snooze) {
+                    runtime::command(&crate::fleet::link(&transport, &row.environment), state, "thread.snooze", json!({"threadId": row.facts.id, "snoozedUntil": until}));
                 }
                 state.selection().write().clear();
             }

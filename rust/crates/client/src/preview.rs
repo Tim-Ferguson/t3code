@@ -313,6 +313,36 @@ pub fn step_zoom(current: f64, direction: i32) -> Option<f64> {
     (next != current).then_some(next)
 }
 
+/// What a new tab is changed to so it starts at the person's default zoom and appearance (`browserDefaultTabState`): only what differs
+/// from a tab's own start (100%, the system's scheme), as a `preview.adjust` change; none when the defaults are those.
+pub fn default_tab_change(zoom_factor: f64, appearance: &str) -> Option<Value> {
+    let mut change = serde_json::Map::new();
+    if zoom_factor != DEFAULT_ZOOM && ZOOM_LEVELS.contains(&zoom_factor) {
+        change.insert("zoomFactor".into(), json!(zoom_factor));
+    }
+    if matches!(appearance, "light" | "dark") {
+        change.insert("colorScheme".into(), json!(appearance));
+    }
+    (!change.is_empty()).then(|| Value::Object(change))
+}
+
+/// The servers a snapshot of `subscribeDiscoveredLocalServers` lists, as `useDiscoveredLocalServers` keeps them: web servers on a loopback
+/// host, by port. (A configured address that the scanner also found would come first; this app configures none.)
+pub fn previewable_servers(snapshot: &Value) -> Vec<Value> {
+    let mut servers: Vec<Value> = snapshot["servers"].as_array().into_iter().flatten().filter(|server| server["url"].as_str().is_some_and(|url| !url.is_empty()) && server["port"].is_u64()).cloned().collect();
+    servers.sort_by_key(|server| server["port"].as_u64());
+    servers
+}
+
+/// `resolveLinkTarget`: whether a click on a link in a message opens it in the app's browser instead of the system's: the person asked
+/// for it, a tab can be had, the link is a web page, and neither Command nor Control is held (the way out when the default is the app).
+pub fn opens_in_app(prefers_app: bool, can_open_in_app: bool, url: &str, meta_or_control: bool) -> bool {
+    if meta_or_control || !prefers_app || !can_open_in_app {
+        return false;
+    }
+    url::Url::parse(url).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
+}
+
 /// The tab's zoom, appearance and viewport as the session reports them (older servers send none: 1, system, fill).
 pub fn zoom_of(snapshot: &PreviewSessionSnapshot) -> f64 {
     snapshot.zoom_factor.present().map_or(DEFAULT_ZOOM, |zoom| zoom.0)
@@ -660,6 +690,35 @@ mod tests {
         let titled: PreviewSessionSnapshot = serde_json::from_value(json!({"threadId":"thread","tabId":"a","navStatus":{"_tag":"Loading","url":"http://x.test/","title":"Hello"},"canGoBack":false,"canGoForward":false,"updatedAt":"x"})).unwrap();
         assert_eq!((tab_title(Some(&titled)), is_loading(Some(&titled))), ("Hello".to_owned(), true));
         assert_eq!((zoom_of(&page), appearance_of(&page), is_fill(&page), profile_of(&page).as_str()), (1.0, "system", true, "default"));
+    }
+
+    #[test]
+    fn a_new_tab_is_changed_only_where_the_defaults_differ_from_its_own_start() {
+        assert_eq!(default_tab_change(1.0, "system"), None);
+        assert_eq!(default_tab_change(1.25, "system"), Some(json!({"zoomFactor": 1.25})));
+        assert_eq!(default_tab_change(1.0, "dark"), Some(json!({"colorScheme": "dark"})));
+        assert_eq!(default_tab_change(0.5, "light"), Some(json!({"zoomFactor": 0.5, "colorScheme": "light"})));
+        assert_eq!(default_tab_change(1.3, "system"), None, "a zoom that is not a level is not sent");
+    }
+
+    #[test]
+    fn local_servers_are_listed_by_port_and_one_without_an_address_is_left_out() {
+        let snapshot = json!({"servers": [
+            {"host": "localhost", "port": 5173, "url": "http://localhost:5173", "processName": "node", "pid": 1, "terminal": null},
+            {"host": "localhost", "port": 3000, "url": "http://localhost:3000", "processName": null, "pid": null, "terminal": null},
+            {"host": "localhost", "port": 9, "url": "", "processName": null, "pid": null, "terminal": null},
+        ], "scannedAt": "2026-10-12T00:00:00.000Z"});
+        assert_eq!(previewable_servers(&snapshot).iter().map(|server| server["port"].as_u64().unwrap()).collect::<Vec<_>>(), [3000, 5173]);
+        assert!(previewable_servers(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn a_link_opens_in_the_app_only_when_asked_for_possible_a_web_page_and_without_the_way_out() {
+        assert!(opens_in_app(true, true, "https://example.com/a", false));
+        assert!(!opens_in_app(false, true, "https://example.com/a", false), "the system's browser is the default");
+        assert!(!opens_in_app(true, false, "https://example.com/a", false), "no browser tab to be had");
+        assert!(!opens_in_app(true, true, "https://example.com/a", true), "Command or Control opens it in the system's browser");
+        assert!(!opens_in_app(true, true, "mailto:someone@example.com", false) && !opens_in_app(true, true, "vscode://file/x", false) && !opens_in_app(true, true, "#fragment", false));
     }
 
     #[test]
