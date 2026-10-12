@@ -7,30 +7,82 @@ use super::fixture_server::Server;
 use super::*;
 use t3_server::persistence::Store as EventStore;
 
-struct Remote {
-    id: EnvironmentId,
-    address: String,
-    credential: String,
-    token: String,
+pub(super) struct Remote {
+    pub(super) id: EnvironmentId,
+    pub(super) address: String,
+    pub(super) credential: String,
+    pub(super) token: String,
     directory: tempfile::TempDir,
     _store: EventStore,
-    server: Server,
+    pub(super) server: Server,
 }
 impl Remote {
-    async fn start(environment: &str, label: &str) -> Self {
+    pub(super) async fn start(environment: &str, label: &str) -> Self {
+        Self::start_with(environment, label, None, None).await
+    }
+    /// A server whose machine is busy `busy` of the time (a fraction), with 8 processors and half of 16 GiB of memory free, as its
+    /// `server.getHostResources` reports them.
+    pub(super) async fn start_loaded(environment: &str, label: &str, busy: f64) -> Self {
+        Self::start_with(environment, label, None, Some(busy)).await
+    }
+    /// A server whose managed Codex signs in to ChatGPT at `issuer` (a loopback stand-in for OpenAI's discovery address), and whose
+    /// session may manage providers.
+    pub(super) async fn start_signing(environment: &str, label: &str, issuer: &str) -> Self {
+        Self::start_with(environment, label, Some(issuer), None).await
+    }
+    async fn start_with(environment: &str, label: &str, issuer: Option<&str>, busy: Option<f64>) -> Self {
+        use t3_server::{
+            server_secret_store::ServerSecretStore,
+            server_settings::{SettingsOptions, SettingsService},
+        };
         let directory = tempfile::tempdir().unwrap();
         let mut api = api_fixture(&directory, environment);
         api.environment["label"] = json!(label);
         api.config.as_mut().unwrap()["environment"]["label"] = json!(label);
-        let scopes = [AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate];
+        if let Some(busy) = busy {
+            use t3_server::host_resources::{AvailableMemory, Cpu, HostResources, HostResourcesOptions, Memory};
+            // Each reading of the processors is 1000 ticks later, `busy` of them spent working.
+            let ticks = std::sync::atomic::AtomicU64::new(0);
+            api.host_resources = Some(HostResources::new(HostResourcesOptions {
+                cpu: std::sync::Arc::new(move || {
+                    let total = ticks.fetch_add(1000, std::sync::atomic::Ordering::SeqCst) + 1000;
+                    Cpu { idle: total as f64 * (1.0 - busy), total: total as f64, count: 8 }
+                }),
+                memory: std::sync::Arc::new(|| Memory { total: 16.0 * 1024.0 * 1024.0 * 1024.0, available: 8.0 * 1024.0 * 1024.0 * 1024.0 }),
+                available: std::sync::Arc::new(|| AvailableMemory::value(Box::pin(async { Some(8.0 * 1024.0 * 1024.0 * 1024.0) }))),
+                clock: std::sync::Arc::new(|| chrono::Utc::now().timestamp_millis()),
+                sample_interval: std::time::Duration::from_millis(20),
+                ttl: std::time::Duration::from_secs(5),
+            }));
+        }
+        let mut scopes = vec![AuthEnvironmentScope::OrchestrationRead, AuthEnvironmentScope::OrchestrationOperate];
+        let mut settings_service = None;
+        if let Some(issuer) = issuer {
+            scopes.push(AuthEnvironmentScope::ProvidersManage);
+            // A managed Codex, and the loopback issuer its ChatGPT sign-in talks to. The settings and the secrets live in the server's
+            // state directory, as a server keeps them.
+            let state_dir = api.store.state_dir().expect("a state directory");
+            let path = state_dir.join("settings.json");
+            std::fs::write(&path, json!({"providerInstances":{"codex":{"driver":"codex","enabled":true,"config":{"setupMode":"managed"}}}}).to_string()).unwrap();
+            let mut options = SettingsOptions::file(path, ServerSecretStore::open(state_dir.join("secrets")).unwrap());
+            options.watch = false;
+            let service = SettingsService::start(options).await.unwrap();
+            api.settings = Some(service.clone());
+            settings_service = Some(service);
+            t3_server::codex_chatgpt_rpc::install(&api.store, t3_server::codex_chatgpt_rpc::Environment { environment_id: environment.to_owned(), default_return_url: None, discovery_url: Some(issuer.to_owned()), resource: None, models_url: None, http: reqwest::Client::new() });
+        }
+        let scopes = scopes.as_slice();
         let credential = api.auth.create_pairing_credential(&scopes, chrono::Utc::now(), chrono::Duration::minutes(5)).unwrap();
         let token = api.auth.issue_session("test", "bearer-access-token", scopes.to_vec(), json!({"deviceType":"unknown"}), chrono::Utc::now(), chrono::Duration::hours(1)).unwrap().1;
         let store = api.store.clone();
-        let (address, server) = start_fixture(api).await;
+        let (address, mut server) = start_fixture(api).await;
+        if let Some(settings) = settings_service {
+            server.also(async move { settings.shutdown().await });
+        }
         Self { id: EnvironmentId::new(environment).unwrap(), address, credential, token, directory, _store: store, server }
     }
     /// A project in a folder of its own: two projects do not share a workspace root.
-    fn project(&self, id: &str, title: &str) -> Value {
+    pub(super) fn project(&self, id: &str, title: &str) -> Value {
         let root = self.directory.path().join(id);
         std::fs::create_dir_all(&root).unwrap();
         json!({"type":"project.create","commandId":format!("create-{id}"),"projectId":id,"title":title,"workspaceRoot":root.to_string_lossy()})
@@ -38,11 +90,11 @@ impl Remote {
 }
 
 #[derive(Clone)]
-struct App {
-    state: Rc<RefCell<Option<Store<UiModel>>>>,
-    transport: TransportHandle,
-    address: String,
-    credential: String,
+pub(super) struct App {
+    pub(super) state: Rc<RefCell<Option<Store<UiModel>>>>,
+    pub(super) transport: TransportHandle,
+    pub(super) address: String,
+    pub(super) credential: String,
 }
 fn app(props: App) -> Element {
     let state = use_store(|| UiModel { view: View::Connections, ..UiModel::default() });
@@ -66,7 +118,7 @@ fn ParkedConsumer(state: Store<UiModel>) -> Element {
 }
 
 /// The window on `open`, with `other` connected in the background, both synchronized.
-async fn two(open: &Remote, other: &Remote) -> (VirtualDom, App, Store<UiModel>) {
+pub(super) async fn two(open: &Remote, other: &Remote) -> (VirtualDom, App, Store<UiModel>) {
     let props = App { state: Rc::new(RefCell::new(None)), transport: TransportHandle::default(), address: open.address.clone(), credential: open.credential.clone() };
     let mut dom = VirtualDom::new_with_props(app, props.clone());
     dom.rebuild_in_place();
@@ -84,15 +136,15 @@ async fn two(open: &Remote, other: &Remote) -> (VirtualDom, App, Store<UiModel>)
 fn titles(shell: &t3_client::shell::ShellState) -> Vec<String> {
     shell.snapshot.as_ref().map(|snapshot| snapshot.projects.iter().map(|project| project.title.to_string()).collect()).unwrap_or_default()
 }
-fn open_titles(state: Store<UiModel>) -> Vec<String> {
+pub(super) fn open_titles(state: Store<UiModel>) -> Vec<String> {
     titles(&state.peek().shell)
 }
-fn parked_titles(state: Store<UiModel>, environment: &EnvironmentId) -> Vec<String> {
+pub(super) fn parked_titles(state: Store<UiModel>, environment: &EnvironmentId) -> Vec<String> {
     state.peek().parked.get(environment).map(|slice| titles(&slice.shell)).unwrap_or_default()
 }
 
 /// A command on the environment's own connection, whichever one the window is on.
-fn mutate(dom: &mut VirtualDom, props: &App, state: Store<UiModel>, environment: &EnvironmentId, payload: Value) {
+pub(super) fn mutate(dom: &mut VirtualDom, props: &App, state: Store<UiModel>, environment: &EnvironmentId, payload: Value) {
     let link = props.transport.link_of(environment).expect("a connected environment");
     dom.in_scope(ScopeId::APP, || request(&link, state, "projects.mutate", payload, RequestKind::Unary)).expect("accepted");
 }
@@ -118,7 +170,8 @@ async fn a_second_environment_stays_connected_in_the_background_and_each_shell_i
     mutate(&mut dom, &props, state, &a.id, a.project("project-a", "Alpha project"));
     until(&mut dom, "the first's shell", |_| open_titles(state) == ["Alpha project"]).await;
     assert_eq!(parked_titles(state, &b.id), ["Beta project"]);
-    assert_eq!(rendered_text(&dom).contains("Beta project"), false);
+    // The sidebar lists every connected environment's projects, the parked one's included.
+    until(&mut dom, "the second's project in the sidebar", |dom| rendered_text(dom).contains("Beta project")).await;
 
     // Each connection answers its own requests, even though both number them from one: the configuration that comes back is the
     // environment's own.

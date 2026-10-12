@@ -44,7 +44,7 @@ fn harness(props: Props) -> Element {
     let _ = props.working;
     rsx! {
         for thread in props.threads.iter() {
-            sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(thread, false, None, Caps::default(), true, chrono::DateTime::parse_from_rfc3339("2026-01-01T03:00:00Z").unwrap().with_timezone(&chrono::Utc), &providers), state, transport: TransportHandle::default() }
+            sidebar_rows::ThreadRow { key: "{thread.id}", view: sidebar_rows::view(&EnvironmentId::new("environment-a").unwrap(), true, true, thread, false, None, Caps::default(), true, chrono::DateTime::parse_from_rfc3339("2026-01-01T03:00:00Z").unwrap().with_timezone(&chrono::Utc), &providers), state, transport: TransportHandle::default() }
         }
     }
 }

@@ -9,7 +9,10 @@ mod client_settings;
 mod command_palette;
 mod connection_store;
 mod saved_connections;
+mod chatgpt_handoff;
+mod load_balancing;
 mod environment_switcher;
+mod fleet;
 mod composer_banners;
 mod composer_menu;
 mod composer_panels;
@@ -317,17 +320,18 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
         .map(|snapshot| snapshot.threads.clone())
         .unwrap_or_default();
     drop(snapshot);
-    let (_, groups) = sidebar_groups::groups_of(&projects, &state.client_settings().read());
-    let scope_items: Vec<(String, String)> = groups.iter().map(|group| (group.key.clone(), group.label.clone())).collect();
-    let scoped = sidebar_groups::scoped_key(state, groups.iter().map(|group| group.key.as_str()));
-    let row_caps = sidebar_rows::caps(state);
+    // The sidebar lists the projects of every connected environment.
+    let rows = sidebar_groups::rows(state);
+    let scope_items: Vec<(String, String)> = rows.iter().map(|row| (row.key.clone(), row.label.clone())).collect();
+    let scoped = sidebar_groups::scoped_key(state, rows.iter().map(|row| row.key.as_str()));
+    let open_environment = state.destination().read().clone();
     // A snoozed row wakes when its time passes with nothing else changing. One timer is set for the
     // earliest wake time (never a clock that ticks), and the sidebar is built again when it fires.
     let mut wake_tick = use_signal(|| 0u64);
     let next_wake = use_memo(move || {
         let _ = wake_tick();
         let now = chrono::Utc::now();
-        state.shell().read().snapshot.as_ref().and_then(|snapshot| snapshot.threads.iter().filter_map(|thread| t3_client::sidebar::snoozed_until(thread, now)).min())
+        fleet::read(state, |shells| shells.iter().flat_map(|shell| shell.snapshot.threads.iter()).filter_map(|thread| t3_client::sidebar::snoozed_until(thread, now)).min())
     });
     use_resource(move || async move {
         let Some(at) = next_wake() else { return };
@@ -441,24 +445,26 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                 draft_sessions::Rows { state, transport: transport.clone() }
                 div { class: "project-list",
                     sidebar_sections::DragBridge { state, transport: transport.clone() }
-                    for group in groups.iter().filter(|group| scoped.as_ref().is_none_or(|key| *key == group.key)) {
+                    for row in rows.iter().filter(|row| scoped.as_ref().is_none_or(|key| *key == row.key)) {
                         {
-                            let representative = &projects[group.representative];
-                            let members: Vec<project_menu::Member> = group.members.iter().map(|member| { let project = &projects[member.index]; project_menu::Member { id: project.id.to_string(), title: project.title.to_string(), workspace_root: project.workspace_root.to_string() } }).collect();
-                            let scope = sidebar_groups::Scope { key: representative.id.to_string(), ids: group.project_ids() };
-                            let grouped = group.members.len();
+                            let representative = &row.representative;
+                            let members: Vec<project_menu::Member> = row.members.iter().map(|project| project_menu::Member { environment: project.environment.clone(), id: project.id.clone(), title: project.title.clone(), workspace_root: project.workspace_root.clone() }).collect();
+                            let scope = row.scope.clone();
+                            let grouped = row.members.len();
+                            let environment = t3_contracts::EnvironmentId::new(&representative.environment).ok();
+                            let can_operate_row = environment.as_ref().is_some_and(|environment| fleet::allows(state, environment, t3_contracts::AuthEnvironmentScope::OrchestrationOperate));
                             rsx! {
-                                div { class: "project-group", key: "{group.key}",
+                                div { class: "project-group", key: "{row.key}",
                                     div { class: "project-header",
-                                        button { class: "project-heading", title: "{representative.workspace_root}", onclick: { let transport=transport.clone();let id = representative.id.to_string(); move |_| runtime::new_thread(&transport,state,Some(id.clone())) },
-                                            file_preview::ProjectFavicon { key: "favicon:{representative.workspace_root}", state, transport: transport.clone(), environment_key: environment_key.clone(), cwd: representative.workspace_root.to_string(), title: representative.title.to_string() } "{group.label}"
+                                        button { class: "project-heading", title: "{representative.workspace_root}", onclick: { let transport=transport.clone();let id = representative.id.clone(); let environment = environment.clone(); move |_| { if let Some(environment) = &environment { runtime::new_thread_in(&transport,state,environment,Some(id.clone())); } } },
+                                            file_preview::ProjectFavicon { key: "favicon:{representative.environment}:{representative.workspace_root}", state, transport: environment.as_ref().map_or_else(|| transport.clone(), |environment| fleet::link(&transport, environment)), environment_key: representative.environment.clone(), cwd: representative.workspace_root.clone(), title: representative.title.clone() } "{row.label}"
                                             if grouped > 1 { span { class: "project-group-count", "aria-label": "{grouped} projects grouped", title: "{grouped} projects grouped", "{grouped}" } }
                                         }
-                                        project_menu::ProjectMenu { key: "menu:{group.key}", state, transport: transport.clone(), label: group.label.clone(), members, can_operate }
+                                        project_menu::ProjectMenu { key: "menu:{row.key}", state, transport: transport.clone(), label: row.label.clone(), members, can_operate: can_operate_row }
                                     }
-                                    for id in scope.ids.iter() { clone_view::ProjectState { key: "clone:{id}", state, project_id: id.clone() } }
-                                    sidebar_sections::ProjectThreads { key: "threads:{group.key}", scope: scope.clone(), state, transport: transport.clone(), caps: row_caps, can_operate, tick: wake_tick() }
-                                    for id in scope.ids.iter() { thread_lifecycle::Archived { key: "archived:{id}", state, transport: transport.clone(), project_id: id.clone() } }
+                                    for (environment, id) in scope.refs.iter().filter(|(environment, _)| open_environment.as_ref().is_some_and(|open| open.as_str() == environment)) { clone_view::ProjectState { key: "clone:{environment}:{id}", state, project_id: id.clone() } }
+                                    sidebar_sections::ProjectThreads { key: "threads:{row.key}", scope: scope.clone(), state, transport: transport.clone(), tick: wake_tick() }
+                                    for (environment, id) in scope.refs.iter().filter(|(environment, _)| open_environment.as_ref().is_some_and(|open| open.as_str() == environment)) { thread_lifecycle::Archived { key: "archived:{environment}:{id}", state, transport: transport.clone(), project_id: id.clone() } }
                                 }
                             }
                         }
@@ -539,6 +545,7 @@ fn Application(state: Store<UiModel>, transport: runtime::TransportHandle) -> El
                             connect_page::Section { state, transport: transport.clone() }
                             access_page::Authorized { state, transport: transport.clone() }
                             ssh_environments::Section { state, transport: transport.clone() }
+                            load_balancing::Section { state }
                             saved_connections::List { state, transport: transport.clone(), on_use_address: move |saved_address: String| { address.set(saved_address); token.set(String::new()); credential_kind.set(runtime::default_credential_kind()); } }
                         }
                     },

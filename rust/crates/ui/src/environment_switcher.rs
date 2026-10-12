@@ -1,6 +1,6 @@
 //! The connected environments at the top of the sidebar, each with how it is connected, when there is more than one: the window is on
-//! one, and the others are a click away with everything they had (`links`). It lists connections, not threads; what the sidebar lists
-//! beneath it is the open environment's.
+//! one, and the others are a click away with everything they had (`links`). It lists connections; the projects and threads beneath it are
+//! every connected environment's (`fleet`).
 use crate::runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View};
 use dioxus::prelude::*;
 use t3_client::connection::ConnectionStatus;

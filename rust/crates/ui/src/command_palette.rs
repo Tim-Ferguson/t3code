@@ -3,6 +3,7 @@
 //! what this app has. Opening it, typing in it and moving through it are state of this component
 //! alone, so the conversation, the sidebar and the composer are never repainted by it.
 use crate::{
+    fleet,
     keys::{self, Keys, Runner},
     project_create,
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt, View},
@@ -17,7 +18,7 @@ use t3_client::{
     source_control::{self as clone, Source},
     themes::{Appearance, Mode, storage::Action},
 };
-use t3_contracts::{AuthEnvironmentScope, SourceControlDiscoveryResult, SourceControlRepositoryInfo};
+use t3_contracts::{AuthEnvironmentScope, EnvironmentId, SourceControlDiscoveryResult, SourceControlRepositoryInfo};
 
 /// Where the palette opens: its first page, the theme submenu, or the name step of a new project.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -194,26 +195,47 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         }
         Some(item)
     };
+    // Projects and threads of every connected environment are found here, as in the original; each is named by its environment.
+    let (all_projects, project_environments, all_threads, thread_environments) = fleet::read(state, |shells| {
+        let projects: Vec<_> = shells.iter().flat_map(|shell| shell.snapshot.projects.iter().map(|project| (shell.environment.clone(), project.clone()))).collect();
+        let threads: Vec<_> = shells.iter().flat_map(|shell| shell.snapshot.threads.iter().map(|thread| (shell.environment.clone(), thread.clone()))).collect();
+        let (project_environments, projects): (Vec<_>, Vec<_>) = projects.into_iter().unzip();
+        let (thread_environments, threads): (Vec<_>, Vec<_>) = threads.into_iter().unzip();
+        (projects, project_environments, threads, thread_environments)
+    });
+    let several = fleet::count(state) > 1;
+    let environment_of_project = |project: &t3_contracts::ProjectShell| project_environments[(project as *const t3_contracts::ProjectShell as usize - all_projects.as_ptr() as usize) / std::mem::size_of::<t3_contracts::ProjectShell>()].clone();
+    let environment_of_thread = |thread: &t3_contracts::ThreadShell| thread_environments[(thread as *const t3_contracts::ThreadShell as usize - all_threads.as_ptr() as usize) / std::mem::size_of::<t3_contracts::ThreadShell>()].clone();
+    let titled_project = |environment: &EnvironmentId, id: &str| all_projects.iter().zip(&project_environments).find(|(project, owner)| *owner == environment && project.id.as_str() == id).map(|(project, _)| project.title.to_string()).unwrap_or_default();
     let project_order = state.client_settings().peek().sidebar_project_sort_order;
-    let ordered_projects: Vec<_> = t3_client::thread_sort::sort_projects(&projects, &threads, project_order).into_iter().cloned().collect();
-    let project_items: Vec<Item> = ordered_projects
-        .iter()
-        .map(|project| Item::action(&format!("project:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string()))
-        .collect();
+    let ordered_projects: Vec<_> = t3_client::thread_sort::sort_projects(&all_projects, &all_threads, project_order);
+    let project_item = |prefix: &str, project: &t3_contracts::ProjectShell| {
+        let environment = environment_of_project(project);
+        let mut described = project.workspace_root.to_string();
+        if several {
+            described = format!("{described} \u{b7} {}", fleet::label(state, &environment));
+        }
+        Item::action(&format!("{prefix}:{}", fleet::key(&environment, project.id.as_str())), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(described)
+    };
+    let project_items: Vec<Item> = ordered_projects.iter().map(|project| project_item("project", project)).collect();
     // The original lists threads in the order the sidebar setting names, and shows when a person last wrote to one.
     let sort_order = state.client_settings().peek().sidebar_thread_sort_order;
-    let thread_items: Vec<Item> = t3_client::thread_sort::sort_threads(threads.iter().filter(|thread| thread.deleted_at.is_none() && thread.archived_at.is_none()), sort_order)
+    let thread_items: Vec<Item> = t3_client::thread_sort::sort_threads(all_threads.iter().filter(|thread| thread.deleted_at.is_none() && thread.archived_at.is_none()), sort_order)
         .into_iter()
         .map(|thread| {
-            let project = project_title(thread.project_id.as_str());
+            let environment = environment_of_thread(thread);
+            let project = titled_project(&environment, thread.project_id.as_str());
             let mut parts = vec![project.clone()];
+            if several {
+                parts.push(fleet::label(state, &environment));
+            }
             if let Some(branch) = &thread.branch {
                 parts.push(format!("#{branch}"));
             }
-            if Some(thread.id.as_str()) == active_id.as_deref() {
+            if Some(thread.id.as_str()) == active_id.as_deref() && fleet::is_open(state, &environment) {
                 parts.push("Current thread".into());
             }
-            let mut item = Item::action(&format!("thread:{}", thread.id), &thread.title, &[thread.title.as_str(), project.as_str(), thread.branch.as_ref().map_or("", |branch| branch.as_str()), thread.id.as_str()]).described(parts.join(" \u{b7} "));
+            let mut item = Item::action(&format!("thread:{}", fleet::key(&environment, thread.id.as_str())), &thread.title, &[thread.title.as_str(), project.as_str(), thread.branch.as_ref().map_or("", |branch| branch.as_str()), thread.id.as_str()]).described(parts.join(" \u{b7} "));
             item.recency = Some(t3_client::thread_sort::sort_timestamp(thread, t3_contracts::SidebarThreadSortOrder::UpdatedAt));
             item.timestamp = Some(relative(&t3_client::thread_sort::shown_at(thread).into()));
             item
@@ -227,8 +249,8 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
             actions.push(item);
         }
     }
-    if !projects.is_empty() {
-        let pick: Vec<Item> = ordered_projects.iter().map(|project| Item::action(&format!("new-thread-in:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string())).collect();
+    if !all_projects.is_empty() {
+        let pick: Vec<Item> = ordered_projects.iter().map(|project| project_item("new-thread-in", project)).collect();
         actions.push(Item::submenu("action:new-thread-in", "New thread in...", &["new thread", "project", "pick", "choose", "select"], vec![Group::new("projects", "Projects", pick)]));
     }
     let entries: [(&str, &str, &[&str], &str); 20] = [
@@ -372,7 +394,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
     let search_threads: Vec<Item> = hits
         .iter()
         .filter_map(|hit| {
-            let mut item = thread_items.iter().find(|item| item.value == format!("thread:{}", hit.thread.id)).cloned()?;
+            let mut item = thread_items.iter().find(|item| item.value == format!("thread:{}:{}", hit.thread.environment, hit.thread.id)).cloned()?;
             item.content_match = hit.found.as_ref().map(|found| ContentMatch { user: found.user, snippet: found.snippet.clone() });
             // The server's excerpt joins the terms, so a message-only match survives the filter.
             if let Some(found) = &hit.found {
@@ -383,7 +405,7 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
         .collect();
     let page_groups: Vec<Group> = match screen {
         None => root,
-        Some(Screen::NewThreadIn) => vec![Group::new("projects", "Projects", projects.iter().map(|project| Item::action(&format!("new-thread-in:{}", project.id), project.title.as_str(), &[project.title.as_str(), project.workspace_root.as_str()]).described(project.workspace_root.to_string())).collect())],
+        Some(Screen::NewThreadIn) => vec![Group::new("projects", "Projects", all_projects.iter().map(|project| project_item("new-thread-in", project)).collect())],
         Some(Screen::Theme) => root.iter().flat_map(|group| group.items.iter()).find(|item| item.value == "action:change-theme").map(|item| item.groups.clone()).unwrap_or_default(),
         Some(Screen::Appearance) => root.iter().flat_map(|group| group.items.iter()).find(|item| item.value == "action:change-appearance").map(|item| item.groups.clone()).unwrap_or_default(),
         Some(Screen::NewProject) => vec![],
@@ -560,18 +582,18 @@ fn Palette(state: Store<UiModel>, transport: TransportHandle, intent: Intent) ->
                         open_settings(state, view);
                     } else if let Some(setting) = other.strip_prefix("setting:").and_then(|id| t3_client::settings_search::items().iter().find(|item| item.id == id)) {
                         crate::settings_common::go_to_setting(state, setting);
-                    } else if let Some(id) = other.strip_prefix("thread:") {
-                        runtime::select_thread(&transport, state, id.to_owned());
-                    } else if let Some(id) = other.strip_prefix("project:") {
+                    } else if let Some((environment, id)) = other.strip_prefix("thread:").and_then(|key| fleet::split(state, key)) {
+                        runtime::select_thread_in(&transport, state, &environment, id);
+                    } else if let Some((environment, id)) = other.strip_prefix("project:").and_then(|key| fleet::split(state, key)) {
                         // A project from the search opens its newest thread, else starts one (`openProjectFromSearch`).
                         let order = state.client_settings().peek().sidebar_thread_sort_order;
-                        let latest = state.shell().peek().snapshot.as_ref().and_then(|snapshot| t3_client::thread_sort::latest_for_project(&snapshot.threads, id, order).map(|thread| thread.id.to_string()));
+                        let latest = fleet::read(state, |shells| shells.iter().find(|shell| *shell.environment == environment).and_then(|shell| t3_client::thread_sort::latest_for_project(&shell.snapshot.threads, &id, order).map(|thread| thread.id.to_string())));
                         match latest {
-                            Some(thread) => runtime::select_thread(&transport, state, thread),
-                            None => runtime::new_thread(&transport, state, Some(id.to_owned())),
+                            Some(thread) => { runtime::select_thread_in(&transport, state, &environment, thread); }
+                            None => { runtime::new_thread_in(&transport, state, &environment, Some(id)); }
                         }
-                    } else if let Some(id) = other.strip_prefix("new-thread-in:") {
-                        runtime::new_thread(&transport, state, Some(id.to_owned()));
+                    } else if let Some((environment, id)) = other.strip_prefix("new-thread-in:").and_then(|key| fleet::split(state, key)) {
+                        runtime::new_thread_in(&transport, state, &environment, Some(id));
                     } else if let Some(id) = other.strip_prefix("theme:") {
                         if let Some(themes) = &themes {
                             themes.change(Action::Theme(id.to_owned()));

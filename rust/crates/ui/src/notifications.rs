@@ -7,6 +7,7 @@
 //! original does) and a badge drawn into the tab icon. The desktop build presents the notification through the
 //! system and puts the count on the dock icon. Nothing runs while both settings are off.
 use crate::{
+    fleet,
     notice::{self, Follow, Level},
     runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
     settings_rows,
@@ -14,12 +15,16 @@ use crate::{
 use base64::Engine;
 use dioxus::prelude::*;
 use serde_json::{Value, json};
-use std::{cell::RefCell, collections::BTreeSet, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+};
 use t3_client::{
     connection::ConnectionStatus,
     thread_notifications::{self as logic, Alert, Kind, Tracker},
 };
-use t3_contracts::NotificationMode;
+use t3_contracts::{EnvironmentId, NotificationMode};
 
 const COMPLETION_SOUND: &[u8] = include_bytes!("../assets/notification-completion.mp3");
 const INPUT_SOUND: &[u8] = include_bytes!("../assets/notification-input.mp3");
@@ -146,10 +151,11 @@ pub(crate) fn ModeRow(state: Store<UiModel>) -> Element {
     }
 }
 
-/// Watches the open environment's threads and announces what changed while nobody was looking.
+/// Watches every connected environment's threads, the parked ones' too, and announces what changed while nobody was looking
+/// (`EnvironmentNotifications` of the original, one for each environment).
 #[component]
 pub(crate) fn Coordinator(state: Store<UiModel>, transport: TransportHandle) -> Element {
-    let tracker = use_hook(|| Rc::new(RefCell::new(Tracker::default())));
+    let trackers = use_hook(|| Rc::new(RefCell::new(BTreeMap::<EnvironmentId, Tracker>::new())));
     // Tags of system notifications not yet seen; their number is the badge.
     let pending = use_hook(|| Rc::new(RefCell::new(BTreeSet::<String>::new())));
     let mut clicked = use_signal(|| None::<String>);
@@ -182,8 +188,8 @@ pub(crate) fn Coordinator(state: Store<UiModel>, transport: TransportHandle) -> 
         move || {
             let Some(tag) = clicked.read().clone() else { return };
             clicked.set(None);
-            if let Some((_, thread)) = tag.rsplit_once(':') {
-                runtime::select_thread(&transport, state, thread.to_owned());
+            if let Some((environment, thread)) = fleet::split(state, &tag) {
+                runtime::select_thread_in(&transport, state, &environment, thread);
             }
         }
     });
@@ -203,28 +209,30 @@ pub(crate) fn Coordinator(state: Store<UiModel>, transport: TransportHandle) -> 
     });
 
     use_effect({
-        let (tracker, pending, transport) = (tracker.clone(), pending.clone(), transport.clone());
+        let (trackers, pending, transport) = (trackers.clone(), pending.clone(), transport.clone());
         move || {
             let settings = state.client_settings().read().clone();
             let (mode, in_app) = (settings.notification_mode, settings.in_app_notifications_enabled);
-            let connected = *state.status().read() == ConnectionStatus::Connected;
-            let shell = state.shell();
-            let model = shell.read();
-            let threads = model.snapshot.as_ref().filter(|_| connected).map(|snapshot| snapshot.threads.as_slice());
             if mode == NotificationMode::Off && !in_app {
-                tracker.borrow_mut().reset();
+                trackers.borrow_mut().clear();
                 return;
             }
-            let alerts = match threads {
-                Some(threads) => tracker.borrow_mut().scan(threads),
-                None => {
-                    tracker.borrow_mut().reset();
-                    return;
+            let alerts: Vec<(EnvironmentId, Alert)> = fleet::read(state, |shells| {
+                let mut trackers = trackers.borrow_mut();
+                // An environment that is gone is forgotten; one that is not live starts from nothing when it is.
+                trackers.retain(|environment, _| shells.iter().any(|shell| shell.environment == environment));
+                let mut alerts = vec![];
+                for shell in shells {
+                    let tracker = trackers.entry(shell.environment.clone()).or_default();
+                    if fleet::status(state, shell.environment) == ConnectionStatus::Connected {
+                        alerts.extend(tracker.scan(&shell.snapshot.threads).into_iter().map(|alert| (shell.environment.clone(), alert)));
+                    } else {
+                        tracker.reset();
+                    }
                 }
-            };
-            drop(model);
-            let environment = state.destination().peek().as_ref().map(ToString::to_string).unwrap_or_default();
-            for alert in alerts {
+                alerts
+            });
+            for (environment, alert) in alerts {
                 present(state, &transport, &pending, &environment, mode, in_app, alert);
             }
         }
@@ -232,8 +240,16 @@ pub(crate) fn Coordinator(state: Store<UiModel>, transport: TransportHandle) -> 
     rsx! {}
 }
 
-fn present(state: Store<UiModel>, transport: &TransportHandle, pending: &Rc<RefCell<BTreeSet<String>>>, environment: &str, mode: NotificationMode, in_app: bool, alert: Alert) {
-    let (pending, environment, transport) = (pending.clone(), environment.to_owned(), transport.clone());
+/// Whether this window is the one the person is looking at. A test has no page to ask: it is.
+async fn window_focused() -> bool {
+    #[cfg(test)]
+    return true;
+    #[cfg(not(test))]
+    eval_page("return window.__t3Notify.focused();").join::<bool>().await.unwrap_or(true)
+}
+
+fn present(state: Store<UiModel>, transport: &TransportHandle, pending: &Rc<RefCell<BTreeSet<String>>>, environment: &EnvironmentId, mode: NotificationMode, in_app: bool, alert: Alert) {
+    let (pending, environment, transport) = (pending.clone(), environment.clone(), transport.clone());
     spawn(async move {
         let _ = &transport;
         if logic::has_sound(mode) {
@@ -241,21 +257,21 @@ fn present(state: Store<UiModel>, transport: &TransportHandle, pending: &Rc<RefC
             let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
             let _ = eval_page(&format!("return await window.__t3Notify.play('{kind}', '{encoded}');")).join::<bool>().await;
         }
-        let focused = eval_page("return window.__t3Notify.focused();").join::<bool>().await.unwrap_or(true);
-        let elsewhere = state.active_thread().peek().as_deref() != Some(alert.thread_id.as_str());
+        let focused = window_focused().await;
+        let elsewhere = !(fleet::is_open(state, &environment) && state.active_thread().peek().as_deref() == Some(alert.thread_id.as_str()));
         if in_app && focused && elsewhere {
             let level = match alert.level() {
                 "success" => Level::Success,
                 "error" => Level::Error,
                 _ => Level::Warning,
             };
-            notice::push_with(state, level, alert.title, alert.thread_title.clone(), Some(Follow::Thread { label: "Open thread".into(), thread_id: alert.thread_id.clone() }));
+            notice::push_with(state, level, alert.title, alert.thread_title.clone(), Some(Follow::Thread { label: "Open thread".into(), environment: environment.clone(), thread_id: alert.thread_id.clone() }));
             return;
         }
         if !logic::has_desktop_notifications(mode) || focused {
             return;
         }
-        let tag = alert.tag(&environment);
+        let tag = alert.tag(environment.as_str());
         let shown = if DESKTOP {
             #[cfg(feature = "desktop")]
             {
@@ -272,7 +288,7 @@ fn present(state: Store<UiModel>, transport: &TransportHandle, pending: &Rc<RefC
         if shown {
             let count = {
                 let mut tags = pending.borrow_mut();
-                tags.insert(alert.tag(&environment));
+                tags.insert(alert.tag(environment.as_str()));
                 tags.len()
             };
             show_badge(count);

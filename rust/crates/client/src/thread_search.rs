@@ -22,6 +22,9 @@ pub fn request_query(raw: &str) -> Option<String> {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Match {
+    /// The environment that found it. A reply does not say: the caller sets it from the connection that answered
+    /// (`EnvironmentThreadSearchMatch`).
+    pub environment: String,
     pub thread_id: String,
     pub project_id: String,
     pub user: bool,
@@ -34,6 +37,7 @@ pub fn decode_matches(result: &Value) -> Result<Vec<Match>, String> {
     rows.iter()
         .map(|row| {
             Some(Match {
+                environment: String::new(),
                 thread_id: row["threadId"].as_str()?.to_owned(),
                 project_id: row["projectId"].as_str()?.to_owned(),
                 user: match row["source"].as_str()? {
@@ -66,6 +70,8 @@ pub fn answers_current(asked: &Ask, current: &Ask) -> bool {
 /// What the page knows about a thread, for combining with the server's matches.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Candidate {
+    /// The environment the thread is in: two servers can hold one id.
+    pub environment: String,
     pub id: String,
     pub project_id: String,
     pub title: String,
@@ -83,10 +89,10 @@ pub fn combine(threads: &[Candidate], query: &str, matches: &[Match]) -> Vec<Hit
     if query.is_empty() {
         return vec![];
     }
-    let by_thread: BTreeMap<&str, &Match> = matches.iter().map(|found| (found.thread_id.as_str(), found)).collect();
+    let by_thread: BTreeMap<(&str, &str), &Match> = matches.iter().map(|found| ((found.environment.as_str(), found.thread_id.as_str()), found)).collect();
     let (mut titled, mut messaged) = (vec![], vec![]);
     for thread in threads {
-        let found = by_thread.get(thread.id.as_str()).map(|found| (*found).clone());
+        let found = by_thread.get(&(thread.environment.as_str(), thread.id.as_str())).map(|found| (*found).clone());
         if thread.title.to_lowercase().contains(&query) {
             titled.push(Hit { thread: thread.clone(), found });
         } else if found.is_some() {
@@ -114,10 +120,10 @@ mod tests {
     use serde_json::json;
 
     fn candidate(id: &str, title: &str) -> Candidate {
-        Candidate { id: id.into(), project_id: "p".into(), title: title.into() }
+        Candidate { environment: "e".into(), id: id.into(), project_id: "p".into(), title: title.into() }
     }
     fn found(id: &str, snippet: &str) -> Match {
-        Match { thread_id: id.into(), project_id: "p".into(), user: true, snippet: snippet.into(), created_at: None }
+        Match { environment: "e".into(), thread_id: id.into(), project_id: "p".into(), user: true, snippet: snippet.into(), created_at: None }
     }
 
     #[test]
@@ -157,6 +163,15 @@ mod tests {
         // A match for a thread the list no longer has is dropped; no query finds nothing.
         assert!(combine(&threads, "  ", &matches).is_empty());
         assert!(combine(&[], "deploy", &matches).is_empty());
+    }
+
+    #[test]
+    fn a_match_belongs_to_the_environment_that_found_it() {
+        // Two servers hold a thread of one id; only the one that matched its messages gets the excerpt.
+        let threads = [Candidate { environment: "a".into(), ..candidate("t", "Deploy") }, Candidate { environment: "b".into(), ..candidate("t", "Deploy") }];
+        let matches = [Match { environment: "b".into(), ..found("t", "ship it") }];
+        let hits = combine(&threads, "deploy", &matches);
+        assert_eq!(hits.iter().map(|hit| (hit.thread.environment.as_str(), hit.found.is_some())).collect::<Vec<_>>(), [("a", false), ("b", true)]);
     }
 
     #[test]

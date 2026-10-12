@@ -88,6 +88,16 @@ pub(crate) fn Authentication(
     let mut pending = use_signal(|| false);
     let mut logout = use_signal(|| false);
     let mut revealed = use_signal(|| false);
+    // A sign-in made through this computer's own server for an environment that is not on it (`chatgpt_handoff`): the task that
+    // runs it, the local server's sign-in state while it waits for the person, and what is left to do once it has one.
+    let mut handoff_task = use_signal(|| None::<dioxus::dioxus_core::Task>);
+    let mut handoff_auth = use_signal(|| None::<Value>);
+    let mut handoff_note = use_signal(|| None::<&'static str>);
+    use_drop(move || {
+        if let Some(task) = handoff_task.peek().as_ref() {
+            task.cancel();
+        }
+    });
     #[cfg(test)]
     let probe = try_consume_context::<AuthProbe>();
     let subscription_transport = transport.clone();
@@ -259,7 +269,8 @@ pub(crate) fn Authentication(
             });
         }
     });
-    let auth_value = auth.read().clone();
+    let handoff_active = handoff_task.read().is_some();
+    let auth_value = handoff_auth.read().clone().or_else(|| auth.read().clone());
     let account = policy::account(
         &provider,
         auth_value.as_ref(),
@@ -339,7 +350,7 @@ pub(crate) fn Authentication(
             }}
             if let Some(url)=account.url.clone().filter(|url|!url.is_empty()) {
                 button {"aria-label":"Open browser",disabled,onclick:{let url=url.clone();let interaction=interaction.clone();let transport=transport.clone();move |_|{
-                    let consent=interaction["type"]=="browser"&&interaction["requiresConsent"]==true;
+                    let consent=interaction["type"]=="browser"&&interaction["requiresConsent"]==true&&!handoff_active;
                     let args=json!({"url":url,"consent":consent,"native":cfg!(any(feature="desktop",feature="mobile"))});
                     let popup=document::eval(&format!("const args={args};\n{}",include_str!("../assets/provider_auth_browser.js")));
                     let captured=runtime::connection_owner(&transport,state);let popup_transport=transport.clone();
@@ -353,8 +364,39 @@ pub(crate) fn Authentication(
                     spawn(async move {let result=clipboard.join::<bool>().await;if runtime::connection_owner(&clipboard_transport,state)!=captured||!manages(state){return;}match result{Ok(true)=>{if consent{dispatch.call(Action{method:"provider.auth.respond",payload,clear:false,popup:None});}},_=>error.set(Some("Could not copy the sign-in link. Try opening it in your browser.".into()))}});
                 }},"Copy sign-in link"}
             }
-            if account.active&&!flow.is_null(){button {"aria-label":"Cancel sign-in",disabled,onclick:{let instance=instance.clone();let flow=flow.clone();move |_|dispatch.call(Action{method:"provider.auth.cancel",payload:json!({"instanceId":instance,"flowId":flow}),clear:false,popup:None})},"Cancel sign-in"}}
-            if !account.active&&!account.needs_external_setup&&provider["setup"]["canAuthenticate"]!=false {button {"aria-label":account.start_label.clone(),disabled:account.start_disabled,onclick:{let instance=instance.clone();let selected=account.selected_method.clone();let start_transport=transport.clone();move |_|{
+            if (account.active&&!flow.is_null())||handoff_active {button {"aria-label":"Cancel sign-in",disabled:disabled&&!handoff_active,onclick:{let instance=instance.clone();let flow=flow.clone();move |_|{
+                // A sign-in made through this computer ends with the stream that runs it.
+                if let Some(task)=handoff_task.write().take() {
+                    task.cancel();
+                    handoff_auth.set(None);
+                    handoff_note.set(None);
+                    return;
+                }
+                dispatch.call(Action{method:"provider.auth.cancel",payload:json!({"instanceId":instance,"flowId":flow}),clear:false,popup:None})
+            }},"Cancel sign-in"}}
+            if !account.active&&!account.needs_external_setup&&provider["setup"]["canAuthenticate"]!=false {button {"aria-label":account.start_label.clone(),disabled:account.start_disabled||handoff_active,onclick:{let instance=instance.clone();let selected=account.selected_method.clone();let start_transport=transport.clone();let is_codex=provider["driver"]=="codex";move |_|{
+                // An environment that is not on this computer signs in to ChatGPT through the one that is.
+                if is_codex {
+                    let route=runtime::environment_of_handle(&start_transport,state).and_then(|remote|crate::chatgpt_handoff::route(&start_transport,state,&remote));
+                    if let Some(route)=route {
+                        if handoff_task.peek().is_some() {return;}
+                        error.set(None);
+                        let method=if selected.is_empty(){"chatgpt".to_owned()}else{selected.clone()};
+                        let origin=runtime::connected_origin(&route.local).unwrap_or_default();
+                        let return_url=format!("{origin}/settings/providers?instanceId={instance}");
+                        let instance=instance.clone();
+                        let task=spawn(async move {
+                            crate::chatgpt_handoff::run(state,route,instance,method,return_url,move|progress|match progress {
+                                crate::chatgpt_handoff::Progress::Auth(value)=>{handoff_note.set(None);handoff_auth.set(Some(value));}
+                                crate::chatgpt_handoff::Progress::Importing=>{handoff_auth.set(None);handoff_note.set(Some("Finishing sign-in..."));}
+                                crate::chatgpt_handoff::Progress::Done=>{handoff_auth.set(None);handoff_note.set(None);handoff_task.set(None);}
+                                crate::chatgpt_handoff::Progress::Failed(cause)=>{handoff_auth.set(None);handoff_note.set(None);handoff_task.set(None);error.set(Some(cause));}
+                            }).await;
+                        });
+                        handoff_task.set(Some(task));
+                        return;
+                    }
+                }
                 let mut payload=json!({"instanceId":instance});if !selected.is_empty(){payload["methodId"]=json!(selected);}
                 // `CodexSetupSection.tsx`: a server on another computer cannot receive the browser's redirect, so this client brings it
                 // back (pasted, or received by the desktop app); one on this computer listens for it itself.
@@ -370,14 +412,37 @@ pub(crate) fn Authentication(
             for field in interaction["fields"].as_array().cloned().unwrap_or_default(){{let field_id=field["name"].as_str().unwrap_or_default();rsx!{label {key:"{field_id}",{field["label"].as_str().unwrap_or_default()}input {"aria-label":field["label"].as_str().unwrap_or_default(),r#type:if field["secret"]==true{"password"}else{"text"},autocomplete:"off",maxlength:16384,disabled,value:values.get(field["name"].as_str().unwrap_or_default()).cloned().unwrap_or_default(),oninput:{let name=field["name"].as_str().unwrap_or_default().to_owned();move |event|change.call((name.clone(),event.value()))}}}}}}
             button {r#type:"submit",disabled,"Connect"}
         }}
-        if account.callback && crate::provider_auth_local::applies(&transport) {
+        if let Some(note)=handoff_note() {p {role:"status","{note}"}}
+        if account.callback && !handoff_active && crate::provider_auth_local::applies(&transport) {
             if let Some(url)=account.url.clone().filter(|url|!url.is_empty()) {
                 crate::provider_auth_local::LocalSignIn {url,disabled,
                     on_callback:{let instance=instance.clone();let flow=flow.clone();move |callback:String|dispatch.call(Action{method:"provider.auth.complete",payload:json!({"instanceId":instance,"flowId":flow,"callbackUrl":callback}),clear:true,popup:None})},
                     on_error:move |cause:String|error.set(Some(cause))}
             }
         }
-        if account.callback {form {"aria-label":"Provider callback",onsubmit:{let instance=instance.clone();let flow=flow.clone();let callback=values.get("callback").cloned().unwrap_or_default();move |event|{event.prevent_default();if !policy::trim(&callback).is_empty(){dispatch.call(Action{method:"provider.auth.complete",payload:json!({"instanceId":instance,"flowId":flow,"callbackUrl":callback}),clear:true,popup:None});}}},
+        // The web build has no listener of its own: the environment on this computer listens for the redirect, when there is one.
+        if !cfg!(feature = "desktop") && account.callback && !handoff_active {
+            if let (Some(url), Some(route)) = (account.url.clone().filter(|url| !url.is_empty()), runtime::environment_of_handle(&transport, state).and_then(|remote| crate::chatgpt_handoff::route(&transport, state, &remote))) {
+                button {"aria-label":"Sign in on this computer",disabled,onclick:{let (instance,flow,url) = (instance.clone(),flow.clone(),url.clone());move |_|{
+                    let (instance,flow,url,route) = (instance.clone(),flow.clone(),url.clone(),route.clone());
+                    let origin = runtime::connected_origin(&route.local).unwrap_or_default();
+                    let return_url = format!("{origin}/settings/providers?instanceId={instance}");
+                    spawn(async move {
+                        let flow_id = flow.as_str().unwrap_or_default().to_owned();
+                        let page = url.clone();
+                        let outcome = crate::chatgpt_handoff::receive_redirect(state,&route,&instance,&flow_id,&url,&return_url,move || {
+                            let page = serde_json::to_string(&page).unwrap_or_default();
+                            let _ = document::eval(&format!("window.open({page},'_blank','noopener');"));
+                        }).await;
+                        match outcome {
+                            Ok(callback) => dispatch.call(Action{method:"provider.auth.complete",payload:json!({"instanceId":instance,"flowId":flow,"callbackUrl":callback}),clear:true,popup:None}),
+                            Err(cause) => error.set(Some(cause)),
+                        }
+                    });
+                }},"Sign in on this computer"}
+            }
+        }
+        if account.callback && !handoff_active {form {"aria-label":"Provider callback",onsubmit:{let instance=instance.clone();let flow=flow.clone();let callback=values.get("callback").cloned().unwrap_or_default();move |event|{event.prevent_default();if !policy::trim(&callback).is_empty(){dispatch.call(Action{method:"provider.auth.complete",payload:json!({"instanceId":instance,"flowId":flow,"callbackUrl":callback}),clear:true,popup:None});}}},
             label {"If the final localhost page does not load, paste its full URL here.",input {r#type:"url","aria-label":"Sign-in callback URL",autocomplete:"off",maxlength:16384,disabled,value:values.get("callback").cloned().unwrap_or_default(),oninput:move |event|change.call(("callback".into(),event.value()))}}
             button {r#type:"submit",disabled:disabled||values.get("callback").is_none_or(|value|policy::trim(value).is_empty()),"Continue"}
         }}

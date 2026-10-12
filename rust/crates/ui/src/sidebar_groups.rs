@@ -1,38 +1,49 @@
 //! Grouped project rows in the sidebar: which projects share a row (`t3_client::project_grouping`, the
 //! original's `buildProjectGroups`), the "Group into…" dialog of a project's menu, and the sidebar's
-//! "Filter threads by project" control. The window shows one environment at a time, so a row groups the
-//! checkouts and worktrees of one repository that this environment holds.
+//! "Filter threads by project" control. A row groups the checkouts and worktrees of one repository across every
+//! connected environment, as the original's does: a repository open on two machines is one row, and the row's
+//! threads are both machines'.
 use crate::{
+    fleet,
     runtime::{UiModel, UiModelStoreExt},
     settings_rows,
 };
 use dioxus::prelude::*;
 use serde_json::json;
 use t3_client::project_grouping::{self as grouping, Group, Mode};
-use t3_contracts::ProjectShell;
+use t3_contracts::{EnvironmentId, ProjectShell};
 
-/// One environment is shown at a time, so the key of a physical project needs no environment name.
-const ENVIRONMENT: &str = "";
 const SCOPE_KEY: &str = "t3code:sidebar:project-scope";
 const LAST_MODE_KEY: &str = "t3code:last-enabled-project-grouping-mode";
 
-/// The projects a row lists the threads of: a group's members, or one project. `key` is the id of the
-/// group's representative project, which names the row wherever a row is remembered (a held drop).
+/// The projects a row lists the threads of: a group's members, or one project, each as `(environment, project id)`. `key` names
+/// the row wherever a row is remembered (a held drop): the environment and id of the group's representative project.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Scope {
     pub key: String,
-    pub ids: Vec<String>,
+    pub refs: Vec<(String, String)>,
 }
 impl Scope {
     #[cfg(test)]
-    pub fn single(id: &str) -> Self {
-        Self { key: id.to_owned(), ids: vec![id.to_owned()] }
+    pub fn single(environment: &str, id: &str) -> Self {
+        Self { key: format!("{environment}:{id}"), refs: vec![(environment.to_owned(), id.to_owned())] }
+    }
+    fn alone(environment: &EnvironmentId, id: &str) -> Self {
+        Self { key: fleet::key(environment, id), refs: vec![(environment.to_string(), id.to_owned())] }
+    }
+    pub fn contains(&self, environment: &EnvironmentId, project: &str) -> bool {
+        self.refs.iter().any(|(env, id)| env == environment.as_str() && id == project)
+    }
+    /// The environment the row's projects are all in, when they are.
+    pub fn environment(&self) -> Option<&str> {
+        let first = self.refs.first()?.0.as_str();
+        self.refs.iter().all(|(environment, _)| environment == first).then_some(first)
     }
 }
 
-pub(crate) fn project_of(project: &ProjectShell) -> grouping::Project {
+pub(crate) fn project_of(environment: &EnvironmentId, project: &ProjectShell) -> grouping::Project {
     grouping::Project {
-        environment: ENVIRONMENT.to_owned(),
+        environment: environment.to_string(),
         id: project.id.to_string(),
         title: project.title.to_string(),
         workspace_root: project.workspace_root.to_string(),
@@ -42,37 +53,73 @@ pub(crate) fn project_of(project: &ProjectShell) -> grouping::Project {
     }
 }
 
-/// The sidebar's rows, in the order their first project appears.
-pub(crate) fn groups_of(projects: &[ProjectShell], settings: &t3_contracts::ClientSettings) -> (Vec<grouping::Project>, Vec<Group>) {
-    let inputs: Vec<_> = projects.iter().map(project_of).collect();
-    let groups = grouping::build_groups(&inputs, &grouping::Settings::of(settings), Some(ENVIRONMENT));
+/// The sidebar's rows, in the order their first project appears; the open environment's project stands for a row it is in.
+pub(crate) fn groups_of(shells: &[fleet::Shell<'_>], settings: &t3_contracts::ClientSettings, open: Option<&EnvironmentId>) -> (Vec<grouping::Project>, Vec<Group>) {
+    let inputs: Vec<_> = shells.iter().flat_map(|shell| shell.snapshot.projects.iter().map(|project| project_of(shell.environment, project))).collect();
+    let groups = grouping::build_groups(&inputs, &grouping::Settings::of(settings), open.map(EnvironmentId::as_str));
     (inputs, groups)
 }
 
-/// The row a project is listed in.
-pub(crate) fn scope_of(state: Store<UiModel>, project_id: &str) -> Scope {
-    let shell = state.shell();
-    let shell = shell.read();
+pub(crate) fn scope_of_group(inputs: &[grouping::Project], group: &Group) -> Scope {
+    let representative = &inputs[group.representative];
+    Scope { key: format!("{}:{}", representative.environment, representative.id), refs: group.project_refs.clone() }
+}
+
+/// One row of the sidebar, as it is drawn.
+pub(crate) struct Row {
+    /// The logical key of the group, which the project filter names.
+    pub key: String,
+    pub label: String,
+    pub scope: Scope,
+    pub representative: grouping::Project,
+    /// The physical projects of the row, one for each directory of each environment.
+    pub members: Vec<grouping::Project>,
+}
+
+/// Every row of the sidebar, in order, before the project filter.
+pub(crate) fn rows(state: Store<UiModel>) -> Vec<Row> {
+    let open = state.destination().read().clone();
     let settings = state.client_settings();
     let settings = settings.read();
-    let Some(snapshot) = shell.snapshot.as_ref() else { return Scope { key: project_id.to_owned(), ids: vec![project_id.to_owned()] } };
-    let (inputs, groups) = groups_of(&snapshot.projects, &settings);
-    match grouping::group_of(&groups, ENVIRONMENT, project_id) {
-        Some(group) => Scope { key: inputs[group.representative].id.clone(), ids: group.project_ids() },
-        None => Scope { key: project_id.to_owned(), ids: vec![project_id.to_owned()] },
-    }
+    fleet::read(state, |shells| {
+        let (inputs, groups) = groups_of(shells, &settings, open.as_ref());
+        groups
+            .iter()
+            .map(|group| Row {
+                key: group.key.clone(),
+                label: group.label.clone(),
+                scope: scope_of_group(&inputs, group),
+                representative: inputs[group.representative].clone(),
+                members: group.members.iter().map(|member| inputs[member.index].clone()).collect(),
+            })
+            .collect()
+    })
+}
+
+/// The row a project is listed in.
+pub(crate) fn scope_of(state: Store<UiModel>, environment: &EnvironmentId, project_id: &str) -> Scope {
+    let open = state.destination().read().clone();
+    let settings = state.client_settings();
+    let settings = settings.read();
+    fleet::read(state, |shells| {
+        let (inputs, groups) = groups_of(shells, &settings, open.as_ref());
+        match grouping::group_of(&groups, environment.as_str(), project_id) {
+            Some(group) => scope_of_group(&inputs, group),
+            None => Scope::alone(environment, project_id),
+        }
+    })
 }
 
 /// The rows the sidebar shows, in order: all of them, or the one the project filter is on.
-pub(crate) fn visible_scopes(state: Store<UiModel>, projects: &[ProjectShell]) -> Vec<Scope> {
+pub(crate) fn visible_scopes(state: Store<UiModel>) -> Vec<Scope> {
+    let open = state.destination().read().clone();
     let settings = state.client_settings();
-    let (inputs, groups) = groups_of(projects, &settings.read());
-    let scoped = scoped_key(state, groups.iter().map(|group| group.key.as_str()));
-    groups
-        .iter()
-        .filter(|group| scoped.as_ref().is_none_or(|key| *key == group.key))
-        .map(|group| Scope { key: inputs[group.representative].id.clone(), ids: group.project_ids() })
-        .collect()
+    let settings = settings.read();
+    fleet::read(state, |shells| {
+        let (inputs, groups) = groups_of(shells, &settings, open.as_ref());
+        let scoped = scoped_key(state, groups.iter().map(|group| group.key.as_str()));
+        groups.iter().filter(|group| scoped.as_ref().is_none_or(|key| *key == group.key)).map(|group| scope_of_group(&inputs, group)).collect()
+    })
 }
 
 /// The key of the project group chosen in the filter, if it still exists.
@@ -234,7 +281,7 @@ pub(crate) fn ScopeFilter(state: Store<UiModel>, items: Vec<(String, String)>) -
     }
 }
 
-/// What `sidebarProjectGroupingOverrides` is keyed by for a directory.
-pub(crate) fn override_key(workspace_root: &str) -> String {
-    grouping::physical_key_of(ENVIRONMENT, workspace_root)
+/// What `sidebarProjectGroupingOverrides` is keyed by for a directory of an environment.
+pub(crate) fn override_key(environment: &str, workspace_root: &str) -> String {
+    grouping::physical_key_of(environment, workspace_root)
 }

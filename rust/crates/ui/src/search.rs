@@ -1,17 +1,21 @@
 //! Finding a thread: the sidebar's search box and the palette's thread results share this hook.
 //! Titles match as you type; messages are searched on the server after a pause, and only for
-//! queries it accepts. An answer that is not for the latest query, connection and thread list is
+//! queries it accepts. Every connected environment is asked, each on its own connection
+//! (`useThreadSearch(environmentIds, query)`), and a failed or slow one leaves the others' answers
+//! and the title matches. An answer that is not for the latest query, connection and thread list is
 //! never shown: the request is dropped when the query changes, and what is shown is checked
 //! against the threads the sidebar has right now.
-use crate::runtime::{self, TransportHandle, UiModel, UiModelStoreExt};
+use crate::{
+    fleet,
+    runtime::{self, TransportHandle, UiModel, UiModelStoreExt},
+};
 use dioxus::prelude::*;
 use serde_json::json;
 use t3_client::{
-    connection::ConnectionStatus,
     palette::highlight,
     thread_search::{self, Candidate, Hit, Match},
 };
-use t3_contracts::AuthEnvironmentScope;
+use t3_contracts::{AuthEnvironmentScope, EnvironmentId};
 
 /// The server's latest answer, and the query it answers.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -42,37 +46,54 @@ pub(crate) struct Hold {
     pub release: std::rc::Rc<std::cell::RefCell<Option<futures_channel::oneshot::Receiver<()>>>>,
 }
 
-/// Asks the server about `query` (after the pause) while the connection can read threads.
+/// The environments a search asks: the connected ones whose session may read threads.
+fn searchable(state: Store<UiModel>) -> Vec<EnvironmentId> {
+    let mut environments: Vec<EnvironmentId> = state.live().read().keys().cloned().collect();
+    if let Some(open) = state.destination().read().clone().filter(|open| !environments.contains(open)) {
+        environments.push(open);
+    }
+    environments.retain(|environment| fleet::allows(state, environment, AuthEnvironmentScope::OrchestrationRead));
+    environments
+}
+
+/// Asks every environment's server about `query` (after the pause) while its connection can read threads.
 pub(crate) fn use_search(state: Store<UiModel>, transport: TransportHandle, query: impl Fn() -> String + 'static) -> Signal<Answer> {
     let mut answer = use_signal(Answer::default);
     use_resource(move || {
         let typed = query();
-        let connected = *state.status().read() == ConnectionStatus::Connected;
-        let allowed = state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, AuthEnvironmentScope::OrchestrationRead));
+        let environments = searchable(state);
         let transport = transport.clone();
         async move {
-            let Some(asked) = thread_search::request_query(&typed).filter(|_| connected && allowed) else {
+            let Some(asked) = thread_search::request_query(&typed).filter(|_| !environments.is_empty()) else {
                 if *answer.peek() != Answer::default() {
                     answer.set(Answer::default());
                 }
                 return;
             };
             runtime::delay(thread_search::DEBOUNCE_MS).await;
-            let Some(owner) = runtime::connection_owner(&transport, state) else { return };
+            // Each question goes out on the connection of its environment and is answered for that connection alone.
+            let links: Vec<(EnvironmentId, TransportHandle)> = environments.into_iter().filter_map(|environment| transport.link_of(&environment).map(|link| (environment, link))).collect();
+            let owners: Vec<_> = links.iter().map(|(_, link)| runtime::link_owner(link)).collect();
+            if owners.iter().all(Option::is_none) {
+                return;
+            }
             if answer.peek().query != asked {
                 answer.write().loading = true;
             }
             #[cfg(test)]
             REQUESTS.with(|requests| requests.borrow_mut().push(asked.clone()));
-            let result = runtime::request_value_reported(transport.clone(), state, "orchestration.searchThreads", json!({"query":asked})).await;
+            let results = futures_util::future::join_all(links.iter().map(|(_, link)| runtime::request_value_reported(link.clone(), state, "orchestration.searchThreads", json!({"query":asked})))).await;
             #[cfg(test)]
             hold(&asked).await;
-            // The reply belongs to a connection that has since changed.
-            if runtime::connection_owner(&transport, state).as_ref() != Some(&owner) {
-                return;
+            let mut matches = vec![];
+            for (((environment, link), owner), result) in links.iter().zip(owners).zip(results) {
+                // The reply belongs to a connection that has since changed.
+                if owner.is_none() || runtime::link_owner(link) != owner {
+                    continue;
+                }
+                // A failed search leaves title matches, as the original does.
+                matches.extend(result.and_then(|value| thread_search::decode_matches(&value)).unwrap_or_default().into_iter().map(|found| Match { environment: environment.to_string(), ..found }));
             }
-            // A failed search leaves title matches, as the original does.
-            let matches = result.and_then(|value| thread_search::decode_matches(&value)).unwrap_or_default();
             answer.set(Answer { query: asked, matches, loading: false });
         }
     });
@@ -100,17 +121,20 @@ async fn hold(query: &str) {
     }
 }
 
-/// The threads a search covers, in the order the sidebar lists them.
+/// The threads a search covers, in the order the sidebar lists them: each environment's, by project.
 pub(crate) fn candidates(state: Store<UiModel>) -> Vec<Candidate> {
-    let field = state.shell();
-    let shell = field.read();
-    let Some(snapshot) = shell.snapshot.as_ref() else { return vec![] };
-    snapshot
-        .projects
-        .iter()
-        .flat_map(|project| snapshot.threads.iter().filter(move |thread| thread.project_id == project.id && thread.deleted_at.is_none() && thread.archived_at.is_none()))
-        .map(|thread| Candidate { id: thread.id.to_string(), project_id: thread.project_id.to_string(), title: thread.title.clone() })
-        .collect()
+    fleet::read(state, |shells| {
+        shells
+            .iter()
+            .flat_map(|shell| {
+                let environment = shell.environment.to_string();
+                shell.snapshot.projects.iter().flat_map(move |project| {
+                    let environment = environment.clone();
+                    shell.snapshot.threads.iter().filter(move |thread| thread.project_id == project.id && thread.deleted_at.is_none() && thread.archived_at.is_none()).map(move |thread| Candidate { environment: environment.clone(), id: thread.id.to_string(), project_id: thread.project_id.to_string(), title: thread.title.clone() })
+                })
+            })
+            .collect()
+    })
 }
 /// The hits for what was typed, with the server's matches only while they answer it.
 pub(crate) fn hits(state: Store<UiModel>, typed: &str, answer: &Answer) -> Vec<Hit> {
@@ -122,8 +146,11 @@ pub(crate) fn hits(state: Store<UiModel>, typed: &str, answer: &Answer) -> Vec<H
 pub(crate) fn pending(typed: &str, answer: &Answer) -> bool {
     thread_search::request_query(typed).is_some_and(|query| answer.loading || query != answer.query)
 }
-pub(crate) fn project_title(state: Store<UiModel>, project_id: &str) -> String {
-    state.shell().read().snapshot.as_ref().and_then(|snapshot| snapshot.projects.iter().find(|project| project.id.as_str() == project_id)).map(|project| project.title.to_string()).unwrap_or_default()
+/// The project's title, and the environment's name after it while more than one is connected.
+pub(crate) fn project_title(state: Store<UiModel>, environment: &str, project_id: &str) -> String {
+    let Ok(environment) = EnvironmentId::new(environment) else { return String::new() };
+    let title = fleet::read(state, |shells| shells.iter().filter(|shell| *shell.environment == environment).find_map(|shell| shell.snapshot.projects.iter().find(|project| project.id.as_str() == project_id).map(|project| project.title.to_string())).unwrap_or_default());
+    if fleet::count(state) > 1 { format!("{title} \u{b7} {}", fleet::label(state, &environment)) } else { title }
 }
 
 /// A message excerpt with the matched words marked.
@@ -155,12 +182,14 @@ pub(crate) fn SidebarSearch(state: Store<UiModel>, transport: TransportHandle) -
     let shown = (*active.read()).min(count.saturating_sub(1));
     let open = {
         let (transport, mut query) = (transport.clone(), query);
-        move |id: String| {
+        move |(environment, id): (String, String)| {
             query.set(String::new());
-            runtime::select_thread(&transport, state, id);
+            if let Ok(environment) = EnvironmentId::new(&environment) {
+                runtime::select_thread_in(&transport, state, &environment, id);
+            }
         }
     };
-    let ids: Vec<String> = found.iter().map(|hit| hit.thread.id.clone()).collect();
+    let ids: Vec<(String, String)> = found.iter().map(|hit| (hit.thread.environment.clone(), hit.thread.id.clone())).collect();
     rsx! {
         div { class: "sidebar-search", "data-searching": "{searching}",
             div { class: "search-field",
@@ -186,12 +215,12 @@ pub(crate) fn SidebarSearch(state: Store<UiModel>, transport: TransportHandle) -
                 if count > 0 {
                     ul { id: "thread-search-results", class: "search-results", role: "listbox", "aria-label": "Thread search results",
                         for (index, hit) in found.into_iter().enumerate() {
-                            li { key: "{hit.thread.id}", role: "presentation",
+                            li { key: "{hit.thread.environment}:{hit.thread.id}", role: "presentation",
                                 button { class: if index == shown { "search-result active" } else { "search-result" }, r#type: "button", role: "option", tabindex: "-1", "aria-label": "{hit.thread.title}", "aria-selected": "{index == shown}",
                                     onmousemove: move |_| { if *active.peek() != index { active.set(index); } },
-                                    onclick: { let (id, mut open) = (hit.thread.id.clone(), open.clone()); move |_| open(id.clone()) },
+                                    onclick: { let (id, mut open) = ((hit.thread.environment.clone(), hit.thread.id.clone()), open.clone()); move |_| open(id.clone()) },
                                     span { class: "thread-title", "{hit.thread.title}" }
-                                    span { class: "search-project", "{project_title(state, &hit.thread.project_id)}" }
+                                    span { class: "search-project", "{project_title(state, &hit.thread.environment, &hit.thread.project_id)}" }
                                     if let Some(found) = hit.found { Excerpt { user: found.user, snippet: found.snippet, query: typed.clone() } }
                                 }
                             }

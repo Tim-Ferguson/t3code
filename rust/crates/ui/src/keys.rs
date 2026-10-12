@@ -96,24 +96,35 @@ fn open_thread(state: Store<UiModel>) -> Option<Open> {
     let thread = shell.snapshot.as_ref()?.threads.iter().find(|thread| thread.id.as_str() == id)?;
     Some(Open { working: thread.status.is_active(), id })
 }
-/// Thread ids in the order the sidebar lists them: by project, then as the server sent them.
-pub(crate) fn sidebar_order(state: Store<UiModel>) -> Vec<String> {
-    let field = state.shell();
-    let shell = field.read();
-    let Some(snapshot) = shell.snapshot.as_ref() else { return vec![] };
+/// Threads in the order the sidebar lists them, across the environments: by project row, then as the sections order them.
+pub(crate) fn sidebar_order(state: Store<UiModel>) -> Vec<(t3_contracts::EnvironmentId, String)> {
     let now = chrono::Utc::now();
-    let caps = crate::sidebar_rows::caps(state);
     let shelves = *state.shelves().peek();
     let (working_open, snoozed_open, settled_open) = (shelves.working, shelves.snoozed, shelves.settled);
-    // What the sidebar shows: the shelves that are folded away do not take part.
-    crate::sidebar_groups::visible_scopes(state, &snapshot.projects).into_iter().flat_map(|scope| {
-        let sections = t3_client::sidebar::Sections::of(crate::sidebar_rows::listed_in(&snapshot.threads, &scope.ids), now, caps.support());
-        let open = state.active_thread().peek().clone();
-        let working = t3_client::sidebar::shelf_rows(&sections.working, working_open, usize::MAX, open.as_deref());
-        let snoozed = t3_client::sidebar::shelf_rows(&sections.snoozed, snoozed_open, usize::MAX, open.as_deref());
-        let settled = t3_client::sidebar::shelf_rows(&sections.settled, settled_open, t3_client::sidebar::SETTLED_INITIAL, open.as_deref());
-        [sections.pinned, sections.active, working, snoozed, settled].concat().into_iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>()
-    }).collect()
+    let open = state.active_thread().peek().clone();
+    let scopes = crate::sidebar_groups::visible_scopes(state);
+    crate::fleet::read(state, |shells| {
+        // What the sidebar shows: the shelves that are folded away do not take part.
+        scopes.iter().flat_map(|scope| {
+            let listed: Vec<_> = crate::sidebar_rows::listed_in(shells, scope).collect();
+            let caps = scope.refs.iter().filter_map(|(environment, _)| t3_contracts::EnvironmentId::new(environment).ok()).map(|environment| crate::fleet::caps(state, &environment)).reduce(crate::sidebar_rows::Caps::union).unwrap_or_default();
+            let sections = t3_client::sidebar::Sections::of(listed.iter().map(|(_, thread)| *thread), now, caps.support());
+            let working = t3_client::sidebar::shelf_rows(&sections.working, working_open, usize::MAX, open.as_deref());
+            let snoozed = t3_client::sidebar::shelf_rows(&sections.snoozed, snoozed_open, usize::MAX, open.as_deref());
+            let settled = t3_client::sidebar::shelf_rows(&sections.settled, settled_open, t3_client::sidebar::SETTLED_INITIAL, open.as_deref());
+            let owners = crate::fleet::Owners::of(&listed);
+            [sections.pinned, sections.active, working, snoozed, settled].concat().into_iter().filter_map(|thread| owners.get(thread).map(|environment| (environment.clone(), thread.id.to_string()))).collect::<Vec<_>>()
+        }).collect()
+    })
+}
+/// `sidebar_order` as the single names `thread.next`, `thread.previous` and the jumps walk.
+fn order_keys(order: &[(t3_contracts::EnvironmentId, String)]) -> Vec<String> {
+    order.iter().map(|(environment, id)| crate::fleet::key(environment, id)).collect()
+}
+/// The key of the open thread among them.
+fn open_key(state: Store<UiModel>) -> Option<String> {
+    let environment = state.destination().peek().clone()?;
+    state.active_thread().peek().as_ref().map(|id| crate::fleet::key(&environment, id))
 }
 fn allows(state: Store<UiModel>, scope: AuthEnvironmentScope) -> bool {
     *state.status().read() == ConnectionStatus::Connected && state.destination().read().as_ref().is_some_and(|destination| state.environments().read().allows(destination, scope))
@@ -189,6 +200,10 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                 if open.as_ref().is_some_and(|thread| thread.working) {
                     set.insert("thread.stop".into());
                 }
+            }
+            // Both need a form that can run on more than one machine.
+            if chat && crate::new_thread::form_hosts(state).len() > 1 {
+                set.extend(["composer.host", "composer.cycleHost"].map(String::from));
             }
             if chat && crate::new_thread::workspace_form_open(state) {
                 set.insert("composer.workspace".into());
@@ -283,9 +298,10 @@ pub(crate) fn use_keys(state: Store<UiModel>, transport: TransportHandle) -> Run
                     set.insert("pullRequest.copyNumber".into());
                 }
             }
-            let current = state.active_thread().read().clone();
+            let current = state.destination().read().clone().zip(state.active_thread().read().clone()).map(|(environment, id)| crate::fleet::key(&environment, &id));
+            let keys = order_keys(&order);
             for (command, forward) in [("thread.previous", false), ("thread.next", true)] {
-                if thread_nav::adjacent(&order, current.as_deref(), forward).is_some() {
+                if thread_nav::adjacent(&keys, current.as_deref(), forward).is_some() {
                     set.insert(command.into());
                 }
             }
@@ -550,6 +566,8 @@ impl Runner {
                 }
             }
             "composer.workspace" => crate::new_thread::focus_workspace(),
+            "composer.host" => crate::new_thread::focus_host(),
+            "composer.cycleHost" => crate::new_thread::cycle_host(&self.transport, state),
             "composer.previousWorktree" => crate::new_thread::use_previous_worktree(state),
             "thread.undo" => crate::thread_lifecycle::undo(state, &self.transport),
             "composer.sendBackground" => {
@@ -619,16 +637,16 @@ impl Runner {
             "thread.settle" => crate::sidebar_rows::toggle_settle(&self.transport, state),
             "thread.copyReference" => crate::sidebar_rows::copy_reference(state),
             "thread.previous" | "thread.next" => {
-                let order = sidebar_order(state);
-                let current = state.active_thread().peek().clone();
-                if let Some(id) = thread_nav::adjacent(&order, current.as_deref(), command == "thread.next") {
-                    runtime::select_thread(&self.transport, state, id.to_owned());
+                let keys = order_keys(&sidebar_order(state));
+                let current = open_key(state);
+                if let Some((environment, id)) = thread_nav::adjacent(&keys, current.as_deref(), command == "thread.next").and_then(|key| crate::fleet::split(state, key)) {
+                    runtime::select_thread_in(&self.transport, state, &environment, id);
                 }
             }
             jump => {
                 if let Some(index) = thread_nav::jump_index(jump) {
-                    if let Some(id) = sidebar_order(state).get(index) {
-                        runtime::select_thread(&self.transport, state, id.clone());
+                    if let Some((environment, id)) = sidebar_order(state).get(index) {
+                        runtime::select_thread_in(&self.transport, state, environment, id.clone());
                     }
                 }
             }

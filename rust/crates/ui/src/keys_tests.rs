@@ -549,7 +549,7 @@ async fn thread_shortcuts_move_through_the_sidebar_order_and_stop_at_its_ends() 
     // The sidebar lists the newest thread first (the active list's order), whatever the names say.
     let order = crate::keys::sidebar_order(state);
     assert_eq!(order.len(), 2, "{order:?}");
-    let (first, second) = (order[0].as_str(), order[1].as_str());
+    let (first, second) = (order[0].1.as_str(), order[1].1.as_str());
     // Whether a chord is claimed depends on which thread is open, through a memo that settles only
     // once the app has rendered the thread. Every step therefore waits for the opened thread to be
     // on screen (the timeline reads its projection) before the next key is pressed.

@@ -277,6 +277,11 @@ mod links;
 pub use links::{EnvironmentState, TransportHandle};
 use links::{Slot, environment_of, set_status, slot, status_of};
 
+/// The environment a connection goes to.
+pub(crate) fn environment_of_handle(handle: &TransportHandle, state: Store<UiModel>) -> Option<EnvironmentId> {
+    environment_of(handle, state)
+}
+
 /// Whether the endpoint in use is on this computer's loopback interface.
 pub(crate) fn connected_to_loopback(handle: &TransportHandle) -> bool {
     handle.borrow().endpoint.as_ref().is_some_and(|endpoint| matches!(endpoint.http("").host_str(), Some("127.0.0.1" | "localhost" | "[::1]")))
@@ -609,6 +614,16 @@ pub fn request_stream_reported(
 ) -> Result<StreamRequest, String> {
     open_stream(handle, state, method, payload, true, false)
 }
+/// A stream of the link it is made on, whichever environment the window is on, whose failure the caller shows itself: what one
+/// environment's sign-in runs for another (`chatgpt_handoff`).
+pub(crate) fn request_stream_link_reported(
+    handle: &TransportHandle,
+    state: Store<UiModel>,
+    method: &str,
+    payload: Value,
+) -> Result<StreamRequest, String> {
+    open_stream(handle, state, method, payload, true, true)
+}
 fn open_stream(
     handle: &TransportHandle,
     state: Store<UiModel>,
@@ -687,7 +702,7 @@ pub fn connection_owner(
 
 /// The connection a link is on, whichever environment the window is on (`connection_owner` is that, and only while the link is the
 /// window's): what a link's own tasks check to know their socket is still the one they started on.
-fn link_owner(link: &TransportHandle) -> Option<ConnectionOwner> {
+pub(crate) fn link_owner(link: &TransportHandle) -> Option<ConnectionOwner> {
     let transport = link.borrow();
     let destination = transport.destination.clone()?;
     Some(ConnectionOwner { generation: transport.generation, socket_generation: transport.socket_generation, destination })
@@ -889,6 +904,17 @@ impl ResponseOwner {
 }
 pub fn response_owner(handle: &TransportHandle, state: Store<UiModel>) -> Option<ResponseOwner> {
     let transport = handle.borrow();
+    // A connection that is not the window's (a request about a row of another environment) is owned by its own environment, and no
+    // thread of the window is open on it.
+    if let Slot::Parked(environment) = slot(handle) {
+        return (transport.destination.as_ref() == Some(&environment)).then(|| ResponseOwner {
+            generation: transport.generation,
+            socket_generation: transport.socket_generation,
+            thread_generation: transport.thread_generation,
+            destination: environment,
+            active_thread: None,
+        });
+    }
     let model = state.peek();
     let destination = model.destination.clone()?;
     (transport.destination.as_ref() == Some(&destination)).then(|| ResponseOwner {
@@ -2268,7 +2294,7 @@ async fn connect_once(
         if status_of(&other, state) == ConnectionStatus::Connected {
             handle.close();
             if was_open {
-                switch_to_link(&other, state);
+                switch_to_link(&other, state, true);
             }
             return;
         }
@@ -2479,21 +2505,48 @@ fn clear_slice(link: &TransportHandle, mut state: Store<UiModel>) {
 /// shell has kept arriving while it was away. Only the open environment has a thread stream and a lifecycle stream, which this one
 /// takes up again. Returns whether there is such an environment.
 pub fn switch_to_environment(handle: &TransportHandle, state: Store<UiModel>, environment: &EnvironmentId) -> bool {
+    switch_to(handle, state, environment, true)
+}
+
+/// `resume` asks again for the thread the environment had open; a caller that is about to open another leaves it.
+fn switch_to(handle: &TransportHandle, state: Store<UiModel>, environment: &EnvironmentId, resume: bool) -> bool {
     match handle.link_of(environment) {
         Some(link) => {
-            switch_to_link(&link, state);
+            switch_to_link(&link, state, resume);
             true
         }
         None => false,
     }
 }
 
-fn switch_to_link(link: &TransportHandle, state: Store<UiModel>) {
+fn switch_to_link(link: &TransportHandle, state: Store<UiModel>, resume: bool) {
     links::activate(link, state);
     if status_of(link, state) == ConnectionStatus::Connected {
-        resubscribe_thread(link, state);
+        if resume {
+            resubscribe_thread(link, state);
+        }
         crate::lifecycle::start(link, state);
     }
+}
+
+/// Opens a thread of a connected environment, whichever one the window is on: the window moves to the environment first (parked
+/// state and all, `links`), then the thread is opened as `select_thread` opens it. False, with nothing changed, when the
+/// environment is not connected. Every row that can belong to another environment opens its thread through this.
+pub fn select_thread_in(handle: &TransportHandle, state: Store<UiModel>, environment: &EnvironmentId, thread_id: String) -> bool {
+    if state.peek().destination.as_ref() != Some(environment) && !switch_to(handle, state, environment, false) {
+        return false;
+    }
+    select_thread(handle, state, thread_id);
+    true
+}
+
+/// The start form for a project of a connected environment, moving the window to the environment first.
+pub fn new_thread_in(handle: &TransportHandle, state: Store<UiModel>, environment: &EnvironmentId, project: Option<String>) -> bool {
+    if state.peek().destination.as_ref() != Some(environment) && !switch_to(handle, state, environment, false) {
+        return false;
+    }
+    new_thread(handle, state, project);
+    true
 }
 
 /// Asks again for the open thread, without clearing what is drawn of it: the server's snapshot replaces it.
@@ -3647,3 +3700,7 @@ mod connection_store_tests;
 #[cfg(all(test, unix))]
 #[path = "environments_tests.rs"]
 mod environments_tests;
+
+#[cfg(all(test, unix))]
+#[path = "fleet_tests.rs"]
+mod fleet_tests;

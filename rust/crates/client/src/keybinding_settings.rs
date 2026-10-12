@@ -59,6 +59,8 @@ pub const WIRED_COMMANDS: &[&str] = &[
     "composer.effort",
     "composer.mode",
     "composer.workspace",
+    "composer.host",
+    "composer.cycleHost",
     "composer.previousWorktree",
     "chat.newLocal",
     "editor.openFavorite",

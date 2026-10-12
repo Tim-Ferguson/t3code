@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use std::rc::Rc;
 use t3_client::context_menu as menu;
 use t3_client::sidebar::{self, Pill, Status};
-use t3_contracts::ThreadShell;
+use t3_contracts::{EnvironmentId, ThreadShell};
 
 /// What the server says it can do for threads. Each action is offered only where it is.
 #[derive(Clone, Copy, PartialEq, Default)]
@@ -35,6 +35,20 @@ pub(crate) struct Caps {
     pub working_shelf: bool,
 }
 impl Caps {
+    /// What either of two servers offers, for a row that lists threads of both.
+    pub fn union(self, other: Self) -> Self {
+        Self {
+            pinning: self.pinning || other.pinning,
+            pin_reorder: self.pin_reorder || other.pin_reorder,
+            active_reorder: self.active_reorder || other.active_reorder,
+            snooze: self.snooze || other.snooze,
+            settlement: self.settlement || other.settlement,
+            auto_settle_opt_out: self.auto_settle_opt_out || other.auto_settle_opt_out,
+            title_regeneration: self.title_regeneration || other.title_regeneration,
+            visited_tracking: self.visited_tracking || other.visited_tracking,
+            working_shelf: self.working_shelf || other.working_shelf,
+        }
+    }
     pub fn support(self) -> sidebar::Support {
         sidebar::Support { settlement: self.settlement, snooze: self.snooze, working_shelf: self.working_shelf }
     }
@@ -45,7 +59,11 @@ pub(crate) fn caps(state: Store<UiModel>) -> Caps {
 fn caps_of(state: Store<UiModel>) -> Caps {
     let field = state.typed_config();
     let config = field.read();
-    let capabilities = config.as_ref().map(|config| &config.environment.capabilities);
+    caps_from(config.as_ref(), state.client_settings().read().sidebar_working_shelf_enabled)
+}
+/// What a server's configuration says it can do for threads.
+pub(crate) fn caps_from(config: Option<&t3_contracts::ServerConfig>, working_shelf: bool) -> Caps {
+    let capabilities = config.map(|config| &config.environment.capabilities);
     Caps {
         pinning: capabilities.is_some_and(|c| c.thread_pinning == Some(true)),
         pin_reorder: capabilities.is_some_and(|c| c.thread_pin_reorder == Some(true)),
@@ -55,12 +73,19 @@ fn caps_of(state: Store<UiModel>) -> Caps {
         snooze: capabilities.is_some_and(|c| c.thread_snooze == Some(true)),
         title_regeneration: capabilities.is_some_and(|c| c.thread_title_regeneration == Some(true)),
         visited_tracking: capabilities.is_some_and(|c| c.thread_visited_tracking == Some(true)),
-        working_shelf: state.client_settings().read().sidebar_working_shelf_enabled,
+        working_shelf,
     }
 }
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct RowView {
+    /// The environment the thread lives in; every request about the row goes to it.
+    pub environment: EnvironmentId,
+    /// The thread is in the environment the window is on: what needs the window's state (a dialog, the composer, a drag) is its own.
+    pub here: bool,
+    /// The row may be moved by dragging or by the keyboard: its row holds threads of this environment alone, so an order key
+    /// written for it is ranked against its neighbours' and not against another server's.
+    pub arrangeable: bool,
     pub id: String,
     pub project_id: String,
     pub title: String,
@@ -146,39 +171,52 @@ fn pull_request_badge(thread: &ThreadShell) -> Option<PullRequestBadge> {
 }
 
 /// The threads of a project the sidebar lists: not removed, archived or a subagent's.
+#[cfg(test)]
 pub(crate) fn listed<'a>(threads: &'a [ThreadShell], project_id: &'a str) -> impl Iterator<Item = &'a ThreadShell> {
     threads.iter().filter(move |thread| thread.project_id.as_str() == project_id && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
 }
-/// The threads of every project of a row: a group's members, listed as one.
-pub(crate) fn listed_in<'a>(threads: &'a [ThreadShell], project_ids: &'a [String]) -> impl Iterator<Item = &'a ThreadShell> {
-    threads.iter().filter(move |thread| project_ids.iter().any(|id| id == thread.project_id.as_str()) && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent))
+/// The threads of every project of a row, in every environment: a group's members, listed as one, each with its environment.
+pub(crate) fn listed_in<'a, 'b>(shells: &'b [crate::fleet::Shell<'a>], scope: &'b crate::sidebar_groups::Scope) -> impl Iterator<Item = (&'a EnvironmentId, &'a ThreadShell)> + 'b {
+    shells.iter().flat_map(move |shell| {
+        let environment = shell.environment;
+        shell.snapshot.threads.iter().filter(move |thread| scope.contains(environment, thread.project_id.as_str()) && thread.deleted_at.is_none() && thread.archived_at.is_none() && thread.lineage.relationship_to_parent != Some(t3_contracts::ThreadRelationship::Subagent)).map(move |thread| (environment, thread))
+    })
 }
 /// A project's threads in the order the sidebar lists them, whatever is collapsed: pinned, active,
 /// working (the beta shelf), snoozed, settled.
+#[cfg(test)]
 pub(crate) fn rows<'a>(threads: &'a [ThreadShell], project_id: &'a str, now: chrono::DateTime<Utc>, support: sidebar::Support) -> Vec<&'a ThreadShell> {
     let sections = sidebar::Sections::of(listed(threads, project_id), now, support);
     [sections.pinned, sections.active, sections.working, sections.snoozed, sections.settled].concat()
 }
 
 /// The name and driver the provider stack of a row is drawn with, by instance id.
-pub(crate) fn provider_names(state: Store<UiModel>) -> std::collections::BTreeMap<String, (String, String)> {
-    let field = state.typed_config();
-    let config = field.read();
-    config.as_ref().map(|config| config.providers.0.iter().map(|provider| (provider.instance_id.to_string(), (provider.display_name.clone().flatten().map_or_else(|| provider.instance_id.to_string(), |name| name.to_string()), provider.driver.to_string()))).collect()).unwrap_or_default()
+/// Instance ids are driver slugs by default, so each environment's names come from its own configuration.
+pub(crate) fn provider_names(state: Store<UiModel>, environment: &EnvironmentId) -> std::collections::BTreeMap<String, (String, String)> {
+    let names = |config: Option<&t3_contracts::ServerConfig>| -> std::collections::BTreeMap<String, (String, String)> {
+        config.map(|config| config.providers.0.iter().map(|provider| (provider.instance_id.to_string(), (provider.display_name.clone().flatten().map_or_else(|| provider.instance_id.to_string(), |name| name.to_string()), provider.driver.to_string()))).collect()).unwrap_or_default()
+    };
+    if crate::fleet::is_open(state, environment) {
+        return names(state.typed_config().read().as_ref());
+    }
+    names(state.parked().read().get(environment).and_then(|slice| slice.typed_config.as_ref()))
 }
 
-pub(crate) fn view(thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>, providers: &std::collections::BTreeMap<String, (String, String)>) -> RowView {
+pub(crate) fn view(environment: &EnvironmentId, here: bool, arrangeable: bool, thread: &ThreadShell, selected: bool, workspace: Option<String>, caps: Caps, can_operate: bool, now: chrono::DateTime<Utc>, providers: &std::collections::BTreeMap<String, (String, String)>) -> RowView {
     let snoozed = sidebar::snoozed_until(thread, now);
     let section = sidebar::section_of(thread, now, caps.support());
     // A drag needs the server to store an order (as the original's rows do); each landing place
     // needs its own capability. Snoozed shelves are never a landing place: a snooze needs a wake time.
-    let drops = if can_operate && caps.pinning && caps.pin_reorder {
+    let drops = if here && arrangeable && can_operate && caps.pinning && caps.pin_reorder {
         [Some("pinned"), caps.active_reorder.then_some("active"), (caps.settlement && section != sidebar::Section::Settled).then_some("settled")].into_iter().flatten().collect::<Vec<_>>().join(" ")
     } else {
         String::new()
     };
     let working = sidebar::status(thread) == Status::Working;
     RowView {
+        environment: environment.clone(),
+        here,
+        arrangeable: here && arrangeable,
         id: thread.id.to_string(),
         project_id: thread.project_id.to_string(),
         title: thread.title.clone(),
@@ -244,7 +282,8 @@ pub(crate) fn send(transport: &runtime::TransportHandle, state: Store<UiModel>, 
     busy.set(true);
     payload["type"] = json!(kind);
     payload["commandId"] = json!(uuid::Uuid::new_v4().to_string());
-    let transport = transport.clone();
+    // The connection the row's environment is reached by, which stays that one whichever environment the window is on by the answer.
+    let transport = transport.pinned();
     spawn(async move {
         let owner = runtime::response_owner(&transport, state);
         let result = runtime::request_value_reported(transport.clone(), state, "orchestration.dispatchCommand", payload).await;
@@ -265,6 +304,8 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
         probe.sidebar_row.set(probe.sidebar_row.get() + 1);
     }
     let busy = use_signal(|| false);
+    // The connection to the row's own environment, which its writes go on whichever environment the window is on.
+    let own = crate::fleet::link(&transport, &view.environment);
     // The title while it is being edited in place, and whether the edit has already been settled
     // (Enter or Escape is followed by the blur the removed field raises).
     let mut renaming = use_signal(|| None::<String>);
@@ -293,7 +334,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
     let mut row = use_signal(|| None::<Rc<MountedData>>);
     // Enter or leaving the field commits, Escape cancels; an empty title is refused and an unchanged one is not sent.
     let commit = {
-        let (transport, original) = (transport.clone(), view.title.clone());
+        let (own, original) = (own.clone(), view.title.clone());
         let id = id.clone();
         use_callback(move |typed: String| {
             if *settled.peek() {
@@ -305,7 +346,7 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
             if typed.is_empty() {
                 notice::push(state, Level::Warning, "Thread title cannot be empty", "");
             } else if typed != original {
-                send(&transport, state, busy, "thread.metadata.update", json!({"threadId":id,"title":typed}), "Could not rename the thread");
+                send(&own, state, busy, "thread.metadata.update", json!({"threadId":id,"title":typed}), "Could not rename the thread");
             }
         })
     };
@@ -338,16 +379,16 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
             } else {
             button {key:"{view.id}",class:"{class}","aria-label":"Thread {view.title}","data-thread-status":"{status}","aria-busy":"{busy()}","aria-current":if view.selected {"true"} else {"false"},
                 "aria-pressed":if view.chosen {"true"} else {"false"},
-                onclick:{let transport=transport.clone();let id=id.clone();move |event| {
-                    if crate::thread_selection::click(state,&id,event.modifiers()) {return;}
-                    runtime::select_thread(&transport,state,id.clone())
+                onclick:{let transport=transport.clone();let id=id.clone();let environment=view.environment.clone();let here=view.here;move |event| {
+                    if crate::thread_selection::click(state,&id,here,event.modifiers()) {return;}
+                    runtime::select_thread_in(&transport,state,&environment,id.clone());
                 }},
                 onmounted:move |event| row.set(Some(event.data())),
-                oncontextmenu:{let id=id.clone();let open_menu=open_menu.clone();let transport=transport.clone();move |event| {
+                oncontextmenu:{let id=id.clone();let open_menu=open_menu.clone();let transport=transport.clone();let view_here=view.here;move |event| {
                     event.prevent_default();
                     let at=event.client_coordinates();
                     // On a chosen row the menu is for all the chosen rows.
-                    if state.selection().peek().contains(&id) && crate::thread_selection::open_menu(state,&transport,(at.x,at.y)) {return;}
+                    if view_here && state.selection().peek().contains(&id) && crate::thread_selection::open_menu(state,&transport,(at.x,at.y)) {return;}
                     open_menu(Some((at.x,at.y)));
                 }},
                 // From the keyboard the menu opens under the row.
@@ -379,10 +420,10 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     if let Some(badge)=view.pull_request.clone() {
                         button {class:"thread-pr pr-{badge.state.class()}",r#type:"button","aria-label":"{badge.label}",title:"{badge.label}",
                             onclick:{
-                                let transport=transport.clone();
+                                let (transport,environment)=(transport.clone(),view.environment.clone());
                                 move |_| {
                                     if let Some(target)=badge.target.clone() {
-                                        runtime::select_thread(&transport,state,target.thread_id.clone());
+                                        runtime::select_thread_in(&transport,state,&environment,target.thread_id.clone());
                                         // A stack or several links open the thread's Pull requests tab; one request opens itself.
                                         if badge.opens_list && crate::thread_pull_requests_panel::supported(state) {
                                             crate::thread_pull_requests_panel::open(state,&target.thread_id);
@@ -399,10 +440,10 @@ pub(crate) fn ThreadRow(view: RowView, state: Store<UiModel>, transport: runtime
                     if !view.previous_providers.is_empty() {span {class:"thread-providers",title:"Earlier: {earlier}",for (name,driver) in view.previous_providers.iter().cloned() {crate::provider_glyph::Glyph {key:"{name}",driver,name}}}}
                 }
             }
-            if let Some(woke) = view.woke_at.clone().filter(|_| can && caps(state).visited_tracking) {
+            if let Some(woke) = view.woke_at.clone().filter(|_| can && view.caps.visited_tracking) {
                 // Dismissing is a visit at the moment of the wake, as in the original.
                 button {class:"thread-woke-dismiss",r#type:"button","aria-label":"Dismiss Woke notification",title:"Dismiss Woke notification",disabled:busy(),
-                    onclick:{let (transport, id) = (transport.clone(), id.clone());move |_| send(&transport,state,busy,"thread.visit",json!({"threadId":id,"visitedAt":woke}),"Could not dismiss the notification")},"\u{d7}"}
+                    onclick:{let (own, id) = (own.clone(), id.clone());move |_| send(&own,state,busy,"thread.visit",json!({"threadId":id,"visitedAt":woke}),"Could not dismiss the notification")},"\u{d7}"}
             }
             }
         }
@@ -458,21 +499,21 @@ async fn run_menu(state: Store<UiModel>, transport: runtime::TransportHandle, vi
     }
     // Marking a thread that has not finished a run unread has nothing to mark.
     if let Some(item) = items.iter_mut().find(|item| item.id == "mark-unread") {
-        item.disabled |= !view.has_completed_run || !caps(state).visited_tracking;
+        item.disabled |= !view.has_completed_run || !view.caps.visited_tracking;
     }
     // Another thread's history, attached to the draft being written so the agent can read it.
     let target = crate::composer_chips::open_target(state);
-    let environment = state.destination().peek().as_ref().map(ToString::to_string).unwrap_or_default();
-    let own = target.as_ref().is_some_and(|target| target.local_id == view.id);
+    let environment = view.environment.to_string();
+    let own = view.here && target.as_ref().is_some_and(|target| target.local_id == view.id);
     let mut extras = vec![menu::Item::new("reference-in-chat", "Reference in chat").disabled(target.is_none() || own)];
     // Where a thread sits among its section: one key written to it, or the section's keys when a neighbour has none.
     // The keyboard path of the drag; only the pinned and the active sections are arranged.
     let mut moves: Vec<(&'static str, Option<Vec<String>>, std::collections::BTreeMap<String, Option<String>>)> = vec![];
     for (section, writable, up_name, down_name, kind) in [(sidebar::Section::Pinned, view.caps.pinning && view.caps.pin_reorder, "Move pin up", "Move pin down", "thread.pin.reorder"), (sidebar::Section::Active, view.caps.active_reorder, "Move thread up", "Move thread down", "thread.active.reorder")] {
-        if view.section != section || !writable {
+        if view.section != section || !writable || !view.arrangeable {
             continue;
         }
-        let (order, keys) = section_order(state, &view.id, section);
+        let (order, keys) = section_order(state, &view.environment, &view.id, section);
         for (up, name) in [(true, up_name), (false, down_name)] {
             let next = t3_client::pin_order::moved(&order, &view.id, up);
             extras.push(menu::Item::new(format!("move:{}", moves.len()), name).disabled(!can || next.is_none()));
@@ -481,11 +522,18 @@ async fn run_menu(state: Store<UiModel>, transport: runtime::TransportHandle, vi
     }
     items.splice(0..0, extras);
     let Some(choice) = crate::context_menu::show("Thread actions", items, at).await else { return };
+    let own = crate::fleet::link(&transport, &view.environment);
     let command = |kind: &'static str, extra: Value, failure: &'static str| {
         let mut payload = extra;
         payload["threadId"] = json!(view.id);
-        send(&transport, state, busy, kind, payload, failure);
+        send(&own, state, busy, kind, payload, failure);
     };
+    // What needs the window's own state (a confirmation, the composer, the settings page of a project) is done on the environment
+    // the thread is in, which the window moves to first.
+    let needs_window = matches!(choice.as_str(), "new-thread-on-branch" | "unpin" | "snooze:custom" | "project-settings" | "archive" | "delete");
+    if needs_window && !crate::fleet::open(&transport, state, &view.environment) {
+        return;
+    }
     match choice.as_str() {
         "reference-in-chat" => {
             if let Some(target) = target {
@@ -569,14 +617,16 @@ pub(crate) fn copy_reference(state: Store<UiModel>) {
     }
 }
 /// The ids of a thread's section among its project's threads in the order shown, and every
-/// thread's order key (hidden ones too, so a new key never lands on a taken slot).
-fn section_order(state: Store<UiModel>, thread_id: &str, section: sidebar::Section) -> (Vec<String>, std::collections::BTreeMap<String, Option<String>>) {
+/// thread's order key (hidden ones too, so a new key never lands on a taken slot). Only for a row whose neighbours are all in its
+/// environment (`RowView::arrangeable`).
+fn section_order(state: Store<UiModel>, environment: &EnvironmentId, thread_id: &str, section: sidebar::Section) -> (Vec<String>, std::collections::BTreeMap<String, Option<String>>) {
     let field = state.shell();
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return Default::default() };
     let Some(project) = snapshot.threads.iter().find(|thread| thread.id.as_str() == thread_id).map(|thread| thread.project_id.clone()) else { return Default::default() };
-    let scope = crate::sidebar_groups::scope_of(state, project.as_str());
-    let sections = sidebar::Sections::of(listed_in(&snapshot.threads, &scope.ids), Utc::now(), caps_of(state).support());
+    let scope = crate::sidebar_groups::scope_of(state, environment, project.as_str());
+    let here = [crate::fleet::Shell { environment, snapshot }];
+    let sections = sidebar::Sections::of(listed_in(&here, &scope).map(|(_, thread)| thread), Utc::now(), caps_of(state).support());
     let pinned = section == sidebar::Section::Pinned;
     let keys = snapshot.threads.iter().map(|thread| (thread.id.to_string(), if pinned { thread.pin_order_key.clone() } else { thread.active_order_key.clone() }.flatten().map(|key| key.to_string()))).collect();
     (sections.section(section).iter().map(|thread| thread.id.to_string()).collect(), keys)

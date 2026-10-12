@@ -13,6 +13,8 @@ use serde_json::json;
 /// One project of a row.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Member {
+    /// The environment the project lives in.
+    pub environment: String,
     pub id: String,
     pub title: String,
     pub workspace_root: String,
@@ -51,6 +53,11 @@ impl Action {
     }
 }
 
+/// Moves the window to the project's environment, for what is done in the window's own state.
+fn open_environment(transport: &runtime::TransportHandle, state: Store<UiModel>, member: &Member) -> bool {
+    t3_contracts::EnvironmentId::new(&member.environment).is_ok_and(|environment| crate::fleet::open(transport, state, &environment))
+}
+
 #[component]
 pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHandle, label: String, members: Vec<Member>, can_operate: bool) -> Element {
     let mut open = use_signal(|| false);
@@ -74,7 +81,8 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHa
             if typed == member.title {
                 return;
             }
-            let transport = transport.clone();
+            // On the connection of the project's own environment, whichever one the window is on.
+            let transport = t3_contracts::EnvironmentId::new(&member.environment).map_or_else(|_| transport.clone(), |environment| crate::fleet::link(&transport, &environment));
             spawn(async move {
                 let payload = json!({"type":"project.update","commandId":uuid::Uuid::new_v4().to_string(),"projectId":member.id,"title":typed});
                 if let Err(reason) = runtime::request_value_reported(transport, state, "projects.mutate", payload).await {
@@ -91,7 +99,7 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHa
     let group_target = grouping.read().clone();
     let item = |action: Action, member: &Member| {
         let (label, text) = (action.label(member, several), action.text(member, several));
-        let member = member.clone();
+        let (member, transport) = (member.clone(), transport.clone());
         let disabled = matches!(action, Action::Rename | Action::Remove) && !can_operate;
         rsx! {
             button { key: "{label}", class: "menu-item", role: "menuitem", r#type: "button", "aria-label": "{label}", disabled,
@@ -101,13 +109,18 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHa
                         Action::Rename => renaming.set(Some((member.clone(), member.title.clone()))),
                         Action::Group => grouping.set(Some(member.clone())),
                         Action::Copy => crate::sidebar_rows::copy_text(&member.workspace_root),
-                        Action::Remove => thread_lifecycle::request_remove_project(state, &member.id),
+                        Action::Remove => {
+                            // The confirmation is the window's: it is asked about on the environment the project lives in.
+                            if open_environment(&transport, state, &member) {
+                                thread_lifecycle::request_remove_project(state, &member.id);
+                            }
+                        }
                     }
                 },
                 "{text}" }
         }
     };
-    let settings_id = first.id.clone();
+    let settings_member = first.clone();
     let settings_label = format!("Project settings for {row_title}");
     rsx! {
         div { class: "project-menu",
@@ -123,7 +136,7 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHa
                         for member in members.iter() { { item(action, member) } }
                     }
                     button { class: "menu-item", role: "menuitem", r#type: "button", "aria-label": "{settings_label}",
-                        onclick: move |_| { open.set(false); crate::projects_page::open(state, &settings_id); }, "Project settings" }
+                        onclick: { let transport = transport.clone(); move |_| { open.set(false); if open_environment(&transport, state, &settings_member) { crate::projects_page::open(state, &settings_member.id); } } }, "Project settings" }
                     if several { div { class: "menu-heading", role: "presentation", "Remove project" } }
                     for member in members.iter() { { item(Action::Remove, member) } }
                 }
@@ -145,7 +158,7 @@ pub(crate) fn ProjectMenu(state: Store<UiModel>, transport: runtime::TransportHa
                 }
             }
             if let Some(member) = group_target {
-                sidebar_groups::GroupingDialog { state, override_key: sidebar_groups::override_key(&member.workspace_root), workspace_root: member.workspace_root.clone(), close: move |()| grouping.set(None) }
+                sidebar_groups::GroupingDialog { state, override_key: sidebar_groups::override_key(&member.environment, &member.workspace_root), workspace_root: member.workspace_root.clone(), close: move |()| grouping.set(None) }
             }
         }
     }

@@ -103,7 +103,7 @@ pub(crate) fn retire_if_empty(state: Store<UiModel>, draft_id: &str) {
 }
 
 /// Takes a draft out of the saved ones and out of memory; what it held is not recoverable. For a draft that is empty or has been sent.
-fn forget_draft(state: Store<UiModel>, destination: &EnvironmentId, draft_id: &str) -> Option<DiscardedDraft> {
+pub(crate) fn forget_draft(state: Store<UiModel>, destination: &EnvironmentId, draft_id: &str) -> Option<DiscardedDraft> {
     let target = target(destination, draft_id);
     let discarded = state.peek().draft_storage.document.borrow_mut().discard(&target);
     let key = (destination.clone(), draft_id.to_owned());

@@ -2,8 +2,8 @@
 //! connect a computer, connect its agents, choose projects to import. It overlays the workspace; a fresh install opens it
 //! on its own, `/welcome` opens it again, and finishing (or skipping the projects) records `onboardingCompletedAt`.
 //!
-//! Differences from the original: this app is connected to one computer at a time, so the first step picks the computer
-//! this app uses and sets up that one (the original sets up every computer ticked); T3 Connect (the hosted account) has
+//! Every connected computer can be ticked on the first step, and each is set up in turn (the window moves to it for its agents
+//! and its projects; the original lists the agents and the scans of all of them on one page). T3 Connect (the hosted account) has
 //! no counterpart here; the privacy policy link is not drawn. Unlike the original, which holds the app back until the gate has decided, the
 //! app is already drawn under the gate; its recovery screen (a gate stalled for four seconds, or preferences that could not be read) covers it.
 use crate::runtime::{self, TransportHandle, UiModel, UiModelStoreExt};
@@ -45,6 +45,13 @@ pub(crate) struct Model {
     pub gate: GateState,
     /// Completion was asked for and has not been confirmed (the settings write is local, so it is only ever briefly true).
     pub finishing: bool,
+    /// The connected computers the person unticked; every other connected computer is set up.
+    pub unselected: std::collections::BTreeSet<t3_contracts::EnvironmentId>,
+    /// The computers being set up, in order, and which one the agents and projects steps are on.
+    pub queue: Vec<t3_contracts::EnvironmentId>,
+    pub position: usize,
+    /// The project the first import landed on, where the person starts when the last computer is done.
+    pub landing: Option<(t3_contracts::EnvironmentId, String)>,
 }
 
 /// Terminals are keyed by a free-form thread id and the server checks only the working directory.
@@ -57,6 +64,9 @@ pub(crate) fn open(state: Store<UiModel>) {
     model.open = true;
     model.step = Step::Connect;
     model.terminal = None;
+    model.queue.clear();
+    model.position = 0;
+    model.landing = None;
 }
 
 fn now() -> String {
@@ -89,14 +99,45 @@ fn close(state: Store<UiModel>) {
 }
 
 /// Finishing: onboarding is recorded, the wizard goes, and the person starts a thread in the project the import landed on, or on the start form.
-fn finish(transport: &TransportHandle, state: Store<UiModel>, landing: Option<String>) {
+fn finish(transport: &TransportHandle, state: Store<UiModel>, landing: Option<(t3_contracts::EnvironmentId, String)>) {
     if state.welcome().peek().finishing {
         return;
     }
     state.welcome().write().finishing = true;
     complete(state);
     close(state);
-    runtime::new_thread(transport, state, landing);
+    match landing {
+        Some((environment, project)) => {
+            runtime::new_thread_in(transport, state, &environment, Some(project));
+        }
+        None => runtime::new_thread(transport, state, None),
+    }
+}
+
+/// The projects step of one computer is over: the next computer's agents come next, or the wizard ends. The first import that landed
+/// on a project is where the person starts.
+fn next_computer(transport: &TransportHandle, state: Store<UiModel>, landing: Option<String>) {
+    let here = state.destination().peek().clone();
+    let (next, kept) = {
+        let mut welcome = state.welcome();
+        let mut model = welcome.write();
+        if model.landing.is_none() {
+            model.landing = here.clone().zip(landing);
+        }
+        let next = model.queue.get(model.position + 1).cloned();
+        if next.is_some() {
+            model.position += 1;
+            model.step = Step::Agents;
+            model.terminal = None;
+        }
+        (next, model.landing.clone())
+    };
+    match next {
+        Some(next) => {
+            crate::fleet::open(transport, state, &next);
+        }
+        None => finish(transport, state, kept),
+    }
 }
 
 /// Decides, from what the app knows of the workspace, whether this is a first run, and opens the wizard when it is. Draws nothing.
@@ -242,7 +283,7 @@ fn Wizard(state: Store<UiModel>, transport: TransportHandle) -> Element {
                     ol { class: "welcome-steps", "aria-label": "Setup steps",
                         for (position, (candidate, label)) in Step::ALL.into_iter().enumerate() {
                             li { key: "{label}", "aria-current": if position == index { "step" } else { "false" },
-                                button { r#type: "button", disabled: position >= index, onclick: move |_| { let mut welcome = state.welcome(); let mut model = welcome.write(); model.step = candidate; model.terminal = None; }, "{position + 1}. {label}" }
+                                button { r#type: "button", disabled: position >= index, onclick: move |_| { let mut welcome = state.welcome(); let mut model = welcome.write(); model.step = candidate; model.terminal = None; if candidate == Step::Connect { model.position = 0; model.landing = None; } }, "{position + 1}. {label}" }
                             }
                         }
                     }
@@ -252,7 +293,7 @@ fn Wizard(state: Store<UiModel>, transport: TransportHandle) -> Element {
                         Step::Connect => rsx! { ConnectStep { state, transport: transport.clone() } },
                         Step::Agents => rsx! { AgentsStep { state, transport: transport.clone() } },
                         Step::Projects => rsx! {
-                            crate::import_projects::Step { state, transport: transport.clone(), finish: { let transport = transport.clone(); move |landing: Option<String>| finish(&transport, state, landing) } }
+                            crate::import_projects::Step { state, transport: transport.clone(), finish: { let transport = transport.clone(); move |landing: Option<String>| next_computer(&transport, state, landing) } }
                         },
                     }
                 }
@@ -269,6 +310,10 @@ fn ConnectStep(state: Store<UiModel>, transport: TransportHandle) -> Element {
     let connected = status == ConnectionStatus::Connected;
     let current = state.destination().read().clone();
     let records: Vec<(String, String, String)> = state.environments().read().records.values().map(|record| (record.id.to_string(), record.label.clone(), record.address.clone())).collect();
+    // The computers that are connected can be set up; the others are saved, and wait for their connection.
+    let live = state.live().read().clone();
+    let unselected = state.welcome().read().unselected.clone();
+    let chosen: Vec<t3_contracts::EnvironmentId> = live.iter().filter(|(id, status)| **status == ConnectionStatus::Connected && !unselected.contains(*id)).map(|(id, _)| id.clone()).collect();
     let mut pairing_open = use_signal(|| records.is_empty());
     let mut link = use_signal(String::new);
     let mut pairing = use_signal(|| false);
@@ -300,17 +345,34 @@ fn ConnectStep(state: Store<UiModel>, transport: TransportHandle) -> Element {
     };
     rsx! {
         h1 { "Connect your computers" }
-        p { class: "muted", "Choose the computer to set up. We\u{2019}ll set up agents and projects on it." }
+        p { class: "muted", "Choose one or more computers. We\u{2019}ll set up agents and projects on each." }
         if !records.is_empty() {
             fieldset { class: "welcome-computers",
-                legend { class: "sr-only", "Computer to set up" }
+                legend { class: "sr-only", "Computers to set up" }
                 for (id, label, address) in records {
                     {
+                        let environment = t3_contracts::EnvironmentId::new(&id).ok();
                         let is_current = current.as_ref().is_some_and(|current| current.as_str() == id);
-                        let state_label = if is_current { match &status { ConnectionStatus::Connected => "Connected".to_owned(), ConnectionStatus::Blocked(_) | ConnectionStatus::Interrupted(_) => "Not connected".to_owned(), _ => "Connecting\u{2026}".to_owned() } } else { "Saved".to_owned() };
+                        let computer_status = environment.as_ref().and_then(|environment| live.get(environment)).cloned();
+                        let connected_now = computer_status == Some(ConnectionStatus::Connected);
+                        let ticked = environment.as_ref().is_some_and(|environment| chosen.contains(environment));
+                        let state_label = match &computer_status {
+                            Some(ConnectionStatus::Connected) => "Connected".to_owned(),
+                            Some(ConnectionStatus::Blocked(_) | ConnectionStatus::Interrupted(_) | ConnectionStatus::Disconnected) => "Not connected".to_owned(),
+                            Some(ConnectionStatus::Connecting) => "Connecting\u{2026}".to_owned(),
+                            None if is_current => match &status { ConnectionStatus::Connected => "Connected".to_owned(), ConnectionStatus::Blocked(_) | ConnectionStatus::Interrupted(_) => "Not connected".to_owned(), _ => "Connecting\u{2026}".to_owned() },
+                            None => "Saved".to_owned(),
+                        };
                         rsx! {
                             label { key: "{id}", class: "welcome-computer",
-                                input { r#type: "radio", name: "welcome-computer", checked: is_current, disabled: !is_current, "aria-label": "{label}" }
+                                input { r#type: "checkbox", name: "welcome-computer", checked: ticked || (is_current && connected && environment.as_ref().is_some_and(|environment| !unselected.contains(environment)) && computer_status.is_none()), disabled: !connected_now && !(is_current && connected), "aria-label": "{label}",
+                                    onchange: move |event| {
+                                        if let Some(environment) = environment.clone() {
+                                            let mut welcome = state.welcome();
+                                            let mut model = welcome.write();
+                                            if event.checked() { model.unselected.remove(&environment); } else { model.unselected.insert(environment); }
+                                        }
+                                    } }
                                 span { class: "welcome-computer-text", strong { "{label}" } span { class: "muted", "{address}" } }
                                 span { class: "muted", "{state_label}" }
                             }
@@ -334,7 +396,31 @@ fn ConnectStep(state: Store<UiModel>, transport: TransportHandle) -> Element {
             }
         }
         div { class: "dialog-actions",
-            button { class: "primary", r#type: "button", "aria-label": "Continue to agents", disabled: !connected || pairing(), onclick: move |_| { let mut welcome = state.welcome(); let mut model = welcome.write(); model.step = Step::Agents; model.terminal = None; }, "Continue \u{2192}" }
+            button { class: "primary", r#type: "button", "aria-label": "Continue to agents", disabled: !connected || pairing() || (chosen.is_empty() && !live.is_empty()),
+                onclick: {
+                    let (transport, chosen, current) = (transport.clone(), chosen.clone(), current.clone());
+                    move |_| {
+                        // The computers are set up in turn, the one the window is on first.
+                        let mut queue = chosen.clone();
+                        if let Some(index) = current.as_ref().and_then(|open| queue.iter().position(|id| id == open)) {
+                            let open = queue.remove(index);
+                            queue.insert(0, open);
+                        }
+                        let first = queue.first().cloned();
+                        {
+                            let mut welcome = state.welcome();
+                            let mut model = welcome.write();
+                            model.queue = queue;
+                            model.position = 0;
+                            model.landing = None;
+                            model.step = Step::Agents;
+                            model.terminal = None;
+                        }
+                        if let Some(first) = first {
+                            crate::fleet::open(&transport, state, &first);
+                        }
+                    }
+                }, "Continue \u{2192}" }
         }
     }
 }
@@ -367,10 +453,11 @@ fn AgentsStep(state: Store<UiModel>, transport: TransportHandle) -> Element {
     let os = state.config().read()["environment"]["platform"]["os"].as_str().unwrap_or("linux").to_owned();
     let cwd = state.typed_config().read().as_ref().map(|config| config.cwd.to_string()).unwrap_or_default();
     let terminal = state.welcome().read().terminal.clone();
+    let (computers, position) = { let welcome = state.welcome(); let welcome = welcome.read(); (welcome.queue.len(), welcome.position) };
     rsx! {
         h1 { "Connect your agents" }
         p { class: "muted", "Choose an agent to start coding. You can add more later." }
-        h2 { class: "welcome-machine", "{machine}" }
+        h2 { class: "welcome-machine", "{machine}" if computers > 1 { span { class: "muted", " \u{b7} computer {position + 1} of {computers}" } } }
         if !operate { p { class: "muted", "This connection cannot control terminals." } }
         div { class: "welcome-agents",
             for (driver, fallback_name) in PRIMARY_DRIVERS {

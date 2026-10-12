@@ -82,12 +82,15 @@ pub(crate) fn ProjectFavicon(state: Store<UiModel>, transport: runtime::Transpor
         let (transport, environment_key, cwd) = (transport.clone(), environment_key.clone(), cwd.clone());
         move || {
             let (transport, environment_key, cwd) = (transport.clone(), environment_key.clone(), cwd.clone());
-            let connected = *state.status().read() == ConnectionStatus::Connected;
+            // A project of another environment is asked of that environment, on its own connection.
+            let connected = t3_contracts::EnvironmentId::new(&environment_key).map_or(*state.status().read() == ConnectionStatus::Connected, |environment| crate::fleet::status(state, &environment) == ConnectionStatus::Connected);
             async move {
                 if !connected {
                     return None;
                 }
                 let owner = runtime::response_owner(&transport, state);
+                // The window moving on from the connection leaves nothing to ask.
+                owner.as_ref()?;
                 let answer = asset_url(&transport, state, &environment_key, json!({"_tag":"project-favicon","cwd":cwd})).await.ok();
                 if owner.is_some() && owner == runtime::response_owner(&transport, state) { answer } else { None }
             }

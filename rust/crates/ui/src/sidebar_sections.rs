@@ -18,7 +18,7 @@ use dioxus::prelude::*;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use t3_client::sidebar::{self, DropPlan, Section, Sections};
-use t3_contracts::{AuthEnvironmentScope, ThreadShell};
+use t3_contracts::{AuthEnvironmentScope, EnvironmentId, ThreadShell};
 
 const SETTLED_KEY: &str = "t3code:sidebar:settled-expanded";
 const SNOOZED_KEY: &str = "t3code:sidebar:snoozed-expanded";
@@ -77,7 +77,10 @@ fn toggle_shelf(state: Store<UiModel>, shelf: Shelf) {
 /// says so too, or the server refuses.
 #[derive(Clone, PartialEq, Debug)]
 pub(crate) struct Held {
-    pub project: String,
+    /// The row the drop was made in.
+    pub scope: crate::sidebar_groups::Scope,
+    /// The environment the dragged thread is in: always the open one, the only environment whose rows can be dragged.
+    pub environment: EnvironmentId,
     pub id: String,
     pub section: Section,
     /// The destination's order, with the row in place; empty for a settle.
@@ -92,11 +95,11 @@ pub struct Reorder {
     pub busy: bool,
 }
 
-/// The threads of a project in their sections, with a held drop applied.
-pub(crate) fn sections_of<'a>(threads: &'a [ThreadShell], scope: &'a crate::sidebar_groups::Scope, now: chrono::DateTime<Utc>, caps: Caps, held: Option<&Held>) -> Sections<'a> {
-    let mut sections = Sections::of(sidebar_rows::listed_in(threads, &scope.ids), now, caps.support());
-    let Some(held) = held.filter(|held| held.project == scope.key) else { return sections };
-    let Some(moved) = sidebar_rows::listed_in(threads, &scope.ids).find(|thread| thread.id.as_str() == held.id) else { return sections };
+/// The threads of a row in their sections, with a held drop applied.
+pub(crate) fn sections_of<'a>(listed: &[(&'a EnvironmentId, &'a ThreadShell)], scope: &crate::sidebar_groups::Scope, now: chrono::DateTime<Utc>, caps: Caps, held: Option<&Held>) -> Sections<'a> {
+    let mut sections = Sections::of(listed.iter().map(|(_, thread)| *thread), now, caps.support());
+    let Some(held) = held.filter(|held| held.scope.key == scope.key) else { return sections };
+    let Some(moved) = listed.iter().find(|(environment, thread)| **environment == held.environment && thread.id.as_str() == held.id).map(|(_, thread)| *thread) else { return sections };
     for section in [Section::Pinned, Section::Active, Section::Snoozed, Section::Settled] {
         sections.section_mut(section).retain(|thread| thread.id.as_str() != held.id);
     }
@@ -113,29 +116,49 @@ pub(crate) fn sections_of<'a>(threads: &'a [ThreadShell], scope: &'a crate::side
 }
 
 /// The rows a project lists. Reads only what its own rows are made of, so a drop in one project
-/// does not rebuild another's.
+/// does not rebuild another's. The row spans every environment its projects are in.
 #[component]
-pub(crate) fn ProjectThreads(scope: crate::sidebar_groups::Scope, state: Store<UiModel>, transport: runtime::TransportHandle, caps: Caps, can_operate: bool, tick: u64) -> Element {
+pub(crate) fn ProjectThreads(scope: crate::sidebar_groups::Scope, state: Store<UiModel>, transport: runtime::TransportHandle, tick: u64) -> Element {
     let _ = tick;
     let mine = use_memo({
         let key = scope.key.clone();
-        move || state.reorder().read().held.clone().filter(|held| held.project == key)
+        move || state.reorder().read().held.clone().filter(|held| held.scope.key == key)
     });
     let mut shown = use_signal(|| sidebar::SETTLED_INITIAL);
     let now = Utc::now();
     let open = state.active_thread().read().clone();
     let held = mine.read().clone();
-    let field = state.shell();
-    let shell = field.read();
-    let Some(snapshot) = shell.snapshot.as_ref() else { return rsx! {} };
-    let sections = sections_of(&snapshot.threads, &scope, now, caps, held.as_ref());
-    let providers = sidebar_rows::provider_names(state);
+    let open_environment = state.destination().read().clone();
+    // What each environment of the row can do and the session may do; a row of the group is offered what its own server offers.
+    let environments: Vec<EnvironmentId> = scope.refs.iter().filter_map(|(environment, _)| EnvironmentId::new(environment).ok()).fold(vec![], |mut seen, environment| {
+        if !seen.contains(&environment) {
+            seen.push(environment);
+        }
+        seen
+    });
+    let by_environment: BTreeMap<EnvironmentId, (Caps, bool)> = environments.iter().map(|environment| (environment.clone(), (crate::fleet::caps(state, environment), crate::fleet::allows(state, environment, AuthEnvironmentScope::OrchestrationOperate)))).collect();
+    // The shelves are the row's, so they are drawn when any of its servers has them.
+    let caps = by_environment.values().map(|(caps, _)| *caps).reduce(Caps::union).unwrap_or_default();
+    let arrangeable = scope.environment().is_some();
+    let providers: BTreeMap<EnvironmentId, _> = environments.iter().map(|environment| (environment.clone(), sidebar_rows::provider_names(state, environment))).collect();
     let chosen = state.selection().read().keys.clone();
+    crate::fleet::read(state, |shells| {
+    let listed: Vec<(&EnvironmentId, &ThreadShell)> = sidebar_rows::listed_in(shells, &scope).collect();
+    if listed.is_empty() && !shells.iter().any(|shell| shell.snapshot.projects.iter().any(|project| scope.contains(shell.environment, project.id.as_str()))) {
+        return rsx! {};
+    }
+    let owners = crate::fleet::Owners::of(&listed);
+    let sections = sections_of(&listed, &scope, now, caps, held.as_ref());
     let row = |thread: &ThreadShell| {
-        let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string()));
-        let mut view = sidebar_rows::view(thread, open.as_deref() == Some(thread.id.as_str()), workspace, caps, can_operate, now, &providers);
-        view.chosen = chosen.contains(thread.id.as_str());
-        rsx! { sidebar_rows::ThreadRow { key: "{thread.id}", view, state, transport: transport.clone() } }
+        let environment = owners.get(thread).expect("a listed thread has an environment");
+        let here = open_environment.as_ref() == Some(environment);
+        let (row_caps, can_operate) = by_environment.get(environment).copied().unwrap_or_default();
+        let snapshot = shells.iter().find(|shell| shell.environment == environment).map(|shell| shell.snapshot);
+        let workspace = thread.worktree_path.as_ref().map(ToString::to_string).or_else(|| snapshot.and_then(|snapshot| snapshot.projects.iter().find(|project| project.id == thread.project_id).map(|project| project.workspace_root.to_string())));
+        let empty = BTreeMap::new();
+        let mut view = sidebar_rows::view(environment, here, arrangeable, thread, here && open.as_deref() == Some(thread.id.as_str()), workspace, row_caps, can_operate, now, providers.get(environment).unwrap_or(&empty));
+        view.chosen = here && chosen.contains(thread.id.as_str());
+        rsx! { sidebar_rows::ThreadRow { key: "{environment}:{thread.id}", view, state, transport: transport.clone() } }
     };
     let (working_open, snoozed_open, settled_open) = (!sections.working.is_empty() && state.shelves().read().working, !sections.snoozed.is_empty() && state.shelves().read().snoozed, caps.settlement && state.shelves().read().settled);
     let working_rows = sidebar::shelf_rows(&sections.working, working_open, usize::MAX, open.as_deref());
@@ -174,6 +197,7 @@ pub(crate) fn ProjectThreads(scope: crate::sidebar_groups::Scope, state: Store<U
             }
         }
     }
+    })
 }
 
 /// A drop as the page reports it: the row, the section it landed in and the row it landed before
@@ -229,16 +253,18 @@ fn ops(plan: &DropPlan, id: &str) -> Vec<Op> {
     }
 }
 
-/// What dropping `request` asks of the server, from the state as it is now.
-fn plan_of(state: Store<UiModel>, caps: Caps, request: &DropRequest) -> Option<(String, DropPlan, Vec<String>)> {
+/// What dropping `request` asks of the server, from the state as it is now. Only the open environment's rows are dragged, so only its
+/// threads are the row's neighbours here.
+fn plan_of(state: Store<UiModel>, caps: Caps, request: &DropRequest) -> Option<(crate::sidebar_groups::Scope, EnvironmentId, DropPlan, Vec<String>)> {
+    let environment = state.destination().peek().clone()?;
     let field = state.shell();
     let shell = field.read();
     let snapshot = shell.snapshot.as_ref()?;
     let moved = snapshot.threads.iter().find(|thread| thread.id.as_str() == request.id)?;
-    let scope = crate::sidebar_groups::scope_of(state, moved.project_id.as_str());
-    let project = scope.key.clone();
+    let scope = crate::sidebar_groups::scope_of(state, &environment, moved.project_id.as_str());
+    let here = [crate::fleet::Shell { environment: &environment, snapshot }];
     let now = Utc::now();
-    let sections = Sections::of(sidebar_rows::listed_in(&snapshot.threads, &scope.ids), now, caps.support());
+    let sections = Sections::of(sidebar_rows::listed_in(&here, &scope).map(|(_, thread)| thread), now, caps.support());
     let from = sidebar::section_of(moved, now, caps.support());
     let target = sidebar::drop_target(&sections, &request.id, request.section, request.before.as_deref())?;
     let ids = |list: &[&ThreadShell]| list.iter().map(|thread| thread.id.to_string()).collect::<Vec<_>>();
@@ -267,16 +293,20 @@ fn plan_of(state: Store<UiModel>, caps: Caps, request: &DropRequest) -> Option<(
         Section::Active => target.active_order,
         _ => vec![],
     };
-    Some((project, plan, order))
+    Some((scope, environment, plan, order))
 }
 
 /// Whether the server's state has the held drop in place.
 fn in_place(state: Store<UiModel>, caps: Caps, held: &Held) -> bool {
+    let open = state.destination().peek().clone();
+    if open.as_ref() != Some(&held.environment) {
+        return false;
+    }
     let field = state.shell();
     let shell = field.read();
     let Some(snapshot) = shell.snapshot.as_ref() else { return false };
-    let ids = crate::sidebar_groups::scope_of(state, &held.project).ids;
-    let sections = Sections::of(sidebar_rows::listed_in(&snapshot.threads, &ids), Utc::now(), caps.support());
+    let here = [crate::fleet::Shell { environment: &held.environment, snapshot }];
+    let sections = Sections::of(sidebar_rows::listed_in(&here, &held.scope).map(|(_, thread)| thread), Utc::now(), caps.support());
     let current: Vec<String> = sections.section(held.section).iter().map(|thread| thread.id.to_string()).collect();
     if held.section == Section::Settled { current.contains(&held.id) } else { current == held.order }
 }
@@ -299,12 +329,12 @@ pub(crate) fn drop_row(transport: &runtime::TransportHandle, state: Store<UiMode
         }
     }
     let caps = sidebar_rows::caps(state);
-    let Some((project, plan, order)) = plan_of(state, caps, &request) else { return };
+    let Some((scope, environment, plan, order)) = plan_of(state, caps, &request) else { return };
     let writes = ops(&plan, &request.id);
     if writes.is_empty() {
         return;
     }
-    *state.reorder().write() = Reorder { held: Some(Held { project, id: request.id.clone(), section: request.section, order, answered_at: None }), busy: true };
+    *state.reorder().write() = Reorder { held: Some(Held { scope, environment, id: request.id.clone(), section: request.section, order, answered_at: None }), busy: true };
     let transport = transport.clone();
     // Not tied to the row or menu that started it: a drop is written whatever is repainted meanwhile.
     dioxus::dioxus_core::spawn_forever(async move {

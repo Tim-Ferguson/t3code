@@ -42,6 +42,36 @@ pub fn NewThreadControls(
         }
     }
 }
+/// The machine the new thread runs on, when the project is on more than one (`BranchToolbarEnvironmentSelector`).
+#[component]
+fn HostPicker(state: Store<UiModel>, transport: runtime::TransportHandle, project: String, draft_target: Option<t3_client::draft_storage::DraftTarget>, sending: bool) -> Element {
+    let hosts = hosts(state, &project);
+    if hosts.len() < 2 {
+        return rsx! {};
+    }
+    let open = state.destination().read().clone();
+    let lock = draft_target.as_ref().and_then(|target| host_lock(state, target, sending));
+    let current = open.as_ref().map(ToString::to_string).unwrap_or_default();
+    // "Auto balance" is offered while the person has turned load balancing on.
+    let balancing = state.client_settings().read().load_balancing_enabled;
+    rsx! {
+        label { "Run on"
+            select { "aria-label": "Run on", id: "new-thread-host", value: "{current}", disabled: lock.is_some(), title: lock.unwrap_or_default(),
+                onchange: { let hosts = hosts.clone(); let transport = transport.clone(); move |event| {
+                    if event.value() == "auto" {
+                        let (transport, hosts) = (transport.clone(), hosts.clone());
+                        spawn(crate::load_balancing::auto_balance(transport, state, hosts));
+                    } else if let Some(host) = hosts.iter().find(|host| host.environment.as_str() == event.value()) {
+                        retarget(&transport, state, host);
+                    }
+                } },
+                if balancing { option { value: "auto", selected: false, "Auto balance" } }
+                for host in hosts.iter() { option { key: "{host.environment}", value: "{host.environment}", selected: Some(&host.environment) == open.as_ref(), "{host.label}" } }
+            }
+        }
+        if let Some(reason) = lock { p { class: "muted", role: "status", "{reason}" } }
+    }
+}
 /// The project the new thread is for, among the pickers under the message box.
 #[component]
 fn ProjectPicker(state: Store<UiModel>, projects: Vec<ProjectShell>, current: String) -> Element {
@@ -118,6 +148,100 @@ pub(crate) fn apply_prepared(state: Store<UiModel>, branch: &str, worktree_path:
 /// The project the new thread form is for, and its folder: what a pull request checkout needs.
 pub(crate) fn form_workspace(state: Store<UiModel>) -> Option<(String, String)> {
     form_project(state).map(|(project, _)| (project.id.to_string(), project.workspace_root.to_string()))
+}
+/// A machine the form's project can run on: an environment that holds a project of the same group (the same repository, as the
+/// sidebar groups them).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Host {
+    pub environment: EnvironmentId,
+    pub label: String,
+    /// The environment's project the thread would be for.
+    pub project: String,
+}
+
+/// The machines `project` of the open environment can run on, the open one included, in a stable order (by name) so that cycling
+/// through them visits each in turn: the original's `logicalProjectEnvironments`, without its primary-first rule, which this
+/// app has no primary environment to apply.
+pub(crate) fn hosts(state: Store<UiModel>, project: &str) -> Vec<Host> {
+    let Some(open) = state.destination().read().clone() else { return vec![] };
+    let scope = crate::sidebar_groups::scope_of(state, &open, project);
+    let mut hosts: Vec<Host> = vec![];
+    for (environment, id) in &scope.refs {
+        let Ok(environment) = EnvironmentId::new(environment) else { continue };
+        if hosts.iter().any(|host| host.environment == environment) {
+            continue;
+        }
+        // The open environment's own project is the form's; another environment's first project of the group stands for it.
+        let project = if environment == open { project.to_owned() } else { id.clone() };
+        hosts.push(Host { label: crate::fleet::label(state, &environment), environment, project });
+    }
+    hosts.sort_by(|left, right| left.label.cmp(&right.label).then_with(|| left.environment.cmp(&right.environment)));
+    hosts
+}
+/// The machines the open form can run on, when it is on screen.
+pub(crate) fn form_hosts(state: Store<UiModel>) -> Vec<Host> {
+    form_project(state).map(|(project, _)| hosts(state, project.id.as_str())).unwrap_or_default()
+}
+/// Why the form cannot change machine now, in words for the person.
+fn host_lock(state: Store<UiModel>, target: &t3_client::draft_storage::DraftTarget, sending: bool) -> Option<&'static str> {
+    if sending {
+        Some("A thread is being started from this form.")
+    } else if state.draft_attachments().read().get(target).is_some_and(|list| !list.is_empty()) {
+        // The files were uploaded to this machine's server; they do not follow the draft.
+        Some("Remove the attachments to change machine: they were uploaded to this one.")
+    } else {
+        None
+    }
+}
+/// Moves the form to another machine: the window goes to that environment, and the form there starts from what was written here
+/// (the message and the chips), in the project of the same group. The model, permissions and workspace are that machine's own
+/// to choose again. The draft left behind goes with the move.
+pub(crate) fn retarget(transport: &runtime::TransportHandle, state: Store<UiModel>, host: &Host) {
+    let (Some(from_environment), Some(from_draft)) = (state.destination().peek().clone(), state.active_draft().peek().clone()) else { return };
+    if from_environment == host.environment {
+        return;
+    }
+    let from = t3_client::draft_storage::DraftTarget::draft(from_environment.to_string(), from_draft.clone());
+    if let Some(reason) = host_lock(state, &from, false) {
+        crate::notice::push(state, crate::notice::Level::Warning, "Could not change machine", reason);
+        return;
+    }
+    let (prompt, contexts) = {
+        let model = state.peek();
+        let document = model.draft_storage.document.borrow();
+        (document.prompt(&from).unwrap_or_default().to_owned(), document.contexts(&from))
+    };
+    if !runtime::new_thread_in(transport, state, &host.environment, Some(host.project.clone())) {
+        return;
+    }
+    let Some(draft) = state.active_draft().peek().clone() else { return };
+    let to = t3_client::draft_storage::DraftTarget::draft(host.environment.to_string(), draft.clone());
+    if !prompt.is_empty() {
+        crate::draft_storage::edit_draft_prompt(state, (host.environment.clone(), draft), prompt);
+    }
+    if !contexts.is_empty() {
+        crate::draft_storage::edit_contexts(state, to.clone(), contexts.clone());
+        state.draft_contexts().write().insert(to, contexts);
+    }
+    crate::draft_sessions::forget_draft(state, &from_environment, &from_draft);
+    if let Some(slice) = state.parked().write().get_mut(&from_environment) {
+        if slice.active_draft.as_deref() == Some(from_draft.as_str()) {
+            slice.active_draft = None;
+        }
+    }
+}
+/// `composer.cycleHost`: the next machine in the list, wrapping.
+pub(crate) fn cycle_host(transport: &runtime::TransportHandle, state: Store<UiModel>) {
+    let hosts = form_hosts(state);
+    let Some(open) = state.destination().peek().clone() else { return };
+    let Some(index) = hosts.iter().position(|host| host.environment == open) else { return };
+    if hosts.len() > 1 {
+        retarget(transport, state, &hosts[(index + 1) % hosts.len()]);
+    }
+}
+/// `composer.host`: the machine choice takes the keyboard.
+pub(crate) fn focus_host() {
+    dioxus::document::eval("document.getElementById('new-thread-host')?.focus();");
 }
 /// `composer.workspace`: the workspace choice takes the keyboard.
 pub(crate) fn focus_workspace() {
@@ -376,6 +500,7 @@ fn NewThreadOptions(
         }
         div {class:"new-thread-pickers",
             ProjectPicker {state,projects:projects.clone(),current:project_id.clone()}
+            HostPicker {state,transport:transport.clone(),project:project_id.clone(),draft_target:attachment_target.clone(),sending:pending}
         label { "Model"
             select {"aria-label":"Model",value:selected_key,onchange:{let rows=rows.clone();let draft_key=draft_key.clone();move|event| {
                 if let Some(row)=rows.iter().find(|r|key(&r.selection())==event.value()) {

@@ -14,10 +14,6 @@
       "preview.resize": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "subscribePreviewEvents": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "subscribeDiscoveredLocalServers": "Preview panel's list of local dev servers (usePreviewDiscovery): no preview panel.",
-      "provider.chatgpt.handoff.subscribe": "ChatGPT sign-in through this computer's own server for a remote environment (CodexSetupSection handoff): the stream's fold, the address checks and the profile shape are built and tested (client/chatgpt.rs), but the stream is not followed: it runs on the local server while the profile is imported into the remote one, and this app holds one connection at a time.",
-      "provider.chatgpt.import-profile": "As provider.chatgpt.handoff.subscribe: the import is the second half of the handoff and needs the remote connection alongside the local one.",
-      "provider.chatgpt.reconnect-profile": "As provider.chatgpt.handoff.subscribe: it asks the remote environment for the profile the local server signs in as.",
-      "provider.codex.auth-callback.subscribe": "The environment's own report that the ChatGPT redirect arrived (client/chatgpt.rs::Callback folds it): not followed, because the provider account section already learns the sign-in's end from provider.auth state; the desktop app receives the redirect itself (t3_desktop::provider_auth_callback) when the server is not on this computer.",
       "device.action": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
       "device.close": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
       "device.configure": "Device panel and the Integrations page's device hosts (DevicePanel, DeviceSetup, DeviceHostsSettings): the Rust UI has none. The server handles it.",
@@ -36,7 +32,6 @@
       "pullRequests.preview": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
       "pullRequests.routing": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
       "pullRequests.routingIdentity": "GitHub routing and sharing between environments (GitHubRoutingSettings, pullRequestRouting.ts): the Rust UI has none. The server handles it.",
-      "server.getHostResources": "Host resources for choosing where to run (useLoadBalancedEnvironment, the Load balancing setting): not built. The server handles it.",
       "server.getProcessResourceHistory": "One process's history in the process tree of ResourceTelemetryDiagnostics (DiagnosticsSettings): the Rust Diagnostics page shows the groups and the history of all, not the per-process tree. The server handles it."
     },
     "omitted": {
@@ -96,9 +91,7 @@
       "preview.focusUrl": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.zoomIn": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
       "preview.zoomOut": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "preview.resetZoom": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either.",
-      "composer.host": "Pick the environment a new thread runs on (BranchToolbarEnvironmentSelector): the Rust new-thread form has one environment.",
-      "composer.cycleHost": "As composer.host."
+      "preview.resetZoom": "Preview/browser panel (RightPanelTabs, PreviewView): not built in this pass; the server side is not ported either."
     },
     "omitted": {
       "button without handler ui/desktop_updates.rs \"Check for Updates\"": "Deliberately disabled with its reason shown: this app has no update feed (desktop_updates.rs).",
@@ -132,7 +125,6 @@
       "local-environment": "Desktop only. The local environment switch (LocalEnvironmentSetting; setLocalEnvironmentEnabled): the desktop app always runs and uses its own server.",
       "network-access": "Desktop only. Exposing the app's server to the local network (setServerExposureMode): the server this app starts listens on loopback only.",
       "tailscale-https": "Desktop only. Tailscale Serve toggle (setTailscaleServeEnabled): not wired.",
-      "load-balancing": "Load balancing between environments (LoadBalancingSettings): not built.",
       "github-routing": "GitHub sharing between environments (GitHubRoutingSettings): not built; see rpc pullRequests.routing."
     },
     "omitted": {

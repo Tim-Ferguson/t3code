@@ -883,7 +883,7 @@ async fn a_thread_row_pins_snoozes_and_marks_unread_from_its_menu() {
     until(&mut dom, "the answer", |dom| control_attribute(dom, "Thread thread-b", "aria-busy").and_then(|(_, value)| value).as_deref() == Some("false")).await;
     until(&mut dom, "the pin on the row", |dom| control(dom, "Pinned").is_some() || rendered_text(dom).contains('\u{25c6}')).await;
     let order = crate::keys::sidebar_order(state);
-    assert_eq!(order.first().map(String::as_str), Some("thread-b"), "pinned threads list first: {order:?}");
+    assert_eq!(order.first().map(|(_, id)| id.as_str()), Some("thread-b"), "pinned threads list first: {order:?}");
     open_menu(&mut dom, "Thread thread-b").await;
     assert!(control(&dom, "Pin thread").is_none());
     click_control(&mut dom, "Unpin thread");
@@ -1041,7 +1041,7 @@ async fn a_held_drop_repaints_only_the_row_that_moved() {
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     let counts = |props: &Synth| (props.probe.sidebar_row.get(), props.probe.application.get(), props.probe.item.get(), props.probe.composer.get());
     let (rows, application, items, composer) = counts(&props);
-    state.reorder().write().held = Some(crate::sidebar_sections::Held { project: "p".into(), id: "other-9".into(), section: t3_client::sidebar::Section::Pinned, order: vec!["other-3".into(), "other-9".into(), "other-4".into()], answered_at: None });
+    state.reorder().write().held = Some(crate::sidebar_sections::Held { scope: crate::sidebar_groups::Scope::single("environment-a", "p"), environment: t3_contracts::EnvironmentId::new("environment-a").unwrap(), id: "other-9".into(), section: t3_client::sidebar::Section::Pinned, order: vec!["other-3".into(), "other-9".into(), "other-4".into()], answered_at: None });
     dom.render_immediate(&mut dioxus::dioxus_core::NoOpMutations);
     let (moved_rows, moved_application, moved_items, moved_composer) = counts(&props);
     assert_eq!(moved_rows, rows + 1, "only the row dropped was built again");

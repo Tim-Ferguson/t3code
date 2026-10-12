@@ -186,7 +186,7 @@ pub fn placement(id: &str) -> Placement {
         "publish-agent-activity" => Placement::Here("connections"),
         "connections-environment" => Placement::Here("connections"),
         "remote-environments" => Placement::Here("connections"),
-        "load-balancing" => Placement::Missing("unported feature: load balancing between environments"),
+        "load-balancing" => Placement::Here("connections"),
         "github-routing" => Placement::Missing("unported feature: GitHub sharing between environments"),
         "archive" => Placement::Here("archived"),
         _ => Placement::Missing("unported feature"),

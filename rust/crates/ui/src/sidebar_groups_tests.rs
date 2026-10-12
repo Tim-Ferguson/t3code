@@ -26,7 +26,8 @@ fn has_identity(state: Store<UiModel>, id: &str) -> bool {
 }
 fn rows(state: Store<UiModel>) -> Vec<t3_client::project_grouping::Group> {
     let model = state.peek();
-    crate::sidebar_groups::groups_of(&model.shell.snapshot.as_ref().unwrap().projects, &model.client_settings).1
+    let environment = model.destination.clone().unwrap();
+    crate::sidebar_groups::groups_of(&[crate::fleet::Shell { environment: &environment, snapshot: model.shell.snapshot.as_ref().unwrap() }], &model.client_settings, Some(&environment)).1
 }
 
 #[cfg(unix)]
@@ -45,7 +46,7 @@ async fn checkouts_of_one_repository_share_a_row_that_can_be_filtered_ungrouped_
     until(&mut dom, "both identities", |_| has_identity(state, "widget-main") && has_identity(state, "widget-fix")).await;
     let groups = rows(state);
     assert_eq!(groups.len(), 2, "the fixture's own project and the one row of the two checkouts");
-    let widget = groups.iter().find(|group| group.contains("", "widget-fix")).unwrap();
+    let widget = groups.iter().find(|group| group.contains(state.peek().destination.as_ref().unwrap().as_str(), "widget-fix")).unwrap();
     assert_eq!(widget.project_ids(), vec!["widget-main", "widget-fix"]);
     let label = widget.label.clone();
     until(&mut dom, "the grouped row", |dom| control(dom, "2 projects grouped").is_some()).await;
@@ -66,7 +67,7 @@ async fn checkouts_of_one_repository_share_a_row_that_can_be_filtered_ungrouped_
     click_control(&mut dom, &format!("Group project Widget fix ({})", fix_root.display()));
     change_control(&mut dom, "Project grouping rule", "separate");
     click_control(&mut dom, "Save grouping");
-    let key = format!(":{}", fix_root.display());
+    let key = format!("{}:{}", state.peek().destination.as_ref().unwrap(), fix_root.display());
     until(&mut dom, "the override", |_| state.peek().client_settings.sidebar_project_grouping_overrides.iter().any(|(existing, mode)| existing.as_str() == key && *mode == t3_contracts::SidebarProjectGroupingMode::Separate)).await;
     until(&mut dom, "two rows apart", |dom| control(dom, "2 projects grouped").is_none() && rows(state).len() == 3).await;
 

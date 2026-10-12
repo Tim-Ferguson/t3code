@@ -26,7 +26,10 @@ fn listed(state: Store<UiModel>, section: Section) -> Vec<String> {
     let model = state.peek();
     let snapshot = model.shell.snapshot.as_ref().unwrap();
     let caps = crate::sidebar_rows::caps(state);
-    crate::sidebar_sections::sections_of(&snapshot.threads, &crate::sidebar_groups::Scope::single("project"), chrono::Utc::now(), caps, model.reorder.held.as_ref()).section(section).iter().map(|thread| thread.id.to_string()).collect()
+    let environment = model.destination.clone().unwrap();
+    let scope = crate::sidebar_groups::Scope::single(environment.as_str(), "project");
+    let listed: Vec<_> = snapshot.threads.iter().map(|thread| (&environment, thread)).collect();
+    crate::sidebar_sections::sections_of(&listed, &scope, chrono::Utc::now(), caps, model.reorder.held.as_ref()).section(section).iter().map(|thread| thread.id.to_string()).collect()
 }
 fn pin_keys(state: Store<UiModel>) -> Vec<(String, Option<String>)> {
     let mut keys: Vec<_> = state.peek().shell.snapshot.as_ref().unwrap().threads.iter().map(|thread| (thread.id.to_string(), thread.pin_order_key.clone().flatten().map(|key| key.to_string()))).collect();

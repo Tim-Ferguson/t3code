@@ -49,6 +49,7 @@ pub mod project_files;
 pub mod provider_goal;
 pub mod project_folder;
 pub mod project_scripts;
+pub mod load_balancing;
 pub mod project_grouping;
 pub mod project_import;
 pub mod publish_repository;

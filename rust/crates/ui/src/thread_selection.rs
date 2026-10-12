@@ -22,14 +22,15 @@ pub(crate) fn toggles(modifiers: Modifiers) -> bool {
 }
 
 /// A click on a row: toggles, extends, or leaves the choice and opens the thread. True when the
-/// click was a choice and the thread should not open.
-pub(crate) fn click(state: Store<UiModel>, id: &str, modifiers: Modifiers) -> bool {
-    if toggles(modifiers) {
+/// click was a choice and the thread should not open. The choice is of the open environment's rows (the bulk actions are written
+/// to its server), so a click on a row of another environment, with or without a key, opens that thread.
+pub(crate) fn click(state: Store<UiModel>, id: &str, here: bool, modifiers: Modifiers) -> bool {
+    if here && toggles(modifiers) {
         state.selection().write().toggle(id);
         return true;
     }
-    if modifiers.shift() {
-        let order = keys::sidebar_order(state);
+    if here && modifiers.shift() {
+        let order: Vec<String> = keys::sidebar_order(state).into_iter().filter_map(|(environment, id)| crate::fleet::is_open(state, &environment).then_some(id)).collect();
         state.selection().write().range_to(id, &order);
         return true;
     }
