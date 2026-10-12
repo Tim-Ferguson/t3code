@@ -131,12 +131,22 @@ mod tests {
     fn sign_in(port: u16, state: &str) -> String {
         format!("https://auth.openai.com/api/accounts/authorize?response_type=code&client_id=dynamic_agent_client&redirect_uri=http%3A%2F%2F127.0.0.1%3A{port}%2Fauth%2Fcallback&state={state}&code_challenge={CHALLENGE}&code_challenge_method=S256")
     }
-    /// A port nothing listens on: bound and released.
+    /// A port nothing listens on, handed out once per run of this process. A port bound at `:0` and released goes back to the
+    /// system's ephemeral range, where a test that binds `:0` meanwhile (the `taken` listener below, or any other module's) can be
+    /// given it before this one binds it, so these come from below that range. The start depends on the process, so that two test
+    /// runs at once do not walk the same ports.
     fn free_port() -> u16 {
-        static LAST: AtomicU16 = AtomicU16::new(0);
-        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-        LAST.store(port, Ordering::Relaxed);
-        port
+        static NEXT: AtomicU16 = AtomicU16::new(0);
+        // Under the lowest ephemeral range of the systems this runs on (Linux 32768; macOS and Windows 49152). A port something
+        // else holds is skipped.
+        let first = 20_000 + (std::process::id() % 100) as u16 * 100;
+        loop {
+            let port = first + NEXT.fetch_add(1, Ordering::Relaxed);
+            assert!(port < first + 100, "no port is free for the tests");
+            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                return port;
+            }
+        }
     }
     async fn get(port: u16, target: &str) -> String {
         let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();

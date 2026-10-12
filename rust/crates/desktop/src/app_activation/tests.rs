@@ -166,6 +166,45 @@ async fn a_page_that_cannot_receive_is_dropped_and_the_request_is_held_for_the_n
     held.await.unwrap();
 }
 
+/// The order things happened in, which is what a request that was never answered comes down to: the page not ready when it
+/// arrived, ready, a request out while the page went and came back, an answer after the end, the deadline.
+#[tokio::test(start_paused = true)]
+async fn every_change_of_what_the_broker_holds_is_traced_in_the_order_it_happened() {
+    let harness = Harness::new();
+    let lines = Arc::new(Mutex::new(Vec::new()));
+    harness.broker.set_trace({
+        let lines = lines.clone();
+        move |line| lines.lock().unwrap().push(line.to_owned())
+    });
+    let first = tokio::spawn(harness.broker.request(request("a", "/p")));
+    let second = tokio::spawn(harness.broker.request(request("b", "/q")));
+    tokio::task::yield_now().await;
+    harness.broker.register_renderer(harness.page());
+    harness.broker.clear_renderer();
+    first.await.unwrap();
+    harness.broker.register_renderer(harness.page());
+    harness.broker.complete(opened("a"));
+    tokio::time::sleep(REQUEST_TIMEOUT).await;
+    second.await.unwrap();
+    harness.broker.close();
+    assert_eq!(
+        *lines.lock().unwrap(),
+        [
+            "request a: held (1 held, page not ready)",
+            "request b: held (2 held, page not ready)",
+            "page: ready (2 held)",
+            "request a: sent to the page",
+            "page: not ready (was ready, 2 held)",
+            "request a: ended, RendererUnavailable (1 held)",
+            "page: ready (1 held)",
+            "request b: sent to the page",
+            "request a: answered after it had ended, ignored",
+            "request b: ended, RequestTimeout (0 held)",
+            "closed (0 held)",
+        ]
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn closing_ends_everything_that_is_held() {
     let harness = Harness::new();
@@ -402,6 +441,43 @@ mod socket {
         // A socket that is there is left alone.
         ticks.send(()).unwrap();
         passes.wait_for(|count| *count >= 2).await.unwrap();
+        service.close();
+        assert!(!socket.exists());
+    }
+
+    /// The ordering of the timer binding the socket again while a request is out: the listener it replaces is stopped, and the
+    /// connection that request came in on, which is not the listener's, must still be answered.
+    #[tokio::test]
+    async fn a_request_held_while_the_socket_is_bound_again_is_answered_and_so_is_the_next() {
+        let dir = short_dir();
+        let config = config(dir.path());
+        let (ticks, reclaim) = tokio::sync::mpsc::unbounded_channel();
+        let service = Service::start_with(&config, REQUEST_TIMEOUT, || {}, reclaim).unwrap();
+        let mut passes = service.reclaim_passes();
+        let received = Arc::new(Mutex::new(page(&service)));
+        let socket = Path::new(service.address()).to_path_buf();
+        let ask = |id: &'static str| {
+            let address = service.address().to_owned();
+            tokio::spawn(async move { send_request(&address, None, &request(id, "/work/held"), CLI_RESPONSE_TIMEOUT).await })
+        };
+        let next_sent = || {
+            let received = received.clone();
+            tokio::task::spawn_blocking(move || received.lock().unwrap().recv().unwrap())
+        };
+
+        let held = ask("a");
+        assert_eq!(next_sent().await.unwrap(), "/work/held");
+        std::fs::remove_file(&socket).unwrap();
+        ticks.send(()).unwrap();
+        passes.wait_for(|count| *count >= 1).await.unwrap();
+        assert!(socket.exists(), "the socket is back, with a listener that is not the one the request came to");
+        service.broker().complete(opened("a"));
+        assert_eq!(held.await.unwrap().unwrap(), opened("a"));
+
+        let after = ask("b");
+        assert_eq!(next_sent().await.unwrap(), "/work/held");
+        service.broker().complete(opened("b"));
+        assert_eq!(after.await.unwrap().unwrap(), opened("b"));
         service.close();
         assert!(!socket.exists());
     }

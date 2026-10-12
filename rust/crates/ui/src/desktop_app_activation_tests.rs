@@ -247,6 +247,93 @@ async fn a_project_is_waited_for_until_the_shell_has_it_and_not_longer_than_ten_
     assert_eq!(page.find_project("env-1", "/work/other"), None);
 }
 
+// ---- the window being brought forward
+
+/// The ordering that left a request unanswered: the window is hidden, minimized or covered, so the webview draws nothing and the page
+/// waits for it to have drawn; a window brought forward only by the page therefore stays where it is, and the request waits for a page
+/// that the window not being seen keeps from running. The request brings the window forward itself, and asks the page only while there
+/// is no window to do it to.
+#[test]
+fn a_request_brings_the_window_forward_without_the_page_running_once_there_is_a_window() {
+    let (asks, mut asked) = futures_channel::mpsc::unbounded();
+    let window = Arc::new(std::sync::OnceLock::new());
+    let shown = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let raise = raiser(asks, window.clone(), {
+        let shown = shown.clone();
+        move |window: &&'static str| shown.lock().unwrap().push(*window)
+    });
+    raise();
+    assert_eq!((asked.try_next().ok().flatten(), shown.lock().unwrap().clone()), (Some(()), vec![]), "no window yet: the page is asked");
+    window.set("main").unwrap();
+    raise();
+    assert_eq!(*shown.lock().unwrap(), ["main"], "the window is shown by the request itself, while nothing has taken what the page was asked");
+    assert_eq!(asked.try_next().ok().flatten(), Some(()), "and the page is asked as well, for the one that comes first");
+}
+
+// ---- a request that is never finished
+
+/// A page whose environment never answers the request to add a folder, and has one folder already.
+struct Stuck;
+#[async_trait(?Send)]
+impl Dependencies for Stuck {
+    fn target(&self) -> Option<Target> {
+        Some(Target { environment_id: "env-1".to_owned(), platform: t3_contracts::ExecutionEnvironmentPlatformOs::Linux })
+    }
+    fn find_project(&self, _: &str, workspace_root: &str) -> Option<String> {
+        (workspace_root == "/known").then(|| "project-1".to_owned())
+    }
+    async fn create_project(&self, _: &str, _: &str) -> Result<String, String> {
+        std::future::pending().await
+    }
+    async fn wait_for_project(&self, _: &str, _: &str) -> Result<(), String> {
+        Ok(())
+    }
+    async fn open_thread(&self, _: &str, _: &str) -> Result<Option<String>, String> {
+        Ok(Some("thread-1".to_owned()))
+    }
+}
+
+/// The ordering that wedged the page: a request that the environment never finishes is given up on by the broker at fifteen seconds
+/// and its command is told, but the page, which opens one request after the other, was still on it, so every request after it
+/// waited on it for good and ended `request-timeout` too.
+#[tokio::test(flavor = "current_thread")]
+async fn a_request_the_environment_never_finishes_does_not_hold_up_the_ones_behind_it() {
+    // The broker's deadline is out of reach here: the test says when it gives up, with `cancel`, which ends a request the same way.
+    let broker = Broker::new(tokio::runtime::Handle::current(), Duration::from_secs(3600), || {});
+    let (sender, mut receiver) = futures_channel::mpsc::unbounded();
+    broker.register_renderer(Arc::new(move |request| sender.unbounded_send(request.clone()).map_err(|_| ())));
+    // The page's deadline for a request is a clock the test moves by hand.
+    let clocks: Rc<RefCell<Vec<futures_channel::oneshot::Sender<()>>>> = Rc::default();
+    let deadline = {
+        let clocks = clocks.clone();
+        move || -> futures_util::future::LocalBoxFuture<'static, ()> {
+            let (sender, receiver) = futures_channel::oneshot::channel();
+            clocks.borrow_mut().push(sender);
+            Box::pin(async move {
+                let _ = receiver.await;
+            })
+        }
+    };
+    let serving = serve(&mut receiver, &broker, &Stuck, deadline);
+    let mut serving = std::pin::pin!(serving);
+    let stuck = tokio::spawn(broker.request(request("a", "/new", "linux")));
+    let behind = tokio::spawn(broker.request(request("b", "/known", "linux")));
+    assert!(futures_util::poll!(serving.as_mut()).is_pending());
+    assert_eq!(clocks.borrow().len(), 1, "the page works on `a`, with a deadline");
+
+    // The broker gives up on `a` and its command is told; `b` is sent, and the page is still on `a`.
+    broker.cancel("a");
+    assert_eq!(refused(&stuck.await.unwrap()).0, DesktopAppActivationErrorCode::RendererUnavailable);
+    assert!(futures_util::poll!(serving.as_mut()).is_pending());
+    tokio::task::yield_now().await;
+    assert!(!behind.is_finished(), "`b` waits behind the request that does not finish");
+
+    // The page's deadline for `a` passes: the page lets go of it and opens `b`.
+    clocks.borrow_mut().remove(0).send(()).unwrap();
+    assert!(futures_util::poll!(serving.as_mut()).is_pending());
+    assert_eq!(opened(&behind.await.unwrap()), ("project-1".to_owned(), "thread-1".to_owned()));
+}
+
 // ---- the command itself
 
 #[cfg(unix)]
@@ -309,6 +396,21 @@ mod command {
         let outcome = window.t3_app(&root).await;
         assert_eq!(outcome.code, 0);
         assert_eq!(window.rig.projects().len(), 1);
+        window.close().await;
+    }
+
+    /// `createWorkspaceRootIfMissing` is false for a folder `t3 app` names, so the server refuses one that is not there, as the original's
+    /// `ProjectService.create` does, and the project is not added.
+    #[tokio::test(flavor = "current_thread")]
+    async fn t3_app_fails_with_project_create_failed_for_a_folder_that_does_not_exist() {
+        let mut window = Window::open("linux").await;
+        let project = folder();
+        let root = project.path().join("missing").to_string_lossy().into_owned();
+        let outcome = window.t3_app(&root).await;
+        assert_eq!((outcome.code, outcome.stdout.as_str()), (1, ""));
+        assert_eq!(outcome.stderr, format!("T3 Code could not open {root} (project-create-failed).\n"));
+        assert!(window.rig.projects().is_empty());
+        assert!(!std::path::Path::new(&root).exists(), "and nothing is made of it");
         window.close().await;
     }
 

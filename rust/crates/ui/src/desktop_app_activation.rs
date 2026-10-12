@@ -10,7 +10,7 @@ use futures_util::{FutureExt, StreamExt};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 use t3_client::{connection::{ConnectionStatus, EnvironmentEndpoint}, project_import::comparable, shell::ShellState, source_control::project_title};
 use t3_contracts::{DesktopAppActivationRequest, EnvironmentId, ServerConfig};
-use t3_desktop::app_activation::{Broker, Dependencies, Target, async_trait, handle_request};
+use t3_desktop::app_activation::{Broker, Dependencies, REQUEST_TIMEOUT, Target, async_trait, handle_request};
 
 /// How long a project that was added is waited for to reach the shell (`waitForProject`).
 const PROJECT_WAIT_MS: u64 = 10_000;
@@ -149,6 +149,29 @@ impl Dependencies for Page {
     }
 }
 
+/// What a request on the control socket does about the window: asks the page to bring it forward, which is all it can do before the
+/// window exists, and brings it forward itself once it does.
+pub(crate) fn raiser<W: Send + Sync + 'static>(asks: futures_channel::mpsc::UnboundedSender<()>, window: Arc<std::sync::OnceLock<W>>, show: impl Fn(&W) + Send + Sync + 'static) -> impl Fn() + Send + Sync + 'static {
+    move || {
+        let _ = asks.unbounded_send(());
+        if let Some(window) = window.get() {
+            show(window);
+        }
+    }
+}
+
+/// Opens what the broker sends, one request at a time: the next waits until this one has opened its project. The broker gives up on a
+/// request when `REQUEST_TIMEOUT` passes and answers its command; the page gives up on it as long after it was sent (`deadline`),
+/// so that one the environment never finishes, a request that is never answered, does not keep every request behind it from starting.
+async fn serve(requests: &mut (impl futures_util::Stream<Item = DesktopAppActivationRequest> + Unpin), broker: &Broker, page: &dyn Dependencies, deadline: impl Fn() -> futures_util::future::LocalBoxFuture<'static, ()>) {
+    while let Some(request) = requests.next().await {
+        futures_util::select! {
+            response = handle_request(&request, page).fuse() => broker.complete(response),
+            _ = deadline().fuse() => {}
+        }
+    }
+}
+
 /// Registers the page with the shell's broker while the app's own environment is ready, and opens each request that arrives, one
 /// after the other. Nothing is drawn. The web build has no broker, and so nothing happens.
 #[component]
@@ -205,11 +228,7 @@ pub(crate) fn Coordinator(state: Store<UiModel>, transport: TransportHandle) -> 
             async move {
                 let Some(mut receiver) = receiver else { return };
                 let page = Page { state, transport, address: server_address, waiting, pause: Rc::new(|milliseconds| Box::pin(runtime::delay(milliseconds))) };
-                // One at a time: the next request waits until this one has opened its project.
-                while let Some(request) = receiver.next().await {
-                    let response = handle_request(&request, &page).await;
-                    broker.complete(response);
-                }
+                serve(&mut receiver, &broker, &page, || Box::pin(runtime::delay(REQUEST_TIMEOUT.as_millis() as u64))).await;
             }
         }
     });

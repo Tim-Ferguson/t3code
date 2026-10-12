@@ -9,7 +9,7 @@
 use std::{
     future::Future,
     path::{Component, Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     time::Duration,
 };
 use t3_contracts::{DesktopAppActivationErrorCode, DesktopAppActivationRequest, DesktopAppActivationResponse, ExecutionEnvironmentPlatformOs};
@@ -45,6 +45,8 @@ struct State {
 /// broker locked, and must not call back into it (the shell's sends on a channel).
 pub struct Broker {
     state: Mutex<State>,
+    /// Told each change of what the broker holds, one line each (`Broker::set_trace`).
+    trace: OnceLock<Box<dyn Fn(&str) + Send + Sync>>,
     timeout: Duration,
     /// Brings the window forward. Called with no lock held, for every request that is accepted.
     activate: Box<dyn Fn() + Send + Sync>,
@@ -54,7 +56,20 @@ pub struct Broker {
 
 impl Broker {
     pub fn new(runtime: tokio::runtime::Handle, timeout: Duration, activate: impl Fn() + Send + Sync + 'static) -> Arc<Self> {
-        Arc::new(Self { state: Mutex::new(State::default()), timeout, activate: Box::new(activate), runtime })
+        Arc::new(Self { state: Mutex::new(State::default()), trace: OnceLock::new(), timeout, activate: Box::new(activate), runtime })
+    }
+
+    /// Has every change of what the broker holds told to `trace` as one line, from now on (once; a second call changes nothing). A
+    /// request that never gets an answer is a matter of the order things happened in, and this is the order. Lines carry request
+    /// ids and states, never a path.
+    pub fn set_trace(&self, trace: impl Fn(&str) + Send + Sync + 'static) {
+        let _ = self.trace.set(Box::new(trace));
+    }
+
+    fn note(&self, line: impl FnOnce() -> String) {
+        if let Some(trace) = self.trace.get() {
+            trace(&line());
+        }
     }
 
     /// `request`: the answer to a request, which comes when the page completes it or one of the ways it ends happens. Everything up to
@@ -64,8 +79,10 @@ impl Broker {
         let answer = {
             let mut state = self.state.lock().unwrap();
             if state.closed {
+                self.note(|| format!("request {id}: refused, shutting down"));
                 Err(failure(&id, DesktopAppActivationErrorCode::RendererUnavailable, "T3 Code is shutting down."))
             } else if state.pending.iter().any(|pending| pending.request.request_id.as_str() == id) {
+                self.note(|| format!("request {id}: refused, id in use"));
                 Err(failure(&id, DesktopAppActivationErrorCode::InvalidRequest, "The request id is already in use."))
             } else {
                 let (resolve, receiver) = oneshot::channel();
@@ -77,12 +94,13 @@ impl Broker {
                     })
                 };
                 state.pending.push(Pending { request, resolve: Some(resolve), timer, dispatched: false });
+                self.note(|| format!("request {id}: held ({} held, page {})", state.pending.len(), if state.renderer.is_some() { "ready" } else { "not ready" }));
                 Ok(receiver)
             }
         };
         if answer.is_ok() {
             (self.activate)();
-            Self::flush(&mut self.state.lock().unwrap());
+            self.flush(&mut self.state.lock().unwrap());
         }
         async move {
             match answer {
@@ -96,16 +114,18 @@ impl Broker {
     pub fn register_renderer(&self, renderer: Renderer) {
         let mut state = self.state.lock().unwrap();
         state.renderer = Some(renderer);
-        Self::flush(&mut state);
+        self.note(|| format!("page: ready ({} held)", state.pending.len()));
+        self.flush(&mut state);
     }
 
     /// `clearRenderer` (`setReady(false)`, the window closing, the page navigating): what was sent to the page and not answered ends.
     pub fn clear_renderer(&self) {
         let mut state = self.state.lock().unwrap();
-        state.renderer = None;
+        let was_ready = state.renderer.take().is_some();
+        self.note(|| format!("page: not ready (was {}, {} held)", if was_ready { "ready" } else { "not ready" }, state.pending.len()));
         let dispatched: Vec<String> = state.pending.iter().filter(|pending| pending.dispatched).map(|pending| pending.request.request_id.as_str().to_owned()).collect();
         for id in dispatched {
-            Self::settle_in(&mut state, failure(&id, DesktopAppActivationErrorCode::RendererUnavailable, "The T3 Code window closed before it opened the project."));
+            self.settle_in(&mut state, failure(&id, DesktopAppActivationErrorCode::RendererUnavailable, "The T3 Code window closed before it opened the project."));
         }
     }
 
@@ -124,40 +144,58 @@ impl Broker {
         let mut state = self.state.lock().unwrap();
         state.closed = true;
         state.renderer = None;
+        self.note(|| format!("closed ({} held)", state.pending.len()));
         let ids: Vec<String> = state.pending.iter().map(|pending| pending.request.request_id.as_str().to_owned()).collect();
         for id in ids {
-            Self::settle_in(&mut state, failure(&id, DesktopAppActivationErrorCode::RendererUnavailable, "T3 Code is shutting down."));
+            self.settle_in(&mut state, failure(&id, DesktopAppActivationErrorCode::RendererUnavailable, "T3 Code is shutting down."));
         }
     }
 
     /// `#flush`: the first request not yet sent goes to the page, when none is out. One at a time, so that the page opens one project
     /// before it opens the next.
-    fn flush(state: &mut State) {
+    fn flush(&self, state: &mut State) {
         let Some(renderer) = state.renderer.clone() else { return };
         if state.pending.iter().any(|pending| pending.dispatched) {
             return;
         }
         let Some(pending) = state.pending.iter_mut().find(|pending| !pending.dispatched) else { return };
         pending.dispatched = true;
+        let id = pending.request.request_id.as_str().to_owned();
         if renderer(&pending.request).is_err() {
             pending.dispatched = false;
             state.renderer = None;
+            self.note(|| format!("request {id}: the page could not take it; page not ready"));
+        } else {
+            self.note(|| format!("request {id}: sent to the page"));
         }
     }
 
     fn settle(&self, response: DesktopAppActivationResponse) {
-        Self::settle_in(&mut self.state.lock().unwrap(), response);
+        self.settle_in(&mut self.state.lock().unwrap(), response);
     }
 
     /// `#settle`: ends the request the response is for, if it is still held, and sends the next.
-    fn settle_in(state: &mut State, response: DesktopAppActivationResponse) {
-        let Some(index) = state.pending.iter().position(|pending| pending.request.request_id.as_str() == response.request_id()) else { return };
+    fn settle_in(&self, state: &mut State, response: DesktopAppActivationResponse) {
+        let id = response.request_id().to_owned();
+        let Some(index) = state.pending.iter().position(|pending| pending.request.request_id.as_str() == id) else {
+            self.note(|| format!("request {id}: answered after it had ended, ignored"));
+            return;
+        };
         let mut pending = state.pending.remove(index);
         pending.timer.abort();
+        self.note(|| format!("request {id}: ended, {} ({} held)", outcome(&response), state.pending.len()));
         if let Some(resolve) = pending.resolve.take() {
             let _ = resolve.send(response);
         }
-        Self::flush(state);
+        self.flush(state);
+    }
+}
+
+/// What a response says, for the trace: `opened`, or the code it failed with.
+fn outcome(response: &DesktopAppActivationResponse) -> String {
+    match response {
+        DesktopAppActivationResponse::Success(_) => "opened".to_owned(),
+        DesktopAppActivationResponse::Failure(failure) => format!("{:?}", failure.code),
     }
 }
 
@@ -296,6 +334,9 @@ impl Config {
     }
 }
 
+/// The environment variable that has the broker's changes written to stderr (`Broker::set_trace`).
+pub const TRACE_VARIABLE: &str = "T3_DEBUG_APP_ACTIVATION";
+
 /// How often the socket is looked for again. The original watches the directory; a check is one `lstat`.
 pub const RECLAIM_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -356,6 +397,11 @@ mod service {
         pub fn start(config: &Config, activate: impl Fn() + Send + Sync + 'static) -> std::io::Result<Self> {
             let (ticks_in, ticks) = mpsc::unbounded_channel();
             let service = Self::start_with(config, REQUEST_TIMEOUT, activate, ticks)?;
+            // `T3_DEBUG_APP_ACTIVATION=1` has each change of what the broker holds written to stderr, to see the order of a request
+            // that was never answered.
+            if std::env::var_os(TRACE_VARIABLE).is_some_and(|value| !value.is_empty()) {
+                service.broker.set_trace(|line| eprintln!("t3 app: {line}"));
+            }
             // The timer that asks for a reclaim, on the service's own runtime.
             if let Some(runtime) = service.runtime.lock().unwrap().as_ref() {
                 runtime.spawn(ticker(RECLAIM_INTERVAL, ticks_in));

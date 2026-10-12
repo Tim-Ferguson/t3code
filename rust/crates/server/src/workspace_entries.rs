@@ -896,6 +896,8 @@ fn mixed(
         .collect();
     (entries, total.saturating_sub(roots) > limit)
 }
+// The extension decides, as `isWorkspaceImagePreviewPath` does; see the test of `imageOnly` outside a repository for what the index
+// does not hold.
 fn is_image(path: &str) -> bool {
     let path = path.to_lowercase();
     [
@@ -1149,6 +1151,57 @@ mod tests {
             })
             .unwrap_err();
         assert_eq!(missing.cause["cause"]["message"], "gone");
+    }
+    /// The smallest files of each image type, real bytes: `imageOnly` filters on the extension (`isWorkspaceImagePreviewPath`), but
+    /// the index it filters decides first what a file is, so these are what a picture on disk is made of.
+    fn tiny_images() -> Vec<(&'static str, Vec<u8>)> {
+        let png: &[u8] = &[
+            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, b'I', b'H', b'D', b'R', 0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 0x1f, 0x15, 0xc4, 0x89, 0, 0, 0, 0x0d, b'I',
+            b'D', b'A', b'T', 0x78, 0x9c, 0x63, 0xf8, 0xff, 0xff, 0x3f, 0, 5, 0xfe, 2, 0xfe, 0xa7, 0x35, 0x81, 0x84, 0, 0, 0, 0, b'I', b'E', b'N', b'D', 0xae, 0x42, 0x60, 0x82,
+        ];
+        let gif: &[u8] = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x00\x00\x00\xff\xff\xff!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;";
+        let jpeg: &[u8] = &[0xff, 0xd8, 0xff, 0xe0, 0, 0x10, b'J', b'F', b'I', b'F', 0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0xff, 0xd9];
+        let webp: &[u8] = b"RIFF\x1a\x00\x00\x00WEBPVP8L\x0d\x00\x00\x00/\x00\x00\x00\x10\x07\x10\x11\x11\x88\x88\xfe\x07\x00";
+        let ico: &[u8] = &[0, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 32, 0, 0, 0, 0, 0, 22, 0, 0, 0];
+        let avif: &[u8] = b"\x00\x00\x00\x1cftypavif\x00\x00\x00\x00avifmif1miaf";
+        vec![("tiny.png", png.to_vec()), ("tiny.gif", gif.to_vec()), ("tiny.jpg", jpeg.to_vec()), ("tiny.jpeg", jpeg.to_vec()), ("tiny.webp", webp.to_vec()), ("tiny.ico", ico.to_vec()), ("tiny.avif", avif.to_vec())]
+    }
+    #[tokio::test]
+    async fn image_only_search_finds_every_kind_of_image_by_its_extension_whatever_is_in_the_file() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let service = service(root);
+        git(root, &["init", "-q"]);
+        write_pictures(root);
+        let result = service.search(&search_input(root, json!({"imageOnly":true}))).unwrap();
+        let mut found = paths(&result);
+        found.sort();
+        let expected = ["empty.webp", "logo.svg", "text.png", "tiny.avif", "tiny.gif", "tiny.ico", "tiny.jpeg", "tiny.jpg", "tiny.png", "tiny.webp"].map(String::from).to_vec();
+        assert_eq!(found, expected);
+        assert_eq!(result["truncated"], false);
+    }
+    // TODO(original WorkspaceSearchIndex.ts): outside a repository the index (`fff`, the library `@ff-labs/fff-node` wraps) leaves out every
+    // file with the extension of a picture, a video, an archive or a program, so `imageOnly` there finds the `.svg` files and no others.
+    // Copied as it is: the filter is the extension, as the original's, over the files the index has.
+    #[tokio::test]
+    async fn image_only_search_outside_a_repository_finds_only_the_pictures_the_index_keeps() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let service = service(root);
+        write_pictures(root);
+        let result = service.search(&search_input(root, json!({"imageOnly":true}))).unwrap();
+        assert_eq!(paths(&result), ["logo.svg"]);
+    }
+    /// Every kind of picture as real bytes, a text file and an empty one named as pictures, and files that are not pictures.
+    fn write_pictures(root: &Path) {
+        for (name, bytes) in tiny_images() {
+            fs::write(root.join(name), bytes).unwrap();
+        }
+        write(root, "text.png", "not really a picture");
+        write(root, "empty.webp", "");
+        write(root, "logo.svg", "<svg xmlns=\"http://www.w3.org/2000/svg\"/>");
+        write(root, "notes.txt", "hello");
+        write(root, "picture.bmp", "BM");
     }
     #[tokio::test]
     async fn native_path_search_preserves_fuzzy_ignore_kind_and_image_before_limit() {

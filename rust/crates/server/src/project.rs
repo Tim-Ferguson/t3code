@@ -213,6 +213,29 @@ pub fn normalize_workspace_root(root: &str, create_if_missing: bool) -> Result<S
     crate::asset_workspace::normalize_workspace_root(root)
 }
 
+/// `ProjectService.create` and `update` before they commit: the workspace root a mutation names is made absolute and has to be a
+/// directory, and `project.create` makes it first when `createWorkspaceRootIfMissing` is true. What the project keeps is the
+/// normalized root, and the flag (which `mutate` has no use for) is gone. A mutation with no workspace root is left alone. Err is
+/// the `ProjectOperationError` (`operation: "normalize-workspace"`) that the transports wrap as the original does.
+pub fn normalize_mutation_root(payload: &mut Value) -> Result<(), Value> {
+    let kind = payload["type"].as_str().unwrap_or_default();
+    let create = kind == "project.create" && payload["createWorkspaceRootIfMissing"] == true;
+    if !matches!(kind, "project.create" | "project.update" | "project.meta.update") {
+        return Ok(());
+    }
+    if let Some(fields) = payload.as_object_mut() {
+        fields.remove("createWorkspaceRootIfMissing");
+    }
+    let Some(root) = payload["workspaceRoot"].as_str().map(str::to_owned) else { return Ok(()) };
+    let project_id = payload["projectId"].clone();
+    let normalized = normalize_workspace_root(&root, create).map_err(|cause| {
+        let message = format!("Project operation 'normalize-workspace' failed for {}.", project_id.as_str().unwrap_or_default());
+        json!({"_tag":"ProjectOperationError","operation":"normalize-workspace","projectId":project_id,"workspaceRoot":root,"cause":cause,"message":message})
+    })?;
+    payload["workspaceRoot"] = json!(normalized);
+    Ok(())
+}
+
 /// What `projects.mutate` tells the client: the error's own text, except that the refusal of a
 /// project that still has threads reads as the original words it (`Project <id> is not empty.`).
 pub fn mutation_message(error: &StoreError) -> String {

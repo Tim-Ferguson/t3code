@@ -53,3 +53,54 @@ async fn projects_are_listed_and_changed_over_http() {
     assert_eq!(snapshot["projects"], json!([]));
     h.finish().await;
 }
+
+/// `ProjectService.create` and `update` normalize the root a project is made in or moved to (`WorkspacePaths.normalizeWorkspaceRoot`)
+/// before they commit: a folder that is not there, or that is a file, is refused unless `createWorkspaceRootIfMissing` makes it, and
+/// the root kept is the absolute one. Over the socket and over HTTP alike.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_folder_that_is_not_there_is_refused_unless_the_request_makes_it() {
+    let h = harness().await;
+    let mut socket = h.connect(&h.operator).await;
+    let missing = h.base.join("missing");
+    let file = h.base.join("a-file");
+    std::fs::write(&file, "text").unwrap();
+    let create = |id: &str, root: &std::path::Path, extra: Value| {
+        let mut command = json!({"type":"project.create","commandId":id,"projectId":id,"title":"One","workspaceRoot":root});
+        command.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        command
+    };
+    let kept = || t3_server::project::ProjectService::new(h.store.clone()).list().unwrap();
+
+    let refused = rpc(&mut socket, 1, "projects.mutate", create("p1", &missing, json!({"createWorkspaceRootIfMissing":false}))).await;
+    let error = failure(&refused);
+    assert_eq!((&error["_tag"], &error["commandId"], &error["message"]), (&json!("ProjectMutationError"), &json!("p1"), &json!("Failed to mutate project.")));
+    assert_eq!((&error["cause"]["_tag"], &error["cause"]["operation"]), (&json!("ProjectOperationError"), &json!("normalize-workspace")));
+    assert_eq!(error["cause"]["cause"]["message"], format!("Workspace root does not exist: {}", missing.display()));
+    // Not asking to make it is not asking: the flag is optional and false by default.
+    let refused = rpc(&mut socket, 2, "projects.mutate", create("p2", &missing, json!({}))).await;
+    assert_eq!(failure(&refused)["cause"]["operation"], "normalize-workspace");
+    let refused = rpc(&mut socket, 3, "projects.mutate", create("p3", &file, json!({}))).await;
+    assert_eq!(failure(&refused)["cause"]["cause"]["message"], format!("Workspace root is not a directory: {}", file.display()));
+    assert!(kept().is_empty() && !missing.exists(), "nothing was kept or made");
+
+    // Over HTTP the same refusal is `invalid_command`.
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let response = client.post(format!("http://{}/api/projects/mutate", h.address)).bearer_auth(&h.operator).json(&create("p4", &missing, json!({}))).send().await.unwrap();
+    assert_eq!(response.status().as_u16(), 400);
+    assert_eq!(response.json::<Value>().await.unwrap()["reason"], "invalid_command");
+
+    // A folder asked to be made is made, and the project keeps the absolute path of it.
+    let made = rpc(&mut socket, 5, "projects.mutate", create("p5", &missing, json!({"createWorkspaceRootIfMissing":true}))).await;
+    assert_eq!(success(&made)["workspaceRoot"], json!(missing));
+    assert!(missing.is_dir());
+
+    // Moving a project is the same: to a folder that is there, but not to one that is not.
+    let there = h.base.join("there");
+    std::fs::create_dir(&there).unwrap();
+    let moved = rpc(&mut socket, 6, "projects.mutate", json!({"type":"project.update","commandId":"move","projectId":"p5","workspaceRoot":there})).await;
+    assert_eq!(success(&moved)["workspaceRoot"], json!(there));
+    let refused = rpc(&mut socket, 7, "projects.mutate", json!({"type":"project.update","commandId":"move-away","projectId":"p5","workspaceRoot":h.base.join("nowhere")})).await;
+    assert_eq!(failure(&refused)["cause"]["operation"], "normalize-workspace");
+    assert_eq!(kept()[0]["workspaceRoot"], json!(there));
+    h.finish().await;
+}

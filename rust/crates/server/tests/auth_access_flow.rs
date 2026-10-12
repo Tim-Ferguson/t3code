@@ -320,3 +320,21 @@ fn the_access_stream_follows_links_and_clients() {
         h.finish().await;
     }));
 }
+
+/// A store that cannot be read is not a credential that is no good. Pairing a browser says the first as an internal error
+/// (`browser_session_issuance_failed`, as the original does), where it said `invalid_credential` for both, so that a server that was
+/// too busy or broken to look read as a link that had expired or been used.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_pairing_the_store_cannot_complete_is_an_internal_error_and_not_a_refused_credential() {
+    let h = harness().await;
+    let credential = h.auth.create_pairing_credential(&[OrchestrationRead], Utc::now(), Duration::minutes(5)).unwrap();
+    let client = reqwest::Client::builder().no_proxy().build().unwrap();
+    let pair = |credential: String| client.post(format!("http://{}/api/auth/browser-session", h.address)).json(&json!({"credential":credential})).send();
+    // The store loses the table the links are kept in: the credential cannot be looked up, whatever it is.
+    h.store.transaction(|transaction| Ok(transaction.execute_batch("DROP TABLE rust_pairing_credentials")?)).unwrap();
+    let response = pair(credential).await.unwrap();
+    assert_eq!(response.status().as_u16(), 500);
+    let body: Value = response.json().await.unwrap();
+    assert_eq!((&body["_tag"], &body["reason"]), (&json!("EnvironmentInternalError"), &json!("browser_session_issuance_failed")));
+    h.finish().await;
+}

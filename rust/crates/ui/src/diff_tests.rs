@@ -425,7 +425,7 @@ impl Fixture {
             .create_pairing_credential(
                 scopes,
                 chrono::Utc::now(),
-                chrono::Duration::minutes(1),
+                chrono::Duration::minutes(5),
             )
             .unwrap();
         let props = Harness {

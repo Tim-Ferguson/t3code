@@ -576,7 +576,12 @@ async fn browser_session(
     let (session, token) = state
         .auth
         .exchange_pairing_credential_replacing(credential, client, Utc::now(), named_cookie(&headers, &state.auth.cookie_name))
-        .map_err(|_| unauthorized())?;
+        .map_err(|error| match error {
+            // A credential that is not good is the person's to replace; a store that could not be read or written is not the credential's
+            // fault, and says so (`browser_session_issuance_failed`).
+            crate::auth::AuthError::Invalid(_) | crate::auth::AuthError::ScopeNotGranted => unauthorized(),
+            error => internal_because("browser_session_issuance_failed", error),
+        })?;
     let grants = t3_contracts::auth_scope_response(&session.scopes);
     let mut response=Json(json!({"authenticated":true,"scopes":grants.scopes,"permissions":grants.permissions,"sessionMethod":session.method,"expiresAt":session.expires_at})).into_response();
     let cookie = format!(
@@ -637,6 +642,8 @@ async fn project_mutate(State(state): State<ApiState>, headers: HeaderMap, body:
     let id = payload["projectId"].as_str().unwrap_or_default().to_owned();
     let root_of = |projects: &ProjectService| projects.get(&id).ok().flatten().and_then(|project| project["workspaceRoot"].as_str().map(str::to_owned));
     let before = root_of(&projects);
+    let mut payload = payload;
+    crate::project::normalize_mutation_root(&mut payload).map_err(|_| invalid_request("invalid_command"))?;
     let mut project = projects.mutate(payload, Utc::now()).map_err(|error| match error {
         StoreError::InvalidCommand(_) => invalid_request("invalid_command"),
         other => internal_because("project_mutation_failed", other),
@@ -1604,10 +1611,13 @@ fn unary(state: &ApiState, request: &RpcRequest) -> Result<Value, Value> {
             let projects=ProjectService::new(state.store.clone());
             let id=request.payload["projectId"].as_str().unwrap_or_default();
             let before=projects.get(id).ok().flatten().and_then(|project|project["workspaceRoot"].as_str().map(str::to_owned));
-            let mut result=projects.mutate(request.payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)}))?;
+            // The folder a project is made in or moved to has to exist (or be made, when the request says so) before anything is kept.
+            let mut payload=request.payload.clone();
+            crate::project::normalize_mutation_root(&mut payload).map_err(|cause|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":"Failed to mutate project.","cause":cause}))?;
+            let mut result=projects.mutate(payload.clone(),Utc::now()).map_err(|error|json!({"_tag":"ProjectMutationError","commandId":request.payload["commandId"],"message":crate::project::mutation_message(&error)}))?;
             let after=projects.get(id).ok().flatten().and_then(|project|project["workspaceRoot"].as_str().map(str::to_owned));
             let enrichment=crate::shell_enrichment::service(state);
-            enrichment.invalidate(before.iter().chain(after.iter()).map(String::as_str).chain(request.payload["workspaceRoot"].as_str()));
+            enrichment.invalidate(before.iter().chain(after.iter()).map(String::as_str).chain(payload["workspaceRoot"].as_str()));
             // The project as `readCommitted` hands it back: with the identity and the icon file known so far.
             if result["deletedAt"].is_null() {crate::shell_enrichment::hydrate_projects(&enrichment,std::slice::from_mut(&mut result));}
             Ok(result)
@@ -4590,7 +4600,9 @@ mod tests {
             "synchronized"
         );
         send(&mut socket, json!({"_tag":"Ack","requestId":1})).await;
-        send(&mut socket,json!({"_tag":"Request","id":2,"tag":"projects.mutate","payload":{"type":"project.create","commandId":"project-command","projectId":"project","title":"Project","workspaceRoot":"/tmp/project"},"headers":[]})).await;
+        // A project is made in a folder that is there.
+        let workspace = tempfile::tempdir().unwrap();
+        send(&mut socket,json!({"_tag":"Request","id":2,"tag":"projects.mutate","payload":{"type":"project.create","commandId":"project-command","projectId":"project","title":"Project","workspaceRoot":workspace.path()},"headers":[]})).await;
         let a = receive(&mut socket).await;
         let b = receive(&mut socket).await;
         let (exit, update) = if a["_tag"] == "Exit" { (a, b) } else { (b, a) };

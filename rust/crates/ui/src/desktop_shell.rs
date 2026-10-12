@@ -61,8 +61,10 @@ pub(crate) struct Shell {
     activation: Option<Activation>,
 }
 
-/// `DesktopAppActivation`: the socket service, and the requests to bring the window forward it makes from its own threads, which the
-/// window's thread takes up.
+/// `DesktopAppActivation`: the socket service, and the requests to bring the window forward it makes from its own threads. The window
+/// is brought forward from there, not by the page: a window that is hidden (closing one only hides it on macOS), minimized or covered
+/// draws nothing, the webview does not report its edits drawn, and the page waits for them, so a page asked to raise its window would
+/// not run until something else had. The channel is for a request that comes before the window exists, which the page then takes up.
 #[derive(Clone)]
 struct Activation {
     #[cfg(unix)]
@@ -70,8 +72,21 @@ struct Activation {
     raised: Arc<std::sync::Mutex<Option<futures_channel::mpsc::UnboundedReceiver<()>>>>,
 }
 
+/// The window, once it exists (`Config::with_on_window`).
+type WindowSlot = Arc<std::sync::OnceLock<Arc<dioxus::desktop::tao::window::Window>>>;
+
+/// `reveal_window` for the thread that does not run the page: the window toolkit's calls are made on its own thread.
+fn show_window(window: &Arc<dioxus::desktop::tao::window::Window>) {
+    let window = window.clone();
+    t3_desktop::main_thread::on_main_thread(move || {
+        window.set_minimized(false);
+        window.set_visible(true);
+        window.set_focus();
+    });
+}
+
 /// Serves `t3 app` at the address of this app's state directory (`<T3 home>/userdata` for the command's `--base-dir`).
-fn start_activation(dirs: &AppDirs) -> Option<Activation> {
+fn start_activation(dirs: &AppDirs, window: WindowSlot) -> Option<Activation> {
     #[cfg(unix)]
     {
         // The address is named for the state directory, and the original app's own is `~/.t3/userdata`: the newest app takes an address
@@ -82,9 +97,7 @@ fn start_activation(dirs: &AppDirs) -> Option<Activation> {
         }
         let config = t3_desktop::app_activation::Config::for_process(&dirs.server_state, &env);
         let (raise, raised) = futures_channel::mpsc::unbounded();
-        match t3_desktop::app_activation::Service::start(&config, move || {
-            let _ = raise.unbounded_send(());
-        }) {
+        match t3_desktop::app_activation::Service::start(&config, crate::desktop_app_activation::raiser(raise, window, show_window)) {
             Ok(service) => Some(Activation { service: Arc::new(service), raised: Arc::new(std::sync::Mutex::new(Some(raised))) }),
             Err(error) => {
                 eprintln!("`t3 app` cannot reach this window: {error}");
@@ -94,7 +107,7 @@ fn start_activation(dirs: &AppDirs) -> Option<Activation> {
     }
     #[cfg(not(unix))]
     {
-        let _ = dirs;
+        let _ = (dirs, window);
         None
     }
 }
@@ -135,7 +148,8 @@ fn start_backend(dirs: &AppDirs) -> (Backend, Option<Arc<Exposure>>) {
         // Where the server listens is what the person chose last (`DesktopServerExposure`); the next start reads it again.
         let exposure = Arc::new(Exposure::configure(settings_path, port, Arc::new(SystemMachine), env("T3CODE_DESKTOP_LAN_HOST"), exposure::split_endpoints(&env("T3CODE_DESKTOP_HTTPS_ENDPOINTS").unwrap_or_default())));
         let launcher = ServerLauncher::new(config).with_control_channel(answers).with_binding(exposure.binding());
-        Handle::spawn(launcher, Timing::default(), true).map(|handle| (handle, exposure)).map_err(|error| format!("Cannot start the supervisor: {error}"))
+        // The signals that end the app are `termination`'s, which stops the server along with the rest; the supervisor does not also act on them.
+        Handle::spawn(launcher, Timing::default(), false).map(|handle| (handle, exposure)).map_err(|error| format!("Cannot start the supervisor: {error}"))
     })();
     match result {
         Ok((handle, exposure)) => (Backend::Supervised(handle), Some(exposure)),
@@ -162,7 +176,19 @@ pub fn launch(app: fn() -> Element) {
     };
     let (backend, exposure) = start_backend(&dirs);
     let local_environment = !matches!(backend, Backend::Off);
-    let shell = Shell { backend, dirs: dirs.clone(), ssh, exposure, local_environment, activation: start_activation(&dirs) };
+    let window_slot = WindowSlot::default();
+    let shell = Shell { backend, dirs: dirs.clone(), ssh, exposure, local_environment, activation: start_activation(&dirs, window_slot.clone()) };
+    // SIGINT and SIGTERM end the app the way quitting does (`quitFromSignal`).
+    let on_signal = shell.clone();
+    if let Err(error) = t3_desktop::termination::on_termination(move |signal| {
+        if begin_quit() {
+            eprintln!("T3 Code: {} received, quitting.", signal.name());
+            stop_services(&on_signal);
+            std::process::exit(0);
+        }
+    }) {
+        eprintln!("T3 Code cannot listen for SIGINT and SIGTERM: {error}");
+    }
     let (width, height) = saved.bounds.map_or(window_state::DEFAULT_SIZE, |bounds| (bounds.width, bounds.height));
     let mut window = WindowBuilder::new()
         .with_title(title())
@@ -183,7 +209,10 @@ pub fn launch(app: fn() -> Element) {
         .with_window(window)
         .with_menu(menu)
         .with_data_directory(dirs.webview.clone())
-        .with_on_window(move |window, _| place_window(&window, &saved));
+        .with_on_window(move |window, _| {
+            place_window(&window, &saved);
+            let _ = window_slot.set(window);
+        });
     dioxus::LaunchBuilder::desktop().with_cfg(config).with_context(shell).launch(app);
 }
 
@@ -486,6 +515,17 @@ pub(crate) fn use_shell(state: Store<UiModel>) {
         }
     });
 
+    // The event loop ending any other way, as it does when the system asks the app to terminate (the window toolkit turns SIGTERM and
+    // SIGINT into this too, beside `termination`): what quitting stops is stopped before the process goes with it.
+    use_wry_event_handler({
+        let shell = shell.clone();
+        move |event, _| {
+            if matches!(event, Event::LoopDestroyed) {
+                finish_quit(&shell);
+            }
+        }
+    });
+
     // The menu.
     let zoom = use_hook(|| Rc::new(Cell::new(1.0f64)));
     use_muda_event_handler({
@@ -560,19 +600,36 @@ fn observe(persist: &Rc<RefCell<(Tracker, Debounce)>>, size: Option<LogicalSize<
     persist.borrow_mut().0.observe(seen)
 }
 
-/// Stops the server, saves the window, and ends the process; with `relaunch` the app is started again first, once the server has let
-/// go of the state directory (`DesktopLifecycle.relaunch`).
-fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>, relaunch: bool) {
-    let pending = persist.borrow_mut().1.flush();
-    if let Some(state) = pending {
-        let _ = window_state::save(&shell.dirs.window_state, &state);
+/// Set by whatever begins quitting first (the quit action, the menu, a signal); the others leave it to that one.
+static QUITTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether this is the first to begin quitting (`wasQuitting` of the original).
+fn begin_quit() -> bool {
+    !QUITTING.swap(true, std::sync::atomic::Ordering::SeqCst)
+}
+
+/// Set when what quitting stops has been stopped.
+static STOPPED: (std::sync::Mutex<bool>, std::sync::Condvar) = (std::sync::Mutex::new(false), std::sync::Condvar::new());
+
+/// The event loop is ending and the process with it: stops what quitting stops, unless something else began that, in which case it
+/// is waited for (it ends the process itself), for as long as the stops take at most.
+fn finish_quit(shell: &Shell) {
+    if begin_quit() {
+        stop_services(shell);
+    } else {
+        let stopped = STOPPED.0.lock().unwrap();
+        let _ = STOPPED.1.wait_timeout_while(stopped, Duration::from_secs(20), |stopped| !*stopped);
     }
-    // `t3 app` stops being answered, and what it waits for is told the app is closing.
+}
+
+/// What quitting stops, whoever began it: `t3 app` stops being answered, and what it waits for is told the app is closing; the tunnels
+/// close and the servers this app started on other machines stop; and the server this app started stops, with the file naming its
+/// process id.
+fn stop_services(shell: &Shell) {
     #[cfg(unix)]
     if let Some(activation) = &shell.activation {
         activation.service.close();
     }
-    // The tunnels close, and the servers this app started on other machines stop, before the app ends.
     if let Some(ssh) = &shell.ssh {
         ssh.shutdown_blocking(Duration::from_secs(10));
     }
@@ -583,6 +640,22 @@ fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>, relaunch:
             let _ = std::fs::remove_file(&shell.dirs.server_pid);
         }
     }
+    *STOPPED.0.lock().unwrap() = true;
+    STOPPED.1.notify_all();
+}
+
+/// Stops the server, saves the window, and ends the process; with `relaunch` the app is started again first, once the server has let
+/// go of the state directory (`DesktopLifecycle.relaunch`).
+fn quit_app(shell: &Shell, persist: &Rc<RefCell<(Tracker, Debounce)>>, relaunch: bool) {
+    let pending = persist.borrow_mut().1.flush();
+    if let Some(state) = pending {
+        let _ = window_state::save(&shell.dirs.window_state, &state);
+    }
+    // A signal got here first: it ends the process when it has stopped what there is.
+    if !begin_quit() {
+        return;
+    }
+    stop_services(shell);
     if relaunch {
         if let Ok(program) = std::env::current_exe() {
             if let Err(error) = std::process::Command::new(program).args(std::env::args_os().skip(1)).stdin(std::process::Stdio::null()).spawn() {
